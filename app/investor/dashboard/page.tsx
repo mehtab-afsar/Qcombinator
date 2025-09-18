@@ -1,0 +1,392 @@
+'use client'
+
+import { useState } from 'react'
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Separator } from "@/components/ui/separator"
+import {
+  Search,
+  Filter,
+  Heart,
+  MessageCircle,
+  TrendingUp,
+  Star,
+  ChevronRight,
+  Target,
+  BarChart3,
+  Briefcase,
+  AlertCircle,
+  CheckCircle,
+  XCircle,
+  Clock,
+  Share
+} from 'lucide-react'
+import Link from 'next/link'
+
+interface Startup {
+  id: string
+  name: string
+  tagline: string
+  logo: string
+  qScore: number
+  stage: string
+  sector: string
+  location: string
+  fundingGoal: string
+  traction: string
+  matchScore: number
+  lastActive: string
+  founder: {
+    name: string
+    avatar: string
+    background: string
+  }
+  metrics: {
+    revenue: string
+    growth: string
+    customers: number
+    team: number
+  }
+  tags: string[]
+  status: 'new' | 'reviewing' | 'interested' | 'passed'
+}
+
+// Sample startup data - one example
+const mockStartups: Startup[] = [
+  {
+    id: '1',
+    name: 'TechFlow AI',
+    tagline: 'AI-powered workflow automation for enterprise teams',
+    logo: '/api/placeholder/64/64',
+    qScore: 847,
+    stage: 'Series A',
+    sector: 'AI/ML',
+    location: 'San Francisco, CA',
+    fundingGoal: '$5M',
+    traction: '$2.1M ARR',
+    matchScore: 94,
+    lastActive: '2 hours ago',
+    founder: {
+      name: 'Alex Thompson',
+      avatar: '/api/placeholder/40/40',
+      background: 'Ex-Google, Stanford CS'
+    },
+    metrics: {
+      revenue: '$2.1M ARR',
+      growth: '+180% YoY',
+      customers: 47,
+      team: 12
+    },
+    tags: ['Enterprise', 'AI/ML', 'High Growth'],
+    status: 'new'
+  }
+]
+
+export default function InvestorDashboard() {
+  const [searchTerm, setSearchTerm] = useState('')
+  const [selectedStage, setSelectedStage] = useState('all')
+  const [selectedSector, setSelectedSector] = useState('all')
+  const [viewMode, setViewMode] = useState<'list' | 'cards'>('cards')
+  const [filteredStartups, setFilteredStartups] = useState(mockStartups)
+
+  const stats = {
+    totalDeals: 1247,
+    newThisWeek: 23,
+    averageQScore: 742,
+    matchingCriteria: 89
+  }
+
+  const getStatusColor = (status: Startup['status']) => {
+    switch (status) {
+      case 'new': return 'bg-blue-100 text-blue-800'
+      case 'reviewing': return 'bg-yellow-100 text-yellow-800'
+      case 'interested': return 'bg-green-100 text-green-800'
+      case 'passed': return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  const getStatusIcon = (status: Startup['status']) => {
+    switch (status) {
+      case 'new': return <AlertCircle className="w-3 h-3" />
+      case 'reviewing': return <Clock className="w-3 h-3" />
+      case 'interested': return <CheckCircle className="w-3 h-3" />
+      case 'passed': return <XCircle className="w-3 h-3" />
+    }
+  }
+
+  const renderStartupCard = (startup: Startup) => (
+    <Card key={startup.id} className="hover:shadow-lg transition-shadow duration-200">
+      <CardHeader className="pb-4">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center space-x-3">
+            <Avatar className="h-12 w-12">
+              <AvatarImage src={startup.logo} alt={startup.name} />
+              <AvatarFallback>{startup.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-lg truncate">{startup.name}</h3>
+              <p className="text-sm text-gray-600 truncate">{startup.tagline}</p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Badge variant="outline" className={getStatusColor(startup.status)}>
+              {getStatusIcon(startup.status)}
+              <span className="ml-1 capitalize">{startup.status}</span>
+            </Badge>
+          </div>
+        </div>
+      </CardHeader>
+
+      <CardContent className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="text-center">
+            <div className="text-2xl font-bold text-blue-600">{startup.qScore}</div>
+            <div className="text-xs text-gray-500">Q Score</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-green-600">{startup.matchScore}%</div>
+            <div className="text-xs text-gray-500">Match</div>
+          </div>
+          <div className="text-center">
+            <div className="text-sm font-medium">{startup.stage}</div>
+            <div className="text-xs text-gray-500">Stage</div>
+          </div>
+          <div className="text-center">
+            <div className="text-sm font-medium">{startup.fundingGoal}</div>
+            <div className="text-xs text-gray-500">Seeking</div>
+          </div>
+        </div>
+
+        <Separator />
+
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <div className="font-medium text-gray-900">{startup.metrics.revenue}</div>
+            <div className="text-gray-500">Revenue</div>
+          </div>
+          <div>
+            <div className="font-medium text-gray-900">{startup.metrics.growth}</div>
+            <div className="text-gray-500">Growth</div>
+          </div>
+          <div>
+            <div className="font-medium text-gray-900">{startup.metrics.customers.toLocaleString()}</div>
+            <div className="text-gray-500">Customers</div>
+          </div>
+          <div>
+            <div className="font-medium text-gray-900">{startup.metrics.team}</div>
+            <div className="text-gray-500">Team Size</div>
+          </div>
+        </div>
+
+        <div className="flex items-center space-x-2">
+          <Avatar className="h-6 w-6">
+            <AvatarImage src={startup.founder.avatar} alt={startup.founder.name} />
+            <AvatarFallback>{startup.founder.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+          </Avatar>
+          <span className="text-sm font-medium">{startup.founder.name}</span>
+          <span className="text-xs text-gray-500">• {startup.founder.background}</span>
+        </div>
+
+        <div className="flex flex-wrap gap-1">
+          {startup.tags.map(tag => (
+            <Badge key={tag} variant="secondary" className="text-xs">
+              {tag}
+            </Badge>
+          ))}
+        </div>
+
+        <Separator />
+
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <Button size="sm" variant="ghost">
+              <Heart className="w-4 h-4 mr-1" />
+              Save
+            </Button>
+            <Button size="sm" variant="ghost">
+              <Share className="w-4 h-4 mr-1" />
+              Share
+            </Button>
+            <Button size="sm" variant="ghost">
+              <MessageCircle className="w-4 h-4 mr-1" />
+              Message
+            </Button>
+          </div>
+          <Link href={`/investor/startup/${startup.id}`}>
+            <Button size="sm">
+              View Details
+              <ChevronRight className="w-4 h-4 ml-1" />
+            </Button>
+          </Link>
+        </div>
+      </CardContent>
+    </Card>
+  )
+
+  return (
+    <div className="p-6 max-w-7xl mx-auto space-y-6">
+      {/* Header Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Total Deals</p>
+                <p className="text-2xl font-bold">{stats.totalDeals.toLocaleString()}</p>
+              </div>
+              <Briefcase className="w-8 h-8 text-blue-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">New This Week</p>
+                <p className="text-2xl font-bold text-green-600">{stats.newThisWeek}</p>
+              </div>
+              <TrendingUp className="w-8 h-8 text-green-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Avg Q Score</p>
+                <p className="text-2xl font-bold text-purple-600">{stats.averageQScore}</p>
+              </div>
+              <Star className="w-8 h-8 text-purple-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Matching Criteria</p>
+                <p className="text-2xl font-bold text-orange-600">{stats.matchingCriteria}%</p>
+              </div>
+              <Target className="w-8 h-8 text-orange-600" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filters and Search */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>Deal Flow Pipeline</CardTitle>
+            <div className="flex items-center space-x-2">
+              <Button variant="outline" size="sm">
+                <Filter className="w-4 h-4 mr-2" />
+                Advanced Filters
+              </Button>
+              <Button variant="outline" size="sm">
+                <BarChart3 className="w-4 h-4 mr-2" />
+                Analytics
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent>
+          <div className="flex flex-col sm:flex-row gap-4 mb-6">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <Input
+                placeholder="Search by company name, founder, or sector..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+
+            <Select value={selectedStage} onValueChange={setSelectedStage}>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="Stage" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Stages</SelectItem>
+                <SelectItem value="pre-seed">Pre-Seed</SelectItem>
+                <SelectItem value="seed">Seed</SelectItem>
+                <SelectItem value="series-a">Series A</SelectItem>
+                <SelectItem value="series-b">Series B</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={selectedSector} onValueChange={setSelectedSector}>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="Sector" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Sectors</SelectItem>
+                <SelectItem value="ai-ml">AI/ML</SelectItem>
+                <SelectItem value="healthcare">Healthcare</SelectItem>
+                <SelectItem value="fintech">Fintech</SelectItem>
+                <SelectItem value="climate">Climate</SelectItem>
+                <SelectItem value="saas">SaaS</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Tabs defaultValue="all" className="space-y-4">
+            <TabsList>
+              <TabsTrigger value="all">All Deals ({filteredStartups.length})</TabsTrigger>
+              <TabsTrigger value="new">New ({filteredStartups.filter(s => s.status === 'new').length})</TabsTrigger>
+              <TabsTrigger value="reviewing">Reviewing ({filteredStartups.filter(s => s.status === 'reviewing').length})</TabsTrigger>
+              <TabsTrigger value="interested">Interested ({filteredStartups.filter(s => s.status === 'interested').length})</TabsTrigger>
+              <TabsTrigger value="passed">Passed ({filteredStartups.filter(s => s.status === 'passed').length})</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="all" className="space-y-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                {filteredStartups.map(startup => renderStartupCard(startup))}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="new" className="space-y-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                {filteredStartups
+                  .filter(startup => startup.status === 'new')
+                  .map(startup => renderStartupCard(startup))}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="reviewing" className="space-y-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                {filteredStartups
+                  .filter(startup => startup.status === 'reviewing')
+                  .map(startup => renderStartupCard(startup))}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="interested" className="space-y-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                {filteredStartups
+                  .filter(startup => startup.status === 'interested')
+                  .map(startup => renderStartupCard(startup))}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="passed" className="space-y-4">
+              <div className="text-center py-12 text-gray-500">
+                <XCircle className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                <p>No passed deals</p>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}

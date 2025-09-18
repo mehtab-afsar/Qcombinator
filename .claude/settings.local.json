@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(find:*)",
+      "WebSearch",
+      "Bash(taskkill:*)",
+      "Bash(wmic process where:*)",
+      "Bash(npm install:*)",
+      "Bash(dir:*)",
+      "Bash(curl:*)",
+      "Bash(pip install:*)",
+      "Bash(rm:*)",
+      "Bash(tree:*)",
+      "Bash(git init:*)",
+      "Bash(git remote add:*)",
+      "Bash(git add:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
