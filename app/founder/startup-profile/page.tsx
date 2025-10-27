@@ -126,6 +126,24 @@ export default function StartupProfile() {
     targetCloseDate: ''
   });
 
+  // Load from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('startupProfile');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setData(parsed);
+      } catch (e) {
+        console.error('Failed to load saved startup profile:', e);
+      }
+    }
+  }, []);
+
+  // Save to localStorage on data change
+  useEffect(() => {
+    localStorage.setItem('startupProfile', JSON.stringify(data));
+  }, [data]);
+
   const steps = [
     { id: 'basics', title: 'Company Basics', time: 3, icon: Building2 },
     { id: 'problem-solution', title: 'Problem & Solution', time: 5, icon: Target },
@@ -202,7 +220,12 @@ export default function StartupProfile() {
     }));
   };
 
+  // Set to true to disable validation during development
+  const DEV_MODE = true;
+
   const canContinue = () => {
+    if (DEV_MODE) return true; // Skip validation in dev mode
+
     switch (currentStep) {
       case 0:
         return data.companyName && data.industry && data.oneLiner && data.stage;
@@ -834,6 +857,258 @@ export default function StartupProfile() {
                     </div>
                   </>
                 )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Step 5: Team */}
+          {currentStep === 4 && (
+            <Card className="w-full">
+              <CardHeader className="text-center">
+                <CardTitle className="text-2xl flex items-center justify-center space-x-2">
+                  <Users className="h-6 w-6 text-indigo-600" />
+                  <span>Team</span>
+                </CardTitle>
+                <p className="text-gray-600">The people building this startup</p>
+              </CardHeader>
+              <CardContent className="space-y-6">
+
+                <div>
+                  <Label htmlFor="teamSize">Current team size *</Label>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-2">
+                    {['Just me', '2-3 people', '4-6 people', '7+ people'].map((size) => (
+                      <button
+                        key={size}
+                        onClick={() => updateData('teamSize', size)}
+                        className={`p-3 border-2 rounded-lg text-sm transition-all ${
+                          data.teamSize === size
+                            ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        {size}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-start space-x-3">
+                    <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
+                    <div>
+                      <h4 className="font-medium text-blue-900">Co-founder Information</h4>
+                      <p className="text-sm text-blue-700 mt-1">
+                        Add co-founder details including their LinkedIn profiles, roles, and equity split. This helps us understand your team's complementary skills.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <Label>Key team members & advisors</Label>
+                  <p className="text-sm text-gray-600 mb-3">List any notable team members, advisors, or domain experts</p>
+                  <div className="space-y-3">
+                    <Input
+                      placeholder="Type name and role, press Enter (e.g., Jane Smith - Former VP Eng at Google)"
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          const value = (e.target as HTMLInputElement).value.trim();
+                          if (value && !data.advisors.includes(value)) {
+                            addToArray('advisors', value);
+                            (e.target as HTMLInputElement).value = '';
+                          }
+                        }
+                      }}
+                    />
+                    <div className="space-y-2">
+                      {data.advisors.map((advisor, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center justify-between bg-gray-50 text-gray-800 text-sm px-4 py-3 rounded-lg"
+                        >
+                          <span>{advisor}</span>
+                          <button
+                            onClick={() => removeFromArray('advisors', index)}
+                            className="text-gray-400 hover:text-red-500"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="equitySplit">Equity split among co-founders</Label>
+                  <Input
+                    id="equitySplit"
+                    placeholder="e.g., 50/50 between 2 co-founders, or 40/30/30"
+                    value={data.equitySplit}
+                    onChange={(e) => updateData('equitySplit', e.target.value)}
+                    className="mt-1"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Optional but recommended for transparency</p>
+                </div>
+
+                <div>
+                  <Label>Key hires needed in next 12 months</Label>
+                  <p className="text-sm text-gray-600 mb-3">What critical roles do you need to fill?</p>
+                  <div className="space-y-3">
+                    <Input
+                      placeholder="Type role and press Enter (e.g., Head of Sales, Senior Backend Engineer)"
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          const value = (e.target as HTMLInputElement).value.trim();
+                          if (value && !data.keyHires.includes(value)) {
+                            addToArray('keyHires', value);
+                            (e.target as HTMLInputElement).value = '';
+                          }
+                        }
+                      }}
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      {data.keyHires.map((hire, index) => (
+                        <span
+                          key={index}
+                          className="inline-flex items-center bg-indigo-100 text-indigo-800 text-sm px-3 py-1 rounded-full"
+                        >
+                          {hire}
+                          <button
+                            onClick={() => removeFromArray('keyHires', index)}
+                            className="ml-2 text-indigo-500 hover:text-red-500"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Step 6: Fundraising */}
+          {currentStep === 5 && (
+            <Card className="w-full">
+              <CardHeader className="text-center">
+                <CardTitle className="text-2xl flex items-center justify-center space-x-2">
+                  <DollarSign className="h-6 w-6 text-green-600" />
+                  <span>Fundraising</span>
+                </CardTitle>
+                <p className="text-gray-600">Your current funding needs and situation</p>
+              </CardHeader>
+              <CardContent className="space-y-6">
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <Label htmlFor="raisingAmount">How much are you raising? *</Label>
+                    <div className="flex items-center mt-1">
+                      <DollarSign className="h-4 w-4 text-gray-400 absolute ml-3 z-10" />
+                      <Input
+                        id="raisingAmount"
+                        placeholder="e.g., $500,000"
+                        value={data.raisingAmount}
+                        onChange={(e) => updateData('raisingAmount', e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="targetCloseDate">Target close date</Label>
+                    <div className="flex items-center mt-1">
+                      <Calendar className="h-4 w-4 text-gray-400 absolute ml-3 z-10" />
+                      <Input
+                        id="targetCloseDate"
+                        type="month"
+                        value={data.targetCloseDate}
+                        onChange={(e) => updateData('targetCloseDate', e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="useOfFunds">Use of funds *</Label>
+                  <p className="text-sm text-gray-600 mb-3">Break down how you'll allocate the capital</p>
+                  <Textarea
+                    id="useOfFunds"
+                    placeholder="Example:&#10;• Product Development (40%) - $200K&#10;• Sales & Marketing (30%) - $150K&#10;• Team Expansion (20%) - $100K&#10;• Operations & Runway (10%) - $50K"
+                    value={data.useOfFunds}
+                    onChange={(e) => updateData('useOfFunds', e.target.value)}
+                    className="mt-1"
+                    rows={6}
+                  />
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    <p className="text-xs text-gray-500 w-full mb-1">Quick add common categories:</p>
+                    {useOfFundsOptions.map((option) => (
+                      <button
+                        key={option}
+                        onClick={() => {
+                          const current = data.useOfFunds;
+                          const newLine = current ? '\n' : '';
+                          updateData('useOfFunds', `${current}${newLine}• ${option}: `);
+                        }}
+                        className="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded border border-gray-300"
+                      >
+                        + {option}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="previousFunding">Previous funding raised</Label>
+                  <Input
+                    id="previousFunding"
+                    placeholder="e.g., $100K from friends & family, or 'Bootstrapped'"
+                    value={data.previousFunding}
+                    onChange={(e) => updateData('previousFunding', e.target.value)}
+                    className="mt-1"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="runwayRemaining">Current runway remaining</Label>
+                  <div className="grid grid-cols-2 gap-3 mt-2">
+                    {['Less than 3 months', '3-6 months', '6-12 months', '12+ months'].map((runway) => (
+                      <button
+                        key={runway}
+                        onClick={() => updateData('runwayRemaining', runway)}
+                        className={`p-3 border-2 rounded-lg text-sm transition-all ${
+                          data.runwayRemaining === runway
+                            ? 'border-green-500 bg-green-50 text-green-700'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        {runway}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <div className="flex items-start space-x-3">
+                    <AlertCircle className="h-5 w-5 text-yellow-600 mt-0.5" />
+                    <div>
+                      <h4 className="font-medium text-yellow-900">Investor Matching</h4>
+                      <p className="text-sm text-yellow-700 mt-1">
+                        Based on your profile, we'll match you with relevant investors in our network who invest in your stage, industry, and geography.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200 rounded-lg p-6 text-center">
+                  <CheckCircle className="h-12 w-12 text-green-600 mx-auto mb-3" />
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">Almost done!</h3>
+                  <p className="text-gray-600 mb-4">
+                    Complete your startup profile to unlock AI-powered insights and investor matching
+                  </p>
+                </div>
               </CardContent>
             </Card>
           )}
