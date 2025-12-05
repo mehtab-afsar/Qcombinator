@@ -29,10 +29,10 @@ export default function LandingPage() {
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div className="flex items-center space-x-4">
             <div className="relative">
-              {/* Aesthetic Q Combinator Logo */}
-              <div className="h-12 w-12 bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/30">
+              {/* Elegant Edge Alpha Logo */}
+              <div className="h-12 w-12 bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/30 transform transition-transform hover:scale-105">
                 <div className="relative">
-                  <span className="text-white font-black text-xl">Q</span>
+                  <span className="text-white font-black text-[10px] tracking-tighter leading-none">EDGE</span>
                   <div className="absolute -top-1 -right-1 h-3 w-3 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full animate-pulse"></div>
                 </div>
               </div>
@@ -41,7 +41,7 @@ export default function LandingPage() {
               <div className="absolute -bottom-1 -right-1 h-2 w-2 bg-purple-400 rounded-full animate-bounce" style={{animationDelay: '0.5s'}}></div>
             </div>
             <div className="flex flex-col">
-              <span className="text-2xl font-black text-gray-900 tracking-tight">Q Combinator</span>
+              <span className="text-2xl font-black text-gray-900 tracking-tight">Edge Alpha</span>
               <div className="text-xs text-blue-600 font-semibold tracking-wide">AI-POWERED FUNDING PLATFORM</div>
             </div>
           </div>

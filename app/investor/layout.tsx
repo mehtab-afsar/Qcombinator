@@ -1,3 +1,6 @@
+"use client";
+
+import { usePathname } from "next/navigation";
 import InvestorSidebar from "@/components/layout/investor-sidebar";
 
 export default function InvestorLayout({
@@ -5,6 +8,15 @@ export default function InvestorLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const pathname = usePathname();
+
+  // Hide sidebar during onboarding
+  const hideSidebar = pathname.includes('/onboarding');
+
+  if (hideSidebar) {
+    return <>{children}</>;
+  }
+
   return (
     <div className="flex h-screen bg-gray-50">
       <div className="w-80 flex-shrink-0">

@@ -132,13 +132,13 @@ export default function FounderOnboarding() {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-6">
         <Card className="w-full max-w-2xl">
           <CardContent className="p-8 text-center space-y-6">
-            <div className="h-16 w-16 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center mx-auto">
-              <span className="text-white font-bold text-2xl">Q</span>
+            <div className="h-16 w-16 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-blue-500/30 transform transition-transform hover:scale-105">
+              <span className="text-white font-black text-xs tracking-tighter leading-none">EDGE</span>
             </div>
 
             <div className="space-y-4">
               <h1 className="text-3xl font-bold text-gray-900">
-                {focusOnScore ? 'Discover Your Q Score' : 'Welcome to Qcombinator'}
+                {focusOnScore ? 'Discover Your Q Score' : 'Welcome to Edge Alpha'}
               </h1>
               <p className="text-lg text-gray-600">
                 {focusOnScore
@@ -194,11 +194,20 @@ export default function FounderOnboarding() {
             </div>
 
             <Button
-              onClick={() => setShowWelcome(false)}
+              onClick={() => {
+                if (focusOnScore) {
+                  // For Q Score flow, skip onboarding and go directly to assessment
+                  router.push('/founder/assessment?focus=score');
+                } else {
+                  // For full evaluation, continue with onboarding steps
+                  setShowWelcome(false);
+                  setCurrentStep(1);
+                }
+              }}
               className="w-full"
               size="lg"
             >
-              Let's Get Started
+              {focusOnScore ? 'Calculate My Q Score' : 'Let\'s Get Started'}
               <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
 
@@ -218,11 +227,11 @@ export default function FounderOnboarding() {
         <div className="max-w-4xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <div className="h-8 w-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">Q</span>
+              <div className="h-8 w-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center shadow-md shadow-blue-500/20">
+                <span className="text-white font-black text-[8px] tracking-tighter leading-none">EDGE</span>
               </div>
               <div>
-                <div className="font-semibold text-gray-900">Qcombinator</div>
+                <div className="font-semibold text-gray-900">Edge Alpha</div>
                 <div className="text-xs text-gray-600">{steps[currentStep].description}</div>
               </div>
             </div>

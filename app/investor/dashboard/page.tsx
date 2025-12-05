@@ -27,6 +27,7 @@ import {
   Share
 } from 'lucide-react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
 interface Startup {
   id: string
@@ -56,7 +57,7 @@ interface Startup {
   status: 'new' | 'reviewing' | 'interested' | 'passed'
 }
 
-// Sample startup data - one example
+// Sample startup data - expanded mock data
 const mockStartups: Startup[] = [
   {
     id: '1',
@@ -84,10 +85,146 @@ const mockStartups: Startup[] = [
     },
     tags: ['Enterprise', 'AI/ML', 'High Growth'],
     status: 'new'
+  },
+  {
+    id: '2',
+    name: 'HealthTech Pro',
+    tagline: 'Remote patient monitoring and care coordination platform',
+    logo: '/api/placeholder/64/64',
+    qScore: 792,
+    stage: 'Seed',
+    sector: 'Healthcare',
+    location: 'Boston, MA',
+    fundingGoal: '$2M',
+    traction: '$450K ARR',
+    matchScore: 88,
+    lastActive: '5 hours ago',
+    founder: {
+      name: 'Dr. Sarah Chen',
+      avatar: '/api/placeholder/40/40',
+      background: 'Ex-Kaiser, Harvard Med'
+    },
+    metrics: {
+      revenue: '$450K ARR',
+      growth: '+240% YoY',
+      customers: 23,
+      team: 8
+    },
+    tags: ['Healthcare', 'B2B', 'SaaS'],
+    status: 'reviewing'
+  },
+  {
+    id: '3',
+    name: 'FinanceOS',
+    tagline: 'Next-gen financial planning software for SMBs',
+    logo: '/api/placeholder/64/64',
+    qScore: 821,
+    stage: 'Series A',
+    sector: 'Fintech',
+    location: 'New York, NY',
+    fundingGoal: '$8M',
+    traction: '$3.5M ARR',
+    matchScore: 91,
+    lastActive: '1 day ago',
+    founder: {
+      name: 'Michael Rodriguez',
+      avatar: '/api/placeholder/40/40',
+      background: 'Ex-Goldman, Wharton MBA'
+    },
+    metrics: {
+      revenue: '$3.5M ARR',
+      growth: '+150% YoY',
+      customers: 340,
+      team: 18
+    },
+    tags: ['Fintech', 'SaaS', 'Profitable'],
+    status: 'interested'
+  },
+  {
+    id: '4',
+    name: 'GreenEnergy Labs',
+    tagline: 'Smart grid optimization using AI and IoT',
+    logo: '/api/placeholder/64/64',
+    qScore: 768,
+    stage: 'Pre-Seed',
+    sector: 'Climate',
+    location: 'Austin, TX',
+    fundingGoal: '$1.5M',
+    traction: '$120K ARR',
+    matchScore: 85,
+    lastActive: '3 hours ago',
+    founder: {
+      name: 'Emily Watson',
+      avatar: '/api/placeholder/40/40',
+      background: 'Ex-Tesla, MIT'
+    },
+    metrics: {
+      revenue: '$120K ARR',
+      growth: '+320% YoY',
+      customers: 12,
+      team: 5
+    },
+    tags: ['CleanTech', 'Hardware', 'IoT'],
+    status: 'new'
+  },
+  {
+    id: '5',
+    name: 'DataHub Analytics',
+    tagline: 'Real-time data analytics for e-commerce businesses',
+    logo: '/api/placeholder/64/64',
+    qScore: 805,
+    stage: 'Seed',
+    sector: 'SaaS',
+    location: 'Seattle, WA',
+    fundingGoal: '$3M',
+    traction: '$890K ARR',
+    matchScore: 89,
+    lastActive: '4 hours ago',
+    founder: {
+      name: 'James Park',
+      avatar: '/api/placeholder/40/40',
+      background: 'Ex-Amazon, Berkeley'
+    },
+    metrics: {
+      revenue: '$890K ARR',
+      growth: '+210% YoY',
+      customers: 67,
+      team: 10
+    },
+    tags: ['Analytics', 'SaaS', 'B2B'],
+    status: 'reviewing'
+  },
+  {
+    id: '6',
+    name: 'SecureCloud',
+    tagline: 'Enterprise-grade cybersecurity platform for cloud infrastructure',
+    logo: '/api/placeholder/64/64',
+    qScore: 836,
+    stage: 'Series A',
+    sector: 'Cybersecurity',
+    location: 'Palo Alto, CA',
+    fundingGoal: '$6M',
+    traction: '$2.8M ARR',
+    matchScore: 92,
+    lastActive: '6 hours ago',
+    founder: {
+      name: 'David Kim',
+      avatar: '/api/placeholder/40/40',
+      background: 'Ex-Palo Alto Networks, CMU'
+    },
+    metrics: {
+      revenue: '$2.8M ARR',
+      growth: '+190% YoY',
+      customers: 89,
+      team: 15
+    },
+    tags: ['Security', 'Enterprise', 'DevOps'],
+    status: 'new'
   }
 ]
 
 export default function InvestorDashboard() {
+  const router = useRouter()
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedStage, setSelectedStage] = useState('all')
   const [selectedSector, setSelectedSector] = useState('all')
@@ -217,12 +354,10 @@ export default function InvestorDashboard() {
               Message
             </Button>
           </div>
-          <Link href={`/investor/startup/${startup.id}`}>
-            <Button size="sm">
-              View Details
-              <ChevronRight className="w-4 h-4 ml-1" />
-            </Button>
-          </Link>
+          <Button size="sm" onClick={() => router.push(`/investor/startup/${startup.id}`)}>
+            View Details
+            <ChevronRight className="w-4 h-4 ml-1" />
+          </Button>
         </div>
       </CardContent>
     </Card>

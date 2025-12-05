@@ -126,11 +126,11 @@ export default function InvestorSidebar({ className }: InvestorSidebarProps) {
       {/* Logo Section */}
       <div className="p-6 border-b border-gray-100">
         <div className="flex items-center space-x-3">
-          <div className="h-8 w-8 bg-gradient-to-br from-purple-600 to-pink-600 rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-sm">Q</span>
+          <div className="h-8 w-8 bg-gradient-to-br from-purple-600 to-pink-600 rounded-lg flex items-center justify-center shadow-md shadow-purple-500/20 transition-transform hover:scale-105">
+            <span className="text-white font-black text-[8px] tracking-tighter leading-none">EDGE</span>
           </div>
           <div className="flex-1">
-            <div className="font-semibold text-gray-900">Qcombinator</div>
+            <div className="font-semibold text-gray-900">Edge Alpha</div>
             <div className="text-xs text-purple-600 font-medium">Investor Portal</div>
           </div>
         </div>

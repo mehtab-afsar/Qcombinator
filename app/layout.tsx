@@ -9,7 +9,7 @@ const manrope = Manrope({
 });
 
 export const metadata: Metadata = {
-  title: "Qcombinator | AI-Powered Startup-Investor Matching Platform",
+  title: "Edge Alpha | AI-Powered Startup-Investor Matching Platform",
   description: "The most intelligent platform connecting founders with investors through AI-powered analysis and matching",
 };
 
