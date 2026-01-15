@@ -8,19 +8,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Brain,
   FileText,
-  TrendingUp,
   Zap,
   CheckCircle,
   AlertCircle,
   ArrowRight,
   Download,
-  Share,
   Edit,
   Play,
   BarChart3,
   Target,
-  Users,
-  DollarSign,
   Lightbulb,
   RefreshCw
 } from "lucide-react";
@@ -43,7 +39,6 @@ interface AIAnalysis {
 export default function AIEnhancementStation() {
   const [currentTab, setCurrentTab] = useState('analysis');
   const [isAnalyzing, setIsAnalyzing] = useState(true);
-  const [analysisComplete, setAnalysisComplete] = useState(false);
 
   const [aiAnalysis] = useState<AIAnalysis>({
     overallScore: 742,
@@ -80,29 +75,11 @@ export default function AIEnhancementStation() {
     // Simulate AI analysis
     const timer = setTimeout(() => {
       setIsAnalyzing(false);
-      setAnalysisComplete(true);
     }, 3000);
 
     return () => clearTimeout(timer);
   }, []);
 
-  const generatedMaterials = {
-    onePager: {
-      title: "TechCorp AI One-Pager",
-      preview: "AI-powered accounting automation for SMBs",
-      status: "generated"
-    },
-    pitchDeck: {
-      title: "Series A Pitch Deck",
-      slides: 12,
-      status: "generated"
-    },
-    financialModel: {
-      title: "5-Year Financial Model",
-      projections: "Revenue, costs, and funding requirements",
-      status: "generated"
-    }
-  };
 
   const practiceQuestions = [
     {

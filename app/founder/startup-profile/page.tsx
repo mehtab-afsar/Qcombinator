@@ -66,7 +66,7 @@ interface StartupData {
   waitlist: string;
 
   // Team
-  coFounders: any[];
+  coFounders: Array<{ name: string; role: string; linkedin?: string; equity: number }>;
   advisors: string[];
   teamSize: string;
   keyHires: string[];
@@ -202,7 +202,7 @@ export default function StartupProfile() {
     }
   };
 
-  const updateData = (field: keyof StartupData, value: any) => {
+  const updateData = (field: keyof StartupData, value: string | number | string[]) => {
     setData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -427,7 +427,7 @@ export default function StartupProfile() {
                   <Target className="h-6 w-6 text-orange-600" />
                   <span>Problem & Solution</span>
                 </CardTitle>
-                <p className="text-gray-600">The core of your startup's value proposition</p>
+                <p className="text-gray-600">The core of your startup&apos;s value proposition</p>
               </CardHeader>
               <CardContent className="space-y-6">
 
@@ -683,7 +683,7 @@ export default function StartupProfile() {
               <CardContent className="space-y-6">
 
                 <div>
-                  <Label>What's your current traction status? *</Label>
+                  <Label>What&apos;s your current traction status? *</Label>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
                     <button
                       onClick={() => updateData('tractionType', 'pre-revenue')}
@@ -898,7 +898,7 @@ export default function StartupProfile() {
                     <div>
                       <h4 className="font-medium text-blue-900">Co-founder Information</h4>
                       <p className="text-sm text-blue-700 mt-1">
-                        Add co-founder details including their LinkedIn profiles, roles, and equity split. This helps us understand your team's complementary skills.
+                        Add co-founder details including their LinkedIn profiles, roles, and equity split. This helps us understand your team&apos;s complementary skills.
                       </p>
                     </div>
                   </div>
@@ -1033,7 +1033,7 @@ export default function StartupProfile() {
 
                 <div>
                   <Label htmlFor="useOfFunds">Use of funds *</Label>
-                  <p className="text-sm text-gray-600 mb-3">Break down how you'll allocate the capital</p>
+                  <p className="text-sm text-gray-600 mb-3">Break down how you&apos;ll allocate the capital</p>
                   <Textarea
                     id="useOfFunds"
                     placeholder="Example:&#10;• Product Development (40%) - $200K&#10;• Sales & Marketing (30%) - $150K&#10;• Team Expansion (20%) - $100K&#10;• Operations & Runway (10%) - $50K"
@@ -1096,7 +1096,7 @@ export default function StartupProfile() {
                     <div>
                       <h4 className="font-medium text-yellow-900">Investor Matching</h4>
                       <p className="text-sm text-yellow-700 mt-1">
-                        Based on your profile, we'll match you with relevant investors in our network who invest in your stage, industry, and geography.
+                        Based on your profile, we&apos;ll match you with relevant investors in our network who invest in your stage, industry, and geography.
                       </p>
                     </div>
                   </div>

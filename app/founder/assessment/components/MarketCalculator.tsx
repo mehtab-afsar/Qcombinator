@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { TrendingUp, DollarSign, AlertTriangle, CheckCircle, Calculator } from "lucide-react";
+import { DollarSign, AlertTriangle, CheckCircle, Calculator } from "lucide-react";
 
 interface MarketCalculatorProps {
   data: {
@@ -16,7 +16,7 @@ interface MarketCalculatorProps {
     customerLifetimeMonths: number;
     validationChecks: string[];
   };
-  onChange: (field: string, value: any) => void;
+  onChange: (field: string, value: number | string[]) => void;
 }
 
 export function MarketCalculator({ data, onChange }: MarketCalculatorProps) {
@@ -103,7 +103,7 @@ export function MarketCalculator({ data, onChange }: MarketCalculatorProps) {
           Bottom-Up Market Sizing
         </h3>
         <p className="text-gray-600 text-sm">
-          Let's calculate your realistic 18-month revenue target. Use <strong>conservative numbers</strong>
+          Let&apos;s calculate your realistic 18-month revenue target. Use <strong>conservative numbers</strong>
           — investors prefer honesty over optimism.
         </p>
       </div>
@@ -129,7 +129,7 @@ export function MarketCalculator({ data, onChange }: MarketCalculatorProps) {
               className="mt-1"
             />
             <p className="text-xs text-gray-600 mt-1">
-              Be specific: "500-person tech companies in the US" not "all SMBs"
+              Be specific: &quot;500-person tech companies in the US&quot; not &quot;all SMBs&quot;
             </p>
           </div>
         </div>
@@ -161,7 +161,7 @@ export function MarketCalculator({ data, onChange }: MarketCalculatorProps) {
                 calculations.dailyConversations <= 5 ? 'text-yellow-600' :
                 'text-red-600'
               }`}>
-                That's {calculations.dailyConversations.toFixed(1)} conversations per work day
+                That&apos;s {calculations.dailyConversations.toFixed(1)} conversations per work day
                 {calculations.dailyConversations > 5 && ' - is this realistic?'}
               </p>
             )}
@@ -350,7 +350,7 @@ export function MarketCalculator({ data, onChange }: MarketCalculatorProps) {
         <p className="text-sm text-gray-700">
           <strong className="text-gray-900">Why we ask this:</strong> Inflated market sizing
           is the #1 red flag for investors. Bottom-up calculations (your actual capacity to
-          reach customers) are much more credible than top-down TAM claims. This shows you've
+          reach customers) are much more credible than top-down TAM claims. This shows you&apos;ve
           thought through the execution realistically.
         </p>
       </div>

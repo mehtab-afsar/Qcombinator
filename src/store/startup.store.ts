@@ -32,6 +32,7 @@ interface StartupState {
       field: K,
       value: StartupProfileData[K]
     ) => void;
+    updateMultipleFields: (updates: Partial<StartupProfileData>) => void;
     addToArray: <K extends keyof StartupProfileData>(
       field: K,
       value: string
@@ -136,6 +137,12 @@ export const useStartupStore = create<StartupState>()(
         updateField: (field, value) => {
           set((state) => ({
             data: { ...state.data, [field]: value },
+          }));
+        },
+
+        updateMultipleFields: (updates) => {
+          set((state) => ({
+            data: { ...state.data, ...updates },
           }));
         },
 

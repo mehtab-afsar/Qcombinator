@@ -141,7 +141,7 @@ class FeatureFlagCircuitBreaker {
 
   private rollback(featureName: keyof typeof FeatureFlags) {
     // Disable the feature
-    (FeatureFlags as any)[featureName] = false;
+    (FeatureFlags as Record<string, boolean | number>)[featureName] = false;
 
     // Alert monitoring service
     fetch('/api/alerts/circuit-breaker', {
@@ -210,16 +210,16 @@ export function useFeatureFlag(featureName: keyof typeof FeatureFlags): boolean 
  * Usage: toggleFeature('USE_NEW_PROBLEM_ORIGIN', true)
  */
 if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-  (window as any).toggleFeature = (
+  (window as unknown as Record<string, unknown>).toggleFeature = (
     featureName: keyof typeof FeatureFlags,
     value: boolean
   ) => {
-    (FeatureFlags as any)[featureName] = value;
+    (FeatureFlags as Record<string, boolean | number>)[featureName] = value;
     console.log(`✅ Feature "${featureName}" set to: ${value}`);
     console.log('Reload page to see changes');
   };
 
-  (window as any).showFeatureFlags = () => {
+  (window as unknown as Record<string, unknown>).showFeatureFlags = () => {
     console.table(FeatureFlags);
   };
 

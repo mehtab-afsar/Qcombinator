@@ -318,7 +318,7 @@ export default function InvestorMatching() {
             <div className="text-center py-12 text-gray-500">
               <Heart className="w-12 h-12 mx-auto mb-4 text-gray-300" />
               <p>No saved investors yet</p>
-              <p className="text-sm">Start saving investors you're interested in connecting with</p>
+              <p className="text-sm">Start saving investors you&apos;re interested in connecting with</p>
             </div>
           </TabsContent>
         </Tabs>

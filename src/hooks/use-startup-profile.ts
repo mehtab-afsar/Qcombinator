@@ -15,7 +15,7 @@ export interface StepInfo {
   id: string;
   title: string;
   time: number;
-  icon: any;
+  icon: React.ComponentType<{ className?: string }> | null;
 }
 
 export const STEPS: StepInfo[] = [
@@ -252,7 +252,7 @@ export function useStartupProfile() {
   );
 
   const addCoFounder = useCallback(
-    (coFounder: any) => {
+    (coFounder: { name: string; role: string; linkedin?: string; equity: number }) => {
       actions.updateField('coFounders', [...data.coFounders, coFounder]);
     },
     [data.coFounders, actions]
@@ -269,7 +269,7 @@ export function useStartupProfile() {
   );
 
   const updateCoFounder = useCallback(
-    (index: number, updates: any) => {
+    (index: number, updates: Partial<{ name: string; role: string; linkedin?: string; equity: number }>) => {
       const updated = [...data.coFounders];
       updated[index] = { ...updated[index], ...updates };
       actions.updateField('coFounders', updated);

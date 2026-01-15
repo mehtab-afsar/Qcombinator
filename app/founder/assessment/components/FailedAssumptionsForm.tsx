@@ -39,7 +39,7 @@ export function FailedAssumptionsForm({ data, onChange }: FailedAssumptionsFormP
       <Alert className="bg-blue-50 border-blue-200">
         <Lightbulb className="h-4 w-4 text-blue-600" />
         <AlertDescription className="text-blue-800">
-          <strong>Don't worry about looking wrong!</strong> Admitting mistakes shows learning
+          <strong>Don&apos;t worry about looking wrong!</strong> Admitting mistakes shows learning
           velocity - one of the top traits investors look for. Every successful founder has
           a graveyard of failed assumptions.
         </AlertDescription>
@@ -59,10 +59,10 @@ export function FailedAssumptionsForm({ data, onChange }: FailedAssumptionsFormP
             <strong>Why I believed it:</strong> <em>Every demo of AI features gets oohs and aahs at conferences</em>
           </div>
           <div>
-            <strong>What I discovered:</strong> <em>They don't trust AI with their financials. One customer said, "I need to know exactly why this got categorized as 'Travel' not 'Meals.' Black box AI scares me for taxes."</em>
+            <strong>What I discovered:</strong> <em>They don&apos;t trust AI with their financials. One customer said, &quot;I need to know exactly why this got categorized as &apos;Travel&apos; not &apos;Meals.&apos; Black box AI scares me for taxes.&quot;</em>
           </div>
           <div>
-            <strong>How it changed my approach:</strong> <em>We now show AI confidence scores and let users set rules. Adoption went from 12% to 67% in two weeks. Turns out they want "AI-assisted" not "AI-automated."</em>
+            <strong>How it changed my approach:</strong> <em>We now show AI confidence scores and let users set rules. Adoption went from 12% to 67% in two weeks. Turns out they want &quot;AI-assisted&quot; not &quot;AI-automated.&quot;</em>
           </div>
         </div>
       </details>
@@ -155,7 +155,7 @@ export function FailedAssumptionsForm({ data, onChange }: FailedAssumptionsFormP
             <Alert>
               <AlertDescription>
                 <strong>Tip:</strong> If possible, add numbers to show the impact
-                (e.g., "adoption increased from 10% to 50%" or "2x faster conversion")
+                (e.g., &quot;adoption increased from 10% to 50%&quot; or &quot;2x faster conversion&quot;)
               </AlertDescription>
             </Alert>
           )}
@@ -166,7 +166,7 @@ export function FailedAssumptionsForm({ data, onChange }: FailedAssumptionsFormP
       <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
         <p className="text-sm text-gray-700">
           <strong className="text-gray-900">Why we ask this:</strong> Eric Ries (Lean Startup)
-          found that the speed from "hypothesis → customer feedback → pivot" is the #1 predictor
+          found that the speed from &quot;hypothesis → customer feedback → pivot&quot; is the #1 predictor
           of early-stage success. Founders who can admit they were wrong and adapt quickly
           dramatically outperform those who stick to the plan.
         </p>

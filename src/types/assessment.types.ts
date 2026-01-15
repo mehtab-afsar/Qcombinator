@@ -60,7 +60,7 @@ export interface AssessmentSection {
   title: string;
   category: string;
   time: number;
-  icon: any;
+  icon: React.ComponentType<{ className?: string }>;
   points: number;
 }
 
@@ -123,13 +123,14 @@ export interface QScore {
 // FORM COMPONENT PROPS
 // ============================================================================
 
-export interface FormStepProps<T = any> {
+export interface FormStepProps<T = string | number | Date | null | string[]> {
   value: T;
   onChange: (value: T) => void;
   errors?: ValidationError[];
   isLoading?: boolean;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface ProblemOriginProps extends FormStepProps<string> {}
 
 export interface UniqueAdvantageProps {
@@ -152,7 +153,7 @@ export interface CustomerEvidenceData {
 
 export interface CustomerEvidenceProps {
   data: CustomerEvidenceData;
-  onChange: (field: keyof CustomerEvidenceData, value: any) => void;
+  onChange: (field: keyof CustomerEvidenceData, value: string | Date | null | number | string[]) => void;
   errors?: ValidationError[];
 }
 

@@ -85,7 +85,7 @@ export default function InvestorOnboarding() {
   const totalSteps = 4
   const progress = (currentStep / totalSteps) * 100
 
-  const updateFormData = (field: keyof FormData, value: any) => {
+  const updateFormData = (field: keyof FormData, value: string | number | string[]) => {
     setFormData(prev => ({ ...prev, [field]: value }))
   }
 
@@ -147,7 +147,7 @@ export default function InvestorOnboarding() {
           <Shield className="w-8 h-8 text-blue-600" />
         </div>
         <CardTitle className="text-2xl">Welcome to Q Combinator</CardTitle>
-        <p className="text-gray-600">Let's verify your investor credentials and get you started</p>
+        <p className="text-gray-600">Let&apos;s verify your investor credentials and get you started</p>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="grid grid-cols-2 gap-4">
@@ -437,7 +437,7 @@ export default function InvestorOnboarding() {
             Investment Thesis
           </Label>
           <p className="text-sm text-gray-600 mb-2">
-            What types of companies and opportunities excite you? What's your core investment philosophy?
+            What types of companies and opportunities excite you? What&apos;s your core investment philosophy?
           </p>
           <Textarea
             id="thesis"
@@ -470,7 +470,7 @@ export default function InvestorOnboarding() {
               Decision Process
             </Label>
             <p className="text-sm text-gray-600 mb-2">
-              What's your typical investment decision timeline?
+              What&apos;s your typical investment decision timeline?
             </p>
             <Select value={formData.decisionProcess} onValueChange={(value) => updateFormData('decisionProcess', value)}>
               <SelectTrigger>
@@ -511,7 +511,7 @@ export default function InvestorOnboarding() {
           <h4 className="font-medium text-gray-900 mb-2">🎯 AI-Powered Matching</h4>
           <p className="text-sm text-gray-600">
             Based on your preferences, our AI will surface the most relevant startups and provide compatibility scores.
-            You'll receive personalized deal flow that matches your thesis and criteria.
+            You&apos;ll receive personalized deal flow that matches your thesis and criteria.
           </p>
         </div>
 

@@ -53,8 +53,8 @@ export function HardestMomentInput({
       {!hasAdversity && value.length > 50 && (
         <Alert>
           <AlertDescription>
-            <strong>Tip:</strong> Include words that show real difficulty ("failed", "rejected",
-            "ran out of money", "crisis", etc.). We want to understand the true challenges you faced.
+            <strong>Tip:</strong> Include words that show real difficulty (&quot;failed&quot;, &quot;rejected&quot;,
+            &quot;ran out of money&quot;, &quot;crisis&quot;, etc.). We want to understand the true challenges you faced.
           </AlertDescription>
         </Alert>
       )}

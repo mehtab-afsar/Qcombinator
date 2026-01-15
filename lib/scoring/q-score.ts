@@ -84,7 +84,7 @@ export interface StartupProfileData {
 
   // Team
   teamSize: string;
-  coFounders: any[];
+  coFounders: Array<{ name: string; role: string; linkedin?: string; equity: number }>;
   equitySplit: string;
 
   // Fundraising

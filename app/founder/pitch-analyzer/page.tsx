@@ -1,6 +1,6 @@
-'use client'
+'use client';
 
-import { useState } from 'react'
+import { useState } from 'react';
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -204,7 +204,7 @@ export default function PitchAnalyzer() {
       <div className="max-w-6xl mx-auto space-y-6">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">AI Pitch Analysis Results</h1>
-          <p className="text-gray-600">Here's how your pitch performed across key areas</p>
+          <p className="text-gray-600">Here&apos;s how your pitch performed across key areas</p>
         </div>
 
         {/* Overall Score */}
@@ -338,6 +338,7 @@ export default function PitchAnalyzer() {
       </div>
     </div>
   )
+}
 
   return (
     <div className="p-6 min-h-screen bg-gray-50">

@@ -197,7 +197,7 @@ export class GroqAIService {
     }
   }
 
-  async generateInvestorMatch(startupProfile: any, investorProfile: any): Promise<{
+  async generateInvestorMatch(startupProfile: Record<string, unknown>, investorProfile: Record<string, unknown>): Promise<{
     matchScore: number
     reasoning: string
     alignmentFactors: string[]

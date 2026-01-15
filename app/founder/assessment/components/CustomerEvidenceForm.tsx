@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Users, CheckCircle, AlertCircle, Calendar } from "lucide-react";
+import { CheckCircle, AlertCircle, Calendar } from "lucide-react";
 
 interface CustomerEvidenceFormProps {
   data: {
@@ -17,7 +17,7 @@ interface CustomerEvidenceFormProps {
     conversationCount: number;
     customerList: string[];
   };
-  onChange: (field: string, value: any) => void;
+  onChange: (field: string, value: string | number | Date | null | string[]) => void;
 }
 
 export function CustomerEvidenceForm({ data, onChange }: CustomerEvidenceFormProps) {
@@ -68,8 +68,8 @@ export function CustomerEvidenceForm({ data, onChange }: CustomerEvidenceFormPro
         <div className="mt-3 text-sm text-purple-800 space-y-2">
           <p><strong>Customer:</strong> Sarah Chen, Head of Finance at 50-person SaaS company</p>
           <p><strong>When:</strong> January 15, 2025</p>
-          <p><strong>Quote:</strong> <em>"We're literally paying someone $4,000/month just to reconcile vendor invoices because our AP system doesn't talk to our procurement software. It's insane. If you can cut that time by even 50%, we'd switch immediately."</em></p>
-          <p><strong>Surprised me:</strong> <em>I thought the pain point was invoice matching, but it's actually the lack of real-time sync between systems. They don't even care about AI features—they just want automatic data flow.</em></p>
+          <p><strong>Quote:</strong> <em>&quot;We&apos;re literally paying someone $4,000/month just to reconcile vendor invoices because our AP system doesn&apos;t talk to our procurement software. It&apos;s insane. If you can cut that time by even 50%, we&apos;d switch immediately.&quot;</em></p>
+          <p><strong>Surprised me:</strong> <em>I thought the pain point was invoice matching, but it&apos;s actually the lack of real-time sync between systems. They don&apos;t even care about AI features—they just want automatic data flow.</em></p>
           <p><strong>Commitment:</strong> Yes, she signed an LOI for $500/month once we have a working prototype.</p>
         </div>
       </details>
@@ -145,7 +145,7 @@ export function CustomerEvidenceForm({ data, onChange }: CustomerEvidenceFormPro
             <Alert className="bg-green-50 border-green-200">
               <CheckCircle className="h-4 w-4 text-green-600" />
               <AlertDescription className="text-green-800">
-                <strong>Strong pain signal detected!</strong> Customers using words like "nightmare" or "insane"
+                <strong>Strong pain signal detected!</strong> Customers using words like &quot;nightmare&quot; or &quot;insane&quot;
                 indicate deep frustration - exactly what investors look for.
               </AlertDescription>
             </Alert>
@@ -305,10 +305,10 @@ export function CustomerEvidenceForm({ data, onChange }: CustomerEvidenceFormPro
       {/* Why we ask */}
       <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
         <p className="text-sm text-gray-700">
-          <strong className="text-gray-900">Why we ask this:</strong> First Round Capital's
+          <strong className="text-gray-900">Why we ask this:</strong> First Round Capital&apos;s
           analysis of 300+ investments found that founders who talk to 50+ customers before
           building have a 3.5x higher survival rate. Detailed customer evidence separates
-          real founders from "idea people."
+          real founders from &quot;idea people.&quot;
         </p>
       </div>
     </div>

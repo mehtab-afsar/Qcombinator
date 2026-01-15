@@ -25,7 +25,7 @@ export function WhatKeptGoingInput({
   return (
     <div className="space-y-2">
       <Label htmlFor="what-kept-going">
-        What kept you going? Why didn't you quit? *
+        What kept you going? Why didn&apos;t you quit? *
       </Label>
       <p className="text-xs text-gray-600 mt-1 mb-2">
         Be specific about your motivation. What made you push through?
@@ -53,7 +53,7 @@ export function WhatKeptGoingInput({
       {!hasIntrinsicMotivation && value.length > 30 && (
         <Alert>
           <AlertDescription>
-            <strong>Tip:</strong> Connect to your deeper "why" - belief in the mission,
+            <strong>Tip:</strong> Connect to your deeper &quot;why&quot; - belief in the mission,
             commitment to customers, or the importance of the problem. Intrinsic motivation
             outlasts external rewards.
           </AlertDescription>
@@ -83,7 +83,7 @@ export function WhatKeptGoingInput({
               </>
             ) : (
               <AlertDescription className="text-yellow-800">
-                <strong>Consider your deeper "why":</strong> What would make you keep going even
+                <strong>Consider your deeper &quot;why&quot;:</strong> What would make you keep going even
                 if the business struggled? Connection to the problem, belief in the mission, or
                 commitment to your customers?
               </AlertDescription>

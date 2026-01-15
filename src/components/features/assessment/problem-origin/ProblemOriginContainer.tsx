@@ -34,8 +34,8 @@ export function ProblemOriginContainer() {
       <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
         <p className="text-sm text-gray-700">
           <strong className="text-gray-900">Why we ask this:</strong> Investors look for founders
-          who are "in the problem" - you've personally experienced the pain and understand it
-          deeply. This is the #1 predictor of startup success according to Y Combinator's analysis
+          who are &quot;in the problem&quot; - you&apos;ve personally experienced the pain and understand it
+          deeply. This is the #1 predictor of startup success according to Y Combinator&apos;s analysis
           of 3,000+ companies.
         </p>
       </div>

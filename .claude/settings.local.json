@@ -16,7 +16,17 @@
       "Bash(git init:*)",
       "Bash(git remote add:*)",
       "Bash(git add:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(ls:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run lint:*)",
+      "Bash(npx eslint:*)",
+      "Bash(awk:*)",
+      "Bash(npx tsc:*)",
+      "Bash(chmod:*)",
+      "Bash(/Users/mohammedmehtabafsar/Desktop/Qcombinator/fix-lint-errors.sh)",
+      "Bash(/Users/mohammedmehtabafsar/Desktop/Qcombinator/fix-final-errors.sh)"
     ],
     "deny": [],
     "ask": []

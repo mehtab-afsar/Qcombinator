@@ -430,7 +430,7 @@ export default function FounderOnboarding() {
                     Ready to Begin, {data.firstName}!
                   </h1>
                   <p className="text-lg text-gray-600">
-                    Your Q Score journey starts now. We'll analyze your startup across multiple dimensions.
+                    Your Q Score journey starts now. We&apos;ll analyze your startup across multiple dimensions.
                   </p>
                 </div>
 

@@ -77,7 +77,7 @@ export interface StartupProfileSection {
   id: string;
   title: string;
   time: number;
-  icon: any;
+  icon: React.ComponentType<{ className?: string }> | null;
 }
 
 export type StartupSectionId =

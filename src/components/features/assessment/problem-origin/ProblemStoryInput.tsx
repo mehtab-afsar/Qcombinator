@@ -33,15 +33,15 @@ export function ProblemStoryInput({
         </summary>
         <div className="mt-3 text-sm text-blue-800 space-y-2">
           <p className="italic">
-            "In 2022, I was running procurement for a 200-person startup. Every month, our finance
+            &quot;In 2022, I was running procurement for a 200-person startup. Every month, our finance
             team spent 40+ hours manually reconciling purchase orders with invoices across 15
             different vendor systems. We had $2M in duplicate payments in one year because of this
-            chaos."
+            chaos.&quot;
           </p>
           <p className="italic">
-            "I built a spreadsheet automation that saved us 30 hours/month, and when I shared it
-            on LinkedIn, 50 other procurement managers asked for it within 48 hours. That's when I
-            realized this wasn't just our problem."
+            &quot;I built a spreadsheet automation that saved us 30 hours/month, and when I shared it
+            on LinkedIn, 50 other procurement managers asked for it within 48 hours. That&apos;s when I
+            realized this wasn&apos;t just our problem.&quot;
           </p>
           <p className="font-medium text-blue-900 mt-2">Why this is strong:</p>
           <ul className="list-disc list-inside space-y-1">
@@ -82,7 +82,7 @@ export function ProblemStoryInput({
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
                 <strong>Tip:</strong> Add specific numbers to make your story more concrete (e.g.,
-                "spent 20 hours/week" or "$50K/year wasted")
+                &quot;spent 20 hours/week&quot; or &quot;$50K/year wasted&quot;)
               </AlertDescription>
             </Alert>
           )}

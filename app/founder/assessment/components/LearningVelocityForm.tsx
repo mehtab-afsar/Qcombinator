@@ -4,7 +4,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Zap, Clock, TrendingUp, CheckCircle, AlertCircle } from "lucide-react";
+import { Zap, Clock, CheckCircle, AlertCircle } from "lucide-react";
 
 interface LearningVelocityFormProps {
   data: {
@@ -15,7 +15,7 @@ interface LearningVelocityFormProps {
     learned: string;
     changed: string;
   };
-  onChange: (field: string, value: any) => void;
+  onChange: (field: string, value: string | number) => void;
 }
 
 export function LearningVelocityForm({ data, onChange }: LearningVelocityFormProps) {
@@ -57,9 +57,9 @@ export function LearningVelocityForm({ data, onChange }: LearningVelocityFormPro
         <div className="mt-3 text-sm text-green-800 space-y-2">
           <p><strong>What I tested:</strong> <em>Figma mockup of invoice-matching flow</em></p>
           <p><strong>Time to build/test:</strong> <em>3 days to design, 2 days to get 5 customer reviews = 5 days total</em></p>
-          <p><strong>How I measured:</strong> <em>Confusion points (where they asked "what does this do?") and time to complete test task (goal: under 2 minutes)</em></p>
-          <p><strong>Results:</strong> <em>4 out of 5 customers didn't understand the "Smart Match" button. Average task time: 4 minutes (goal was &lt;2 min)</em></p>
-          <p><strong>What I learned:</strong> <em>"Smart" means nothing to them. They wanted to see "Auto-match 47 invoices" (specific number showing what would happen)</em></p>
+          <p><strong>How I measured:</strong> <em>Confusion points (where they asked &quot;what does this do?&quot;) and time to complete test task (goal: under 2 minutes)</em></p>
+          <p><strong>Results:</strong> <em>4 out of 5 customers didn&apos;t understand the &quot;Smart Match&quot; button. Average task time: 4 minutes (goal was &lt;2 min)</em></p>
+          <p><strong>What I learned:</strong> <em>&quot;Smart&quot; means nothing to them. They wanted to see &quot;Auto-match 47 invoices&quot; (specific number showing what would happen)</em></p>
           <p><strong>What I changed:</strong> <em>Replaced button copy, showed count. Next test: 5/5 understood immediately, task completion dropped to 1.5 min.</em></p>
         </div>
       </details>
@@ -199,7 +199,7 @@ export function LearningVelocityForm({ data, onChange }: LearningVelocityFormPro
               <Alert className="mt-2">
                 <AlertDescription>
                   <strong>Tip:</strong> Be more specific about what you changed
-                  (e.g., "button", "feature", "flow", "copy")
+                  (e.g., &quot;button&quot;, &quot;feature&quot;, &quot;flow&quot;, &quot;copy&quot;)
                 </AlertDescription>
               </Alert>
             )}

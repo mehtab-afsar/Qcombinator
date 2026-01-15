@@ -13,7 +13,7 @@ interface ResilienceFormProps {
     quitScale: number;
     whatKeptGoing: string;
   };
-  onChange: (field: string, value: any) => void;
+  onChange: (field: string, value: string | number) => void;
 }
 
 export function ResilienceForm({ data, onChange }: ResilienceFormProps) {
@@ -58,7 +58,7 @@ export function ResilienceForm({ data, onChange }: ResilienceFormProps) {
       <Alert className="bg-purple-50 border-purple-200">
         <Heart className="h-4 w-4 text-purple-600" />
         <AlertDescription className="text-purple-800">
-          <strong>You're not alone.</strong> Every successful founder has an "almost quit" story.
+          <strong>You&apos;re not alone.</strong> Every successful founder has an &quot;almost quit&quot; story.
           What matters is what kept you going.
         </AlertDescription>
       </Alert>
@@ -70,16 +70,16 @@ export function ResilienceForm({ data, onChange }: ResilienceFormProps) {
           See an example
         </summary>
         <div className="mt-3 text-sm text-green-800 space-y-2">
-          <p><strong>Hardest moment:</strong> <em>After 8 months of building, our first 5 beta customers churned within 2 weeks. One literally said "this is unusable." I had quit my $200K job at Google, burned through $50K in savings, and my co-founder was questioning if we should shut down. I spent 3 days questioning everything.</em></p>
-          <p><strong>How close to quitting:</strong> <em>8/10 - Very close. Had the "we're shutting down" email drafted.</em></p>
-          <p><strong>What kept me going:</strong> <em>I called all 5 churned customers for exit interviews. Each said the same thing: "The problem is massive, we just needed X feature." I realized we'd built for what WE thought they needed, not what they actually needed. The problem was real, our solution was wrong. That's fixable. We rebuilt in 3 weeks with those insights, and 3 of those 5 came back.</em></p>
+          <p><strong>Hardest moment:</strong> <em>After 8 months of building, our first 5 beta customers churned within 2 weeks. One literally said &quot;this is unusable.&quot; I had quit my $200K job at Google, burned through $50K in savings, and my co-founder was questioning if we should shut down. I spent 3 days questioning everything.</em></p>
+          <p><strong>How close to quitting:</strong> <em>8/10 - Very close. Had the &quot;we&apos;re shutting down&quot; email drafted.</em></p>
+          <p><strong>What kept me going:</strong> <em>I called all 5 churned customers for exit interviews. Each said the same thing: &quot;The problem is massive, we just needed X feature.&quot; I realized we&apos;d built for what WE thought they needed, not what they actually needed. The problem was real, our solution was wrong. That&apos;s fixable. We rebuilt in 3 weeks with those insights, and 3 of those 5 came back.</em></p>
         </div>
       </details>
 
       {/* Hardest Moment Story */}
       <div>
         <Label htmlFor="hardest-moment">
-          What's been the hardest moment in your startup journey so far? *
+          What&apos;s been the hardest moment in your startup journey so far? *
         </Label>
         <p className="text-xs text-gray-600 mt-1 mb-2">
           Be honest and specific. When? What happened? How did you feel?
@@ -99,7 +99,7 @@ export function ResilienceForm({ data, onChange }: ResilienceFormProps) {
           {hasAdversity && (
             <div className="flex items-center space-x-2 text-blue-600 text-sm">
               <CheckCircle className="h-4 w-4" />
-              <span>Real adversity - exactly what we're looking for</span>
+              <span>Real adversity - exactly what we&apos;re looking for</span>
             </div>
           )}
         </div>
@@ -108,8 +108,8 @@ export function ResilienceForm({ data, onChange }: ResilienceFormProps) {
       {!hasAdversity && data.hardestMoment.length > 50 && (
         <Alert>
           <AlertDescription>
-            <strong>Tip:</strong> Include words that show real difficulty ("failed", "rejected",
-            "ran out of money", "crisis", etc.). We want to understand the true challenges you faced.
+            <strong>Tip:</strong> Include words that show real difficulty (&quot;failed&quot;, &quot;rejected&quot;,
+            &quot;ran out of money&quot;, &quot;crisis&quot;, etc.). We want to understand the true challenges you faced.
           </AlertDescription>
         </Alert>
       )}
@@ -155,7 +155,7 @@ export function ResilienceForm({ data, onChange }: ResilienceFormProps) {
         <div className="mt-3 bg-gray-50 rounded-lg p-3">
           <p className="text-xs text-gray-700">
             <strong>Note:</strong> 7-9 scores highly. It shows you faced real adversity but
-            persevered. A score of 1-2 might mean you haven't been tested yet.
+            persevered. A score of 1-2 might mean you haven&apos;t been tested yet.
           </p>
         </div>
       </div>
@@ -163,7 +163,7 @@ export function ResilienceForm({ data, onChange }: ResilienceFormProps) {
       {/* What Kept You Going */}
       <div>
         <Label htmlFor="what-kept-going">
-          What kept you going? Why didn't you quit? *
+          What kept you going? Why didn&apos;t you quit? *
         </Label>
         <p className="text-xs text-gray-600 mt-1 mb-2">
           Be specific about your motivation. What made you push through?
@@ -192,7 +192,7 @@ export function ResilienceForm({ data, onChange }: ResilienceFormProps) {
       {!hasIntrinsicMotivation && data.whatKeptGoing.length > 30 && (
         <Alert>
           <AlertDescription>
-            <strong>Tip:</strong> Connect to your deeper "why" - belief in the mission,
+            <strong>Tip:</strong> Connect to your deeper &quot;why&quot; - belief in the mission,
             commitment to customers, or the importance of the problem. Intrinsic motivation
             outlasts external rewards.
           </AlertDescription>
@@ -221,7 +221,7 @@ export function ResilienceForm({ data, onChange }: ResilienceFormProps) {
             ) : (
               <>
                 <AlertDescription className="text-yellow-800">
-                  <strong>Consider your deeper "why":</strong> What would make you keep going even
+                  <strong>Consider your deeper &quot;why&quot;:</strong> What would make you keep going even
                   if the business struggled? Connection to the problem, belief in the mission, or
                   commitment to your customers?
                 </AlertDescription>
@@ -236,8 +236,8 @@ export function ResilienceForm({ data, onChange }: ResilienceFormProps) {
         <p className="text-sm text-gray-700">
           <strong className="text-gray-900">Why we ask this:</strong> Startups are brutal.
           The average founder faces rejection hundreds of times. What separates successful
-          founders from failed ones isn't avoiding adversity - it's the determination to push
-          through it. Investors want to know you won't quit when things get hard (and they will).
+          founders from failed ones isn&apos;t avoiding adversity - it&apos;s the determination to push
+          through it. Investors want to know you won&apos;t quit when things get hard (and they will).
         </p>
       </div>
     </div>

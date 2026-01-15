@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -58,16 +57,16 @@ export function ProblemOriginForm({ value, onChange }: ProblemOriginFormProps) {
         </summary>
         <div className="mt-3 text-sm text-blue-800 space-y-2">
           <p className="italic">
-            "In 2022, I was running procurement for a 200-person startup.
+            &quot;In 2022, I was running procurement for a 200-person startup.
             Every month, our finance team spent 40+ hours manually reconciling
             purchase orders with invoices across 15 different vendor systems.
-            We had $2M in duplicate payments in one year because of this chaos."
+            We had $2M in duplicate payments in one year because of this chaos.&quot;
           </p>
           <p className="italic">
-            "I built a spreadsheet automation that saved us 30 hours/month,
+            &quot;I built a spreadsheet automation that saved us 30 hours/month,
             and when I shared it on LinkedIn, 50 other procurement managers
-            asked for it within 48 hours. That's when I realized this wasn't
-            just our problem."
+            asked for it within 48 hours. That&apos;s when I realized this wasn&apos;t
+            just our problem.&quot;
           </p>
           <p className="font-medium text-blue-900 mt-2">
             Why this is strong:
@@ -112,7 +111,7 @@ export function ProblemOriginForm({ value, onChange }: ProblemOriginFormProps) {
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
                 <strong>Tip:</strong> Add specific numbers to make your story more concrete
-                (e.g., "spent 20 hours/week" or "$50K/year wasted")
+                (e.g., &quot;spent 20 hours/week&quot; or &quot;$50K/year wasted&quot;)
               </AlertDescription>
             </Alert>
           )}
@@ -133,9 +132,9 @@ export function ProblemOriginForm({ value, onChange }: ProblemOriginFormProps) {
       <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
         <p className="text-sm text-gray-700">
           <strong className="text-gray-900">Why we ask this:</strong> Investors look for
-          founders who are "in the problem" - you've personally experienced the pain and
+          founders who are &quot;in the problem&quot; - you&apos;ve personally experienced the pain and
           understand it deeply. This is the #1 predictor of startup success according to
-          Y Combinator's analysis of 3,000+ companies.
+          Y Combinator&apos;s analysis of 3,000+ companies.
         </p>
       </div>
     </div>

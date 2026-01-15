@@ -1,6 +1,4 @@
 "use client";
-
-import { useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -85,7 +83,7 @@ export function UniqueAdvantageForm({
         </h3>
         <p className="text-gray-600 text-sm">
           Why are <strong>YOU</strong> specifically the right person to solve this problem?
-          What do you know or have access to that others don't?
+          What do you know or have access to that others don&apos;t?
         </p>
       </div>
 
@@ -143,7 +141,7 @@ export function UniqueAdvantageForm({
             </Label>
             <Textarea
               id="advantage-explanation"
-              placeholder="Example: 'I was a senior engineer at Stripe for 4 years working on SMB payments. I personally onboarded 200+ merchants and kept hearing the same complaint about accounting reconciliation. I stayed in touch with 15 of them as early design partners, and 8 have already signed LOIs...'"
+              placeholder="Example: &apos;I was a senior engineer at Stripe for 4 years working on SMB payments. I personally onboarded 200+ merchants and kept hearing the same complaint about accounting reconciliation. I stayed in touch with 15 of them as early design partners, and 8 have already signed LOIs...&apos;"
               value={explanation}
               onChange={(e) => onExplanationChange(e.target.value)}
               className="mt-1 min-h-[150px]"
@@ -175,7 +173,7 @@ export function UniqueAdvantageForm({
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription>
                     <strong>Tip:</strong> Add specific numbers to strengthen your example
-                    (e.g., "4 years at Company X" or "200+ customers")
+                    (e.g., &quot;4 years at Company X&quot; or &quot;200+ customers&quot;)
                   </AlertDescription>
                 </Alert>
               )}
@@ -186,7 +184,7 @@ export function UniqueAdvantageForm({
                   <Zap className="h-4 w-4" />
                   <AlertDescription>
                     <strong>Pro tip:</strong> If any customers have signed LOIs or committed,
-                    mention that! It's extremely strong validation.
+                    mention that! It&apos;s extremely strong validation.
                   </AlertDescription>
                 </Alert>
               )}
@@ -201,15 +199,15 @@ export function UniqueAdvantageForm({
             </summary>
             <div className="mt-3 text-sm text-green-800 space-y-2">
               <p className="italic">
-                "Technical skills to build + Customer relationships. I was a senior engineer
+                &quot;Technical skills to build + Customer relationships. I was a senior engineer
                 at Stripe for 4 years working on their SMB payments infrastructure. I personally
                 onboarded 200+ small business merchants and kept hearing the same complaint:
-                'Accounting reconciliation is a nightmare.'"
+                &apos;Accounting reconciliation is a nightmare.&apos;&quot;
               </p>
               <p className="italic">
-                "I stayed in touch with 15 of them as early design partners, and 8 have already
+                &quot;I stayed in touch with 15 of them as early design partners, and 8 have already
                 signed LOIs to switch to our product once it launches. Two are former colleagues
-                who now run accounting firms and can refer us to 50+ clients each."
+                who now run accounting firms and can refer us to 50+ clients each.&quot;
               </p>
               <p className="font-medium text-green-900 mt-2">Why this is strong:</p>
               <ul className="list-disc list-inside space-y-1">
@@ -227,7 +225,7 @@ export function UniqueAdvantageForm({
       {/* Why we ask */}
       <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
         <p className="text-sm text-gray-700">
-          <strong className="text-gray-900">Why we ask this:</strong> "Unfair advantages"
+          <strong className="text-gray-900">Why we ask this:</strong> &quot;Unfair advantages&quot;
           are what separate successful startups from the 1,000 others trying to solve the
           same problem. First Round Capital found that founders with domain expertise reach
           product-market fit 2.1x faster.

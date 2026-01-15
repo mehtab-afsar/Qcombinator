@@ -35,7 +35,7 @@ export function AdvantageExplanation({
         </Label>
         <Textarea
           id="advantage-explanation"
-          placeholder="Example: 'I was a senior engineer at Stripe for 4 years working on SMB payments. I personally onboarded 200+ merchants and kept hearing the same complaint about accounting reconciliation. I stayed in touch with 15 of them as early design partners, and 8 have already signed LOIs...'"
+          placeholder="Example: &apos;I was a senior engineer at Stripe for 4 years working on SMB payments. I personally onboarded 200+ merchants and kept hearing the same complaint about accounting reconciliation. I stayed in touch with 15 of them as early design partners, and 8 have already signed LOIs...&apos;"
           value={value}
           onChange={(e) => onChange(e.target.value)}
           className="mt-1 min-h-[150px]"
@@ -58,8 +58,8 @@ export function AdvantageExplanation({
             <Alert>
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
-                <strong>Tip:</strong> Add specific numbers to strengthen your example (e.g., "4
-                years at Company X" or "200+ customers")
+                <strong>Tip:</strong> Add specific numbers to strengthen your example (e.g., &quot;4
+                years at Company X&quot; or &quot;200+ customers&quot;)
               </AlertDescription>
             </Alert>
           )}
@@ -69,7 +69,7 @@ export function AdvantageExplanation({
               <Zap className="h-4 w-4" />
               <AlertDescription>
                 <strong>Pro tip:</strong> If any customers have signed LOIs or committed, mention
-                that! It's extremely strong validation.
+                that! It&apos;s extremely strong validation.
               </AlertDescription>
             </Alert>
           )}
@@ -84,15 +84,15 @@ export function AdvantageExplanation({
         </summary>
         <div className="mt-3 text-sm text-green-800 space-y-2">
           <p className="italic">
-            "Technical skills to build + Customer relationships. I was a senior engineer at Stripe
+            &quot;Technical skills to build + Customer relationships. I was a senior engineer at Stripe
             for 4 years working on their SMB payments infrastructure. I personally onboarded 200+
-            small business merchants and kept hearing the same complaint: 'Accounting
-            reconciliation is a nightmare.'"
+            small business merchants and kept hearing the same complaint: &apos;Accounting
+            reconciliation is a nightmare.&apos;&quot;
           </p>
           <p className="italic">
-            "I stayed in touch with 15 of them as early design partners, and 8 have already signed
+            &quot;I stayed in touch with 15 of them as early design partners, and 8 have already signed
             LOIs to switch to our product once it launches. Two are former colleagues who now run
-            accounting firms and can refer us to 50+ clients each."
+            accounting firms and can refer us to 50+ clients each.&quot;
           </p>
           <p className="font-medium text-green-900 mt-2">Why this is strong:</p>
           <ul className="list-disc list-inside space-y-1">

@@ -54,7 +54,7 @@ export function QuitScaleSlider({ value, onChange, description }: QuitScaleSlide
       <div className="mt-3 bg-gray-50 rounded-lg p-3">
         <p className="text-xs text-gray-700">
           <strong>Note:</strong> 7-9 scores highly. It shows you faced real adversity but
-          persevered. A score of 1-2 might mean you haven't been tested yet.
+          persevered. A score of 1-2 might mean you haven&apos;t been tested yet.
         </p>
       </div>
     </div>

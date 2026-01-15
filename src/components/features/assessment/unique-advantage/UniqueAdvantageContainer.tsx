@@ -27,7 +27,7 @@ export function UniqueAdvantageContainer() {
         <h3 className="text-xl font-semibold text-gray-900 mb-2">Your Unique Advantages</h3>
         <p className="text-gray-600 text-sm">
           Why are <strong>YOU</strong> specifically the right person to solve this problem? What do
-          you know or have access to that others don't?
+          you know or have access to that others don&apos;t?
         </p>
       </div>
 
@@ -50,7 +50,7 @@ export function UniqueAdvantageContainer() {
       {/* Why we ask */}
       <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
         <p className="text-sm text-gray-700">
-          <strong className="text-gray-900">Why we ask this:</strong> "Unfair advantages" are what
+          <strong className="text-gray-900">Why we ask this:</strong> &quot;Unfair advantages&quot; are what
           separate successful startups from the 1,000 others trying to solve the same problem.
           First Round Capital found that founders with domain expertise reach product-market fit
           2.1x faster.

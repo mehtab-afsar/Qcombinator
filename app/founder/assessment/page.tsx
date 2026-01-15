@@ -210,7 +210,7 @@ export default function FounderAssessment() {
     }
   };
 
-  const updateData = (field: keyof NewAssessmentData, value: any) => {
+  const updateData = (field: keyof NewAssessmentData, value: string | number | Date | null | string[]) => {
     setData(prev => ({ ...prev, [field]: value }));
   };
 

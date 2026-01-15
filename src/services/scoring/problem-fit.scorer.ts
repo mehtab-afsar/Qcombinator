@@ -127,15 +127,13 @@ export class ProblemFitScorer {
   private static scoreQuantification(story: string): number {
     let score = 0;
 
-    const hasNumbers = extractNumbers(story).length > 0;
-
     if (hasQuantification(story)) {
       score += 20; // Quantified impact with units
 
       // Specificity bonus for multiple numbers
       const numberCount = extractNumbers(story).length;
       score += Math.min(numberCount * 2, 10); // Up to 10 bonus points
-    } else if (hasNumbers) {
+    } else if (extractNumbers(story).length > 0) {
       score += 10; // Some quantification
     }
 

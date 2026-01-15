@@ -56,7 +56,17 @@ export default function FounderDashboard() {
     matches: { current: 0, previous: 0, change: 0 }
   };
 
-  const recentActivity: any[] = [];
+  type ActivityItem = {
+    id: number;
+    icon: React.ComponentType<{ className?: string }>;
+    investor: string;
+    message: string;
+    time: string;
+    priority: 'high' | 'medium' | 'low';
+    type: string;
+  };
+
+  const recentActivity: ActivityItem[] = [];
 
   // Sample investor match data - one example
   const investorMatches = [
@@ -190,7 +200,7 @@ export default function FounderDashboard() {
                 <div className="space-y-1">
                   <div className="flex items-center space-x-2">
                     <TrendingUp className="h-4 w-4" />
-                    <span className="text-sm">+{qScore.current - qScore.previousWeek} this week</span>
+                    <span className="text-sm">+{(qScore.current || 0) - (qScore.previousWeek || 0)} this week</span>
                   </div>
                   <div className="text-sm opacity-75">Your Q Score</div>
                 </div>
@@ -198,7 +208,7 @@ export default function FounderDashboard() {
 
               <div className="flex items-center space-x-6">
                 <div>
-                  <div className="text-lg font-medium">Top {100 - qScore.percentile}%</div>
+                  <div className="text-lg font-medium">Top {100 - (qScore.percentile || 0)}%</div>
                   <div className="text-sm opacity-75">of all startups</div>
                 </div>
                 <div>
@@ -215,7 +225,7 @@ export default function FounderDashboard() {
                     <div className="text-lg font-bold">{data.score}</div>
                     <div className="text-xs opacity-75 capitalize">{key}</div>
                     <div className={`text-xs mt-1 ${data.trend === 'up' ? 'text-green-200' : data.trend === 'down' ? 'text-red-200' : 'text-gray-200'}`}>
-                      {data.change > 0 ? '+' : ''}{data.change}
+                      {(data.change || 0) > 0 ? '+' : ''}{data.change || 0}
                     </div>
                   </div>
                 ))}
@@ -451,7 +461,7 @@ export default function FounderDashboard() {
 
                   <div className="space-y-3">
                     <div>
-                      <p className="text-sm font-medium text-gray-900">Why they're a great fit:</p>
+                      <p className="text-sm font-medium text-gray-900">Why they&apos;re a great fit:</p>
                       <p className="text-sm text-gray-600">{investor.thesisFit}</p>
                     </div>
 
