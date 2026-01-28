@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,7 +32,7 @@ interface OnboardingData {
   isComplete: boolean;
 }
 
-export default function FounderOnboarding() {
+function OnboardingContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const focusOnScore = searchParams.get('focus') === 'score';
@@ -506,5 +506,22 @@ export default function FounderOnboarding() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function FounderOnboarding() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="h-12 w-12 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center mx-auto mb-4 animate-pulse">
+            <span className="text-white font-black text-xs">EDGE</span>
+          </div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    }>
+      <OnboardingContent />
+    </Suspense>
   );
 }
