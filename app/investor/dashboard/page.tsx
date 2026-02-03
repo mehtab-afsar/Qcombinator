@@ -24,10 +24,14 @@ import {
   CheckCircle,
   XCircle,
   Clock,
-  Share
+  Share,
+  Inbox
 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { ConnectionRequestCard } from '@/components/investor/ConnectionRequestCard'
+import { MeetingSchedulerModal } from '@/components/investor/MeetingSchedulerModal'
+import { DeclineFeedbackForm } from '@/components/investor/DeclineFeedbackForm'
 
 interface Startup {
   id: string
@@ -56,6 +60,73 @@ interface Startup {
   tags: string[]
   status: 'new' | 'reviewing' | 'interested' | 'passed'
 }
+
+// Mock connection requests
+const mockConnectionRequests = [
+  {
+    id: 'req-001',
+    founderName: 'Sarah Mitchell',
+    startupName: 'CloudSync',
+    oneLiner: 'Real-time collaboration platform for distributed teams',
+    qScore: 78,
+    qScorePercentile: 85,
+    qScoreBreakdown: {
+      market: 82,
+      product: 75,
+      goToMarket: 68,
+      financial: 80,
+      team: 85,
+      traction: 72
+    },
+    personalMessage: 'Hi! I noticed your investment in similar collaboration tools. Would love to discuss how CloudSync is different and our traction in the enterprise segment.',
+    requestedDate: '2026-01-26',
+    stage: 'Seed',
+    industry: 'SaaS',
+    fundingTarget: '$2M'
+  },
+  {
+    id: 'req-002',
+    founderName: 'Marcus Johnson',
+    startupName: 'EcoTrack',
+    oneLiner: 'Carbon footprint tracking and reduction platform for businesses',
+    qScore: 72,
+    qScorePercentile: 78,
+    qScoreBreakdown: {
+      market: 75,
+      product: 70,
+      goToMarket: 65,
+      financial: 72,
+      team: 78,
+      traction: 70
+    },
+    personalMessage: undefined,
+    requestedDate: '2026-01-27',
+    stage: 'Pre-Seed',
+    industry: 'Climate Tech',
+    fundingTarget: '$1.5M'
+  },
+  {
+    id: 'req-003',
+    founderName: 'Lisa Park',
+    startupName: 'HealthMetrics AI',
+    oneLiner: 'AI-powered health analytics for preventative care',
+    qScore: 85,
+    qScorePercentile: 92,
+    qScoreBreakdown: {
+      market: 88,
+      product: 85,
+      goToMarket: 80,
+      financial: 82,
+      team: 90,
+      traction: 85
+    },
+    personalMessage: 'Your portfolio company MedTech Solutions operates in adjacent space. I believe there could be strategic synergies. Would love to explore partnership opportunities.',
+    requestedDate: '2026-01-27',
+    stage: 'Seed',
+    industry: 'HealthTech',
+    fundingTarget: '$3M'
+  }
+];
 
 // Sample startup data - expanded mock data
 const mockStartups: Startup[] = [
@@ -231,6 +302,50 @@ export default function InvestorDashboard() {
   const [viewMode, setViewMode] = useState<'list' | 'cards'>('cards')
   const [filteredStartups, setFilteredStartups] = useState(mockStartups)
 
+  // Connection request state
+  const [connectionRequests, setConnectionRequests] = useState(mockConnectionRequests)
+  const [selectedRequest, setSelectedRequest] = useState<typeof mockConnectionRequests[0] | null>(null)
+  const [showScheduler, setShowScheduler] = useState(false)
+  const [showDeclineForm, setShowDeclineForm] = useState(false)
+
+  // Handle accept connection request
+  const handleAcceptRequest = (requestId: string) => {
+    const request = connectionRequests.find(r => r.id === requestId)
+    if (request) {
+      setSelectedRequest(request)
+      setShowScheduler(true)
+    }
+  }
+
+  // Handle decline connection request
+  const handleDeclineRequest = (requestId: string) => {
+    const request = connectionRequests.find(r => r.id === requestId)
+    if (request) {
+      setSelectedRequest(request)
+      setShowDeclineForm(true)
+    }
+  }
+
+  // Handle schedule meeting
+  const handleScheduleMeeting = (date: string, time: string, notes: string) => {
+    if (!selectedRequest) return
+
+    // Remove request from list after scheduling
+    setConnectionRequests(prev => prev.filter(r => r.id !== selectedRequest.id))
+    setShowScheduler(false)
+    setSelectedRequest(null)
+  }
+
+  // Handle decline with feedback
+  const handleDeclineWithFeedback = (reasons: string[], feedback: string) => {
+    if (!selectedRequest) return
+
+    // Remove request from list after declining
+    setConnectionRequests(prev => prev.filter(r => r.id !== selectedRequest.id))
+    setShowDeclineForm(false)
+    setSelectedRequest(null)
+  }
+
   const stats = {
     totalDeals: 1247,
     newThisWeek: 23,
@@ -365,6 +480,40 @@ export default function InvestorDashboard() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
+      {/* Connection Requests Section */}
+      {connectionRequests.length > 0 && (
+        <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="h-10 w-10 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 flex items-center justify-center">
+                  <Inbox className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <CardTitle className="text-xl">Connection Requests</CardTitle>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {connectionRequests.length} {connectionRequests.length === 1 ? 'founder' : 'founders'} would like to connect with you
+                  </p>
+                </div>
+              </div>
+              <Badge className="bg-blue-600 text-white text-lg px-4 py-1">
+                {connectionRequests.length} New
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {connectionRequests.map(request => (
+              <ConnectionRequestCard
+                key={request.id}
+                request={request}
+                onAccept={handleAcceptRequest}
+                onDecline={handleDeclineRequest}
+              />
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Header Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
@@ -522,6 +671,34 @@ export default function InvestorDashboard() {
           </Tabs>
         </CardContent>
       </Card>
+
+      {/* Meeting Scheduler Modal */}
+      {selectedRequest && (
+        <MeetingSchedulerModal
+          isOpen={showScheduler}
+          onClose={() => {
+            setShowScheduler(false)
+            setSelectedRequest(null)
+          }}
+          onSchedule={handleScheduleMeeting}
+          founderName={selectedRequest.founderName}
+          startupName={selectedRequest.startupName}
+        />
+      )}
+
+      {/* Decline Feedback Form */}
+      {selectedRequest && (
+        <DeclineFeedbackForm
+          isOpen={showDeclineForm}
+          onClose={() => {
+            setShowDeclineForm(false)
+            setSelectedRequest(null)
+          }}
+          onSubmit={handleDeclineWithFeedback}
+          founderName={selectedRequest.founderName}
+          startupName={selectedRequest.startupName}
+        />
+      )}
     </div>
   )
 }

@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { Inter, Manrope } from "next/font/google";
 import "./globals.css";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { QScoreProvider } from "@/contexts/QScoreContext";
+import { Toaster } from "sonner";
 
 const inter = Inter({ subsets: ["latin"] });
 const manrope = Manrope({
@@ -21,7 +24,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.className} ${manrope.variable} antialiased`}>
-        {children}
+        <AuthProvider>
+          <QScoreProvider>
+            {children}
+            <Toaster position="top-right" richColors />
+          </QScoreProvider>
+        </AuthProvider>
       </body>
     </html>
   );

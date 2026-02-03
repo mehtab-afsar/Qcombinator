@@ -21,7 +21,9 @@ import {
   Home,
   Upload,
   Eye,
-  CheckCircle
+  CheckCircle,
+  GraduationCap,
+  Sparkles
 } from "lucide-react";
 
 interface NavigationItem {
@@ -40,11 +42,11 @@ const founderNavigation: NavigationItem[] = [
     description: "Your startup overview"
   },
   {
-    name: "Pitch Analyzer",
-    href: "/founder/pitch-analyzer",
+    name: "AI Agents",
+    href: "/founder/agents",
     icon: Brain,
-    badge: "AI",
-    description: "AI-powered pitch evaluation"
+    badge: "9",
+    description: "Chat with AI advisors"
   },
   {
     name: "Investor Matching",
@@ -52,6 +54,13 @@ const founderNavigation: NavigationItem[] = [
     icon: Target,
     badge: "Smart",
     description: "Find your perfect investors"
+  },
+  {
+    name: "Academy",
+    href: "/founder/academy",
+    icon: GraduationCap,
+    badge: "NEW",
+    description: "Workshops & mentors"
   },
   {
     name: "Profile Builder",
@@ -66,17 +75,17 @@ const founderNavigation: NavigationItem[] = [
     description: "Track key performance metrics"
   },
   {
+    name: "Pitch Analyzer",
+    href: "/founder/pitch-analyzer",
+    icon: Sparkles,
+    badge: "AI",
+    description: "AI-powered pitch evaluation"
+  },
+  {
     name: "Pitch Deck",
     href: "/founder/pitch-deck",
     icon: FileText,
     description: "Upload and optimize your deck"
-  },
-  {
-    name: "AI Model Test",
-    href: "/founder/model-test",
-    icon: Zap,
-    badge: "NEW",
-    description: "Test different Groq AI models"
   },
   {
     name: "Messages",

@@ -23,6 +23,8 @@ import { CustomerEvidenceForm } from "./components/CustomerEvidenceForm";
 import { FailedAssumptionsForm } from "./components/FailedAssumptionsForm";
 import { LearningVelocityForm } from "./components/LearningVelocityForm";
 import { MarketCalculator } from "./components/MarketCalculator";
+import { GoToMarketForm } from "./components/GoToMarketForm";
+import { FinancialHealthForm } from "./components/FinancialHealthForm";
 import { ResilienceForm } from "./components/ResilienceForm";
 
 interface NewAssessmentData {
@@ -63,7 +65,30 @@ interface NewAssessmentData {
   customerLifetimeMonths: number;
   validationChecks: string[];
 
-  // Section E: Resilience
+  // Section E: Go-to-Market
+  icpDescription: string;
+  channelsTried: string[];
+  channelResults: {
+    [key: string]: { spend: number; conversions: number; cac: number };
+  };
+  currentCAC: number;
+  targetCAC: number;
+  messagingTested: boolean;
+  messagingResults: string;
+
+  // Section F: Financial Health
+  revenueModel: string;
+  mrr: number;
+  arr: number;
+  monthlyBurn: number;
+  runway: number;
+  cogs: number;
+  averageDealSize: number;
+  projectedRevenue12mo: number;
+  revenueAssumptions: string;
+  previousMrr?: number;
+
+  // Section G: Resilience
   hardestMoment: string;
   quitScale: number;
   whatKeptGoing: string;
@@ -107,28 +132,84 @@ export default function FounderAssessment() {
     customerLifetimeMonths: 12,
     validationChecks: [],
 
-    // Section E
+    // Section E: GTM
+    icpDescription: '',
+    channelsTried: [],
+    channelResults: {},
+    currentCAC: 0,
+    targetCAC: 0,
+    messagingTested: false,
+    messagingResults: '',
+
+    // Section F: Financial
+    revenueModel: 'none',
+    mrr: 0,
+    arr: 0,
+    monthlyBurn: 0,
+    runway: 0,
+    cogs: 0,
+    averageDealSize: 0,
+    projectedRevenue12mo: 0,
+    revenueAssumptions: '',
+    previousMrr: 0,
+
+    // Section G: Resilience
     hardestMoment: '',
     quitScale: 5,
     whatKeptGoing: '',
   });
 
-  // Load from localStorage on mount
+  // Load from localStorage AND API on mount
   useEffect(() => {
-    const saved = localStorage.getItem('founderAssessment');
-    if (saved) {
+    // Try to load from API first
+    const loadDraft = async () => {
       try {
-        const parsed = JSON.parse(saved);
-        setData(parsed);
+        const response = await fetch('/api/assessment/save');
+        if (response.ok) {
+          const { draft } = await response.json();
+          if (draft && draft.assessment_data) {
+            setData(draft.assessment_data);
+            return;
+          }
+        }
       } catch (e) {
-        console.error('Failed to load saved assessment:', e);
+        console.log('Could not load from API, trying localStorage');
       }
-    }
+
+      // Fallback to localStorage
+      const saved = localStorage.getItem('founderAssessment');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          setData(parsed);
+        } catch (e) {
+          console.error('Failed to load saved assessment:', e);
+        }
+      }
+    };
+
+    loadDraft();
   }, []);
 
-  // Save to localStorage on data change
+  // Auto-save to API and localStorage
   useEffect(() => {
+    // Save to localStorage immediately
     localStorage.setItem('founderAssessment', JSON.stringify(data));
+
+    // Debounce API save (save after 2 seconds of no changes)
+    const timer = setTimeout(async () => {
+      try {
+        await fetch('/api/assessment/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ assessmentData: data }),
+        });
+      } catch (e) {
+        console.error('Auto-save failed:', e);
+      }
+    }, 2000);
+
+    return () => clearTimeout(timer);
   }, [data]);
 
   const sections = [
@@ -181,6 +262,22 @@ export default function FounderAssessment() {
       points: 150,
     },
     {
+      id: 'go-to-market',
+      title: 'Go-to-Market Strategy',
+      category: 'GTM & Distribution',
+      time: 4,
+      icon: Target,
+      points: 170,
+    },
+    {
+      id: 'financial-health',
+      title: 'Financial Health',
+      category: 'Unit Economics & Runway',
+      time: 3,
+      icon: TrendingUp,
+      points: 180,
+    },
+    {
       id: 'resilience',
       title: 'Hardest Moment',
       category: 'Resilience',
@@ -193,13 +290,37 @@ export default function FounderAssessment() {
   const getCurrentSection = () => sections[currentSection];
   const getProgressPercentage = () => ((currentSection + 1) / sections.length) * 100;
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (currentSection < sections.length - 1) {
       setCurrentSection(currentSection + 1);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
-      // Complete assessment, navigate to startup profile
-      window.location.href = '/founder/startup-profile';
+      // Complete assessment - submit to API
+      try {
+        const response = await fetch('/api/assessment/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ assessmentData: data }),
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          console.log('Assessment submitted successfully:', result);
+
+          // Navigate to dashboard
+          window.location.href = '/founder/dashboard';
+        } else {
+          console.error('Failed to submit assessment');
+          // Still navigate but show error
+          alert('There was an issue submitting your assessment. Please try again later.');
+          window.location.href = '/founder/dashboard';
+        }
+      } catch (error) {
+        console.error('Error submitting assessment:', error);
+        // Still navigate but show error
+        alert('There was an issue submitting your assessment. Please try again later.');
+        window.location.href = '/founder/dashboard';
+      }
     }
   };
 
@@ -234,7 +355,11 @@ export default function FounderAssessment() {
         return data.tested.length >= 20 && data.learned.length >= 20;
       case 5: // Market Sizing
         return data.targetCustomers > 0 && data.talkToCount > 0 && data.avgContractValue > 0;
-      case 6: // Resilience
+      case 6: // Go-to-Market
+        return data.icpDescription.split(/\s+/).length >= 30 && data.channelsTried.length > 0;
+      case 7: // Financial Health
+        return data.monthlyBurn > 0 && data.runway > 0;
+      case 8: // Resilience
         return data.hardestMoment.length >= 50 && data.whatKeptGoing.length >= 20;
       default:
         return true;
@@ -320,7 +445,42 @@ export default function FounderAssessment() {
           />
         );
 
-      case 6: // Resilience
+      case 6: // Go-to-Market
+        return (
+          <GoToMarketForm
+            data={{
+              icpDescription: data.icpDescription,
+              channelsTried: data.channelsTried,
+              channelResults: data.channelResults,
+              currentCAC: data.currentCAC,
+              targetCAC: data.targetCAC,
+              messagingTested: data.messagingTested,
+              messagingResults: data.messagingResults,
+            }}
+            onChange={(field, value) => updateData(field as keyof NewAssessmentData, value)}
+          />
+        );
+
+      case 7: // Financial Health
+        return (
+          <FinancialHealthForm
+            data={{
+              revenueModel: data.revenueModel,
+              mrr: data.mrr,
+              arr: data.arr,
+              monthlyBurn: data.monthlyBurn,
+              runway: data.runway,
+              cogs: data.cogs,
+              averageDealSize: data.averageDealSize,
+              projectedRevenue12mo: data.projectedRevenue12mo,
+              revenueAssumptions: data.revenueAssumptions,
+              previousMrr: data.previousMrr,
+            }}
+            onChange={(field, value) => updateData(field as keyof NewAssessmentData, value)}
+          />
+        );
+
+      case 8: // Resilience
         return (
           <ResilienceForm
             data={{
@@ -385,6 +545,8 @@ export default function FounderAssessment() {
                     currentSection === 2 || currentSection === 3 ? 'bg-purple-100' :
                     currentSection === 4 ? 'bg-green-100' :
                     currentSection === 5 ? 'bg-orange-100' :
+                    currentSection === 6 ? 'bg-indigo-100' :
+                    currentSection === 7 ? 'bg-emerald-100' :
                     'bg-pink-100'
                   }`}>
                     <currentSectionData.icon className={`h-6 w-6 ${
@@ -392,6 +554,8 @@ export default function FounderAssessment() {
                       currentSection === 2 || currentSection === 3 ? 'text-purple-600' :
                       currentSection === 4 ? 'text-green-600' :
                       currentSection === 5 ? 'text-orange-600' :
+                      currentSection === 6 ? 'text-indigo-600' :
+                      currentSection === 7 ? 'text-emerald-600' :
                       'text-pink-600'
                     }`} />
                   </div>
@@ -456,7 +620,7 @@ export default function FounderAssessment() {
           {/* Progress Overview */}
           <div className="mt-8 bg-white rounded-lg border border-gray-200 p-4">
             <h4 className="text-sm font-medium text-gray-900 mb-3">Your Progress</h4>
-            <div className="grid grid-cols-7 gap-2">
+            <div className="grid grid-cols-9 gap-2">
               {sections.map((section, idx) => (
                 <div
                   key={section.id}

@@ -26,7 +26,10 @@
       "Bash(npx tsc:*)",
       "Bash(chmod:*)",
       "Bash(/Users/mohammedmehtabafsar/Desktop/Qcombinator/fix-lint-errors.sh)",
-      "Bash(/Users/mohammedmehtabafsar/Desktop/Qcombinator/fix-final-errors.sh)"
+      "Bash(/Users/mohammedmehtabafsar/Desktop/Qcombinator/fix-final-errors.sh)",
+      "Bash(lsof -ti:3000)",
+      "Bash(xargs kill -9)",
+      "Bash(python3:*)"
     ],
     "deny": [],
     "ask": []

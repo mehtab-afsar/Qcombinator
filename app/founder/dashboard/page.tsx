@@ -31,21 +31,97 @@ import {
   Play,
   RefreshCw
 } from "lucide-react";
+import { RecommendedActions } from "@/components/dashboard/RecommendedActions";
+import { AgentConversations } from "@/components/dashboard/AgentConversations";
+import { WorkshopsPreview } from "@/components/dashboard/WorkshopsPreview";
+import { InvestorNotifications } from "@/components/dashboard/InvestorNotifications";
+import { generateRecommendations } from "@/lib/recommendation-engine";
+import { getUpcomingWorkshops } from "@/lib/mock-data/workshops";
+import { QScore } from "@/app/types/edge-alpha";
+import { useAuth } from "@/contexts/AuthContext";
+import { useQScore } from "@/contexts/QScoreContext";
+import Link from "next/link";
 
 export default function FounderDashboard() {
   const [selectedTimeframe, setSelectedTimeframe] = useState('7d');
+  const { user, loading: authLoading } = useAuth();
+  const { qScore: realQScore, loading: qScoreLoading, refetch } = useQScore();
 
-  // No mock data - will be populated by AI analysis
-  const qScore = {
-    current: null,
-    previousWeek: null,
-    percentile: null,
+  // Show loading state
+  if (authLoading || qScoreLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <RefreshCw className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-4" />
+          <p className="text-gray-600">Loading your dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show assessment prompt if no Q-Score yet
+  if (!realQScore) {
+    return (
+      <div className="p-6 max-w-4xl mx-auto">
+        <Card className="border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-purple-50">
+          <CardContent className="p-12 text-center">
+            <div className="h-16 w-16 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center mx-auto mb-6">
+              <Target className="h-8 w-8 text-white" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-3">
+              Complete Your Q-Score Assessment
+            </h2>
+            <p className="text-gray-600 mb-6 max-w-md mx-auto">
+              Get your personalized Q-Score and unlock access to our investor marketplace, AI agents, and exclusive workshops.
+            </p>
+            <Link href="/founder/assessment">
+              <Button size="lg" className="bg-gradient-to-r from-blue-600 to-purple-600">
+                Start Assessment
+                <ArrowRight className="ml-2 h-5 w-5" />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Convert PRDQScore to QScore format for existing components
+  const qScore: QScore = {
+    overall: realQScore.overall,
+    previousWeek: realQScore.overall - (realQScore.change || 0),
+    percentile: realQScore.percentile || 50,
     breakdown: {
-      market: { score: null, change: null, trend: null },
-      team: { score: null, change: null, trend: null },
-      product: { score: null, change: null, trend: null },
-      traction: { score: null, change: null, trend: null },
-      financials: { score: null, change: null, trend: null }
+      market: {
+        score: realQScore.breakdown.market.score,
+        change: realQScore.breakdown.market.change || 0,
+        trend: realQScore.breakdown.market.trend || 'neutral'
+      },
+      product: {
+        score: realQScore.breakdown.product.score,
+        change: realQScore.breakdown.product.change || 0,
+        trend: realQScore.breakdown.product.trend || 'neutral'
+      },
+      goToMarket: {
+        score: realQScore.breakdown.goToMarket.score,
+        change: realQScore.breakdown.goToMarket.change || 0,
+        trend: realQScore.breakdown.goToMarket.trend || 'neutral'
+      },
+      financial: {
+        score: realQScore.breakdown.financial.score,
+        change: realQScore.breakdown.financial.change || 0,
+        trend: realQScore.breakdown.financial.trend || 'neutral'
+      },
+      team: {
+        score: realQScore.breakdown.team.score,
+        change: realQScore.breakdown.team.change || 0,
+        trend: realQScore.breakdown.team.trend || 'neutral'
+      },
+      traction: {
+        score: realQScore.breakdown.traction.score,
+        change: realQScore.breakdown.traction.change || 0,
+        trend: realQScore.breakdown.traction.trend || 'neutral'
+      }
     }
   };
 
@@ -196,11 +272,11 @@ export default function FounderDashboard() {
           <div className="flex items-center justify-between">
             <div>
               <div className="flex items-center space-x-4 mb-4">
-                <div className="text-5xl font-bold">{qScore.current}</div>
+                <div className="text-5xl font-bold">{qScore.overall}</div>
                 <div className="space-y-1">
                   <div className="flex items-center space-x-2">
                     <TrendingUp className="h-4 w-4" />
-                    <span className="text-sm">+{(qScore.current || 0) - (qScore.previousWeek || 0)} this week</span>
+                    <span className="text-sm">+{(qScore.overall || 0) - (qScore.previousWeek || 0)} this week</span>
                   </div>
                   <div className="text-sm opacity-75">Your Q Score</div>
                 </div>
@@ -219,16 +295,19 @@ export default function FounderDashboard() {
             </div>
 
             <div className="text-right space-y-4">
-              <div className="grid grid-cols-2 gap-3 text-center">
-                {Object.entries(qScore.breakdown).map(([key, data]) => (
-                  <div key={key} className="bg-white/10 rounded-lg p-3">
-                    <div className="text-lg font-bold">{data.score}</div>
-                    <div className="text-xs opacity-75 capitalize">{key}</div>
-                    <div className={`text-xs mt-1 ${data.trend === 'up' ? 'text-green-200' : data.trend === 'down' ? 'text-red-200' : 'text-gray-200'}`}>
-                      {(data.change || 0) > 0 ? '+' : ''}{data.change || 0}
+              <div className="grid grid-cols-3 gap-3 text-center">
+                {Object.entries(qScore.breakdown).map(([key, data]) => {
+                  const displayName = key === 'goToMarket' ? 'GTM' : key;
+                  return (
+                    <div key={key} className="bg-white/10 rounded-lg p-3">
+                      <div className="text-lg font-bold">{data.score}</div>
+                      <div className="text-xs opacity-75 capitalize">{displayName}</div>
+                      <div className={`text-xs mt-1 ${data.trend === 'up' ? 'text-green-200' : data.trend === 'down' ? 'text-red-200' : 'text-gray-200'}`}>
+                        {(data.change || 0) > 0 ? '+' : ''}{data.change || 0}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
               <Button variant="outline" className="bg-white/10 border-white/20 text-white hover:bg-white/20">
                 View Detailed Breakdown
@@ -317,6 +396,18 @@ export default function FounderDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* NEW: Recommended Actions - Top 3 */}
+      <RecommendedActions recommendations={generateRecommendations(qScore)} />
+
+      {/* NEW: Agent Conversations Preview */}
+      <AgentConversations />
+
+      {/* NEW: Upcoming Workshops Preview */}
+      <WorkshopsPreview workshops={getUpcomingWorkshops()} />
+
+      {/* NEW: Investor Match Notifications */}
+      <InvestorNotifications />
 
       {/* Main Dashboard Tabs */}
       <Tabs defaultValue="activity" className="space-y-6">

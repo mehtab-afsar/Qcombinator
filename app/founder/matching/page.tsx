@@ -24,8 +24,13 @@ import {
   Zap,
   Clock,
   ArrowRight,
-  Sparkles
+  Sparkles,
+  Lock,
+  Send,
+  Calendar
 } from 'lucide-react'
+import { ConnectionRequestModal } from '@/components/matching/ConnectionRequestModal'
+import { ConnectionStatusBadge, ConnectionStatus } from '@/components/matching/ConnectionStatusBadge'
 
 interface Investor {
   id: string
@@ -41,6 +46,7 @@ interface Investor {
   responseRate: number
   avgDealTime: string
   thesis: string
+  connectionStatus: ConnectionStatus
 }
 
 const mockInvestors: Investor[] = [
@@ -57,7 +63,8 @@ const mockInvestors: Investor[] = [
     recentInvestments: 12,
     responseRate: 85,
     avgDealTime: '6 weeks',
-    thesis: 'Investing in AI-first companies transforming enterprise workflows'
+    thesis: 'Investing in AI-first companies transforming enterprise workflows',
+    connectionStatus: 'none'
   },
   {
     id: '2',
@@ -72,7 +79,8 @@ const mockInvestors: Investor[] = [
     recentInvestments: 8,
     responseRate: 78,
     avgDealTime: '8 weeks',
-    thesis: 'Healthcare innovation through AI and data-driven solutions'
+    thesis: 'Healthcare innovation through AI and data-driven solutions',
+    connectionStatus: 'pending'
   },
   {
     id: '3',
@@ -87,7 +95,8 @@ const mockInvestors: Investor[] = [
     recentInvestments: 15,
     responseRate: 92,
     avgDealTime: '4 weeks',
-    thesis: 'Climate solutions and sustainable technology for global impact'
+    thesis: 'Climate solutions and sustainable technology for global impact',
+    connectionStatus: 'viewed'
   }
 ]
 
@@ -96,6 +105,37 @@ export default function InvestorMatching() {
   const [selectedFocus, setSelectedFocus] = useState('all')
   const [selectedStage, setSelectedStage] = useState('all')
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [selectedInvestor, setSelectedInvestor] = useState<Investor | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [investors, setInvestors] = useState(mockInvestors)
+
+  // Mock Q-Score (should come from context/API in production)
+  const founderQScore = 72 // Above threshold of 60
+
+  const handleConnectClick = (investor: Investor) => {
+    if (founderQScore < 60) {
+      // Show locked state - user can't connect
+      return
+    }
+    setSelectedInvestor(investor)
+    setIsModalOpen(true)
+  }
+
+  const handleConnectionSubmit = (message: string) => {
+    if (!selectedInvestor) return
+
+    // Update investor connection status
+    setInvestors(prev =>
+      prev.map(inv =>
+        inv.id === selectedInvestor.id
+          ? { ...inv, connectionStatus: 'pending' as ConnectionStatus }
+          : inv
+      )
+    )
+
+    setIsModalOpen(false)
+    setSelectedInvestor(null)
+  }
 
   const renderInvestorCard = (investor: Investor) => (
     <Card key={investor.id} className="hover:shadow-lg transition-all duration-200 group">
@@ -174,10 +214,31 @@ export default function InvestorMatching() {
               View Profile
             </Button>
           </div>
-          <Button size="sm" className="bg-gradient-to-r from-blue-600 to-purple-600">
-            <MessageCircle className="w-4 h-4 mr-2" />
-            Connect
-          </Button>
+          <div className="flex items-center space-x-2">
+            {investor.connectionStatus !== 'none' && (
+              <ConnectionStatusBadge status={investor.connectionStatus} />
+            )}
+            {founderQScore < 60 ? (
+              <Button size="sm" disabled className="bg-gray-300">
+                <Lock className="w-4 h-4 mr-2" />
+                Locked (Q-Score &lt; 60)
+              </Button>
+            ) : investor.connectionStatus === 'none' ? (
+              <Button
+                size="sm"
+                className="bg-gradient-to-r from-blue-600 to-purple-600"
+                onClick={() => handleConnectClick(investor)}
+              >
+                <Send className="w-4 h-4 mr-2" />
+                Connect
+              </Button>
+            ) : investor.connectionStatus === 'meeting-scheduled' ? (
+              <Button size="sm" variant="outline" className="border-green-500 text-green-600">
+                <Calendar className="w-4 h-4 mr-2" />
+                View Meeting
+              </Button>
+            ) : null}
+          </div>
         </div>
       </CardContent>
     </Card>
@@ -304,13 +365,13 @@ export default function InvestorMatching() {
             </div>
 
             <div className="grid lg:grid-cols-2 gap-6">
-              {mockInvestors.map(investor => renderInvestorCard(investor))}
+              {investors.map(investor => renderInvestorCard(investor))}
             </div>
           </TabsContent>
 
           <TabsContent value="all" className="space-y-6">
             <div className="grid lg:grid-cols-2 gap-6">
-              {mockInvestors.map(investor => renderInvestorCard(investor))}
+              {investors.map(investor => renderInvestorCard(investor))}
             </div>
           </TabsContent>
 
@@ -335,6 +396,27 @@ export default function InvestorMatching() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Connection Request Modal */}
+      {selectedInvestor && (
+        <ConnectionRequestModal
+          isOpen={isModalOpen}
+          onClose={() => {
+            setIsModalOpen(false)
+            setSelectedInvestor(null)
+          }}
+          onSubmit={handleConnectionSubmit}
+          investorName={selectedInvestor.name}
+          startupOneLiner="AI-powered platform helping early-stage founders improve their Q-Score and connect with aligned investors"
+          keyMetrics={[
+            'Q-Score: 72/100 (78th percentile)',
+            'Go-to-Market Score: 45 (Improving)',
+            'Product-Market Fit validation in progress',
+            '3 months runway, seeking seed round'
+          ]}
+          matchReason={`Your startup's focus on ${selectedInvestor.investmentFocus[0]} aligns perfectly with ${selectedInvestor.firm}'s investment thesis. ${selectedInvestor.name} has invested in similar companies at your stage and has a ${selectedInvestor.responseRate}% response rate.`}
+        />
+      )}
     </div>
   )
 }
