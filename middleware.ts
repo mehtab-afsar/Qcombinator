@@ -43,10 +43,16 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   // Protect founder routes - require authentication
-  if (request.nextUrl.pathname.startsWith('/founder')) {
+  // But allow public access to onboarding and assessment
+  const publicFounderRoutes = ['/founder/onboarding', '/founder/assessment']
+  const isPublicFounderRoute = publicFounderRoutes.some(route =>
+    request.nextUrl.pathname.startsWith(route)
+  )
+
+  if (request.nextUrl.pathname.startsWith('/founder') && !isPublicFounderRoute) {
     if (!user) {
       const url = request.nextUrl.clone()
-      url.pathname = '/login'
+      url.pathname = '/founder/onboarding'
       return NextResponse.redirect(url)
     }
 
@@ -68,11 +74,16 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Protect investor routes
-  if (request.nextUrl.pathname.startsWith('/investor')) {
+  // Protect investor routes - allow public access to onboarding
+  const publicInvestorRoutes = ['/investor/onboarding']
+  const isPublicInvestorRoute = publicInvestorRoutes.some(route =>
+    request.nextUrl.pathname.startsWith(route)
+  )
+
+  if (request.nextUrl.pathname.startsWith('/investor') && !isPublicInvestorRoute) {
     if (!user) {
       const url = request.nextUrl.clone()
-      url.pathname = '/login'
+      url.pathname = '/investor/onboarding'
       return NextResponse.redirect(url)
     }
   }

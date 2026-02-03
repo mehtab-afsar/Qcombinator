@@ -83,16 +83,18 @@ export default function AgentChat() {
     return `Thanks for your question! ${agent.name} here. I specialize in ${agent.specialty.toLowerCase()}.\n\nI'd be happy to help you with that. Could you provide more context about:\n- Your current situation\n- What you've tried so far\n- What specific outcome you're looking for\n\nThis will help me give you more personalized advice!`;
   };
 
-  // Send message handler
-  const handleSend = () => {
+  // Send message handler with real Groq API
+  const handleSend = async () => {
     if (!inputValue.trim()) return;
+
+    const userMessageContent = inputValue;
 
     // Add user message
     const userMessage: AgentMessage = {
       id: `msg-${Date.now()}`,
       agentId: agent.id,
       role: 'user',
-      content: inputValue,
+      content: userMessageContent,
       timestamp: new Date()
     };
 
@@ -100,18 +102,52 @@ export default function AgentChat() {
     setInputValue("");
     setIsTyping(true);
 
-    // Simulate AI typing delay
-    setTimeout(() => {
+    try {
+      // Call Groq API via our endpoint
+      const response = await fetch('/api/agents/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          agentId: agent.id,
+          message: userMessageContent,
+          conversationHistory: messages
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get response');
+      }
+
+      const data = await response.json();
+
+      // Add agent response
       const agentResponse: AgentMessage = {
         id: `msg-${Date.now()}-agent`,
         agentId: agent.id,
         role: 'agent',
-        content: generateAgentResponse(inputValue),
+        content: data.response,
         timestamp: new Date()
       };
+
       setMessages(prev => [...prev, agentResponse]);
+    } catch (error) {
+      console.error('Error getting agent response:', error);
+
+      // Fallback response on error
+      const fallbackResponse: AgentMessage = {
+        id: `msg-${Date.now()}-agent`,
+        agentId: agent.id,
+        role: 'agent',
+        content: generateAgentResponse(userMessageContent), // Use mock as fallback
+        timestamp: new Date()
+      };
+
+      setMessages(prev => [...prev, fallbackResponse]);
+    } finally {
       setIsTyping(false);
-    }, 1500);
+    }
   };
 
   // Send suggested prompt

@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 import {
   ArrowRight,
   ArrowLeft,
@@ -27,6 +29,7 @@ interface OnboardingData {
   funding: string;
   timeCommitment: string;
   email: string;
+  password: string;
   firstName: string;
   lastName: string;
   isComplete: boolean;
@@ -35,14 +38,17 @@ interface OnboardingData {
 function OnboardingContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { signUp } = useAuth();
   const focusOnScore = searchParams.get('focus') === 'score';
 
   const [currentStep, setCurrentStep] = useState(0);
+  const [isCreatingAccount, setIsCreatingAccount] = useState(false);
   const [data, setData] = useState<OnboardingData>({
     stage: '',
     funding: '',
     timeCommitment: '',
     email: '',
+    password: '',
     firstName: '',
     lastName: '',
     isComplete: false
@@ -92,7 +98,42 @@ function OnboardingContent() {
     { value: 'save-later', label: 'Save for later', desc: 'Get reminder email', icon: Clock, color: 'blue' }
   ];
 
-  const handleNext = () => {
+  const handleNext = async () => {
+    // If on account creation step, create Supabase account via API
+    if (currentStep === 2) {
+      setIsCreatingAccount(true);
+      try {
+        const response = await fetch('/api/auth/signup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: data.email,
+            password: data.password,
+            fullName: `${data.firstName} ${data.lastName}`,
+            stage: data.stage,
+          }),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          toast.error(result.error || 'Account creation failed');
+          setIsCreatingAccount(false);
+          return;
+        }
+
+        toast.success('Account created successfully!');
+
+        // Note: Supabase will send a confirmation email
+        // For now, we'll continue to next step
+      } catch (err: any) {
+        toast.error('Failed to create account. Please try again.');
+        setIsCreatingAccount(false);
+        return;
+      }
+      setIsCreatingAccount(false);
+    }
+
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
     } else {
@@ -116,7 +157,7 @@ function OnboardingContent() {
       case 1: // Quick questions
         return data.stage && data.funding && data.timeCommitment;
       case 2: // Account creation
-        return data.email && data.firstName && data.lastName;
+        return data.email && data.password && data.firstName && data.lastName && data.password.length >= 6;
       default:
         return true;
     }
@@ -386,6 +427,19 @@ function OnboardingContent() {
                     />
                   </div>
 
+                  <div>
+                    <Label htmlFor="password">Password</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      placeholder="At least 6 characters"
+                      value={data.password}
+                      onChange={(e) => updateData('password', e.target.value)}
+                      className="mt-1"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Minimum 6 characters</p>
+                  </div>
+
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="firstName">First name</Label>
@@ -487,10 +541,12 @@ function OnboardingContent() {
 
             <Button
               onClick={handleNext}
-              disabled={!canContinue()}
+              disabled={!canContinue() || isCreatingAccount}
               size="lg"
             >
-              {currentStep === steps.length - 1 ? (
+              {isCreatingAccount ? (
+                <>Creating Account...</>
+              ) : currentStep === steps.length - 1 ? (
                 <>
                   Start Assessment
                   <Rocket className="ml-2 h-4 w-4" />
