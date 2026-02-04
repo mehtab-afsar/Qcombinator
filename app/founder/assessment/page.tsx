@@ -295,8 +295,21 @@ export default function FounderAssessment() {
       setCurrentSection(currentSection + 1);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
-      // Complete assessment - submit to API
+      // Complete assessment - save for AI agent context and submit to API
       try {
+        // Save assessment data to localStorage for AI agents to use
+        localStorage.setItem('assessmentData', JSON.stringify(data));
+
+        // Also update founder profile with startup details
+        const existingProfile = JSON.parse(localStorage.getItem('founderProfile') || '{}');
+        const enrichedProfile = {
+          ...existingProfile,
+          startupName: data.startupName || 'My Startup',
+          industry: data.industry || 'Technology',
+          description: data.problemStory?.substring(0, 200) || '',
+        };
+        localStorage.setItem('founderProfile', JSON.stringify(enrichedProfile));
+
         const response = await fetch('/api/assessment/submit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

@@ -30,7 +30,25 @@ export default function AgentChat() {
   const [inputValue, setInputValue] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [conversationSaved, setConversationSaved] = useState(false);
+  const [userContext, setUserContext] = useState<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Fetch user context from localStorage (populated during onboarding)
+  useEffect(() => {
+    try {
+      const profileData = localStorage.getItem('founderProfile');
+      const assessmentData = localStorage.getItem('assessmentData');
+
+      if (profileData || assessmentData) {
+        setUserContext({
+          ...(profileData ? JSON.parse(profileData) : {}),
+          assessment: assessmentData ? JSON.parse(assessmentData) : null
+        });
+      }
+    } catch (error) {
+      console.error('Error loading user context:', error);
+    }
+  }, []);
 
   // Redirect if agent not found
   useEffect(() => {
@@ -112,14 +130,13 @@ export default function AgentChat() {
         body: JSON.stringify({
           agentId: agent.id,
           message: userMessageContent,
-          conversationHistory: messages
+          conversationHistory: messages,
+          userContext: userContext // Pass business context for personalized responses
         }),
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to get response');
-      }
-
+      // Try to parse JSON response even if status is not OK
+      // (API provides fallback messages in error responses)
       const data = await response.json();
 
       // Add agent response
@@ -127,7 +144,7 @@ export default function AgentChat() {
         id: `msg-${Date.now()}-agent`,
         agentId: agent.id,
         role: 'agent',
-        content: data.response,
+        content: data.response || generateAgentResponse(userMessageContent),
         timestamp: new Date()
       };
 

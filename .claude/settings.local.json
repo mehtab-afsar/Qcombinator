@@ -29,7 +29,10 @@
       "Bash(/Users/mohammedmehtabafsar/Desktop/Qcombinator/fix-final-errors.sh)",
       "Bash(lsof -ti:3000)",
       "Bash(xargs kill -9)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(pbcopy:*)",
+      "Bash(npx tsx scripts/test-qscore.ts)",
+      "Bash(npx tsx:*)"
     ],
     "deny": [],
     "ask": []

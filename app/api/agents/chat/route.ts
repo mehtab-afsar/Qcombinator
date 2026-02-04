@@ -10,7 +10,7 @@ export const runtime = 'edge';
  */
 export async function POST(request: NextRequest) {
   try {
-    const { agentId, message, conversationHistory } = await request.json();
+    const { agentId, message, conversationHistory, userContext } = await request.json();
 
     // Validate inputs
     if (!agentId || !message) {
@@ -29,8 +29,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Build system prompt based on agent specialty
-    const systemPrompt = buildAgentSystemPrompt(agent);
+    // Build system prompt based on agent specialty and user context
+    const systemPrompt = buildAgentSystemPrompt(agent, userContext);
 
     // Build conversation context
     const messages = [
@@ -97,9 +97,57 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * Build specialized system prompt based on agent expertise
+ * Build specialized system prompt based on agent expertise and user context
  */
-function buildAgentSystemPrompt(agent: any): string {
+function buildAgentSystemPrompt(agent: any, userContext?: any): string {
+  // Build context section if user data is available
+  let contextSection = '';
+  if (userContext) {
+    contextSection = `\n\n**FOUNDER'S BUSINESS CONTEXT:**\n`;
+
+    if (userContext.startupName) {
+      contextSection += `Startup: ${userContext.startupName}\n`;
+    }
+    if (userContext.industry) {
+      contextSection += `Industry: ${userContext.industry}\n`;
+    }
+    if (userContext.stage) {
+      contextSection += `Stage: ${userContext.stage}\n`;
+    }
+    if (userContext.description) {
+      contextSection += `Business Description: ${userContext.description}\n`;
+    }
+
+    // Add assessment data if available
+    if (userContext.assessment) {
+      const assessment = userContext.assessment;
+
+      if (assessment.totalMarketSize) {
+        contextSection += `TAM: $${(assessment.totalMarketSize / 1000000).toFixed(0)}M\n`;
+      }
+      if (assessment.payingCustomers !== undefined) {
+        contextSection += `Paying Customers: ${assessment.payingCustomers}\n`;
+      }
+      if (assessment.icpDescription) {
+        contextSection += `ICP: ${assessment.icpDescription}\n`;
+      }
+      if (assessment.financial?.mrr) {
+        contextSection += `MRR: $${assessment.financial.mrr.toLocaleString()}\n`;
+      }
+      if (assessment.financial?.monthlyBurn) {
+        contextSection += `Monthly Burn: $${assessment.financial.monthlyBurn.toLocaleString()}\n`;
+      }
+      if (assessment.teamSize) {
+        contextSection += `Team Size: ${assessment.teamSize}\n`;
+      }
+      if (assessment.founderStory) {
+        contextSection += `Founder Background: ${assessment.founderStory}\n`;
+      }
+    }
+
+    contextSection += `\n**IMPORTANT:** Use this context to give highly specific, personalized advice. Reference their actual business details, numbers, and situation. Don't give generic advice - make it actionable for THEIR specific business.\n`;
+  }
+
   const basePrompt = `You are ${agent.name}, an expert AI advisor specializing in ${agent.specialty}.
 
 Your personality:
@@ -108,7 +156,7 @@ Your personality:
 - Data-informed - reference real metrics and benchmarks
 - Empathetic but honest - supportive yet realistic about challenges
 
-Your expertise focuses on helping early-stage startup founders with ${agent.specialty.toLowerCase()}.`;
+Your expertise focuses on helping early-stage startup founders with ${agent.specialty.toLowerCase()}.${contextSection}`;
 
   // Add agent-specific context
   const specialtyContext: Record<string, string> = {

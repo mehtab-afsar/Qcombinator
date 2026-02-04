@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -26,7 +27,9 @@ import {
   AlertCircle,
   User,
   Building2,
-  TrendingUp
+  TrendingUp,
+  Home,
+  ArrowLeft
 } from 'lucide-react'
 
 interface Message {
@@ -206,7 +209,7 @@ export default function MessagesPage() {
 
     if (message.type === 'meeting-request') {
       return (
-        <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`}>
+        <div key={message.id} className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`}>
           <div className={`max-w-xs lg:max-w-md px-4 py-3 rounded-lg ${
             isUser
               ? 'bg-blue-600 text-white'
@@ -245,7 +248,7 @@ export default function MessagesPage() {
 
     if (message.type === 'document') {
       return (
-        <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`}>
+        <div key={message.id} className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`}>
           <div className={`max-w-xs lg:max-w-md px-4 py-3 rounded-lg ${
             isUser
               ? 'bg-blue-600 text-white'
@@ -271,7 +274,7 @@ export default function MessagesPage() {
     }
 
     return (
-      <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`}>
+      <div key={message.id} className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`}>
         <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
           isUser
             ? 'bg-blue-600 text-white'
@@ -290,7 +293,19 @@ export default function MessagesPage() {
       <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
         {/* Header */}
         <div className="p-4 border-b border-gray-200">
-          <h1 className="text-xl font-semibold mb-4">Messages</h1>
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-xl font-light">Messages</h1>
+            <Link href="/founder/dashboard">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0 hover:bg-gray-100"
+                title="Back to Dashboard"
+              >
+                <Home className="h-4 w-4 text-gray-600" />
+              </Button>
+            </Link>
+          </div>
 
           {/* Search */}
           <div className="relative mb-3">
@@ -308,6 +323,7 @@ export default function MessagesPage() {
             <Button
               variant={filter === 'all' ? 'default' : 'ghost'}
               size="sm"
+              className="font-light"
               onClick={() => setFilter('all')}
             >
               All
@@ -315,6 +331,7 @@ export default function MessagesPage() {
             <Button
               variant={filter === 'unread' ? 'default' : 'ghost'}
               size="sm"
+              className="font-light"
               onClick={() => setFilter('unread')}
             >
               Unread
@@ -322,6 +339,7 @@ export default function MessagesPage() {
             <Button
               variant={filter === 'important' ? 'default' : 'ghost'}
               size="sm"
+              className="font-light"
               onClick={() => setFilter('important')}
             >
               Important

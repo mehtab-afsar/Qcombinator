@@ -19,9 +19,7 @@ export default function FounderLayout({
 
   return (
     <div className="flex h-screen bg-gray-50">
-      <div className="w-80 flex-shrink-0">
-        <FounderSidebar className="w-full h-full" />
-      </div>
+      <FounderSidebar className="flex-shrink-0" />
       <div className="flex-1 overflow-auto">
         {children}
       </div>

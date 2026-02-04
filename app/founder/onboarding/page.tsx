@@ -2,6 +2,7 @@
 
 import { useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -102,19 +103,25 @@ function OnboardingContent() {
     // If on account creation step, create Supabase account via API
     if (currentStep === 2) {
       setIsCreatingAccount(true);
+
+      // Debug: Log what we're sending
+      const signupData = {
+        email: data.email,
+        password: data.password,
+        fullName: `${data.firstName} ${data.lastName}`,
+        stage: data.stage,
+      };
+      console.log('🔍 Signup data:', signupData);
+
       try {
         const response = await fetch('/api/auth/signup', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: data.email,
-            password: data.password,
-            fullName: `${data.firstName} ${data.lastName}`,
-            stage: data.stage,
-          }),
+          body: JSON.stringify(signupData),
         });
 
         const result = await response.json();
+        console.log('📥 Signup response:', result);
 
         if (!response.ok) {
           toast.error(result.error || 'Account creation failed');
@@ -137,7 +144,21 @@ function OnboardingContent() {
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
     } else {
-      // Complete onboarding
+      // Complete onboarding - save profile data for AI agents context
+      try {
+        const profileData = {
+          fullName: `${data.firstName} ${data.lastName}`,
+          email: data.email,
+          stage: data.stage,
+          funding: data.funding,
+          timeCommitment: data.timeCommitment,
+          // Will be enriched with startup details from assessment
+        };
+        localStorage.setItem('founderProfile', JSON.stringify(profileData));
+      } catch (error) {
+        console.error('Error saving profile:', error);
+      }
+
       router.push('/founder/assessment');
     }
   };
@@ -462,6 +483,16 @@ function OnboardingContent() {
                       />
                     </div>
                   </div>
+                </div>
+
+                {/* Login Link */}
+                <div className="text-center">
+                  <p className="text-sm text-gray-600">
+                    Already have an account?{" "}
+                    <Link href="/login" className="text-blue-600 hover:text-blue-700 font-medium">
+                      Sign in
+                    </Link>
+                  </p>
                 </div>
 
                 <div className="text-xs text-gray-500 text-center">
