@@ -10,7 +10,7 @@ export async function GET() {
       supabaseConnection: false,
       databaseTables: false,
     },
-    details: {} as any,
+    details: {} as Record<string, unknown>,
   };
 
   try {
@@ -39,8 +39,8 @@ export async function GET() {
       } else {
         checks.details.connectionError = authError.message;
       }
-    } catch (error: any) {
-      checks.details.connectionError = error.message;
+    } catch (error) {
+      checks.details.connectionError = (error as Error).message;
     }
 
     // 3. Check database tables
@@ -55,25 +55,25 @@ export async function GET() {
           'subscription_usage',
         ];
 
-        const tableStatus: any = {};
+        const tableStatus: Record<string, string> = {};
 
         for (const table of tablesToCheck) {
           try {
             const { error } = await supabase.from(table).select('id').limit(1);
             tableStatus[table] = error ? `❌ ${error.message}` : '✅ Accessible';
-          } catch (e: any) {
-            tableStatus[table] = `❌ ${e.message}`;
+          } catch (e) {
+            tableStatus[table] = `❌ ${(e as Error).message}`;
           }
         }
 
         checks.details.tables = tableStatus;
 
         // Check if all tables are accessible
-        const allTablesOk = Object.values(tableStatus).every((status: any) => status.includes('✅'));
+        const allTablesOk = Object.values(tableStatus).every((status) => status.includes('✅'));
         checks.checks.databaseTables = allTablesOk;
 
-      } catch (error: any) {
-        checks.details.databaseError = error.message;
+      } catch (error) {
+        checks.details.databaseError = (error as Error).message;
       }
     }
 
@@ -92,12 +92,12 @@ export async function GET() {
       { status }
     );
 
-  } catch (error: any) {
+  } catch (error) {
     return NextResponse.json(
       {
         ...checks,
         status: 'error',
-        error: error.message,
+        error: (error as Error).message,
       },
       { status: 500 }
     );

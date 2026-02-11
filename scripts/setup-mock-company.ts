@@ -199,9 +199,9 @@ const clearMockData = () => {
 
 // Browser-friendly exports
 if (typeof window !== 'undefined') {
-  (window as any).setupMockCompany = setupMockCompany;
-  (window as any).clearMockData = clearMockData;
-  (window as any).mockCompanyData = mockCompany;
+  (window as unknown as Record<string, unknown>).setupMockCompany = setupMockCompany;
+  (window as unknown as Record<string, unknown>).clearMockData = clearMockData;
+  (window as unknown as Record<string, unknown>).mockCompanyData = mockCompany;
   console.log('📦 Mock company utilities loaded!');
   console.log('   Run: setupMockCompany() to populate data');
   console.log('   Run: clearMockData() to remove data');

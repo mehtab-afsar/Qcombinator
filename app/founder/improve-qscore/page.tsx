@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,8 +31,8 @@ interface DimensionScore {
 }
 
 export default function ImproveQScorePage() {
-  const router = useRouter();
-  const [currentScore, setCurrentScore] = useState(58); // Mock - will fetch from API
+  const _router = useRouter();
+  const [currentScore, _setCurrentScore] = useState(58); // Mock - will fetch from API
   const targetScore = 65;
   const pointsNeeded = targetScore - currentScore;
 
@@ -362,7 +362,7 @@ export default function ImproveQScorePage() {
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-green-900 mb-2">
-                  What You'll Unlock at Q-Score 65+
+                  What You&apos;ll Unlock at Q-Score 65+
                 </h3>
                 <ul className="space-y-2 text-green-800">
                   <li className="flex items-center">

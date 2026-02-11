@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const supabase = await createClient();
 
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
       .limit(2);
 
     let change = 0;
-    let dimensionChanges = {};
+    let dimensionChanges: Record<string, number> = {};
 
     if (previousScore && previousScore.length === 2) {
       const current = previousScore[0];

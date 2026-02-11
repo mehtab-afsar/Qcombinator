@@ -20,7 +20,7 @@ const REQUIRED_TABLES = [
   'analytics_events',
 ];
 
-const QSCORE_HISTORY_COLUMNS = [
+const _QSCORE_HISTORY_COLUMNS = [
   'id',
   'user_id',
   'overall_score',
@@ -57,12 +57,12 @@ async function verifyDatabase() {
 
   // Test connection
   try {
-    const { data, error } = await supabase.auth.getSession();
+    const { error } = await supabase.auth.getSession();
     if (error) throw error;
     console.log('✅ Supabase connection successful\n');
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('❌ Failed to connect to Supabase');
-    console.error(`   Error: ${error.message}`);
+    console.error(`   Error: ${(error as Error).message}`);
     process.exit(1);
   }
 
@@ -89,8 +89,8 @@ async function verifyDatabase() {
       } else {
         console.log(`✅ Table "${table}" exists and is accessible`);
       }
-    } catch (error: any) {
-      console.error(`❌ Table "${table}" check failed: ${error.message}`);
+    } catch (error: unknown) {
+      console.error(`❌ Table "${table}" check failed: ${(error as Error).message}`);
       allTablesExist = false;
     }
   }
@@ -101,7 +101,7 @@ async function verifyDatabase() {
   console.log('🔍 Checking qscore_history table schema...\n');
 
   try {
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('qscore_history')
       .select('*')
       .limit(0);
@@ -111,8 +111,8 @@ async function verifyDatabase() {
     } else {
       console.log('✅ qscore_history table schema looks correct');
     }
-  } catch (error: any) {
-    console.error(`❌ Schema check failed: ${error.message}`);
+  } catch (error: unknown) {
+    console.error(`❌ Schema check failed: ${(error as Error).message}`);
   }
 
   console.log('\n');

@@ -31,8 +31,8 @@ export function calculateFinancialScore(data: AssessmentData): {
   const hasRevenue = (finData.mrr && finData.mrr > 0) || (finData.arr && finData.arr > 0);
 
   // Gross margin calculation (20 pts)
-  if (hasCOGS && hasAvgDeal && finData.averageDealSize > 0) {
-    const grossMargin = ((finData.averageDealSize - finData.cogs) / finData.averageDealSize) * 100;
+  if (hasCOGS && hasAvgDeal && finData.averageDealSize! > 0) {
+    const grossMargin = ((finData.averageDealSize! - finData.cogs!) / finData.averageDealSize!) * 100;
     if (grossMargin >= 80) points += 20; // Excellent (80%+)
     else if (grossMargin >= 70) points += 17; // Great (70-80%)
     else if (grossMargin >= 60) points += 14; // Good (60-70%)
@@ -58,7 +58,7 @@ export function calculateFinancialScore(data: AssessmentData): {
   const hasBurn = finData.monthlyBurn > 0;
 
   if (hasRunway) {
-    const runway = finData.runway;
+    const runway = finData.runway!;
     if (runway >= 18) points += 30; // 18+ months
     else if (runway >= 12) points += 25; // 12-18 months
     else if (runway >= 9) points += 20; // 9-12 months
@@ -79,7 +79,7 @@ export function calculateFinancialScore(data: AssessmentData): {
 
   // Projection quality (15 pts)
   if (hasProjections && revenue > 0) {
-    const projectedGrowth = ((finData.projectedRevenue12mo - revenue) / revenue) * 100;
+    const projectedGrowth = ((finData.projectedRevenue12mo! - revenue) / revenue) * 100;
     // Realistic growth rates
     if (projectedGrowth >= 50 && projectedGrowth <= 300) {
       points += 15; // Realistic ambitious growth
@@ -98,7 +98,7 @@ export function calculateFinancialScore(data: AssessmentData): {
 
   // Assumptions documentation (15 pts)
   if (hasAssumptions) {
-    const assumptionsLength = finData.revenueAssumptions.length;
+    const assumptionsLength = finData.revenueAssumptions!.length;
     if (assumptionsLength >= 200) points += 15; // Detailed
     else if (assumptionsLength >= 100) points += 12; // Moderate
     else points += 8; // Basic

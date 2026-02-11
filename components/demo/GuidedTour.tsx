@@ -1,10 +1,26 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { DemoStep } from "@/lib/demo/journey-1";
 import { TooltipStep } from "./TooltipStep";
 import { ProgressBar } from "./ProgressBar";
 import { DemoControls } from "./DemoControls";
+
+export interface DemoStepAction {
+  type: 'navigate' | 'click' | 'highlight' | 'wait' | 'update-data';
+  target?: string;
+  duration?: number;
+}
+
+export interface DemoStep {
+  id: string;
+  title: string;
+  description: string;
+  target?: string;
+  targetElement?: string;
+  action?: DemoStepAction;
+  position?: 'top' | 'bottom' | 'left' | 'right';
+  waitForUser?: boolean;
+}
 
 interface GuidedTourProps {
   steps: DemoStep[];

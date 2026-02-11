@@ -2,10 +2,9 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import {
   ArrowLeft,
   Send,
@@ -30,7 +29,7 @@ export default function AgentChat() {
   const [inputValue, setInputValue] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [conversationSaved, setConversationSaved] = useState(false);
-  const [userContext, setUserContext] = useState<any>(null);
+  const [userContext, setUserContext] = useState<Record<string, unknown> | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Fetch user context from localStorage (populated during onboarding)

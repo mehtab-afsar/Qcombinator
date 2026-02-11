@@ -172,7 +172,7 @@ export default function FounderAssessment() {
             return;
           }
         }
-      } catch (e) {
+      } catch (_e) {
         console.log('Could not load from API, trying localStorage');
       }
 
@@ -300,12 +300,12 @@ export default function FounderAssessment() {
         // Save assessment data to localStorage for AI agents to use
         localStorage.setItem('assessmentData', JSON.stringify(data));
 
-        // Also update founder profile with startup details
+        // Also update founder profile with startup details from assessment
         const existingProfile = JSON.parse(localStorage.getItem('founderProfile') || '{}');
         const enrichedProfile = {
           ...existingProfile,
-          startupName: data.startupName || 'My Startup',
-          industry: data.industry || 'Technology',
+          startupName: existingProfile.startupName || 'My Startup',
+          industry: existingProfile.industry || 'Technology',
           description: data.problemStory?.substring(0, 200) || '',
         };
         localStorage.setItem('founderProfile', JSON.stringify(enrichedProfile));
@@ -344,7 +344,7 @@ export default function FounderAssessment() {
     }
   };
 
-  const updateData = (field: keyof NewAssessmentData, value: string | number | Date | null | string[]) => {
+  const updateData = (field: keyof NewAssessmentData, value: unknown) => {
     setData(prev => ({ ...prev, [field]: value }));
   };
 

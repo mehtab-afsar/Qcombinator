@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { groqService } from '@/lib/groq';
 import { getAgentById } from '@/lib/mock-data/agents';
+import type { Agent } from '@/app/types/edge-alpha';
 
 export const runtime = 'edge';
 
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
         content: systemPrompt
       },
       // Include recent conversation history (last 10 messages)
-      ...(conversationHistory || []).slice(-10).map((msg: any) => ({
+      ...(conversationHistory || []).slice(-10).map((msg: { role: string; content: string }) => ({
         role: msg.role === 'user' ? 'user' as const : 'assistant' as const,
         content: msg.content
       })),
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
 /**
  * Build specialized system prompt based on agent expertise and user context
  */
-function buildAgentSystemPrompt(agent: any, userContext?: any): string {
+function buildAgentSystemPrompt(agent: Agent, userContext?: Record<string, unknown>): string {
   // Build context section if user data is available
   let contextSection = '';
   if (userContext) {
@@ -120,10 +120,11 @@ function buildAgentSystemPrompt(agent: any, userContext?: any): string {
 
     // Add assessment data if available
     if (userContext.assessment) {
-      const assessment = userContext.assessment;
+      const assessment = userContext.assessment as Record<string, unknown>;
+      const financial = assessment.financial as Record<string, number> | undefined;
 
       if (assessment.totalMarketSize) {
-        contextSection += `TAM: $${(assessment.totalMarketSize / 1000000).toFixed(0)}M\n`;
+        contextSection += `TAM: $${((assessment.totalMarketSize as number) / 1000000).toFixed(0)}M\n`;
       }
       if (assessment.payingCustomers !== undefined) {
         contextSection += `Paying Customers: ${assessment.payingCustomers}\n`;
@@ -131,11 +132,11 @@ function buildAgentSystemPrompt(agent: any, userContext?: any): string {
       if (assessment.icpDescription) {
         contextSection += `ICP: ${assessment.icpDescription}\n`;
       }
-      if (assessment.financial?.mrr) {
-        contextSection += `MRR: $${assessment.financial.mrr.toLocaleString()}\n`;
+      if (financial?.mrr) {
+        contextSection += `MRR: $${financial.mrr.toLocaleString()}\n`;
       }
-      if (assessment.financial?.monthlyBurn) {
-        contextSection += `Monthly Burn: $${assessment.financial.monthlyBurn.toLocaleString()}\n`;
+      if (financial?.monthlyBurn) {
+        contextSection += `Monthly Burn: $${financial.monthlyBurn.toLocaleString()}\n`;
       }
       if (assessment.teamSize) {
         contextSection += `Team Size: ${assessment.teamSize}\n`;

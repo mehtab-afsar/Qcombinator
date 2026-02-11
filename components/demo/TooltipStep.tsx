@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Sparkles } from "lucide-react";
-import { DemoStep } from "@/lib/demo/journey-1";
+import { DemoStep } from "@/components/demo/GuidedTour";
 
 interface TooltipStepProps {
   step: DemoStep;

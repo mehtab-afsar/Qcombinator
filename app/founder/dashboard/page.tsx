@@ -3,32 +3,24 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   TrendingUp,
-  Users,
   Target,
   Brain,
   Eye,
   MessageSquare,
   Star,
   ArrowRight,
-  CheckCircle,
   Clock,
-  AlertCircle,
-  Zap,
-  Building2,
   FileText,
   BarChart3,
   Calendar,
-  Bell,
   Filter,
   Search,
   Plus,
   Share2,
   Download,
-  Play,
   RefreshCw
 } from "lucide-react";
 import { RecommendedActions } from "@/components/dashboard/RecommendedActions";
@@ -43,9 +35,9 @@ import { useQScore } from "@/contexts/QScoreContext";
 import Link from "next/link";
 
 export default function FounderDashboard() {
-  const [selectedTimeframe, setSelectedTimeframe] = useState('7d');
-  const { user, loading: authLoading } = useAuth();
-  const { qScore: realQScore, loading: qScoreLoading, refetch } = useQScore();
+  const [_selectedTimeframe, _setSelectedTimeframe] = useState('7d');
+  const { loading: authLoading } = useAuth();
+  const { qScore: realQScore, loading: qScoreLoading } = useQScore();
 
   // Show loading state
   if (authLoading || qScoreLoading) {
@@ -89,7 +81,7 @@ export default function FounderDashboard() {
   // Convert PRDQScore to QScore format for existing components
   const qScore: QScore = {
     overall: realQScore.overall,
-    previousWeek: realQScore.overall - (realQScore.change || 0),
+    previousWeek: realQScore.overall,
     percentile: realQScore.percentile || 50,
     breakdown: {
       market: {

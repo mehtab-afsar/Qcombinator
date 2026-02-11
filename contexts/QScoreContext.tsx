@@ -26,14 +26,14 @@ export function QScoreProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const [qScore, setQScore] = useState<PRDQScore | null>(null);
   const [loading, setLoading] = useState(true);
-  const [supabase, setSupabase] = useState<any>(null);
+  const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null);
 
   // Initialize Supabase client
   useEffect(() => {
     try {
       const client = createClient();
       setSupabase(client);
-    } catch (err: any) {
+    } catch (_err: unknown) {
       console.warn('⚠️  QScoreProvider: Supabase not configured, real-time updates disabled');
     }
   }, []);
@@ -97,14 +97,18 @@ export function QScoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Simple local Q-Score calculation
-  const calculateLocalQScore = (assessment: any): PRDQScore => {
+  const calculateLocalQScore = (assessment: Record<string, unknown>): PRDQScore => {
     // Basic scoring logic (simplified)
-    const marketScore = Math.min(100, (assessment.targetCustomers || 0) / 1000);
-    const productScore = Math.min(100, (assessment.conversationCount || 0) * 2);
-    const gtmScore = Math.min(100, (assessment.channelsTried?.length || 0) * 20);
-    const financialScore = assessment.mrr ? Math.min(100, (assessment.mrr / 100)) : 30;
+    const targetCustomers = (assessment.targetCustomers as number) || 0;
+    const conversationCount = (assessment.conversationCount as number) || 0;
+    const channelsTried = (assessment.channelsTried as string[]) || [];
+    const mrr = (assessment.mrr as number) || 0;
+    const marketScore = Math.min(100, targetCustomers / 1000);
+    const productScore = Math.min(100, conversationCount * 2);
+    const gtmScore = Math.min(100, channelsTried.length * 20);
+    const financialScore = mrr ? Math.min(100, mrr / 100) : 30;
     const teamScore = 50; // Default mid-range
-    const tractionScore = Math.min(100, (assessment.conversationCount || 0) * 1.5);
+    const tractionScore = Math.min(100, conversationCount * 1.5);
 
     const overall = Math.round(
       marketScore * 0.20 +
@@ -120,19 +124,19 @@ export function QScoreProvider({ children }: { children: React.ReactNode }) {
       percentile: 50,
       grade: overall >= 80 ? 'A' : overall >= 65 ? 'B' : overall >= 50 ? 'C' : 'D',
       breakdown: {
-        market: { score: Math.round(marketScore), weight: 0.20, change: 0, trend: 'neutral' },
-        product: { score: Math.round(productScore), weight: 0.18, change: 0, trend: 'neutral' },
-        goToMarket: { score: Math.round(gtmScore), weight: 0.17, change: 0, trend: 'neutral' },
-        financial: { score: Math.round(financialScore), weight: 0.18, change: 0, trend: 'neutral' },
-        team: { score: Math.round(teamScore), weight: 0.15, change: 0, trend: 'neutral' },
-        traction: { score: Math.round(tractionScore), weight: 0.12, change: 0, trend: 'neutral' },
+        market: { score: Math.round(marketScore), weight: 0.20, rawPoints: Math.round(marketScore), maxPoints: 100, change: 0, trend: 'neutral' },
+        product: { score: Math.round(productScore), weight: 0.18, rawPoints: Math.round(productScore), maxPoints: 100, change: 0, trend: 'neutral' },
+        goToMarket: { score: Math.round(gtmScore), weight: 0.17, rawPoints: Math.round(gtmScore), maxPoints: 100, change: 0, trend: 'neutral' },
+        financial: { score: Math.round(financialScore), weight: 0.18, rawPoints: Math.round(financialScore), maxPoints: 100, change: 0, trend: 'neutral' },
+        team: { score: Math.round(teamScore), weight: 0.15, rawPoints: Math.round(teamScore), maxPoints: 100, change: 0, trend: 'neutral' },
+        traction: { score: Math.round(tractionScore), weight: 0.12, rawPoints: Math.round(tractionScore), maxPoints: 100, change: 0, trend: 'neutral' },
       },
       calculatedAt: new Date(),
-      change: 0,
     };
   };
 
   // Initial fetch
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (user) {
       fetchQScore();
@@ -143,6 +147,7 @@ export function QScoreProvider({ children }: { children: React.ReactNode }) {
   }, [user]);
 
   // Subscribe to real-time Q-Score updates
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!user || !supabase) return;
 
@@ -156,14 +161,14 @@ export function QScoreProvider({ children }: { children: React.ReactNode }) {
           table: 'qscore_history',
           filter: `user_id=eq.${user.id}`,
         },
-        (payload) => {
+        (payload: { new: Record<string, unknown> }) => {
           console.log('New Q-Score received:', payload.new);
 
           // Refetch to get formatted data with trends
           fetchQScore();
 
           // Show toast notification
-          const newScore = payload.new as any;
+          const newScore = payload.new as Record<string, number>;
           const previousScore = qScore?.overall || 0;
           const change = newScore.overall_score - previousScore;
 

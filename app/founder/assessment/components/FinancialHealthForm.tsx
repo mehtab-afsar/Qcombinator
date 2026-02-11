@@ -20,16 +20,10 @@ interface FinancialHealthFormProps {
     revenueAssumptions: string;
     previousMrr?: number; // For growth rate calculation
   };
-  onChange: (field: string, value: any) => void;
+  onChange: (field: string, value: unknown) => void;
 }
 
 export function FinancialHealthForm({ data, onChange }: FinancialHealthFormProps) {
-  // Auto-calculate runway when burn changes
-  const calculateRunway = (cash: number, burn: number) => {
-    if (burn <= 0) return 999; // Infinite runway if no burn
-    return Math.floor(cash / burn);
-  };
-
   // Calculate gross margin
   const grossMargin = data.averageDealSize > 0 && data.cogs >= 0
     ? ((data.averageDealSize - data.cogs) / data.averageDealSize * 100).toFixed(1)
@@ -355,7 +349,7 @@ export function FinancialHealthForm({ data, onChange }: FinancialHealthFormProps
           </div>
           {data.arr > 0 && data.projectedRevenue12mo > 0 && (
             <p className="text-xs text-gray-600">
-              That's {(((data.projectedRevenue12mo - data.arr) / data.arr) * 100).toFixed(0)}% growth from current ARR
+              That&apos;s {(((data.projectedRevenue12mo - data.arr) / data.arr) * 100).toFixed(0)}% growth from current ARR
             </p>
           )}
         </div>

@@ -56,7 +56,7 @@ export function calculateGTMScore(data: AssessmentData): {
 
   // CAC validation (10 pts)
   if (hasCAC && gtmData.targetCAC) {
-    const cacRatio = gtmData.currentCAC / gtmData.targetCAC;
+    const cacRatio = gtmData.currentCAC! / gtmData.targetCAC;
     if (cacRatio <= 1) points += 10; // Met target
     else if (cacRatio <= 1.5) points += 7; // Within 50% of target
     else if (cacRatio <= 2) points += 4; // Within 2x target

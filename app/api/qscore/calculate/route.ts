@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { calculatePRDQScore } from '@/lib/scoring/prd-aligned-qscore';
 import { AssessmentData } from '@/lib/scoring/prd-types';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 export async function POST(request: NextRequest) {
   try {
@@ -100,7 +101,7 @@ export async function POST(request: NextRequest) {
 async function calculatePercentile(
   score: number,
   userId: string,
-  supabase: any
+  supabase: SupabaseClient
 ): Promise<number> {
   try {
     // Get all scores in the system
@@ -115,7 +116,7 @@ async function calculatePercentile(
 
     // Get latest score per user (deduplicate)
     const latestScores = new Map<string, number>();
-    allScores.forEach((record: any) => {
+    allScores.forEach((record: { user_id: string; overall_score: number }) => {
       if (!latestScores.has(record.user_id)) {
         latestScores.set(record.user_id, record.overall_score);
       }

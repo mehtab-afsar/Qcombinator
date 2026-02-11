@@ -106,7 +106,7 @@ export function calculatePRDQScore(assessmentData: AssessmentData, previousScore
 export async function calculatePercentile(
   overallScore: number,
   userId: string,
-  supabase: any
+  supabase: import('@supabase/supabase-js').SupabaseClient
 ): Promise<number> {
   try {
     // Get all scores from database (excluding current user)
@@ -122,7 +122,7 @@ export async function calculatePercentile(
     }
 
     // Count how many scores are below this score
-    const scoresBelow = allScores.filter((s: any) => s.overall_score < overallScore).length;
+    const scoresBelow = allScores.filter((s: { overall_score: number }) => s.overall_score < overallScore).length;
     const percentile = Math.round((scoresBelow / allScores.length) * 100);
 
     return percentile;

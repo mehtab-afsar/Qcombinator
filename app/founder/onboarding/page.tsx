@@ -20,7 +20,6 @@ import {
   CheckCircle,
   Play,
   User,
-  Mail,
   Building2,
   Rocket
 } from "lucide-react";
@@ -39,7 +38,7 @@ interface OnboardingData {
 function OnboardingContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { signUp } = useAuth();
+  const { signUp: _signUp } = useAuth();
   const focusOnScore = searchParams.get('focus') === 'score';
 
   const [currentStep, setCurrentStep] = useState(0);
@@ -133,7 +132,8 @@ function OnboardingContent() {
 
         // Note: Supabase will send a confirmation email
         // For now, we'll continue to next step
-      } catch (err: any) {
+      } catch (err) {
+        console.error('Account creation error:', err);
         toast.error('Failed to create account. Please try again.');
         setIsCreatingAccount(false);
         return;

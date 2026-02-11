@@ -37,24 +37,25 @@ export function calculateTractionScore(data: AssessmentData): {
   }
 
   // Customer commitment level (20 pts)
-  const hasCustomerEvidence = data.customerEvidence && data.customerEvidence.length > 0;
-  const evidenceLength = data.customerEvidence?.length || 0;
+  const commitmentText = data.customerCommitment || '';
+  const hasCustomerEvidence = commitmentText.length > 0;
+  const evidenceLength = commitmentText.length;
 
   // Check for strong commitment signals
-  const hasPaidCommitment = data.customerEvidence?.toLowerCase().includes('paid') ||
-                           data.customerEvidence?.toLowerCase().includes('purchased') ||
-                           data.customerEvidence?.toLowerCase().includes('bought') ||
-                           data.customerEvidence?.toLowerCase().includes('$') ||
+  const hasPaidCommitment = commitmentText.toLowerCase().includes('paid') ||
+                           commitmentText.toLowerCase().includes('purchased') ||
+                           commitmentText.toLowerCase().includes('bought') ||
+                           commitmentText.toLowerCase().includes('$') ||
                            hasPayingCustomers;
 
-  const hasLOI = data.customerEvidence?.toLowerCase().includes('letter of intent') ||
-                 data.customerEvidence?.toLowerCase().includes('loi') ||
-                 data.customerEvidence?.toLowerCase().includes('signed') ||
-                 data.customerEvidence?.toLowerCase().includes('contract');
+  const hasLOI = commitmentText.toLowerCase().includes('letter of intent') ||
+                 commitmentText.toLowerCase().includes('loi') ||
+                 commitmentText.toLowerCase().includes('signed') ||
+                 commitmentText.toLowerCase().includes('contract');
 
-  const hasWaitlist = data.customerEvidence?.toLowerCase().includes('waitlist') ||
-                      data.customerEvidence?.toLowerCase().includes('wait list') ||
-                      data.customerEvidence?.toLowerCase().includes('signed up');
+  const hasWaitlist = commitmentText.toLowerCase().includes('waitlist') ||
+                      commitmentText.toLowerCase().includes('wait list') ||
+                      commitmentText.toLowerCase().includes('signed up');
 
   if (hasCustomerEvidence) {
     if (hasPaidCommitment && evidenceLength >= 150) {
@@ -108,53 +109,13 @@ export function calculateTractionScore(data: AssessmentData): {
   }
 
   // 3. Growth Rate (30 points)
-  const hasGrowthData = data.financial?.growthRate !== undefined ||
-                        (data.financial?.previousMrr !== undefined && mrr > 0);
+  // No direct growth rate field in assessment - use proxy indicators
+  const recentTraction = conversationCount >= 20 || revenue >= 10_000;
 
-  if (hasGrowthData) {
-    let growthRate: number;
-
-    if (data.financial?.growthRate !== undefined) {
-      // Direct growth rate provided (percentage)
-      growthRate = data.financial.growthRate;
-    } else if (data.financial?.previousMrr && mrr > 0) {
-      // Calculate from current vs previous MRR
-      growthRate = ((mrr - data.financial.previousMrr) / data.financial.previousMrr) * 100;
-    } else {
-      growthRate = 0;
-    }
-
-    // Monthly growth rate scoring
-    if (growthRate >= 30) {
-      points += 30; // Hypergrowth (30%+ MoM)
-    } else if (growthRate >= 20) {
-      points += 27; // Exceptional (20-30% MoM)
-    } else if (growthRate >= 15) {
-      points += 24; // Excellent (15-20% MoM)
-    } else if (growthRate >= 10) {
-      points += 20; // Great (10-15% MoM)
-    } else if (growthRate >= 7) {
-      points += 16; // Good (7-10% MoM)
-    } else if (growthRate >= 5) {
-      points += 12; // Solid (5-7% MoM)
-    } else if (growthRate >= 2) {
-      points += 8; // Slow growth (2-5% MoM)
-    } else if (growthRate > 0) {
-      points += 4; // Minimal growth (<2% MoM)
-    } else if (growthRate === 0) {
-      points += 5; // Flat (better than declining)
-    } else {
-      points += 2; // Declining (negative growth)
-    }
+  if (recentTraction) {
+    points += 10; // Activity suggests growth but no metrics
   } else {
-    // No growth data, but check for directional indicators
-    const recentTraction = conversationCount >= 20 || revenue >= 10_000;
-
-    if (recentTraction) {
-      points += 10; // Activity suggests growth but no metrics
-    } else {
-      points += 5; // No growth data available
-    }
+    points += 5; // No growth data available
   }
 
   // Normalize to 0-100 scale

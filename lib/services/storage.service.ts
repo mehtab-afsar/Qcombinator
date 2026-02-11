@@ -5,6 +5,7 @@
  */
 
 import { FounderProfile, AssessmentData } from '@/lib/types/founder.types';
+import { PRDQScore } from '@/lib/scoring/prd-types';
 
 const STORAGE_KEYS = {
   FOUNDER_PROFILE: 'founderProfile',
@@ -103,11 +104,11 @@ class StorageService {
   }
 
   // === Q-Score ===
-  getQScore(): any | null {
-    return this.get(STORAGE_KEYS.QSCORE);
+  getQScore(): PRDQScore | null {
+    return this.get<PRDQScore>(STORAGE_KEYS.QSCORE);
   }
 
-  setQScore(score: any): boolean {
+  setQScore(score: PRDQScore): boolean {
     return this.set(STORAGE_KEYS.QSCORE, score);
   }
 

@@ -12,17 +12,11 @@ import {
   Search,
   Filter,
   Target,
-  TrendingUp,
   MapPin,
-  DollarSign,
-  Users,
-  Building2,
   Star,
   Heart,
-  MessageCircle,
   Eye,
   Zap,
-  Clock,
   ArrowRight,
   Sparkles,
   Lock,
@@ -104,7 +98,7 @@ export default function InvestorMatching() {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedFocus, setSelectedFocus] = useState('all')
   const [selectedStage, setSelectedStage] = useState('all')
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [_viewMode, _setViewMode] = useState<'grid' | 'list'>('grid')
   const [selectedInvestor, setSelectedInvestor] = useState<Investor | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [investors, setInvestors] = useState(mockInvestors)
@@ -121,7 +115,7 @@ export default function InvestorMatching() {
     setIsModalOpen(true)
   }
 
-  const handleConnectionSubmit = (message: string) => {
+  const handleConnectionSubmit = (_message: string) => {
     if (!selectedInvestor) return
 
     // Update investor connection status

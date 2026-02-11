@@ -19,7 +19,7 @@ interface GoToMarketFormProps {
     messagingTested: boolean;
     messagingResults: string;
   };
-  onChange: (field: string, value: any) => void;
+  onChange: (field: string, value: unknown) => void;
 }
 
 const CHANNELS = [
@@ -221,7 +221,7 @@ export function GoToMarketForm({ data, onChange }: GoToMarketFormProps) {
           <div className="flex items-center space-x-2">
             <RadioGroupItem value="yes" id="messaging-yes" />
             <Label htmlFor="messaging-yes" className="font-normal cursor-pointer">
-              Yes, we've tested multiple messages
+              Yes, we&apos;ve tested multiple messages
             </Label>
           </div>
           <div className="flex items-center space-x-2">
@@ -252,7 +252,7 @@ export function GoToMarketForm({ data, onChange }: GoToMarketFormProps) {
       <Card className="bg-blue-50 border-blue-200">
         <CardContent className="p-4">
           <p className="text-sm text-blue-900">
-            <strong>💡 Pro Tip:</strong> Strong GTM scores come from testing multiple channels systematically and having clear data on what works. If you haven't tested 2-3 channels yet, that's your next step!
+            <strong>💡 Pro Tip:</strong> Strong GTM scores come from testing multiple channels systematically and having clear data on what works. If you haven&apos;t tested 2-3 channels yet, that&apos;s your next step!
           </p>
         </CardContent>
       </Card>

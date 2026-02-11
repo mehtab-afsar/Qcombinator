@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Brain, MessageSquare, TrendingUp, Sparkles, ArrowRight } from "lucide-react";
 import Link from "next/link";
-import { agents, getAgentsByPillar, getPillarName, getPillarColor } from "@/lib/mock-data/agents";
+import { getAgentsByPillar, getPillarName, getPillarColor } from "@/lib/mock-data/agents";
 import { generateAgentRecommendations } from "@/lib/recommendation-engine";
 import { Agent } from "@/app/types/edge-alpha";
 
@@ -28,7 +28,7 @@ export default function AgentsHub() {
   };
 
   const agentRecommendations = generateAgentRecommendations(mockQScore);
-  const [activePillar, setActivePillar] = useState<Agent['pillar']>('sales-marketing');
+  const [_activePillar, setActivePillar] = useState<Agent['pillar']>('sales-marketing');
 
   const salesMarketingAgents = getAgentsByPillar('sales-marketing');
   const operationsFinanceAgents = getAgentsByPillar('operations-finance');

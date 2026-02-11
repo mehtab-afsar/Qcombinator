@@ -16,11 +16,11 @@ export function calculateTeamScore(data: AssessmentData): {
 
   // 1. Domain Expertise (40 points)
   // Source: Problem Origin section
-  const hasOriginStory = data.problemOrigin && data.problemOrigin.length > 0;
-  const originLength = data.problemOrigin?.length || 0;
-  const hasPersonalExperience = data.problemOrigin?.toLowerCase().includes('i ') ||
-                                 data.problemOrigin?.toLowerCase().includes('my ') ||
-                                 data.problemOrigin?.toLowerCase().includes('we ');
+  const hasOriginStory = data.problemStory && data.problemStory.length > 0;
+  const originLength = data.problemStory?.length || 0;
+  const hasPersonalExperience = data.problemStory?.toLowerCase().includes('i ') ||
+                                 data.problemStory?.toLowerCase().includes('my ') ||
+                                 data.problemStory?.toLowerCase().includes('we ');
 
   // Origin story quality (20 pts)
   if (hasOriginStory) {
@@ -40,19 +40,19 @@ export function calculateTeamScore(data: AssessmentData): {
   }
 
   // Unique advantage / unfair edge (20 pts)
-  const hasAdvantage = data.uniqueAdvantage && data.uniqueAdvantage.length > 0;
-  const advantageLength = data.uniqueAdvantage?.length || 0;
+  const hasAdvantage = data.advantageExplanation && data.advantageExplanation.length > 0;
+  const advantageLength = data.advantageExplanation?.length || 0;
 
   // Check for specific advantage types (insider knowledge, relationships, technical expertise)
-  const hasInsiderKnowledge = data.uniqueAdvantage?.toLowerCase().includes('experience') ||
-                               data.uniqueAdvantage?.toLowerCase().includes('worked') ||
-                               data.uniqueAdvantage?.toLowerCase().includes('industry');
-  const hasNetwork = data.uniqueAdvantage?.toLowerCase().includes('network') ||
-                     data.uniqueAdvantage?.toLowerCase().includes('connection') ||
-                     data.uniqueAdvantage?.toLowerCase().includes('relationship');
-  const hasTechnical = data.uniqueAdvantage?.toLowerCase().includes('technical') ||
-                       data.uniqueAdvantage?.toLowerCase().includes('engineer') ||
-                       data.uniqueAdvantage?.toLowerCase().includes('built');
+  const hasInsiderKnowledge = data.advantageExplanation?.toLowerCase().includes('experience') ||
+                               data.advantageExplanation?.toLowerCase().includes('worked') ||
+                               data.advantageExplanation?.toLowerCase().includes('industry');
+  const hasNetwork = data.advantageExplanation?.toLowerCase().includes('network') ||
+                     data.advantageExplanation?.toLowerCase().includes('connection') ||
+                     data.advantageExplanation?.toLowerCase().includes('relationship');
+  const hasTechnical = data.advantageExplanation?.toLowerCase().includes('technical') ||
+                       data.advantageExplanation?.toLowerCase().includes('engineer') ||
+                       data.advantageExplanation?.toLowerCase().includes('built');
 
   if (hasAdvantage) {
     const advantageCount = [hasInsiderKnowledge, hasNetwork, hasTechnical].filter(Boolean).length;
@@ -77,17 +77,17 @@ export function calculateTeamScore(data: AssessmentData): {
   // Using proxy signals from existing data
 
   // Check if team is mentioned in various sections
-  const teamMentioned = (data.problemOrigin?.toLowerCase().includes('team') ||
-                         data.problemOrigin?.toLowerCase().includes('we ') ||
-                         data.problemOrigin?.toLowerCase().includes('us ')) ?? false;
+  const teamMentioned = (data.problemStory?.toLowerCase().includes('team') ||
+                         data.problemStory?.toLowerCase().includes('we ') ||
+                         data.problemStory?.toLowerCase().includes('us ')) ?? false;
 
-  const hasCofounder = data.problemOrigin?.toLowerCase().includes('cofounder') ||
-                       data.problemOrigin?.toLowerCase().includes('co-founder') ||
-                       data.problemOrigin?.toLowerCase().includes('partner') ||
-                       data.problemOrigin?.toLowerCase().includes('founded with') ||
+  const hasCofounder = data.problemStory?.toLowerCase().includes('cofounder') ||
+                       data.problemStory?.toLowerCase().includes('co-founder') ||
+                       data.problemStory?.toLowerCase().includes('partner') ||
+                       data.problemStory?.toLowerCase().includes('founded with') ||
                        false;
 
-  const teamSize = data.teamSize || 1; // Default to solo if not specified
+  const teamSize: number = 1; // Default to solo - field not in current assessment
 
   // Team size and composition (30 pts)
   if (teamSize >= 3) {
@@ -100,10 +100,10 @@ export function calculateTeamScore(data: AssessmentData): {
 
   // Complementary skills evidence (15 pts)
   if (hasCofounder) {
-    const hasRoleClarity = data.uniqueAdvantage?.toLowerCase().includes('ceo') ||
-                          data.uniqueAdvantage?.toLowerCase().includes('cto') ||
-                          data.uniqueAdvantage?.toLowerCase().includes('technical') ||
-                          data.uniqueAdvantage?.toLowerCase().includes('business') ||
+    const hasRoleClarity = data.advantageExplanation?.toLowerCase().includes('ceo') ||
+                          data.advantageExplanation?.toLowerCase().includes('cto') ||
+                          data.advantageExplanation?.toLowerCase().includes('technical') ||
+                          data.advantageExplanation?.toLowerCase().includes('business') ||
                           false;
 
     if (hasRoleClarity && teamSize >= 2) {
@@ -121,8 +121,9 @@ export function calculateTeamScore(data: AssessmentData): {
 
   // 3. Resilience (30 points)
   // Source: Resilience section (failed assumptions, learning velocity)
-  const hasFailedAssumptions = data.failedAssumptions && data.failedAssumptions.length > 0;
-  const assumptionsLength = data.failedAssumptions?.length || 0;
+  const failedAssumptionsText = data.failedBelief || data.failedChange || '';
+  const hasFailedAssumptions = failedAssumptionsText.length > 0;
+  const assumptionsLength = failedAssumptionsText.length;
 
   // Failed assumptions quality (15 pts)
   if (hasFailedAssumptions) {
@@ -143,7 +144,7 @@ export function calculateTeamScore(data: AssessmentData): {
 
   // Learning velocity / iteration speed (15 pts)
   const buildTime = data.buildTime || 0;
-  const iterationCount = data.iterationCount || 0;
+  const iterationCount = data.conversationCount || 0; // Use conversation count as proxy for iteration evidence
 
   // Fast iteration shows resilience
   if (buildTime > 0) {
