@@ -18,8 +18,8 @@ import {
   Save,
   AlertTriangle
 } from 'lucide-react';
-import { useFounderData } from '@/lib/hooks/useFounderData';
-import { storageService } from '@/lib/services/storage.service';
+import { useFounderData } from '@/features/founder/hooks/useFounderData';
+import { storageService } from '@/features/founder/services/founder.service';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 

@@ -1,5 +1,5 @@
-import { calculatePRDQScore } from '../lib/scoring/prd-aligned-qscore';
-import { AssessmentData } from '../lib/scoring/prd-types';
+import { calculatePRDQScore } from '../features/qscore/calculators/prd-aligned-qscore';
+import { AssessmentData } from '../features/qscore/types/qscore.types';
 
 /**
  * Test Q-Score Calculation

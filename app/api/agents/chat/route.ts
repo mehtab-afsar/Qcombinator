@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAgentById } from '@/lib/mock-data/agents';
-import type { Agent } from '@/app/types/edge-alpha';
+import { getAgentById } from '@/features/agents/data/agents';
+import type { Agent } from '@/features/agents/types/agent.types';
 
 export const runtime = 'edge';
 

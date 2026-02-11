@@ -15,7 +15,7 @@ import {
   Share,
   RefreshCw
 } from 'lucide-react';
-import { useFounderData } from '@/lib/hooks/useFounderData';
+import { useFounderData } from '@/features/founder/hooks/useFounderData';
 import Link from 'next/link';
 
 export default function ProfileBuilder() {

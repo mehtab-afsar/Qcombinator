@@ -7,9 +7,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Brain, MessageSquare, TrendingUp, Sparkles, ArrowRight } from "lucide-react";
 import Link from "next/link";
-import { getAgentsByPillar, getPillarName, getPillarColor } from "@/lib/mock-data/agents";
-import { generateAgentRecommendations } from "@/lib/recommendation-engine";
-import { Agent } from "@/app/types/edge-alpha";
+import { getAgentsByPillar, getPillarName, getPillarColor } from "@/features/agents/data/agents";
+import { generateAgentRecommendations } from "@/features/qscore/utils/recommendations";
+import { Agent } from "@/features/agents/types/agent.types";
 
 export default function AgentsHub() {
   // Mock Q-Score for recommendations (should come from context/API in production)

@@ -23,15 +23,15 @@ import {
   Download,
   RefreshCw
 } from "lucide-react";
-import { RecommendedActions } from "@/components/dashboard/RecommendedActions";
-import { AgentConversations } from "@/components/dashboard/AgentConversations";
-import { WorkshopsPreview } from "@/components/dashboard/WorkshopsPreview";
-import { InvestorNotifications } from "@/components/dashboard/InvestorNotifications";
-import { generateRecommendations } from "@/lib/recommendation-engine";
-import { getUpcomingWorkshops } from "@/lib/mock-data/workshops";
-import { QScore } from "@/app/types/edge-alpha";
-import { useAuth } from "@/contexts/AuthContext";
-import { useQScore } from "@/contexts/QScoreContext";
+import { RecommendedActions } from "@/features/dashboard/components/RecommendedActions";
+import { AgentConversations } from "@/features/agents/components/AgentConversations";
+import { WorkshopsPreview } from "@/features/academy/components/WorkshopsPreview";
+import { InvestorNotifications } from "@/features/dashboard/components/InvestorNotifications";
+import { generateRecommendations } from "@/features/qscore/utils/recommendations";
+import { getUpcomingWorkshops } from "@/features/academy/data/workshops";
+import { QScore } from "@/features/qscore/types/qscore.types";
+import { useAuth } from "@/features/auth/hooks/useAuth";
+import { useQScore } from "@/features/qscore/hooks/useQScore";
 import Link from "next/link";
 
 export default function FounderDashboard() {

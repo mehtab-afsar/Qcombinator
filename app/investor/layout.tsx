@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import InvestorSidebar from "@/components/layout/investor-sidebar";
+import InvestorSidebar from "@/features/investor/components/InvestorSidebar";
 
 export default function InvestorLayout({
   children,

@@ -16,8 +16,8 @@ import {
   CheckCircle
 } from "lucide-react";
 import Link from "next/link";
-import { getAgentById, getPillarColor } from "@/lib/mock-data/agents";
-import { AgentMessage } from "@/app/types/edge-alpha";
+import { getAgentById, getPillarColor } from "@/features/agents/data/agents";
+import { AgentMessage } from "@/features/agents/types/agent.types";
 
 export default function AgentChat() {
   const params = useParams();

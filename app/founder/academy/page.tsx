@@ -16,7 +16,7 @@ import {
   Video,
   Sparkles
 } from "lucide-react";
-import { getUpcomingWorkshops, getPastWorkshops, mentors, academyPrograms, getOpenPrograms } from "@/lib/mock-data/workshops";
+import { getUpcomingWorkshops, getPastWorkshops, mentors, academyPrograms, getOpenPrograms } from "@/features/academy/data/workshops";
 
 export default function Academy() {
   const [showComingSoonModal, setShowComingSoonModal] = useState(false);

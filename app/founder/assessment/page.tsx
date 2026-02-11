@@ -17,15 +17,15 @@ import {
 } from "lucide-react";
 
 // Import new components
-import { ProblemOriginForm } from "./components/ProblemOriginForm";
-import { UniqueAdvantageForm } from "./components/UniqueAdvantageForm";
-import { CustomerEvidenceForm } from "./components/CustomerEvidenceForm";
-import { FailedAssumptionsForm } from "./components/FailedAssumptionsForm";
-import { LearningVelocityForm } from "./components/LearningVelocityForm";
-import { MarketCalculator } from "./components/MarketCalculator";
-import { GoToMarketForm } from "./components/GoToMarketForm";
-import { FinancialHealthForm } from "./components/FinancialHealthForm";
-import { ResilienceForm } from "./components/ResilienceForm";
+import { ProblemOriginForm } from "@/features/founder/components/assessment/ProblemOriginForm";
+import { UniqueAdvantageForm } from "@/features/founder/components/assessment/UniqueAdvantageForm";
+import { CustomerEvidenceForm } from "@/features/founder/components/assessment/CustomerEvidenceForm";
+import { FailedAssumptionsForm } from "@/features/founder/components/assessment/FailedAssumptionsForm";
+import { LearningVelocityForm } from "@/features/founder/components/assessment/LearningVelocityForm";
+import { MarketCalculator } from "@/features/founder/components/assessment/MarketCalculator";
+import { GoToMarketForm } from "@/features/founder/components/assessment/GoToMarketForm";
+import { FinancialHealthForm } from "@/features/founder/components/assessment/FinancialHealthForm";
+import { ResilienceForm } from "@/features/founder/components/assessment/ResilienceForm";
 
 interface NewAssessmentData {
   // Section A: Founder-Problem Fit

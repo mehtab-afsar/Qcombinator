@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { Inter, Manrope } from "next/font/google";
 import "./globals.css";
-import { AuthProvider } from "@/contexts/AuthContext";
-import { QScoreProvider } from "@/contexts/QScoreContext";
+import { AuthProvider } from "@/features/auth/hooks/useAuth";
+import { QScoreProvider } from "@/features/qscore/hooks/useQScore";
 import { Toaster } from "sonner";
 
 const inter = Inter({ subsets: ["latin"] });

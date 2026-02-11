@@ -22,8 +22,8 @@ import {
   Send,
   Calendar
 } from 'lucide-react'
-import { ConnectionRequestModal } from '@/components/matching/ConnectionRequestModal'
-import { ConnectionStatusBadge, ConnectionStatus } from '@/components/matching/ConnectionStatusBadge'
+import { ConnectionRequestModal } from '@/features/matching/components/ConnectionRequestModal'
+import { ConnectionStatusBadge, ConnectionStatus } from '@/features/matching/components/ConnectionStatusBadge'
 
 interface Investor {
   id: string

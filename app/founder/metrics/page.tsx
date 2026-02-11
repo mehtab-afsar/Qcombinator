@@ -13,7 +13,7 @@ import {
   RefreshCw,
   Minus
 } from 'lucide-react';
-import { useMetrics } from '@/lib/hooks/useFounderData';
+import { useMetrics } from '@/features/founder/hooks/useFounderData';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 

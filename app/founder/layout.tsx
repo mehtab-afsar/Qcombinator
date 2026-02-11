@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import FounderSidebar from "@/components/layout/founder-sidebar";
+import FounderSidebar from "@/features/founder/components/FounderSidebar";
 
 export default function FounderLayout({
   children,

@@ -28,9 +28,9 @@ import {
   Inbox
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { ConnectionRequestCard } from '@/components/investor/ConnectionRequestCard'
-import { MeetingSchedulerModal } from '@/components/investor/MeetingSchedulerModal'
-import { DeclineFeedbackForm } from '@/components/investor/DeclineFeedbackForm'
+import { ConnectionRequestCard } from '@/features/investor/components/ConnectionRequestCard'
+import { MeetingSchedulerModal } from '@/features/investor/components/MeetingSchedulerModal'
+import { DeclineFeedbackForm } from '@/features/investor/components/DeclineFeedbackForm'
 
 interface Startup {
   id: string
