@@ -136,7 +136,6 @@ export function QScoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Initial fetch
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (user) {
       fetchQScore();
@@ -144,10 +143,10 @@ export function QScoreProvider({ children }: { children: React.ReactNode }) {
       setQScore(null);
       setLoading(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   // Subscribe to real-time Q-Score updates
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!user || !supabase) return;
 
@@ -195,6 +194,7 @@ export function QScoreProvider({ children }: { children: React.ReactNode }) {
     return () => {
       supabase.removeChannel(channel);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, supabase, qScore]);
 
   const value = {

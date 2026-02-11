@@ -16,7 +16,6 @@ import {
   Users,
   DollarSign,
   Upload,
-  Link,
   Calendar,
   Globe,
   CheckCircle,

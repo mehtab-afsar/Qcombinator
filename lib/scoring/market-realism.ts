@@ -3,7 +3,6 @@
  * Max: 150 points (15% of total founder score)
  */
 
-import { isRealisticConversionRate, isRealisticDailyActivity } from '@/lib/utils/validation';
 
 /**
  * Score: Bottom-Up Market Sizing

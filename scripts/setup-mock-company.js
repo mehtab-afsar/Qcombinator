@@ -117,7 +117,8 @@ const mockCompany = {
   }
 };
 
-// Setup function
+// Setup function - exposed on window for browser console usage
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function setupMockCompany() {
   console.log('🚀 Setting up TaskFlow mock company data...\n');
 
@@ -166,7 +167,8 @@ function setupMockCompany() {
   console.log(`   • /founder/improve-qscore - See personalized recommendations\n`);
 }
 
-// Clear function
+// Clear function - exposed on window for browser console usage
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function clearMockData() {
   localStorage.removeItem('founderProfile');
   localStorage.removeItem('assessmentData');

@@ -28,7 +28,7 @@ export function calculateFinancialScore(data: AssessmentData): {
   // 1. Unit Economics (40 points)
   const hasCOGS = finData.cogs !== undefined && finData.cogs >= 0;
   const hasAvgDeal = finData.averageDealSize !== undefined && finData.averageDealSize > 0;
-  const hasRevenue = (finData.mrr && finData.mrr > 0) || (finData.arr && finData.arr > 0);
+  const _hasRevenue = (finData.mrr && finData.mrr > 0) || (finData.arr && finData.arr > 0);
 
   // Gross margin calculation (20 pts)
   if (hasCOGS && hasAvgDeal && finData.averageDealSize! > 0) {

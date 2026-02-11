@@ -1050,7 +1050,7 @@ export default function LandingPage() {
                   { top: "20%", left: "60%", delay: 0.6, name: "Jason" },
                   { top: "50%", left: "70%", delay: 0.8, name: "Sarah" },
                   { top: "75%", left: "55%", delay: 1.0, name: "Michael" }
-                ].map((investor, index) => (
+                ].map((investor) => (
                   <motion.div
                     key={investor.name}
                     className="absolute"

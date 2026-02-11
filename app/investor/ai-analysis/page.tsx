@@ -13,7 +13,6 @@ import {
   CheckCircle2,
   Target,
   Users,
-  DollarSign,
   Zap,
   LineChart,
   BarChart3,
@@ -21,8 +20,7 @@ import {
   Activity,
   Sparkles,
   ChevronRight,
-  Download,
-  Share2
+  Download
 } from "lucide-react";
 
 interface AIInsight {

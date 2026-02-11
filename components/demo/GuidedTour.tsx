@@ -49,6 +49,7 @@ export function GuidedTour({
     if (currentStep.action) {
       executeAction(currentStep.action);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStepIndex]);
 
   const executeAction = async (action: DemoStep['action']) => {

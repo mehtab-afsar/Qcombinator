@@ -104,7 +104,7 @@ export class GroqAIService {
       try {
         const analysis = JSON.parse(content)
         return analysis as PitchAnalysis
-      } catch (parseError) {
+      } catch (_parseError) {
         // Fallback if JSON parsing fails
         console.warn('Failed to parse Groq response, using fallback')
         return this.getFallbackPitchAnalysis()
@@ -187,7 +187,7 @@ export class GroqAIService {
       try {
         const analysis = JSON.parse(content)
         return analysis as QScoreAnalysis
-      } catch (parseError) {
+      } catch (_parseError) {
         console.warn('Failed to parse Groq response, using fallback')
         return this.getFallbackQScore()
       }
@@ -258,7 +258,7 @@ export class GroqAIService {
 
       try {
         return JSON.parse(content)
-      } catch (parseError) {
+      } catch (_parseError) {
         return {
           matchScore: 75,
           reasoning: "Standard compatibility analysis",

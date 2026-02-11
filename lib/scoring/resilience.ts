@@ -3,7 +3,7 @@
  * Max: 100 points (10% of total founder score)
  */
 
-import { getWordCount, countWords } from '@/lib/utils/text-analysis';
+import { getWordCount } from '@/lib/utils/text-analysis';
 
 /**
  * Score: Hardest Moment & Response

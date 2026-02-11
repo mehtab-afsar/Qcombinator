@@ -6,7 +6,6 @@
 import {
   getWordCount,
   extractNumbers,
-  hasSpecificExamples,
 } from '@/lib/utils/text-analysis';
 
 /**

@@ -21,6 +21,7 @@ export function TooltipStep({ step, position, isTransitioning }: TooltipStepProp
       window.addEventListener('resize', positionTooltip);
       return () => window.removeEventListener('resize', positionTooltip);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step.targetElement, position]);
 
   const positionTooltip = () => {

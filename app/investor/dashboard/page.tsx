@@ -27,7 +27,6 @@ import {
   Share,
   Inbox
 } from 'lucide-react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ConnectionRequestCard } from '@/components/investor/ConnectionRequestCard'
 import { MeetingSchedulerModal } from '@/components/investor/MeetingSchedulerModal'
@@ -299,7 +298,9 @@ export default function InvestorDashboard() {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedStage, setSelectedStage] = useState('all')
   const [selectedSector, setSelectedSector] = useState('all')
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [viewMode, setViewMode] = useState<'list' | 'cards'>('cards')
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [filteredStartups, setFilteredStartups] = useState(mockStartups)
 
   // Connection request state
@@ -327,7 +328,7 @@ export default function InvestorDashboard() {
   }
 
   // Handle schedule meeting
-  const handleScheduleMeeting = (date: string, time: string, notes: string) => {
+  const handleScheduleMeeting = (_date: string, _time: string, _notes: string) => {
     if (!selectedRequest) return
 
     // Remove request from list after scheduling
@@ -337,7 +338,7 @@ export default function InvestorDashboard() {
   }
 
   // Handle decline with feedback
-  const handleDeclineWithFeedback = (reasons: string[], feedback: string) => {
+  const handleDeclineWithFeedback = (_reasons: string[], _feedback: string) => {
     if (!selectedRequest) return
 
     // Remove request from list after declining

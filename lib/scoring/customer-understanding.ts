@@ -6,8 +6,6 @@
 import {
   getWordCount,
   hasLearningIndicators,
-  hasValidationIndicators,
-  countWords,
 } from '@/lib/utils/text-analysis';
 import { daysSince } from '@/lib/utils/validation';
 

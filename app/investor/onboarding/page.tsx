@@ -17,12 +17,9 @@ import {
   Sparkles,
   CheckCircle2,
   ArrowRight,
-  Upload,
   TrendingUp,
   Users,
   DollarSign,
-  Clock,
-  MapPin,
   Globe
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'

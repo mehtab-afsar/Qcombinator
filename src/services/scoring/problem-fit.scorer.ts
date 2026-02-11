@@ -5,14 +5,12 @@
  */
 
 import {
-  countWords,
   extractNumbers,
   hasPersonalExperience,
   hasValidationIndicators,
   hasQuantification,
   parseDuration,
   getWordCount,
-  hasSpecificExamples,
 } from '@/lib/utils/text-analysis';
 
 // ============================================================================
@@ -47,7 +45,7 @@ export class ProblemFitScorer {
    * Score Problem Origin Story
    * Max: 100 points
    */
-  static scoreProblemOrigin(story: string, followUpAnswers?: string[]): ProblemOriginScore {
+  static scoreProblemOrigin(story: string, _followUpAnswers?: string[]): ProblemOriginScore {
     const breakdown = {
       personalExperience: this.scorePersonalExperience(story),
       quantification: this.scoreQuantification(story),

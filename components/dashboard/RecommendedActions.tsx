@@ -34,7 +34,7 @@ export function RecommendedActions({ recommendations }: RecommendedActionsProps)
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {topThree.map((rec, index) => {
+        {topThree.map((rec) => {
           const colors = getPriorityColor(rec.priority);
           return (
             <Card

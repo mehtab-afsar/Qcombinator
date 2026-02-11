@@ -2,7 +2,6 @@
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {
   Building2,
@@ -14,7 +13,6 @@ import {
   Edit,
   Eye,
   Share,
-  Download,
   RefreshCw
 } from 'lucide-react';
 import { useFounderData } from '@/lib/hooks/useFounderData';

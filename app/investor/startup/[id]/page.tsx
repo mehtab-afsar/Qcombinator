@@ -10,27 +10,12 @@ import { Separator } from "@/components/ui/separator"
 import { Progress } from "@/components/ui/progress"
 import {
   ArrowLeft,
-  Star,
-  TrendingUp,
-  Users,
-  DollarSign,
-  Calendar,
   MapPin,
-  Globe,
   Heart,
   Share,
   MessageCircle,
   Download,
-  ExternalLink,
-  Building2,
-  Target,
-  BarChart3,
-  PieChart,
-  Activity,
   FileText,
-  Shield,
-  Award,
-  Zap,
   CheckCircle,
   AlertTriangle,
   Info
@@ -304,7 +289,7 @@ const mockStartup: StartupData = {
   }
 }
 
-export default function StartupDeepDive({ params }: { params: { id: string } }) {
+export default function StartupDeepDive({ params: _params }: { params: { id: string } }) {
   const [activeTab, setActiveTab] = useState('overview')
   const [isSaved, setIsSaved] = useState(false)
   const startup = mockStartup

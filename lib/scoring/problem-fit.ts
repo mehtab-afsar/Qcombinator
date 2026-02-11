@@ -4,14 +4,12 @@
  */
 
 import {
-  countWords,
   extractNumbers,
   hasPersonalExperience,
   hasValidationIndicators,
   hasQuantification,
   parseDuration,
   getWordCount,
-  hasSpecificExamples,
 } from '@/lib/utils/text-analysis';
 
 /**
@@ -20,7 +18,7 @@ import {
  */
 export const scoreProblemOrigin = (
   story: string,
-  followUpAnswers?: string[]
+  _followUpAnswers?: string[]
 ): number => {
   let score = 0;
 

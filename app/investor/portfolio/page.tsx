@@ -1,23 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   TrendingUp,
-  TrendingDown,
   DollarSign,
   Target,
-  Users,
   Calendar,
   ArrowUpRight,
   ArrowDownRight,
-  Activity,
-  PieChart,
   BarChart3,
   Briefcase,
   AlertCircle,
@@ -26,7 +21,6 @@ import {
   Download,
   Filter
 } from "lucide-react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 interface PortfolioCompany {
@@ -185,6 +179,7 @@ const mockPortfolio: PortfolioCompany[] = [
 
 export default function PortfolioPage() {
   const router = useRouter();
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [selectedFilter, setSelectedFilter] = useState("all");
 
   // Calculate portfolio metrics

@@ -169,8 +169,7 @@ export const useAssessmentStore = create<AssessmentState>()(
         clearErrors: (field) => {
           if (field) {
             set((state) => {
-              // eslint-disable-next-line @typescript-eslint/no-unused-vars
-              const { [field]: _removed, ...rest } = state.errors;
+                const { [field]: _removed, ...rest } = state.errors;
               return { errors: rest };
             });
           } else {

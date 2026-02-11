@@ -13,7 +13,6 @@ import {
   Filter,
   Target,
   MapPin,
-  Star,
   Heart,
   Eye,
   Zap,

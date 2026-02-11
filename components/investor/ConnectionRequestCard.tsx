@@ -7,11 +7,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Check,
   X,
-  TrendingUp,
-  Target,
   DollarSign,
-  Users as UsersIcon,
-  Sparkles,
   ChevronDown,
   ChevronUp
 } from "lucide-react";

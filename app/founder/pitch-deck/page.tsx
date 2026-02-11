@@ -13,17 +13,9 @@ import {
   Eye,
   Download,
   Share,
-  CheckCircle,
-  AlertTriangle,
-  Star,
-  Clock,
-  Users,
   BarChart3,
   Target,
-  Zap,
-  Play,
-  Edit,
-  Trash2
+  Edit
 } from 'lucide-react'
 
 interface PitchDeck {

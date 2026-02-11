@@ -77,7 +77,7 @@ export function calculateTeamScore(data: AssessmentData): {
   // Using proxy signals from existing data
 
   // Check if team is mentioned in various sections
-  const teamMentioned = (data.problemStory?.toLowerCase().includes('team') ||
+  const _teamMentioned = (data.problemStory?.toLowerCase().includes('team') ||
                          data.problemStory?.toLowerCase().includes('we ') ||
                          data.problemStory?.toLowerCase().includes('us ')) ?? false;
 

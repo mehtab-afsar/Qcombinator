@@ -65,7 +65,7 @@ export function InvestorNotifications({
     }
   };
 
-  const getTypeLabel = (type: InvestorNotification['type']) => {
+  const _getTypeLabel = (type: InvestorNotification['type']) => {
     switch (type) {
       case 'new_match':
         return 'New Match';
