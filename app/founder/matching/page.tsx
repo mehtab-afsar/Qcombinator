@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import { ConnectionRequestModal } from '@/features/matching/components/ConnectionRequestModal'
 import { ConnectionStatusBadge, ConnectionStatus } from '@/features/matching/components/ConnectionStatusBadge'
+import { useQScore } from '@/features/qscore/hooks/useQScore'
 
 interface Investor {
   id: string
@@ -101,9 +102,8 @@ export default function InvestorMatching() {
   const [selectedInvestor, setSelectedInvestor] = useState<Investor | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [investors, setInvestors] = useState(mockInvestors)
-
-  // Mock Q-Score (should come from context/API in production)
-  const founderQScore = 72 // Above threshold of 60
+  const { qScore } = useQScore()
+  const founderQScore = qScore?.overall ?? 0
 
   const handleConnectClick = (investor: Investor) => {
     if (founderQScore < 60) {
@@ -247,6 +247,11 @@ export default function InvestorMatching() {
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">AI Investor Matching</h1>
           <p className="text-gray-600 text-lg">Find investors perfectly aligned with your startup and thesis</p>
+        </div>
+
+        {/* Demo Data Notice */}
+        <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800">
+          <strong>Demo Mode:</strong> Investor profiles below are sample data. Real investor matching will be available once investor onboarding is live.
         </div>
 
         {/* Stats */}

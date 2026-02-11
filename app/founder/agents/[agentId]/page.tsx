@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { createClient } from "@supabase/supabase-js";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,6 +20,11 @@ import Link from "next/link";
 import { getAgentById, getPillarColor } from "@/features/agents/data/agents";
 import { AgentMessage } from "@/features/agents/types/agent.types";
 
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
 export default function AgentChat() {
   const params = useParams();
   const router = useRouter();
@@ -30,14 +36,53 @@ export default function AgentChat() {
   const [isTyping, setIsTyping] = useState(false);
   const [conversationSaved, setConversationSaved] = useState(false);
   const [userContext, setUserContext] = useState<Record<string, unknown> | null>(null);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Fetch user context from localStorage (populated during onboarding)
+  // Get current user and load previous conversation
   useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user) {
+        setUserId(data.user.id);
+        // Load most recent conversation for this agent
+        supabase
+          .from('agent_conversations')
+          .select('id')
+          .eq('user_id', data.user.id)
+          .eq('agent_id', agentId)
+          .order('last_message_at', { ascending: false })
+          .limit(1)
+          .single()
+          .then(({ data: conv }) => {
+            if (conv) {
+              setConversationId(conv.id);
+              // Load messages for that conversation
+              supabase
+                .from('agent_messages')
+                .select('*')
+                .eq('conversation_id', conv.id)
+                .order('created_at', { ascending: true })
+                .then(({ data: msgs }) => {
+                  if (msgs && msgs.length > 0) {
+                    setMessages(msgs.map(m => ({
+                      id: m.id,
+                      agentId,
+                      role: m.role === 'user' ? 'user' : 'agent',
+                      content: m.content,
+                      timestamp: new Date(m.created_at)
+                    })));
+                  }
+                });
+            }
+          });
+      }
+    });
+
+    // Load user context from localStorage as fallback
     try {
       const profileData = localStorage.getItem('founderProfile');
       const assessmentData = localStorage.getItem('assessmentData');
-
       if (profileData || assessmentData) {
         setUserContext({
           ...(profileData ? JSON.parse(profileData) : {}),
@@ -47,7 +92,7 @@ export default function AgentChat() {
     } catch (error) {
       console.error('Error loading user context:', error);
     }
-  }, []);
+  }, [agentId]);
 
   // Redirect if agent not found
   useEffect(() => {
@@ -130,13 +175,18 @@ export default function AgentChat() {
           agentId: agent.id,
           message: userMessageContent,
           conversationHistory: messages,
-          userContext: userContext // Pass business context for personalized responses
+          userContext,
+          conversationId,
+          userId
         }),
       });
 
-      // Try to parse JSON response even if status is not OK
-      // (API provides fallback messages in error responses)
       const data = await response.json();
+
+      // Store conversationId for subsequent messages
+      if (data.conversationId && !conversationId) {
+        setConversationId(data.conversationId);
+      }
 
       // Add agent response
       const agentResponse: AgentMessage = {
@@ -171,7 +221,7 @@ export default function AgentChat() {
     setInputValue(prompt);
   };
 
-  // Save conversation
+  // Conversation is auto-saved to DB on each message; this just confirms to the user
   const handleSave = () => {
     setConversationSaved(true);
     setTimeout(() => setConversationSaved(false), 3000);

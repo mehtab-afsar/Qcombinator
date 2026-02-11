@@ -5,12 +5,10 @@
  */
 
 import { FounderProfile, AssessmentData } from '@/features/founder/types/founder.types';
-import { PRDQScore } from '@/features/qscore/types/qscore.types';
 
 const STORAGE_KEYS = {
   FOUNDER_PROFILE: 'founderProfile',
   ASSESSMENT_DATA: 'assessmentData',
-  QSCORE: 'qScore',
 } as const;
 
 /**
@@ -101,15 +99,6 @@ class StorageService {
 
   setAssessmentData(data: AssessmentData): boolean {
     return this.set(STORAGE_KEYS.ASSESSMENT_DATA, data);
-  }
-
-  // === Q-Score ===
-  getQScore(): PRDQScore | null {
-    return this.get<PRDQScore>(STORAGE_KEYS.QSCORE);
-  }
-
-  setQScore(score: PRDQScore): boolean {
-    return this.set(STORAGE_KEYS.QSCORE, score);
   }
 
   // === Combined Data ===

@@ -27,49 +27,48 @@
 - [x] All dimension calculators built (`features/qscore/calculators/`)
 - [x] Q-Score persisted to `qscore_history` table via `/api/qscore/calculate`
 
+### Backend Wiring (Phase 1 — COMPLETE)
+- [x] Sign up → creates row in `founder_profiles` automatically
+- [x] Assessment submit saves to `qscore_assessments` table + triggers Q-Score calculation
+- [x] Dashboard reads Q-Score from DB via `useQScore` hook
+- [x] Agent chat persists conversations to `agent_conversations` + messages to `agent_messages`
+- [x] Agent chat loads previous conversation history on open
+- [x] Agents hub uses real Q-Score (not mock)
+- [x] Matching page uses real Q-Score for gating (≥ 60 to connect)
+- [x] `localStorage` used as cache only — DB is source of truth for Q-Score & assessments
+- [x] Demo Mode notice on investor/matching/messages pages (no investor_profiles table yet)
+
 ---
 
 ## 🔴 To Do
 
 ### 1. Auth Flow (Priority: HIGH)
-- [ ] Sign up → creates row in `founder_profiles` automatically (Supabase trigger or API)
-- [ ] Onboarding saves to `founder_profiles` table (currently saves to localStorage only)
 - [ ] Route guards working: unauthenticated → redirect to `/login`
 - [ ] Investor vs founder role routing after login
 
-### 2. Assessment → Database (Priority: HIGH)
-- [ ] Assessment submit saves `assessment_data` to `qscore_assessments` table
-- [ ] On submit, trigger Q-Score calculation → save to `qscore_history`
-- [ ] Dashboard reads Q-Score from DB (currently reads from localStorage)
-- [ ] Remove all localStorage dependencies for core data
+### 2. Agent System Prompts (Priority: HIGH)
+- [ ] Wire per-agent system prompts from `features/agents/{name}/prompts/system-prompt.ts` into `/api/agents/chat`
 
-### 3. Agent Chat (Priority: HIGH)
-- [ ] Chat creates row in `agent_conversations` table
-- [ ] Messages persist to `agent_messages` table
-- [ ] Load previous conversation history on chat open
-- [ ] Wire agent system prompts from `features/agents/{name}/prompts/system-prompt.ts` into `/api/agents/chat`
-
-### 4. Investor Matching (Priority: MEDIUM)
-- [ ] Investor profiles table + seeded mock investors
+### 3. Investor Matching (Priority: MEDIUM)
+- [ ] Investor profiles table + seeded mock investors (replace demo data with DB)
 - [ ] Matching logic: Q-Score ≥ 65 gate + thesis alignment
-- [ ] Connection request flow → `connection_requests` table
-- [ ] Investor dashboard shows real connection requests
+- [ ] Connection request saved to `connection_requests` table
+- [ ] Investor dashboard shows real connection requests from DB
 
-### 5. Investor Portal (Priority: MEDIUM)
+### 4. Investor Portal (Priority: MEDIUM)
 - [ ] Investor onboarding saves thesis/preferences to DB
 - [ ] Deal flow pulls real founders from `founder_profiles`
-- [ ] Startup detail page reads real assessment + Q-Score data
 
-### 6. Real-time Q-Score (Priority: MEDIUM)
+### 5. Real-time Q-Score (Priority: MEDIUM)
 - [ ] Supabase Realtime subscription on `qscore_history` working end-to-end
 - [ ] Dashboard score updates without refresh after assessment submit
 
-### 7. Subscription & Usage Limits (Priority: LOW)
+### 6. Subscription & Usage Limits (Priority: LOW)
 - [ ] `subscription_usage` table enforced in API routes
 - [ ] Free tier limits: 3 agent chats/day, 1 Q-Score recalc/week
 - [ ] Upgrade flow UI (settings page)
 
-### 8. Testing (Priority: LOW)
+### 7. Testing (Priority: LOW)
 - [ ] Write regression tests for Q-Score calculators (`features/qscore/calculators/`)
 - [ ] API route integration tests (assessment save, Q-Score calculate)
 - [ ] E2E: signup → onboarding → assessment → dashboard flow
@@ -77,7 +76,7 @@
 ---
 
 ## Next Sprint (Start Here)
-1. `POST /api/auth/signup` → insert into `founder_profiles`
-2. Assessment page → `POST /api/assessment/submit` → save to DB + trigger Q-Score
-3. Dashboard → fetch Q-Score from `/api/qscore/latest` (DB, not localStorage)
-4. Agent chat → persist to `agent_conversations` + `agent_messages`
+1. Route guard middleware: unauthenticated users → `/login`
+2. Wire agent system prompts per-agent into `/api/agents/chat`
+3. Seed `investor_profiles` table + wire matching page to DB
+4. Wire connection requests to `connection_requests` table

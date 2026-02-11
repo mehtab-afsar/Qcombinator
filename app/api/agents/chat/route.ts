@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { getAgentById } from '@/features/agents/data/agents';
 import type { Agent } from '@/features/agents/types/agent.types';
 
-export const runtime = 'edge';
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 /**
  * Agent Chat API Route
@@ -10,7 +14,7 @@ export const runtime = 'edge';
  */
 export async function POST(request: NextRequest) {
   try {
-    const { agentId, message, conversationHistory, userContext } = await request.json();
+    const { agentId, message, conversationHistory, userContext, conversationId: existingConversationId, userId } = await request.json();
 
     // Validate inputs
     if (!agentId || !message) {
@@ -77,9 +81,54 @@ export async function POST(request: NextRequest) {
       throw new Error('No response from AI');
     }
 
+    // Persist to DB if userId is provided
+    let conversationId = existingConversationId;
+    if (userId) {
+      // Create conversation on first message
+      if (!conversationId) {
+        const { data: conv } = await supabaseAdmin
+          .from('agent_conversations')
+          .insert({
+            user_id: userId,
+            agent_id: agentId,
+            title: message.slice(0, 60),
+            last_message_at: new Date().toISOString(),
+            message_count: 1
+          })
+          .select('id')
+          .single();
+        conversationId = conv?.id;
+      } else {
+        // Update last_message_at and message_count
+        await supabaseAdmin
+          .from('agent_conversations')
+          .update({
+            last_message_at: new Date().toISOString(),
+            message_count: (conversationHistory?.length ?? 0) + 2
+          })
+          .eq('id', conversationId);
+      }
+
+      if (conversationId) {
+        // Persist user message
+        await supabaseAdmin.from('agent_messages').insert({
+          conversation_id: conversationId,
+          role: 'user',
+          content: message
+        });
+        // Persist assistant response
+        await supabaseAdmin.from('agent_messages').insert({
+          conversation_id: conversationId,
+          role: 'assistant',
+          content: aiResponse
+        });
+      }
+    }
+
     return NextResponse.json({
       response: aiResponse,
       agentId,
+      conversationId,
       timestamp: new Date().toISOString()
     });
 

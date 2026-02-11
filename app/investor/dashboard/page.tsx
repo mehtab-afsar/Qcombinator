@@ -481,6 +481,11 @@ export default function InvestorDashboard() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
+      {/* Demo Data Notice */}
+      <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800">
+        <strong>Demo Mode:</strong> Startups and connection requests shown are sample data. Real data will appear once founders complete their assessments.
+      </div>
+
       {/* Connection Requests Section */}
       {connectionRequests.length > 0 && (
         <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200">

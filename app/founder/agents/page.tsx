@@ -10,24 +10,15 @@ import Link from "next/link";
 import { getAgentsByPillar, getPillarName, getPillarColor } from "@/features/agents/data/agents";
 import { generateAgentRecommendations } from "@/features/qscore/utils/recommendations";
 import { Agent } from "@/features/agents/types/agent.types";
+import { useQScore } from "@/features/qscore/hooks/useQScore";
+import { QScore } from "@/features/qscore/types/qscore.types";
 
 export default function AgentsHub() {
-  // Mock Q-Score for recommendations (should come from context/API in production)
-  const mockQScore = {
-    overall: 72,
-    previousWeek: 68,
-    percentile: 78,
-    breakdown: {
-      market: { score: 75, change: +3, trend: 'up' as const },
-      product: { score: 68, change: +5, trend: 'up' as const },
-      goToMarket: { score: 45, change: 0, trend: 'neutral' as const },
-      financial: { score: 82, change: -2, trend: 'down' as const },
-      team: { score: 78, change: +4, trend: 'up' as const },
-      traction: { score: 70, change: +6, trend: 'up' as const }
-    }
-  };
+  const { qScore } = useQScore();
 
-  const agentRecommendations = generateAgentRecommendations(mockQScore);
+  const agentRecommendations = qScore
+    ? generateAgentRecommendations(qScore as unknown as QScore)
+    : [];
   const [_activePillar, setActivePillar] = useState<Agent['pillar']>('sales-marketing');
 
   const salesMarketingAgents = getAgentsByPillar('sales-marketing');
@@ -103,7 +94,7 @@ export default function AgentsHub() {
         <Card className="bg-gradient-to-br from-blue-600 to-purple-600 text-white">
           <CardContent className="p-4">
             <div className="text-center">
-              <div className="text-3xl font-bold">{mockQScore.overall}</div>
+              <div className="text-3xl font-bold">{qScore?.overall ?? '—'}</div>
               <div className="text-xs opacity-75">Your Q-Score</div>
             </div>
           </CardContent>

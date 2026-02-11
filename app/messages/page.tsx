@@ -280,7 +280,12 @@ export default function MessagesPage() {
   }
 
   return (
-    <div className="h-screen flex bg-gray-50">
+    <div className="h-screen flex flex-col bg-gray-50">
+      {/* Demo Data Notice */}
+      <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 text-sm text-amber-800 flex-shrink-0">
+        <strong>Demo Mode:</strong> Sample conversations shown. Real messages will appear once investor connections are accepted.
+      </div>
+      <div className="flex flex-1 overflow-hidden">
       {/* Sidebar - Conversations List */}
       <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
         {/* Header */}
@@ -509,6 +514,7 @@ export default function MessagesPage() {
           </div>
         )}
       </div>
+    </div>
     </div>
   )
 }
