@@ -32,7 +32,8 @@
       "Bash(python3:*)",
       "Bash(pbcopy:*)",
       "Bash(npx tsx scripts/test-qscore.ts)",
-      "Bash(npx tsx:*)"
+      "Bash(npx tsx:*)",
+      "Bash(wc -l:*)"
     ],
     "deny": [],
     "ask": []
