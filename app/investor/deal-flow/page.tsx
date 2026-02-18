@@ -1,34 +1,26 @@
 "use client";
 
 import { useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  Search,
-  Filter,
-  SlidersHorizontal,
-  TrendingUp,
-  MapPin,
-  Calendar,
-  Sparkles,
-  ChevronRight,
-  Heart,
-  MessageCircle,
-  Share2,
-  Eye
-} from "lucide-react";
+import { motion } from "framer-motion";
+import { Search, TrendingUp, Sparkles, ChevronRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 
+// ─── palette ──────────────────────────────────────────────────────────────────
+const bg    = "#F9F7F2";
+const surf  = "#F0EDE6";
+const bdr   = "#E2DDD5";
+const ink   = "#18160F";
+const muted = "#8A867C";
+const blue  = "#2563EB";
+const green = "#16A34A";
+const red   = "#DC2626";
+const amber = "#D97706";
+
+// ─── types ────────────────────────────────────────────────────────────────────
 interface Deal {
   id: string;
   name: string;
   tagline: string;
-  logo: string;
   qScore: number;
   stage: string;
   sector: string;
@@ -37,463 +29,250 @@ interface Deal {
   valuation: string;
   matchScore: number;
   addedDate: string;
-  founder: {
-    name: string;
-    avatar: string;
-    title: string;
-  };
+  founder: { name: string; title: string };
   highlights: string[];
   momentum: "hot" | "trending" | "steady";
   viewed: boolean;
 }
 
+// ─── mock data ────────────────────────────────────────────────────────────────
 const mockDeals: Deal[] = [
   {
-    id: "1",
-    name: "NeuralFlow AI",
+    id: "1", name: "NeuralFlow AI",
     tagline: "Real-time ML model optimization for edge devices",
-    logo: "/api/placeholder/64/64",
-    qScore: 891,
-    stage: "Series A",
-    sector: "AI/ML",
-    location: "San Francisco, CA",
-    fundingGoal: "$8M",
-    valuation: "$45M",
-    matchScore: 96,
-    addedDate: "2 hours ago",
-    founder: {
-      name: "Dr. Lisa Zhang",
-      avatar: "/api/placeholder/40/40",
-      title: "CEO & Co-founder"
-    },
-    highlights: [
-      "Ex-DeepMind team",
-      "3 Fortune 500 clients",
-      "250% YoY growth"
-    ],
-    momentum: "hot",
-    viewed: false
+    qScore: 89, stage: "Series A", sector: "AI/ML",
+    location: "San Francisco, CA", fundingGoal: "$8M", valuation: "$45M",
+    matchScore: 96, addedDate: "2h ago",
+    founder: { name: "Dr. Lisa Zhang", title: "CEO & Co-founder" },
+    highlights: ["Ex-DeepMind team", "3 Fortune 500 clients", "250% YoY growth"],
+    momentum: "hot", viewed: false
   },
   {
-    id: "2",
-    name: "BioSense Labs",
+    id: "2", name: "BioSense Labs",
     tagline: "Non-invasive glucose monitoring wearable",
-    logo: "/api/placeholder/64/64",
-    qScore: 867,
-    stage: "Seed",
-    sector: "Healthcare",
-    location: "Boston, MA",
-    fundingGoal: "$4M",
-    valuation: "$18M",
-    matchScore: 94,
-    addedDate: "5 hours ago",
-    founder: {
-      name: "Dr. Raj Patel",
-      avatar: "/api/placeholder/40/40",
-      title: "Founder & CTO"
-    },
-    highlights: [
-      "FDA breakthrough designation",
-      "Harvard partnership",
-      "10K waitlist"
-    ],
-    momentum: "trending",
-    viewed: false
+    qScore: 87, stage: "Seed", sector: "Healthcare",
+    location: "Boston, MA", fundingGoal: "$4M", valuation: "$18M",
+    matchScore: 94, addedDate: "5h ago",
+    founder: { name: "Dr. Raj Patel", title: "Founder & CTO" },
+    highlights: ["FDA breakthrough designation", "Harvard partnership", "10K waitlist"],
+    momentum: "trending", viewed: false
   },
   {
-    id: "3",
-    name: "CryptoGuard",
+    id: "3", name: "CryptoGuard",
     tagline: "Enterprise blockchain security platform",
-    logo: "/api/placeholder/64/64",
-    qScore: 843,
-    stage: "Series A",
-    sector: "Cybersecurity",
-    location: "Austin, TX",
-    fundingGoal: "$10M",
-    valuation: "$60M",
-    matchScore: 91,
-    addedDate: "1 day ago",
-    founder: {
-      name: "Marcus Chen",
-      avatar: "/api/placeholder/40/40",
-      title: "CEO"
-    },
-    highlights: [
-      "$5M ARR",
-      "85 enterprise clients",
-      "SOC 2 certified"
-    ],
-    momentum: "steady",
-    viewed: true
+    qScore: 84, stage: "Series A", sector: "Cybersecurity",
+    location: "Austin, TX", fundingGoal: "$10M", valuation: "$60M",
+    matchScore: 91, addedDate: "1d ago",
+    founder: { name: "Marcus Chen", title: "CEO" },
+    highlights: ["$5M ARR", "85 enterprise clients", "SOC 2 certified"],
+    momentum: "steady", viewed: true
   },
   {
-    id: "4",
-    name: "EcoCharge",
+    id: "4", name: "EcoCharge",
     tagline: "Ultra-fast EV charging network powered by solar",
-    logo: "/api/placeholder/64/64",
-    qScore: 819,
-    stage: "Series B",
-    sector: "CleanTech",
-    location: "Los Angeles, CA",
-    fundingGoal: "$25M",
-    valuation: "$150M",
-    matchScore: 89,
-    addedDate: "2 days ago",
-    founder: {
-      name: "Sarah Martinez",
-      avatar: "/api/placeholder/40/40",
-      title: "Founder & CEO"
-    },
-    highlights: [
-      "200+ charging stations",
-      "Partnership with Tesla",
-      "Break-even in Q2"
-    ],
-    momentum: "hot",
-    viewed: true
+    qScore: 82, stage: "Series B", sector: "CleanTech",
+    location: "Los Angeles, CA", fundingGoal: "$25M", valuation: "$150M",
+    matchScore: 89, addedDate: "2d ago",
+    founder: { name: "Sarah Martinez", title: "Founder & CEO" },
+    highlights: ["200+ charging stations", "Partnership with Tesla", "Break-even in Q2"],
+    momentum: "hot", viewed: true
   },
   {
-    id: "5",
-    name: "TalentAI",
+    id: "5", name: "TalentAI",
     tagline: "AI-powered recruiting and talent matching",
-    logo: "/api/placeholder/64/64",
-    qScore: 798,
-    stage: "Seed",
-    sector: "HR Tech",
-    location: "New York, NY",
-    fundingGoal: "$3.5M",
-    valuation: "$15M",
-    matchScore: 87,
-    addedDate: "3 days ago",
-    founder: {
-      name: "Jennifer Wu",
-      avatar: "/api/placeholder/40/40",
-      title: "Co-founder & CEO"
-    },
-    highlights: [
-      "$1.2M ARR",
-      "500+ companies",
-      "92% retention"
-    ],
-    momentum: "trending",
-    viewed: false
+    qScore: 80, stage: "Seed", sector: "HR Tech",
+    location: "New York, NY", fundingGoal: "$3.5M", valuation: "$15M",
+    matchScore: 87, addedDate: "3d ago",
+    founder: { name: "Jennifer Wu", title: "Co-founder & CEO" },
+    highlights: ["$1.2M ARR", "500+ companies", "92% retention"],
+    momentum: "trending", viewed: false
   },
   {
-    id: "6",
-    name: "FoodTech Solutions",
+    id: "6", name: "FoodTech Solutions",
     tagline: "Vertical farming automation and optimization",
-    logo: "/api/placeholder/64/64",
-    qScore: 775,
-    stage: "Pre-Seed",
-    sector: "AgTech",
-    location: "Denver, CO",
-    fundingGoal: "$2M",
-    valuation: "$8M",
-    matchScore: 84,
-    addedDate: "4 days ago",
-    founder: {
-      name: "Tom Anderson",
-      avatar: "/api/placeholder/40/40",
-      title: "Founder"
-    },
-    highlights: [
-      "3 pilot farms",
-      "MIT incubator",
-      "40% cost reduction"
-    ],
-    momentum: "steady",
-    viewed: false
+    qScore: 78, stage: "Pre-Seed", sector: "AgTech",
+    location: "Denver, CO", fundingGoal: "$2M", valuation: "$8M",
+    matchScore: 84, addedDate: "4d ago",
+    founder: { name: "Tom Anderson", title: "Founder" },
+    highlights: ["3 pilot farms", "MIT incubator", "40% cost reduction"],
+    momentum: "steady", viewed: false
   }
 ];
 
+function momentumStyle(m: Deal["momentum"]) {
+  if (m === "hot")      return { color: red,   bg: "#FEF2F2", label: "Hot",      Icon: Sparkles }
+  if (m === "trending") return { color: amber, bg: "#FFFBEB", label: "Trending", Icon: TrendingUp }
+  return                       { color: muted, bg: surf,      label: "Steady",   Icon: undefined }
+}
+
+// ─── component ────────────────────────────────────────────────────────────────
 export default function DealFlowPage() {
   const router = useRouter();
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedStage, setSelectedStage] = useState("all");
+  const [searchTerm,     setSearchTerm]     = useState("");
+  const [selectedStage,  setSelectedStage]  = useState("all");
   const [selectedSector, setSelectedSector] = useState("all");
-  const [sortBy, setSortBy] = useState("match");
+  const [activeTab,      setActiveTab]      = useState<"all" | "hot" | "new" | "high-match">("all");
 
-  const getMomentumBadge = (momentum: Deal["momentum"]) => {
-    switch (momentum) {
-      case "hot":
-        return <Badge className="bg-red-100 text-red-700 border-red-200"><Sparkles className="w-3 h-3 mr-1" />Hot</Badge>;
-      case "trending":
-        return <Badge className="bg-orange-100 text-orange-700 border-orange-200"><TrendingUp className="w-3 h-3 mr-1" />Trending</Badge>;
-      case "steady":
-        return <Badge variant="secondary" className="text-gray-600">Steady</Badge>;
-    }
-  };
+  const filtered = mockDeals.filter(d => {
+    const matchSearch  = !searchTerm || d.name.toLowerCase().includes(searchTerm.toLowerCase()) || d.sector.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchStage   = selectedStage  === "all" || d.stage.toLowerCase().replace(/\s+/g, "-") === selectedStage;
+    const matchSector  = selectedSector === "all" || d.sector.toLowerCase().replace(/\//g, "-").replace(/\s+/g, "-") === selectedSector;
+    const matchTab     = activeTab === "all"
+      || (activeTab === "hot"        && d.momentum === "hot")
+      || (activeTab === "new"        && !d.viewed)
+      || (activeTab === "high-match" && d.matchScore >= 90);
+    return matchSearch && matchStage && matchSector && matchTab;
+  });
+
+  const tabs = [
+    { key: "all"        as const, label: `All (${mockDeals.length})` },
+    { key: "hot"        as const, label: `Hot (${mockDeals.filter(d => d.momentum === "hot").length})` },
+    { key: "new"        as const, label: `New (${mockDeals.filter(d => !d.viewed).length})` },
+    { key: "high-match" as const, label: `High Match (${mockDeals.filter(d => d.matchScore >= 90).length})` },
+  ];
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Deal Flow</h1>
-          <p className="text-gray-600 mt-1">Discover and evaluate new investment opportunities</p>
+    <div style={{ minHeight: "100vh", background: bg, color: ink, padding: "40px 24px" }}>
+      <div style={{ maxWidth: 860, margin: "0 auto" }}>
+
+        {/* header */}
+        <div style={{ marginBottom: 32 }}>
+          <p style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.18em", color: muted, fontWeight: 600, marginBottom: 8 }}>
+            Deal Flow
+          </p>
+          <h1 style={{ fontSize: "clamp(1.8rem,4vw,2.4rem)", fontWeight: 300, letterSpacing: "-0.03em", color: ink, marginBottom: 6 }}>
+            Investment opportunities.
+          </h1>
+          <p style={{ fontSize: 14, color: muted }}>Discover and evaluate new startups matched to your thesis.</p>
         </div>
-        <div className="flex items-center space-x-3">
-          <Button variant="outline">
-            <SlidersHorizontal className="w-4 h-4 mr-2" />
-            Saved Filters
-          </Button>
-          <Button>
-            <Filter className="w-4 h-4 mr-2" />
-            Advanced Filters
-          </Button>
-        </div>
-      </div>
 
-      {/* Filters Bar */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <Input
-                placeholder="Search companies, founders, keywords..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-
-            <Select value={selectedStage} onValueChange={setSelectedStage}>
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Stage" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Stages</SelectItem>
-                <SelectItem value="pre-seed">Pre-Seed</SelectItem>
-                <SelectItem value="seed">Seed</SelectItem>
-                <SelectItem value="series-a">Series A</SelectItem>
-                <SelectItem value="series-b">Series B</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select value={selectedSector} onValueChange={setSelectedSector}>
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Sector" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Sectors</SelectItem>
-                <SelectItem value="ai-ml">AI/ML</SelectItem>
-                <SelectItem value="healthcare">Healthcare</SelectItem>
-                <SelectItem value="fintech">Fintech</SelectItem>
-                <SelectItem value="climate">CleanTech</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select value={sortBy} onValueChange={setSortBy}>
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Sort by" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="match">Match Score</SelectItem>
-                <SelectItem value="qscore">Q Score</SelectItem>
-                <SelectItem value="recent">Most Recent</SelectItem>
-                <SelectItem value="momentum">Momentum</SelectItem>
-              </SelectContent>
-            </Select>
+        {/* filters */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+          <div style={{ position: "relative", flex: 1, minWidth: 200 }}>
+            <Search style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", height: 13, width: 13, color: muted }} />
+            <input
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              placeholder="Search companies, sectors…"
+              style={{ width: "100%", paddingLeft: 34, paddingRight: 12, paddingTop: 9, paddingBottom: 9, background: surf, border: `1px solid ${bdr}`, borderRadius: 8, fontSize: 13, color: ink, outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
+            />
           </div>
-        </CardContent>
-      </Card>
+          <select value={selectedStage} onChange={e => setSelectedStage(e.target.value)} style={{ padding: "9px 12px", background: surf, border: `1px solid ${bdr}`, borderRadius: 8, fontSize: 13, color: ink, outline: "none", fontFamily: "inherit" }}>
+            <option value="all">All Stages</option>
+            <option value="pre-seed">Pre-Seed</option>
+            <option value="seed">Seed</option>
+            <option value="series-a">Series A</option>
+            <option value="series-b">Series B</option>
+          </select>
+          <select value={selectedSector} onChange={e => setSelectedSector(e.target.value)} style={{ padding: "9px 12px", background: surf, border: `1px solid ${bdr}`, borderRadius: 8, fontSize: 13, color: ink, outline: "none", fontFamily: "inherit" }}>
+            <option value="all">All Sectors</option>
+            <option value="ai-ml">AI/ML</option>
+            <option value="healthcare">Healthcare</option>
+            <option value="cybersecurity">Cybersecurity</option>
+            <option value="cleantech">CleanTech</option>
+            <option value="hr-tech">HR Tech</option>
+            <option value="agtech">AgTech</option>
+          </select>
+        </div>
 
-      {/* Tabs */}
-      <Tabs defaultValue="all" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="all">All Deals ({mockDeals.length})</TabsTrigger>
-          <TabsTrigger value="hot">Hot Deals ({mockDeals.filter(d => d.momentum === "hot").length})</TabsTrigger>
-          <TabsTrigger value="new">New ({mockDeals.filter(d => !d.viewed).length})</TabsTrigger>
-          <TabsTrigger value="high-match">High Match (4)</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="all" className="space-y-4">
-          {mockDeals.map((deal) => (
-            <Card key={deal.id} className="hover:shadow-lg transition-all duration-200">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start space-x-4 flex-1">
-                    <Avatar className="h-16 w-16">
-                      <AvatarImage src={deal.logo} alt={deal.name} />
-                      <AvatarFallback>{deal.name.substring(0, 2)}</AvatarFallback>
-                    </Avatar>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center space-x-3 mb-2">
-                        <h3 className="text-xl font-semibold text-gray-900">{deal.name}</h3>
-                        {!deal.viewed && <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">New</Badge>}
-                        {getMomentumBadge(deal.momentum)}
-                      </div>
-
-                      <p className="text-gray-600 mb-3">{deal.tagline}</p>
-
-                      <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500 mb-4">
-                        <div className="flex items-center">
-                          <MapPin className="w-4 h-4 mr-1" />
-                          {deal.location}
-                        </div>
-                        <div className="flex items-center">
-                          <Badge variant="outline">{deal.stage}</Badge>
-                        </div>
-                        <div className="flex items-center">
-                          <Badge variant="outline">{deal.sector}</Badge>
-                        </div>
-                        <div className="flex items-center">
-                          <Calendar className="w-4 h-4 mr-1" />
-                          {deal.addedDate}
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                        <div>
-                          <div className="text-2xl font-bold text-blue-600">{deal.qScore}</div>
-                          <div className="text-xs text-gray-500">Q Score</div>
-                        </div>
-                        <div>
-                          <div className="text-2xl font-bold text-green-600">{deal.matchScore}%</div>
-                          <div className="text-xs text-gray-500">Match</div>
-                        </div>
-                        <div>
-                          <div className="text-sm font-semibold text-gray-900">{deal.fundingGoal}</div>
-                          <div className="text-xs text-gray-500">Seeking</div>
-                        </div>
-                        <div>
-                          <div className="text-sm font-semibold text-gray-900">{deal.valuation}</div>
-                          <div className="text-xs text-gray-500">Valuation</div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center space-x-2 mb-4">
-                        <Avatar className="h-8 w-8">
-                          <AvatarImage src={deal.founder.avatar} alt={deal.founder.name} />
-                          <AvatarFallback>{deal.founder.name.substring(0, 2)}</AvatarFallback>
-                        </Avatar>
-                        <div className="text-sm">
-                          <div className="font-medium text-gray-900">{deal.founder.name}</div>
-                          <div className="text-gray-500">{deal.founder.title}</div>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-wrap gap-2 mb-4">
-                        {deal.highlights.map((highlight, idx) => (
-                          <Badge key={idx} variant="secondary" className="text-xs">
-                            {highlight}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col items-end space-y-3 ml-4">
-                    <Button onClick={() => router.push(`/investor/startup/${deal.id}`)}>
-                      View Details
-                      <ChevronRight className="w-4 h-4 ml-1" />
-                    </Button>
-                    <div className="flex items-center space-x-2">
-                      <Button size="sm" variant="ghost">
-                        <Heart className="w-4 h-4" />
-                      </Button>
-                      <Button size="sm" variant="ghost">
-                        <Share2 className="w-4 h-4" />
-                      </Button>
-                      <Button size="sm" variant="ghost">
-                        <MessageCircle className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+        {/* tabs */}
+        <div style={{ display: "flex", borderBottom: `1px solid ${bdr}`, marginBottom: 0 }}>
+          {tabs.map(tab => (
+            <button key={tab.key} onClick={() => setActiveTab(tab.key)} style={{ padding: "10px 16px", fontSize: 12, fontWeight: 500, color: activeTab === tab.key ? ink : muted, background: "transparent", border: "none", cursor: "pointer", borderBottom: activeTab === tab.key ? `2px solid ${ink}` : "2px solid transparent", transition: "color .15s", fontFamily: "inherit" }}>
+              {tab.label}
+            </button>
           ))}
-        </TabsContent>
+        </div>
 
-        <TabsContent value="hot" className="space-y-4">
-          {mockDeals
-            .filter((deal) => deal.momentum === "hot")
-            .map((deal) => (
-              <Card key={deal.id} className="border-red-200 bg-red-50/30">
-                <CardContent className="p-6">
-                  <div className="flex items-center space-x-4">
-                    <Avatar className="h-16 w-16">
-                      <AvatarImage src={deal.logo} alt={deal.name} />
-                      <AvatarFallback>{deal.name.substring(0, 2)}</AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2 mb-1">
-                        <h3 className="text-xl font-semibold">{deal.name}</h3>
-                        <Badge className="bg-red-100 text-red-700">
-                          <Sparkles className="w-3 h-3 mr-1" />
-                          Hot Deal
-                        </Badge>
-                      </div>
-                      <p className="text-gray-600">{deal.tagline}</p>
-                    </div>
-                    <Button onClick={() => router.push(`/investor/startup/${deal.id}`)}>
-                      View Details
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-        </TabsContent>
+        {/* table header */}
+        <div style={{ display: "grid", gridTemplateColumns: "2fr 80px 80px 120px 120px 44px", gap: 12, padding: "10px 16px", borderBottom: `1px solid ${bdr}` }}>
+          {["Company", "Q-Score", "Match", "Stage", "Seeking", ""].map((h, i) => (
+            <p key={i} style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.1em", color: muted, fontWeight: 600 }}>{h}</p>
+          ))}
+        </div>
 
-        <TabsContent value="new" className="space-y-4">
-          {mockDeals
-            .filter((deal) => !deal.viewed)
-            .map((deal) => (
-              <Card key={deal.id}>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-4">
-                      <Avatar className="h-12 w-12">
-                        <AvatarImage src={deal.logo} alt={deal.name} />
-                        <AvatarFallback>{deal.name.substring(0, 2)}</AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <h3 className="font-semibold text-lg">{deal.name}</h3>
-                        <p className="text-sm text-gray-600">{deal.tagline}</p>
-                      </div>
-                    </div>
-                    <Button variant="outline" onClick={() => router.push(`/investor/startup/${deal.id}`)}>
-                      <Eye className="w-4 h-4 mr-2" />
-                      Review
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-        </TabsContent>
+        {/* rows */}
+        <div style={{ border: `1px solid ${bdr}`, borderTop: "none", borderRadius: "0 0 12px 12px", overflow: "hidden" }}>
+          {filtered.length === 0 ? (
+            <div style={{ padding: "40px 16px", textAlign: "center", color: muted, fontSize: 14 }}>No deals match your filters.</div>
+          ) : filtered.map((deal, i) => {
+            const ms = momentumStyle(deal.momentum);
+            const MIcon = ms.Icon;
+            const initials = deal.name.split(" ").map(n => n[0]).join("").slice(0, 2);
+            return (
+              <motion.div
+                key={deal.id}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.04 }}
+                style={{ borderBottom: i < filtered.length - 1 ? `1px solid ${bdr}` : "none", background: bg }}
+                onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = surf}
+                onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = bg}
+              >
+                <div style={{ display: "grid", gridTemplateColumns: "2fr 80px 80px 120px 120px 44px", gap: 12, padding: "16px 16px", alignItems: "center" }}>
 
-        <TabsContent value="high-match">
-          {mockDeals
-            .filter((deal) => deal.matchScore >= 90)
-            .map((deal) => (
-              <Card key={deal.id} className="border-green-200 bg-green-50/30">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-4">
-                      <Avatar className="h-12 w-12">
-                        <AvatarImage src={deal.logo} alt={deal.name} />
-                        <AvatarFallback>{deal.name.substring(0, 2)}</AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <div className="flex items-center space-x-2 mb-1">
-                          <h3 className="font-semibold text-lg">{deal.name}</h3>
-                          <Badge className="bg-green-100 text-green-700">{deal.matchScore}% Match</Badge>
-                        </div>
-                        <p className="text-sm text-gray-600">{deal.tagline}</p>
+                  {/* company */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                    <div style={{ position: "relative", flexShrink: 0 }}>
+                      <div style={{ height: 38, width: 38, borderRadius: 9, background: surf, border: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: ink }}>
+                        {initials}
                       </div>
+                      {!deal.viewed && (
+                        <div style={{ position: "absolute", top: -3, right: -3, height: 8, width: 8, background: blue, borderRadius: "50%", border: `2px solid ${bg}` }} />
+                      )}
                     </div>
-                    <Button onClick={() => router.push(`/investor/startup/${deal.id}`)}>
-                      View Details
-                    </Button>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                        <p style={{ fontSize: 14, fontWeight: 600, color: ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{deal.name}</p>
+                        {MIcon && (
+                          <div style={{ display: "flex", alignItems: "center", gap: 3, padding: "2px 7px", background: ms.bg, borderRadius: 999 }}>
+                            <MIcon style={{ height: 9, width: 9, color: ms.color }} />
+                            <span style={{ fontSize: 10, color: ms.color, fontWeight: 600 }}>{ms.label}</span>
+                          </div>
+                        )}
+                      </div>
+                      <p style={{ fontSize: 12, color: muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{deal.founder.name} · {deal.location}</p>
+                    </div>
                   </div>
-                </CardContent>
-              </Card>
-            ))}
-        </TabsContent>
-      </Tabs>
+
+                  {/* q-score */}
+                  <p style={{ fontSize: 15, fontWeight: 700, color: deal.qScore >= 85 ? green : deal.qScore >= 78 ? blue : muted }}>{deal.qScore}</p>
+
+                  {/* match */}
+                  <div>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: ink }}>{deal.matchScore}%</p>
+                    <div style={{ height: 3, background: bdr, borderRadius: 99, marginTop: 3, width: "80%" }}>
+                      <div style={{ height: "100%", background: blue, borderRadius: 99, width: `${deal.matchScore}%` }} />
+                    </div>
+                  </div>
+
+                  {/* stage */}
+                  <p style={{ fontSize: 12, color: muted }}>{deal.stage} · {deal.sector}</p>
+
+                  {/* seeking */}
+                  <p style={{ fontSize: 13, fontWeight: 500, color: ink }}>{deal.fundingGoal}</p>
+
+                  {/* arrow */}
+                  <button onClick={() => router.push(`/investor/startup/${deal.id}`)} style={{ height: 32, width: 32, display: "flex", alignItems: "center", justifyContent: "center", background: surf, border: `1px solid ${bdr}`, borderRadius: 8, cursor: "pointer" }}>
+                    <ChevronRight style={{ height: 13, width: 13, color: muted }} />
+                  </button>
+                </div>
+
+                {/* highlights */}
+                <div style={{ display: "flex", gap: 6, padding: "0 16px 14px 76px", flexWrap: "wrap" }}>
+                  {deal.highlights.map((h, hi) => (
+                    <span key={hi} style={{ fontSize: 11, color: muted, padding: "2px 9px", background: surf, border: `1px solid ${bdr}`, borderRadius: 999 }}>{h}</span>
+                  ))}
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+
+        <p style={{ marginTop: 48, fontSize: 11, color: muted, opacity: 0.5, textAlign: "center" }}>
+          {filtered.length} deals shown · Updated in real-time
+        </p>
+      </div>
     </div>
   );
 }

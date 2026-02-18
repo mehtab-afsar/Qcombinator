@@ -18,11 +18,11 @@ export default function InvestorLayout({
   }
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      <div className="w-80 flex-shrink-0">
-        <InvestorSidebar className="w-full h-full" />
+    <div style={{ display: "flex", height: "100vh", background: "#F9F7F2" }}>
+      <div style={{ flexShrink: 0 }}>
+        <InvestorSidebar className="h-full" />
       </div>
-      <div className="flex-1 overflow-auto">
+      <div style={{ flex: 1, overflowY: "auto" }}>
         {children}
       </div>
     </div>

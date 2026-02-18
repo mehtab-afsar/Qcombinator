@@ -2,1713 +2,798 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence, useInView } from "framer-motion";
-import { Button } from "@/components/ui/button";
 import {
   ArrowRight,
-  Users,
-  Star,
-  Brain,
-  Target,
-  Search,
-  Filter,
-  ChevronDown,
-  MapPin,
-  DollarSign,
+  ArrowUpRight,
   BarChart3,
-  Mail,
-  ThumbsUp,
-  ThumbsDown,
+  Bot,
   CheckCircle,
+  ChevronRight,
+  GraduationCap,
+  Lock,
+  Mail,
   Menu,
-  X
+  Send,
+  TrendingUp,
+  Users,
+  X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-// Animation variants
-const fadeInUp = {
-  initial: { opacity: 0, y: 20 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -20 }
-};
+// ─── palette ─────────────────────────────────────────────────────────────────
+// cream bg: #F9F7F2 | surface: #F0EDE6 | border: #E2DDD5
+// ink: #18160F | muted: #8A867C | accent blue: #2563EB (used sparingly)
 
-const fadeInLeft = {
-  initial: { opacity: 0, x: -30 },
-  animate: { opacity: 1, x: 0 }
-};
+// ─── data ────────────────────────────────────────────────────────────────────
 
-const fadeInRight = {
-  initial: { opacity: 0, x: 30 },
-  animate: { opacity: 1, x: 0 }
-};
-
-const staggerContainer = {
-  animate: {
-    transition: {
-      staggerChildren: 0.1
-    }
-  }
-};
-
-
-// Sample investor data - Extended with more realistic data
-const sampleInvestors = [
-  {
-    name: "Sequoia Capital",
-    type: "VC firm",
-    logo: "S",
-    logoColor: "from-red-500 to-orange-500",
-    countries: ["USA", "India", "China"],
-    checkSize: "$1M to $50M",
-    stages: ["Seed", "Series A", "Series B"],
-    industries: ["SaaS", "AI/ML", "Fintech"],
-    openRate: 95,
-    verified: true,
-    portfolio: ["Stripe", "Airbnb", "DoorDash"]
-  },
-  {
-    name: "Andreessen Horowitz",
-    type: "VC firm",
-    logo: "a16z",
-    logoColor: "from-gray-800 to-gray-600",
-    countries: ["USA", "UK"],
-    checkSize: "$500k to $100M",
-    stages: ["Seed", "Series A", "Growth"],
-    industries: ["Enterprise", "Crypto", "AI"],
-    openRate: 88,
-    verified: true,
-    portfolio: ["Coinbase", "GitHub", "Instacart"]
-  },
-  {
-    name: "Y Combinator",
-    type: "Accelerator",
-    logo: "YC",
-    logoColor: "from-orange-500 to-red-500",
-    countries: ["USA", "Global"],
-    checkSize: "$500k",
-    stages: ["Pre-seed", "Seed"],
-    industries: ["All sectors"],
-    openRate: 100,
-    verified: true,
-    portfolio: ["Stripe", "Airbnb", "Dropbox"]
-  },
-  {
-    name: "Accel",
-    type: "VC firm",
-    logo: "A",
-    logoColor: "from-blue-600 to-blue-400",
-    countries: ["USA", "India", "Europe"],
-    checkSize: "$1M to $30M",
-    stages: ["Seed", "Series A"],
-    industries: ["SaaS", "Consumer", "Fintech"],
-    openRate: 92,
-    verified: true,
-    portfolio: ["Slack", "Spotify", "Dropbox"]
-  },
-  {
-    name: "Index Ventures",
-    type: "VC firm",
-    logo: "IX",
-    logoColor: "from-teal-500 to-green-500",
-    countries: ["UK", "USA", "Europe"],
-    checkSize: "$2M to $50M",
-    stages: ["Series A", "Series B"],
-    industries: ["Marketplace", "Fintech", "Gaming"],
-    openRate: 85,
-    verified: true,
-    portfolio: ["Discord", "Figma", "Notion"]
-  },
-  {
-    name: "Lightspeed Venture",
-    type: "VC firm",
-    logo: "LS",
-    logoColor: "from-yellow-500 to-amber-500",
-    countries: ["USA", "India", "Israel"],
-    checkSize: "$500k to $25M",
-    stages: ["Seed", "Series A"],
-    industries: ["Enterprise", "Consumer", "Crypto"],
-    openRate: 78,
-    verified: true,
-    portfolio: ["Snap", "Affirm", "Epic Games"]
-  },
-  {
-    name: "Greylock Partners",
-    type: "VC firm",
-    logo: "GL",
-    logoColor: "from-slate-600 to-slate-400",
-    countries: ["USA"],
-    checkSize: "$1M to $50M",
-    stages: ["Seed", "Series A", "Series B"],
-    industries: ["Enterprise", "Consumer", "AI"],
-    openRate: 82,
-    verified: true,
-    portfolio: ["LinkedIn", "Discord", "Figma"]
-  },
-  {
-    name: "Benchmark",
-    type: "VC firm",
-    logo: "BM",
-    logoColor: "from-emerald-600 to-emerald-400",
-    countries: ["USA"],
-    checkSize: "$5M to $50M",
-    stages: ["Series A", "Series B"],
-    industries: ["Marketplace", "Consumer", "Enterprise"],
-    openRate: 75,
-    verified: true,
-    portfolio: ["Uber", "Twitter", "Snapchat"]
-  }
+const agentMessages = [
+  { role: "user",  text: "We're struggling with churn. Users drop off after month three." },
+  { role: "agent", text: "Three patterns show up in your data. No habit-forming trigger in week two. 68% of users never reach your core value event. And your success milestone is undefined — users don't know when they've won." },
+  { role: "user",  text: "What should I prioritise first?" },
+  { role: "agent", text: "Define one clear success event in the first seven days, then rebuild onboarding backwards from that moment. This alone reduces early churn by 20–35% in most SaaS products.", typing: true },
 ];
 
-// Testimonials data
+const pillars = [
+  {
+    num: "01", icon: BarChart3, label: "Q-Score",
+    title: "Algorithmic investment readiness scoring",
+    body: "A precise, multi-dimensional score across team, market, traction, and financials. Know exactly where you stand — and what moves the needle.",
+    bullets: ["Scored across 6 dimensions", "Live percentile ranking", "Prioritised improvement plan"],
+  },
+  {
+    num: "02", icon: Bot, label: "AI Agents",
+    title: "Expert advisers across every function",
+    body: "Strategy, marketing, sales, HR, finance — each agent has deep domain knowledge of your business and is available the moment you need it.",
+    bullets: ["Specialised, context-aware", "Available 24 / 7, on demand", "Every session feeds your Q-Score"],
+  },
+  {
+    num: "03", icon: GraduationCap, label: "Academy",
+    title: "Cohort programs with founders and mentors",
+    body: "Join structured programs with peers at the same stage. Work on strategy live, get direct feedback, build a network that lasts beyond the raise.",
+    bullets: ["Stage-matched cohorts", "Live sessions with operators", "Peer accountability built in"],
+  },
+  {
+    num: "04", icon: Users, label: "Marketplace",
+    title: "Curated access to 500+ verified investors",
+    body: "When your Q-Score is ready, the marketplace opens. Thesis-matched introductions to investors who are actively deploying.",
+    bullets: ["500+ verified investors", "Thesis-aligned AI matching", "Gated for quality founders"],
+    locked: true,
+  },
+];
+
+const agentRoles = [
+  { num: "01", name: "Strategy",   desc: "Positioning · business model · go-to-market" },
+  { num: "02", name: "Marketing",  desc: "Acquisition · content · brand narrative" },
+  { num: "03", name: "Sales",      desc: "Pipeline · closing · pricing · objections" },
+  { num: "04", name: "Finance",    desc: "Unit economics · runway · fundraise prep" },
+  { num: "05", name: "HR & Team",  desc: "Hiring · culture · org design" },
+  { num: "06", name: "Legal & Ops", desc: "Contracts · compliance · process" },
+];
+
+const investors = [
+  { name: "Sequoia Capital",      type: "VC · USA / India",   logo: "S",    check: "$1M – $50M",   stages: "Seed · Series A", match: 95 },
+  { name: "Andreessen Horowitz",  type: "VC · USA / UK",      logo: "a16z", check: "$500k – $100M", stages: "Seed · Growth",   match: 88 },
+  { name: "Y Combinator",         type: "Accelerator · Global", logo: "YC", check: "$500k",         stages: "Pre-seed · Seed", match: 100 },
+  { name: "Accel",                type: "VC · USA / Europe",   logo: "A",   check: "$1M – $30M",   stages: "Seed · Series A", match: 92 },
+  { name: "Index Ventures",       type: "VC · UK / USA",       logo: "IX",  check: "$2M – $50M",   stages: "Series A · B",    match: 85 },
+  { name: "Lightspeed",           type: "VC · USA / India",    logo: "LS",  check: "$500k – $25M", stages: "Seed · Series A", match: 78 },
+];
+
 const testimonials = [
-  {
-    name: "Sarah Chen",
-    role: "Founder, TechFlow",
-    image: "SC",
-    text: "Edge Alpha completely transformed our fundraising. We connected with the perfect investors in just 2 weeks. The AI matching is incredibly accurate.",
-    platform: "twitter"
-  },
-  {
-    name: "Marcus Johnson",
-    role: "CEO, DataPipe",
-    image: "MJ",
-    text: "The Q Score gave us insights we never had before. Investors take us more seriously now. Raised our seed round 3x faster than expected!",
-    platform: "twitter"
-  },
-  {
-    name: "Elena Rodriguez",
-    role: "Partner, Vertex Capital",
-    image: "ER",
-    text: "As an investor, Edge Alpha saves me hours every week. The pre-vetted deals with Q Scores mean I focus only on the best opportunities.",
-    platform: "twitter"
-  },
-  {
-    name: "David Park",
-    role: "Founder, CloudStack",
-    image: "DP",
-    text: "We found our lead investor through Edge Alpha. The platform matched us with funds that truly understood our market. Game changer!",
-    platform: "twitter"
-  },
-  {
-    name: "Amanda Foster",
-    role: "GP, Horizon Ventures",
-    image: "AF",
-    text: "More than half my deal flow now comes from Edge Alpha. The quality of founders on this platform is exceptional.",
-    platform: "twitter"
-  },
-  {
-    name: "James Liu",
-    role: "Founder, AIBotics",
-    image: "JL",
-    text: "The behavioral analysis feature helped us understand what investors really look for. Closed our Series A in record time!",
-    platform: "twitter"
-  }
+  { initials: "SC", name: "Sarah Chen",      role: "Founder, TechFlow",      quote: "The Marketing Adviser helped us rethink GTM from scratch. Then Edge Alpha matched us with the right investors. Raised seed in two weeks." },
+  { initials: "MJ", name: "Marcus Johnson",  role: "CEO, DataPipe",          quote: "Q-Score pinpointed our weak spots. The Finance Agent fixed them. Investors took us seriously and we closed 3× faster than expected." },
+  { initials: "ER", name: "Elena Rodriguez", role: "Partner, Vertex Capital", quote: "Every founder I see from Edge Alpha has actually prepared. The Q-Score filter alone saves me hours of due diligence each week." },
+  { initials: "DP", name: "David Park",      role: "Founder, CloudStack",    quote: "Strategy Agent nailed our positioning before we talked to a single investor. Found our lead through the marketplace. Nothing like it." },
+  { initials: "AF", name: "Amanda Foster",   role: "GP, Horizon Ventures",   quote: "More than half my deal flow comes from Edge Alpha. The quality bar the platform sets is exceptional." },
+  { initials: "JL", name: "James Liu",       role: "Founder, AIBotics",      quote: "Finance AI helped us model unit economics properly. Q-Score went from 62 to 84. Series A closed six weeks later." },
 ];
 
-// Feature tabs data
-const featureTabs = [
-  {
-    id: "investor-list",
-    label: "Investor List",
-    title: "Find the perfect investors for you",
-    description: "Browse 500+ verified investors by check size, thesis preferences, and 10+ advanced filters",
-    cta: "Start for free"
-  },
-  {
-    id: "q-score",
-    label: "Q Score",
-    title: "Understand your funding readiness",
-    description: "Get your proprietary Q Score that measures team strength, market opportunity, and investor appeal",
-    cta: "Calculate my score"
-  },
-  {
-    id: "matching",
-    label: "AI Matching",
-    title: "Thesis-aligned recommendations",
-    description: "Our AI analyzes your startup profile and matches you with investors whose thesis aligns perfectly",
-    cta: "See my matches"
-  },
-  {
-    id: "analytics",
-    label: "Analytics",
-    title: "Track your fundraising progress",
-    description: "Monitor investor engagement, track conversations, and optimize your outreach strategy",
-    cta: "View demo"
-  }
+const stats = [
+  { value: "$2.3B+", label: "Raised via platform" },
+  { value: "10,000+", label: "Active founders" },
+  { value: "500+", label: "Verified investors" },
+  { value: "95%", label: "Match accuracy" },
 ];
 
-// Resources dropdown items
-const resourcesMenu = [
-  { label: "Blog", href: "#", icon: "📚" },
-  { label: "Guides", href: "#", icon: "📖" },
-  { label: "Podcast", href: "#", icon: "🎙" },
-  { label: "Newsletter", href: "#", icon: "💌" },
-  { label: "Masterclass", href: "#", icon: "🤓" },
-  { label: "Wall of Love", href: "#", icon: "❤️" },
-];
-
-// Filter options
-const countryOptions = ["USA", "UK", "India", "Germany", "France", "China", "Singapore", "Canada", "Australia", "Israel"];
-const stageOptions = ["Pre-seed", "Seed", "Series A", "Series B", "Series C", "Growth"];
-const roundSizeOptions = ["< $500k", "$500k - $1M", "$1M - $5M", "$5M - $10M", "$10M - $50M", "$50M+"];
+// ─── component ───────────────────────────────────────────────────────────────
 
 export default function LandingPage() {
   const router = useRouter();
-  const [isScrolled, setIsScrolled] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("investor-list");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [resourcesOpen, setResourcesOpen] = useState(false);
-  const [countryFilterOpen, setCountryFilterOpen] = useState(false);
-  const [stageFilterOpen, setStageFilterOpen] = useState(false);
-  const [roundFilterOpen, setRoundFilterOpen] = useState(false);
-  const [selectedCountries, setSelectedCountries] = useState<string[]>([]);
-  const [selectedStages, setSelectedStages] = useState<string[]>([]);
-  const [selectedRound, setSelectedRound] = useState<string | null>(null);
+  const [scrolled, setScrolled]     = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [visibleMsg, setVisibleMsg] = useState(1);
 
-  // Refs for scroll animations
-  const heroRef = useRef(null);
-  const featuresRef = useRef(null);
-  const testimonialsRef = useRef(null);
-  const tabsRef = useRef(null);
+  const chatRef    = useRef<HTMLDivElement>(null);
+  const chatInView = useInView(chatRef, { once: true, amount: 0.4 });
 
-  const heroInView = useInView(heroRef, { once: true, amount: 0.3 });
-
-  // Scroll detection for header
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 50);
-    };
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
+    const fn = () => setScrolled(window.scrollY > 40);
+    window.addEventListener("scroll", fn);
+    return () => window.removeEventListener("scroll", fn);
   }, []);
 
-  const handleFounderAction = (action: 'evaluate' | 'score') => {
-    if (action === 'evaluate') {
-      router.push('/founder/onboarding');
-    } else {
-      router.push('/founder/onboarding?focus=score');
-    }
-  };
+  useEffect(() => {
+    if (!chatInView || visibleMsg >= agentMessages.length) return;
+    const t = setTimeout(() => setVisibleMsg((v) => v + 1), 1200);
+    return () => clearTimeout(t);
+  }, [chatInView, visibleMsg]);
 
-  const handleInvestorAction = () => {
-    router.push('/investor/onboarding');
-  };
+  const go = (p: string) => router.push(p);
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Sticky Navigation */}
+    <div className="min-h-screen antialiased" style={{ background: "#F9F7F2", color: "#18160F" }}>
+
+      {/* ── NAV ─────────────────────────────────────────────────────────── */}
       <motion.header
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-          isScrolled
-            ? "bg-white/95 backdrop-blur-md shadow-lg"
-            : "bg-white/80 backdrop-blur-sm"
-        }`}
-        initial={{ y: -100 }}
+        className="fixed inset-x-0 top-0 z-50 transition-all duration-300"
+        style={{
+          background: scrolled ? "rgba(249,247,242,0.92)" : "rgba(249,247,242,0)",
+          backdropFilter: scrolled ? "blur(16px)" : "none",
+          borderBottom: scrolled ? "1px solid #E2DDD5" : "1px solid transparent",
+        }}
+        initial={{ y: -64 }}
         animate={{ y: 0 }}
-        transition={{ duration: 0.5 }}
+        transition={{ duration: 0.4 }}
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            {/* Logo */}
-            <motion.div
-              className="flex items-center space-x-3 cursor-pointer"
-              whileHover={{ scale: 1.02 }}
-              onClick={() => router.push('/')}
-            >
-              <div className="relative">
-                <div className="h-10 w-10 bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30">
-                  <span className="text-white font-black text-[9px] tracking-tighter">EDGE</span>
-                </div>
-                <div className="absolute -top-1 -right-1 h-2.5 w-2.5 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full animate-pulse"></div>
-              </div>
-              <div className="hidden sm:block">
-                <span className="text-xl font-black text-gray-900 tracking-tight">Edge Alpha</span>
-                <div className="text-[10px] text-blue-600 font-semibold tracking-wide">AI-POWERED FUNDING</div>
-              </div>
-            </motion.div>
+        <div className="mx-auto max-w-7xl px-6 lg:px-8 h-16 flex items-center justify-between">
+          <button onClick={() => go("/")} className="flex items-center gap-2.5 group">
+            <div className="h-7 w-7 rounded-md flex items-center justify-center" style={{ background: "#18160F" }}>
+              <span className="font-bold text-[8px] tracking-tight" style={{ color: "#F9F7F2" }}>EA</span>
+            </div>
+            <span className="font-medium tracking-tight text-[15px]" style={{ color: "#18160F" }}>Edge Alpha</span>
+          </button>
 
-            {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center space-x-8">
-              <a href="#pricing" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">
-                Pricing
+          <nav className="hidden md:flex items-center gap-10">
+            {["How it works", "For investors"].map((l) => (
+              <a key={l} href={`#${l.toLowerCase().replace(/ /g, "-")}`}
+                className="text-[13px] font-light transition-opacity hover:opacity-70"
+                style={{ color: "#8A867C" }}>
+                {l}
               </a>
-              <a href="#investors" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">
-                For Investors
-              </a>
-              <div
-                className="relative"
-                onMouseEnter={() => setResourcesOpen(true)}
-                onMouseLeave={() => setResourcesOpen(false)}
-              >
-                <button className="flex items-center text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">
-                  Resources
-                  <ChevronDown className={`ml-1 h-4 w-4 transition-transform ${resourcesOpen ? 'rotate-180' : ''}`} />
-                </button>
-                <AnimatePresence>
-                  {resourcesOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 10 }}
-                      transition={{ duration: 0.2 }}
-                      className="absolute top-full left-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-50"
-                    >
-                      {resourcesMenu.map((item) => (
-                        <a
-                          key={item.label}
-                          href={item.href}
-                          className="flex items-center px-4 py-2.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-colors"
-                        >
-                          <span className="mr-3">{item.icon}</span>
-                          {item.label}
-                        </a>
-                      ))}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-              <Button
-                onClick={() => handleFounderAction('evaluate')}
-                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold px-6"
-              >
-                Start
-              </Button>
-            </nav>
-
-            {/* Mobile menu button */}
+            ))}
             <button
-              className="md:hidden p-2"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              onClick={() => go("/founder/onboarding")}
+              className="text-[13px] font-medium px-5 py-2 rounded-full transition-colors"
+              style={{ background: "#18160F", color: "#F9F7F2" }}
             >
-              {mobileMenuOpen ? (
-                <X className="h-6 w-6 text-gray-600" />
-              ) : (
-                <Menu className="h-6 w-6 text-gray-600" />
-              )}
+              Get started
             </button>
-          </div>
+          </nav>
+
+          <button className="md:hidden" onClick={() => setMobileOpen(!mobileOpen)} style={{ color: "#8A867C" }}>
+            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
         </div>
 
-        {/* Mobile Navigation */}
         <AnimatePresence>
-          {mobileMenuOpen && (
+          {mobileOpen && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
-              className="md:hidden bg-white border-t border-gray-100 shadow-lg"
+              className="md:hidden px-6 py-5 space-y-4"
+              style={{ background: "#F9F7F2", borderTop: "1px solid #E2DDD5" }}
             >
-              <div className="px-4 py-6 space-y-1">
-                <a
-                  href="#pricing"
-                  className="flex items-center py-3 px-4 text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <DollarSign className="h-5 w-5 mr-3 text-gray-400" />
-                  Pricing
-                </a>
-                <a
-                  href="#investors"
-                  className="flex items-center py-3 px-4 text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <Users className="h-5 w-5 mr-3 text-gray-400" />
-                  For Investors
-                </a>
-                <div className="py-2">
-                  <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Resources</p>
-                  <div className="grid grid-cols-2 gap-1">
-                    {resourcesMenu.map((item) => (
-                      <a
-                        key={item.label}
-                        href={item.href}
-                        className="flex items-center py-2 px-4 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors"
-                        onClick={() => setMobileMenuOpen(false)}
-                      >
-                        <span className="mr-2">{item.icon}</span>
-                        {item.label}
-                      </a>
-                    ))}
-                  </div>
-                </div>
-                <div className="pt-4 border-t border-gray-100">
-                  <Button
-                    onClick={() => {
-                      handleFounderAction('evaluate');
-                      setMobileMenuOpen(false);
-                    }}
-                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-6 text-lg font-semibold"
-                  >
-                    Get Started Free
-                    <ArrowRight className="ml-2 h-5 w-5" />
-                  </Button>
-                  <p className="text-center text-sm text-gray-600 mt-4">
-                    Already have an account?{" "}
-                    <a href="/login" className="text-blue-600 hover:text-blue-700 font-medium">
-                      Sign in
-                    </a>
-                  </p>
-                </div>
-              </div>
+              <a href="#how-it-works" className="block text-sm font-light" style={{ color: "#8A867C" }} onClick={() => setMobileOpen(false)}>How it works</a>
+              <a href="#for-investors" className="block text-sm font-light" style={{ color: "#8A867C" }} onClick={() => setMobileOpen(false)}>For investors</a>
+              <button
+                onClick={() => { go("/founder/onboarding"); setMobileOpen(false); }}
+                className="w-full text-sm font-medium py-3 rounded-full"
+                style={{ background: "#18160F", color: "#F9F7F2" }}
+              >
+                Get started free
+              </button>
             </motion.div>
           )}
         </AnimatePresence>
       </motion.header>
 
-      {/* Hero Section */}
-      <section ref={heroRef} className="pt-24 pb-16 px-4 sm:px-6 lg:px-8 overflow-hidden">
-        <div className="max-w-7xl mx-auto">
-          {/* Social Proof Avatars */}
-          <motion.div
-            className="flex justify-center items-center mb-8"
-            initial={{ opacity: 0, y: 20 }}
-            animate={heroInView ? { opacity: 1, y: 0 } : {}}
-            transition={{ duration: 0.6 }}
-          >
-            <div className="flex items-center bg-white/80 backdrop-blur-sm rounded-full px-4 py-2 shadow-lg border border-gray-100">
-              <div className="flex -space-x-3">
-                {[
-                  { gradient: "from-blue-500 to-cyan-400", letter: "J" },
-                  { gradient: "from-purple-500 to-pink-400", letter: "S" },
-                  { gradient: "from-orange-500 to-yellow-400", letter: "M" },
-                  { gradient: "from-green-500 to-emerald-400", letter: "A" },
-                  { gradient: "from-red-500 to-rose-400", letter: "K" },
-                ].map((avatar, i) => (
-                  <motion.div
-                    key={i}
-                    className={`h-9 w-9 rounded-full bg-gradient-to-br ${avatar.gradient} border-2 border-white shadow-md flex items-center justify-center text-white text-xs font-bold ring-2 ring-white`}
-                    initial={{ opacity: 0, scale: 0.5 }}
-                    animate={heroInView ? { opacity: 1, scale: 1 } : {}}
-                    transition={{ delay: i * 0.1, type: "spring", stiffness: 300 }}
-                  >
-                    {avatar.letter}
-                  </motion.div>
+      {/* ── HERO ─────────────────────────────────────────────────────────── */}
+      <section className="pt-36 pb-24 px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl grid lg:grid-cols-2 gap-16 items-center">
+
+          {/* copy */}
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7 }}>
+            <div
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-medium tracking-wide mb-8"
+              style={{ background: "#F0EDE6", border: "1px solid #E2DDD5", color: "#8A867C", letterSpacing: "0.08em" }}
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
+              AI-POWERED BUSINESS ADVISERS
+            </div>
+
+            <h1
+              className="text-5xl sm:text-6xl xl:text-7xl leading-[1.05] tracking-tight mb-7"
+              style={{ fontWeight: 300, color: "#18160F" }}
+            >
+              Build a fundable<br />
+              business.<br />
+              <span style={{ color: "#8A867C" }}>Then raise.</span>
+            </h1>
+
+            <p className="text-[17px] font-light leading-relaxed max-w-md mb-10" style={{ color: "#8A867C" }}>
+              Expert AI advisers strengthen every part of your startup. Once you&apos;re ready, 500+ verified investors are waiting.
+            </p>
+
+            <div className="flex flex-wrap items-center gap-4 mb-12">
+              <button
+                onClick={() => go("/founder/onboarding")}
+                className="inline-flex items-center gap-2 text-[14px] font-medium px-7 py-3.5 rounded-full transition-all hover:opacity-90"
+                style={{ background: "#18160F", color: "#F9F7F2" }}
+              >
+                Start free
+                <ArrowRight className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => document.getElementById("how-it-works")?.scrollIntoView({ behavior: "smooth" })}
+                className="text-[14px] font-light inline-flex items-center gap-1.5 transition-opacity hover:opacity-70"
+                style={{ color: "#8A867C" }}
+              >
+                See how it works
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* proof */}
+            <div className="flex items-center gap-3 pt-8" style={{ borderTop: "1px solid #E2DDD5" }}>
+              <div className="flex -space-x-2">
+                {["#C2B89A", "#A8A090", "#8A9BB5", "#9BB5A0"].map((c, i) => (
+                  <div key={i} className="h-7 w-7 rounded-full border-2" style={{ background: c, borderColor: "#F9F7F2" }} />
                 ))}
               </div>
-              <motion.div
-                className="ml-4 flex items-center"
-                initial={{ opacity: 0 }}
-                animate={heroInView ? { opacity: 1 } : {}}
-                transition={{ delay: 0.5 }}
-              >
-                <div className="flex items-center">
-                  <Star className="h-4 w-4 text-yellow-500 fill-yellow-500 mr-1" />
-                  <Star className="h-4 w-4 text-yellow-500 fill-yellow-500 mr-1" />
-                  <Star className="h-4 w-4 text-yellow-500 fill-yellow-500 mr-1" />
-                  <Star className="h-4 w-4 text-yellow-500 fill-yellow-500 mr-1" />
-                  <Star className="h-4 w-4 text-yellow-500 fill-yellow-500 mr-2" />
-                </div>
-                <span className="text-sm text-gray-600">
-                  <span className="font-bold text-gray-900">10,000+</span> founders
-                </span>
-              </motion.div>
+              <p className="text-[13px] font-light" style={{ color: "#8A867C" }}>
+                <span className="font-medium" style={{ color: "#18160F" }}>10,000+</span> founders growing with Edge Alpha
+              </p>
             </div>
           </motion.div>
 
-          {/* Main Headline */}
+          {/* chat mock */}
           <motion.div
-            className="text-center mb-8"
-            variants={staggerContainer}
-            initial="initial"
-            animate={heroInView ? "animate" : "initial"}
+            ref={chatRef}
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.15 }}
+            className="relative"
           >
-            <motion.h1
-              className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-black text-gray-900 leading-[1.1] mb-6"
-              variants={fadeInUp}
-              transition={{ duration: 0.6 }}
+            <div
+              className="relative rounded-2xl overflow-hidden shadow-sm"
+              style={{ background: "#FDFCFA", border: "1px solid #E2DDD5" }}
             >
-              <motion.span
-                className="block"
-                variants={fadeInUp}
-                transition={{ delay: 0.1 }}
-              >
-                Get Your Startup{" "}
-                <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  Funded
-                </span>
-              </motion.span>
-              <motion.span
-                className="block"
-                variants={fadeInUp}
-                transition={{ delay: 0.2 }}
-              >
-                by{" "}
-                <span className="bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-                  500+ Investors
-                </span>
-              </motion.span>
-            </motion.h1>
+              {/* window bar */}
+              <div className="flex items-center gap-1.5 px-4 py-3" style={{ borderBottom: "1px solid #E8E4DC" }}>
+                <div className="h-2.5 w-2.5 rounded-full" style={{ background: "#E8C4B8" }} />
+                <div className="h-2.5 w-2.5 rounded-full" style={{ background: "#E8DDB8" }} />
+                <div className="h-2.5 w-2.5 rounded-full" style={{ background: "#B8E8C4" }} />
+                <div className="ml-3 flex items-center gap-2">
+                  <div className="h-5 w-5 rounded flex items-center justify-center" style={{ background: "#18160F" }}>
+                    <Bot className="h-3 w-3" style={{ color: "#F9F7F2" }} />
+                  </div>
+                  <span className="text-[12px] font-medium" style={{ color: "#8A867C" }}>Strategy Adviser</span>
+                  <div className="h-1.5 w-1.5 rounded-full bg-green-500 ml-1" />
+                </div>
+              </div>
 
-            <motion.p
-              className="text-lg sm:text-xl text-gray-600 max-w-2xl mx-auto mb-8"
-              variants={fadeInUp}
-              transition={{ delay: 0.3 }}
-            >
-              Find investors, reach out, and get replies - powered by AI
-            </motion.p>
+              {/* messages */}
+              <div className="px-4 py-5 space-y-4 min-h-[280px]" style={{ background: "#F9F7F2" }}>
+                {agentMessages.map((msg, i) => {
+                  if (i >= visibleMsg) return null;
+                  const isUser   = msg.role === "user";
+                  const isTyping = (msg as { typing?: boolean }).typing && i === visibleMsg - 1;
+                  return (
+                    <motion.div key={i} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}
+                      className={`flex gap-2.5 ${isUser ? "flex-row-reverse" : ""}`}>
+                      {!isUser && (
+                        <div className="h-6 w-6 rounded flex items-center justify-center shrink-0 mt-0.5" style={{ background: "#18160F" }}>
+                          <Bot className="h-3 w-3" style={{ color: "#F9F7F2" }} />
+                        </div>
+                      )}
+                      <div
+                        className="max-w-[78%] rounded-xl px-3.5 py-2.5 text-[13px] leading-relaxed"
+                        style={isUser
+                          ? { background: "#18160F", color: "#F9F7F2", borderRadius: "12px 4px 12px 12px" }
+                          : { background: "#F0EDE6", border: "1px solid #E2DDD5", color: "#18160F", borderRadius: "4px 12px 12px 12px" }
+                        }
+                      >
+                        {msg.text}
+                        {isTyping && (
+                          <motion.span className="inline-block w-0.5 h-3.5 ml-0.5 align-middle rounded" style={{ background: "#8A867C" }}
+                            animate={{ opacity: [1, 0] }} transition={{ repeat: Infinity, duration: 0.7 }} />
+                        )}
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
 
-            {/* CTA Buttons */}
+              {/* input */}
+              <div className="px-4 py-3 flex items-center gap-3" style={{ borderTop: "1px solid #E8E4DC", background: "#FDFCFA" }}>
+                <input readOnly placeholder="Ask your adviser…"
+                  className="flex-1 text-[13px] font-light rounded-lg px-3 py-2 focus:outline-none"
+                  style={{ background: "#F0EDE6", border: "1px solid #E2DDD5", color: "#8A867C" }} />
+                <button className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: "#18160F" }}>
+                  <Send className="h-3.5 w-3.5" style={{ color: "#F9F7F2" }} />
+                </button>
+              </div>
+
+              {/* score strip */}
+              <div className="px-4 py-2.5 flex items-center justify-between" style={{ background: "#F0EDE6", borderTop: "1px solid #E2DDD5" }}>
+                <span className="text-[11px] font-light" style={{ color: "#8A867C" }}>This session is improving your Q-Score</span>
+                <div className="flex items-center gap-1 text-[11px] font-medium" style={{ color: "#18160F" }}>
+                  <TrendingUp className="h-3 w-3" /> +3 pts
+                </div>
+              </div>
+            </div>
+
+            {/* floating chips */}
             <motion.div
-              className="flex flex-wrap justify-center gap-4"
-              variants={fadeInUp}
-              transition={{ delay: 0.4 }}
+              className="absolute -bottom-4 -left-5 rounded-xl px-3 py-2 flex items-center gap-2.5 shadow-sm"
+              style={{ background: "#FDFCFA", border: "1px solid #E2DDD5" }}
+              initial={{ opacity: 0, scale: 0.85 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 1.2, type: "spring", stiffness: 200 }}
             >
-              <Button
-                onClick={() => handleFounderAction('evaluate')}
-                size="lg"
-                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold px-8 py-6 text-lg shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40 transition-all"
-              >
-                Sign up free
-              </Button>
-              <Button
-                variant="ghost"
-                size="lg"
-                className="text-blue-600 hover:text-blue-700 font-semibold px-8 py-6 text-lg"
-                onClick={() => document.getElementById('search-module')?.scrollIntoView({ behavior: 'smooth' })}
-              >
-                Try it first
-              </Button>
+              <div className="h-7 w-7 rounded flex items-center justify-center" style={{ background: "#F0EDE6" }}>
+                <TrendingUp className="h-3.5 w-3.5" style={{ color: "#18160F" }} />
+              </div>
+              <div>
+                <p className="text-[10px] font-light" style={{ color: "#8A867C" }}>Q-Score</p>
+                <p className="text-[12px] font-semibold" style={{ color: "#18160F" }}>84 / 100</p>
+              </div>
+            </motion.div>
+
+            <motion.div
+              className="absolute -top-4 -right-5 rounded-xl px-3 py-2 flex items-center gap-2.5 shadow-sm"
+              style={{ background: "#FDFCFA", border: "1px solid #E2DDD5" }}
+              initial={{ opacity: 0, scale: 0.85 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 1.4, type: "spring", stiffness: 200 }}
+            >
+              <div className="h-7 w-7 rounded flex items-center justify-center" style={{ background: "#F0EDE6" }}>
+                <Users className="h-3.5 w-3.5" style={{ color: "#18160F" }} />
+              </div>
+              <div>
+                <p className="text-[10px] font-light" style={{ color: "#8A867C" }}>Investors matched</p>
+                <p className="text-[12px] font-semibold" style={{ color: "#18160F" }}>12 this week</p>
+              </div>
             </motion.div>
           </motion.div>
         </div>
       </section>
 
-      {/* Search Module Section */}
-      <section id="search-module" className="py-8 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-6xl mx-auto">
-          <motion.div
-            className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden"
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-          >
-            {/* Search Bar */}
-            <div className="p-4 sm:p-6 border-b border-gray-100">
-              <div className="flex flex-col sm:flex-row gap-4">
-                <div className="flex-1 relative">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="SaaS, fintech, AI, climate tech..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                  />
-                </div>
+      {/* ── PRESS ─────────────────────────────────────────────────────────── */}
+      <div className="py-10 px-6" style={{ borderTop: "1px solid #E2DDD5", borderBottom: "1px solid #E2DDD5" }}>
+        <div className="mx-auto max-w-5xl">
+          <p className="text-center text-[10px] uppercase tracking-[0.22em] font-medium mb-7" style={{ color: "#B5B0A8" }}>
+            Founders featured in
+          </p>
+          <div className="flex flex-wrap justify-center items-center gap-10 sm:gap-16">
+            {["TechCrunch", "Forbes", "Bloomberg", "The Verge", "WIRED"].map((n) => (
+              <span key={n} className="text-[15px] tracking-tight cursor-default select-none transition-opacity hover:opacity-60"
+                style={{ fontWeight: 300, color: "#C8C3BB" }}>
+                {n}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
 
-                {/* Filter Buttons */}
-                <div className="flex items-center gap-2 overflow-x-auto pb-2 sm:pb-0 sm:flex-wrap scrollbar-hide">
-                  {/* Countries Filter */}
-                  <div className="relative">
-                    <button
-                      onClick={() => {
-                        setCountryFilterOpen(!countryFilterOpen);
-                        setStageFilterOpen(false);
-                        setRoundFilterOpen(false);
-                      }}
-                      className={`flex items-center px-4 py-3 border rounded-xl transition-colors text-sm ${
-                        selectedCountries.length > 0
-                          ? "border-blue-500 bg-blue-50 text-blue-700"
-                          : "border-gray-200 hover:border-gray-300 text-gray-600"
-                      }`}
-                    >
-                      <MapPin className="h-4 w-4 mr-2" />
-                      {selectedCountries.length > 0 ? `${selectedCountries.length} selected` : "Countries"}
-                      <ChevronDown className={`h-4 w-4 ml-2 transition-transform ${countryFilterOpen ? 'rotate-180' : ''}`} />
-                    </button>
-                    <AnimatePresence>
-                      {countryFilterOpen && (
-                        <motion.div
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: 10 }}
-                          className="absolute top-full left-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-50 max-h-64 overflow-y-auto"
-                        >
-                          {countryOptions.map((country) => (
-                            <label
-                              key={country}
-                              className="flex items-center px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={selectedCountries.includes(country)}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setSelectedCountries([...selectedCountries, country]);
-                                  } else {
-                                    setSelectedCountries(selectedCountries.filter(c => c !== country));
-                                  }
-                                }}
-                                className="mr-3 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                              />
-                              {country}
-                            </label>
-                          ))}
-                          {selectedCountries.length > 0 && (
-                            <button
-                              onClick={() => setSelectedCountries([])}
-                              className="w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 border-t border-gray-100 mt-1"
-                            >
-                              Clear all
-                            </button>
-                          )}
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-
-                  {/* Stages Filter */}
-                  <div className="relative">
-                    <button
-                      onClick={() => {
-                        setStageFilterOpen(!stageFilterOpen);
-                        setCountryFilterOpen(false);
-                        setRoundFilterOpen(false);
-                      }}
-                      className={`flex items-center px-4 py-3 border rounded-xl transition-colors text-sm ${
-                        selectedStages.length > 0
-                          ? "border-purple-500 bg-purple-50 text-purple-700"
-                          : "border-gray-200 hover:border-gray-300 text-gray-600"
-                      }`}
-                    >
-                      <BarChart3 className="h-4 w-4 mr-2" />
-                      {selectedStages.length > 0 ? `${selectedStages.length} selected` : "Stages"}
-                      <ChevronDown className={`h-4 w-4 ml-2 transition-transform ${stageFilterOpen ? 'rotate-180' : ''}`} />
-                    </button>
-                    <AnimatePresence>
-                      {stageFilterOpen && (
-                        <motion.div
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: 10 }}
-                          className="absolute top-full left-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-50"
-                        >
-                          {stageOptions.map((stage) => (
-                            <label
-                              key={stage}
-                              className="flex items-center px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={selectedStages.includes(stage)}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setSelectedStages([...selectedStages, stage]);
-                                  } else {
-                                    setSelectedStages(selectedStages.filter(s => s !== stage));
-                                  }
-                                }}
-                                className="mr-3 h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                              />
-                              {stage}
-                            </label>
-                          ))}
-                          {selectedStages.length > 0 && (
-                            <button
-                              onClick={() => setSelectedStages([])}
-                              className="w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 border-t border-gray-100 mt-1"
-                            >
-                              Clear all
-                            </button>
-                          )}
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-
-                  {/* Round Size Filter */}
-                  <div className="relative">
-                    <button
-                      onClick={() => {
-                        setRoundFilterOpen(!roundFilterOpen);
-                        setCountryFilterOpen(false);
-                        setStageFilterOpen(false);
-                      }}
-                      className={`flex items-center px-4 py-3 border rounded-xl transition-colors text-sm ${
-                        selectedRound
-                          ? "border-green-500 bg-green-50 text-green-700"
-                          : "border-gray-200 hover:border-gray-300 text-gray-600"
-                      }`}
-                    >
-                      <DollarSign className="h-4 w-4 mr-2" />
-                      {selectedRound || "Round size"}
-                      <ChevronDown className={`h-4 w-4 ml-2 transition-transform ${roundFilterOpen ? 'rotate-180' : ''}`} />
-                    </button>
-                    <AnimatePresence>
-                      {roundFilterOpen && (
-                        <motion.div
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: 10 }}
-                          className="absolute top-full left-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-50"
-                        >
-                          {roundSizeOptions.map((size) => (
-                            <button
-                              key={size}
-                              onClick={() => {
-                                setSelectedRound(selectedRound === size ? null : size);
-                                setRoundFilterOpen(false);
-                              }}
-                              className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${
-                                selectedRound === size ? "text-green-700 bg-green-50" : "text-gray-600"
-                              }`}
-                            >
-                              {size}
-                            </button>
-                          ))}
-                          {selectedRound && (
-                            <button
-                              onClick={() => {
-                                setSelectedRound(null);
-                                setRoundFilterOpen(false);
-                              }}
-                              className="w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 border-t border-gray-100 mt-1"
-                            >
-                              Clear
-                            </button>
-                          )}
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-
-                  <button className="p-3 border border-gray-200 rounded-xl hover:border-gray-300 transition-colors">
-                    <Filter className="h-4 w-4 text-gray-600" />
-                  </button>
-                </div>
-
-                <Button className="bg-gray-900 hover:bg-gray-800 text-white px-6">
-                  Search
-                </Button>
-              </div>
-            </div>
-
-            {/* Results Preview */}
-            <div className="px-6 py-2 bg-gray-50 text-sm text-gray-600 flex items-center justify-between">
-              <span><span className="font-semibold text-gray-900">500+</span> investors</span>
-              <div className="flex items-center gap-4">
-                <button className="hover:text-gray-900 transition-colors">Settings</button>
-                <button className="hover:text-gray-900 transition-colors">Export</button>
-              </div>
-            </div>
-
-            {/* Investor Table */}
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-100">
-                  <tr>
-                    <th className="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">Investor</th>
-                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Geography</th>
-                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Check Size</th>
-                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Stages</th>
-                    <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Match Rate</th>
-                    <th className="text-right py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sampleInvestors.map((investor, index) => (
-                    <motion.tr
-                      key={investor.name}
-                      className="border-b border-gray-50 hover:bg-blue-50/50 transition-colors cursor-pointer"
-                      initial={{ opacity: 0, y: 10 }}
-                      whileInView={{ opacity: 1, y: 0 }}
-                      viewport={{ once: true }}
-                      transition={{ delay: index * 0.1 }}
-                      whileHover={{ backgroundColor: "rgba(59, 130, 246, 0.05)" }}
-                    >
-                      <td className="py-4 px-6">
-                        <div className="flex items-center gap-3">
-                          <div className={`h-12 w-12 rounded-lg bg-gradient-to-br ${investor.logoColor} flex items-center justify-center text-white font-bold text-xs shadow-md`}>
-                            {investor.logo}
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold text-gray-900">{investor.name}</span>
-                              {investor.verified && (
-                                <CheckCircle className="h-4 w-4 text-blue-500" />
-                              )}
-                            </div>
-                            <span className="text-sm text-gray-500">{investor.type}</span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-4 px-4">
-                        <div className="flex flex-wrap gap-1">
-                          {investor.countries.slice(0, 2).map((country) => (
-                            <span key={country} className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
-                              {country}
-                            </span>
-                          ))}
-                          {investor.countries.length > 2 && (
-                            <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded-full text-xs font-medium">
-                              +{investor.countries.length - 2}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-4 px-4 text-sm text-gray-600">
-                        {investor.checkSize}
-                      </td>
-                      <td className="py-4 px-4">
-                        <div className="flex flex-wrap gap-1">
-                          {investor.stages.slice(0, 2).map((stage) => (
-                            <span key={stage} className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
-                              {stage}
-                            </span>
-                          ))}
-                        </div>
-                      </td>
-                      <td className="py-4 px-4">
-                        <div className="flex items-center gap-2">
-                          <div className={`h-2 w-2 rounded-full ${investor.openRate >= 90 ? 'bg-green-500' : investor.openRate >= 70 ? 'bg-yellow-500' : 'bg-red-500'}`}></div>
-                          <span className="font-semibold text-gray-900">{investor.openRate}%</span>
-                        </div>
-                      </td>
-                      <td className="py-4 px-6 text-right">
-                        <Button
-                          size="sm"
-                          className="bg-gray-900 hover:bg-gray-800 text-white"
-                          onClick={() => handleFounderAction('evaluate')}
-                        >
-                          <Mail className="h-4 w-4 mr-2" />
-                          Connect
-                        </Button>
-                      </td>
-                    </motion.tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* View More */}
-            <div className="p-4 text-center border-t border-gray-100">
-              <Button
-                variant="ghost"
-                className="text-blue-600 hover:text-blue-700"
-                onClick={() => handleFounderAction('evaluate')}
-              >
-                See all 500+ investors
-                <ArrowRight className="h-4 w-4 ml-2" />
-              </Button>
+      {/* ── FOUR PILLARS ─────────────────────────────────────────────────── */}
+      <section id="how-it-works" className="py-28 px-6">
+        <div className="mx-auto max-w-7xl">
+          <motion.div className="mb-16" initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
+            <p className="text-[10px] uppercase tracking-[0.22em] font-medium mb-4" style={{ color: "#B5B0A8" }}>Platform</p>
+            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+              <h2 className="text-3xl sm:text-4xl tracking-tight max-w-lg leading-tight" style={{ fontWeight: 300, color: "#18160F" }}>
+                Four tools that work together.
+              </h2>
+              <p className="text-[14px] font-light max-w-xs leading-relaxed" style={{ color: "#8A867C" }}>
+                Strengthen your business, prove it with data, then unlock funding.
+              </p>
             </div>
           </motion.div>
+
+          <div className="divide-y" style={{ borderTop: "1px solid #E2DDD5", borderColor: "#E2DDD5" }}>
+            {pillars.map((p, i) => {
+              const Icon = p.icon;
+              return (
+                <motion.div
+                  key={p.num}
+                  className="grid md:grid-cols-12 gap-6 py-10 group cursor-pointer"
+                  initial={{ opacity: 0, y: 16 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: i * 0.07 }}
+                  onClick={() => go("/founder/onboarding")}
+                >
+                  <div className="md:col-span-1">
+                    <span className="text-[12px] font-mono" style={{ color: "#C8C3BB" }}>{p.num}</span>
+                  </div>
+                  <div className="md:col-span-2 flex items-start gap-2">
+                    <div className="h-8 w-8 rounded flex items-center justify-center shrink-0 transition-colors"
+                      style={{ background: "#F0EDE6", border: "1px solid #E2DDD5" }}>
+                      <Icon className="h-4 w-4" style={{ color: "#8A867C" }} />
+                    </div>
+                    <span className="text-[11px] uppercase tracking-[0.14em] font-medium mt-2" style={{ color: "#8A867C" }}>{p.label}</span>
+                    {p.locked && (
+                      <div className="flex items-center gap-1 px-2 py-0.5 rounded-full mt-2 ml-1"
+                        style={{ background: "#F5EDD8", border: "1px solid #E8D9B8" }}>
+                        <Lock className="h-2.5 w-2.5" style={{ color: "#C4A96A" }} />
+                        <span className="text-[9px] font-medium" style={{ color: "#C4A96A", letterSpacing: "0.06em" }}>UNLOCKS</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="md:col-span-4">
+                    <h3 className="text-[17px] leading-snug mb-2" style={{ fontWeight: 300, color: "#18160F" }}>{p.title}</h3>
+                    <p className="text-[13px] font-light leading-relaxed" style={{ color: "#8A867C" }}>{p.body}</p>
+                  </div>
+                  <div className="md:col-span-4">
+                    <ul className="space-y-2">
+                      {p.bullets.map((b) => (
+                        <li key={b} className="flex items-center gap-2 text-[13px] font-light" style={{ color: "#8A867C" }}>
+                          <div className="h-1 w-1 rounded-full shrink-0" style={{ background: "#C8C3BB" }} />
+                          {b}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="md:col-span-1 flex items-center justify-end">
+                    <ArrowUpRight className="h-4 w-4 transition-all group-hover:translate-x-0.5 group-hover:-translate-y-0.5" style={{ color: "#C8C3BB" }} />
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
         </div>
       </section>
 
-      {/* Media/Press Logos */}
-      <section className="py-16 px-4 sm:px-6 lg:px-8 bg-gray-50">
-        <div className="max-w-5xl mx-auto">
-          <motion.p
-            className="text-center text-sm text-gray-500 mb-8 uppercase tracking-wider font-medium"
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-          >
-            Trusted by founders featured in
-          </motion.p>
-          <motion.div
-            className="flex flex-wrap justify-center items-center gap-10 sm:gap-16"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-          >
-            {/* TechCrunch */}
-            <motion.div
-              className="opacity-40 hover:opacity-70 transition-opacity cursor-default"
-              initial={{ opacity: 0 }}
-              whileInView={{ opacity: 0.4 }}
-              whileHover={{ opacity: 0.7 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0 }}
-            >
-              <svg className="h-6" viewBox="0 0 200 28" fill="currentColor">
-                <text x="0" y="22" className="text-xl font-bold" style={{ fontFamily: 'system-ui' }}>TechCrunch</text>
-              </svg>
+      {/* ── AI AGENTS ─────────────────────────────────────────────────────── */}
+      <section className="py-28 px-6" style={{ background: "#F0EDE6" }}>
+        <div className="mx-auto max-w-7xl">
+          <div className="grid lg:grid-cols-2 gap-20 items-start">
+            <motion.div initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
+              <p className="text-[10px] uppercase tracking-[0.22em] font-medium mb-5" style={{ color: "#B5B0A8" }}>AI Agents</p>
+              <h2 className="text-3xl sm:text-4xl tracking-tight leading-tight mb-7" style={{ fontWeight: 300, color: "#18160F" }}>
+                Expert advisers.<br />No office hours.
+              </h2>
+              <p className="text-[15px] font-light leading-relaxed mb-10 max-w-md" style={{ color: "#8A867C" }}>
+                Each agent carries deep domain expertise and full context of your business. Not generic advice — they know your numbers, your market, and exactly where you&apos;re falling short.
+              </p>
+
+              <div className="space-y-6 mb-10">
+                {[
+                  { title: "On demand, any time", desc: "At 2 am before a pitch, mid-sprint, or while building your model — your advisers are always ready." },
+                  { title: "Context-aware by default", desc: "Every agent is pre-loaded with your profile, Q-Score data, and the full history of previous sessions." },
+                  { title: "Progress that compounds", desc: "Conversations translate to actions. Actions move your Q-Score. Score unlocks the investor marketplace." },
+                ].map(({ title, desc }) => (
+                  <div key={title} className="flex gap-4">
+                    <div className="h-1.5 w-1.5 rounded-full shrink-0 mt-2" style={{ background: "#C8C3BB" }} />
+                    <div>
+                      <p className="text-[14px] font-medium mb-0.5" style={{ color: "#18160F" }}>{title}</p>
+                      <p className="text-[13px] font-light leading-relaxed" style={{ color: "#8A867C" }}>{desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <button
+                onClick={() => go("/founder/onboarding")}
+                className="inline-flex items-center gap-2 text-[14px] font-medium px-6 py-3 rounded-full transition-opacity hover:opacity-80"
+                style={{ background: "#18160F", color: "#F9F7F2" }}
+              >
+                Meet your advisers <ArrowRight className="h-4 w-4" />
+              </button>
             </motion.div>
-            {/* Forbes */}
+
+            {/* agent list */}
             <motion.div
-              className="opacity-40 hover:opacity-70 transition-opacity cursor-default"
-              initial={{ opacity: 0 }}
-              whileInView={{ opacity: 0.4 }}
-              whileHover={{ opacity: 0.7 }}
+              className="divide-y rounded-2xl overflow-hidden"
+              style={{ background: "#FDFCFA", border: "1px solid #E2DDD5", borderColor: "#E2DDD5" }}
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: 0.1 }}
             >
-              <svg className="h-7" viewBox="0 0 100 28" fill="currentColor">
-                <text x="0" y="22" className="text-xl font-bold italic" style={{ fontFamily: 'Georgia, serif' }}>Forbes</text>
-              </svg>
-            </motion.div>
-            {/* Bloomberg */}
-            <motion.div
-              className="opacity-40 hover:opacity-70 transition-opacity cursor-default"
-              initial={{ opacity: 0 }}
-              whileInView={{ opacity: 0.4 }}
-              whileHover={{ opacity: 0.7 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.2 }}
-            >
-              <svg className="h-6" viewBox="0 0 150 28" fill="currentColor">
-                <text x="0" y="22" className="text-xl font-bold" style={{ fontFamily: 'system-ui' }}>Bloomberg</text>
-              </svg>
-            </motion.div>
-            {/* The Verge */}
-            <motion.div
-              className="opacity-40 hover:opacity-70 transition-opacity cursor-default"
-              initial={{ opacity: 0 }}
-              whileInView={{ opacity: 0.4 }}
-              whileHover={{ opacity: 0.7 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.3 }}
-            >
-              <svg className="h-6" viewBox="0 0 120 28" fill="currentColor">
-                <text x="0" y="22" className="text-xl font-bold" style={{ fontFamily: 'system-ui' }}>The Verge</text>
-              </svg>
-            </motion.div>
-            {/* Wired */}
-            <motion.div
-              className="opacity-40 hover:opacity-70 transition-opacity cursor-default"
-              initial={{ opacity: 0 }}
-              whileInView={{ opacity: 0.4 }}
-              whileHover={{ opacity: 0.7 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.4 }}
-            >
-              <svg className="h-6" viewBox="0 0 80 28" fill="currentColor">
-                <text x="0" y="22" className="text-xl font-bold" style={{ fontFamily: 'system-ui' }}>WIRED</text>
-              </svg>
-            </motion.div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* 3-Step Feature Section */}
-      <section ref={featuresRef} className="py-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-6xl mx-auto">
-          <motion.h2
-            className="text-3xl sm:text-4xl font-black text-center text-gray-900 mb-16"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-          >
-            Raise funds like it&apos;s 2034
-          </motion.h2>
-
-          {/* Step 1 */}
-          <motion.div
-            className="grid lg:grid-cols-2 gap-12 items-center mb-24"
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true, amount: 0.3 }}
-          >
-            <motion.div
-              variants={fadeInLeft}
-              initial="initial"
-              whileInView="animate"
-              viewport={{ once: true }}
-              transition={{ duration: 0.6 }}
-            >
-              <h3 className="text-2xl sm:text-3xl font-black text-gray-900 mb-4">
-                <span className="text-blue-600">1.</span> Reach out
-              </h3>
-              <p className="text-lg text-gray-600 mb-6">
-                Filter 500+ investors by any criteria. Reach out in seconds with AI-powered introductions and personalized messaging.
-              </p>
-              <button
-                className="text-blue-600 font-medium hover:underline"
-                onClick={() => handleFounderAction('evaluate')}
-              >
-                Message investors today →
-              </button>
-            </motion.div>
-
-            <motion.div
-              className="relative h-80 bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl overflow-hidden"
-              variants={fadeInRight}
-              initial="initial"
-              whileInView="animate"
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-            >
-              {/* Animated visualization */}
-              <div className="absolute inset-0 flex items-center justify-center">
-                <motion.div
-                  className="absolute top-1/2 left-1/4 -translate-y-1/2"
-                  initial={{ opacity: 0, scale: 0 }}
-                  whileInView={{ opacity: 1, scale: 1 }}
+              {agentRoles.map((a, i) => (
+                <motion.button
+                  key={a.num}
+                  className="w-full text-left px-6 py-5 flex items-center justify-between group transition-colors"
+                  style={{ borderBottom: i < agentRoles.length - 1 ? "1px solid #E8E4DC" : "none" }}
+                  whileHover={{ backgroundColor: "#F5F2EC" }}
+                  initial={{ opacity: 0 }}
+                  whileInView={{ opacity: 1 }}
                   viewport={{ once: true }}
-                  transition={{ delay: 0.4 }}
+                  transition={{ delay: i * 0.05 }}
+                  onClick={() => go("/founder/onboarding")}
                 >
-                  <div className="px-3 py-1.5 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-sm font-semibold rounded-full shadow-lg">
-                    You
-                  </div>
-                </motion.div>
-
-                {/* Connection lines and investor nodes */}
-                {[
-                  { top: "20%", left: "60%", delay: 0.6, name: "Jason" },
-                  { top: "50%", left: "70%", delay: 0.8, name: "Sarah" },
-                  { top: "75%", left: "55%", delay: 1.0, name: "Michael" }
-                ].map((investor) => (
-                  <motion.div
-                    key={investor.name}
-                    className="absolute"
-                    style={{ top: investor.top, left: investor.left }}
-                    initial={{ opacity: 0, scale: 0 }}
-                    whileInView={{ opacity: 1, scale: 1 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: investor.delay }}
-                  >
-                    <div className="flex flex-col items-center">
-                      <Mail className="h-6 w-6 text-blue-500 mb-1" />
-                      <span className="px-2 py-1 bg-white text-xs font-medium rounded shadow-sm">
-                        Hey {investor.name}
-                      </span>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            </motion.div>
-          </motion.div>
-
-          {/* Step 2 */}
-          <motion.div
-            className="grid lg:grid-cols-2 gap-12 items-center mb-24"
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true, amount: 0.3 }}
-          >
-            <motion.div
-              className="relative h-80 bg-gradient-to-br from-green-50 to-blue-50 rounded-2xl overflow-hidden order-2 lg:order-1"
-              variants={fadeInLeft}
-              initial="initial"
-              whileInView="animate"
-              viewport={{ once: true }}
-              transition={{ duration: 0.6 }}
-            >
-              {/* Animated visualization */}
-              <div className="absolute inset-0 flex items-center justify-center">
-                <motion.div
-                  className="absolute top-1/2 left-1/4 -translate-y-1/2"
-                  initial={{ opacity: 0, scale: 0 }}
-                  whileInView={{ opacity: 1, scale: 1 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: 0.4 }}
-                >
-                  <div className="px-3 py-1.5 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-sm font-semibold rounded-full shadow-lg">
-                    You
-                  </div>
-                </motion.div>
-
-                {/* Response indicators */}
-                {[
-                  { top: "25%", left: "60%", delay: 0.6, status: "interested", icon: ThumbsUp },
-                  { top: "50%", left: "70%", delay: 0.8, status: "declined", icon: ThumbsDown },
-                  { top: "75%", left: "55%", delay: 1.0, status: "interested", icon: ThumbsUp }
-                ].map((response, index) => (
-                  <motion.div
-                    key={index}
-                    className="absolute"
-                    style={{ top: response.top, left: response.left }}
-                    initial={{ opacity: 0, scale: 0 }}
-                    whileInView={{ opacity: 1, scale: 1 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: response.delay }}
-                  >
-                    <div className={`px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-2 shadow-md ${
-                      response.status === "interested"
-                        ? "bg-gray-900 text-white"
-                        : "bg-gray-900 text-white"
-                    }`}>
-                      <response.icon className={`h-4 w-4 ${response.status === "interested" ? "text-green-400" : "text-red-400"}`} />
-                      {response.status === "interested" ? "Interested" : "Declined"}
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            </motion.div>
-
-            <motion.div
-              className="order-1 lg:order-2"
-              variants={fadeInRight}
-              initial="initial"
-              whileInView="animate"
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-            >
-              <h3 className="text-2xl sm:text-3xl font-black text-gray-900 mb-4">
-                <span className="text-green-600">2.</span> Get replies
-              </h3>
-              <p className="text-lg text-gray-600 mb-6">
-                Edge Alpha automatically tracks responses and books meetings in your calendar. Watch as your pipeline fills up on its own.
-              </p>
-              <button
-                className="text-blue-600 font-medium hover:underline"
-                onClick={() => handleFounderAction('evaluate')}
-              >
-                Book meetings effortlessly →
-              </button>
-            </motion.div>
-          </motion.div>
-
-          {/* Step 3 */}
-          <motion.div
-            className="grid lg:grid-cols-2 gap-12 items-center"
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true, amount: 0.3 }}
-          >
-            <motion.div
-              variants={fadeInLeft}
-              initial="initial"
-              whileInView="animate"
-              viewport={{ once: true }}
-              transition={{ duration: 0.6 }}
-            >
-              <h3 className="text-2xl sm:text-3xl font-black text-gray-900 mb-4">
-                <span className="text-purple-600">3.</span> Close faster
-              </h3>
-              <p className="text-lg text-gray-600 mb-6">
-                Secure your lead investors and watch more investors reach out directly to fill your round. Our AI matches you with the perfect co-investors.
-              </p>
-              <button
-                className="text-blue-600 font-medium hover:underline"
-                onClick={() => handleFounderAction('evaluate')}
-              >
-                Turbocharge your raise →
-              </button>
-            </motion.div>
-
-            <motion.div
-              className="relative h-80 bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl overflow-hidden"
-              variants={fadeInRight}
-              initial="initial"
-              whileInView="animate"
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-            >
-              {/* Animated visualization */}
-              <div className="absolute inset-0 flex items-center justify-center">
-                <motion.div
-                  className="absolute top-1/2 left-1/4 -translate-y-1/2"
-                  initial={{ opacity: 0, scale: 0 }}
-                  whileInView={{ opacity: 1, scale: 1 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: 0.4 }}
-                >
-                  <div className="px-3 py-1.5 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-sm font-semibold rounded-full shadow-lg">
-                    You
-                  </div>
-                </motion.div>
-
-                {/* Investment amounts */}
-                {[
-                  { top: "15%", left: "50%", delay: 0.5, amount: "$200k" },
-                  { top: "30%", left: "65%", delay: 0.6, amount: "$150k" },
-                  { top: "45%", left: "75%", delay: 0.7, amount: "$100k" },
-                  { top: "55%", left: "60%", delay: 0.8, amount: "$75k" },
-                  { top: "70%", left: "70%", delay: 0.9, amount: "$50k" },
-                  { top: "80%", left: "55%", delay: 1.0, amount: "$125k" }
-                ].map((investment, index) => (
-                  <motion.div
-                    key={index}
-                    className="absolute"
-                    style={{ top: investment.top, left: investment.left }}
-                    initial={{ opacity: 0, scale: 0 }}
-                    whileInView={{ opacity: 1, scale: 1 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: investment.delay }}
-                  >
-                    <div className="px-3 py-1.5 bg-gray-900 text-white text-sm font-semibold rounded-full shadow-md">
-                      {investment.amount}
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            </motion.div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Testimonials Section */}
-      <section ref={testimonialsRef} className="py-20 px-4 sm:px-6 lg:px-8 bg-gray-50">
-        <div className="max-w-6xl mx-auto">
-          <motion.h2
-            className="text-3xl sm:text-4xl font-black text-center text-gray-900 mb-4"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-          >
-            Founders & investors{" "}
-            <span className="text-blue-600">love</span>{" "}
-            Edge Alpha
-          </motion.h2>
-          <motion.p
-            className="text-center text-gray-600 mb-12"
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.2 }}
-          >
-            Join thousands of successful fundraises
-          </motion.p>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {testimonials.map((testimonial, index) => (
-              <motion.div
-                key={testimonial.name}
-                className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow"
-                initial={{ opacity: 0, y: 20, rotate: index % 2 === 0 ? -2 : 2 }}
-                whileInView={{ opacity: 1, y: 0, rotate: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.1, duration: 0.5 }}
-                whileHover={{ y: -4 }}
-              >
-                <div className="flex items-start gap-4 mb-4">
-                  <div className="h-12 w-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm">
-                    {testimonial.image}
-                  </div>
-                  <div className="flex-1">
-                    <div className="font-semibold text-gray-900">{testimonial.name}</div>
-                    <div className="text-sm text-gray-500">{testimonial.role}</div>
-                  </div>
-                  <svg className="h-5 w-5 text-blue-400" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z"/>
-                  </svg>
-                </div>
-                <p className="text-gray-600 leading-relaxed">
-                  {testimonial.text.split("Edge Alpha").map((part, i, arr) => (
-                    <span key={i}>
-                      {part}
-                      {i < arr.length - 1 && <span className="text-blue-600 font-medium">Edge Alpha</span>}
-                    </span>
-                  ))}
-                </p>
-              </motion.div>
-            ))}
-          </div>
-
-          <motion.div
-            className="text-center mt-8"
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-          >
-            <Button variant="ghost" className="text-blue-600">
-              More testimonials on our Wall of Love
-              <ArrowRight className="h-4 w-4 ml-2" />
-            </Button>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Tabbed Features Section */}
-      <section ref={tabsRef} className="py-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-6xl mx-auto">
-          <motion.h2
-            className="text-3xl sm:text-4xl font-black text-center text-gray-900 mb-12"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-          >
-            All-in-one suite for startup founders
-          </motion.h2>
-
-          {/* Tab Navigation */}
-          <motion.div
-            className="flex flex-wrap justify-center gap-2 mb-12"
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-          >
-            {featureTabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-6 py-3 rounded-full font-medium transition-all ${
-                  activeTab === tab.id
-                    ? "bg-blue-600 text-white shadow-lg"
-                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </motion.div>
-
-          {/* Tab Content */}
-          <AnimatePresence mode="wait">
-            {featureTabs.map((tab) => (
-              tab.id === activeTab && (
-                <motion.div
-                  key={tab.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  transition={{ duration: 0.3 }}
-                  className="grid lg:grid-cols-2 gap-12 items-center"
-                >
-                  <div>
-                    <h3 className="text-2xl sm:text-3xl font-black text-gray-900 mb-4">
-                      {tab.title}
-                    </h3>
-                    <p className="text-lg text-gray-600 mb-8">
-                      {tab.description}
-                    </p>
-                    <Button
-                      size="lg"
-                      className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg"
-                      onClick={() => handleFounderAction('evaluate')}
-                    >
-                      {tab.cta}
-                    </Button>
-                  </div>
-
-                  <div className="relative h-80 bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl overflow-hidden">
-                    {/* Placeholder for feature visualization */}
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="text-center">
-                        <div className="h-20 w-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                          {tab.id === "investor-list" && <Users className="h-10 w-10 text-white" />}
-                          {tab.id === "q-score" && <Brain className="h-10 w-10 text-white" />}
-                          {tab.id === "matching" && <Target className="h-10 w-10 text-white" />}
-                          {tab.id === "analytics" && <BarChart3 className="h-10 w-10 text-white" />}
-                        </div>
-                        <p className="text-gray-500 text-sm">Interactive demo</p>
-                      </div>
+                  <div className="flex items-center gap-4">
+                    <span className="text-[11px] font-mono w-5" style={{ color: "#C8C3BB" }}>{a.num}</span>
+                    <div>
+                      <p className="text-[14px] font-medium" style={{ color: "#18160F" }}>{a.name} Adviser</p>
+                      <p className="text-[12px] font-light mt-0.5" style={{ color: "#8A867C" }}>{a.desc}</p>
                     </div>
                   </div>
-                </motion.div>
-              )
-            ))}
-          </AnimatePresence>
-        </div>
-      </section>
-
-      {/* For Investors Section */}
-      <section id="investors" className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-purple-600 to-pink-600">
-        <div className="max-w-5xl mx-auto">
-          <motion.div
-            className="text-center text-white"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-          >
-            <h2 className="text-3xl sm:text-4xl font-black mb-6">For Investors</h2>
-            <p className="text-xl text-purple-100 mb-12 max-w-2xl mx-auto">
-              Discover high-potential startups through AI-powered deal flow intelligence
-            </p>
-          </motion.div>
-
-          <motion.div
-            className="grid md:grid-cols-2 gap-8"
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.2 }}
-          >
-            <div className="space-y-6">
-              {[
-                "Pre-vetted deals with Q Scores",
-                "Thesis-aligned recommendations",
-                "Automated due diligence reports",
-                "Competitive intelligence alerts"
-              ].map((feature, index) => (
-                <motion.div
-                  key={feature}
-                  className="flex items-center gap-3 text-white"
-                  initial={{ opacity: 0, x: -20 }}
-                  whileInView={{ opacity: 1, x: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: 0.3 + index * 0.1 }}
-                >
-                  <div className="h-2 w-2 bg-white rounded-full"></div>
-                  <span className="text-lg">{feature}</span>
-                </motion.div>
+                  <ArrowUpRight className="h-3.5 w-3.5 transition-all group-hover:translate-x-0.5 group-hover:-translate-y-0.5" style={{ color: "#C8C3BB" }} />
+                </motion.button>
               ))}
+            </motion.div>
+          </div>
+        </div>
+      </section>
 
+      {/* ── MARKETPLACE ───────────────────────────────────────────────────── */}
+      <section id="for-investors" className="py-28 px-6">
+        <div className="mx-auto max-w-7xl">
+          <motion.div className="mb-12" initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
+            <p className="text-[10px] uppercase tracking-[0.22em] font-medium mb-4" style={{ color: "#B5B0A8" }}>Marketplace</p>
+            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+              <h2 className="text-3xl sm:text-4xl tracking-tight leading-tight max-w-lg" style={{ fontWeight: 300, color: "#18160F" }}>
+                When you&apos;re ready, the investors are waiting.
+              </h2>
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full w-fit"
+                style={{ background: "#F5EDD8", border: "1px solid #E8D9B8" }}>
+                <Lock className="h-3 w-3" style={{ color: "#C4A96A" }} />
+                <span className="text-[11px] font-medium" style={{ color: "#C4A96A", letterSpacing: "0.04em" }}>Unlocks at Q-Score ≥ 70</span>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* table */}
+          <motion.div
+            className="rounded-2xl overflow-hidden"
+            style={{ border: "1px solid #E2DDD5" }}
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+          >
+            <table className="w-full">
+              <thead>
+                <tr style={{ background: "#F0EDE6", borderBottom: "1px solid #E2DDD5" }}>
+                  {["Investor", "Check size", "Stages", "Match"].map((h, i) => (
+                    <th key={h} className={`text-left py-3.5 px-5 text-[10px] uppercase tracking-[0.16em] font-medium ${i === 1 ? "hidden sm:table-cell" : ""} ${i === 2 ? "hidden md:table-cell" : ""}`}
+                      style={{ color: "#B5B0A8" }}>
+                      {h}
+                    </th>
+                  ))}
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {investors.map((inv, i) => (
+                  <motion.tr
+                    key={inv.name}
+                    className="cursor-pointer transition-colors"
+                    style={{ borderBottom: i < investors.length - 1 ? "1px solid #EAE7E0" : "none" }}
+                    initial={{ opacity: 0 }}
+                    whileInView={{ opacity: 1 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: i * 0.05 }}
+                    whileHover={{ backgroundColor: "#F5F2EC" }}
+                    onClick={() => go("/founder/onboarding")}
+                  >
+                    <td className="py-4 px-5">
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded flex items-center justify-center text-[10px] font-bold shrink-0"
+                          style={{ background: "#F0EDE6", color: "#18160F", border: "1px solid #E2DDD5" }}>
+                          {inv.logo}
+                        </div>
+                        <div>
+                          <p className="text-[13px] font-medium" style={{ color: "#18160F" }}>{inv.name}</p>
+                          <p className="text-[11px] font-light" style={{ color: "#B5B0A8" }}>{inv.type}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-4 px-5 hidden sm:table-cell text-[13px] font-light" style={{ color: "#8A867C" }}>{inv.check}</td>
+                    <td className="py-4 px-5 hidden md:table-cell text-[13px] font-light" style={{ color: "#8A867C" }}>{inv.stages}</td>
+                    <td className="py-4 px-5">
+                      <div className="flex items-center gap-2">
+                        <div className="h-1 w-14 rounded-full overflow-hidden" style={{ background: "#E8E4DC" }}>
+                          <div className="h-full rounded-full" style={{ width: `${inv.match}%`, background: "#18160F" }} />
+                        </div>
+                        <span className="text-[13px] font-medium" style={{ color: "#18160F" }}>{inv.match}%</span>
+                      </div>
+                    </td>
+                    <td className="py-4 px-5 text-right">
+                      <button className="inline-flex items-center gap-1.5 text-[12px] font-medium transition-opacity hover:opacity-60"
+                        style={{ color: "#8A867C" }}>
+                        <Mail className="h-3.5 w-3.5" /> Connect
+                      </button>
+                    </td>
+                  </motion.tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="px-5 py-4 flex items-center justify-between" style={{ background: "#F5F2EC", borderTop: "1px solid #E2DDD5" }}>
+              <span className="text-[12px] font-light" style={{ color: "#B5B0A8" }}>Showing 6 of 500+ investors</span>
+              <button className="text-[12px] font-medium inline-flex items-center gap-1 transition-opacity hover:opacity-70"
+                style={{ color: "#18160F" }} onClick={() => go("/founder/onboarding")}>
+                Unlock full marketplace <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* ── STATS ─────────────────────────────────────────────────────────── */}
+      <div className="py-16 px-6" style={{ background: "#F0EDE6", borderTop: "1px solid #E2DDD5", borderBottom: "1px solid #E2DDD5" }}>
+        <div className="mx-auto max-w-4xl grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+          {stats.map((s, i) => (
+            <motion.div key={s.label} initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.07 }}>
+              <p className="text-3xl tracking-tight mb-1" style={{ fontWeight: 300, color: "#18160F" }}>{s.value}</p>
+              <p className="text-[11px] uppercase tracking-[0.14em] font-medium" style={{ color: "#B5B0A8" }}>{s.label}</p>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── TESTIMONIALS ──────────────────────────────────────────────────── */}
+      <section className="py-28 px-6">
+        <div className="mx-auto max-w-7xl">
+          <motion.div className="mb-14" initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
+            <p className="text-[10px] uppercase tracking-[0.22em] font-medium mb-3" style={{ color: "#B5B0A8" }}>Testimonials</p>
+            <h2 className="text-3xl sm:text-4xl tracking-tight max-w-sm leading-tight" style={{ fontWeight: 300, color: "#18160F" }}>
+              What founders and investors say.
+            </h2>
+          </motion.div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-px" style={{ background: "#E2DDD5" }}>
+            {testimonials.map((t, i) => (
               <motion.div
+                key={t.name}
+                className="p-8"
+                style={{ background: "#F9F7F2" }}
                 initial={{ opacity: 0 }}
                 whileInView={{ opacity: 1 }}
                 viewport={{ once: true }}
-                transition={{ delay: 0.7 }}
+                transition={{ delay: i * 0.06 }}
               >
-                <Button
-                  size="lg"
-                  className="mt-8 bg-white text-purple-600 hover:bg-gray-100 font-semibold shadow-lg"
-                  onClick={handleInvestorAction}
-                >
-                  Start Finding Deals
-                  <ArrowRight className="h-5 w-5 ml-2" />
-                </Button>
-              </motion.div>
-            </div>
-
-            <div className="space-y-4">
-              {/* Deal preview cards */}
-              {[
-                { name: "NeuralTech", score: 891, category: "AI/ML", stage: "Series A", match: 94 },
-                { name: "CloudScale", score: 847, category: "DevTools", stage: "Seed", match: 91 }
-              ].map((deal, index) => (
-                <motion.div
-                  key={deal.name}
-                  className="bg-white/10 backdrop-blur-sm rounded-xl p-4"
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: 0.4 + index * 0.1 }}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-semibold text-white">{deal.name}</span>
-                    <span className="px-2 py-1 bg-white/20 rounded-full text-sm text-white">
-                      Q: {deal.score}
-                    </span>
+                <p className="text-[14px] font-light leading-relaxed mb-6 italic" style={{ color: "#5A5650" }}>
+                  &ldquo;{t.quote}&rdquo;
+                </p>
+                <div className="flex items-center gap-3 pt-5" style={{ borderTop: "1px solid #E8E4DC" }}>
+                  <div className="h-8 w-8 rounded-full flex items-center justify-center text-[11px] font-medium shrink-0"
+                    style={{ background: "#E8E4DC", color: "#5A5650" }}>
+                    {t.initials}
                   </div>
-                  <p className="text-sm text-purple-200">
-                    {deal.category} • {deal.stage} • {deal.match}% thesis match
-                  </p>
-                </motion.div>
-              ))}
-              <p className="text-center text-purple-200 text-sm">
-                + 127 more matches this week
-              </p>
-            </div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Pricing Section */}
-      <section id="pricing" className="py-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-5xl mx-auto">
-          <motion.div
-            className="text-center mb-12"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-          >
-            <h2 className="text-3xl sm:text-4xl font-black text-gray-900 mb-4">Simple, transparent pricing</h2>
-            <p className="text-lg text-gray-600">Start free, upgrade when you&apos;re ready</p>
-          </motion.div>
-
-          <motion.div
-            className="grid md:grid-cols-3 gap-8"
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.2 }}
-          >
-            {/* Free Plan */}
-            <div className="bg-white rounded-2xl p-8 border border-gray-200 shadow-sm">
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Free</h3>
-              <p className="text-gray-600 mb-6">Perfect for getting started</p>
-              <div className="text-4xl font-black text-gray-900 mb-6">$0</div>
-              <ul className="space-y-3 mb-8">
-                {["Browse 500+ investors", "Basic Q Score", "5 investor connections/month"].map((feature) => (
-                  <li key={feature} className="flex items-center text-sm text-gray-600">
-                    <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => handleFounderAction('evaluate')}
-              >
-                Get started
-              </Button>
-            </div>
-
-            {/* Pro Plan */}
-            <div className="bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl p-8 text-white shadow-xl relative">
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-yellow-400 text-yellow-900 text-xs font-bold rounded-full">
-                MOST POPULAR
-              </div>
-              <h3 className="text-xl font-bold mb-2">Pro</h3>
-              <p className="text-blue-100 mb-6">For serious fundraisers</p>
-              <div className="text-4xl font-black mb-6">$49<span className="text-lg font-normal">/mo</span></div>
-              <ul className="space-y-3 mb-8">
-                {[
-                  "Everything in Free",
-                  "Full Q Score analysis",
-                  "Unlimited connections",
-                  "AI-powered introductions",
-                  "Priority support"
-                ].map((feature) => (
-                  <li key={feature} className="flex items-center text-sm text-blue-100">
-                    <CheckCircle className="h-4 w-4 text-white mr-2" />
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-              <Button
-                className="w-full bg-white text-blue-600 hover:bg-gray-100"
-                onClick={() => handleFounderAction('evaluate')}
-              >
-                Start free trial
-              </Button>
-            </div>
-
-            {/* Enterprise Plan */}
-            <div className="bg-white rounded-2xl p-8 border border-gray-200 shadow-sm">
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Enterprise</h3>
-              <p className="text-gray-600 mb-6">For accelerators & VCs</p>
-              <div className="text-4xl font-black text-gray-900 mb-6">Custom</div>
-              <ul className="space-y-3 mb-8">
-                {[
-                  "Everything in Pro",
-                  "Custom integrations",
-                  "Dedicated success manager",
-                  "SLA guarantees"
-                ].map((feature) => (
-                  <li key={feature} className="flex items-center text-sm text-gray-600">
-                    <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-              <Button
-                variant="outline"
-                className="w-full"
-              >
-                Contact sales
-              </Button>
-            </div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Trust Indicators */}
-      <section className="py-16 px-4 sm:px-6 lg:px-8 border-t border-gray-100">
-        <div className="max-w-4xl mx-auto">
-          <motion.div
-            className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center"
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-          >
-            {[
-              { value: "$2.3B+", label: "Funded via Platform" },
-              { value: "10,000+", label: "Successful Matches" },
-              { value: "500+", label: "Active Investors" },
-              { value: "95%", label: "Match Accuracy" }
-            ].map((stat, index) => (
-              <motion.div
-                key={stat.label}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.1 }}
-              >
-                <div className="text-2xl sm:text-3xl font-black text-gray-900">{stat.value}</div>
-                <div className="text-sm text-gray-600">{stat.label}</div>
+                  <div>
+                    <p className="text-[13px] font-medium" style={{ color: "#18160F" }}>{t.name}</p>
+                    <p className="text-[11px] font-light" style={{ color: "#B5B0A8" }}>{t.role}</p>
+                  </div>
+                </div>
               </motion.div>
             ))}
-          </motion.div>
-
-          <motion.div
-            className="flex items-center justify-center space-x-4 text-xs text-gray-400 mt-8"
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-          >
-            <span>Secure</span>
-            <span>•</span>
-            <span>Private</span>
-            <span>•</span>
-            <span>AI-Powered</span>
-            <span>•</span>
-            <span>YC Backed</span>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Final CTA */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-blue-600 to-purple-600">
-        <div className="max-w-3xl mx-auto text-center">
-          <motion.h2
-            className="text-3xl sm:text-4xl font-black text-white mb-6"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-          >
-            Ready to get funded?
-          </motion.h2>
-          <motion.p
-            className="text-xl text-blue-100 mb-8"
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.2 }}
-          >
-            Join 10,000+ founders who&apos;ve raised with Edge Alpha
-          </motion.p>
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.3 }}
-          >
-            <Button
-              size="lg"
-              className="bg-white text-blue-600 hover:bg-gray-100 font-semibold px-12 py-6 text-lg shadow-lg"
-              onClick={() => handleFounderAction('evaluate')}
-            >
-              Get started for free
-              <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="py-12 px-4 sm:px-6 lg:px-8 bg-gray-900 text-gray-400">
-        <div className="max-w-6xl mx-auto">
-          <div className="grid md:grid-cols-4 gap-8">
-            <div>
-              <div className="flex items-center space-x-3 mb-4">
-                <div className="h-8 w-8 bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 rounded-lg flex items-center justify-center">
-                  <span className="text-white font-black text-[7px]">EDGE</span>
-                </div>
-                <span className="text-white font-bold">Edge Alpha</span>
-              </div>
-              <p className="text-sm">The AI-powered platform connecting founders with the right investors.</p>
-            </div>
-
-            <div>
-              <h4 className="text-white font-semibold mb-4">Product</h4>
-              <ul className="space-y-2 text-sm">
-                <li><a href="#" className="hover:text-white transition-colors">Investor List</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Q Score</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">AI Matching</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Analytics</a></li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="text-white font-semibold mb-4">Resources</h4>
-              <ul className="space-y-2 text-sm">
-                <li><a href="#" className="hover:text-white transition-colors">Blog</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Guides</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Podcast</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Newsletter</a></li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="text-white font-semibold mb-4">Company</h4>
-              <ul className="space-y-2 text-sm">
-                <li><a href="#" className="hover:text-white transition-colors">About</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Careers</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Contact</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Privacy</a></li>
-              </ul>
-            </div>
           </div>
+        </div>
+      </section>
 
-          <div className="border-t border-gray-800 mt-8 pt-8 text-center text-sm">
-            <p>&copy; 2024 Edge Alpha. All rights reserved.</p>
+      {/* ── FOR INVESTORS ─────────────────────────────────────────────────── */}
+      <section className="py-28 px-6" style={{ background: "#F0EDE6" }}>
+        <div className="mx-auto max-w-7xl">
+          <div className="grid lg:grid-cols-2 gap-16 items-start">
+            <motion.div initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
+              <p className="text-[10px] uppercase tracking-[0.22em] font-medium mb-5" style={{ color: "#B5B0A8" }}>For Investors</p>
+              <h2 className="text-3xl sm:text-4xl tracking-tight leading-tight mb-6" style={{ fontWeight: 300, color: "#18160F" }}>
+                Better deal flow.<br />Less noise.
+              </h2>
+              <p className="text-[15px] font-light leading-relaxed mb-8 max-w-md" style={{ color: "#8A867C" }}>
+                Every founder in the marketplace has been scored algorithmically across six dimensions. You see pre-qualified, thesis-matched startups — not cold inbound.
+              </p>
+              <ul className="space-y-3 mb-8">
+                {["Algorithmic Q-Score on every deal", "Thesis-matched AI recommendations", "Founders who have done the preparation work", "Automated due-diligence summaries"].map((f) => (
+                  <li key={f} className="flex items-start gap-3 text-[14px] font-light" style={{ color: "#8A867C" }}>
+                    <CheckCircle className="h-4 w-4 shrink-0 mt-0.5" style={{ color: "#C8C3BB" }} />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <button
+                onClick={() => go("/investor/onboarding")}
+                className="inline-flex items-center gap-2 text-[14px] font-medium px-6 py-3 rounded-full transition-opacity hover:opacity-80"
+                style={{ background: "#18160F", color: "#F9F7F2" }}
+              >
+                Join as an investor <ArrowRight className="h-4 w-4" />
+              </button>
+            </motion.div>
+
+            <motion.div className="space-y-px rounded-2xl overflow-hidden"
+              style={{ border: "1px solid #E2DDD5" }}
+              initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.1 }}>
+              {[
+                { name: "NeuralTech",  tag: "AI · Series A",   score: 891, match: 94 },
+                { name: "CloudScale",  tag: "DevTools · Seed",  score: 847, match: 91 },
+                { name: "HealthOS",    tag: "HealthTech · Seed", score: 823, match: 88 },
+              ].map((d, i) => (
+                <div key={d.name} className="flex items-center justify-between px-6 py-5"
+                  style={{ background: "#FDFCFA", borderBottom: i < 2 ? "1px solid #E8E4DC" : "none" }}>
+                  <div>
+                    <p className="text-[14px] font-medium" style={{ color: "#18160F" }}>{d.name}</p>
+                    <p className="text-[12px] font-light mt-0.5" style={{ color: "#B5B0A8" }}>{d.tag}</p>
+                  </div>
+                  <div className="flex items-center gap-6">
+                    <div className="text-right">
+                      <p className="text-[10px] uppercase tracking-[0.12em] font-medium mb-0.5" style={{ color: "#C8C3BB" }}>Q-Score</p>
+                      <p className="text-[14px] font-medium" style={{ color: "#18160F" }}>{d.score}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] uppercase tracking-[0.12em] font-medium mb-0.5" style={{ color: "#C8C3BB" }}>Match</p>
+                      <p className="text-[14px] font-medium" style={{ color: "#18160F" }}>{d.match}%</p>
+                    </div>
+                    <ArrowUpRight className="h-4 w-4" style={{ color: "#C8C3BB" }} />
+                  </div>
+                </div>
+              ))}
+              <div className="px-6 py-3.5 text-center" style={{ background: "#F5F2EC", borderTop: "1px solid #E2DDD5" }}>
+                <p className="text-[12px] font-light" style={{ color: "#B5B0A8" }}>+ 127 more matches this week</p>
+              </div>
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── FINAL CTA ─────────────────────────────────────────────────────── */}
+      <section className="py-28 px-6" style={{ borderTop: "1px solid #E2DDD5" }}>
+        <div className="mx-auto max-w-2xl text-center">
+          <motion.div initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
+            <h2 className="text-4xl sm:text-5xl tracking-tight mb-5 leading-tight" style={{ fontWeight: 300, color: "#18160F" }}>
+              Start building.<br />Start raising.
+            </h2>
+            <p className="text-[16px] font-light mb-10 leading-relaxed" style={{ color: "#8A867C" }}>
+              Join 10,000+ founders using Edge Alpha to build investor-ready businesses and connect with the right capital.
+            </p>
+            <div className="flex flex-wrap justify-center gap-4">
+              <button
+                onClick={() => go("/founder/onboarding")}
+                className="inline-flex items-center gap-2 font-medium px-9 py-4 rounded-full text-[15px] transition-opacity hover:opacity-85"
+                style={{ background: "#18160F", color: "#F9F7F2" }}
+              >
+                Get started free <ArrowRight className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => go("/investor/onboarding")}
+                className="inline-flex items-center gap-2 font-light px-9 py-4 rounded-full text-[15px] transition-colors"
+                style={{ border: "1px solid #E2DDD5", color: "#8A867C" }}
+              >
+                I&apos;m an investor
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* ── FOOTER ────────────────────────────────────────────────────────── */}
+      <footer className="py-12 px-6" style={{ borderTop: "1px solid #E2DDD5", background: "#F0EDE6" }}>
+        <div className="mx-auto max-w-7xl">
+          <div className="grid md:grid-cols-5 gap-10 mb-10">
+            <div className="md:col-span-2">
+              <div className="flex items-center gap-2.5 mb-4">
+                <div className="h-7 w-7 rounded-md flex items-center justify-center" style={{ background: "#18160F" }}>
+                  <span className="font-bold text-[8px]" style={{ color: "#F9F7F2" }}>EA</span>
+                </div>
+                <span className="font-medium text-[15px]" style={{ color: "#18160F" }}>Edge Alpha</span>
+              </div>
+              <p className="text-[13px] font-light leading-relaxed max-w-[220px]" style={{ color: "#8A867C" }}>
+                AI-powered advisers and investor marketplace for ambitious founders.
+              </p>
+            </div>
+            {[
+              { title: "Product", links: ["Q-Score", "AI Agents", "Academy", "Marketplace"] },
+              { title: "Resources", links: ["Blog", "Guides", "Podcast", "Newsletter"] },
+              { title: "Company", links: ["About", "Careers", "Contact", "Privacy"] },
+            ].map((col) => (
+              <div key={col.title}>
+                <p className="text-[10px] uppercase tracking-[0.18em] font-medium mb-4" style={{ color: "#B5B0A8" }}>{col.title}</p>
+                <ul className="space-y-2.5">
+                  {col.links.map((l) => (
+                    <li key={l}><a href="#" className="text-[13px] font-light transition-opacity hover:opacity-60" style={{ color: "#8A867C" }}>{l}</a></li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8" style={{ borderTop: "1px solid #E2DDD5" }}>
+            <p className="text-[12px] font-light" style={{ color: "#B5B0A8" }}>&copy; 2026 Edge Alpha. All rights reserved.</p>
+            <div className="flex items-center gap-5 text-[11px] font-light" style={{ color: "#C8C3BB", letterSpacing: "0.1em" }}>
+              <span>SECURE</span><span>PRIVATE</span><span>AI-POWERED</span>
+            </div>
           </div>
         </div>
       </footer>

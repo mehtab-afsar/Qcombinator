@@ -2,6 +2,31 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getAgentById } from '@/features/agents/data/agents';
 import type { Agent } from '@/features/agents/types/agent.types';
+import {
+  patelSystemPrompt,
+  susiSystemPrompt,
+  mayaSystemPrompt,
+  felixSystemPrompt,
+  leoSystemPrompt,
+  harperSystemPrompt,
+  novaSystemPrompt,
+  atlasSystemPrompt,
+  sageSystemPrompt,
+} from '@/features/agents';
+
+// ─── dedicated system prompt registry ────────────────────────────────────────
+
+const AGENT_SYSTEM_PROMPTS: Record<string, string> = {
+  patel:  patelSystemPrompt,
+  susi:   susiSystemPrompt,
+  maya:   mayaSystemPrompt,
+  felix:  felixSystemPrompt,
+  leo:    leoSystemPrompt,
+  harper: harperSystemPrompt,
+  nova:   novaSystemPrompt,
+  atlas:  atlasSystemPrompt,
+  sage:   sageSystemPrompt,
+};
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -33,45 +58,61 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Build system prompt based on agent specialty and user context
-    const systemPrompt = buildAgentSystemPrompt(agent, userContext);
+    // Use dedicated system prompt if available, fall back to built one
+    const systemPrompt = AGENT_SYSTEM_PROMPTS[agentId] ?? buildAgentSystemPrompt(agent, userContext);
+
+    const CONVERSATION_RULES = `
+
+CONVERSATION RULES:
+- Ask ONE focused question at a time.
+- Keep responses concise: 2–4 sentences for conversational replies; use structured formatting only when delivering a framework or plan the founder requested.
+- When a founder gives a vague answer, push for specifics: numbers, examples, timelines.
+- Be direct, warm, and occasionally sharp — never sycophantic.
+- If you don't know their specific market or product, ask before advising.`;
 
     // Build conversation context
     const messages = [
       {
         role: "system" as const,
-        content: systemPrompt
+        content: systemPrompt + CONVERSATION_RULES,
       },
       // Include recent conversation history (last 10 messages)
       ...(conversationHistory || []).slice(-10).map((msg: { role: string; content: string }) => ({
         role: msg.role === 'user' ? 'user' as const : 'assistant' as const,
-        content: msg.content
+        content: msg.content,
       })),
       {
         role: "user" as const,
-        content: message
-      }
+        content: message,
+      },
     ];
 
-    // Get AI response from Groq
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    const key = process.env.OPENROUTER_API_KEY;
+    if (!key) {
+      return NextResponse.json({ error: 'API key not configured' }, { status: 500 });
+    }
+
+    // Get AI response via OpenRouter
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+        'Authorization': `Bearer ${key}`,
         'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://edgealpha.ai',
+        'X-Title': 'Edge Alpha Agents',
       },
       body: JSON.stringify({
-        model: 'llama-3.1-70b-versatile', // Best balance of speed and quality
+        model: 'anthropic/claude-3.5-haiku',
         messages,
-        temperature: 0.7, // Creative but consistent
-        max_tokens: 1500,
-        top_p: 1,
-        stream: false
-      })
+        temperature: 0.7,
+        max_tokens: 500,
+      }),
     });
 
     if (!response.ok) {
-      throw new Error(`Groq API error: ${response.statusText}`);
+      const errText = await response.text();
+      console.error('OpenRouter error:', errText);
+      throw new Error(`OpenRouter API error: ${response.statusText}`);
     }
 
     const data = await response.json();
@@ -127,9 +168,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       response: aiResponse,
+      content: aiResponse,
       agentId,
       conversationId,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
 
   } catch (error) {

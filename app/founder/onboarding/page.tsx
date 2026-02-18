@@ -1,610 +1,781 @@
 "use client";
 
-import { useState, Suspense } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
-import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { useState, useRef, useEffect, useCallback, Suspense } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@supabase/supabase-js";
+import { motion, AnimatePresence } from "framer-motion";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
-import { useAuth } from "@/features/auth/hooks/useAuth";
-import { toast } from "sonner";
 import {
   ArrowRight,
-  ArrowLeft,
-  Brain,
-  Clock,
-  Zap,
-  Target,
-  CheckCircle,
+  Bot,
+  Send,
   Play,
-  User,
-  Building2,
-  Rocket
+  ChevronRight,
+  Lock,
+  Users,
+  Lightbulb,
+  ShieldCheck,
+  Heart,
 } from "lucide-react";
+import { toast } from "sonner";
+import Link from "next/link";
 
-interface OnboardingData {
-  stage: string;
-  funding: string;
-  timeCommitment: string;
-  email: string;
-  password: string;
-  firstName: string;
-  lastName: string;
-  isComplete: boolean;
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+// ─── palette ──────────────────────────────────────────────────────────────────
+// bg: #F9F7F2 | surface: #F0EDE6 | border: #E2DDD5
+// ink: #18160F | muted: #8A867C | accent: #2563EB
+
+// ─── types ────────────────────────────────────────────────────────────────────
+
+type Step = "video" | "chat" | "signup" | "score";
+
+interface ChatMessage {
+  role: "agent" | "user";
+  text: string;
 }
 
+interface ApiMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+interface SignupData {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+}
+
+interface Dimension {
+  label: string;
+  icon: React.ElementType;
+  score: number;
+  max: number;
+}
+
+// ─── scoring ──────────────────────────────────────────────────────────────────
+
+function scoreConversation(allUserText: string): Dimension[] {
+  const t = allUserText.toLowerCase();
+  const kw = (words: string[]) => words.filter((w) => t.includes(w)).length;
+  const wordCount = allUserText.split(/\s+/).filter(Boolean).length;
+  const lenBonus = (max: number) => Math.min(Math.floor(wordCount / 30), max);
+
+  const problemScore = Math.min(
+    6 +
+      kw(["year", "2020", "2021", "2022", "2023", "2024", "when i was", "i was working", "i noticed", "i discovered", "we found", "back in"]) * 2 +
+      kw(["i realized", "that's when", "epiphany", "aha moment", "suddenly", "couldn't believe", "saw that"]) * 2 +
+      kw(["problem", "pain", "frustrated", "annoying", "broken", "manual", "spreadsheet", "slow", "expensive", "wasted"]) * 1 +
+      lenBonus(4),
+    25
+  );
+
+  const advantageScore = Math.min(
+    6 +
+      kw(["years experience", "10 years", "8 years", "5 years", "3 years", "domain expert", "industry", "worked at", "built", "technical", "engineer", "cto", "proprietary"]) * 2 +
+      kw(["customer relationships", "existing relationships", "know the buyers", "network", "distribution", "audience", "newsletter", "community", "partnerships"]) * 3 +
+      kw(["data", "insight", "unique angle", "unfair", "advantage", "moat", "ip"]) * 2 +
+      lenBonus(3),
+    25
+  );
+
+  const custScore = Math.min(
+    5 +
+      kw(["they said", "told me", "literally said", "her exact words", "his exact words", "quote", "feedback", "pain point"]) * 2 +
+      kw(["last week", "yesterday", "last month", "two weeks ago", "recently", "this week"]) * 2 +
+      kw(["loi", "letter of intent", "signed", "paid", "paying customer", "committed", "willing to pay", "switch to us", "pre-order"]) * 4 +
+      kw(["50 conversations", "30 conversations", "20 conversations", "40 people", "talked to over", "spoken to"]) * 3 +
+      kw(["10", "15", "20", "25", "30", "conversations", "interviews", "discovery calls", "users"]) * 1 +
+      lenBonus(4),
+    30
+  );
+
+  const resScore = Math.min(
+    5 +
+      kw(["almost quit", "wanted to quit", "nearly gave up", "close to quitting", "darkest moment", "hardest moment", "failed", "rejected", "churned", "fell apart", "crisis", "ran out"]) * 3 +
+      kw(["kept going", "what kept me", "mission", "believe in", "passionate", "customers need", "problem is real", "can't give up", "have to solve", "why i started"]) * 3 +
+      kw(["7", "8", "9", "10", "out of 10", "/10", "really close", "very close"]) * 2 +
+      lenBonus(2),
+    20
+  );
+
+  return [
+    { label: "Problem Origin",      icon: Lightbulb,   score: problemScore,    max: 25 },
+    { label: "Founder Edge",        icon: ShieldCheck, score: advantageScore,  max: 25 },
+    { label: "Customer Validation", icon: Users,       score: custScore,       max: 30 },
+    { label: "Resilience",          icon: Heart,       score: resScore,        max: 20 },
+  ];
+}
+
+// ─── component ────────────────────────────────────────────────────────────────
+
 function OnboardingContent() {
-  const searchParams = useSearchParams();
   const router = useRouter();
-  const { signUp: _signUp } = useAuth();
-  const focusOnScore = searchParams.get('focus') === 'score';
+  const [step, setStep] = useState<Step>("video");
 
-  const [currentStep, setCurrentStep] = useState(0);
-  const [isCreatingAccount, setIsCreatingAccount] = useState(false);
-  const [data, setData] = useState<OnboardingData>({
-    stage: '',
-    funding: '',
-    timeCommitment: '',
-    email: '',
-    password: '',
-    firstName: '',
-    lastName: '',
-    isComplete: false
-  });
+  const [uiMessages, setUiMessages]   = useState<ChatMessage[]>([]);
+  const [apiMessages, setApiMessages] = useState<ApiMessage[]>([]);
+  const [input, setInput]             = useState("");
+  const [agentTyping, setAgentTyping] = useState(false);
+  const [chatDone, setChatDone]       = useState(false);
+  const [exchangeCount, setExchangeCount] = useState(0);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const [showWelcome, setShowWelcome] = useState(true);
+  const [signup, setSignup] = useState<SignupData>({ firstName: "", lastName: "", email: "", password: "" });
+  const [signingUp, setSigningUp] = useState(false);
 
-  const steps = [
-    {
-      id: 'welcome',
-      title: 'Welcome to Your Funding Journey',
-      description: 'Let\'s get you connected with the right investors'
-    },
-    {
-      id: 'quick_questions',
-      title: 'Quick Questions',
-      description: 'Help us understand your startup better'
-    },
-    {
-      id: 'account_creation',
-      title: 'Create Your Account',
-      description: 'Secure your progress and get started'
-    },
-    {
-      id: 'getting_started',
-      title: 'Ready to Begin!',
-      description: 'Your Q Score journey starts now'
-    }
-  ];
+  const [dimensions, setDimensions]         = useState<Dimension[]>([]);
+  const [rawScore, setRawScore]             = useState(0);
+  const [displayedScore, setDisplayedScore] = useState(0);
+  const [scoreRevealed, setScoreRevealed]   = useState(false);
 
-  const stageOptions = [
-    { value: 'idea', label: 'Idea Stage', desc: 'Concept validation' },
-    { value: 'mvp', label: 'MVP Built', desc: 'Minimum viable product' },
-    { value: 'revenue', label: 'Revenue Generating', desc: 'Paying customers' },
-    { value: 'scaling', label: 'Scaling', desc: 'Rapid growth phase' }
-  ];
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [uiMessages, agentTyping]);
 
-  const fundingOptions = [
-    { value: 'pre-seed', label: 'Pre-Seed', desc: '$0-250K' },
-    { value: 'seed', label: 'Seed', desc: '$250K-2M' },
-    { value: 'series-a', label: 'Series A', desc: '$2M-15M' },
-    { value: 'bootstrapped', label: 'Bootstrapped', desc: 'Self-funded' }
-  ];
+  useEffect(() => {
+    if (!scoreRevealed || rawScore === 0) return;
+    let cur = 0;
+    const inc = Math.max(1, Math.ceil(rawScore / 40));
+    const id = setInterval(() => {
+      cur = Math.min(cur + inc, rawScore);
+      setDisplayedScore(cur);
+      if (cur >= rawScore) clearInterval(id);
+    }, 28);
+    return () => clearInterval(id);
+  }, [scoreRevealed, rawScore]);
 
-  const timeOptions = [
-    { value: '15-mins', label: '15 minutes now', desc: 'Quick assessment', icon: Zap, color: 'green' },
-    { value: 'save-later', label: 'Save for later', desc: 'Get reminder email', icon: Clock, color: 'blue' }
-  ];
-
-  const handleNext = async () => {
-    // If on account creation step, create Supabase account via API
-    if (currentStep === 2) {
-      setIsCreatingAccount(true);
-
-      // Debug: Log what we're sending
-      const signupData = {
-        email: data.email,
-        password: data.password,
-        fullName: `${data.firstName} ${data.lastName}`,
-        stage: data.stage,
-      };
-      console.log('🔍 Signup data:', signupData);
-
-      try {
-        const response = await fetch('/api/auth/signup', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(signupData),
-        });
-
-        const result = await response.json();
-        console.log('📥 Signup response:', result);
-
-        if (!response.ok) {
-          toast.error(result.error || 'Account creation failed');
-          setIsCreatingAccount(false);
-          return;
-        }
-
-        toast.success('Account created successfully!');
-
-        // Note: Supabase will send a confirmation email
-        // For now, we'll continue to next step
-      } catch (err) {
-        console.error('Account creation error:', err);
-        toast.error('Failed to create account. Please try again.');
-        setIsCreatingAccount(false);
-        return;
+  const callAI = useCallback(async (history: ApiMessage[]) => {
+    setAgentTyping(true);
+    try {
+      const res = await fetch("/api/onboarding/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: history }),
+      });
+      if (!res.ok) throw new Error("API error");
+      const data: { content: string; isComplete: boolean } = await res.json();
+      setUiMessages((prev) => [...prev, { role: "agent", text: data.content }]);
+      setApiMessages((prev) => [...prev, { role: "assistant", content: data.content }]);
+      if (data.isComplete) {
+        setChatDone(true);
+        const allUserText = history.filter((m) => m.role === "user").map((m) => m.content).join(" ");
+        const dims = scoreConversation(allUserText);
+        const total = dims.reduce((s, d) => s + d.score, 0);
+        setDimensions(dims);
+        setRawScore(total);
+        setTimeout(() => setStep("signup"), 2500);
       }
-      setIsCreatingAccount(false);
+    } catch {
+      toast.error("Connection issue — please try again.");
+    } finally {
+      setAgentTyping(false);
     }
+  }, []);
 
-    if (currentStep < steps.length - 1) {
-      setCurrentStep(currentStep + 1);
-    } else {
-      // Complete onboarding - save profile data for AI agents context
-      try {
-        const profileData = {
-          fullName: `${data.firstName} ${data.lastName}`,
-          email: data.email,
-          stage: data.stage,
-          funding: data.funding,
-          timeCommitment: data.timeCommitment,
-          // Will be enriched with startup details from assessment
-        };
-        localStorage.setItem('founderProfile', JSON.stringify(profileData));
-      } catch (error) {
-        console.error('Error saving profile:', error);
-      }
+  useEffect(() => {
+    if (step !== "chat" || uiMessages.length > 0) return;
+    callAI([]);
+  }, [step, uiMessages.length, callAI]);
 
-      router.push('/founder/assessment');
+  const handleSend = useCallback(() => {
+    const text = input.trim();
+    if (!text || agentTyping || chatDone) return;
+    const userApiMsg: ApiMessage = { role: "user", content: text };
+    const newHistory = [...apiMessages, userApiMsg];
+    setUiMessages((prev) => [...prev, { role: "user", text }]);
+    setApiMessages(newHistory);
+    setInput("");
+    setExchangeCount((c) => c + 1);
+    callAI(newHistory);
+  }, [input, agentTyping, chatDone, apiMessages, callAI]);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
+  };
+
+  const handleSignup = async () => {
+    if (!signup.email || !signup.password || !signup.firstName) {
+      toast.error("Please fill in all required fields");
+      return;
     }
-  };
-
-  const handleBack = () => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1);
+    if (signup.password.length < 6) {
+      toast.error("Password must be at least 6 characters");
+      return;
     }
-  };
-
-  const updateData = (field: keyof OnboardingData, value: string) => {
-    setData(prev => ({ ...prev, [field]: value }));
-  };
-
-  const canContinue = () => {
-    switch (currentStep) {
-      case 1: // Quick questions
-        return data.stage && data.funding && data.timeCommitment;
-      case 2: // Account creation
-        return data.email && data.password && data.firstName && data.lastName && data.password.length >= 6;
-      default:
-        return true;
+    setSigningUp(true);
+    try {
+      const res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: signup.email,
+          password: signup.password,
+          fullName: `${signup.firstName} ${signup.lastName}`.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error || "Signup failed"); setSigningUp(false); return; }
+      await supabase.auth.signInWithPassword({ email: signup.email, password: signup.password });
+      toast.success("Account created!");
+      setStep("score");
+      setTimeout(() => setScoreRevealed(true), 500);
+    } catch {
+      toast.error("Something went wrong. Please try again.");
     }
+    setSigningUp(false);
   };
 
-  const getProgressPercentage = () => {
-    return ((currentStep + 1) / steps.length) * 100;
-  };
+  const TOTAL_DOTS = 5;
+  const filledDots = chatDone ? TOTAL_DOTS : Math.min(exchangeCount, TOTAL_DOTS - 1);
 
-  // Welcome Video Modal
-  if (showWelcome && currentStep === 0) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-6">
-        <Card className="w-full max-w-2xl">
-          <CardContent className="p-8 text-center space-y-6">
-            <div className="h-16 w-16 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-blue-500/30 transform transition-transform hover:scale-105">
-              <span className="text-white font-black text-xs tracking-tighter leading-none">EDGE</span>
-            </div>
-
-            <div className="space-y-4">
-              <h1 className="text-3xl font-bold text-gray-900">
-                {focusOnScore ? 'Discover Your Q Score' : 'Welcome to Edge Alpha'}
-              </h1>
-              <p className="text-lg text-gray-600">
-                {focusOnScore
-                  ? 'Get instant insights into your startup\'s funding readiness with our proprietary Q Score algorithm.'
-                  : 'You\'re about to embark on a journey that will transform how you approach fundraising. Here\'s what to expect:'
-                }
-              </p>
-            </div>
-
-            <div className="bg-gray-100 rounded-xl p-6 space-y-4">
-              <div className="aspect-video bg-gray-800 rounded-lg flex items-center justify-center relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-600/80 to-purple-600/80"></div>
-                <div className="relative z-10 text-center space-y-4">
-                  <div className="h-16 w-16 bg-white/20 rounded-full flex items-center justify-center mx-auto">
-                    <Play className="h-8 w-8 text-white ml-1" />
-                  </div>
-                  <div className="text-white">
-                    <div className="font-semibold">Welcome Video</div>
-                    <div className="text-sm opacity-80">30 seconds • What to expect</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid md:grid-cols-3 gap-4 text-sm">
-              <div className="flex items-center space-x-3">
-                <div className="h-8 w-8 bg-blue-100 rounded-full flex items-center justify-center">
-                  <Brain className="h-4 w-4 text-blue-600" />
-                </div>
-                <div>
-                  <div className="font-medium text-gray-900">AI Analysis</div>
-                  <div className="text-gray-600">Deep startup insights</div>
-                </div>
-              </div>
-              <div className="flex items-center space-x-3">
-                <div className="h-8 w-8 bg-purple-100 rounded-full flex items-center justify-center">
-                  <Target className="h-4 w-4 text-purple-600" />
-                </div>
-                <div>
-                  <div className="font-medium text-gray-900">Smart Matching</div>
-                  <div className="text-gray-600">Perfect investor fit</div>
-                </div>
-              </div>
-              <div className="flex items-center space-x-3">
-                <div className="h-8 w-8 bg-green-100 rounded-full flex items-center justify-center">
-                  <Zap className="h-4 w-4 text-green-600" />
-                </div>
-                <div>
-                  <div className="font-medium text-gray-900">15 Minutes</div>
-                  <div className="text-gray-600">Complete evaluation</div>
-                </div>
-              </div>
-            </div>
-
-            <Button
-              onClick={() => {
-                if (focusOnScore) {
-                  // For Q Score flow, skip onboarding and go directly to assessment
-                  router.push('/founder/assessment?focus=score');
-                } else {
-                  // For full evaluation, continue with onboarding steps
-                  setShowWelcome(false);
-                  setCurrentStep(1);
-                }
-              }}
-              className="w-full"
-              size="lg"
-            >
-              {focusOnScore ? 'Calculate My Q Score' : 'Let\'s Get Started'}
-              <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
-
-            <p className="text-xs text-gray-500">
-              No credit card required • Your data is secure and private
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  // ── shared styles ────────────────────────────────────────────────────────────
+  const bg   = "#F9F7F2";
+  const surf = "#F0EDE6";
+  const bdr  = "#E2DDD5";
+  const ink  = "#18160F";
+  const muted = "#8A867C";
+  const blue  = "#2563EB";
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-      {/* Header */}
-      <div className="border-b border-gray-200 bg-white/80 backdrop-blur-sm sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="h-8 w-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center shadow-md shadow-blue-500/20">
-                <span className="text-white font-black text-[8px] tracking-tighter leading-none">EDGE</span>
+    <div style={{ minHeight: "100vh", background: bg, color: ink, fontFamily: "inherit" }}>
+      <AnimatePresence mode="wait">
+
+        {/* ── VIDEO ─────────────────────────────────────────────────────────── */}
+        {step === "video" && (
+          <motion.div
+            key="video"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.35 }}
+            style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}
+          >
+            {/* nav */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 28px", borderBottom: `1px solid ${bdr}` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ height: 32, width: 32, borderRadius: 8, background: blue, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <span style={{ color: "#fff", fontWeight: 900, fontSize: 8 }}>EA</span>
+                </div>
+                <span style={{ fontWeight: 600, fontSize: 15, color: ink }}>Edge Alpha</span>
               </div>
-              <div>
-                <div className="font-semibold text-gray-900">Edge Alpha</div>
-                <div className="text-xs text-gray-600">{steps[currentStep].description}</div>
+              <button
+                onClick={() => setStep("chat")}
+                style={{ fontSize: 13, color: muted, display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer" }}
+              >
+                Skip intro <ChevronRight style={{ height: 14, width: 14 }} />
+              </button>
+            </div>
+
+            {/* body */}
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "48px 24px" }}>
+              <div style={{ width: "100%", maxWidth: 600 }}>
+                <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 14px", background: surf, border: `1px solid ${bdr}`, borderRadius: 999, fontSize: 12, color: muted, fontWeight: 500, marginBottom: 28 }}>
+                  <span style={{ height: 6, width: 6, background: blue, borderRadius: "50%", display: "inline-block" }} />
+                  Welcome to Edge Alpha
+                </div>
+
+                <h1 style={{ fontSize: "clamp(2rem,5vw,3.2rem)", fontWeight: 300, letterSpacing: "-0.03em", lineHeight: 1.1, marginBottom: 16, color: ink }}>
+                  Build a fundable business.<br />
+                  <span style={{ color: blue }}>Then raise from the best.</span>
+                </h1>
+                <p style={{ color: muted, fontSize: 16, marginBottom: 36, lineHeight: 1.7, maxWidth: 480 }}>
+                  Watch a 90-second overview, then have a quick conversation with your Edge Alpha adviser to generate your initial Q-Score — no forms, just a conversation.
+                </p>
+
+                {/* video placeholder */}
+                <div
+                  onClick={() => setStep("chat")}
+                  style={{ position: "relative", borderRadius: 16, overflow: "hidden", border: `1px solid ${bdr}`, background: surf, aspectRatio: "16/9", marginBottom: 32, cursor: "pointer" }}
+                >
+                  <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                    <motion.div
+                      whileHover={{ scale: 1.08 }}
+                      style={{ height: 64, width: 64, borderRadius: "50%", background: "#fff", border: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 12, boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
+                    >
+                      <Play style={{ height: 26, width: 26, color: ink, marginLeft: 3 }} />
+                    </motion.div>
+                    <p style={{ color: muted, fontSize: 13 }}>90-second overview · click to continue</p>
+                  </div>
+                  <div style={{ position: "absolute", bottom: 12, right: 14, background: "rgba(24,22,15,0.08)", borderRadius: 6, padding: "3px 8px", fontSize: 11, color: muted, fontFamily: "monospace" }}>1:32</div>
+                </div>
+
+                {/* stats */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 36 }}>
+                  {[
+                    { value: "5 min",  label: "to your Q-Score" },
+                    { value: "500+",   label: "verified investors" },
+                    { value: "3",      label: "assessment categories" },
+                  ].map((s) => (
+                    <div key={s.label} style={{ textAlign: "center", padding: "16px 12px", background: surf, border: `1px solid ${bdr}`, borderRadius: 12 }}>
+                      <p style={{ fontSize: 20, fontWeight: 600, color: ink, marginBottom: 2 }}>{s.value}</p>
+                      <p style={{ fontSize: 11, color: muted }}>{s.label}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <button
+                    onClick={() => setStep("chat")}
+                    style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, background: ink, color: "#F9F7F2", fontWeight: 500, padding: "14px 32px", borderRadius: 999, fontSize: 15, border: "none", cursor: "pointer", transition: "opacity .15s" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.85")}
+                    onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+                  >
+                    Get started <ArrowRight style={{ height: 16, width: 16 }} />
+                  </button>
+                  <button onClick={() => setStep("chat")} style={{ fontSize: 13, color: muted, background: "none", border: "none", cursor: "pointer" }}>
+                    Skip introduction →
+                  </button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── CHAT ──────────────────────────────────────────────────────────── */}
+        {step === "chat" && (
+          <motion.div
+            key="chat"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.35 }}
+            style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}
+          >
+            {/* header */}
+            <div style={{ position: "sticky", top: 0, zIndex: 10, background: bg, borderBottom: `1px solid ${bdr}`, padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ height: 34, width: 34, borderRadius: 8, background: blue, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Bot style={{ height: 16, width: 16, color: "#fff" }} />
+                </div>
+                <div>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: ink, marginBottom: 1 }}>Edge Alpha Adviser</p>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <div style={{ height: 6, width: 6, background: "#22C55E", borderRadius: "50%" }} />
+                    <p style={{ fontSize: 11, color: muted }}>
+                      {chatDone ? "Analysis complete — creating your account" : `Category 1 of 3 · Question ${Math.min(exchangeCount + 1, 5)} of 5`}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* progress dots */}
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                {Array.from({ length: TOTAL_DOTS }).map((_, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      height: 6,
+                      borderRadius: 999,
+                      transition: "all .5s",
+                      width: i < filledDots ? 20 : i === filledDots && !chatDone ? 10 : 6,
+                      background: i < filledDots ? blue : i === filledDots && !chatDone ? bdr : "#E8E4DC",
+                    }}
+                  />
+                ))}
               </div>
             </div>
 
-            <div className="flex items-center space-x-4">
-              <div className="text-sm text-gray-600">
-                Step {currentStep + 1} of {steps.length}
-              </div>
-              <div className="w-32">
-                <Progress value={getProgressPercentage()} className="h-2" />
+            {/* messages */}
+            <div style={{ flex: 1, overflowY: "auto", padding: "24px 16px" }}>
+              <div style={{ maxWidth: 640, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
+                {uiMessages.map((msg, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
+                    style={{ display: "flex", gap: 12, flexDirection: msg.role === "user" ? "row-reverse" : "row" }}
+                  >
+                    {msg.role === "agent" && (
+                      <div style={{ height: 28, width: 28, borderRadius: 8, background: blue, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2 }}>
+                        <Bot style={{ height: 13, width: 13, color: "#fff" }} />
+                      </div>
+                    )}
+                    <div
+                      style={{
+                        maxWidth: "82%",
+                        borderRadius: 18,
+                        padding: "12px 16px",
+                        fontSize: 14,
+                        lineHeight: 1.6,
+                        whiteSpace: "pre-wrap",
+                        background: msg.role === "user" ? ink : surf,
+                        color: msg.role === "user" ? bg : ink,
+                        border: msg.role === "agent" ? `1px solid ${bdr}` : "none",
+                        borderTopLeftRadius: msg.role === "agent" ? 4 : 18,
+                        borderTopRightRadius: msg.role === "user" ? 4 : 18,
+                      }}
+                    >
+                      {msg.text}
+                    </div>
+                  </motion.div>
+                ))}
+
+                {/* typing indicator */}
+                {agentTyping && (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ display: "flex", gap: 12 }}>
+                    <div style={{ height: 28, width: 28, borderRadius: 8, background: blue, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <Bot style={{ height: 13, width: 13, color: "#fff" }} />
+                    </div>
+                    <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 18, borderTopLeftRadius: 4, padding: "14px 18px", display: "flex", gap: 5, alignItems: "center" }}>
+                      {[0, 0.2, 0.4].map((d, i) => (
+                        <motion.div key={i} style={{ height: 6, width: 6, background: muted, borderRadius: "50%" }} animate={{ y: [0, -4, 0] }} transition={{ repeat: Infinity, duration: 0.8, delay: d }} />
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* transitioning */}
+                {chatDone && !agentTyping && (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ display: "flex", justifyContent: "center", padding: "8px 0" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 20px", background: surf, border: `1px solid ${bdr}`, borderRadius: 16 }}>
+                      <motion.div style={{ height: 14, width: 14, border: `2px solid ${blue}`, borderTopColor: "transparent", borderRadius: "50%" }} animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.8, ease: "linear" }} />
+                      <span style={{ fontSize: 13, color: muted }}>Analysing responses · creating your account next…</span>
+                    </div>
+                  </motion.div>
+                )}
+
+                <div ref={chatEndRef} />
               </div>
             </div>
-          </div>
-        </div>
-      </div>
 
-      {/* Main Content */}
-      <div className="flex items-center justify-center min-h-[calc(100vh-80px)] p-6">
-        <div className="w-full max-w-2xl">
+            {/* input */}
+            <div style={{ position: "sticky", bottom: 0, background: bg, borderTop: `1px solid ${bdr}`, padding: "14px 16px" }}>
+              <div style={{ maxWidth: 640, margin: "0 auto", display: "flex", alignItems: "center", gap: 10 }}>
+                <input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder={agentTyping ? "Adviser is thinking…" : chatDone ? "Analysis complete…" : "Type your answer…"}
+                  disabled={agentTyping || chatDone}
+                  style={{
+                    flex: 1,
+                    background: surf,
+                    border: `1px solid ${bdr}`,
+                    borderRadius: 12,
+                    padding: "12px 16px",
+                    fontSize: 14,
+                    color: ink,
+                    outline: "none",
+                    opacity: agentTyping || chatDone ? 0.5 : 1,
+                    cursor: agentTyping || chatDone ? "not-allowed" : "text",
+                  }}
+                />
+                <button
+                  onClick={handleSend}
+                  disabled={!input.trim() || agentTyping || chatDone}
+                  style={{
+                    height: 44,
+                    width: 44,
+                    background: ink,
+                    borderRadius: 12,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                    border: "none",
+                    cursor: !input.trim() || agentTyping || chatDone ? "not-allowed" : "pointer",
+                    opacity: !input.trim() || agentTyping || chatDone ? 0.3 : 1,
+                    transition: "opacity .15s",
+                  }}
+                >
+                  <Send style={{ height: 16, width: 16, color: bg }} />
+                </button>
+              </div>
+              <p style={{ textAlign: "center", fontSize: 11, color: muted, marginTop: 8, opacity: 0.6 }}>
+                Enter to send · No account needed yet — just a conversation
+              </p>
+            </div>
+          </motion.div>
+        )}
 
-          {/* Step 1: Quick Questions */}
-          {currentStep === 1 && (
-            <Card className="w-full">
-              <CardHeader className="text-center">
-                <CardTitle className="text-2xl">Quick Questions</CardTitle>
-                <p className="text-gray-600">Help us personalize your experience (takes 2 minutes)</p>
-              </CardHeader>
-              <CardContent className="space-y-8">
-
-                {/* Stage Question */}
-                <div className="space-y-4">
-                  <Label className="text-lg font-medium">What stage is your startup?</Label>
-                  <div className="grid grid-cols-2 gap-4">
-                    {stageOptions.map((option) => (
-                      <button
-                        key={option.value}
-                        onClick={() => updateData('stage', option.value)}
-                        className={`p-4 border-2 rounded-lg text-left transition-all hover:border-blue-300 ${
-                          data.stage === option.value
-                            ? 'border-blue-500 bg-blue-50'
-                            : 'border-gray-200 hover:border-gray-300'
-                        }`}
-                      >
-                        <div className="font-medium text-gray-900">{option.label}</div>
-                        <div className="text-sm text-gray-600">{option.desc}</div>
-                      </button>
-                    ))}
-                  </div>
+        {/* ── SIGN UP ───────────────────────────────────────────────────────── */}
+        {step === "signup" && (
+          <motion.div
+            key="signup"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -16 }}
+            transition={{ duration: 0.35 }}
+            style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "48px 24px" }}
+          >
+            <div style={{ width: "100%", maxWidth: 440 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 36 }}>
+                <div style={{ height: 32, width: 32, borderRadius: 8, background: blue, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <span style={{ color: "#fff", fontWeight: 900, fontSize: 8 }}>EA</span>
                 </div>
+                <span style={{ fontWeight: 600, fontSize: 15, color: ink }}>Edge Alpha</span>
+              </div>
 
-                {/* Funding Question */}
-                <div className="space-y-4">
-                  <Label className="text-lg font-medium">Current funding status?</Label>
-                  <div className="grid grid-cols-2 gap-4">
-                    {fundingOptions.map((option) => (
-                      <button
-                        key={option.value}
-                        onClick={() => updateData('funding', option.value)}
-                        className={`p-4 border-2 rounded-lg text-left transition-all hover:border-blue-300 ${
-                          data.funding === option.value
-                            ? 'border-blue-500 bg-blue-50'
-                            : 'border-gray-200 hover:border-gray-300'
-                        }`}
-                      >
-                        <div className="font-medium text-gray-900">{option.label}</div>
-                        <div className="text-sm text-gray-600">{option.desc}</div>
-                      </button>
-                    ))}
-                  </div>
+              {/* score teaser */}
+              <div style={{ marginBottom: 28, padding: 16, background: surf, border: `1px solid ${bdr}`, borderRadius: 16, display: "flex", alignItems: "center", gap: 14 }}>
+                <div style={{ height: 56, width: 56, borderRadius: 12, background: bg, border: `1px solid ${bdr}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <span style={{ fontSize: 22, fontWeight: 700, color: blue }}>{rawScore}</span>
+                  <span style={{ fontSize: 9, color: muted, fontFamily: "monospace" }}>/100</span>
                 </div>
-
-                {/* Time Commitment */}
-                <div className="space-y-4">
-                  <Label className="text-lg font-medium">How much time can you dedicate right now?</Label>
-                  <div className="space-y-3">
-                    {timeOptions.map((option) => (
-                      <button
-                        key={option.value}
-                        onClick={() => updateData('timeCommitment', option.value)}
-                        className={`w-full p-4 border-2 rounded-lg text-left flex items-center space-x-4 transition-all hover:border-blue-300 ${
-                          data.timeCommitment === option.value
-                            ? 'border-blue-500 bg-blue-50'
-                            : 'border-gray-200 hover:border-gray-300'
-                        }`}
-                      >
-                        <div className={`h-12 w-12 rounded-xl flex items-center justify-center ${
-                          option.color === 'green' ? 'bg-green-100' : 'bg-blue-100'
-                        }`}>
-                          <option.icon className={`h-6 w-6 ${
-                            option.color === 'green' ? 'text-green-600' : 'text-blue-600'
-                          }`} />
-                        </div>
-                        <div className="flex-1">
-                          <div className="font-medium text-gray-900">{option.label}</div>
-                          <div className="text-sm text-gray-600">{option.desc}</div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Step 2: Account Creation */}
-          {currentStep === 2 && (
-            <Card className="w-full">
-              <CardHeader className="text-center">
-                <CardTitle className="text-2xl">Create Your Account</CardTitle>
-                <p className="text-gray-600">Secure your progress and get personalized insights</p>
-              </CardHeader>
-              <CardContent className="space-y-6">
-
-                {/* Social Login Options */}
-                <div className="space-y-3">
-                  <Button variant="outline" className="w-full" size="lg">
-                    <svg className="h-5 w-5 mr-3" viewBox="0 0 24 24">
-                      <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                      <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                      <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                      <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                    </svg>
-                    Continue with Google
-                  </Button>
-
-                  <Button variant="outline" className="w-full" size="lg">
-                    <Building2 className="h-5 w-5 mr-3" />
-                    Continue with LinkedIn
-                  </Button>
-                </div>
-
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-background px-2 text-muted-foreground">Or continue with email</span>
-                  </div>
-                </div>
-
-                {/* Email Form */}
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="email">Email address</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="you@company.com"
-                      value={data.email}
-                      onChange={(e) => updateData('email', e.target.value)}
-                      className="mt-1"
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="password">Password</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      placeholder="At least 6 characters"
-                      value={data.password}
-                      onChange={(e) => updateData('password', e.target.value)}
-                      className="mt-1"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">Minimum 6 characters</p>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="firstName">First name</Label>
-                      <Input
-                        id="firstName"
-                        placeholder="John"
-                        value={data.firstName}
-                        onChange={(e) => updateData('firstName', e.target.value)}
-                        className="mt-1"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="lastName">Last name</Label>
-                      <Input
-                        id="lastName"
-                        placeholder="Smith"
-                        value={data.lastName}
-                        onChange={(e) => updateData('lastName', e.target.value)}
-                        className="mt-1"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Login Link */}
-                <div className="text-center">
-                  <p className="text-sm text-gray-600">
-                    Already have an account?{" "}
-                    <Link href="/login" className="text-blue-600 hover:text-blue-700 font-medium">
-                      Sign in
-                    </Link>
+                <div>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: ink, marginBottom: 3 }}>Your Q-Score is ready</p>
+                  <p style={{ fontSize: 12, color: muted, lineHeight: 1.5 }}>
+                    Create your account to see the full breakdown — and unlock Categories 2 & 3.
                   </p>
                 </div>
+              </div>
 
-                <div className="text-xs text-gray-500 text-center">
-                  By continuing, you agree to our Terms of Service and Privacy Policy
-                </div>
-              </CardContent>
-            </Card>
-          )}
+              <h1 style={{ fontSize: 28, fontWeight: 300, letterSpacing: "-0.03em", color: ink, marginBottom: 6 }}>Create your account</h1>
+              <p style={{ color: muted, fontSize: 14, marginBottom: 28 }}>Free to start. No credit card required.</p>
 
-          {/* Step 3: Ready to Begin */}
-          {currentStep === 3 && (
-            <Card className="w-full">
-              <CardContent className="p-8 text-center space-y-6">
-                <div className="h-16 w-16 bg-gradient-to-br from-green-500 to-blue-500 rounded-2xl flex items-center justify-center mx-auto">
-                  <CheckCircle className="h-8 w-8 text-white" />
-                </div>
-
-                <div className="space-y-4">
-                  <h1 className="text-3xl font-bold text-gray-900">
-                    Ready to Begin, {data.firstName}!
-                  </h1>
-                  <p className="text-lg text-gray-600">
-                    Your Q Score journey starts now. We&apos;ll analyze your startup across multiple dimensions.
-                  </p>
-                </div>
-
-                <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl p-6 space-y-4">
-                  <h3 className="font-semibold text-gray-900">What happens next:</h3>
-                  <div className="space-y-3 text-sm text-left">
-                    <div className="flex items-center space-x-3">
-                      <div className="h-6 w-6 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                        <User className="h-3 w-3 text-blue-600" />
-                      </div>
-                      <div>
-                        <div className="font-medium">Founder Assessment (5 mins)</div>
-                        <div className="text-gray-600">Cognitive tests and personality insights</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-3">
-                      <div className="h-6 w-6 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0">
-                        <Building2 className="h-3 w-3 text-purple-600" />
-                      </div>
-                      <div>
-                        <div className="font-medium">Startup Deep Dive (8 mins)</div>
-                        <div className="text-gray-600">Problem, solution, market, and traction</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-3">
-                      <div className="h-6 w-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
-                        <Brain className="h-3 w-3 text-green-600" />
-                      </div>
-                      <div>
-                        <div className="font-medium">AI Enhancement (2 mins)</div>
-                        <div className="text-gray-600">Optimize your pitch and materials</div>
-                      </div>
-                    </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 20 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <div>
+                    <Label style={{ fontSize: 12, color: muted, marginBottom: 6, display: "block" }}>First name</Label>
+                    <Input
+                      placeholder="Alex"
+                      value={signup.firstName}
+                      onChange={(e) => setSignup((p) => ({ ...p, firstName: e.target.value }))}
+                      style={{ background: surf, border: `1px solid ${bdr}`, color: ink, borderRadius: 10, height: 42 }}
+                    />
+                  </div>
+                  <div>
+                    <Label style={{ fontSize: 12, color: muted, marginBottom: 6, display: "block" }}>Last name</Label>
+                    <Input
+                      placeholder="Smith"
+                      value={signup.lastName}
+                      onChange={(e) => setSignup((p) => ({ ...p, lastName: e.target.value }))}
+                      style={{ background: surf, border: `1px solid ${bdr}`, color: ink, borderRadius: 10, height: 42 }}
+                    />
                   </div>
                 </div>
-
-                <div className="text-sm text-gray-500">
-                  🎯 Estimated time: {data.timeCommitment === '15-mins' ? '15 minutes' : 'Flexible'}
+                <div>
+                  <Label style={{ fontSize: 12, color: muted, marginBottom: 6, display: "block" }}>Work email</Label>
+                  <Input
+                    type="email"
+                    placeholder="you@startup.com"
+                    value={signup.email}
+                    onChange={(e) => setSignup((p) => ({ ...p, email: e.target.value }))}
+                    style={{ background: surf, border: `1px solid ${bdr}`, color: ink, borderRadius: 10, height: 42 }}
+                  />
                 </div>
-              </CardContent>
-            </Card>
-          )}
+                <div>
+                  <Label style={{ fontSize: 12, color: muted, marginBottom: 6, display: "block" }}>Password</Label>
+                  <Input
+                    type="password"
+                    placeholder="At least 6 characters"
+                    value={signup.password}
+                    onChange={(e) => setSignup((p) => ({ ...p, password: e.target.value }))}
+                    onKeyDown={(e) => e.key === "Enter" && handleSignup()}
+                    style={{ background: surf, border: `1px solid ${bdr}`, color: ink, borderRadius: 10, height: 42 }}
+                  />
+                </div>
+              </div>
 
-          {/* Navigation */}
-          <div className="flex justify-between items-center mt-8">
-            <Button
-              variant="ghost"
-              onClick={handleBack}
-              disabled={currentStep === 1}
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
-            </Button>
+              <button
+                onClick={handleSignup}
+                disabled={signingUp}
+                style={{
+                  width: "100%",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                  background: ink,
+                  color: bg,
+                  fontWeight: 500,
+                  padding: "14px 0",
+                  borderRadius: 999,
+                  fontSize: 15,
+                  border: "none",
+                  cursor: signingUp ? "not-allowed" : "pointer",
+                  opacity: signingUp ? 0.6 : 1,
+                  marginBottom: 16,
+                  transition: "opacity .15s",
+                }}
+              >
+                {signingUp ? "Creating account…" : "See my Q-Score"}
+                {!signingUp && <ArrowRight style={{ height: 16, width: 16 }} />}
+              </button>
 
-            <Button
-              onClick={handleNext}
-              disabled={!canContinue() || isCreatingAccount}
-              size="lg"
-            >
-              {isCreatingAccount ? (
-                <>Creating Account...</>
-              ) : currentStep === steps.length - 1 ? (
-                <>
-                  Start Assessment
-                  <Rocket className="ml-2 h-4 w-4" />
-                </>
-              ) : (
-                <>
-                  Continue
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </>
-              )}
-            </Button>
-          </div>
-        </div>
-      </div>
+              <p style={{ textAlign: "center", fontSize: 13, color: muted }}>
+                Already have an account?{" "}
+                <Link href="/login" style={{ color: blue, fontWeight: 500 }}>Sign in</Link>
+              </p>
+              <p style={{ textAlign: "center", fontSize: 11, color: muted, marginTop: 16, opacity: 0.6 }}>
+                By continuing you agree to our Terms and Privacy Policy.
+              </p>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── SCORE REVEAL ──────────────────────────────────────────────────── */}
+        {step === "score" && (
+          <motion.div
+            key="score"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5 }}
+            style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "48px 24px" }}
+          >
+            <div style={{ width: "100%", maxWidth: 480 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 36 }}>
+                <div style={{ height: 32, width: 32, borderRadius: 8, background: blue, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <span style={{ color: "#fff", fontWeight: 900, fontSize: 8 }}>EA</span>
+                </div>
+                <span style={{ fontWeight: 600, fontSize: 15, color: ink }}>Edge Alpha</span>
+              </div>
+
+              <p style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.18em", color: blue, fontWeight: 600, marginBottom: 8 }}>
+                Category 1 of 3 Complete
+              </p>
+              <h1 style={{ fontSize: "clamp(1.8rem,4vw,2.6rem)", fontWeight: 300, letterSpacing: "-0.03em", color: ink, marginBottom: 8 }}>
+                Your initial Q-Score.
+              </h1>
+              <p style={{ color: muted, fontSize: 14, marginBottom: 36, lineHeight: 1.7 }}>
+                Based on your conversation covering Problem, Team & Validation. Complete Categories 2 & 3 in your dashboard for your full score.
+              </p>
+
+              {/* ring */}
+              <motion.div
+                style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 36 }}
+                initial={{ scale: 0.85, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ delay: 0.2, type: "spring", stiffness: 130 }}
+              >
+                <div style={{ position: "relative", height: 176, width: 176 }}>
+                  <svg style={{ position: "absolute", inset: 0, transform: "rotate(-90deg)" }} viewBox="0 0 144 144">
+                    <circle cx="72" cy="72" r="64" fill="none" stroke={bdr} strokeWidth="8" />
+                    <motion.circle
+                      cx="72" cy="72" r="64"
+                      fill="none" stroke={blue} strokeWidth="8" strokeLinecap="round"
+                      strokeDasharray={`${2 * Math.PI * 64}`}
+                      initial={{ strokeDashoffset: 2 * Math.PI * 64 }}
+                      animate={scoreRevealed ? { strokeDashoffset: 2 * Math.PI * 64 * (1 - rawScore / 100) } : {}}
+                      transition={{ duration: 1.2, delay: 0.4, ease: "easeOut" }}
+                    />
+                  </svg>
+                  <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                    <span style={{ fontSize: 48, fontWeight: 600, color: ink, fontVariantNumeric: "tabular-nums" }}>{displayedScore}</span>
+                    <span style={{ fontSize: 12, color: muted, marginTop: 2 }}>out of 100</span>
+                  </div>
+                </div>
+                <div style={{
+                  marginTop: 14,
+                  padding: "6px 16px",
+                  borderRadius: 999,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  border: `1px solid ${bdr}`,
+                  background: surf,
+                  color: rawScore >= 80 ? "#16A34A" : rawScore >= 60 ? blue : rawScore >= 40 ? "#D97706" : "#DC2626",
+                }}>
+                  {rawScore >= 80 ? "Strong Start" : rawScore >= 60 ? "Good Foundation" : rawScore >= 40 ? "Needs Development" : "Early Stage"}
+                </div>
+              </motion.div>
+
+              {/* dimension bars */}
+              <div style={{ marginBottom: 24 }}>
+                <p style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.14em", color: muted, fontWeight: 600, marginBottom: 14 }}>Category 1 breakdown</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  {dimensions.map((dim, i) => {
+                    const Icon = dim.icon;
+                    const pct = (dim.score / dim.max) * 100;
+                    return (
+                      <motion.div key={dim.label} style={{ display: "flex", alignItems: "center", gap: 12 }}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={scoreRevealed ? { opacity: 1, x: 0 } : {}}
+                        transition={{ delay: 0.55 + i * 0.08 }}
+                      >
+                        <div style={{ height: 28, width: 28, borderRadius: 8, background: surf, border: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          <Icon style={{ height: 13, width: 13, color: muted }} />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
+                            <span style={{ fontSize: 12, color: ink, fontWeight: 500 }}>{dim.label}</span>
+                            <span style={{ fontSize: 11, color: muted, fontFamily: "monospace" }}>{dim.score}/{dim.max}</span>
+                          </div>
+                          <div style={{ height: 3, background: surf, borderRadius: 999, overflow: "hidden", border: `1px solid ${bdr}` }}>
+                            <motion.div
+                              style={{ height: "100%", borderRadius: 999, background: pct >= 70 ? blue : pct >= 40 ? "#D97706" : "#EF4444" }}
+                              initial={{ width: 0 }}
+                              animate={scoreRevealed ? { width: `${pct}%` } : {}}
+                              transition={{ delay: 0.65 + i * 0.08, duration: 0.6, ease: "easeOut" }}
+                            />
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* locked categories */}
+              <motion.div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 28 }}
+                initial={{ opacity: 0 }} animate={scoreRevealed ? { opacity: 1 } : {}} transition={{ delay: 1.1 }}>
+                {[
+                  { label: "Category 2", desc: "Customer Validation · Market Sizing · Learning Velocity", pts: "+33 pts" },
+                  { label: "Category 3", desc: "Go-to-Market · Financial Health", pts: "+34 pts" },
+                ].map((cat) => (
+                  <div key={cat.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: surf, border: `1px solid ${bdr}`, borderRadius: 12 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <Lock style={{ height: 13, width: 13, color: muted }} />
+                      <div>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: ink }}>{cat.label}</p>
+                        <p style={{ fontSize: 11, color: muted }}>{cat.desc}</p>
+                      </div>
+                    </div>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: muted }}>{cat.pts}</span>
+                  </div>
+                ))}
+              </motion.div>
+
+              {/* CTAs */}
+              <motion.div style={{ display: "flex", flexDirection: "column", gap: 10 }}
+                initial={{ opacity: 0, y: 10 }} animate={scoreRevealed ? { opacity: 1, y: 0 } : {}} transition={{ delay: 1.3 }}>
+                <button
+                  onClick={() => router.push("/founder/assessment")}
+                  style={{ width: "100%", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, background: ink, color: bg, fontWeight: 500, padding: "14px 0", borderRadius: 999, fontSize: 15, border: "none", cursor: "pointer", transition: "opacity .15s" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.85")}
+                  onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+                >
+                  Complete my full assessment <ArrowRight style={{ height: 16, width: 16 }} />
+                </button>
+                <button
+                  onClick={() => router.push("/founder/dashboard")}
+                  style={{ width: "100%", display: "inline-flex", alignItems: "center", justifyContent: "center", color: muted, border: `1px solid ${bdr}`, background: "transparent", fontWeight: 500, padding: "14px 0", borderRadius: 999, fontSize: 14, cursor: "pointer", transition: "border-color .15s" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.borderColor = ink)}
+                  onMouseLeave={(e) => (e.currentTarget.style.borderColor = bdr)}
+                >
+                  Go to dashboard first
+                </button>
+              </motion.div>
+
+              <p style={{ textAlign: "center", fontSize: 11, color: muted, marginTop: 20, opacity: 0.6 }}>
+                Your Q-Score improves as you complete assessments and work with AI advisers.
+              </p>
+            </div>
+          </motion.div>
+        )}
+
+      </AnimatePresence>
     </div>
   );
 }
 
+// ─── export ───────────────────────────────────────────────────────────────────
+
 export default function FounderOnboarding() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="h-12 w-12 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center mx-auto mb-4 animate-pulse">
-            <span className="text-white font-black text-xs">EDGE</span>
+      <div style={{ minHeight: "100vh", background: "#F9F7F2", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ height: 40, width: 40, borderRadius: 10, background: "#2563EB", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+            <span style={{ color: "#fff", fontWeight: 900, fontSize: 8 }}>EA</span>
           </div>
-          <p className="text-gray-600">Loading...</p>
+          <p style={{ color: "#8A867C", fontSize: 13 }}>Loading…</p>
         </div>
       </div>
     }>

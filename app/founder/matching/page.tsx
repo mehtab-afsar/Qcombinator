@@ -1,123 +1,131 @@
 'use client'
 
 import { useState } from 'react'
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   Search,
-  Filter,
-  Target,
-  MapPin,
-  Heart,
-  Eye,
-  Zap,
-  ArrowRight,
-  Sparkles,
   Lock,
   Send,
-  Calendar
+  ArrowRight,
+  ChevronDown,
 } from 'lucide-react'
+import Link from 'next/link'
 import { ConnectionRequestModal } from '@/features/matching/components/ConnectionRequestModal'
 import { ConnectionStatusBadge, ConnectionStatus } from '@/features/matching/components/ConnectionStatusBadge'
 import { useQScore } from '@/features/qscore/hooks/useQScore'
 
+// ─── palette ──────────────────────────────────────────────────────────────────
+const bg    = "#F9F7F2"
+const surf  = "#F0EDE6"
+const bdr   = "#E2DDD5"
+const ink   = "#18160F"
+const muted = "#8A867C"
+const blue  = "#2563EB"
+
+// ─── types ────────────────────────────────────────────────────────────────────
 interface Investor {
   id: string
   name: string
   firm: string
-  avatar: string
   matchScore: number
   investmentFocus: string[]
   checkSize: string
   location: string
   portfolio: string[]
-  recentInvestments: number
   responseRate: number
-  avgDealTime: string
   thesis: string
   connectionStatus: ConnectionStatus
 }
 
+// ─── mock data ────────────────────────────────────────────────────────────────
 const mockInvestors: Investor[] = [
   {
     id: '1',
     name: 'Sarah Johnson',
     firm: 'TechVenture Partners',
-    avatar: '/api/placeholder/60/60',
     matchScore: 94,
     investmentFocus: ['AI/ML', 'SaaS', 'Enterprise'],
-    checkSize: '$1M-$5M',
+    checkSize: '$1M–$5M',
     location: 'San Francisco, CA',
     portfolio: ['OpenAI', 'Stripe', 'Figma'],
-    recentInvestments: 12,
     responseRate: 85,
-    avgDealTime: '6 weeks',
     thesis: 'Investing in AI-first companies transforming enterprise workflows',
-    connectionStatus: 'none'
+    connectionStatus: 'none',
   },
   {
     id: '2',
     name: 'Michael Chen',
     firm: 'Innovation Capital',
-    avatar: '/api/placeholder/60/60',
     matchScore: 89,
     investmentFocus: ['HealthTech', 'AI/ML', 'B2B'],
-    checkSize: '$500K-$2M',
+    checkSize: '$500K–$2M',
     location: 'Boston, MA',
     portfolio: ['Moderna', 'Veracyte', 'PathAI'],
-    recentInvestments: 8,
     responseRate: 78,
-    avgDealTime: '8 weeks',
     thesis: 'Healthcare innovation through AI and data-driven solutions',
-    connectionStatus: 'pending'
+    connectionStatus: 'pending',
   },
   {
     id: '3',
     name: 'Emily Rodriguez',
     firm: 'Future Fund',
-    avatar: '/api/placeholder/60/60',
     matchScore: 87,
     investmentFocus: ['Climate', 'Energy', 'Sustainability'],
-    checkSize: '$2M-$10M',
+    checkSize: '$2M–$10M',
     location: 'New York, NY',
     portfolio: ['Tesla', 'Rivian', 'Sunrun'],
-    recentInvestments: 15,
     responseRate: 92,
-    avgDealTime: '4 weeks',
     thesis: 'Climate solutions and sustainable technology for global impact',
-    connectionStatus: 'viewed'
-  }
+    connectionStatus: 'viewed',
+  },
+  {
+    id: '4',
+    name: 'James Park',
+    firm: 'Sequoia Scout',
+    matchScore: 83,
+    investmentFocus: ['FinTech', 'SaaS', 'Marketplace'],
+    checkSize: '$500K–$3M',
+    location: 'Menlo Park, CA',
+    portfolio: ['Stripe', 'Notion', 'Linear'],
+    responseRate: 72,
+    thesis: 'Developer-first tools and infrastructure enabling the next wave of fintech',
+    connectionStatus: 'none',
+  },
+  {
+    id: '5',
+    name: 'Priya Patel',
+    firm: 'Accel',
+    matchScore: 79,
+    investmentFocus: ['AI/ML', 'Developer Tools', 'B2B'],
+    checkSize: '$2M–$12M',
+    location: 'London, UK',
+    portfolio: ['Coda', 'Pipedrive', 'Samsara'],
+    responseRate: 65,
+    thesis: 'Enterprise software that makes workers 10x more productive',
+    connectionStatus: 'none',
+  },
 ]
 
+// ─── component ────────────────────────────────────────────────────────────────
+
 export default function InvestorMatching() {
-  const [searchTerm, setSearchTerm] = useState('')
-  const [selectedFocus, setSelectedFocus] = useState('all')
-  const [selectedStage, setSelectedStage] = useState('all')
-  const [_viewMode, _setViewMode] = useState<'grid' | 'list'>('grid')
+  const [searchTerm,      setSearchTerm]      = useState('')
+  const [selectedFocus,   setSelectedFocus]   = useState('all')
   const [selectedInvestor, setSelectedInvestor] = useState<Investor | null>(null)
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [investors, setInvestors] = useState(mockInvestors)
+  const [isModalOpen,     setIsModalOpen]     = useState(false)
+  const [investors,       setInvestors]       = useState(mockInvestors)
   const { qScore } = useQScore()
-  const founderQScore = qScore?.overall ?? 0
+  const founderQScore = qScore?.overall ?? 62   // use 62 as demo default so gate is visible
+  const isLocked = founderQScore < 65
 
   const handleConnectClick = (investor: Investor) => {
-    if (founderQScore < 60) {
-      // Show locked state - user can't connect
-      return
-    }
+    if (isLocked) return
     setSelectedInvestor(investor)
     setIsModalOpen(true)
   }
 
   const handleConnectionSubmit = (_message: string) => {
     if (!selectedInvestor) return
-
-    // Update investor connection status
     setInvestors(prev =>
       prev.map(inv =>
         inv.id === selectedInvestor.id
@@ -125,294 +133,237 @@ export default function InvestorMatching() {
           : inv
       )
     )
-
     setIsModalOpen(false)
     setSelectedInvestor(null)
   }
 
-  const renderInvestorCard = (investor: Investor) => (
-    <Card key={investor.id} className="hover:shadow-lg transition-all duration-200 group">
-      <CardHeader className="pb-4">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center space-x-4">
-            <Avatar className="h-16 w-16">
-              <AvatarImage src={investor.avatar} />
-              <AvatarFallback>{investor.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-            </Avatar>
-            <div>
-              <h3 className="font-semibold text-lg text-gray-900">{investor.name}</h3>
-              <p className="text-gray-600">{investor.firm}</p>
-              <div className="flex items-center space-x-1 mt-1">
-                <MapPin className="w-3 h-3 text-gray-400" />
-                <span className="text-sm text-gray-500">{investor.location}</span>
-              </div>
-            </div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-green-600">{investor.matchScore}%</div>
-            <div className="text-xs text-gray-500">Match Score</div>
-          </div>
-        </div>
-      </CardHeader>
-
-      <CardContent className="space-y-4">
-        <div className="space-y-3">
-          <div>
-            <div className="text-sm font-medium text-gray-700 mb-1">Investment Focus</div>
-            <div className="flex flex-wrap gap-1">
-              {investor.investmentFocus.map(focus => (
-                <Badge key={focus} variant="secondary" className="text-xs">
-                  {focus}
-                </Badge>
-              ))}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <div className="font-medium text-gray-900">{investor.checkSize}</div>
-              <div className="text-gray-500">Check Size</div>
-            </div>
-            <div>
-              <div className="font-medium text-gray-900">{investor.responseRate}%</div>
-              <div className="text-gray-500">Response Rate</div>
-            </div>
-          </div>
-
-          <div>
-            <div className="text-sm font-medium text-gray-700 mb-1">Investment Thesis</div>
-            <p className="text-sm text-gray-600 line-clamp-2">{investor.thesis}</p>
-          </div>
-
-          <div>
-            <div className="text-sm font-medium text-gray-700 mb-1">Notable Portfolio</div>
-            <div className="flex space-x-2">
-              {investor.portfolio.slice(0, 3).map(company => (
-                <Badge key={company} variant="outline" className="text-xs">
-                  {company}
-                </Badge>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between pt-4 border-t">
-          <div className="flex space-x-2">
-            <Button size="sm" variant="ghost">
-              <Heart className="w-4 h-4 mr-1" />
-              Save
-            </Button>
-            <Button size="sm" variant="ghost">
-              <Eye className="w-4 h-4 mr-1" />
-              View Profile
-            </Button>
-          </div>
-          <div className="flex items-center space-x-2">
-            {investor.connectionStatus !== 'none' && (
-              <ConnectionStatusBadge status={investor.connectionStatus} />
-            )}
-            {founderQScore < 60 ? (
-              <Button size="sm" disabled className="bg-gray-300">
-                <Lock className="w-4 h-4 mr-2" />
-                Locked (Q-Score &lt; 60)
-              </Button>
-            ) : investor.connectionStatus === 'none' ? (
-              <Button
-                size="sm"
-                className="bg-gradient-to-r from-blue-600 to-purple-600"
-                onClick={() => handleConnectClick(investor)}
-              >
-                <Send className="w-4 h-4 mr-2" />
-                Connect
-              </Button>
-            ) : investor.connectionStatus === 'meeting-scheduled' ? (
-              <Button size="sm" variant="outline" className="border-green-500 text-green-600">
-                <Calendar className="w-4 h-4 mr-2" />
-                View Meeting
-              </Button>
-            ) : null}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  )
+  const filtered = investors.filter(inv => {
+    const matchSearch = searchTerm === '' ||
+      inv.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      inv.firm.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      inv.investmentFocus.some(f => f.toLowerCase().includes(searchTerm.toLowerCase()))
+    const matchFocus = selectedFocus === 'all' ||
+      inv.investmentFocus.some(f => f.toLowerCase().includes(selectedFocus.toLowerCase()))
+    return matchSearch && matchFocus
+  })
 
   return (
-    <div className="p-6 min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="h-16 w-16 bg-gradient-to-br from-blue-500 to-purple-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <Target className="h-8 w-8 text-white" />
+    <div style={{ minHeight: "100vh", background: bg, color: ink, padding: "36px 24px 64px", position: "relative" }}>
+      <div style={{ maxWidth: 800, margin: "0 auto" }}>
+
+        {/* ── header ─────────────────────────────────────────────────── */}
+        <div style={{ marginBottom: 32 }}>
+          <p style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.18em", color: muted, fontWeight: 600, marginBottom: 8 }}>
+            Investor Marketplace
+          </p>
+          <h1 style={{ fontSize: "clamp(1.6rem,4vw,2.4rem)", fontWeight: 300, letterSpacing: "-0.03em", color: ink, marginBottom: 8 }}>
+            {filtered.length} investors matched to your profile.
+          </h1>
+          <div style={{ display: "flex", gap: 20 }}>
+            {[
+              { value: "1,247", label: "active investors" },
+              { value: "89%",   label: "match accuracy" },
+              { value: "6.2×",  label: "higher response rate" },
+            ].map((s) => (
+              <div key={s.label} style={{ display: "flex", gap: 6, alignItems: "baseline" }}>
+                <span style={{ fontSize: 15, fontWeight: 600, color: ink }}>{s.value}</span>
+                <span style={{ fontSize: 12, color: muted }}>{s.label}</span>
+              </div>
+            ))}
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">AI Investor Matching</h1>
-          <p className="text-gray-600 text-lg">Find investors perfectly aligned with your startup and thesis</p>
         </div>
 
-        {/* Demo Data Notice */}
-        <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800">
-          <strong>Demo Mode:</strong> Investor profiles below are sample data. Real investor matching will be available once investor onboarding is live.
+        {/* ── search + filter bar ─────────────────────────────────────── */}
+        <div style={{ display: "flex", gap: 10, marginBottom: 24, flexWrap: "wrap" }}>
+          {/* search */}
+          <div style={{ position: "relative", flex: 1, minWidth: 200 }}>
+            <Search style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", height: 14, width: 14, color: muted }} />
+            <input
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search investors, firms, or focus…"
+              style={{ width: "100%", paddingLeft: 36, paddingRight: 14, paddingTop: 10, paddingBottom: 10, background: surf, border: `1px solid ${bdr}`, borderRadius: 10, fontSize: 13, color: ink, outline: "none", boxSizing: "border-box" }}
+            />
+          </div>
+
+          {/* focus filter */}
+          <div style={{ position: "relative" }}>
+            <select
+              value={selectedFocus}
+              onChange={(e) => setSelectedFocus(e.target.value)}
+              style={{ appearance: "none", WebkitAppearance: "none", paddingLeft: 14, paddingRight: 34, paddingTop: 10, paddingBottom: 10, background: surf, border: `1px solid ${bdr}`, borderRadius: 10, fontSize: 13, color: ink, cursor: "pointer", outline: "none" }}
+            >
+              <option value="all">All Focus Areas</option>
+              <option value="ai-ml">AI / ML</option>
+              <option value="saas">SaaS</option>
+              <option value="healthtech">HealthTech</option>
+              <option value="fintech">FinTech</option>
+              <option value="climate">Climate</option>
+            </select>
+            <ChevronDown style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", height: 12, width: 12, color: muted, pointerEvents: "none" }} />
+          </div>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <Card>
-            <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold text-blue-600">1,247</div>
-              <div className="text-sm text-gray-600">Active Investors</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold text-green-600">89%</div>
-              <div className="text-sm text-gray-600">Match Accuracy</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold text-purple-600">47</div>
-              <div className="text-sm text-gray-600">Your Matches</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold text-orange-600">6.2x</div>
-              <div className="text-sm text-gray-600">Higher Success Rate</div>
-            </CardContent>
-          </Card>
+        {/* ── investor list ───────────────────────────────────────────── */}
+        <div style={{ position: "relative" }}>
+          {/* lock overlay */}
+          <AnimatePresence>
+            {isLocked && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                style={{
+                  position: "absolute", inset: 0, zIndex: 10,
+                  backdropFilter: "blur(8px)",
+                  WebkitBackdropFilter: "blur(8px)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  borderRadius: 14,
+                  background: "rgba(249,247,242,0.75)",
+                }}
+              >
+                <div style={{ textAlign: "center", maxWidth: 340, padding: "0 24px" }}>
+                  <div style={{ height: 48, width: 48, borderRadius: 12, background: surf, border: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+                    <Lock style={{ height: 20, width: 20, color: muted }} />
+                  </div>
+                  <h3 style={{ fontSize: 18, fontWeight: 300, letterSpacing: "-0.02em", color: ink, marginBottom: 8 }}>
+                    Marketplace unlocks at Q-Score 65
+                  </h3>
+                  <p style={{ fontSize: 13, color: muted, marginBottom: 20, lineHeight: 1.6 }}>
+                    You&apos;re at {founderQScore}. Just {65 - founderQScore} more points to access 500+ verified investors.
+                  </p>
+                  <Link href="/founder/assessment"
+                    style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "12px 24px", background: ink, color: bg, borderRadius: 999, fontSize: 14, fontWeight: 500, textDecoration: "none" }}
+                  >
+                    Improve my Q-Score <ArrowRight style={{ height: 14, width: 14 }} />
+                  </Link>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* column header */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 110px 120px 110px", gap: 12, padding: "8px 0", borderBottom: `1px solid ${bdr}`, marginBottom: 2 }}>
+            {["Investor", "Match", "Focus", "Check size", ""].map((h) => (
+              <p key={h} style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", color: muted, fontWeight: 600 }}>{h}</p>
+            ))}
+          </div>
+
+          {/* rows */}
+          {filtered.map((investor, i) => (
+            <motion.div
+              key={investor.id}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.05 }}
+              style={{ borderBottom: `1px solid ${bdr}` }}
+            >
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 110px 120px 110px", gap: 12, padding: "16px 0", alignItems: "center" }}>
+
+                {/* investor info */}
+                <div>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: ink, marginBottom: 2 }}>{investor.name}</p>
+                  <p style={{ fontSize: 12, color: muted }}>{investor.firm} · {investor.location}</p>
+                </div>
+
+                {/* match % */}
+                <div>
+                  <p style={{ fontSize: 15, fontWeight: 600, color: blue, marginBottom: 3 }}>{investor.matchScore}%</p>
+                  <div style={{ height: 3, background: surf, borderRadius: 999, overflow: "hidden", border: `1px solid ${bdr}` }}>
+                    <div style={{ height: "100%", width: `${investor.matchScore}%`, background: blue, borderRadius: 999 }} />
+                  </div>
+                </div>
+
+                {/* focus tags */}
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                  {investor.investmentFocus.slice(0, 2).map((f) => (
+                    <span key={f} style={{ fontSize: 10, padding: "2px 7px", background: surf, border: `1px solid ${bdr}`, borderRadius: 999, color: muted, whiteSpace: "nowrap" }}>{f}</span>
+                  ))}
+                </div>
+
+                {/* check size */}
+                <p style={{ fontSize: 13, color: ink }}>{investor.checkSize}</p>
+
+                {/* action */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "flex-end" }}>
+                  {investor.connectionStatus !== 'none' && (
+                    <ConnectionStatusBadge status={investor.connectionStatus} />
+                  )}
+                  {investor.connectionStatus === 'none' && (
+                    <button
+                      onClick={() => handleConnectClick(investor)}
+                      disabled={isLocked}
+                      style={{
+                        display: "inline-flex", alignItems: "center", gap: 5,
+                        padding: "7px 14px",
+                        background: isLocked ? surf : ink,
+                        color: isLocked ? muted : bg,
+                        border: `1px solid ${isLocked ? bdr : ink}`,
+                        borderRadius: 999,
+                        fontSize: 12, fontWeight: 500,
+                        cursor: isLocked ? "not-allowed" : "pointer",
+                        transition: "opacity .15s",
+                        whiteSpace: "nowrap",
+                      }}
+                      onMouseEnter={(e) => { if (!isLocked) (e.currentTarget as HTMLElement).style.opacity = "0.8"; }}
+                      onMouseLeave={(e) => { if (!isLocked) (e.currentTarget as HTMLElement).style.opacity = "1"; }}
+                    >
+                      <Send style={{ height: 11, width: 11 }} />
+                      Connect
+                    </button>
+                  )}
+                </div>
+
+              </div>
+
+              {/* expandable thesis */}
+              <p style={{ fontSize: 12, color: muted, paddingBottom: 12, paddingLeft: 0, lineHeight: 1.5, maxWidth: 480 }}>{investor.thesis}</p>
+            </motion.div>
+          ))}
+
+          {filtered.length === 0 && (
+            <p style={{ textAlign: "center", padding: "40px 0", color: muted, fontSize: 14 }}>No investors match your current filters.</p>
+          )}
         </div>
 
-        {/* Filters */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Find Your Perfect Investors</CardTitle>
-              <div className="flex items-center space-x-2">
-                <Button variant="outline" size="sm">
-                  <Filter className="w-4 h-4 mr-2" />
-                  Advanced Filters
-                </Button>
-                <Button variant="outline" size="sm">
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  AI Recommendations
-                </Button>
-              </div>
+        {/* ── bottom cta ─────────────────────────────────────────────── */}
+        {!isLocked && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            style={{ marginTop: 40, padding: "20px", background: surf, border: `1px solid ${bdr}`, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "space-between" }}
+          >
+            <div>
+              <p style={{ fontSize: 14, fontWeight: 600, color: ink, marginBottom: 4 }}>Improve your score to unlock more matches</p>
+              <p style={{ fontSize: 12, color: muted }}>Higher Q-Scores get shown to more investors and receive more unsolicited interest.</p>
             </div>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <Input
-                  placeholder="Search investors by name, firm, or focus area..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-              <Select value={selectedFocus} onValueChange={setSelectedFocus}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Investment Focus" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Focus Areas</SelectItem>
-                  <SelectItem value="ai-ml">AI/ML</SelectItem>
-                  <SelectItem value="saas">SaaS</SelectItem>
-                  <SelectItem value="healthtech">HealthTech</SelectItem>
-                  <SelectItem value="fintech">FinTech</SelectItem>
-                  <SelectItem value="climate">Climate</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={selectedStage} onValueChange={setSelectedStage}>
-                <SelectTrigger className="w-[150px]">
-                  <SelectValue placeholder="Stage" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Stages</SelectItem>
-                  <SelectItem value="pre-seed">Pre-Seed</SelectItem>
-                  <SelectItem value="seed">Seed</SelectItem>
-                  <SelectItem value="series-a">Series A</SelectItem>
-                  <SelectItem value="series-b">Series B</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
+            <Link href="/founder/assessment"
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "10px 20px", border: `1px solid ${bdr}`, borderRadius: 999, fontSize: 13, color: ink, textDecoration: "none", fontWeight: 500, flexShrink: 0, marginLeft: 16, transition: "border-color .15s" }}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.borderColor = ink)}
+              onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.borderColor = bdr)}
+            >
+              Complete assessment <ArrowRight style={{ height: 13, width: 13 }} />
+            </Link>
+          </motion.div>
+        )}
 
-        {/* Results */}
-        <Tabs defaultValue="recommended" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="recommended">
-              <Zap className="w-4 h-4 mr-2" />
-              AI Recommended (3)
-            </TabsTrigger>
-            <TabsTrigger value="all">All Matches (47)</TabsTrigger>
-            <TabsTrigger value="saved">Saved (12)</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="recommended" className="space-y-6">
-            <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-6 mb-6">
-              <div className="flex items-center space-x-3 mb-3">
-                <Sparkles className="w-6 h-6 text-blue-600" />
-                <h3 className="text-lg font-semibold text-gray-900">AI-Powered Recommendations</h3>
-              </div>
-              <p className="text-gray-700">
-                These investors are perfectly aligned with your startup profile, investment stage, and sector focus.
-                Our AI analyzed 50+ data points to find these matches.
-              </p>
-            </div>
-
-            <div className="grid lg:grid-cols-2 gap-6">
-              {investors.map(investor => renderInvestorCard(investor))}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="all" className="space-y-6">
-            <div className="grid lg:grid-cols-2 gap-6">
-              {investors.map(investor => renderInvestorCard(investor))}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="saved" className="space-y-6">
-            <div className="text-center py-12 text-gray-500">
-              <Heart className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-              <p>No saved investors yet</p>
-              <p className="text-sm">Start saving investors you&apos;re interested in connecting with</p>
-            </div>
-          </TabsContent>
-        </Tabs>
-
-        {/* CTA */}
-        <Card className="bg-gradient-to-r from-blue-600 to-purple-600 text-white">
-          <CardContent className="p-8 text-center">
-            <h3 className="text-xl font-bold mb-2">Get More Targeted Matches</h3>
-            <p className="mb-4">Complete your startup profile to unlock more precise investor recommendations</p>
-            <Button className="bg-white text-blue-600 hover:bg-gray-100">
-              Complete Profile
-              <ArrowRight className="w-4 h-4 ml-2" />
-            </Button>
-          </CardContent>
-        </Card>
       </div>
 
-      {/* Connection Request Modal */}
+      {/* connection modal */}
       {selectedInvestor && (
         <ConnectionRequestModal
           isOpen={isModalOpen}
-          onClose={() => {
-            setIsModalOpen(false)
-            setSelectedInvestor(null)
-          }}
+          onClose={() => { setIsModalOpen(false); setSelectedInvestor(null); }}
           onSubmit={handleConnectionSubmit}
           investorName={selectedInvestor.name}
           startupOneLiner="AI-powered platform helping early-stage founders improve their Q-Score and connect with aligned investors"
           keyMetrics={[
-            'Q-Score: 72/100 (78th percentile)',
+            `Q-Score: ${founderQScore}/100`,
             'Go-to-Market Score: 45 (Improving)',
             'Product-Market Fit validation in progress',
-            '3 months runway, seeking seed round'
+            '3 months runway, seeking seed round',
           ]}
-          matchReason={`Your startup's focus on ${selectedInvestor.investmentFocus[0]} aligns perfectly with ${selectedInvestor.firm}'s investment thesis. ${selectedInvestor.name} has invested in similar companies at your stage and has a ${selectedInvestor.responseRate}% response rate.`}
+          matchReason={`Your startup's focus on ${selectedInvestor.investmentFocus[0]} aligns with ${selectedInvestor.firm}'s thesis. ${selectedInvestor.name} has a ${selectedInvestor.responseRate}% response rate.`}
         />
       )}
     </div>

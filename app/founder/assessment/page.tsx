@@ -1,9 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import {
   ArrowRight,
   ArrowLeft,
@@ -512,149 +509,128 @@ export default function FounderAssessment() {
 
   const currentSectionData = getCurrentSection();
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-      {/* Header */}
-      <div className="border-b border-gray-200 bg-white/80 backdrop-blur-sm sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="h-8 w-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">Q</span>
-              </div>
-              <div>
-                <div className="font-semibold text-gray-900">Founder Assessment</div>
-                <div className="text-xs text-gray-600">
-                  {currentSectionData.category} • {currentSectionData.title}
-                </div>
-              </div>
-            </div>
+  // ── cream palette ──────────────────────────────────────────────────────────
+  const bg    = "#F9F7F2";
+  const surf  = "#F0EDE6";
+  const bdr   = "#E2DDD5";
+  const ink   = "#18160F";
+  const muted = "#8A867C";
+  const blue  = "#2563EB";
 
-            <div className="flex items-center space-x-4">
-              <div className="text-sm text-gray-600">
-                Section {currentSection + 1} of {sections.length}
-              </div>
-              <div className="w-32">
-                <Progress value={getProgressPercentage()} className="h-2" />
-              </div>
-              <div className="text-sm font-medium text-blue-600">
-                ~{currentSectionData.time} min
-              </div>
+  return (
+    <div style={{ minHeight: "100vh", background: bg, color: ink }}>
+
+      {/* ── sticky header ──────────────────────────────────────────────── */}
+      <div style={{ position: "sticky", top: 0, zIndex: 10, background: bg, borderBottom: `1px solid ${bdr}`, padding: "14px 24px" }}>
+        <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          {/* logo + section name */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ height: 30, width: 30, borderRadius: 7, background: blue, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <span style={{ color: "#fff", fontWeight: 900, fontSize: 8 }}>EA</span>
+            </div>
+            <div>
+              <p style={{ fontSize: 13, fontWeight: 600, color: ink, lineHeight: 1.2 }}>Q-Score Assessment</p>
+              <p style={{ fontSize: 11, color: muted }}>{currentSectionData.category}</p>
+            </div>
+          </div>
+
+          {/* section pill + time */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 12, color: muted }}>~{currentSectionData.time} min</span>
+            <div style={{ padding: "4px 12px", background: surf, border: `1px solid ${bdr}`, borderRadius: 999, fontSize: 12, color: ink, fontWeight: 600 }}>
+              {currentSection + 1} / {sections.length}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="flex items-start justify-center min-h-[calc(100vh-80px)] p-6 py-12">
-        <div className="w-full max-w-3xl">
-          {/* Section Card */}
-          <Card className="w-full">
-            <CardHeader className="border-b">
-              <div className="flex items-start justify-between">
-                <div className="flex items-start space-x-4">
-                  <div className={`h-12 w-12 rounded-xl flex items-center justify-center ${
-                    currentSection === 0 || currentSection === 1 ? 'bg-blue-100' :
-                    currentSection === 2 || currentSection === 3 ? 'bg-purple-100' :
-                    currentSection === 4 ? 'bg-green-100' :
-                    currentSection === 5 ? 'bg-orange-100' :
-                    currentSection === 6 ? 'bg-indigo-100' :
-                    currentSection === 7 ? 'bg-emerald-100' :
-                    'bg-pink-100'
-                  }`}>
-                    <currentSectionData.icon className={`h-6 w-6 ${
-                      currentSection === 0 || currentSection === 1 ? 'text-blue-600' :
-                      currentSection === 2 || currentSection === 3 ? 'text-purple-600' :
-                      currentSection === 4 ? 'text-green-600' :
-                      currentSection === 5 ? 'text-orange-600' :
-                      currentSection === 6 ? 'text-indigo-600' :
-                      currentSection === 7 ? 'text-emerald-600' :
-                      'text-pink-600'
-                    }`} />
-                  </div>
-                  <div>
-                    <CardTitle className="text-xl">{currentSectionData.title}</CardTitle>
-                    <div className="flex items-center space-x-3 mt-1">
-                      <span className="text-sm text-gray-600">{currentSectionData.category}</span>
-                      <span className="text-sm font-medium text-blue-600">
-                        +{currentSectionData.points} points
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CardHeader>
+      {/* ── main content ───────────────────────────────────────────────── */}
+      <div style={{ padding: "40px 24px 80px", display: "flex", justifyContent: "center" }}>
+        <div style={{ width: "100%", maxWidth: 720 }}>
 
-            <CardContent className="pt-6">
-              {renderSection()}
-            </CardContent>
-          </Card>
+          {/* section header */}
+          <div style={{ marginBottom: 28 }}>
+            <p style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.18em", color: muted, fontWeight: 600, marginBottom: 8 }}>
+              Section {currentSection + 1} — {currentSectionData.category}
+            </p>
+            <h1 style={{ fontSize: "clamp(1.5rem,3.5vw,2rem)", fontWeight: 300, letterSpacing: "-0.03em", color: ink, marginBottom: 6 }}>
+              {currentSectionData.title}
+            </h1>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <span style={{ fontSize: 12, color: muted }}>
+                Up to <strong style={{ color: blue, fontWeight: 600 }}>+{currentSectionData.points} pts</strong> toward your Q-Score
+              </span>
+              <span style={{ fontSize: 11, color: muted, opacity: 0.5 }}>·</span>
+              <span style={{ fontSize: 12, color: muted }}>Auto-saved</span>
+            </div>
+          </div>
 
-          {/* Navigation */}
-          <div className="flex justify-between items-center mt-8">
-            <Button
-              variant="ghost"
+          {/* section content box */}
+          <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 16, padding: "28px 28px", marginBottom: 28 }}>
+            {renderSection()}
+          </div>
+
+          {/* navigation */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <button
               onClick={handleBack}
               disabled={currentSection === 0}
-              size="lg"
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                fontSize: 14, color: currentSection === 0 ? bdr : muted,
+                background: "none", border: "none", cursor: currentSection === 0 ? "not-allowed" : "pointer",
+                transition: "color .15s",
+              }}
+              onMouseEnter={(e) => { if (currentSection > 0) (e.currentTarget as HTMLElement).style.color = ink; }}
+              onMouseLeave={(e) => { if (currentSection > 0) (e.currentTarget as HTMLElement).style.color = muted; }}
             >
-              <ArrowLeft className="h-4 w-4 mr-2" />
+              <ArrowLeft style={{ height: 15, width: 15 }} />
               Back
-            </Button>
+            </button>
 
-            <div className="flex items-center space-x-4">
-              <div className="text-sm text-gray-500">
-                {currentSection < 2 ? 'Building your founder profile...' :
-                 currentSection < 5 ? 'Analyzing your approach...' :
-                 'Almost done!'}
-              </div>
-
-              <Button
-                onClick={handleNext}
-                disabled={!canContinue()}
-                size="lg"
-                className="min-w-[140px]"
-              >
-                {currentSection === sections.length - 1 ? (
-                  <>
-                    Complete
-                    <CheckCircle className="ml-2 h-4 w-4" />
-                  </>
-                ) : (
-                  <>
-                    Continue
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </>
-                )}
-              </Button>
-            </div>
+            <button
+              onClick={handleNext}
+              disabled={!canContinue()}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 8,
+                background: canContinue() ? ink : bdr,
+                color: canContinue() ? bg : muted,
+                fontWeight: 500, padding: "12px 28px", borderRadius: 999,
+                fontSize: 14, border: "none",
+                cursor: canContinue() ? "pointer" : "not-allowed",
+                transition: "opacity .15s",
+                minWidth: 140,
+              }}
+              onMouseEnter={(e) => { if (canContinue()) (e.currentTarget as HTMLElement).style.opacity = "0.85"; }}
+              onMouseLeave={(e) => { if (canContinue()) (e.currentTarget as HTMLElement).style.opacity = "1"; }}
+            >
+              {currentSection === sections.length - 1 ? (
+                <>Complete <CheckCircle style={{ height: 15, width: 15 }} /></>
+              ) : (
+                <>Continue <ArrowRight style={{ height: 15, width: 15 }} /></>
+              )}
+            </button>
           </div>
 
-          {/* Progress Overview */}
-          <div className="mt-8 bg-white rounded-lg border border-gray-200 p-4">
-            <h4 className="text-sm font-medium text-gray-900 mb-3">Your Progress</h4>
-            <div className="grid grid-cols-9 gap-2">
-              {sections.map((section, idx) => (
-                <div
-                  key={section.id}
-                  className={`h-2 rounded-full ${
-                    idx < currentSection ? 'bg-green-500' :
-                    idx === currentSection ? 'bg-blue-500' :
-                    'bg-gray-200'
-                  }`}
-                  title={section.title}
-                />
-              ))}
-            </div>
-            <div className="flex justify-between mt-2">
-              <span className="text-xs text-gray-600">
-                {currentSection} completed
-              </span>
-              <span className="text-xs text-gray-600">
-                {sections.length - currentSection - 1} remaining
-              </span>
-            </div>
+          {/* progress dots */}
+          <div style={{ marginTop: 32, display: "flex", alignItems: "center", gap: 6 }}>
+            {sections.map((section, idx) => (
+              <div
+                key={section.id}
+                title={section.title}
+                style={{
+                  flex: 1, height: 3, borderRadius: 999,
+                  background: idx < currentSection ? "#16A34A" : idx === currentSection ? blue : bdr,
+                  transition: "background .3s",
+                }}
+              />
+            ))}
           </div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
+            <span style={{ fontSize: 11, color: muted }}>{currentSection} completed</span>
+            <span style={{ fontSize: 11, color: muted }}>{sections.length - currentSection - 1} remaining</span>
+          </div>
+
         </div>
       </div>
     </div>

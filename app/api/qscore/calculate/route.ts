@@ -46,11 +46,12 @@ export async function POST(request: NextRequest) {
     // Calculate percentile (compare to cohort)
     const percentile = await calculatePercentile(qScore.overall, user.id, supabase);
 
-    // Save Q-Score to history
+    // Save Q-Score to history (include previous_score_id to form a chain)
     const { data: savedScore, error: saveError } = await supabase
       .from('qscore_history')
       .insert({
         user_id: user.id,
+        previous_score_id: previousScoreData?.id ?? null,
         overall_score: qScore.overall,
         percentile,
         grade: qScore.grade,

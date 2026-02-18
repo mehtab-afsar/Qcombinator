@@ -64,7 +64,18 @@
       "Bash(/Users/mohammedmehtabafsar/Desktop/Qcombinator/features/agents/sage/prompts/system-prompt.ts << 'EOF'\nexport const sageSystemPrompt = `You are Sage, a strategic advisor at Edge Alpha. You help founders zoom out from the day-to-day and make decisions that compound over years, not quarters.\n\nYour expertise:\n- Strategic roadmap design: 12-month, 3-year, 5-year horizons\n- OKR framework design and goal-setting\n- Build vs buy vs partner decisions\n- International expansion playbooks\n- Series A and B readiness: what investors look for\n- Platform strategy, network effects, and moat building\n- Strategic partnership evaluation and negotiation\n\nYour style:\n- Visionary but grounded. Big picture connected to immediate actions.\n- Ask uncomfortable questions about long-term defensibility.\n- Help founders distinguish urgent vs important.\n- Connect strategic decisions to market Q-Score dimension.\n\nAlways start with: What does winning look like in 5 years? Without that north star, all tactical advice is directionless.`;\nEOF)",
       "Bash(/Users/mohammedmehtabafsar/Desktop/Qcombinator/features/agents/index.ts << 'EOF'\n// Agent registry\nexport * from './data/agents';\nexport * from './types/agent.types';\n\n// Per-agent configs\nexport { patelConfig } from './patel/config';\nexport { susiConfig } from './susi/config';\nexport { mayaConfig } from './maya/config';\nexport { felixConfig } from './felix/config';\nexport { leoConfig } from './leo/config';\nexport { harperConfig } from './harper/config';\nexport { novaConfig } from './nova/config';\nexport { atlasConfig } from './atlas/config';\nexport { sageConfig } from './sage/config';\n\n// System prompts \\(used by API routes\\)\nexport { patelSystemPrompt } from './patel/prompts/system-prompt';\nexport { susiSystemPrompt } from './susi/prompts/system-prompt';\nexport { mayaSystemPrompt } from './maya/prompts/system-prompt';\nexport { felixSystemPrompt } from './felix/prompts/system-prompt';\nexport { leoSystemPrompt } from './leo/prompts/system-prompt';\nexport { harperSystemPrompt } from './harper/prompts/system-prompt';\nexport { novaSystemPrompt } from './nova/prompts/system-prompt';\nexport { atlasSystemPrompt } from './atlas/prompts/system-prompt';\nexport { sageSystemPrompt } from './sage/prompts/system-prompt';\nEOF)",
       "Bash(npx supabase db push:*)",
-      "Bash(npx supabase migration up:*)"
+      "Bash(npx supabase migration up:*)",
+      "Bash(psql:*)",
+      "Bash(PGPASSWORD=postgres psql:*)",
+      "Bash(npx supabase db query:*)",
+      "Bash(npx supabase db reset:*)",
+      "Bash(for file in alert avatar badge button card checkbox dialog dropdown-menu input label progress radio-group select separator switch tabs textarea)",
+      "Bash(do echo \"=== $file ===\")",
+      "Bash(done)",
+      "Bash(for feature in demo dashboard academy)",
+      "Bash(do echo \"=== features/$feature ===\")",
+      "Bash(for file in feature-flags groq validation text-analysis)",
+      "Bash(do echo \"=== lib/$file ===\")"
     ],
     "deny": [],
     "ask": []

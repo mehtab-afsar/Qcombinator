@@ -1,391 +1,307 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { createClient } from "@supabase/supabase-js";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  ArrowLeft,
-  Send,
-  Paperclip,
-  Save,
-  TrendingUp,
-  Sparkles,
-  Download,
-  CheckCircle
-} from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { ArrowLeft, Send, TrendingUp } from "lucide-react";
 import Link from "next/link";
-import { getAgentById, getPillarColor } from "@/features/agents/data/agents";
-import { AgentMessage } from "@/features/agents/types/agent.types";
+import { getAgentById } from "@/features/agents/data/agents";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+// ─── palette ──────────────────────────────────────────────────────────────────
+const bg    = "#F9F7F2";
+const surf  = "#F0EDE6";
+const bdr   = "#E2DDD5";
+const ink   = "#18160F";
+const muted = "#8A867C";
+const blue  = "#2563EB";
+
+const pillarAccent: Record<string, string> = {
+  "sales-marketing":   "#2563EB",
+  "operations-finance": "#16A34A",
+  "product-strategy":  "#7C3AED",
+};
+
+const dimensionLabel: Record<string, string> = {
+  goToMarket: "GTM Score",
+  financial:  "Financial Score",
+  team:       "Team Score",
+  product:    "Product Score",
+  market:     "Market Score",
+  traction:   "Traction Score",
+};
+
+// ─── types ────────────────────────────────────────────────────────────────────
+interface UiMessage  { role: "agent" | "user"; text: string; }
+interface ApiMessage { role: "user" | "assistant"; content: string; }
+
+// ─── component ────────────────────────────────────────────────────────────────
 
 export default function AgentChat() {
-  const params = useParams();
-  const router = useRouter();
+  const params  = useParams();
+  const router  = useRouter();
   const agentId = params.agentId as string;
-  const agent = getAgentById(agentId);
+  const agent   = getAgentById(agentId);
 
-  const [messages, setMessages] = useState<AgentMessage[]>([]);
-  const [inputValue, setInputValue] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
-  const [conversationSaved, setConversationSaved] = useState(false);
-  const [userContext, setUserContext] = useState<Record<string, unknown> | null>(null);
-  const [conversationId, setConversationId] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [uiMessages,  setUiMessages]  = useState<UiMessage[]>([]);
+  const [apiMessages, setApiMessages] = useState<ApiMessage[]>([]);
+  const [input,       setInput]       = useState("");
+  const [typing,      setTyping]      = useState(false);
+  const [showPrompts, setShowPrompts] = useState(true);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Get current user and load previous conversation
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (data.user) {
-        setUserId(data.user.id);
-        // Load most recent conversation for this agent
-        supabase
-          .from('agent_conversations')
-          .select('id')
-          .eq('user_id', data.user.id)
-          .eq('agent_id', agentId)
-          .order('last_message_at', { ascending: false })
-          .limit(1)
-          .single()
-          .then(({ data: conv }) => {
-            if (conv) {
-              setConversationId(conv.id);
-              // Load messages for that conversation
-              supabase
-                .from('agent_messages')
-                .select('*')
-                .eq('conversation_id', conv.id)
-                .order('created_at', { ascending: true })
-                .then(({ data: msgs }) => {
-                  if (msgs && msgs.length > 0) {
-                    setMessages(msgs.map(m => ({
-                      id: m.id,
-                      agentId,
-                      role: m.role === 'user' ? 'user' : 'agent',
-                      content: m.content,
-                      timestamp: new Date(m.created_at)
-                    })));
-                  }
-                });
-            }
-          });
-      }
-    });
+    if (!agent) router.push("/founder/agents");
+  }, [agent, router]);
 
-    // Load user context from localStorage as fallback
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [uiMessages, typing]);
+
+  const callAI = useCallback(async (history: ApiMessage[]) => {
+    setTyping(true);
     try {
-      const profileData = localStorage.getItem('founderProfile');
-      const assessmentData = localStorage.getItem('assessmentData');
-      if (profileData || assessmentData) {
-        setUserContext({
-          ...(profileData ? JSON.parse(profileData) : {}),
-          assessment: assessmentData ? JSON.parse(assessmentData) : null
-        });
-      }
-    } catch (error) {
-      console.error('Error loading user context:', error);
+      const res = await fetch("/api/agents/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          agentId,
+          message: history[history.length - 1]?.content ?? "",
+          conversationHistory: history.slice(0, -1).map((m) => ({
+            role: m.role,
+            content: m.content,
+          })),
+        }),
+      });
+      const data = await res.json();
+      const reply: string = data.response ?? data.content ?? "Sorry, I couldn't respond right now. Please try again.";
+      setUiMessages((p) => [...p, { role: "agent", text: reply }]);
+      setApiMessages((p) => [...p, { role: "assistant", content: reply }]);
+    } catch {
+      setUiMessages((p) => [...p, { role: "agent", text: "Connection issue — please try again." }]);
+    } finally {
+      setTyping(false);
     }
   }, [agentId]);
 
-  // Redirect if agent not found
-  useEffect(() => {
-    if (!agent) {
-      router.push('/founder/agents');
-    }
-  }, [agent, router]);
+  const handleSend = useCallback((text?: string) => {
+    const msg = (text ?? input).trim();
+    if (!msg || typing) return;
+    setShowPrompts(false);
+    setInput("");
+    const userApiMsg: ApiMessage = { role: "user", content: msg };
+    const newHistory = [...apiMessages, userApiMsg];
+    setUiMessages((p) => [...p, { role: "user", text: msg }]);
+    setApiMessages(newHistory);
+    callAI(newHistory);
+  }, [input, typing, apiMessages, callAI]);
 
-  // Auto-scroll to bottom when new messages arrive
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  if (!agent) {
-    return null;
-  }
-
-  const colors = getPillarColor(agent.pillar);
-
-  // Mock AI response generator
-  const generateAgentResponse = (userMessage: string): string => {
-    const lowerMessage = userMessage.toLowerCase();
-
-    // ICP-related responses
-    if (lowerMessage.includes('icp') || lowerMessage.includes('ideal customer')) {
-      return `Great question about defining your ICP! Here's a framework I recommend:\n\n**1. Demographic Criteria:**\n- Company size (# employees, revenue)\n- Industry/vertical\n- Geography\n- Technology stack\n\n**2. Psychographic Criteria:**\n- Pain points and challenges\n- Current solutions being used\n- Budget authority\n- Decision-making process\n\n**3. Behavioral Indicators:**\n- Online behavior (what content they consume)\n- Buying signals\n- Engagement patterns\n\nWould you like me to help you fill this out for your specific startup? Tell me more about your product and target market.`;
-    }
-
-    // GTM/Channel strategy
-    if (lowerMessage.includes('channel') || lowerMessage.includes('acquisition') || lowerMessage.includes('gtm')) {
-      return `Let's build your go-to-market strategy! Here's my recommended approach:\n\n**Phase 1: Channel Testing (Months 1-3)**\n- Test 3-4 channels simultaneously\n- Allocate small budget to each ($500-2000)\n- Measure: CAC, conversion rate, time to close\n\n**Top B2B SaaS Channels:**\n1. **Content Marketing** (SEO, blog)\n   - Best for: Educational products, high ACV\n   - Timeline: 6-12 months to see results\n\n2. **LinkedIn Outbound** (cold outreach)\n   - Best for: Enterprise sales, specific ICPs\n   - Timeline: 1-3 months to optimize\n\n3. **Product-Led Growth** (free trial/freemium)\n   - Best for: Low friction products, viral potential\n   - Timeline: 3-6 months to build funnel\n\n4. **Partnerships** (integration, referral)\n   - Best for: Complementary products\n   - Timeline: 3-6 months to establish\n\nWhich channel sounds most promising for your startup?`;
-    }
-
-    // Pricing strategy
-    if (lowerMessage.includes('pric') || lowerMessage.includes('cost')) {
-      return `Pricing is crucial for GTM success! Here's my framework:\n\n**Value-Based Pricing Steps:**\n\n1. **Calculate Your Costs**\n   - Cost to serve one customer (COGS)\n   - Target gross margin (70%+ for SaaS)\n\n2. **Quantify Customer Value**\n   - Time saved × hourly rate\n   - Revenue generated\n   - Cost reduced\n\n3. **Check Competitive Benchmarks**\n   - Research 3-5 competitors\n   - Position premium, at-market, or value\n\n4. **Test with Customers**\n   - "What budget do you have for this?"\n   - Present 3 tiers: Good, Better, Best\n   - Measure price sensitivity\n\n**Pro Tip:** Price 10-20% below perceived value for fast adoption, then increase as you add features and social proof.\n\nWhat's your current pricing model?`;
-    }
-
-    // Sales process
-    if (lowerMessage.includes('sales') || lowerMessage.includes('demo') || lowerMessage.includes('close')) {
-      return `Let me share a proven B2B SaaS sales process:\n\n**The 4-Step Sales Framework:**\n\n**Step 1: Discovery Call (30 min)**\n- Understand their current process\n- Identify pain points (3-5 specific ones)\n- Quantify impact ($, time, efficiency)\n- Qualify: Budget, Authority, Need, Timeline (BANT)\n\n**Step 2: Demo/Solution Presentation (45 min)**\n- Start with THEIR problems (not your features)\n- Show 3 key workflows that solve their pain\n- Use their data/examples if possible\n- End with clear next steps\n\n**Step 3: Proposal & Negotiation (async)**\n- Send within 24 hours\n- Include: Scope, pricing, timeline, success metrics\n- Build in urgency (limited-time offer, cohort deadline)\n\n**Step 4: Close & Onboard (1 week)**\n- Simple contract (no red tape)\n- Kick-off call within 48 hours\n- Quick win in first week\n\nWhat part of your sales process needs the most help right now?`;
-    }
-
-    // Financial modeling
-    if (agent.id === 'sam' && (lowerMessage.includes('model') || lowerMessage.includes('financial'))) {
-      return `Let's build your financial model! Here's what you need:\n\n**Essential Financial Components:**\n\n**1. Revenue Model**\n- Monthly recurring revenue (MRR)\n- Churn rate (target <5% monthly)\n- Expansion revenue\n- Contract values & payment terms\n\n**2. Unit Economics**\n- Customer Acquisition Cost (CAC)\n- Lifetime Value (LTV)\n- LTV:CAC ratio (target 3:1 minimum)\n- Payback period (target <12 months)\n\n**3. Operating Expenses**\n- Team costs (burn rate)\n- Marketing & sales\n- Infrastructure & tools\n- General & admin\n\n**4. Cash Flow & Runway**\n- Monthly burn\n- Runway (months)\n- Revenue milestones\n\nWant me to create a template spreadsheet for you?`;
-    }
-
-    // Default response
-    return `Thanks for your question! ${agent.name} here. I specialize in ${agent.specialty.toLowerCase()}.\n\nI'd be happy to help you with that. Could you provide more context about:\n- Your current situation\n- What you've tried so far\n- What specific outcome you're looking for\n\nThis will help me give you more personalized advice!`;
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
 
-  // Send message handler with real Groq API
-  const handleSend = async () => {
-    if (!inputValue.trim()) return;
+  if (!agent) return null;
 
-    const userMessageContent = inputValue;
-
-    // Add user message
-    const userMessage: AgentMessage = {
-      id: `msg-${Date.now()}`,
-      agentId: agent.id,
-      role: 'user',
-      content: userMessageContent,
-      timestamp: new Date()
-    };
-
-    setMessages([...messages, userMessage]);
-    setInputValue("");
-    setIsTyping(true);
-
-    try {
-      // Call Groq API via our endpoint
-      const response = await fetch('/api/agents/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          agentId: agent.id,
-          message: userMessageContent,
-          conversationHistory: messages,
-          userContext,
-          conversationId,
-          userId
-        }),
-      });
-
-      const data = await response.json();
-
-      // Store conversationId for subsequent messages
-      if (data.conversationId && !conversationId) {
-        setConversationId(data.conversationId);
-      }
-
-      // Add agent response
-      const agentResponse: AgentMessage = {
-        id: `msg-${Date.now()}-agent`,
-        agentId: agent.id,
-        role: 'agent',
-        content: data.response || generateAgentResponse(userMessageContent),
-        timestamp: new Date()
-      };
-
-      setMessages(prev => [...prev, agentResponse]);
-    } catch (error) {
-      console.error('Error getting agent response:', error);
-
-      // Fallback response on error
-      const fallbackResponse: AgentMessage = {
-        id: `msg-${Date.now()}-agent`,
-        agentId: agent.id,
-        role: 'agent',
-        content: generateAgentResponse(userMessageContent), // Use mock as fallback
-        timestamp: new Date()
-      };
-
-      setMessages(prev => [...prev, fallbackResponse]);
-    } finally {
-      setIsTyping(false);
-    }
-  };
-
-  // Send suggested prompt
-  const handleSuggestedPrompt = (prompt: string) => {
-    setInputValue(prompt);
-  };
-
-  // Conversation is auto-saved to DB on each message; this just confirms to the user
-  const handleSave = () => {
-    setConversationSaved(true);
-    setTimeout(() => setConversationSaved(false), 3000);
-  };
-
-  // Export conversation
-  const handleExport = () => {
-    const conversationText = messages
-      .map(msg => `${msg.role === 'user' ? 'You' : agent.name}: ${msg.content}`)
-      .join('\n\n');
-
-    const blob = new Blob([conversationText], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${agent.name}-conversation-${new Date().toISOString().split('T')[0]}.txt`;
-    a.click();
-  };
+  const accent = pillarAccent[agent.pillar] ?? blue;
+  const dimLabel = dimensionLabel[agent.improvesScore] ?? agent.improvesScore;
 
   return (
-    <div className="h-screen flex flex-col max-w-6xl mx-auto p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center space-x-4">
-          <Link href="/founder/agents">
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Agents
-            </Button>
+    <div style={{ height: "100vh", display: "flex", flexDirection: "column", background: bg, color: ink }}>
+
+      {/* ── header ─────────────────────────────────────────────────────── */}
+      <div style={{ flexShrink: 0, borderBottom: `1px solid ${bdr}`, padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", background: bg }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <Link href="/founder/agents" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: muted, textDecoration: "none" }}
+            onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = ink)}
+            onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = muted)}
+          >
+            <ArrowLeft style={{ height: 14, width: 14 }} />
+            Agents
           </Link>
 
-          <div className="flex items-center space-x-3">
-            <div className={`h-12 w-12 rounded-xl ${colors.bg} ${colors.text} flex items-center justify-center font-bold text-xl`}>
+          <div style={{ width: 1, height: 18, background: bdr }} />
+
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {/* avatar */}
+            <div style={{
+              height: 38, width: 38, borderRadius: 10,
+              background: surf, border: `2px solid ${accent}`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 16, fontWeight: 700, color: accent, flexShrink: 0,
+            }}>
               {agent.name[0]}
             </div>
             <div>
-              <h1 className="text-xl font-bold text-gray-900">{agent.name}</h1>
-              <p className="text-sm text-gray-600">{agent.specialty}</p>
+              <p style={{ fontSize: 15, fontWeight: 600, color: ink, lineHeight: 1.2 }}>{agent.name}</p>
+              <p style={{ fontSize: 12, color: muted }}>{agent.specialty}</p>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center space-x-2">
-          <Button variant="outline" size="sm" onClick={handleSave}>
-            <Save className="h-4 w-4 mr-2" />
-            {conversationSaved ? 'Saved!' : 'Save Chat'}
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleExport}>
-            <Download className="h-4 w-4 mr-2" />
-            Export
-          </Button>
+        {/* dimension chip */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", background: surf, border: `1px solid ${bdr}`, borderRadius: 999, fontSize: 12, color: muted }}>
+          <TrendingUp style={{ height: 12, width: 12, color: accent }} />
+          Improves {dimLabel}
         </div>
       </div>
 
-      {/* Chat Container */}
-      <div className="flex-1 flex flex-col bg-white rounded-xl border border-gray-200 overflow-hidden">
-        {/* Suggested Prompts (shown when no messages) */}
-        {messages.length === 0 && (
-          <div className="p-6 bg-gradient-to-br from-blue-50 to-purple-50">
-            <div className="max-w-3xl mx-auto">
-              <h3 className="font-semibold text-gray-900 mb-3 flex items-center">
-                <Sparkles className="h-5 w-5 mr-2 text-purple-600" />
-                Suggested Questions to Get Started
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {agent.suggestedPrompts.slice(0, 6).map((prompt, idx) => (
-                  <Button
-                    key={idx}
-                    variant="outline"
-                    className="text-left h-auto py-3 px-4 hover:bg-white hover:border-purple-300 text-sm"
-                    onClick={() => handleSuggestedPrompt(prompt)}
-                  >
-                    {prompt}
-                  </Button>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
+      {/* ── messages ───────────────────────────────────────────────────── */}
+      <div style={{ flex: 1, overflowY: "auto", padding: "24px 16px" }}>
+        <div style={{ maxWidth: 680, margin: "0 auto", display: "flex", flexDirection: "column", gap: 16 }}>
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          {messages.map((message) => (
-            <div
-              key={message.id}
-              className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              <div className={`max-w-[70%] ${message.role === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-900'} rounded-2xl px-4 py-3`}>
-                <div className="text-sm whitespace-pre-wrap">{message.content}</div>
-                <div className={`text-xs mt-2 ${message.role === 'user' ? 'text-blue-100' : 'text-gray-500'}`}>
-                  {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          {/* suggested prompts — only before first message */}
+          <AnimatePresence>
+            {showPrompts && (
+              <motion.div
+                key="prompts"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.25 }}
+              >
+                {/* intro bubble */}
+                <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
+                  <div style={{ height: 28, width: 28, borderRadius: 8, background: surf, border: `2px solid ${accent}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: accent, flexShrink: 0, marginTop: 2 }}>
+                    {agent.name[0]}
+                  </div>
+                  <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 18, borderTopLeftRadius: 4, padding: "12px 16px", fontSize: 14, lineHeight: 1.6, color: ink, maxWidth: "82%" }}>
+                    {agent.description} What would you like to work on?
+                  </div>
                 </div>
+
+                {/* prompt chips */}
+                <div style={{ paddingLeft: 38, display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {agent.suggestedPrompts.slice(0, 5).map((p, i) => (
+                    <button
+                      key={i}
+                      onClick={() => handleSend(p)}
+                      style={{
+                        padding: "8px 14px", borderRadius: 999, fontSize: 13,
+                        background: bg, border: `1px solid ${bdr}`, color: ink,
+                        cursor: "pointer", transition: "border-color .15s, background .15s",
+                        whiteSpace: "nowrap",
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = ink; e.currentTarget.style.background = surf; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = bdr; e.currentTarget.style.background = bg; }}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* message thread */}
+          {uiMessages.map((msg, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.25 }}
+              style={{ display: "flex", gap: 10, flexDirection: msg.role === "user" ? "row-reverse" : "row" }}
+            >
+              {msg.role === "agent" && (
+                <div style={{ height: 28, width: 28, borderRadius: 8, background: surf, border: `2px solid ${accent}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: accent, flexShrink: 0, marginTop: 2 }}>
+                  {agent.name[0]}
+                </div>
+              )}
+              <div
+                style={{
+                  maxWidth: "78%",
+                  borderRadius: 18,
+                  padding: "12px 16px",
+                  fontSize: 14,
+                  lineHeight: 1.65,
+                  whiteSpace: "pre-wrap",
+                  background: msg.role === "user" ? ink : surf,
+                  color: msg.role === "user" ? bg : ink,
+                  border: msg.role === "agent" ? `1px solid ${bdr}` : "none",
+                  borderTopLeftRadius: msg.role === "agent" ? 4 : 18,
+                  borderTopRightRadius: msg.role === "user" ? 4 : 18,
+                }}
+              >
+                {msg.text}
               </div>
-            </div>
+            </motion.div>
           ))}
 
-          {/* Typing Indicator */}
-          {isTyping && (
-            <div className="flex justify-start">
-              <div className="bg-gray-100 rounded-2xl px-4 py-3">
-                <div className="flex space-x-2">
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                </div>
+          {/* typing indicator */}
+          {typing && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ display: "flex", gap: 10 }}>
+              <div style={{ height: 28, width: 28, borderRadius: 8, background: surf, border: `2px solid ${accent}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: accent, flexShrink: 0 }}>
+                {agent.name[0]}
               </div>
-            </div>
+              <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 18, borderTopLeftRadius: 4, padding: "14px 18px", display: "flex", gap: 5, alignItems: "center" }}>
+                {[0, 0.18, 0.36].map((d, i) => (
+                  <motion.div key={i} style={{ height: 6, width: 6, background: muted, borderRadius: "50%" }}
+                    animate={{ y: [0, -4, 0] }}
+                    transition={{ repeat: Infinity, duration: 0.8, delay: d }}
+                  />
+                ))}
+              </div>
+            </motion.div>
           )}
 
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Input Area */}
-        <div className="border-t border-gray-200 p-4 bg-gray-50">
-          <div className="flex items-end space-x-2 max-w-5xl mx-auto">
-            <Button variant="outline" size="icon" className="mb-1">
-              <Paperclip className="h-4 w-4" />
-            </Button>
-
-            <Textarea
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSend();
-                }
-              }}
-              placeholder={`Ask ${agent.name} anything about ${agent.specialty.toLowerCase()}...`}
-              className="flex-1 min-h-[60px] max-h-[120px] resize-none"
-              rows={2}
-            />
-
-            <Button
-              onClick={handleSend}
-              disabled={!inputValue.trim()}
-              className="mb-1"
-            >
-              <Send className="h-4 w-4 mr-2" />
-              Send
-            </Button>
-          </div>
-
-          {/* Feedback Button */}
-          {messages.length > 2 && (
-            <div className="mt-3 text-center">
-              <Button variant="ghost" size="sm" className="text-green-600 hover:text-green-700 hover:bg-green-50">
-                <CheckCircle className="h-4 w-4 mr-2" />
-                This improved my {agent.improvesScore === 'goToMarket' ? 'GTM' : agent.improvesScore} Score
-                <TrendingUp className="h-4 w-4 ml-2" />
-              </Button>
-            </div>
-          )}
+          <div ref={chatEndRef} />
         </div>
       </div>
 
-      {/* Tips Card */}
-      <Card className="mt-4 bg-blue-50 border-blue-200">
-        <CardContent className="p-4">
-          <p className="text-sm text-gray-700">
-            <strong className="text-blue-900">💡 Pro Tip:</strong> Be specific about your situation for better advice. You can attach documents using the paperclip icon.
-          </p>
-        </CardContent>
-      </Card>
+      {/* ── input ──────────────────────────────────────────────────────── */}
+      <div style={{ flexShrink: 0, borderTop: `1px solid ${bdr}`, padding: "14px 16px", background: bg }}>
+        <div style={{ maxWidth: 680, margin: "0 auto", display: "flex", alignItems: "flex-end", gap: 10 }}>
+          <textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={`Ask ${agent.name} anything about ${agent.specialty.toLowerCase()}…`}
+            disabled={typing}
+            rows={1}
+            style={{
+              flex: 1,
+              background: surf,
+              border: `1px solid ${bdr}`,
+              borderRadius: 12,
+              padding: "12px 16px",
+              fontSize: 14,
+              color: ink,
+              resize: "none",
+              outline: "none",
+              fontFamily: "inherit",
+              lineHeight: 1.5,
+              maxHeight: 120,
+              overflowY: "auto",
+              opacity: typing ? 0.5 : 1,
+              cursor: typing ? "not-allowed" : "text",
+            }}
+            onInput={(e) => {
+              const el = e.currentTarget;
+              el.style.height = "auto";
+              el.style.height = Math.min(el.scrollHeight, 120) + "px";
+            }}
+          />
+          <button
+            onClick={() => handleSend()}
+            disabled={!input.trim() || typing}
+            style={{
+              height: 44, width: 44,
+              background: ink,
+              borderRadius: 12,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              flexShrink: 0,
+              border: "none",
+              cursor: !input.trim() || typing ? "not-allowed" : "pointer",
+              opacity: !input.trim() || typing ? 0.3 : 1,
+              transition: "opacity .15s",
+            }}
+          >
+            <Send style={{ height: 16, width: 16, color: bg }} />
+          </button>
+        </div>
+        <p style={{ textAlign: "center", fontSize: 11, color: muted, marginTop: 8, opacity: 0.5 }}>
+          Enter to send · Shift+Enter for new line · Sessions auto-save
+        </p>
+      </div>
+
     </div>
   );
 }

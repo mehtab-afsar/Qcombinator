@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
     );
 
     // Get signup data from request
-    const { email, password, fullName, startupName, industry, stage } = await request.json();
+    const { email, password, fullName, startupName, industry, stage, funding, timeCommitment } = await request.json();
 
     // Validate required fields
     if (!email || !password || !fullName) {
@@ -85,6 +85,9 @@ export async function POST(request: NextRequest) {
         startup_name: startupName || null,
         industry: industry || null,
         stage: stage || 'idea',
+        funding: funding || null,
+        time_commitment: timeCommitment || null,
+        role: 'founder',
         subscription_tier: 'free',
         onboarding_completed: false,
         assessment_completed: false,

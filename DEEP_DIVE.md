@@ -7,24 +7,25 @@ Each section lists current state, what's missing, and exact work needed.
 
 ## 1. Q-Score Algorithm
 
-### Current State
-- 6-dimension weighted model built: Market (20%), Product (18%), GTM (17%), Financial (18%), Team (15%), Traction (12%)
+### Current State ✅
+- 6-dimension weighted model: Market (20%), Product (18%), GTM (17%), Financial (18%), Team (15%), Traction (12%)
 - Calculators live in `features/qscore/calculators/dimensions/`
-- Scores saved to `qscore_history` table
+- Scores saved to `qscore_history` with `previous_score_id` FK chain
+- `qscore_with_delta` DB view — single query returns current score + all dimension deltas
+- `/api/qscore/calculate` — real percentile (ranks against all users), links `previous_score_id` on insert
+- `/api/qscore/latest` — reads from `qscore_with_delta` view (no N+1), returns `change` + per-dimension trends
 - `useQScore` hook reads latest score from DB in real time
 
 ### What's Missing
-- **Percentile calculation**: Currently hardcoded to `50`. Needs to compare user's score against cohort (all `qscore_history` rows) to produce a real rank
-- **Grade thresholds**: `A+` = 95+, `A` = 90–94, `B+` = 80–89, `B` = 70–79, `C` = 55–69, `D` = 40–54, `F` = <40. Currently defined but not validated end-to-end
-- **Week-over-week change**: `/api/qscore/latest` should compare to the previous score and return `change` delta per dimension
-- **Score improvement tips**: Each dimension needs 3–5 specific, actionable recommendations based on the actual answers that caused low scores
-- **Industry / stage adjustments**: Phase 2 — a SaaS company in idea stage should be scored differently than a launched fintech
+- **Grade thresholds validated end-to-end**: Grade column is saved but the dashboard UI may not display it yet — verify `grade` appears on the score card
+- **Score improvement tips**: Each dimension needs 3–5 specific, actionable recommendations based on the actual answers that caused low scores (not just the score number)
+- **Industry / stage adjustments**: Phase 2 — a SaaS company at idea stage should be scored differently than a launched fintech; requires multipliers in `prd-aligned-qscore.ts`
+- **Scoring rubric validation**: Run 10 real test submissions through the calculators and verify the output scores match expected ranges
 
 ### Files to Touch
-- `app/api/qscore/latest/route.ts` — add previous score comparison
-- `app/api/qscore/calculate/route.ts` — add real percentile query
-- `features/qscore/calculators/dimensions/*.ts` — validate scoring rubrics with real data
-- `features/qscore/calculators/prd-aligned-qscore.ts` — wire in industry/stage multipliers (Phase 2)
+- `features/qscore/calculators/dimensions/*.ts` — validate scoring rubrics with real submission data
+- `features/qscore/utils/recommendations.ts` — add `getImprovementTips(dimension, score, assessmentData)` that references the actual form answers
+- `features/qscore/calculators/prd-aligned-qscore.ts` — add industry/stage multipliers (Phase 2)
 
 ---
 
@@ -253,7 +254,7 @@ Each section lists current state, what's missing, and exact work needed.
 |---|---|---|---|
 | Auth flow (route guards, role routing) | Small | Blocker | **P0** |
 | Agent system prompts wired in | Small | High | **P0** |
-| Q-Score percentile + week delta | Small | High | **P1** |
+| Q-Score percentile + week delta | ~~Small~~ | ~~High~~ | ~~**P1**~~ ✅ Done |
 | Assessment validation + resume | Medium | High | **P1** |
 | Investor profiles table + seed | Medium | High | **P1** |
 | Connection requests → DB | Small | High | **P1** |

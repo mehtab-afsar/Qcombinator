@@ -102,10 +102,24 @@ export default function InvestorOnboarding() {
     setCurrentStep(2)
   }
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (currentStep < totalSteps) {
       setCurrentStep(currentStep + 1)
     } else {
+      // Final step — persist all 4 steps to DB
+      try {
+        const response = await fetch('/api/investor/onboarding', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData),
+        })
+        if (!response.ok) {
+          const err = await response.json()
+          console.error('Investor onboarding save error:', err)
+        }
+      } catch (err) {
+        console.error('Investor onboarding error:', err)
+      }
       router.push('/investor/dashboard')
     }
   }

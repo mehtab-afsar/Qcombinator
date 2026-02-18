@@ -10,7 +10,6 @@ import {
   Target,
   MessageSquare,
   Settings,
-  HelpCircle,
   Brain,
   Home,
   GraduationCap,
@@ -175,17 +174,6 @@ export default function FounderSidebar({ className }: FounderSidebarProps) {
           >
             <Settings className={`h-4 w-4 ${!isCollapsed && 'mr-3'}`} />
             {!isCollapsed && 'Settings'}
-          </Button>
-        </Link>
-
-        <Link href="/founder/help">
-          <Button
-            variant="ghost"
-            className={`w-full ${isCollapsed ? 'justify-center px-2' : 'justify-start'} text-gray-600 hover:text-gray-900 font-light`}
-            title={isCollapsed ? "Help & Support" : undefined}
-          >
-            <HelpCircle className={`h-4 w-4 ${!isCollapsed && 'mr-3'}`} />
-            {!isCollapsed && 'Help & Support'}
           </Button>
         </Link>
       </div>
