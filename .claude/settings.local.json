@@ -76,7 +76,10 @@
       "Bash(do echo \"=== features/$feature ===\")",
       "Bash(for file in feature-flags groq validation text-analysis)",
       "Bash(do echo \"=== lib/$file ===\")",
-      "Bash(echo:*)"
+      "Bash(echo:*)",
+      "Bash(npx next lint:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ],
     "deny": [],
     "ask": []

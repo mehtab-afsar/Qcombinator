@@ -285,7 +285,7 @@ export default function FounderAssessment() {
   ];
 
   const getCurrentSection = () => sections[currentSection];
-  const getProgressPercentage = () => ((currentSection + 1) / sections.length) * 100;
+  const _getProgressPercentage = () => ((currentSection + 1) / sections.length) * 100;
 
   const handleNext = async () => {
     if (currentSection < sections.length - 1) {
