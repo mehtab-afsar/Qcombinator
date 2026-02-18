@@ -79,7 +79,9 @@
       "Bash(echo:*)",
       "Bash(npx next lint:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(npx supabase:*)",
+      "Bash(node scripts/seed-demo-user.mjs:*)"
     ],
     "deny": [],
     "ask": []
