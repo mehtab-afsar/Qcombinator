@@ -95,6 +95,116 @@ const stats = [
   { value: "95%", label: "Match accuracy" },
 ];
 
+// ─── GetStartedDropdown ───────────────────────────────────────────────────────
+// Replaces every primary CTA button. On click shows two options:
+//   "Get started free"  → /founder/onboarding  (new user flow)
+//   "Sign in"           → /login               (returning user)
+// No dropdown arrow symbol — just the label text.
+
+function GetStartedDropdown({
+  label,
+  className,
+  style,
+  align = "center",
+}: {
+  label: React.ReactNode;
+  className?: string;
+  style?: React.CSSProperties;
+  align?: "left" | "center" | "right";
+}) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const navigate = (path: string) => { router.push(path); setOpen(false); };
+
+  const alignStyle: React.CSSProperties =
+    align === "left"  ? { left: 0 } :
+    align === "right" ? { right: 0 } :
+    { left: "50%", transform: "translateX(-50%)" };
+
+  return (
+    <div ref={ref} style={{ position: "relative", display: "inline-flex" }}>
+      <button onClick={() => setOpen((v) => !v)} className={className} style={style}>
+        {label}
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: 8, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 4, scale: 0.97 }}
+            transition={{ duration: 0.14 }}
+            style={{
+              position: "absolute",
+              top: "calc(100% + 10px)",
+              ...alignStyle,
+              background: "#F9F7F2",
+              border: "1px solid #E2DDD5",
+              borderRadius: 12,
+              overflow: "hidden",
+              minWidth: 210,
+              boxShadow: "0 12px 36px rgba(24,22,15,0.13)",
+              zIndex: 200,
+            }}
+          >
+            {/* First time */}
+            <button
+              onClick={() => navigate("/founder/onboarding")}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "#F0EDE6")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+              style={{
+                display: "block", width: "100%", padding: "14px 20px",
+                textAlign: "left", background: "transparent", border: "none",
+                cursor: "pointer",
+              }}
+            >
+              <span style={{ fontSize: 11, display: "block", color: "#8A867C", marginBottom: 2,
+                fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase" }}>
+                First time
+              </span>
+              <span style={{ fontSize: 14, fontWeight: 500, color: "#18160F" }}>
+                Get started free
+              </span>
+            </button>
+
+            <div style={{ height: 1, background: "#E2DDD5" }} />
+
+            {/* Returning user */}
+            <button
+              onClick={() => navigate("/login")}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "#F0EDE6")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+              style={{
+                display: "block", width: "100%", padding: "14px 20px",
+                textAlign: "left", background: "transparent", border: "none",
+                cursor: "pointer",
+              }}
+            >
+              <span style={{ fontSize: 11, display: "block", color: "#8A867C", marginBottom: 2,
+                fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase" }}>
+                Returning
+              </span>
+              <span style={{ fontSize: 14, fontWeight: 400, color: "#18160F" }}>
+                Sign in
+              </span>
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 // ─── component ───────────────────────────────────────────────────────────────
 
 export default function LandingPage() {
@@ -151,13 +261,12 @@ export default function LandingPage() {
                 {l}
               </a>
             ))}
-            <button
-              onClick={() => go("/founder/onboarding")}
+            <GetStartedDropdown
+              label="Get started"
               className="text-[13px] font-medium px-5 py-2 rounded-full transition-colors"
               style={{ background: "#18160F", color: "#F9F7F2" }}
-            >
-              Get started
-            </button>
+              align="right"
+            />
           </nav>
 
           <button className="md:hidden" onClick={() => setMobileOpen(!mobileOpen)} style={{ color: "#8A867C" }}>
@@ -176,13 +285,12 @@ export default function LandingPage() {
             >
               <a href="#how-it-works" className="block text-sm font-light" style={{ color: "#8A867C" }} onClick={() => setMobileOpen(false)}>How it works</a>
               <a href="#for-investors" className="block text-sm font-light" style={{ color: "#8A867C" }} onClick={() => setMobileOpen(false)}>For investors</a>
-              <button
-                onClick={() => { go("/founder/onboarding"); setMobileOpen(false); }}
+              <GetStartedDropdown
+                label="Get started free"
                 className="w-full text-sm font-medium py-3 rounded-full"
                 style={{ background: "#18160F", color: "#F9F7F2" }}
-              >
-                Get started free
-              </button>
+                align="center"
+              />
             </motion.div>
           )}
         </AnimatePresence>
@@ -216,14 +324,12 @@ export default function LandingPage() {
             </p>
 
             <div className="flex flex-wrap items-center gap-4 mb-12">
-              <button
-                onClick={() => go("/founder/onboarding")}
+              <GetStartedDropdown
+                label={<>Start free <ArrowRight className="h-4 w-4" /></>}
                 className="inline-flex items-center gap-2 text-[14px] font-medium px-7 py-3.5 rounded-full transition-all hover:opacity-90"
                 style={{ background: "#18160F", color: "#F9F7F2" }}
-              >
-                Start free
-                <ArrowRight className="h-4 w-4" />
-              </button>
+                align="left"
+              />
               <button
                 onClick={() => document.getElementById("how-it-works")?.scrollIntoView({ behavior: "smooth" })}
                 className="text-[14px] font-light inline-flex items-center gap-1.5 transition-opacity hover:opacity-70"
@@ -740,13 +846,12 @@ export default function LandingPage() {
               Join 10,000+ founders using Edge Alpha to build investor-ready businesses and connect with the right capital.
             </p>
             <div className="flex flex-wrap justify-center gap-4">
-              <button
-                onClick={() => go("/founder/onboarding")}
+              <GetStartedDropdown
+                label={<>Get started free <ArrowRight className="h-4 w-4" /></>}
                 className="inline-flex items-center gap-2 font-medium px-9 py-4 rounded-full text-[15px] transition-opacity hover:opacity-85"
                 style={{ background: "#18160F", color: "#F9F7F2" }}
-              >
-                Get started free <ArrowRight className="h-4 w-4" />
-              </button>
+                align="center"
+              />
               <button
                 onClick={() => go("/investor/onboarding")}
                 className="inline-flex items-center gap-2 font-light px-9 py-4 rounded-full text-[15px] transition-colors"
