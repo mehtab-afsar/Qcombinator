@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import type { PitchAnalysis } from '@/lib/groq'
+interface PitchAnalysis {
+  overallScore: number; clarity: number; market: number; traction: number
+  team: number; financials: number; strengths: string[]; improvements: string[]; summary: string
+}
 
 const FALLBACK: PitchAnalysis = {
   overallScore: 7.2,

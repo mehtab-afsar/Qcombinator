@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect, useCallback, Suspense } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@supabase/supabase-js";
 import { motion, AnimatePresence } from "framer-motion";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,11 +19,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 // ─── palette ──────────────────────────────────────────────────────────────────
 // bg: #F9F7F2 | surface: #F0EDE6 | border: #E2DDD5
@@ -221,6 +215,8 @@ function OnboardingContent() {
       });
       const data = await res.json();
       if (!res.ok) { toast.error(data.error || "Signup failed"); setSigningUp(false); return; }
+      const { createClient } = await import("@supabase/supabase-js");
+      const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
       await supabase.auth.signInWithPassword({ email: signup.email, password: signup.password });
       toast.success("Account created!");
       setStep("score");

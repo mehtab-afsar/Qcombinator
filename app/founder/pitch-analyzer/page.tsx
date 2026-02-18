@@ -5,7 +5,10 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
 import { Progress } from "@/components/ui/progress"
-import { type PitchAnalysis } from "@/lib/groq"
+interface PitchAnalysis {
+  overallScore: number; clarity: number; market: number; traction: number
+  team: number; financials: number; strengths: string[]; improvements: string[]; summary: string
+}
 import {
   Brain,
   CheckCircle,
