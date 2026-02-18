@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Search,
@@ -37,86 +37,62 @@ interface Investor {
   connectionStatus: ConnectionStatus
 }
 
-// ─── mock data ────────────────────────────────────────────────────────────────
-const mockInvestors: Investor[] = [
-  {
-    id: '1',
-    name: 'Sarah Johnson',
-    firm: 'TechVenture Partners',
-    matchScore: 94,
-    investmentFocus: ['AI/ML', 'SaaS', 'Enterprise'],
-    checkSize: '$1M–$5M',
-    location: 'San Francisco, CA',
-    portfolio: ['OpenAI', 'Stripe', 'Figma'],
-    responseRate: 85,
-    thesis: 'Investing in AI-first companies transforming enterprise workflows',
+// ─── DB row shape ─────────────────────────────────────────────────────────────
+interface DBInvestor {
+  id: string
+  name: string
+  firm: string
+  title: string
+  location: string
+  check_sizes: string[]
+  stages: string[]
+  sectors: string[]
+  geography: string[]
+  thesis: string | null
+  portfolio: string[]
+  response_rate: number
+}
+
+// Map a DB row → UI Investor, computing a naive match score
+function mapInvestor(row: DBInvestor): Investor {
+  return {
+    id: row.id,
+    name: row.name,
+    firm: row.firm,
+    matchScore: 70 + Math.floor(row.response_rate / 10),  // simple proxy for demo
+    investmentFocus: row.sectors.slice(0, 3),
+    checkSize: row.check_sizes[0] ?? 'Varies',
+    location: row.location,
+    portfolio: row.portfolio.slice(0, 3),
+    responseRate: row.response_rate,
+    thesis: row.thesis ?? '',
     connectionStatus: 'none',
-  },
-  {
-    id: '2',
-    name: 'Michael Chen',
-    firm: 'Innovation Capital',
-    matchScore: 89,
-    investmentFocus: ['HealthTech', 'AI/ML', 'B2B'],
-    checkSize: '$500K–$2M',
-    location: 'Boston, MA',
-    portfolio: ['Moderna', 'Veracyte', 'PathAI'],
-    responseRate: 78,
-    thesis: 'Healthcare innovation through AI and data-driven solutions',
-    connectionStatus: 'pending',
-  },
-  {
-    id: '3',
-    name: 'Emily Rodriguez',
-    firm: 'Future Fund',
-    matchScore: 87,
-    investmentFocus: ['Climate', 'Energy', 'Sustainability'],
-    checkSize: '$2M–$10M',
-    location: 'New York, NY',
-    portfolio: ['Tesla', 'Rivian', 'Sunrun'],
-    responseRate: 92,
-    thesis: 'Climate solutions and sustainable technology for global impact',
-    connectionStatus: 'viewed',
-  },
-  {
-    id: '4',
-    name: 'James Park',
-    firm: 'Sequoia Scout',
-    matchScore: 83,
-    investmentFocus: ['FinTech', 'SaaS', 'Marketplace'],
-    checkSize: '$500K–$3M',
-    location: 'Menlo Park, CA',
-    portfolio: ['Stripe', 'Notion', 'Linear'],
-    responseRate: 72,
-    thesis: 'Developer-first tools and infrastructure enabling the next wave of fintech',
-    connectionStatus: 'none',
-  },
-  {
-    id: '5',
-    name: 'Priya Patel',
-    firm: 'Accel',
-    matchScore: 79,
-    investmentFocus: ['AI/ML', 'Developer Tools', 'B2B'],
-    checkSize: '$2M–$12M',
-    location: 'London, UK',
-    portfolio: ['Coda', 'Pipedrive', 'Samsara'],
-    responseRate: 65,
-    thesis: 'Enterprise software that makes workers 10x more productive',
-    connectionStatus: 'none',
-  },
-]
+  }
+}
 
 // ─── component ────────────────────────────────────────────────────────────────
 
 export default function InvestorMatching() {
-  const [searchTerm,      setSearchTerm]      = useState('')
-  const [selectedFocus,   setSelectedFocus]   = useState('all')
+  const [searchTerm,       setSearchTerm]       = useState('')
+  const [selectedFocus,    setSelectedFocus]    = useState('all')
   const [selectedInvestor, setSelectedInvestor] = useState<Investor | null>(null)
-  const [isModalOpen,     setIsModalOpen]     = useState(false)
-  const [investors,       setInvestors]       = useState(mockInvestors)
+  const [isModalOpen,      setIsModalOpen]      = useState(false)
+  const [investors,        setInvestors]        = useState<Investor[]>([])
+  const [loadingInvestors, setLoadingInvestors] = useState(true)
   const { qScore } = useQScore()
   const founderQScore = qScore?.overall ?? 62   // use 62 as demo default so gate is visible
   const isLocked = founderQScore < 65
+
+  // Fetch investors from DB on mount
+  useEffect(() => {
+    fetch('/api/investors')
+      .then(r => r.json())
+      .then(data => {
+        if (data.investors) setInvestors(data.investors.map(mapInvestor))
+      })
+      .catch(console.error)
+      .finally(() => setLoadingInvestors(false))
+  }, [])
 
   const handleConnectClick = (investor: Investor) => {
     if (isLocked) return
@@ -157,7 +133,7 @@ export default function InvestorMatching() {
             Investor Marketplace
           </p>
           <h1 style={{ fontSize: "clamp(1.6rem,4vw,2.4rem)", fontWeight: 300, letterSpacing: "-0.03em", color: ink, marginBottom: 8 }}>
-            {filtered.length} investors matched to your profile.
+            {loadingInvestors ? 'Loading investors…' : `${filtered.length} investors matched to your profile.`}
           </h1>
           <div style={{ display: "flex", gap: 20 }}>
             {[

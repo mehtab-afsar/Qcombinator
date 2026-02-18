@@ -42,22 +42,74 @@ export default function AgentChat() {
   const agentId = params.agentId as string;
   const agent   = getAgentById(agentId);
 
-  const [uiMessages,  setUiMessages]  = useState<UiMessage[]>([]);
-  const [apiMessages, setApiMessages] = useState<ApiMessage[]>([]);
-  const [input,       setInput]       = useState("");
-  const [typing,      setTyping]      = useState(false);
-  const [showPrompts, setShowPrompts] = useState(true);
+  const [uiMessages,     setUiMessages]     = useState<UiMessage[]>([]);
+  const [apiMessages,    setApiMessages]    = useState<ApiMessage[]>([]);
+  const [input,          setInput]          = useState("");
+  const [typing,         setTyping]         = useState(false);
+  const [showPrompts,    setShowPrompts]    = useState(true);
+  const [userId,         setUserId]         = useState<string | null>(null);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(true);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
+  // Redirect if agent not found
   useEffect(() => {
     if (!agent) router.push("/founder/agents");
   }, [agent, router]);
 
+  // Scroll on new messages
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [uiMessages, typing]);
 
-  const callAI = useCallback(async (history: ApiMessage[]) => {
+  // Load user session + previous conversation from DB
+  useEffect(() => {
+    (async () => {
+      try {
+        const { createClient } = await import("@/lib/supabase/client");
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) { setHistoryLoading(false); return; }
+        setUserId(user.id);
+
+        const { data: conv } = await supabase
+          .from("agent_conversations")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("agent_id", agentId)
+          .order("last_message_at", { ascending: false })
+          .limit(1)
+          .single();
+
+        if (!conv) { setHistoryLoading(false); return; }
+        setConversationId(conv.id);
+
+        const { data: msgs } = await supabase
+          .from("agent_messages")
+          .select("role, content")
+          .eq("conversation_id", conv.id)
+          .order("created_at", { ascending: true });
+
+        if (msgs && msgs.length > 0) {
+          setUiMessages(msgs.map(m => ({
+            role: (m.role === "user" ? "user" : "agent") as "user" | "agent",
+            text: m.content,
+          })));
+          setApiMessages(msgs.map(m => ({
+            role: m.role as "user" | "assistant",
+            content: m.content,
+          })));
+          setShowPrompts(false);
+        }
+      } catch {
+        // Not logged in or DB not configured — fresh anonymous session
+      } finally {
+        setHistoryLoading(false);
+      }
+    })();
+  }, [agentId]);
+
+  const callAI = useCallback(async (history: ApiMessage[], convId: string | null) => {
     setTyping(true);
     try {
       const res = await fetch("/api/agents/chat", {
@@ -70,10 +122,14 @@ export default function AgentChat() {
             role: m.role,
             content: m.content,
           })),
+          userId:         userId ?? undefined,
+          conversationId: convId ?? undefined,
         }),
       });
       const data = await res.json();
       const reply: string = data.response ?? data.content ?? "Sorry, I couldn't respond right now. Please try again.";
+      // Capture the conversationId created by the API on the first message
+      if (data.conversationId && !convId) setConversationId(data.conversationId);
       setUiMessages((p) => [...p, { role: "agent", text: reply }]);
       setApiMessages((p) => [...p, { role: "assistant", content: reply }]);
     } catch {
@@ -81,7 +137,7 @@ export default function AgentChat() {
     } finally {
       setTyping(false);
     }
-  }, [agentId]);
+  }, [agentId, userId]);
 
   const handleSend = useCallback((text?: string) => {
     const msg = (text ?? input).trim();
@@ -92,14 +148,19 @@ export default function AgentChat() {
     const newHistory = [...apiMessages, userApiMsg];
     setUiMessages((p) => [...p, { role: "user", text: msg }]);
     setApiMessages(newHistory);
-    callAI(newHistory);
-  }, [input, typing, apiMessages, callAI]);
+    callAI(newHistory, conversationId);
+  }, [input, typing, apiMessages, callAI, conversationId]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
 
   if (!agent) return null;
+  if (historyLoading) return (
+    <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: bg }}>
+      <span style={{ fontSize: 13, color: muted }}>Loading conversation…</span>
+    </div>
+  );
 
   const accent = pillarAccent[agent.pillar] ?? blue;
   const dimLabel = dimensionLabel[agent.improvesScore] ?? agent.improvesScore;

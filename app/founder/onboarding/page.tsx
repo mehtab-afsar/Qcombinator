@@ -215,8 +215,8 @@ function OnboardingContent() {
       });
       const data = await res.json();
       if (!res.ok) { toast.error(data.error || "Signup failed"); setSigningUp(false); return; }
-      const { createClient } = await import("@supabase/supabase-js");
-      const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
+      const { createClient } = await import("@/lib/supabase/client");
+      const supabase = createClient();
       await supabase.auth.signInWithPassword({ email: signup.email, password: signup.password });
       toast.success("Account created!");
       setStep("score");
