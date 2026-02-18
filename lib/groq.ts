@@ -1,8 +1,14 @@
 import Groq from 'groq-sdk'
 
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
-})
+// Lazy singleton — only instantiated when first used, not at module evaluation time
+// This prevents build-time crashes when GROQ_API_KEY is not set
+let _groq: Groq | null = null
+function getGroq(): Groq {
+  if (!_groq) {
+    _groq = new Groq({ apiKey: process.env.GROQ_API_KEY ?? 'placeholder' })
+  }
+  return _groq
+}
 
 export interface PitchAnalysis {
   overallScore: number
@@ -57,7 +63,7 @@ export class GroqAIService {
     try {
       console.log('🚀 Analyzing pitch with Llama-3.1-70B model...')
 
-      const response = await groq.chat.completions.create({
+      const response = await getGroq().chat.completions.create({
         messages: [
           {
             role: "system",
@@ -127,7 +133,7 @@ export class GroqAIService {
     try {
       console.log('📊 Generating Q-Score with Mixtral-8x7B model...')
 
-      const response = await groq.chat.completions.create({
+      const response = await getGroq().chat.completions.create({
         messages: [
           {
             role: "system",
@@ -206,7 +212,7 @@ export class GroqAIService {
     try {
       console.log('🎯 Analyzing investor match with Llama-3-8B-Instant model...')
 
-      const response = await groq.chat.completions.create({
+      const response = await getGroq().chat.completions.create({
         messages: [
           {
             role: "system",
@@ -297,7 +303,7 @@ export class GroqAIService {
         const startTime = Date.now()
         console.log(`🧪 Testing ${testModel.name}...`)
 
-        const response = await groq.chat.completions.create({
+        const response = await getGroq().chat.completions.create({
           messages: [
             {
               role: "system",
@@ -345,7 +351,7 @@ export class GroqAIService {
     try {
       console.log('⚡ Quick evaluation with Llama-3.1-8B-Instant...')
 
-      const response = await groq.chat.completions.create({
+      const response = await getGroq().chat.completions.create({
         messages: [
           {
             role: "system",
