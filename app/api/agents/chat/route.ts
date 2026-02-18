@@ -28,16 +28,16 @@ const AGENT_SYSTEM_PROMPTS: Record<string, string> = {
   sage:   sageSystemPrompt,
 };
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
 /**
  * Agent Chat API Route
- * Uses Groq LLM to generate specialized responses based on agent expertise
+ * Uses OpenRouter to generate specialized responses based on agent expertise
  */
 export async function POST(request: NextRequest) {
+  // Instantiate inside the handler so env vars are available at runtime, not build time
+  const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
   try {
     const { agentId, message, conversationHistory, userContext, conversationId: existingConversationId, userId } = await request.json();
 
