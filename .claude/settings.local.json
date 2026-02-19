@@ -26,7 +26,8 @@
       "Bash(ps:*)",
       "Bash(dir:*)",
       "Bash(tree:*)",
-      "WebSearch"
+      "WebSearch",
+      "mcp__ide__getDiagnostics"
     ],
     "deny": [],
     "ask": []
