@@ -81,7 +81,9 @@
       "Bash(git commit:*)",
       "Bash(git push:*)",
       "Bash(npx supabase:*)",
-      "Bash(node scripts/seed-demo-user.mjs:*)"
+      "Bash(node scripts/seed-demo-user.mjs:*)",
+      "Bash(node:*)",
+      "Bash(docker exec:*)"
     ],
     "deny": [],
     "ask": []

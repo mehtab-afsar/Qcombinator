@@ -1,182 +1,249 @@
 "use client";
 
-import { useState } from "react";
-import { usePathname } from "next/navigation";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { motion } from "framer-motion";
 import {
-  Building2,
-  BarChart3,
-  Target,
-  MessageSquare,
-  Settings,
-  Brain,
-  Home,
-  GraduationCap,
-  ChevronLeft,
-  ChevronRight
+  BarChart3, Brain, Building2, ChevronsUpDown,
+  GraduationCap, Home, LogOut, MessageSquare,
+  Settings, Target, UserCircle,
 } from "lucide-react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useAuth } from "@/features/auth/hooks/useAuth";
 
-interface NavigationItem {
-  name: string;
-  href: string;
-  icon: React.ElementType;
-  badge?: string;
-  description?: string;
-}
+// ─── palette ──────────────────────────────────────────────────────────────────
+const bg   = "#F9F7F2";
+const surf = "#F0EDE6";
+const bdr  = "#E2DDD5";
+const ink  = "#18160F";
+const muted = "#8A867C";
 
-const founderNavigation: NavigationItem[] = [
-  {
-    name: "Dashboard",
-    href: "/founder/dashboard",
-    icon: Home,
-    description: "Your startup overview"
-  },
-  {
-    name: "AI Agents",
-    href: "/founder/agents",
-    icon: Brain,
-    badge: "9",
-    description: "Chat with AI advisors"
-  },
-  {
-    name: "Investor Matching",
-    href: "/founder/matching",
-    icon: Target,
-    badge: "Smart",
-    description: "Find your perfect investors"
-  },
-  {
-    name: "Academy",
-    href: "/founder/academy",
-    icon: GraduationCap,
-    badge: "NEW",
-    description: "Workshops & mentors"
-  },
-  {
-    name: "Profile Builder",
-    href: "/founder/profile",
-    icon: Building2,
-    description: "Build your startup profile"
-  },
-  {
-    name: "Metrics Tracker",
-    href: "/founder/metrics",
-    icon: BarChart3,
-    description: "Track key performance metrics"
-  },
-  {
-    name: "Messages",
-    href: "/messages",
-    icon: MessageSquare,
-    badge: "3",
-    description: "Communication with investors"
-  }
+// ─── framer variants ──────────────────────────────────────────────────────────
+const sidebarVariants = {
+  open:   { width: "15rem" },
+  closed: { width: "3.05rem" },
+};
+
+const labelVariants = {
+  open:   { opacity: 1, x: 0,   transition: { duration: 0.15 } },
+  closed: { opacity: 0, x: -6,  transition: { duration: 0.1  } },
+};
+
+// ─── nav items ────────────────────────────────────────────────────────────────
+const nav = [
+  { name: "Dashboard",         href: "/founder/dashboard", icon: Home,          badge: null    },
+  { name: "AI Agents",         href: "/founder/agents",    icon: Brain,         badge: "9"     },
+  { name: "Investor Matching", href: "/founder/matching",  icon: Target,        badge: "Smart" },
+  { name: "Academy",           href: "/founder/academy",   icon: GraduationCap, badge: "NEW"   },
+  { name: "Profile Builder",   href: "/founder/profile",   icon: Building2,     badge: null    },
+  { name: "Metrics",           href: "/founder/metrics",   icon: BarChart3,     badge: null    },
+  { name: "Messages",          href: "/messages",          icon: MessageSquare, badge: "3"     },
 ];
 
-interface FounderSidebarProps {
-  className?: string;
-}
+const BADGE: Record<string, { bg: string; color: string }> = {
+  "9":     { bg: "#EEF2FF", color: "#3730A3" },
+  "Smart": { bg: "#F0FDF4", color: "#166534" },
+  "NEW":   { bg: "#FDF4FF", color: "#6B21A8" },
+  "3":     { bg: surf,      color: muted     },
+};
 
-export default function FounderSidebar({ className }: FounderSidebarProps) {
+// ─── component ────────────────────────────────────────────────────────────────
+export default function FounderSidebar({ className }: { className?: string }) {
+  const [collapsed, setCollapsed] = useState(true);
   const pathname = usePathname();
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const router   = useRouter();
+  const { user, signOut } = useAuth();
+
+  const displayName = (user?.user_metadata?.full_name as string) || user?.email?.split("@")[0] || "Founder";
+  const startupName = (user?.user_metadata?.startup_name as string) || "Edge Alpha";
+  const initials    = displayName.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase();
+  const orgInitial  = startupName[0]?.toUpperCase() ?? "E";
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.push("/login");
+  };
 
   return (
-    <div className={`relative flex flex-col h-full bg-white border-r border-gray-200 transition-all duration-300 ${
-      isCollapsed ? 'w-20' : 'w-64'
-    } ${className}`}>
-      {/* Collapse Toggle Button */}
-      <button
-        onClick={() => setIsCollapsed(!isCollapsed)}
-        className="absolute -right-3 top-6 z-50 h-6 w-6 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center hover:bg-gray-50 transition-colors"
-        aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-      >
-        {isCollapsed ? (
-          <ChevronRight className="h-3.5 w-3.5 text-gray-600" />
-        ) : (
-          <ChevronLeft className="h-3.5 w-3.5 text-gray-600" />
-        )}
-      </button>
+    <motion.div
+      className={cn("fixed left-0 top-0 z-40 h-screen border-r overflow-hidden", className)}
+      style={{ borderColor: bdr, background: bg }}
+      initial="closed"
+      animate={collapsed ? "closed" : "open"}
+      variants={sidebarVariants}
+      transition={{ ease: "easeOut", duration: 0.2 }}
+      onMouseEnter={() => setCollapsed(false)}
+      onMouseLeave={() => setCollapsed(true)}
+    >
+      {/* ── Outer flex column fills full height ─────────────────────── */}
+      <div className="flex h-full flex-col overflow-hidden">
 
-      {/* Logo Section */}
-      <div className={`p-6 border-b border-gray-100 ${isCollapsed ? 'flex justify-center' : ''}`}>
-        <div className={`flex items-center ${!isCollapsed ? 'space-x-3' : ''}`}>
-          <div className="h-8 w-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center shadow-sm transition-transform hover:scale-105">
-            <span className="text-white font-light text-[8px] tracking-tight leading-none">EA</span>
-          </div>
-          {!isCollapsed && (
-            <div className="flex-1">
-              <div className="font-light text-gray-900">Edge Alpha</div>
-              <div className="text-xs text-blue-600 font-light">Founder Portal</div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Navigation */}
-      <div className="flex-1 overflow-y-auto py-4">
-        <nav className="space-y-1 px-3">
-          {founderNavigation.map((item) => {
-            const isActive = pathname === item.href;
-            return (
-              <Link key={item.name} href={item.href}>
+        {/* ── TOP: startup / org row ──────────────────────────────── */}
+        <div
+          className="flex h-[54px] w-full shrink-0 items-center px-2"
+          style={{ borderBottom: `1px solid ${bdr}` }}
+        >
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 outline-none"
+                style={{ background: "transparent", border: "none", cursor: "pointer" }}
+                onMouseEnter={e => (e.currentTarget.style.background = surf)}
+                onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+              >
                 <div
-                  className={`group flex items-center px-3 py-2.5 text-sm font-normal rounded-lg transition-all duration-200 ${
-                    isActive
-                      ? 'bg-blue-50 text-blue-700 border border-blue-100'
-                      : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
-                  }`}
-                  title={isCollapsed ? item.name : undefined}
+                  className="flex shrink-0 items-center justify-center rounded"
+                  style={{ width: 22, height: 22, background: ink, fontSize: 9, fontWeight: 700, color: bg }}
                 >
-                  <item.icon
-                    className={`${isCollapsed ? '' : 'mr-3'} h-5 w-5 flex-shrink-0 ${
-                      isActive ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-600'
-                    }`}
-                  />
-                  {!isCollapsed && (
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <span className="font-light">{item.name}</span>
-                        {item.badge && (
-                          <span className={`px-2 py-0.5 text-xs font-normal rounded-full ${
-                            isActive
-                              ? 'bg-blue-100 text-blue-700'
-                              : item.badge === 'Smart' ? 'bg-green-100 text-green-700'
-                              : item.badge === 'NEW' ? 'bg-purple-100 text-purple-700'
-                              : 'bg-gray-100 text-gray-700'
-                          }`}>
-                            {item.badge}
-                          </span>
-                        )}
-                      </div>
-                      {item.description && (
-                        <div className="text-xs text-gray-500 mt-0.5 font-light">
-                          {item.description}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  {orgInitial}
                 </div>
-              </Link>
-            );
-          })}
-        </nav>
-      </div>
+                <motion.div
+                  variants={labelVariants}
+                  className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden"
+                >
+                  <span className="truncate text-sm font-medium" style={{ color: ink }}>
+                    {startupName}
+                  </span>
+                  <ChevronsUpDown className="ml-auto h-3.5 w-3.5 shrink-0" style={{ color: muted }} />
+                </motion.div>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-52">
+              <DropdownMenuItem asChild>
+                <Link href="/founder/profile" className="flex items-center gap-2 text-sm">
+                  <Building2 className="h-4 w-4" /> Edit startup profile
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/founder/dashboard" className="flex items-center gap-2 text-sm">
+                  <Home className="h-4 w-4" /> Dashboard
+                </Link>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
 
-      {/* Bottom Actions */}
-      <div className="p-4 border-t border-gray-100 space-y-2">
-        <Link href="/founder/settings">
-          <Button
-            variant="ghost"
-            className={`w-full ${isCollapsed ? 'justify-center px-2' : 'justify-start'} text-gray-600 hover:text-gray-900 font-light`}
-            title={isCollapsed ? "Settings" : undefined}
-          >
-            <Settings className={`h-4 w-4 ${!isCollapsed && 'mr-3'}`} />
-            {!isCollapsed && 'Settings'}
-          </Button>
-        </Link>
+        {/* ── MIDDLE: nav (flex-1 = takes all remaining space) ──────── */}
+        <div className="flex-1 overflow-hidden">
+          <ScrollArea className="h-full w-full">
+            <div className="flex flex-col gap-0.5 p-2">
+              {nav.map(item => {
+                const active = pathname === item.href || pathname.startsWith(item.href + "/");
+                const Icon   = item.icon;
+                const bs     = item.badge ? BADGE[item.badge] : null;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className="flex h-8 w-full items-center rounded-md px-2 py-1.5"
+                    style={{
+                      background: active ? "#EEF2FF" : "transparent",
+                      textDecoration: "none",
+                      transition: "background 0.14s",
+                    }}
+                    onMouseEnter={e => { if (!active) e.currentTarget.style.background = surf; }}
+                    onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}
+                  >
+                    <Icon
+                      className="h-4 w-4 shrink-0"
+                      style={{ color: active ? "#2563EB" : muted }}
+                    />
+                    <motion.div
+                      variants={labelVariants}
+                      className="ml-2 flex min-w-0 flex-1 items-center gap-2 overflow-hidden"
+                    >
+                      <span
+                        className="truncate text-sm font-medium"
+                        style={{ color: active ? "#2563EB" : ink }}
+                      >
+                        {item.name}
+                      </span>
+                      {bs && item.badge && (
+                        <span
+                          className="ml-auto shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
+                          style={{ background: bs.bg, color: bs.color }}
+                        >
+                          {item.badge}
+                        </span>
+                      )}
+                    </motion.div>
+                  </Link>
+                );
+              })}
+            </div>
+          </ScrollArea>
+        </div>
+
+        {/* ── BOTTOM: settings + user (always pinned to bottom) ─────── */}
+        <div
+          className="flex shrink-0 flex-col gap-0.5 p-2"
+          style={{ borderTop: `1px solid ${bdr}` }}
+        >
+          {/* User dropdown */}
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="flex h-8 w-full items-center gap-2 rounded-md px-2 py-1.5 outline-none"
+                style={{ background: "transparent", border: "none", cursor: "pointer", transition: "background 0.14s" }}
+                onMouseEnter={e => (e.currentTarget.style.background = surf)}
+                onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+              >
+                <div
+                  className="flex shrink-0 items-center justify-center rounded-full"
+                  style={{ width: 20, height: 20, background: ink, color: bg, fontSize: 9, fontWeight: 700 }}
+                >
+                  {initials}
+                </div>
+                <motion.div
+                  variants={labelVariants}
+                  className="flex min-w-0 flex-1 items-center overflow-hidden"
+                >
+                  <span className="truncate text-sm font-medium" style={{ color: ink }}>
+                    {displayName}
+                  </span>
+                  <ChevronsUpDown className="ml-auto h-3.5 w-3.5 shrink-0" style={{ color: muted }} />
+                </motion.div>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent sideOffset={6} align="start" className="w-52">
+              <div className="flex items-center gap-2 px-2 py-2">
+                <div
+                  className="flex shrink-0 items-center justify-center rounded-full"
+                  style={{ width: 28, height: 28, background: ink, color: bg, fontSize: 11, fontWeight: 700 }}
+                >
+                  {initials}
+                </div>
+                <div className="flex min-w-0 flex-col text-left">
+                  <span className="truncate text-sm font-medium" style={{ color: ink }}>{displayName}</span>
+                  <span className="truncate text-xs" style={{ color: muted }}>{user?.email}</span>
+                </div>
+              </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href="/founder/profile" className="flex items-center gap-2 text-sm">
+                  <UserCircle className="h-4 w-4" /> Profile
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/founder/settings" className="flex items-center gap-2 text-sm">
+                  <Settings className="h-4 w-4" /> Settings
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleSignOut} className="flex items-center gap-2 text-sm">
+                <LogOut className="h-4 w-4" /> Sign out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
       </div>
-    </div>
+    </motion.div>
   );
 }

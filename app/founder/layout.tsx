@@ -18,9 +18,10 @@ export default function FounderLayout({
   }
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      <FounderSidebar className="flex-shrink-0" />
-      <div className="flex-1 overflow-auto">
+    <div style={{ background: "#F9F7F2", minHeight: "100vh" }}>
+      <FounderSidebar />
+      {/* Offset by collapsed sidebar width so content is never hidden */}
+      <div style={{ marginLeft: "3.05rem", minHeight: "100vh", overflowX: "hidden" }}>
         {children}
       </div>
     </div>

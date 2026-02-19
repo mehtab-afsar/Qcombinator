@@ -33,21 +33,25 @@ INSERT INTO auth.users (
   email, encrypted_password, email_confirmed_at,
   raw_user_meta_data, raw_app_meta_data,
   is_super_admin, created_at, updated_at,
-  confirmation_token, recovery_token, email_change_token_new
+  confirmation_token, recovery_token,
+  email_change_token_new, email_change_token_current, email_change,
+  phone, phone_change
 ) VALUES (
   v_user_id,
   '00000000-0000-0000-0000-000000000000',
   'authenticated',
   'authenticated',
   'mehtabafsar346@gmail.com',
-  crypt('Moon@123', gen_salt('bf')),
+  crypt('Moon@123', gen_salt('bf', 10)),  -- cost 10 required by Supabase GoTrue
   NOW(),
   '{"full_name": "Mohammed Mehtab Afsar", "startup_name": "Cohere.ai"}'::jsonb,
   '{"provider": "email", "providers": ["email"]}'::jsonb,
   false,
   NOW(),
   NOW(),
-  '', '', ''
+  '', '',
+  '', '', '',
+  '', ''
 );
 
 -- auth.identities row (required for email/password login in Supabase local)

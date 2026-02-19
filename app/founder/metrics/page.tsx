@@ -1,31 +1,177 @@
-'use client';
+"use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
+import { motion } from "framer-motion";
 import {
-  TrendingUp,
-  TrendingDown,
-  DollarSign,
-  Users,
-  BarChart3,
-  AlertCircle,
-  CheckCircle,
-  RefreshCw,
-  Minus
-} from 'lucide-react';
-import { useMetrics } from '@/features/founder/hooks/useFounderData';
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
+  TrendingUp, TrendingDown, DollarSign, Users,
+  BarChart3, CheckCircle, AlertCircle, RefreshCw,
+  ArrowRight, Minus, Activity,
+} from "lucide-react";
+import { useMetrics } from "@/features/founder/hooks/useFounderData";
+import Link from "next/link";
 
+// ─── palette ──────────────────────────────────────────────────────────────────
+const bg    = "#F9F7F2";
+const surf  = "#F0EDE6";
+const bdr   = "#E2DDD5";
+const ink   = "#18160F";
+const muted = "#8A867C";
+const green = "#16A34A";
+const amber = "#D97706";
+const red   = "#DC2626";
+const blue  = "#2563EB";
+
+// ─── helpers ──────────────────────────────────────────────────────────────────
+function trendColor(v: number) { return v > 0 ? green : v < 0 ? red : muted; }
+function trendIcon(v: number)  { return v > 0 ? TrendingUp : v < 0 ? TrendingDown : Minus; }
+
+// ─── Mini sparkline bars (visual only) ────────────────────────────────────────
+function Sparkline({ color = ink }: { color?: string }) {
+  const bars = [0.45, 0.62, 0.55, 0.78, 0.65, 0.85, 1.0];
+  return (
+    <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 28 }}>
+      {bars.map((h, i) => (
+        <motion.div
+          key={i}
+          initial={{ scaleY: 0 }}
+          animate={{ scaleY: 1 }}
+          transition={{ duration: 0.4, delay: i * 0.06 }}
+          style={{
+            width: 4, height: h * 28, borderRadius: 2,
+            background: color, opacity: 0.15 + h * 0.7,
+            transformOrigin: "bottom",
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ─── Big KPI card ─────────────────────────────────────────────────────────────
+function KpiCard({
+  label, value, change, sub, icon: Icon, delay = 0,
+}: {
+  label: string; value: string; change?: number;
+  sub?: string; icon: React.ElementType; delay?: number;
+}) {
+  const TrendIcon = change !== undefined ? trendIcon(change) : null;
+  const tc = change !== undefined ? trendColor(change) : muted;
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.45, delay }}
+      style={{
+        background: bg, border: `1px solid ${bdr}`,
+        borderRadius: 16, padding: "22px 20px",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 }}>
+        <div style={{
+          width: 32, height: 32, borderRadius: 9, background: surf,
+          border: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <Icon style={{ width: 15, height: 15, color: muted }} />
+        </div>
+        <Sparkline />
+      </div>
+
+      <p style={{ fontSize: 11, fontWeight: 600, color: "#B5B0A8", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 6 }}>
+        {label}
+      </p>
+      <p style={{ fontSize: 28, fontWeight: 300, color: ink, lineHeight: 1, marginBottom: 8 }}>
+        {value}
+      </p>
+
+      {change !== undefined && TrendIcon && (
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <TrendIcon style={{ width: 12, height: 12, color: tc }} />
+          <span style={{ fontSize: 12, fontWeight: 400, color: tc }}>{Math.abs(change)}% MoM</span>
+        </div>
+      )}
+      {sub && !change && (
+        <p style={{ fontSize: 12, fontWeight: 300, color: muted }}>{sub}</p>
+      )}
+    </motion.div>
+  );
+}
+
+// ─── Unit economics block ─────────────────────────────────────────────────────
+function UnitBlock({
+  label, value, desc, good, delay = 0,
+}: {
+  label: string; value: string; desc: string; good?: boolean; delay?: number;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay }}
+      style={{
+        background: good ? "#F0FDF4" : bg,
+        border: `1px solid ${good ? "#BBF7D0" : bdr}`,
+        borderRadius: 14, padding: "18px 20px",
+      }}
+    >
+      <p style={{ fontSize: 10, fontWeight: 600, color: "#B5B0A8", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 6 }}>
+        {label}
+      </p>
+      <p style={{ fontSize: 30, fontWeight: 300, color: good ? green : ink, marginBottom: 4, lineHeight: 1 }}>
+        {value}
+      </p>
+      <p style={{ fontSize: 12, fontWeight: 300, color: good ? "#16A34A" : muted }}>{desc}</p>
+    </motion.div>
+  );
+}
+
+// ─── Metric row with optional bar ─────────────────────────────────────────────
+function MetricRow({
+  label, value, progress, trend, delay = 0,
+}: {
+  label: string; value: string; progress?: number; trend?: "up" | "down" | "neutral"; delay?: number;
+}) {
+  const TrendIcon = trend === "up" ? TrendingUp : trend === "down" ? TrendingDown : Minus;
+  const tc = trend === "up" ? green : trend === "down" ? red : muted;
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ delay }}
+      style={{ paddingBottom: 14, marginBottom: 14, borderBottom: `1px solid ${bdr}` }}
+    >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: progress !== undefined ? 8 : 0 }}>
+        <span style={{ fontSize: 13, fontWeight: 300, color: muted }}>{label}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 14, fontWeight: 500, color: ink }}>{value}</span>
+          {trend && <TrendIcon style={{ width: 13, height: 13, color: tc }} />}
+        </div>
+      </div>
+      {progress !== undefined && (
+        <div style={{ height: 3, background: bdr, borderRadius: 99 }}>
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: `${Math.min(progress, 100)}%` }}
+            transition={{ duration: 0.8, delay: delay + 0.3 }}
+            style={{
+              height: "100%", borderRadius: 99,
+              background: progress >= 60 ? green : progress >= 30 ? amber : red,
+            }}
+          />
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
 export default function MetricsTracker() {
   const { metrics, healthStatus, loading } = useMetrics();
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <RefreshCw className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600 font-light">Loading metrics...</p>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: bg }}>
+        <div style={{ textAlign: "center" }}>
+          <RefreshCw style={{ width: 28, height: 28, color: muted, margin: "0 auto 12px" }} className="animate-spin" />
+          <p style={{ fontSize: 14, fontWeight: 300, color: muted }}>Loading metrics…</p>
         </div>
       </div>
     );
@@ -33,284 +179,225 @@ export default function MetricsTracker() {
 
   if (!metrics) {
     return (
-      <div className="p-6 max-w-4xl mx-auto">
-        <Card className="border-2 border-blue-200">
-          <CardContent className="p-12 text-center">
-            <BarChart3 className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-            <h2 className="text-2xl font-light text-gray-900 mb-3">
-              No Metrics Available
-            </h2>
-            <p className="text-gray-600 font-light mb-6">
-              Complete your assessment to track your key metrics.
-            </p>
-            <Link href="/founder/assessment">
-              <Button>Start Assessment</Button>
-            </Link>
-          </CardContent>
-        </Card>
+      <div style={{ background: bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.97 }}
+          animate={{ opacity: 1, scale: 1 }}
+          style={{
+            background: bg, border: `1px solid ${bdr}`, borderRadius: 20,
+            padding: 48, maxWidth: 420, width: "100%", textAlign: "center",
+          }}
+        >
+          <div style={{
+            width: 64, height: 64, borderRadius: 16, background: surf,
+            border: `1px solid ${bdr}`, display: "flex", alignItems: "center",
+            justifyContent: "center", margin: "0 auto 20px",
+          }}>
+            <BarChart3 style={{ width: 28, height: 28, color: muted }} />
+          </div>
+          <h2 style={{ fontSize: 22, fontWeight: 300, color: ink, marginBottom: 10 }}>No metrics yet</h2>
+          <p style={{ fontSize: 14, fontWeight: 300, color: muted, marginBottom: 28, lineHeight: 1.6 }}>
+            Complete your assessment to unlock your startup's key performance indicators.
+          </p>
+          <Link href="/founder/assessment" style={{ textDecoration: "none" }}>
+            <button
+              onMouseEnter={e => (e.currentTarget.style.opacity = "0.85")}
+              onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
+              style={{
+                padding: "12px 28px", borderRadius: 10, border: "none",
+                background: ink, color: bg, fontSize: 14, fontWeight: 500,
+                cursor: "pointer", transition: "opacity 0.15s",
+                display: "inline-flex", alignItems: "center", gap: 8,
+              }}
+            >
+              Start assessment <ArrowRight style={{ width: 15, height: 15 }} />
+            </button>
+          </Link>
+        </motion.div>
       </div>
     );
   }
 
-  return (
-    <div className="p-6 min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div>
-          <h1 className="text-3xl font-light text-gray-900">Metrics Tracker</h1>
-          <p className="text-gray-600 font-light">Key performance indicators calculated from your assessment</p>
-        </div>
+  const healthOk = healthStatus?.overall === "healthy";
+  const healthWarn = healthStatus?.overall === "warning";
 
-        {/* Health Status */}
+  return (
+    <div style={{ background: bg, minHeight: "100vh", padding: "32px 24px" }}>
+      <div style={{ maxWidth: 1120, margin: "0 auto" }}>
+
+        {/* ── Header ────────────────────────────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          style={{ marginBottom: 28 }}
+        >
+          <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: muted, marginBottom: 8 }}>
+            Metrics
+          </p>
+          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+            <h1 style={{ fontSize: 30, fontWeight: 300, color: ink }}>KPI Dashboard</h1>
+            <p style={{ fontSize: 12, fontWeight: 300, color: muted }}>
+              Updated {new Date(metrics.calculatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+            </p>
+          </div>
+        </motion.div>
+
+        {/* ── Health banner ──────────────────────────────────────────── */}
         {healthStatus && (
-          <Card className={`border-2 ${
-            healthStatus.overall === 'healthy' ? 'border-green-200 bg-green-50' :
-            healthStatus.overall === 'warning' ? 'border-yellow-200 bg-yellow-50' :
-            'border-red-200 bg-red-50'
-          }`}>
-            <CardContent className="p-6">
-              <div className="flex items-start space-x-4">
-                {healthStatus.overall === 'healthy' ? (
-                  <CheckCircle className="h-8 w-8 text-green-600" />
-                ) : (
-                  <AlertCircle className="h-8 w-8 text-yellow-600" />
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45 }}
+            style={{
+              border: `1px solid ${healthOk ? "#BBF7D0" : healthWarn ? "#FDE68A" : "#FECACA"}`,
+              background: healthOk ? "#F0FDF4" : healthWarn ? "#FFFBEB" : "#FFF5F5",
+              borderRadius: 14, padding: "16px 20px", marginBottom: 24,
+              display: "flex", alignItems: "flex-start", gap: 14,
+            }}
+          >
+            {healthOk
+              ? <CheckCircle style={{ width: 20, height: 20, color: green, flexShrink: 0, marginTop: 2 }} />
+              : <AlertCircle style={{ width: 20, height: 20, color: healthWarn ? amber : red, flexShrink: 0, marginTop: 2 }} />
+            }
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: 14, fontWeight: 500, color: ink, marginBottom: 6 }}>
+                {healthOk ? "Metrics look healthy" : healthWarn ? "Some areas need attention" : "Critical issues detected"}
+              </p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
+                {healthStatus.strengths.length > 0 && (
+                  <div>
+                    <p style={{ fontSize: 11, fontWeight: 600, color: green, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 4 }}>Strengths</p>
+                    <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                      {healthStatus.strengths.map((s: string, i: number) => (
+                        <li key={i} style={{ fontSize: 13, fontWeight: 300, color: "#166534", marginBottom: 2 }}>· {s}</li>
+                      ))}
+                    </ul>
+                  </div>
                 )}
-                <div className="flex-1">
-                  <h3 className="font-normal text-lg text-gray-900 mb-2">
-                    {healthStatus.overall === 'healthy' ? 'Metrics Look Healthy' :
-                     healthStatus.overall === 'warning' ? 'Some Areas Need Attention' :
-                     'Critical Issues Detected'}
-                  </h3>
-                  {healthStatus.strengths.length > 0 && (
-                    <div className="mb-3">
-                      <p className="text-sm text-gray-700 font-light mb-1">Strengths:</p>
-                      <ul className="list-disc list-inside space-y-1">
-                        {healthStatus.strengths.map((strength, i) => (
-                          <li key={i} className="text-sm text-green-700 font-light">{strength}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {healthStatus.issues.length > 0 && (
-                    <div>
-                      <p className="text-sm text-gray-700 font-light mb-1">Areas to improve:</p>
-                      <ul className="list-disc list-inside space-y-1">
-                        {healthStatus.issues.map((issue, i) => (
-                          <li key={i} className="text-sm text-yellow-700 font-light">{issue}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
+                {healthStatus.issues.length > 0 && (
+                  <div>
+                    <p style={{ fontSize: 11, fontWeight: 600, color: amber, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 4 }}>Improve</p>
+                    <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                      {healthStatus.issues.map((s: string, i: number) => (
+                        <li key={i} style={{ fontSize: 13, fontWeight: 300, color: "#92400E", marginBottom: 2 }}>· {s}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </motion.div>
         )}
 
-        {/* Key Metrics Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <MetricCard
-            title="MRR"
-            value={`$${metrics.mrr.toLocaleString()}`}
-            change={metrics.mrrGrowth}
-            icon={<DollarSign className="h-5 w-5" />}
-            positive={metrics.mrrGrowth > 0}
-          />
-          <MetricCard
-            title="ARR"
-            value={`$${metrics.arr.toLocaleString()}`}
-            subtitle="Annual Recurring Revenue"
-            icon={<TrendingUp className="h-5 w-5" />}
-          />
-          <MetricCard
-            title="Customers"
-            value={metrics.customers.toString()}
-            icon={<Users className="h-5 w-5" />}
-          />
-          <MetricCard
-            title="Runway"
-            value={`${metrics.runway} months`}
-            icon={<BarChart3 className="h-5 w-5" />}
-            positive={metrics.runway >= 12}
-          />
+        {/* ── KPI row ───────────────────────────────────────────────── */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
+          <KpiCard label="MRR"      value={`$${metrics.mrr.toLocaleString()}`}      change={metrics.mrrGrowth}    icon={DollarSign} delay={0}    />
+          <KpiCard label="ARR"      value={`$${metrics.arr.toLocaleString()}`}      sub="Annual recurring"         icon={TrendingUp} delay={0.06} />
+          <KpiCard label="Customers" value={metrics.customers.toString()}             icon={Users}    delay={0.12} />
+          <KpiCard label="Runway"   value={`${metrics.runway} mo`}                  icon={BarChart3} delay={0.18}
+            sub={metrics.runway >= 18 ? "Strong runway" : metrics.runway >= 12 ? "Adequate" : "Extend soon"} />
         </div>
 
-        {/* Unit Economics */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="font-light">Unit Economics</CardTitle>
-          </CardHeader>
-          <CardContent className="grid md:grid-cols-3 gap-6">
-            <UnitEconomicMetric
+        {/* ── Unit Economics ────────────────────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          style={{ marginBottom: 20 }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+            <Activity style={{ width: 14, height: 14, color: muted }} />
+            <h2 style={{ fontSize: 13, fontWeight: 500, color: ink }}>Unit economics</h2>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+            <UnitBlock
               label="LTV"
               value={`$${metrics.ltv.toLocaleString()}`}
-              description="Customer Lifetime Value"
+              desc="Customer lifetime value"
+              delay={0.22}
             />
-            <UnitEconomicMetric
+            <UnitBlock
               label="CAC"
               value={`$${metrics.cac.toLocaleString()}`}
-              description="Customer Acquisition Cost"
+              desc="Customer acquisition cost"
+              delay={0.28}
             />
-            <UnitEconomicMetric
-              label="LTV:CAC Ratio"
+            <UnitBlock
+              label="LTV:CAC"
               value={`${metrics.ltvCacRatio}:1`}
-              description={metrics.ltvCacRatio >= 3 ? "Healthy ✓" : "Below target (3:1)"}
-              highlight={metrics.ltvCacRatio >= 3}
+              desc={metrics.ltvCacRatio >= 3 ? "Healthy — above 3:1 target ✓" : `Below 3:1 target — ${(3 - metrics.ltvCacRatio).toFixed(1)}x gap`}
+              good={metrics.ltvCacRatio >= 3}
+              delay={0.34}
             />
-          </CardContent>
-        </Card>
-
-        {/* Financial Health */}
-        <div className="grid md:grid-cols-2 gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-light">Financial Metrics</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <MetricRow
-                label="Monthly Burn Rate"
-                value={`$${metrics.burn.toLocaleString()}`}
-              />
-              <MetricRow
-                label="Gross Margin"
-                value={`${metrics.grossMargin}%`}
-                progress={metrics.grossMargin}
-              />
-              <MetricRow
-                label="MRR Growth"
-                value={`${metrics.mrrGrowth}%`}
-                trend={metrics.mrrGrowth > 0 ? 'up' : metrics.mrrGrowth < 0 ? 'down' : 'neutral'}
-              />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-light">Market Metrics</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <MetricRow
-                label="Total Addressable Market"
-                value={`$${(metrics.tam / 1000000).toFixed(1)}M`}
-              />
-              <MetricRow
-                label="Serviceable Market (30%)"
-                value={`$${(metrics.sam / 1000000).toFixed(1)}M`}
-              />
-              <MetricRow
-                label="Conversion Rate"
-                value={`${metrics.conversionRate}%`}
-                progress={metrics.conversionRate}
-              />
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Last Updated */}
-        <div className="text-center">
-          <p className="text-sm text-gray-500 font-light">
-            Metrics calculated on {new Date(metrics.calculatedAt).toLocaleDateString()} at{' '}
-            {new Date(metrics.calculatedAt).toLocaleTimeString()}
-          </p>
-          <Link href="/founder/assessment">
-            <Button variant="ghost" size="sm" className="mt-2 font-light">
-              Update Assessment to Refresh Metrics
-            </Button>
-          </Link>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function MetricCard({
-  title,
-  value,
-  change,
-  subtitle,
-  icon,
-  positive
-}: {
-  title: string;
-  value: string;
-  change?: number;
-  subtitle?: string;
-  icon: React.ReactNode;
-  positive?: boolean;
-}) {
-  return (
-    <Card>
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-sm text-gray-600 font-light">{title}</p>
-          {icon}
-        </div>
-        <p className="text-2xl font-light text-gray-900 mb-1">{value}</p>
-        {change !== undefined && (
-          <div className={`flex items-center text-sm ${positive ? 'text-green-600' : 'text-red-600'}`}>
-            {positive ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
-            <span className="font-light">{Math.abs(change)}% MoM</span>
           </div>
-        )}
-        {subtitle && (
-          <p className="text-xs text-gray-500 font-light">{subtitle}</p>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
+        </motion.div>
 
-function UnitEconomicMetric({
-  label,
-  value,
-  description,
-  highlight
-}: {
-  label: string;
-  value: string;
-  description: string;
-  highlight?: boolean;
-}) {
-  return (
-    <div>
-      <p className="text-sm text-gray-600 font-light mb-1">{label}</p>
-      <p className={`text-3xl font-light mb-1 ${highlight ? 'text-green-600' : 'text-gray-900'}`}>
-        {value}
-      </p>
-      <p className={`text-xs font-light ${highlight ? 'text-green-600' : 'text-gray-500'}`}>
-        {description}
-      </p>
-    </div>
-  );
-}
+        {/* ── Two-col detail ────────────────────────────────────────── */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 28 }}>
+          {/* Financial */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 16, overflow: "hidden" }}
+          >
+            <div style={{ padding: "16px 20px", borderBottom: `1px solid ${bdr}`, background: surf }}>
+              <h3 style={{ fontSize: 13, fontWeight: 500, color: ink }}>Financial metrics</h3>
+            </div>
+            <div style={{ padding: "16px 20px" }}>
+              <MetricRow label="Monthly burn rate" value={`$${metrics.burn.toLocaleString()}`}             delay={0.32} />
+              <MetricRow label="Gross margin"       value={`${metrics.grossMargin}%`}  progress={metrics.grossMargin}              delay={0.35} />
+              <MetricRow label="MRR growth"         value={`${metrics.mrrGrowth > 0 ? "+" : ""}${metrics.mrrGrowth}%`}
+                trend={metrics.mrrGrowth > 0 ? "up" : metrics.mrrGrowth < 0 ? "down" : "neutral"} delay={0.38} />
+            </div>
+          </motion.div>
 
-function MetricRow({
-  label,
-  value,
-  progress,
-  trend
-}: {
-  label: string;
-  value: string;
-  progress?: number;
-  trend?: 'up' | 'down' | 'neutral';
-}) {
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-sm text-gray-600 font-light">{label}</span>
-        <div className="flex items-center space-x-2">
-          <span className="font-normal text-gray-900">{value}</span>
-          {trend && (
-            trend === 'up' ? <TrendingUp className="h-4 w-4 text-green-600" /> :
-            trend === 'down' ? <TrendingDown className="h-4 w-4 text-red-600" /> :
-            <Minus className="h-4 w-4 text-gray-400" />
-          )}
+          {/* Market */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.34 }}
+            style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 16, overflow: "hidden" }}
+          >
+            <div style={{ padding: "16px 20px", borderBottom: `1px solid ${bdr}`, background: surf }}>
+              <h3 style={{ fontSize: 13, fontWeight: 500, color: ink }}>Market opportunity</h3>
+            </div>
+            <div style={{ padding: "16px 20px" }}>
+              <MetricRow label="Total addressable market" value={`$${(metrics.tam / 1_000_000).toFixed(1)}M`}  delay={0.36} />
+              <MetricRow label="Serviceable market (30%)" value={`$${(metrics.sam / 1_000_000).toFixed(1)}M`}  delay={0.39} />
+              <MetricRow label="Conversion rate"          value={`${metrics.conversionRate}%`} progress={metrics.conversionRate}  delay={0.42} />
+            </div>
+          </motion.div>
         </div>
+
+        {/* ── Footer cta ────────────────────────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5 }}
+          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", background: surf, borderRadius: 12, border: `1px solid ${bdr}` }}
+        >
+          <p style={{ fontSize: 13, fontWeight: 300, color: muted }}>
+            Metrics update when you retake your assessment.
+          </p>
+          <Link href="/founder/assessment" style={{ textDecoration: "none" }}>
+            <button
+              onMouseEnter={e => (e.currentTarget.style.opacity = "0.8")}
+              onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
+              style={{
+                display: "flex", alignItems: "center", gap: 7,
+                padding: "9px 16px", borderRadius: 9, border: "none",
+                background: ink, color: bg, fontSize: 13, fontWeight: 500,
+                cursor: "pointer", transition: "opacity 0.15s",
+              }}
+            >
+              Refresh metrics <ArrowRight style={{ width: 13, height: 13 }} />
+            </button>
+          </Link>
+        </motion.div>
+
       </div>
-      {progress !== undefined && (
-        <Progress value={Math.min(progress, 100)} className="h-2" />
-      )}
     </div>
   );
 }

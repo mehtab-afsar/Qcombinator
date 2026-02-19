@@ -1,32 +1,127 @@
-'use client';
+"use client";
 
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
+import { motion } from "framer-motion";
 import {
-  Building2,
-  Users,
-  TrendingUp,
-  Target,
-  CheckCircle,
-  AlertCircle,
-  Edit,
-  Eye,
-  Share,
-  RefreshCw
-} from 'lucide-react';
-import { useFounderData } from '@/features/founder/hooks/useFounderData';
-import Link from 'next/link';
+  Building2, Users, TrendingUp, Target,
+  CheckCircle, Circle, Edit, Eye, Share2,
+  RefreshCw, ArrowRight, ChevronRight, Sparkles,
+} from "lucide-react";
+import { useFounderData } from "@/features/founder/hooks/useFounderData";
+import Link from "next/link";
 
+// ─── palette ──────────────────────────────────────────────────────────────────
+const bg    = "#F9F7F2";
+const surf  = "#F0EDE6";
+const bdr   = "#E2DDD5";
+const ink   = "#18160F";
+const muted = "#8A867C";
+
+// ─── SVG completion ring (like the Q-Score ring in dashboard) ─────────────────
+function CompletionRing({ pct }: { pct: number }) {
+  const r = 52, cx = 64, cy = 64;
+  const circ = 2 * Math.PI * r;
+  const dash  = (pct / 100) * circ;
+  return (
+    <svg width={128} height={128} viewBox="0 0 128 128">
+      {/* Track */}
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke={bdr} strokeWidth={6} />
+      {/* Fill */}
+      <motion.circle
+        cx={cx} cy={cy} r={r}
+        fill="none" stroke={ink} strokeWidth={6}
+        strokeLinecap="round"
+        strokeDasharray={`${circ}`}
+        initial={{ strokeDashoffset: circ }}
+        animate={{ strokeDashoffset: circ - dash }}
+        transition={{ duration: 1.1, ease: "easeOut", delay: 0.3 }}
+        transform={`rotate(-90 ${cx} ${cy})`}
+      />
+      {/* Label */}
+      <text x={cx} y={cy - 6} textAnchor="middle" fill={ink} fontSize={22} fontWeight={300}>{pct}</text>
+      <text x={cx} y={cy + 14} textAnchor="middle" fill={muted} fontSize={11} fontWeight={400}>% done</text>
+    </svg>
+  );
+}
+
+// ─── Section card ─────────────────────────────────────────────────────────────
+function Section({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 16, overflow: "hidden" }}
+    >
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "18px 24px", borderBottom: `1px solid ${bdr}`, background: surf,
+      }}>
+        <h3 style={{ fontSize: 13, fontWeight: 500, color: ink, letterSpacing: "0.01em" }}>{title}</h3>
+        {action}
+      </div>
+      <div style={{ padding: "20px 24px" }}>{children}</div>
+    </motion.div>
+  );
+}
+
+// ─── Field row ────────────────────────────────────────────────────────────────
+function Field({ label, value }: { label: string; value?: string | number | null }) {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <p style={{ fontSize: 10, fontWeight: 600, color: "#B5B0A8", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 4 }}>
+        {label}
+      </p>
+      <p style={{ fontSize: 14, fontWeight: 300, color: value ? ink : "#C8C3BB", lineHeight: 1.6 }}>
+        {value || "Not provided"}
+      </p>
+    </div>
+  );
+}
+
+// ─── Check item ───────────────────────────────────────────────────────────────
+function CheckItem({ done, label }: { done: boolean; label: string }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: `1px solid ${bdr}` }}>
+      {done
+        ? <CheckCircle style={{ width: 15, height: 15, color: "#16A34A", flexShrink: 0 }} />
+        : <Circle      style={{ width: 15, height: 15, color: "#C8C3BB", flexShrink: 0 }} />
+      }
+      <span style={{ fontSize: 13, fontWeight: 300, color: done ? ink : muted }}>{label}</span>
+      {done && <span style={{ marginLeft: "auto", fontSize: 10, color: "#16A34A", fontWeight: 500 }}>✓</span>}
+    </div>
+  );
+}
+
+// ─── Stat pill ────────────────────────────────────────────────────────────────
+function StatPill({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", justifyContent: "space-between",
+      padding: "10px 0", borderBottom: `1px solid ${bdr}`,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{
+          width: 28, height: 28, borderRadius: 7, background: surf,
+          border: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <Icon style={{ width: 13, height: 13, color: muted }} />
+        </div>
+        <span style={{ fontSize: 13, fontWeight: 300, color: muted }}>{label}</span>
+      </div>
+      <span style={{ fontSize: 14, fontWeight: 500, color: ink }}>{value}</span>
+    </div>
+  );
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
 export default function ProfileBuilder() {
   const { profile, assessment, metrics, loading } = useFounderData();
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <RefreshCw className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600 font-light">Loading profile...</p>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: bg }}>
+        <div style={{ textAlign: "center" }}>
+          <RefreshCw style={{ width: 28, height: 28, color: muted, margin: "0 auto 12px" }} className="animate-spin" />
+          <p style={{ fontSize: 14, fontWeight: 300, color: muted }}>Loading profile…</p>
         </div>
       </div>
     );
@@ -34,286 +129,271 @@ export default function ProfileBuilder() {
 
   if (!profile || !assessment) {
     return (
-      <div className="p-6 max-w-4xl mx-auto">
-        <Card className="border-2 border-blue-200">
-          <CardContent className="p-12 text-center">
-            <Building2 className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-            <h2 className="text-2xl font-light text-gray-900 mb-3">
-              Complete Your Profile
-            </h2>
-            <p className="text-gray-600 font-light mb-6">
-              Complete your assessment to build your founder profile.
-            </p>
-            <Link href="/founder/assessment">
-              <Button>
-                Start Assessment
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
+      <div style={{ background: bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.97 }}
+          animate={{ opacity: 1, scale: 1 }}
+          style={{
+            background: bg, border: `1px solid ${bdr}`, borderRadius: 20,
+            padding: 48, maxWidth: 440, width: "100%", textAlign: "center",
+          }}
+        >
+          <div style={{
+            width: 64, height: 64, borderRadius: 16, background: surf,
+            border: `1px solid ${bdr}`, display: "flex", alignItems: "center",
+            justifyContent: "center", margin: "0 auto 20px",
+          }}>
+            <Building2 style={{ width: 28, height: 28, color: muted }} />
+          </div>
+          <h2 style={{ fontSize: 22, fontWeight: 300, color: ink, marginBottom: 10 }}>Complete your profile</h2>
+          <p style={{ fontSize: 14, fontWeight: 300, color: muted, marginBottom: 28, lineHeight: 1.6 }}>
+            Run your assessment first — it powers every section of your investor profile.
+          </p>
+          <Link href="/founder/assessment" style={{ textDecoration: "none" }}>
+            <button
+              onMouseEnter={e => (e.currentTarget.style.opacity = "0.85")}
+              onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
+              style={{
+                padding: "12px 28px", borderRadius: 10, border: "none",
+                background: ink, color: bg, fontSize: 14, fontWeight: 500,
+                cursor: "pointer", transition: "opacity 0.15s",
+                display: "inline-flex", alignItems: "center", gap: 8,
+              }}
+            >
+              Start assessment <ArrowRight style={{ width: 15, height: 15 }} />
+            </button>
+          </Link>
+        </motion.div>
       </div>
     );
   }
 
-  const calculateCompletionScore = () => {
-    const fields = [
-      profile.startupName,
-      profile.industry,
-      profile.description,
-      assessment.problemStory,
-      assessment.icpDescription,
-      assessment.mrr !== undefined,
-      assessment.channelsTried?.length,
-    ];
-
-    const completed = fields.filter(Boolean).length;
-    return Math.round((completed / fields.length) * 100);
-  };
-
-  const profileCompletion = calculateCompletionScore();
+  const pctFields = [
+    profile.startupName, profile.industry, profile.description,
+    assessment.problemStory, assessment.icpDescription,
+    assessment.mrr !== undefined, assessment.channelsTried?.length,
+  ];
+  const completion = Math.round((pctFields.filter(Boolean).length / pctFields.length) * 100);
 
   return (
-    <div className="p-6 min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-light text-gray-900">Profile Builder</h1>
-            <p className="text-gray-600 font-light">Your founder profile based on your assessment data</p>
-          </div>
-          <div className="flex space-x-2">
-            <Button variant="outline" className="font-light">
-              <Eye className="w-4 h-4 mr-2" />
-              Preview
-            </Button>
-            <Button variant="outline" className="font-light">
-              <Share className="w-4 h-4 mr-2" />
-              Share
-            </Button>
-          </div>
-        </div>
+    <div style={{ background: bg, minHeight: "100vh", padding: "32px 24px" }}>
+      <div style={{ maxWidth: 1120, margin: "0 auto" }}>
 
-        {/* Profile Overview */}
-        <div className="grid lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
-            {/* Company Basics */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between font-light">
-                  <span>Company Basics</span>
-                  <Button variant="ghost" size="sm">
-                    <Edit className="w-4 h-4" />
-                  </Button>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="text-sm text-gray-600 font-light">Company Name</label>
-                  <p className="font-normal text-gray-900">{profile.startupName || 'Not provided'}</p>
+        {/* ── Header ────────────────────────────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 16, marginBottom: 32 }}
+        >
+          <div>
+            <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: muted, marginBottom: 8 }}>
+              Profile
+            </p>
+            <h1 style={{ fontSize: 30, fontWeight: 300, color: ink, marginBottom: 6 }}>
+              {profile.startupName || "Your profile"}
+            </h1>
+            <p style={{ fontSize: 14, fontWeight: 300, color: muted }}>
+              Your investor-ready founder profile built from your assessment data.
+            </p>
+          </div>
+
+          <div style={{ display: "flex", gap: 8 }}>
+            {[
+              { icon: Eye,    label: "Preview" },
+              { icon: Share2, label: "Share"   },
+            ].map(({ icon: Icon, label }) => (
+              <button
+                key={label}
+                onMouseEnter={e => (e.currentTarget.style.background = surf)}
+                onMouseLeave={e => (e.currentTarget.style.background = bg)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 7,
+                  padding: "9px 16px", borderRadius: 10,
+                  border: `1px solid ${bdr}`, background: bg,
+                  color: muted, fontSize: 13, fontWeight: 400,
+                  cursor: "pointer", transition: "background 0.15s",
+                }}
+              >
+                <Icon style={{ width: 14, height: 14 }} />
+                {label}
+              </button>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* ── Layout ────────────────────────────────────────────────── */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 20, alignItems: "start" }}>
+
+          {/* Left – main sections */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+
+            {/* Company basics */}
+            <Section
+              title="Company basics"
+              action={
+                <button
+                  onMouseEnter={e => (e.currentTarget.style.background = bdr)}
+                  onMouseLeave={e => (e.currentTarget.style.background = surf)}
+                  style={{
+                    padding: "5px 12px", borderRadius: 7, border: `1px solid ${bdr}`,
+                    background: surf, color: muted, fontSize: 12, fontWeight: 400,
+                    cursor: "pointer", display: "flex", alignItems: "center",
+                    gap: 6, transition: "background 0.15s",
+                  }}
+                >
+                  <Edit style={{ width: 11, height: 11 }} /> Edit
+                </button>
+              }
+            >
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0 }}>
+                <Field label="Company name" value={profile.startupName} />
+                <Field label="Industry"     value={profile.industry} />
+                <Field label="Stage"        value={profile.stage} />
+                <Field label="Founded"      value="2024" />
+              </div>
+              {profile.description && (
+                <div style={{ paddingTop: 12, borderTop: `1px solid ${bdr}` }}>
+                  <p style={{ fontSize: 10, fontWeight: 600, color: "#B5B0A8", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 6 }}>Description</p>
+                  <p style={{ fontSize: 14, fontWeight: 300, color: ink, lineHeight: 1.7 }}>{profile.description}</p>
                 </div>
-                <div>
-                  <label className="text-sm text-gray-600 font-light">Industry</label>
-                  <p className="font-normal text-gray-900">{profile.industry || 'Not provided'}</p>
-                </div>
-                <div>
-                  <label className="text-sm text-gray-600 font-light">Stage</label>
-                  <p className="font-normal text-gray-900">{profile.stage}</p>
-                </div>
-                <div>
-                  <label className="text-sm text-gray-600 font-light">Description</label>
-                  <p className="font-light text-gray-700">{profile.description || assessment.problemStory.substring(0, 200) + '...'}</p>
-                </div>
-              </CardContent>
-            </Card>
+              )}
+            </Section>
 
             {/* Problem & Solution */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="font-light">Problem & Solution</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="text-sm text-gray-600 font-light">Problem Statement</label>
-                  <p className="font-light text-gray-700">{assessment.problemStory}</p>
-                </div>
-                {assessment.advantageExplanation && (
-                  <div>
-                    <label className="text-sm text-gray-600 font-light">Unique Advantage</label>
-                    <p className="font-light text-gray-700">{assessment.advantageExplanation}</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <Section title="Problem & solution">
+              <Field label="Problem statement" value={assessment.problemStory} />
+              {assessment.advantageExplanation && (
+                <Field label="Unique advantage" value={assessment.advantageExplanation} />
+              )}
+            </Section>
 
             {/* Market & Customers */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="font-light">Market & Customers</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {assessment.icpDescription && (
-                  <div>
-                    <label className="text-sm text-gray-600 font-light">Ideal Customer Profile</label>
-                    <p className="font-light text-gray-700">{assessment.icpDescription}</p>
-                  </div>
-                )}
+            <Section title="Market & customers">
+              {assessment.icpDescription && (
+                <Field label="Ideal customer profile" value={assessment.icpDescription} />
+              )}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0 }}>
                 {assessment.targetCustomers && (
-                  <div>
-                    <label className="text-sm text-gray-600 font-light">Target Market Size</label>
-                    <p className="font-normal text-gray-900">{assessment.targetCustomers.toLocaleString()} customers</p>
-                  </div>
+                  <Field label="Target market size" value={`${assessment.targetCustomers.toLocaleString()} customers`} />
                 )}
                 {assessment.conversationCount && (
-                  <div>
-                    <label className="text-sm text-gray-600 font-light">Customer Conversations</label>
-                    <p className="font-normal text-gray-900">{assessment.conversationCount} conversations</p>
-                  </div>
+                  <Field label="Customer interviews" value={`${assessment.conversationCount} conversations`} />
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </Section>
 
-            {/* Financials */}
+            {/* Financial metrics */}
             {metrics && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="font-light">Financial Metrics</CardTitle>
-                </CardHeader>
-                <CardContent className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm text-gray-600 font-light">MRR</label>
-                    <p className="text-2xl font-light text-gray-900">${metrics.mrr.toLocaleString()}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm text-gray-600 font-light">ARR</label>
-                    <p className="text-2xl font-light text-gray-900">${metrics.arr.toLocaleString()}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm text-gray-600 font-light">Burn Rate</label>
-                    <p className="text-2xl font-light text-gray-900">${metrics.burn.toLocaleString()}/mo</p>
-                  </div>
-                  <div>
-                    <label className="text-sm text-gray-600 font-light">Runway</label>
-                    <p className="text-2xl font-light text-gray-900">{metrics.runway} months</p>
-                  </div>
-                </CardContent>
-              </Card>
+              <Section title="Financial snapshot">
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+                  {[
+                    { label: "MRR",     value: `$${metrics.mrr.toLocaleString()}` },
+                    { label: "ARR",     value: `$${metrics.arr.toLocaleString()}` },
+                    { label: "Burn",    value: `$${metrics.burn.toLocaleString()}/mo` },
+                    { label: "Runway",  value: `${metrics.runway} mo` },
+                  ].map(({ label, value }) => (
+                    <div key={label} style={{
+                      background: surf, border: `1px solid ${bdr}`, borderRadius: 12,
+                      padding: "14px 16px",
+                    }}>
+                      <p style={{ fontSize: 10, fontWeight: 600, color: "#B5B0A8", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 6 }}>{label}</p>
+                      <p style={{ fontSize: 20, fontWeight: 300, color: ink }}>{value}</p>
+                    </div>
+                  ))}
+                </div>
+              </Section>
             )}
           </div>
 
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Completion Status */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="font-light">Profile Completion</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center mb-4">
-                  <div className="text-4xl font-light text-blue-600 mb-2">{profileCompletion}%</div>
-                  <p className="text-sm text-gray-600 font-light">Complete</p>
-                </div>
-                <Progress value={profileCompletion} className="h-2 mb-4" />
-                <div className="space-y-2">
-                  <ProfileCheckItem
-                    completed={!!profile.startupName}
-                    label="Company name"
-                  />
-                  <ProfileCheckItem
-                    completed={!!profile.industry}
-                    label="Industry"
-                  />
-                  <ProfileCheckItem
-                    completed={!!assessment.problemStory}
-                    label="Problem statement"
-                  />
-                  <ProfileCheckItem
-                    completed={!!assessment.icpDescription}
-                    label="ICP description"
-                  />
-                  <ProfileCheckItem
-                    completed={assessment.mrr !== undefined}
-                    label="Financial metrics"
-                  />
-                </div>
-              </CardContent>
-            </Card>
+          {/* Right – sidebar */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 16, position: "sticky", top: 24 }}>
 
-            {/* Quick Stats */}
+            {/* Completion card */}
+            <motion.div
+              initial={{ opacity: 0, x: 14 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+              style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 16, overflow: "hidden" }}
+            >
+              <div style={{ padding: "18px 20px", borderBottom: `1px solid ${bdr}`, background: surf }}>
+                <h3 style={{ fontSize: 13, fontWeight: 500, color: ink }}>Profile strength</h3>
+              </div>
+              <div style={{ padding: "20px", display: "flex", flexDirection: "column", alignItems: "center" }}>
+                <CompletionRing pct={completion} />
+                <div style={{ width: "100%", marginTop: 16 }}>
+                  {[
+                    { done: !!profile.startupName,          label: "Company name" },
+                    { done: !!profile.industry,             label: "Industry" },
+                    { done: !!assessment.problemStory,      label: "Problem statement" },
+                    { done: !!assessment.icpDescription,    label: "ICP description" },
+                    { done: assessment.mrr !== undefined,   label: "Financial metrics" },
+                    { done: !!assessment.advantageExplanation, label: "Unique advantage" },
+                  ].map(({ done, label }) => (
+                    <CheckItem key={label} done={done} label={label} />
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Quick stats */}
             {metrics && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="font-light">Quick Stats</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <StatItem
-                    icon={<Users className="w-4 h-4" />}
-                    label="Customers"
-                    value={metrics.customers.toString()}
-                  />
-                  <StatItem
-                    icon={<TrendingUp className="w-4 h-4" />}
-                    label="MRR Growth"
-                    value={`${metrics.mrrGrowth}%`}
-                  />
-                  <StatItem
-                    icon={<Target className="w-4 h-4" />}
-                    label="LTV:CAC"
-                    value={`${metrics.ltvCacRatio}:1`}
-                  />
-                </CardContent>
-              </Card>
+              <motion.div
+                initial={{ opacity: 0, x: 14 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.5, delay: 0.18 }}
+                style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 16, overflow: "hidden" }}
+              >
+                <div style={{ padding: "18px 20px", borderBottom: `1px solid ${bdr}`, background: surf }}>
+                  <h3 style={{ fontSize: 13, fontWeight: 500, color: ink }}>Key metrics</h3>
+                </div>
+                <div style={{ padding: "12px 20px" }}>
+                  <StatPill icon={Users}     label="Customers"  value={metrics.customers.toString()} />
+                  <StatPill icon={TrendingUp} label="MRR growth" value={`+${metrics.mrrGrowth}%`} />
+                  <StatPill icon={Target}     label="LTV:CAC"    value={`${metrics.ltvCacRatio}:1`} />
+                </div>
+              </motion.div>
             )}
 
             {/* Actions */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="font-light">Next Steps</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <Link href="/founder/assessment">
-                  <Button variant="outline" className="w-full justify-start font-light">
-                    <Edit className="w-4 h-4 mr-2" />
-                    Update Assessment
-                  </Button>
-                </Link>
-                <Link href="/founder/dashboard">
-                  <Button variant="outline" className="w-full justify-start font-light">
-                    <Target className="w-4 h-4 mr-2" />
-                    View Dashboard
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
+            <motion.div
+              initial={{ opacity: 0, x: 14 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5, delay: 0.24 }}
+              style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 16, overflow: "hidden" }}
+            >
+              <div style={{ padding: "18px 20px", borderBottom: `1px solid ${bdr}`, background: surf }}>
+                <h3 style={{ fontSize: 13, fontWeight: 500, color: ink }}>Next steps</h3>
+              </div>
+              <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 6 }}>
+                {[
+                  { href: "/founder/assessment", label: "Update assessment", icon: Edit },
+                  { href: "/founder/dashboard",  label: "View dashboard",    icon: Target },
+                  { href: "/founder/matching",   label: "Explore investors", icon: Sparkles },
+                ].map(({ href, label, icon: Icon }) => (
+                  <Link key={href} href={href} style={{ textDecoration: "none" }}>
+                    <div
+                      onMouseEnter={e => (e.currentTarget.style.background = surf)}
+                      onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                      style={{
+                        display: "flex", alignItems: "center", justifyContent: "space-between",
+                        padding: "10px 12px", borderRadius: 9,
+                        cursor: "pointer", transition: "background 0.14s",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <Icon style={{ width: 13, height: 13, color: muted }} />
+                        <span style={{ fontSize: 13, fontWeight: 300, color: ink }}>{label}</span>
+                      </div>
+                      <ChevronRight style={{ width: 13, height: 13, color: "#C8C3BB" }} />
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </motion.div>
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-function ProfileCheckItem({ completed, label }: { completed: boolean; label: string }) {
-  return (
-    <div className="flex items-center space-x-2 text-sm">
-      {completed ? (
-        <CheckCircle className="w-4 h-4 text-green-600" />
-      ) : (
-        <AlertCircle className="w-4 h-4 text-gray-400" />
-      )}
-      <span className={`font-light ${completed ? 'text-gray-900' : 'text-gray-500'}`}>
-        {label}
-      </span>
-    </div>
-  );
-}
-
-function StatItem({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between">
-      <div className="flex items-center space-x-2">
-        {icon}
-        <span className="text-sm text-gray-600 font-light">{label}</span>
-      </div>
-      <span className="font-normal text-gray-900">{value}</span>
     </div>
   );
 }
