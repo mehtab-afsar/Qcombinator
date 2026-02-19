@@ -115,3 +115,25 @@
     display: none;
   }
 }
+
+/* ── Marquee animations ─────────────────────────────────────────────────────── */
+@keyframes marquee-left {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+@keyframes marquee-right {
+  from { transform: translateX(-50%); }
+  to   { transform: translateX(0); }
+}
+.mq-inner-l {
+  display: flex;
+  animation: marquee-left var(--mq-speed, 30s) linear infinite;
+}
+.mq-inner-r {
+  display: flex;
+  animation: marquee-right var(--mq-speed, 30s) linear infinite;
+}
+.mq-wrap:hover .mq-inner-l,
+.mq-wrap:hover .mq-inner-r {
+  animation-play-state: paused;
+}

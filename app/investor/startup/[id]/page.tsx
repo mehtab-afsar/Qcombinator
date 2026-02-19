@@ -1,801 +1,722 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Separator } from "@/components/ui/separator"
-import { Progress } from "@/components/ui/progress"
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
   MapPin,
   Heart,
-  Share,
+  Share2,
   MessageCircle,
   Download,
   FileText,
   CheckCircle,
   AlertTriangle,
-  Info
-} from 'lucide-react'
-import Link from 'next/link'
+  Info,
+  TrendingUp,
+  Users,
+  BarChart3,
+  ChevronRight,
+} from "lucide-react";
+import Link from "next/link";
 
-interface StartupData {
-  id: string
-  name: string
-  tagline: string
-  description: string
-  logo: string
-  website: string
-  founded: string
-  location: string
-  stage: string
-  sector: string
-  qScore: number
-  matchScore: number
+// ─── palette ──────────────────────────────────────────────────────────────────
+const bg    = "#F9F7F2";
+const surf  = "#F0EDE6";
+const bdr   = "#E2DDD5";
+const ink   = "#18160F";
+const muted = "#8A867C";
+const blue  = "#2563EB";
+const green = "#16A34A";
+const amber = "#D97706";
+const red   = "#DC2626";
 
-  founder: {
-    name: string
-    title: string
-    avatar: string
-    background: string
-    linkedin: string
-    previousExperience: string[]
-  }
+// ─── types ────────────────────────────────────────────────────────────────────
+const TABS = ["overview", "financials", "team", "market", "documents", "analysis"] as const;
+type Tab = typeof TABS[number];
 
-  team: {
-    size: number
-    keyMembers: Array<{
-      name: string
-      role: string
-      avatar: string
-      background: string
-    }>
-  }
+const TAB_LABELS: Record<Tab, string> = {
+  overview:   "Overview",
+  financials: "Financials",
+  team:       "Team",
+  market:     "Market",
+  documents:  "Documents",
+  analysis:   "AI Analysis",
+};
 
-  financials: {
-    revenue: string
-    growth: string
-    runway: string
-    burnRate: string
-    customers: number
-    cac: string
-    ltv: string
-    grossMargin: string
-  }
-
-  funding: {
-    totalRaised: string
-    currentRound: string
-    seeking: string
-    valuation: string
-    investors: string[]
-    useOfFunds: Array<{
-      category: string
-      percentage: number
-    }>
-  }
-
-  traction: {
-    highlights: string[]
-    milestones: Array<{
-      date: string
-      description: string
-      type: 'revenue' | 'product' | 'team' | 'partnership'
-    }>
-  }
-
-  market: {
-    size: string
-    growth: string
-    competition: Array<{
-      name: string
-      description: string
-      funding: string
-    }>
-  }
-
-  documents: Array<{
-    name: string
-    type: string
-    size: string
-    lastUpdated: string
-  }>
-
-  aiAnalysis: {
-    strengths: string[]
-    risks: string[]
-    recommendations: string[]
-  }
-}
-
-const mockStartup: StartupData = {
-  id: '1',
-  name: 'TechFlow AI',
-  tagline: 'AI-powered workflow automation for enterprise teams',
-  description: 'TechFlow AI revolutionizes enterprise productivity by automating complex workflows using advanced AI. Our platform integrates seamlessly with existing tools and can reduce manual work by up to 70% while improving accuracy and compliance.',
-  logo: '/api/placeholder/80/80',
-  website: 'https://techflow.ai',
-  founded: '2022',
-  location: 'San Francisco, CA',
-  stage: 'Series A',
-  sector: 'AI/ML',
+// ─── mock startup data ────────────────────────────────────────────────────────
+const mockStartup = {
+  name: "TechFlow AI",
+  tagline: "AI-powered workflow automation for enterprise teams",
+  description: "TechFlow AI revolutionizes enterprise productivity by automating complex workflows using advanced AI. Our platform integrates seamlessly with existing tools and can reduce manual work by up to 70% while improving accuracy and compliance.",
+  website: "https://techflow.ai",
+  founded: "2022",
+  location: "San Francisco, CA",
+  stage: "Series A",
+  sector: "AI / ML",
   qScore: 847,
   matchScore: 94,
 
   founder: {
-    name: 'Sarah Chen',
-    title: 'CEO & Co-founder',
-    avatar: '/api/placeholder/60/60',
-    background: 'Ex-Google AI Research, Stanford CS PhD',
-    linkedin: 'https://linkedin.com/in/sarahchen',
+    name: "Sarah Chen",
+    title: "CEO & Co-founder",
+    background: "Ex-Google AI Research, Stanford CS PhD",
     previousExperience: [
-      'Lead AI Researcher at Google (3 years)',
-      'Senior ML Engineer at DeepMind (2 years)',
-      'PhD in Computer Science, Stanford'
-    ]
+      "Lead AI Researcher at Google (3 years)",
+      "Senior ML Engineer at DeepMind (2 years)",
+      "PhD in Computer Science, Stanford",
+    ],
   },
 
   team: {
     size: 12,
     keyMembers: [
-      {
-        name: 'David Kim',
-        role: 'CTO & Co-founder',
-        avatar: '/api/placeholder/50/50',
-        background: 'Ex-Uber Engineering, MIT'
-      },
-      {
-        name: 'Maria Rodriguez',
-        role: 'VP of Sales',
-        avatar: '/api/placeholder/50/50',
-        background: 'Ex-Salesforce, 8 years enterprise sales'
-      },
-      {
-        name: 'Alex Thompson',
-        role: 'Head of Product',
-        avatar: '/api/placeholder/50/50',
-        background: 'Ex-Figma, Stanford MBA'
-      }
-    ]
+      { name: "David Kim",     role: "CTO & Co-founder",  background: "Ex-Uber Engineering, MIT"        },
+      { name: "Maria Rodriguez", role: "VP of Sales",     background: "Ex-Salesforce, 8 years enterprise sales" },
+      { name: "Alex Thompson", role: "Head of Product",   background: "Ex-Figma, Stanford MBA"          },
+    ],
   },
 
   financials: {
-    revenue: '$2.1M ARR',
-    growth: '+180% YoY',
-    runway: '18 months',
-    burnRate: '$85K/month',
-    customers: 47,
-    cac: '$2,400',
-    ltv: '$24,000',
-    grossMargin: '85%'
+    revenue:     "$2.1M ARR",
+    growth:      "+180% YoY",
+    runway:      "18 months",
+    burnRate:    "$85K / month",
+    customers:   47,
+    cac:         "$2,400",
+    ltv:         "$24,000",
+    grossMargin: "85%",
   },
 
   funding: {
-    totalRaised: '$3.2M',
-    currentRound: 'Series A',
-    seeking: '$5M',
-    valuation: '$25M pre-money',
-    investors: ['Andreessen Horowitz', 'First Round Capital', 'Y Combinator'],
+    totalRaised:  "$3.2M",
+    currentRound: "Series A",
+    seeking:      "$5M",
+    valuation:    "$25M pre-money",
+    investors:    ["Andreessen Horowitz", "First Round Capital", "Y Combinator"],
     useOfFunds: [
-      { category: 'Engineering & Product', percentage: 60 },
-      { category: 'Sales & Marketing', percentage: 25 },
-      { category: 'Operations', percentage: 10 },
-      { category: 'Working Capital', percentage: 5 }
-    ]
+      { category: "Engineering & Product", percentage: 60 },
+      { category: "Sales & Marketing",     percentage: 25 },
+      { category: "Operations",            percentage: 10 },
+      { category: "Working Capital",       percentage: 5  },
+    ],
   },
 
   traction: {
     highlights: [
-      '$2.1M ARR with 180% YoY growth',
-      '47 enterprise customers including Fortune 500 companies',
-      '95% customer retention rate',
-      'Average 70% reduction in manual work for customers'
+      "$2.1M ARR with 180% YoY growth",
+      "47 enterprise customers including Fortune 500 companies",
+      "95% customer retention rate",
+      "Average 70% reduction in manual work for customers",
     ],
     milestones: [
-      {
-        date: '2024-01',
-        description: 'Reached $2M ARR milestone',
-        type: 'revenue'
-      },
-      {
-        date: '2023-12',
-        description: 'Launched AI Workflow Builder 2.0',
-        type: 'product'
-      },
-      {
-        date: '2023-11',
-        description: 'Partnership with Microsoft Azure',
-        type: 'partnership'
-      },
-      {
-        date: '2023-10',
-        description: 'Hired VP of Sales from Salesforce',
-        type: 'team'
-      }
-    ]
+      { date: "Jan 2024",  description: "Reached $2M ARR milestone",          type: "revenue"     as const },
+      { date: "Dec 2023",  description: "Launched AI Workflow Builder 2.0",   type: "product"     as const },
+      { date: "Nov 2023",  description: "Partnership with Microsoft Azure",   type: "partnership" as const },
+      { date: "Oct 2023",  description: "Hired VP of Sales from Salesforce",  type: "team"        as const },
+    ],
   },
 
   market: {
-    size: '$12.8B TAM',
-    growth: '23% CAGR',
+    size:   "$12.8B TAM",
+    growth: "23% CAGR",
     competition: [
-      {
-        name: 'Zapier',
-        description: 'Workflow automation platform',
-        funding: '$140M raised'
-      },
-      {
-        name: 'UiPath',
-        description: 'RPA and automation platform',
-        funding: 'Public company'
-      },
-      {
-        name: 'Automation Anywhere',
-        description: 'Enterprise automation platform',
-        funding: '$840M raised'
-      }
-    ]
+      { name: "Zapier",               description: "Workflow automation platform",     funding: "$140M raised"       },
+      { name: "UiPath",               description: "RPA and automation platform",      funding: "Public company"      },
+      { name: "Automation Anywhere",  description: "Enterprise automation platform",   funding: "$840M raised"       },
+    ],
   },
 
   documents: [
-    {
-      name: 'Pitch Deck - Series A',
-      type: 'PDF',
-      size: '12.4 MB',
-      lastUpdated: '2024-01-15'
-    },
-    {
-      name: 'Financial Model',
-      type: 'XLSX',
-      size: '2.8 MB',
-      lastUpdated: '2024-01-10'
-    },
-    {
-      name: 'Product Demo Video',
-      type: 'MP4',
-      size: '45.2 MB',
-      lastUpdated: '2024-01-08'
-    },
-    {
-      name: 'Customer References',
-      type: 'PDF',
-      size: '1.2 MB',
-      lastUpdated: '2024-01-05'
-    }
+    { name: "Pitch Deck – Series A",  type: "PDF",  size: "12.4 MB", lastUpdated: "Jan 15, 2024" },
+    { name: "Financial Model",        type: "XLSX", size: "2.8 MB",  lastUpdated: "Jan 10, 2024" },
+    { name: "Product Demo Video",     type: "MP4",  size: "45.2 MB", lastUpdated: "Jan 8, 2024"  },
+    { name: "Customer References",    type: "PDF",  size: "1.2 MB",  lastUpdated: "Jan 5, 2024"  },
   ],
 
   aiAnalysis: {
     strengths: [
-      'Strong technical team with AI expertise from top companies',
-      'Impressive revenue growth (180% YoY) with healthy unit economics',
-      'Large addressable market with clear differentiation',
-      'High customer retention and proven product-market fit'
+      "Strong technical team with AI expertise from top companies",
+      "Impressive revenue growth (180% YoY) with healthy unit economics",
+      "Large addressable market with clear differentiation",
+      "High customer retention and proven product-market fit",
     ],
     risks: [
-      'Competitive market with well-funded incumbents',
-      'Dependency on key founders for technical vision',
-      'Need to scale sales team for enterprise market',
-      'Regulatory risks in AI automation space'
+      "Competitive market with well-funded incumbents",
+      "Dependency on key founders for technical vision",
+      "Need to scale sales team for enterprise market",
+      "Regulatory risks in AI automation space",
     ],
     recommendations: [
-      'Strong investment opportunity with proven traction',
-      'Consider co-investing with existing top-tier VCs',
-      'Due diligence focus on technical moat and scalability',
-      'Negotiate board seat given the growth stage'
-    ]
-  }
+      "Strong investment opportunity with proven traction",
+      "Consider co-investing with existing top-tier VCs",
+      "Due diligence focus on technical moat and scalability",
+      "Negotiate board seat given the growth stage",
+    ],
+  },
+};
+
+const qScoreBreakdown = [
+  { category: "Team",       score: 92, weight: "30%" },
+  { category: "Market",     score: 85, weight: "25%" },
+  { category: "Traction",   score: 88, weight: "20%" },
+  { category: "Product",    score: 90, weight: "15%" },
+  { category: "Financials", score: 82, weight: "10%" },
+];
+
+const milestoneColors: Record<string, string> = {
+  revenue:     green,
+  product:     blue,
+  partnership: amber,
+  team:        "#7C3AED",
+};
+
+// ─── helper ───────────────────────────────────────────────────────────────────
+function scoreColor(s: number) {
+  if (s >= 70) return blue;
+  if (s >= 50) return amber;
+  return red;
 }
 
+// ─── component ────────────────────────────────────────────────────────────────
 export default function StartupDeepDive({ params: _params }: { params: { id: string } }) {
-  const [activeTab, setActiveTab] = useState('overview')
-  const [isSaved, setIsSaved] = useState(false)
-  const startup = mockStartup
+  const [activeTab, setActiveTab] = useState<Tab>("overview");
+  const [saved, setSaved] = useState(false);
+  const s = mockStartup;
 
-  const qScoreBreakdown = [
-    { category: 'Team', score: 92, weight: '30%' },
-    { category: 'Market', score: 85, weight: '25%' },
-    { category: 'Traction', score: 88, weight: '20%' },
-    { category: 'Product', score: 90, weight: '15%' },
-    { category: 'Financials', score: 82, weight: '10%' }
-  ]
+  // Q-Score ring
+  const circumference = 2 * Math.PI * 36;
+  const dash = circumference * (1 - s.qScore / 1000);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <Link href="/investor/dashboard">
-                <Button variant="ghost" size="sm">
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Back to Pipeline
-                </Button>
-              </Link>
-              <Separator orientation="vertical" className="h-6" />
-              <div className="flex items-center space-x-4">
-                <Avatar className="h-16 w-16">
-                  <AvatarImage src={startup.logo} alt={startup.name} />
-                  <AvatarFallback>{startup.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                </Avatar>
-                <div>
-                  <h1 className="text-2xl font-bold text-gray-900">{startup.name}</h1>
-                  <p className="text-gray-600">{startup.tagline}</p>
-                  <div className="flex items-center space-x-4 mt-1">
-                    <Badge variant="secondary">{startup.stage}</Badge>
-                    <Badge variant="secondary">{startup.sector}</Badge>
-                    <span className="text-sm text-gray-500 flex items-center">
-                      <MapPin className="w-3 h-3 mr-1" />
-                      {startup.location}
-                    </span>
-                  </div>
+    <div style={{ minHeight: "100vh", background: bg, color: ink }}>
+
+      {/* ── sticky header ─────────────────────────────────────────────── */}
+      <div style={{
+        position: "sticky", top: 0, zIndex: 30,
+        background: "rgba(249,247,242,0.92)", backdropFilter: "blur(14px)",
+        borderBottom: `1px solid ${bdr}`,
+        padding: "0 28px",
+      }}>
+        <div style={{ maxWidth: 1120, margin: "0 auto", height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+
+          {/* left: back + startup name */}
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <Link href="/investor/deal-flow" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: muted, textDecoration: "none", fontWeight: 500 }}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = ink)}
+              onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = muted)}
+            >
+              <ArrowLeft style={{ height: 13, width: 13 }} />
+              Pipeline
+            </Link>
+            <div style={{ height: 16, width: 1, background: bdr }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              {/* logo placeholder */}
+              <div style={{ height: 32, width: 32, borderRadius: 8, background: ink, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: bg }}>TF</span>
+              </div>
+              <div>
+                <p style={{ fontSize: 14, fontWeight: 600, color: ink, lineHeight: 1.1 }}>{s.name}</p>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
+                  <span style={{ fontSize: 10, padding: "1px 7px", background: surf, border: `1px solid ${bdr}`, borderRadius: 999, color: muted }}>{s.stage}</span>
+                  <span style={{ fontSize: 10, padding: "1px 7px", background: surf, border: `1px solid ${bdr}`, borderRadius: 999, color: muted }}>{s.sector}</span>
+                  <span style={{ fontSize: 10, color: muted, display: "flex", alignItems: "center", gap: 3 }}>
+                    <MapPin style={{ height: 9, width: 9 }} />{s.location}
+                  </span>
                 </div>
               </div>
             </div>
+          </div>
 
-            <div className="flex items-center space-x-3">
-              <div className="text-center">
-                <div className="text-3xl font-bold text-blue-600">{startup.qScore}</div>
-                <div className="text-sm text-gray-500">Q Score</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold text-green-600">{startup.matchScore}%</div>
-                <div className="text-sm text-gray-500">Match</div>
-              </div>
-              <Separator orientation="vertical" className="h-12" />
-              <div className="flex space-x-2">
-                <Button
-                  variant={isSaved ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setIsSaved(!isSaved)}
-                >
-                  <Heart className={`w-4 h-4 mr-2 ${isSaved ? 'fill-current' : ''}`} />
-                  {isSaved ? 'Saved' : 'Save'}
-                </Button>
-                <Button variant="outline" size="sm">
-                  <Share className="w-4 h-4 mr-2" />
-                  Share
-                </Button>
-                <Button size="sm">
-                  <MessageCircle className="w-4 h-4 mr-2" />
-                  Connect
-                </Button>
-              </div>
+          {/* right: scores + actions */}
+          <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+            <div style={{ textAlign: "center" }}>
+              <p style={{ fontSize: 20, fontWeight: 600, color: blue, lineHeight: 1 }}>{s.qScore}</p>
+              <p style={{ fontSize: 9, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginTop: 2 }}>Q-Score</p>
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <p style={{ fontSize: 20, fontWeight: 600, color: green, lineHeight: 1 }}>{s.matchScore}%</p>
+              <p style={{ fontSize: 9, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginTop: 2 }}>Match</p>
+            </div>
+            <div style={{ height: 28, width: 1, background: bdr }} />
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                onClick={() => setSaved((v) => !v)}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  padding: "7px 14px", borderRadius: 999, fontSize: 12, fontWeight: 500, cursor: "pointer",
+                  background: saved ? ink : surf,
+                  color: saved ? bg : ink,
+                  border: `1px solid ${saved ? ink : bdr}`,
+                  transition: "all 0.15s",
+                }}
+              >
+                <Heart style={{ height: 12, width: 12, fill: saved ? "currentColor" : "none" }} />
+                {saved ? "Saved" : "Save"}
+              </button>
+              <button style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 999, fontSize: 12, fontWeight: 500, cursor: "pointer", background: surf, color: ink, border: `1px solid ${bdr}`, transition: "border-color 0.15s" }}
+                onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.borderColor = ink)}
+                onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.borderColor = bdr)}
+              >
+                <Share2 style={{ height: 12, width: 12 }} /> Share
+              </button>
+              <button style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 999, fontSize: 12, fontWeight: 500, cursor: "pointer", background: ink, color: bg, border: `1px solid ${ink}`, transition: "opacity 0.15s" }}
+                onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.opacity = "0.82")}
+                onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.opacity = "1")}
+              >
+                <MessageCircle style={{ height: 12, width: 12 }} /> Connect
+              </button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Content */}
-      <div className="max-w-7xl mx-auto px-6 py-6">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="financials">Financials</TabsTrigger>
-            <TabsTrigger value="team">Team</TabsTrigger>
-            <TabsTrigger value="market">Market</TabsTrigger>
-            <TabsTrigger value="documents">Documents</TabsTrigger>
-            <TabsTrigger value="analysis">AI Analysis</TabsTrigger>
-          </TabsList>
+      {/* ── content ───────────────────────────────────────────────────── */}
+      <div style={{ maxWidth: 1120, margin: "0 auto", padding: "28px 28px 72px" }}>
 
-          {/* Overview Tab */}
-          <TabsContent value="overview" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 space-y-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Company Overview</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-gray-600 leading-relaxed">{startup.description}</p>
+        {/* tagline */}
+        <p style={{ fontSize: 14, color: muted, marginBottom: 24, fontWeight: 300, lineHeight: 1.5 }}>{s.tagline}</p>
 
-                    <div className="grid grid-cols-2 gap-4 mt-6">
-                      <div>
-                        <div className="text-sm text-gray-500">Founded</div>
-                        <div className="font-medium">{startup.founded}</div>
-                      </div>
-                      <div>
-                        <div className="text-sm text-gray-500">Website</div>
-                        <a href={startup.website} target="_blank" className="font-medium text-blue-600 hover:underline">
-                          {startup.website}
-                        </a>
-                      </div>
-                      <div>
-                        <div className="text-sm text-gray-500">Team Size</div>
-                        <div className="font-medium">{startup.team.size} employees</div>
-                      </div>
-                      <div>
-                        <div className="text-sm text-gray-500">Funding Stage</div>
-                        <div className="font-medium">{startup.stage}</div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+        {/* tab bar */}
+        <div style={{ display: "flex", gap: 2, padding: "4px", background: surf, border: `1px solid ${bdr}`, borderRadius: 12, marginBottom: 28, width: "fit-content", flexWrap: "wrap" }}>
+          {TABS.map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              style={{
+                padding: "8px 16px", borderRadius: 9, fontSize: 12, fontWeight: 500, cursor: "pointer",
+                border: "none", transition: "all 0.15s",
+                background: activeTab === tab ? bg : "transparent",
+                color: activeTab === tab ? ink : muted,
+                boxShadow: activeTab === tab ? `0 1px 4px rgba(24,22,15,0.08)` : "none",
+              }}
+            >
+              {TAB_LABELS[tab]}
+            </button>
+          ))}
+        </div>
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Key Metrics</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-blue-600">{startup.financials.revenue}</div>
-                        <div className="text-sm text-gray-500">Annual Revenue</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-green-600">{startup.financials.growth}</div>
-                        <div className="text-sm text-gray-500">YoY Growth</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-purple-600">{startup.financials.customers}</div>
-                        <div className="text-sm text-gray-500">Customers</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-orange-600">{startup.financials.grossMargin}</div>
-                        <div className="text-sm text-gray-500">Gross Margin</div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+        {/* tab content */}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.18 }}
+          >
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Traction Highlights</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {startup.traction.highlights.map((highlight, index) => (
-                        <div key={index} className="flex items-start space-x-3">
-                          <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
-                          <span className="text-gray-700">{highlight}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+            {/* ── OVERVIEW ──────────────────────────────────────────── */}
+            {activeTab === "overview" && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 20, alignItems: "start" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
-              <div className="space-y-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Q Score Breakdown</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {qScoreBreakdown.map((item, index) => (
-                      <div key={index} className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span>{item.category}</span>
-                          <span className="font-medium">{item.score}/100</span>
-                        </div>
-                        <Progress value={item.score} className="h-2" />
-                        <div className="text-xs text-gray-500">Weight: {item.weight}</div>
-                      </div>
-                    ))}
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Funding Details</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div>
-                      <div className="text-sm text-gray-500">Current Round</div>
-                      <div className="font-medium">{startup.funding.currentRound}</div>
+                  {/* description card */}
+                  <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 18, overflow: "hidden" }}>
+                    <div style={{ padding: "16px 22px", borderBottom: `1px solid ${bdr}` }}>
+                      <p style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: "uppercase", letterSpacing: "0.14em" }}>Company Overview</p>
                     </div>
-                    <div>
-                      <div className="text-sm text-gray-500">Seeking</div>
-                      <div className="font-medium">{startup.funding.seeking}</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-500">Valuation</div>
-                      <div className="font-medium">{startup.funding.valuation}</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-500">Previous Investors</div>
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {startup.funding.investors.map((investor, index) => (
-                          <Badge key={index} variant="secondary" className="text-xs">
-                            {investor}
-                          </Badge>
+                    <div style={{ padding: "20px 22px" }}>
+                      <p style={{ fontSize: 14, color: ink, lineHeight: 1.7, marginBottom: 20 }}>{s.description}</p>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                        {[
+                          { label: "Founded", value: s.founded },
+                          { label: "Team size", value: `${s.team.size} people` },
+                          { label: "Stage", value: s.stage },
+                          { label: "Website", value: s.website, isLink: true },
+                        ].map(({ label, value, isLink }) => (
+                          <div key={label}>
+                            <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", color: muted, fontWeight: 600, marginBottom: 3 }}>{label}</p>
+                            {isLink ? (
+                              <a href={value} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: blue, textDecoration: "none" }}>{value}</a>
+                            ) : (
+                              <p style={{ fontSize: 13, color: ink, fontWeight: 500 }}>{value}</p>
+                            )}
+                          </div>
                         ))}
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Use of Funds</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {startup.funding.useOfFunds.map((item, index) => (
-                        <div key={index} className="space-y-1">
-                          <div className="flex justify-between text-sm">
-                            <span>{item.category}</span>
-                            <span className="font-medium">{item.percentage}%</span>
-                          </div>
-                          <Progress value={item.percentage} className="h-2" />
+                  {/* key metrics */}
+                  <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 18, overflow: "hidden" }}>
+                    <div style={{ padding: "16px 22px", borderBottom: `1px solid ${bdr}` }}>
+                      <p style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: "uppercase", letterSpacing: "0.14em" }}>Key Metrics</p>
+                    </div>
+                    <div style={{ padding: "20px 22px", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+                      {[
+                        { label: "Annual Revenue", value: s.financials.revenue, color: blue   },
+                        { label: "YoY Growth",     value: s.financials.growth,  color: green  },
+                        { label: "Customers",      value: String(s.financials.customers), color: ink },
+                        { label: "Gross Margin",   value: s.financials.grossMargin, color: amber },
+                      ].map(({ label, value, color }) => (
+                        <div key={label} style={{ textAlign: "center", padding: "16px 12px", background: surf, border: `1px solid ${bdr}`, borderRadius: 14 }}>
+                          <p style={{ fontSize: 20, fontWeight: 300, color, letterSpacing: "-0.02em", marginBottom: 4 }}>{value}</p>
+                          <p style={{ fontSize: 10, color: muted, textTransform: "uppercase", letterSpacing: "0.1em" }}>{label}</p>
                         </div>
                       ))}
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+
+                  {/* traction highlights */}
+                  <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 18, overflow: "hidden" }}>
+                    <div style={{ padding: "16px 22px", borderBottom: `1px solid ${bdr}` }}>
+                      <p style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: "uppercase", letterSpacing: "0.14em" }}>Traction Highlights</p>
+                    </div>
+                    <div style={{ padding: "20px 22px", display: "flex", flexDirection: "column", gap: 12 }}>
+                      {s.traction.highlights.map((h, i) => (
+                        <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                          <CheckCircle style={{ height: 15, width: 15, color: green, flexShrink: 0, marginTop: 1 }} />
+                          <p style={{ fontSize: 13, color: muted, lineHeight: 1.5 }}>{h}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* right sidebar */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 18, position: "sticky", top: 88 }}>
+
+                  {/* Q-Score breakdown */}
+                  <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 18, overflow: "hidden" }}>
+                    <div style={{ padding: "16px 20px", borderBottom: `1px solid ${bdr}` }}>
+                      <p style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: "uppercase", letterSpacing: "0.14em" }}>Q-Score Breakdown</p>
+                    </div>
+                    <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 13 }}>
+                      {qScoreBreakdown.map((item, i) => (
+                        <motion.div key={item.category}
+                          initial={{ opacity: 0, x: -6 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: i * 0.06 }}
+                        >
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+                            <span style={{ fontSize: 12, color: ink, fontWeight: 500 }}>{item.category}</span>
+                            <span style={{ fontSize: 11, color: muted }}>{item.score}/100</span>
+                          </div>
+                          <div style={{ height: 4, background: surf, border: `1px solid ${bdr}`, borderRadius: 999, overflow: "hidden" }}>
+                            <motion.div
+                              style={{ height: "100%", borderRadius: 999, background: scoreColor(item.score) }}
+                              initial={{ width: 0 }}
+                              animate={{ width: `${item.score}%` }}
+                              transition={{ delay: 0.2 + i * 0.06, duration: 0.6, ease: "easeOut" }}
+                            />
+                          </div>
+                          <p style={{ fontSize: 9, color: muted, marginTop: 2 }}>Weight: {item.weight}</p>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* funding details */}
+                  <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 18, overflow: "hidden" }}>
+                    <div style={{ padding: "16px 20px", borderBottom: `1px solid ${bdr}` }}>
+                      <p style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: "uppercase", letterSpacing: "0.14em" }}>Funding Details</p>
+                    </div>
+                    <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
+                      {[
+                        { label: "Current Round", value: s.funding.currentRound },
+                        { label: "Seeking",       value: s.funding.seeking      },
+                        { label: "Valuation",     value: s.funding.valuation    },
+                        { label: "Total Raised",  value: s.funding.totalRaised  },
+                      ].map(({ label, value }) => (
+                        <div key={label}>
+                          <p style={{ fontSize: 10, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 2 }}>{label}</p>
+                          <p style={{ fontSize: 13, fontWeight: 500, color: ink }}>{value}</p>
+                        </div>
+                      ))}
+                      <div>
+                        <p style={{ fontSize: 10, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>Previous Investors</p>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                          {s.funding.investors.map((inv) => (
+                            <span key={inv} style={{ fontSize: 10, padding: "3px 9px", background: surf, border: `1px solid ${bdr}`, borderRadius: 999, color: muted }}>{inv}</span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
-          </TabsContent>
+            )}
 
-          {/* Other tabs would be implemented similarly with detailed content */}
-          <TabsContent value="financials" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Revenue Metrics</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <div className="text-sm text-gray-500">ARR</div>
-                      <div className="text-2xl font-bold">{startup.financials.revenue}</div>
+            {/* ── FINANCIALS ────────────────────────────────────────── */}
+            {activeTab === "financials" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+                  {/* Revenue metrics */}
+                  <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 18, overflow: "hidden" }}>
+                    <div style={{ padding: "16px 22px", borderBottom: `1px solid ${bdr}` }}>
+                      <p style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: "uppercase", letterSpacing: "0.14em" }}>Revenue Metrics</p>
                     </div>
-                    <div>
-                      <div className="text-sm text-gray-500">Growth Rate</div>
-                      <div className="text-2xl font-bold text-green-600">{startup.financials.growth}</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-500">CAC</div>
-                      <div className="text-lg font-medium">{startup.financials.cac}</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-500">LTV</div>
-                      <div className="text-lg font-medium">{startup.financials.ltv}</div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Burn & Runway</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div>
-                      <div className="text-sm text-gray-500">Monthly Burn Rate</div>
-                      <div className="text-2xl font-bold text-red-600">{startup.financials.burnRate}</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-500">Runway</div>
-                      <div className="text-2xl font-bold">{startup.financials.runway}</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-500">Gross Margin</div>
-                      <div className="text-lg font-medium text-green-600">{startup.financials.grossMargin}</div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="team" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <Card className="lg:col-span-2">
-                <CardHeader>
-                  <CardTitle>Leadership Team</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-6">
-                    {/* Founder */}
-                    <div className="flex items-start space-x-4 p-4 border border-blue-200 rounded-lg bg-blue-50">
-                      <Avatar className="h-16 w-16">
-                        <AvatarImage src={startup.founder.avatar} />
-                        <AvatarFallback>{startup.founder.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-lg">{startup.founder.name}</h3>
-                        <p className="text-blue-600 font-medium">{startup.founder.title}</p>
-                        <p className="text-gray-600 text-sm mt-1">{startup.founder.background}</p>
-                        <div className="mt-2">
-                          <div className="text-sm font-medium mb-1">Previous Experience:</div>
-                          <ul className="text-sm text-gray-600 space-y-1">
-                            {startup.founder.previousExperience.map((exp, index) => (
-                              <li key={index} className="flex items-start">
-                                <span className="w-1 h-1 bg-gray-400 rounded-full mt-2 mr-2 flex-shrink-0"></span>
-                                {exp}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Key Team Members */}
-                    <div className="space-y-4">
-                      {startup.team.keyMembers.map((member, index) => (
-                        <div key={index} className="flex items-start space-x-4 p-4 border border-gray-200 rounded-lg">
-                          <Avatar className="h-12 w-12">
-                            <AvatarImage src={member.avatar} />
-                            <AvatarFallback>{member.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1">
-                            <h4 className="font-medium">{member.name}</h4>
-                            <p className="text-gray-600 text-sm">{member.role}</p>
-                            <p className="text-gray-500 text-xs mt-1">{member.background}</p>
-                          </div>
+                    <div style={{ padding: "22px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
+                      {[
+                        { label: "ARR",         value: s.financials.revenue,   color: blue   },
+                        { label: "Growth Rate", value: s.financials.growth,    color: green  },
+                        { label: "CAC",         value: s.financials.cac,       color: ink    },
+                        { label: "LTV",         value: s.financials.ltv,       color: ink    },
+                      ].map(({ label, value, color }) => (
+                        <div key={label} style={{ padding: "14px 16px", background: surf, border: `1px solid ${bdr}`, borderRadius: 12 }}>
+                          <p style={{ fontSize: 10, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>{label}</p>
+                          <p style={{ fontSize: 18, fontWeight: 300, color, letterSpacing: "-0.02em" }}>{value}</p>
                         </div>
                       ))}
                     </div>
                   </div>
-                </CardContent>
-              </Card>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Team Overview</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <div className="text-sm text-gray-500">Total Team Size</div>
-                    <div className="text-2xl font-bold">{startup.team.size}</div>
-                  </div>
-
-                  <Separator />
-
-                  <div className="space-y-2">
-                    <div className="text-sm font-medium">Department Breakdown</div>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span>Engineering</span>
-                        <span>7 (58%)</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Sales & Marketing</span>
-                        <span>3 (25%)</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Operations</span>
-                        <span>2 (17%)</span>
-                      </div>
+                  {/* Burn & Runway */}
+                  <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 18, overflow: "hidden" }}>
+                    <div style={{ padding: "16px 22px", borderBottom: `1px solid ${bdr}` }}>
+                      <p style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: "uppercase", letterSpacing: "0.14em" }}>Burn &amp; Runway</p>
+                    </div>
+                    <div style={{ padding: "22px", display: "flex", flexDirection: "column", gap: 16 }}>
+                      {[
+                        { label: "Monthly Burn Rate", value: s.financials.burnRate,    color: red   },
+                        { label: "Runway",             value: s.financials.runway,      color: green },
+                        { label: "Gross Margin",       value: s.financials.grossMargin, color: green },
+                        { label: "Customers",          value: String(s.financials.customers), color: blue },
+                      ].map(({ label, value, color }) => (
+                        <div key={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingBottom: 14, borderBottom: `1px solid ${bdr}` }}>
+                          <p style={{ fontSize: 13, color: muted }}>{label}</p>
+                          <p style={{ fontSize: 16, fontWeight: 500, color }}>{value}</p>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
+                </div>
 
-          <TabsContent value="market" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Market Opportunity</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div>
-                      <div className="text-sm text-gray-500">Total Addressable Market</div>
-                      <div className="text-3xl font-bold text-blue-600">{startup.market.size}</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-500">Market Growth Rate</div>
-                      <div className="text-2xl font-bold text-green-600">{startup.market.growth}</div>
-                    </div>
+                {/* Use of funds */}
+                <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 18, overflow: "hidden" }}>
+                  <div style={{ padding: "16px 22px", borderBottom: `1px solid ${bdr}` }}>
+                    <p style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: "uppercase", letterSpacing: "0.14em" }}>Use of Funds</p>
                   </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Competitive Landscape</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {startup.market.competition.map((competitor, index) => (
-                      <div key={index} className="border border-gray-200 rounded-lg p-3">
-                        <h4 className="font-medium">{competitor.name}</h4>
-                        <p className="text-sm text-gray-600 mt-1">{competitor.description}</p>
-                        <p className="text-xs text-gray-500 mt-2">{competitor.funding}</p>
+                  <div style={{ padding: "22px", display: "flex", flexDirection: "column", gap: 14 }}>
+                    {s.funding.useOfFunds.map((item, i) => (
+                      <div key={item.category}>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                          <span style={{ fontSize: 13, color: ink }}>{item.category}</span>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: ink }}>{item.percentage}%</span>
+                        </div>
+                        <div style={{ height: 5, background: surf, border: `1px solid ${bdr}`, borderRadius: 999, overflow: "hidden" }}>
+                          <motion.div
+                            style={{ height: "100%", borderRadius: 999, background: [blue, green, amber, muted][i % 4] }}
+                            initial={{ width: 0 }}
+                            animate={{ width: `${item.percentage}%` }}
+                            transition={{ delay: 0.1 + i * 0.07, duration: 0.7, ease: "easeOut" }}
+                          />
+                        </div>
                       </div>
                     ))}
                   </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
+                </div>
+              </div>
+            )}
 
-          <TabsContent value="documents" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Available Documents</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {startup.documents.map((doc, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
-                      <div className="flex items-center space-x-3">
-                        <FileText className="w-5 h-5 text-gray-400" />
-                        <div>
-                          <div className="font-medium">{doc.name}</div>
-                          <div className="text-sm text-gray-500">{doc.size} • Updated {doc.lastUpdated}</div>
+            {/* ── TEAM ──────────────────────────────────────────────── */}
+            {activeTab === "team" && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 20 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  {/* Founder */}
+                  <div style={{ background: bg, border: `2px solid ${blue}`, borderRadius: 18, overflow: "hidden" }}>
+                    <div style={{ padding: "16px 22px", borderBottom: `1px solid ${bdr}`, display: "flex", alignItems: "center", gap: 8 }}>
+                      <div style={{ height: 6, width: 6, borderRadius: "50%", background: blue }} />
+                      <p style={{ fontSize: 11, fontWeight: 600, color: blue, textTransform: "uppercase", letterSpacing: "0.14em" }}>Founder</p>
+                    </div>
+                    <div style={{ padding: "22px", display: "flex", gap: 16 }}>
+                      <div style={{ height: 56, width: 56, borderRadius: 14, background: surf, border: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 600, color: ink, flexShrink: 0 }}>
+                        {s.founder.name.split(" ").map((n) => n[0]).join("")}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ fontSize: 15, fontWeight: 600, color: ink }}>{s.founder.name}</p>
+                        <p style={{ fontSize: 12, color: blue, fontWeight: 500, marginTop: 2 }}>{s.founder.title}</p>
+                        <p style={{ fontSize: 12, color: muted, marginTop: 4 }}>{s.founder.background}</p>
+                        <div style={{ marginTop: 12 }}>
+                          <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", color: muted, fontWeight: 600, marginBottom: 6 }}>Experience</p>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                            {s.founder.previousExperience.map((exp, i) => (
+                              <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                                <div style={{ height: 4, width: 4, borderRadius: "50%", background: muted, flexShrink: 0, marginTop: 5 }} />
+                                <p style={{ fontSize: 12, color: muted }}>{exp}</p>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       </div>
-                      <Button size="sm" variant="outline">
-                        <Download className="w-4 h-4 mr-2" />
-                        Download
-                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Key members */}
+                  {s.team.keyMembers.map((member, i) => (
+                    <div key={i} style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 16, padding: "18px 22px", display: "flex", gap: 14, alignItems: "flex-start" }}>
+                      <div style={{ height: 44, width: 44, borderRadius: 12, background: surf, border: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 600, color: ink, flexShrink: 0 }}>
+                        {member.name.split(" ").map((n) => n[0]).join("")}
+                      </div>
+                      <div>
+                        <p style={{ fontSize: 14, fontWeight: 500, color: ink }}>{member.name}</p>
+                        <p style={{ fontSize: 12, color: muted, marginTop: 2 }}>{member.role}</p>
+                        <p style={{ fontSize: 11, color: muted, marginTop: 3 }}>{member.background}</p>
+                      </div>
                     </div>
                   ))}
                 </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
 
-          <TabsContent value="analysis" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center text-green-600">
-                    <CheckCircle className="w-5 h-5 mr-2" />
-                    Strengths
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {startup.aiAnalysis.strengths.map((strength, index) => (
-                      <div key={index} className="flex items-start space-x-2">
-                        <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
-                        <span className="text-sm">{strength}</span>
+                {/* Team overview sidebar */}
+                <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 18, overflow: "hidden", height: "fit-content" }}>
+                  <div style={{ padding: "16px 20px", borderBottom: `1px solid ${bdr}` }}>
+                    <p style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: "uppercase", letterSpacing: "0.14em" }}>Team Overview</p>
+                  </div>
+                  <div style={{ padding: "20px" }}>
+                    <p style={{ fontSize: 32, fontWeight: 300, color: ink, letterSpacing: "-0.03em" }}>{s.team.size}</p>
+                    <p style={{ fontSize: 11, color: muted, marginBottom: 20 }}>Total team members</p>
+                    <div style={{ height: 1, background: bdr, marginBottom: 16 }} />
+                    <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", color: muted, fontWeight: 600, marginBottom: 12 }}>By Department</p>
+                    {[
+                      { dept: "Engineering", count: 7, pct: 58 },
+                      { dept: "Sales & Marketing", count: 3, pct: 25 },
+                      { dept: "Operations", count: 2, pct: 17 },
+                    ].map(({ dept, count, pct }) => (
+                      <div key={dept} style={{ marginBottom: 12 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+                          <span style={{ fontSize: 12, color: ink }}>{dept}</span>
+                          <span style={{ fontSize: 11, color: muted }}>{count} ({pct}%)</span>
+                        </div>
+                        <div style={{ height: 4, background: surf, border: `1px solid ${bdr}`, borderRadius: 999, overflow: "hidden" }}>
+                          <motion.div style={{ height: "100%", borderRadius: 999, background: blue }}
+                            initial={{ width: 0 }}
+                            animate={{ width: `${pct}%` }}
+                            transition={{ duration: 0.6, ease: "easeOut" }}
+                          />
+                        </div>
                       </div>
                     ))}
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
+            )}
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center text-yellow-600">
-                    <AlertTriangle className="w-5 h-5 mr-2" />
-                    Risks
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {startup.aiAnalysis.risks.map((risk, index) => (
-                      <div key={index} className="flex items-start space-x-2">
-                        <div className="w-2 h-2 bg-yellow-500 rounded-full mt-2 flex-shrink-0"></div>
-                        <span className="text-sm">{risk}</span>
+            {/* ── MARKET ────────────────────────────────────────────── */}
+            {activeTab === "market" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+                  <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 18, padding: "28px 28px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+                      <BarChart3 style={{ height: 16, width: 16, color: muted }} />
+                      <p style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: "uppercase", letterSpacing: "0.14em" }}>Market Opportunity</p>
+                    </div>
+                    <p style={{ fontSize: 36, fontWeight: 300, color: blue, letterSpacing: "-0.04em", marginBottom: 6 }}>{s.market.size}</p>
+                    <p style={{ fontSize: 13, color: muted }}>Total Addressable Market</p>
+                    <div style={{ height: 1, background: bdr, margin: "20px 0" }} />
+                    <p style={{ fontSize: 24, fontWeight: 300, color: green, letterSpacing: "-0.03em", marginBottom: 4 }}>{s.market.growth}</p>
+                    <p style={{ fontSize: 13, color: muted }}>Market Growth Rate</p>
+                  </div>
+
+                  <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 18, overflow: "hidden" }}>
+                    <div style={{ padding: "16px 22px", borderBottom: `1px solid ${bdr}` }}>
+                      <p style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: "uppercase", letterSpacing: "0.14em" }}>Competitive Landscape</p>
+                    </div>
+                    <div style={{ padding: "18px 22px", display: "flex", flexDirection: "column", gap: 12 }}>
+                      {s.market.competition.map((comp, i) => (
+                        <div key={i} style={{ padding: "14px 16px", background: surf, border: `1px solid ${bdr}`, borderRadius: 12 }}>
+                          <p style={{ fontSize: 13, fontWeight: 500, color: ink, marginBottom: 3 }}>{comp.name}</p>
+                          <p style={{ fontSize: 12, color: muted, marginBottom: 3 }}>{comp.description}</p>
+                          <p style={{ fontSize: 10, color: muted }}>{comp.funding}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* milestones */}
+                <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 18, overflow: "hidden" }}>
+                  <div style={{ padding: "16px 22px", borderBottom: `1px solid ${bdr}` }}>
+                    <p style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: "uppercase", letterSpacing: "0.14em" }}>Key Milestones</p>
+                  </div>
+                  <div style={{ padding: "22px", display: "flex", flexDirection: "column", gap: 0 }}>
+                    {s.traction.milestones.map((m, i) => (
+                      <div key={i} style={{ display: "flex", gap: 16, paddingBottom: i < s.traction.milestones.length - 1 ? 16 : 0, marginBottom: i < s.traction.milestones.length - 1 ? 16 : 0, borderBottom: i < s.traction.milestones.length - 1 ? `1px solid ${bdr}` : "none" }}>
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                          <div style={{ height: 10, width: 10, borderRadius: "50%", background: milestoneColors[m.type], flexShrink: 0 }} />
+                          {i < s.traction.milestones.length - 1 && <div style={{ flex: 1, width: 1, background: bdr, marginTop: 4 }} />}
+                        </div>
+                        <div>
+                          <p style={{ fontSize: 10, color: muted, marginBottom: 2 }}>{m.date}</p>
+                          <p style={{ fontSize: 13, color: ink }}>{m.description}</p>
+                        </div>
                       </div>
                     ))}
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
+            )}
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center text-blue-600">
-                    <Info className="w-5 h-5 mr-2" />
-                    Recommendations
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {startup.aiAnalysis.recommendations.map((rec, index) => (
-                      <div key={index} className="flex items-start space-x-2">
-                        <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
-                        <span className="text-sm">{rec}</span>
+            {/* ── DOCUMENTS ─────────────────────────────────────────── */}
+            {activeTab === "documents" && (
+              <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 18, overflow: "hidden" }}>
+                <div style={{ padding: "16px 22px", borderBottom: `1px solid ${bdr}` }}>
+                  <p style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: "uppercase", letterSpacing: "0.14em" }}>Available Documents</p>
+                </div>
+                <div style={{ padding: "16px 22px", display: "flex", flexDirection: "column", gap: 10 }}>
+                  {s.documents.map((doc, i) => (
+                    <div key={i}
+                      style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", background: surf, border: `1px solid ${bdr}`, borderRadius: 12, transition: "border-color 0.15s" }}
+                      onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.borderColor = "#C8C3BB")}
+                      onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.borderColor = bdr)}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <div style={{ height: 36, width: 36, borderRadius: 9, background: bg, border: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <FileText style={{ height: 15, width: 15, color: muted }} />
+                        </div>
+                        <div>
+                          <p style={{ fontSize: 13, fontWeight: 500, color: ink }}>{doc.name}</p>
+                          <p style={{ fontSize: 11, color: muted }}>{doc.type} · {doc.size} · Updated {doc.lastUpdated}</p>
+                        </div>
                       </div>
-                    ))}
+                      <button style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", background: bg, border: `1px solid ${bdr}`, borderRadius: 999, fontSize: 11, fontWeight: 500, color: ink, cursor: "pointer", transition: "border-color 0.15s" }}
+                        onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.borderColor = ink)}
+                        onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.borderColor = bdr)}
+                      >
+                        <Download style={{ height: 11, width: 11 }} /> Download
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ── AI ANALYSIS ───────────────────────────────────────── */}
+            {activeTab === "analysis" && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 18 }}>
+                {[
+                  { label: "Strengths",       items: s.aiAnalysis.strengths,       icon: CheckCircle,   color: green, bg: "#ECFDF5", border: "#86EFAC" },
+                  { label: "Risks",           items: s.aiAnalysis.risks,           icon: AlertTriangle, color: amber, bg: "#FFFBEB", border: "#FDE68A" },
+                  { label: "Recommendations", items: s.aiAnalysis.recommendations, icon: Info,          color: blue,  bg: "#EFF6FF", border: "#93C5FD" },
+                ].map(({ label, items, icon: Icon, color, bg: cardBg, border: cardBorder }, col) => (
+                  <div key={label} style={{ background, border: `1px solid ${bdr}`, borderRadius: 18, overflow: "hidden" }}>
+                    <div style={{ padding: "16px 20px", borderBottom: `1px solid ${bdr}`, display: "flex", alignItems: "center", gap: 8 }}>
+                      <div style={{ height: 28, width: 28, borderRadius: 8, background: cardBg, border: `1px solid ${cardBorder}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <Icon style={{ height: 13, width: 13, color }} />
+                      </div>
+                      <p style={{ fontSize: 11, fontWeight: 600, color: ink, textTransform: "uppercase", letterSpacing: "0.12em" }}>{label}</p>
+                    </div>
+                    <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
+                      {items.map((item, i) => (
+                        <motion.div key={i}
+                          initial={{ opacity: 0, x: -6 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: col * 0.1 + i * 0.06 }}
+                          style={{ display: "flex", alignItems: "flex-start", gap: 10 }}
+                        >
+                          <div style={{ height: 6, width: 6, borderRadius: "50%", background: color, flexShrink: 0, marginTop: 5 }} />
+                          <p style={{ fontSize: 13, color: muted, lineHeight: 1.55 }}>{item}</p>
+                        </motion.div>
+                      ))}
+                    </div>
                   </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-        </Tabs>
+                ))}
+              </div>
+            )}
+
+          </motion.div>
+        </AnimatePresence>
       </div>
     </div>
-  )
+  );
 }
