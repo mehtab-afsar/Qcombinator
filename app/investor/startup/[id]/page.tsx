@@ -13,10 +13,7 @@ import {
   CheckCircle,
   AlertTriangle,
   Info,
-  TrendingUp,
-  Users,
   BarChart3,
-  ChevronRight,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -183,10 +180,6 @@ export default function StartupDeepDive({ params: _params }: { params: { id: str
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [saved, setSaved] = useState(false);
   const s = mockStartup;
-
-  // Q-Score ring
-  const circumference = 2 * Math.PI * 36;
-  const dash = circumference * (1 - s.qScore / 1000);
 
   return (
     <div style={{ minHeight: "100vh", background: bg, color: ink }}>
@@ -689,7 +682,7 @@ export default function StartupDeepDive({ params: _params }: { params: { id: str
                   { label: "Risks",           items: s.aiAnalysis.risks,           icon: AlertTriangle, color: amber, bg: "#FFFBEB", border: "#FDE68A" },
                   { label: "Recommendations", items: s.aiAnalysis.recommendations, icon: Info,          color: blue,  bg: "#EFF6FF", border: "#93C5FD" },
                 ].map(({ label, items, icon: Icon, color, bg: cardBg, border: cardBorder }, col) => (
-                  <div key={label} style={{ background, border: `1px solid ${bdr}`, borderRadius: 18, overflow: "hidden" }}>
+                  <div key={label} style={{ background: cardBg, border: `1px solid ${bdr}`, borderRadius: 18, overflow: "hidden" }}>
                     <div style={{ padding: "16px 20px", borderBottom: `1px solid ${bdr}`, display: "flex", alignItems: "center", gap: 8 }}>
                       <div style={{ height: 28, width: 28, borderRadius: 8, background: cardBg, border: `1px solid ${cardBorder}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
                         <Icon style={{ height: 13, width: 13, color }} />
