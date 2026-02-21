@@ -27,7 +27,8 @@
       "Bash(dir:*)",
       "Bash(tree:*)",
       "WebSearch",
-      "mcp__ide__getDiagnostics"
+      "mcp__ide__getDiagnostics",
+      "Bash(SUPABASE_URL=https://mktirfhpchgifideincg.supabase.co SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdGlyZmhwY2hnaWZpZGVpbmNnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MTUxNDI4OCwiZXhwIjoyMDg3MDkwMjg4fQ.jOE4hrEG4ALGNn4v7knMYlgfo-uRAbDw9GZGyRY4Q68 node:*)"
     ],
     "deny": [],
     "ask": []
