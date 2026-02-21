@@ -21,7 +21,7 @@ export default function FounderLayout({
     <div style={{ background: "#F9F7F2", minHeight: "100vh" }}>
       <FounderSidebar />
       {/* Offset by collapsed sidebar width so content is never hidden */}
-      <div style={{ marginLeft: "3.05rem", minHeight: "100vh", overflowX: "hidden" }}>
+      <div style={{ marginLeft: 52, minHeight: "100vh", overflowX: "hidden" }}>
         {children}
       </div>
     </div>

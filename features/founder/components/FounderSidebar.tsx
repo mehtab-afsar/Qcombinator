@@ -1,7 +1,5 @@
 "use client";
 
-import { cn } from "@/lib/utils";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { motion } from "framer-motion";
 import {
   BarChart3, Brain, Building2, ChevronsUpDown,
@@ -10,30 +8,16 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
-  DropdownMenuSeparator, DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 
 // ─── palette ──────────────────────────────────────────────────────────────────
-const bg   = "#F9F7F2";
-const surf = "#F0EDE6";
-const bdr  = "#E2DDD5";
-const ink  = "#18160F";
+const bg    = "#F9F7F2";
+const surf  = "#F0EDE6";
+const bdr   = "#E2DDD5";
+const ink   = "#18160F";
 const muted = "#8A867C";
-
-// ─── framer variants ──────────────────────────────────────────────────────────
-const sidebarVariants = {
-  open:   { width: "15rem" },
-  closed: { width: "3.05rem" },
-};
-
-const labelVariants = {
-  open:   { opacity: 1, x: 0,   transition: { duration: 0.15 } },
-  closed: { opacity: 0, x: -6,  transition: { duration: 0.1  } },
-};
+const blue  = "#2563EB";
 
 // ─── nav items ────────────────────────────────────────────────────────────────
 const nav = [
@@ -53,9 +37,108 @@ const BADGE: Record<string, { bg: string; color: string }> = {
   "3":     { bg: surf,      color: muted     },
 };
 
+// ─── simple dropdown ──────────────────────────────────────────────────────────
+function Dropdown({
+  trigger,
+  children,
+  align = "left",
+}: {
+  trigger: React.ReactNode;
+  children: React.ReactNode;
+  align?: "left" | "right";
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <div onClick={() => setOpen(o => !o)}>{trigger}</div>
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: "100%",
+            [align]: 0,
+            marginBottom: 6,
+            minWidth: 200,
+            background: bg,
+            border: `1px solid ${bdr}`,
+            borderRadius: 10,
+            boxShadow: "0 8px 24px rgba(0,0,0,0.08)",
+            padding: "6px 0",
+            zIndex: 100,
+          }}
+          onClick={() => setOpen(false)}
+        >
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DropItem({
+  href,
+  icon: Icon,
+  label,
+  onClick,
+  danger,
+}: {
+  href?: string;
+  icon: React.ElementType;
+  label: string;
+  onClick?: () => void;
+  danger?: boolean;
+}) {
+  const style: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "8px 14px",
+    fontSize: 13,
+    color: danger ? "#DC2626" : ink,
+    textDecoration: "none",
+    cursor: "pointer",
+    background: "transparent",
+    border: "none",
+    width: "100%",
+    fontFamily: "inherit",
+    transition: "background .12s",
+  };
+  const hover = (e: React.MouseEvent) => ((e.currentTarget as HTMLElement).style.background = surf);
+  const leave = (e: React.MouseEvent) => ((e.currentTarget as HTMLElement).style.background = "transparent");
+
+  if (href) {
+    return (
+      <Link href={href} style={style} onMouseEnter={hover} onMouseLeave={leave}>
+        <Icon style={{ height: 14, width: 14, color: danger ? "#DC2626" : muted }} />
+        {label}
+      </Link>
+    );
+  }
+  return (
+    <button onClick={onClick} style={style} onMouseEnter={hover} onMouseLeave={leave}>
+      <Icon style={{ height: 14, width: 14, color: danger ? "#DC2626" : muted }} />
+      {label}
+    </button>
+  );
+}
+
+function DropSep() {
+  return <div style={{ height: 1, background: bdr, margin: "4px 0" }} />;
+}
+
 // ─── component ────────────────────────────────────────────────────────────────
-export default function FounderSidebar({ className }: { className?: string }) {
-  const [collapsed, setCollapsed] = useState(true);
+export default function FounderSidebar() {
+  const [expanded, setExpanded] = useState(false);
   const pathname = usePathname();
   const router   = useRouter();
   const { user, signOut } = useAuth();
@@ -70,180 +153,180 @@ export default function FounderSidebar({ className }: { className?: string }) {
     router.push("/login");
   };
 
+  const W_OPEN   = 220;
+  const W_CLOSED = 52;
+
   return (
-    <motion.div
-      className={cn("fixed left-0 top-0 z-40 h-screen border-r overflow-hidden", className)}
-      style={{ borderColor: bdr, background: bg }}
-      initial="closed"
-      animate={collapsed ? "closed" : "open"}
-      variants={sidebarVariants}
+    <motion.nav
+      style={{
+        position: "fixed", left: 0, top: 0, zIndex: 40,
+        height: "100vh",
+        background: bg,
+        borderRight: `1px solid ${bdr}`,
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+      }}
+      animate={{ width: expanded ? W_OPEN : W_CLOSED }}
       transition={{ ease: "easeOut", duration: 0.2 }}
-      onMouseEnter={() => setCollapsed(false)}
-      onMouseLeave={() => setCollapsed(true)}
+      onMouseEnter={() => setExpanded(true)}
+      onMouseLeave={() => setExpanded(false)}
     >
-      {/* ── Outer flex column fills full height ─────────────────────── */}
-      <div className="flex h-full flex-col overflow-hidden">
 
-        {/* ── TOP: startup / org row ──────────────────────────────── */}
-        <div
-          className="flex h-[54px] w-full shrink-0 items-center px-2"
-          style={{ borderBottom: `1px solid ${bdr}` }}
+      {/* ── top: startup row ─────────────────────────────────────────── */}
+      <div style={{
+        height: 52, flexShrink: 0,
+        borderBottom: `1px solid ${bdr}`,
+        display: "flex", alignItems: "center",
+        padding: "0 10px",
+      }}>
+        <div style={{
+          height: 28, width: 28, borderRadius: 7, flexShrink: 0,
+          background: ink, color: bg,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 11, fontWeight: 700,
+        }}>
+          {orgInitial}
+        </div>
+        <motion.div
+          animate={{ opacity: expanded ? 1 : 0, x: expanded ? 0 : -4 }}
+          transition={{ duration: 0.15 }}
+          style={{ marginLeft: 10, overflow: "hidden", whiteSpace: "nowrap" }}
         >
-          <DropdownMenu modal={false}>
-            <DropdownMenuTrigger asChild>
-              <button
-                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 outline-none"
-                style={{ background: "transparent", border: "none", cursor: "pointer" }}
-                onMouseEnter={e => (e.currentTarget.style.background = surf)}
-                onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-              >
-                <div
-                  className="flex shrink-0 items-center justify-center rounded"
-                  style={{ width: 22, height: 22, background: ink, fontSize: 9, fontWeight: 700, color: bg }}
-                >
-                  {orgInitial}
-                </div>
-                <motion.div
-                  variants={labelVariants}
-                  className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden"
-                >
-                  <span className="truncate text-sm font-medium" style={{ color: ink }}>
-                    {startupName}
-                  </span>
-                  <ChevronsUpDown className="ml-auto h-3.5 w-3.5 shrink-0" style={{ color: muted }} />
-                </motion.div>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-52">
-              <DropdownMenuItem asChild>
-                <Link href="/founder/profile" className="flex items-center gap-2 text-sm">
-                  <Building2 className="h-4 w-4" /> Edit startup profile
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/founder/dashboard" className="flex items-center gap-2 text-sm">
-                  <Home className="h-4 w-4" /> Dashboard
-                </Link>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-
-        {/* ── MIDDLE: nav (flex-1 = takes all remaining space) ──────── */}
-        <div className="flex-1 overflow-hidden">
-          <ScrollArea className="h-full w-full">
-            <div className="flex flex-col gap-0.5 p-2">
-              {nav.map(item => {
-                const active = pathname === item.href || pathname.startsWith(item.href + "/");
-                const Icon   = item.icon;
-                const bs     = item.badge ? BADGE[item.badge] : null;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className="flex h-8 w-full items-center rounded-md px-2 py-1.5"
-                    style={{
-                      background: active ? "#EEF2FF" : "transparent",
-                      textDecoration: "none",
-                      transition: "background 0.14s",
-                    }}
-                    onMouseEnter={e => { if (!active) e.currentTarget.style.background = surf; }}
-                    onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}
-                  >
-                    <Icon
-                      className="h-4 w-4 shrink-0"
-                      style={{ color: active ? "#2563EB" : muted }}
-                    />
-                    <motion.div
-                      variants={labelVariants}
-                      className="ml-2 flex min-w-0 flex-1 items-center gap-2 overflow-hidden"
-                    >
-                      <span
-                        className="truncate text-sm font-medium"
-                        style={{ color: active ? "#2563EB" : ink }}
-                      >
-                        {item.name}
-                      </span>
-                      {bs && item.badge && (
-                        <span
-                          className="ml-auto shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
-                          style={{ background: bs.bg, color: bs.color }}
-                        >
-                          {item.badge}
-                        </span>
-                      )}
-                    </motion.div>
-                  </Link>
-                );
-              })}
-            </div>
-          </ScrollArea>
-        </div>
-
-        {/* ── BOTTOM: settings + user (always pinned to bottom) ─────── */}
-        <div
-          className="flex shrink-0 flex-col gap-0.5 p-2"
-          style={{ borderTop: `1px solid ${bdr}` }}
-        >
-          {/* User dropdown */}
-          <DropdownMenu modal={false}>
-            <DropdownMenuTrigger asChild>
-              <button
-                className="flex h-8 w-full items-center gap-2 rounded-md px-2 py-1.5 outline-none"
-                style={{ background: "transparent", border: "none", cursor: "pointer", transition: "background 0.14s" }}
-                onMouseEnter={e => (e.currentTarget.style.background = surf)}
-                onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-              >
-                <div
-                  className="flex shrink-0 items-center justify-center rounded-full"
-                  style={{ width: 20, height: 20, background: ink, color: bg, fontSize: 9, fontWeight: 700 }}
-                >
-                  {initials}
-                </div>
-                <motion.div
-                  variants={labelVariants}
-                  className="flex min-w-0 flex-1 items-center overflow-hidden"
-                >
-                  <span className="truncate text-sm font-medium" style={{ color: ink }}>
-                    {displayName}
-                  </span>
-                  <ChevronsUpDown className="ml-auto h-3.5 w-3.5 shrink-0" style={{ color: muted }} />
-                </motion.div>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent sideOffset={6} align="start" className="w-52">
-              <div className="flex items-center gap-2 px-2 py-2">
-                <div
-                  className="flex shrink-0 items-center justify-center rounded-full"
-                  style={{ width: 28, height: 28, background: ink, color: bg, fontSize: 11, fontWeight: 700 }}
-                >
-                  {initials}
-                </div>
-                <div className="flex min-w-0 flex-col text-left">
-                  <span className="truncate text-sm font-medium" style={{ color: ink }}>{displayName}</span>
-                  <span className="truncate text-xs" style={{ color: muted }}>{user?.email}</span>
-                </div>
-              </div>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <Link href="/founder/profile" className="flex items-center gap-2 text-sm">
-                  <UserCircle className="h-4 w-4" /> Profile
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/founder/settings" className="flex items-center gap-2 text-sm">
-                  <Settings className="h-4 w-4" /> Settings
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleSignOut} className="flex items-center gap-2 text-sm">
-                <LogOut className="h-4 w-4" /> Sign out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-
+          <p style={{ fontSize: 13, fontWeight: 600, color: ink, lineHeight: 1.2 }}>
+            {startupName}
+          </p>
+          <p style={{ fontSize: 10, color: muted }}>Founder</p>
+        </motion.div>
       </div>
-    </motion.div>
+
+      {/* ── middle: nav links ────────────────────────────────────────── */}
+      <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "8px 6px" }}>
+        {nav.map(item => {
+          const active = pathname === item.href || pathname.startsWith(item.href + "/");
+          const Icon   = item.icon;
+          const bs     = item.badge ? BADGE[item.badge] : null;
+
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                height: 36,
+                borderRadius: 8,
+                padding: "0 10px",
+                marginBottom: 2,
+                textDecoration: "none",
+                background: active ? "#EEF2FF" : "transparent",
+                transition: "background .12s",
+              }}
+              onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = surf; }}
+              onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+            >
+              <Icon style={{
+                height: 16, width: 16, flexShrink: 0,
+                color: active ? blue : muted,
+              }} />
+
+              <motion.div
+                animate={{ opacity: expanded ? 1 : 0, x: expanded ? 0 : -4 }}
+                transition={{ duration: 0.15 }}
+                style={{
+                  marginLeft: 10, display: "flex", alignItems: "center",
+                  flex: 1, overflow: "hidden", whiteSpace: "nowrap",
+                }}
+              >
+                <span style={{
+                  fontSize: 13, fontWeight: 500,
+                  color: active ? blue : ink,
+                }}>
+                  {item.name}
+                </span>
+
+                {bs && item.badge && (
+                  <span style={{
+                    marginLeft: "auto", flexShrink: 0,
+                    padding: "1px 7px",
+                    borderRadius: 999,
+                    fontSize: 10, fontWeight: 600,
+                    background: bs.bg, color: bs.color,
+                  }}>
+                    {item.badge}
+                  </span>
+                )}
+              </motion.div>
+            </Link>
+          );
+        })}
+      </div>
+
+      {/* ── bottom: user ─────────────────────────────────────────────── */}
+      <div style={{
+        flexShrink: 0,
+        borderTop: `1px solid ${bdr}`,
+        padding: "8px 6px",
+      }}>
+        <Dropdown
+          trigger={
+            <div
+              style={{
+                display: "flex", alignItems: "center",
+                height: 36, borderRadius: 8, padding: "0 10px",
+                cursor: "pointer",
+                transition: "background .12s",
+              }}
+              onMouseEnter={e => ((e.currentTarget as HTMLElement).style.background = surf)}
+              onMouseLeave={e => ((e.currentTarget as HTMLElement).style.background = "transparent")}
+            >
+              <div style={{
+                height: 24, width: 24, borderRadius: "50%", flexShrink: 0,
+                background: ink, color: bg,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 9, fontWeight: 700,
+              }}>
+                {initials}
+              </div>
+              <motion.div
+                animate={{ opacity: expanded ? 1 : 0, x: expanded ? 0 : -4 }}
+                transition={{ duration: 0.15 }}
+                style={{
+                  marginLeft: 10, display: "flex", alignItems: "center",
+                  flex: 1, overflow: "hidden", whiteSpace: "nowrap",
+                }}
+              >
+                <span style={{ fontSize: 13, fontWeight: 500, color: ink }}>
+                  {displayName}
+                </span>
+                <ChevronsUpDown style={{ marginLeft: "auto", height: 12, width: 12, color: muted, flexShrink: 0 }} />
+              </motion.div>
+            </div>
+          }
+        >
+          {/* user info */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px" }}>
+            <div style={{
+              height: 28, width: 28, borderRadius: "50%", flexShrink: 0,
+              background: ink, color: bg,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 10, fontWeight: 700,
+            }}>
+              {initials}
+            </div>
+            <div style={{ overflow: "hidden" }}>
+              <p style={{ fontSize: 13, fontWeight: 600, color: ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{displayName}</p>
+              <p style={{ fontSize: 11, color: muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{user?.email}</p>
+            </div>
+          </div>
+          <DropSep />
+          <DropItem href="/founder/profile" icon={UserCircle} label="Profile" />
+          <DropItem href="/founder/settings" icon={Settings} label="Settings" />
+          <DropSep />
+          <DropItem icon={LogOut} label="Sign out" onClick={handleSignOut} danger />
+        </Dropdown>
+      </div>
+
+    </motion.nav>
   );
 }

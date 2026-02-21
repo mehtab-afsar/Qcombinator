@@ -1,638 +1,766 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import {
-  ArrowRight,
-  ArrowLeft,
-  Target,
-  Users,
-  Zap,
-  TrendingUp,
-  Heart,
-  CheckCircle,
-  Brain,
-} from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
+import { Send, Upload, CheckCircle, Circle, X, FileText, Edit3 } from "lucide-react";
 
-// Import new components
-import { ProblemOriginForm } from "@/features/founder/components/assessment/ProblemOriginForm";
-import { UniqueAdvantageForm } from "@/features/founder/components/assessment/UniqueAdvantageForm";
-import { CustomerEvidenceForm } from "@/features/founder/components/assessment/CustomerEvidenceForm";
-import { FailedAssumptionsForm } from "@/features/founder/components/assessment/FailedAssumptionsForm";
-import { LearningVelocityForm } from "@/features/founder/components/assessment/LearningVelocityForm";
-import { MarketCalculator } from "@/features/founder/components/assessment/MarketCalculator";
-import { GoToMarketForm } from "@/features/founder/components/assessment/GoToMarketForm";
-import { FinancialHealthForm } from "@/features/founder/components/assessment/FinancialHealthForm";
-import { ResilienceForm } from "@/features/founder/components/assessment/ResilienceForm";
+// ─── palette ──────────────────────────────────────────────────────────────────
+const bg    = "#F9F7F2";
+const surf  = "#F0EDE6";
+const bdr   = "#E2DDD5";
+const ink   = "#18160F";
+const muted = "#8A867C";
+const blue  = "#2563EB";
+const green = "#16A34A";
+const amber = "#D97706";
+const red   = "#DC2626";
 
-interface NewAssessmentData {
-  // Section A: Founder-Problem Fit
-  problemStory: string;
-  problemFollowUps: string[];
-  advantages: string[];
-  advantageExplanation: string;
+// ─── topics ───────────────────────────────────────────────────────────────────
+const TOPICS = [
+  { key: "your_story",        label: "Your Story",         dimension: "Team" },
+  { key: "customer_evidence", label: "Customer Evidence",   dimension: "Product" },
+  { key: "learning_velocity", label: "What You've Learned", dimension: "Product" },
+  { key: "market",            label: "Market & Competition",dimension: "Market" },
+  { key: "gtm",              label: "Go-to-Market",        dimension: "GTM" },
+  { key: "financials",        label: "The Numbers",         dimension: "Financial" },
+  { key: "resilience",        label: "Resilience",          dimension: "Traction" },
+] as const;
 
-  // Section B: Customer Understanding
-  customerType: string;
-  conversationDate: Date | null;
-  customerQuote: string;
-  customerSurprise: string;
-  customerCommitment: string;
-  conversationCount: number;
-  customerList: string[];
+const DIMENSIONS = [
+  { key: "market",    label: "Market",    weight: "20%" },
+  { key: "product",   label: "Product",   weight: "18%" },
+  { key: "gtm",       label: "GTM",       weight: "17%" },
+  { key: "financial",  label: "Financial", weight: "18%" },
+  { key: "team",      label: "Team",      weight: "15%" },
+  { key: "traction",  label: "Traction",  weight: "12%" },
+];
 
-  // Failed Assumptions
-  failedBelief: string;
-  failedReasoning: string;
-  failedDiscovery: string;
-  failedChange: string;
+// ─── types ────────────────────────────────────────────────────────────────────
+interface UiMessage { role: "q" | "user"; text: string; }
 
-  // Section C: Execution
-  tested: string;
-  buildTime: number;
-  measurement: string;
-  results: string;
-  learned: string;
-  changed: string;
+// Extracted data fields (flat map that accumulates during the interview)
+type ExtractedData = Record<string, string | number | string[] | boolean | null>;
 
-  // Section D: Market Realism
-  targetCustomers: number;
-  talkToCount: number;
-  conversionRate: number;
-  avgContractValue: number;
-  customerLifetimeMonths: number;
-  validationChecks: string[];
+// Key metrics we show in the panel
+const KEY_METRICS: { key: string; label: string; prefix?: string; suffix?: string }[] = [
+  { key: "mrr",              label: "MRR",              prefix: "$" },
+  { key: "arr",              label: "ARR",              prefix: "$" },
+  { key: "monthlyBurn",      label: "Monthly Burn",     prefix: "$" },
+  { key: "runway",           label: "Runway",           suffix: " months" },
+  { key: "conversationCount",label: "Customer Convos" },
+  { key: "customerCommitment",label: "Commitment Level" },
+  { key: "currentCAC",       label: "CAC",              prefix: "$" },
+  { key: "lifetimeValue",    label: "LTV",              prefix: "$" },
+  { key: "targetCustomers",  label: "Target Customers" },
+  { key: "tam",              label: "TAM",              prefix: "$" },
+  { key: "grossMargin",      label: "Gross Margin",     suffix: "%" },
+];
 
-  // Section E: Go-to-Market
-  icpDescription: string;
-  channelsTried: string[];
-  channelResults: {
-    [key: string]: { spend: number; conversions: number; cac: number };
-  };
-  currentCAC: number;
-  targetCAC: number;
-  messagingTested: boolean;
-  messagingResults: string;
-
-  // Section F: Financial Health
-  revenueModel: string;
-  mrr: number;
-  arr: number;
-  monthlyBurn: number;
-  runway: number;
-  cogs: number;
-  averageDealSize: number;
-  projectedRevenue12mo: number;
-  revenueAssumptions: string;
-  previousMrr?: number;
-
-  // Section G: Resilience
-  hardestMoment: string;
-  quitScale: number;
-  whatKeptGoing: string;
+function dimColor(score: number): string {
+  if (score >= 70) return green;
+  if (score >= 40) return amber;
+  if (score > 0) return red;
+  return bdr;
 }
 
-export default function FounderAssessment() {
-  const [currentSection, setCurrentSection] = useState(0);
-  const [data, setData] = useState<NewAssessmentData>({
-    // Section A
-    problemStory: '',
-    problemFollowUps: [],
-    advantages: [],
-    advantageExplanation: '',
+// ─── component ────────────────────────────────────────────────────────────────
+export default function AssessmentInterview() {
+  const router = useRouter();
 
-    // Section B
-    customerType: '',
-    conversationDate: null,
-    customerQuote: '',
-    customerSurprise: '',
-    customerCommitment: '',
-    conversationCount: 0,
-    customerList: [],
-    failedBelief: '',
-    failedReasoning: '',
-    failedDiscovery: '',
-    failedChange: '',
+  const [messages,       setMessages]       = useState<UiMessage[]>([]);
+  const [apiHistory,     setApiHistory]     = useState<{ role: string; content: string }[]>([]);
+  const [input,          setInput]          = useState("");
+  const [typing,         setTyping]         = useState(false);
+  const [currentTopic,   setCurrentTopic]   = useState(0);
+  const [coveredTopics,  setCoveredTopics]  = useState<string[]>([]);
+  const [extracted,      setExtracted]      = useState<ExtractedData>({});
+  const [dimScores,      setDimScores]      = useState<Record<string, number>>({});
+  const [overallScore,   setOverallScore]   = useState(0);
+  const [uploading,      setUploading]      = useState(false);
+  const [dragOver,       setDragOver]       = useState(false);
+  const [editingField,   setEditingField]   = useState<string | null>(null);
+  const [editValue,      setEditValue]      = useState("");
 
-    // Section C
-    tested: '',
-    buildTime: 7,
-    measurement: '',
-    results: '',
-    learned: '',
-    changed: '',
+  const chatEndRef  = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // Section D
-    targetCustomers: 0,
-    talkToCount: 0,
-    conversionRate: 5,
-    avgContractValue: 0,
-    customerLifetimeMonths: 12,
-    validationChecks: [],
-
-    // Section E: GTM
-    icpDescription: '',
-    channelsTried: [],
-    channelResults: {},
-    currentCAC: 0,
-    targetCAC: 0,
-    messagingTested: false,
-    messagingResults: '',
-
-    // Section F: Financial
-    revenueModel: 'none',
-    mrr: 0,
-    arr: 0,
-    monthlyBurn: 0,
-    runway: 0,
-    cogs: 0,
-    averageDealSize: 0,
-    projectedRevenue12mo: 0,
-    revenueAssumptions: '',
-    previousMrr: 0,
-
-    // Section G: Resilience
-    hardestMoment: '',
-    quitScale: 5,
-    whatKeptGoing: '',
-  });
-
-  // Load from localStorage AND API on mount
+  // Scroll chat to bottom
   useEffect(() => {
-    // Try to load from API first
-    const loadDraft = async () => {
-      try {
-        const response = await fetch('/api/assessment/save');
-        if (response.ok) {
-          const { draft } = await response.json();
-          if (draft && draft.assessment_data) {
-            setData(draft.assessment_data);
-            return;
-          }
-        }
-      } catch (_e) {
-        console.log('Could not load from API, trying localStorage');
-      }
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, typing]);
 
-      // Fallback to localStorage
-      const saved = localStorage.getItem('founderAssessment');
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          setData(parsed);
-        } catch (e) {
-          console.error('Failed to load saved assessment:', e);
-        }
-      }
-    };
-
-    loadDraft();
+  // Opening message from Q
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const greeting: UiMessage = {
+        role: "q",
+        text: "Welcome to your Q-Score assessment. I'm Q — think of me as a sharp VC evaluator who genuinely wants to understand your startup.\n\nWe'll cover 7 topics through a conversation. You can also drag-and-drop your pitch deck or financials at any time — I'll extract what I can.\n\nLet's start: Tell me about yourself and the problem you're solving. What's the personal story behind this startup?",
+      };
+      setMessages([greeting]);
+      setApiHistory([{ role: "assistant", content: greeting.text }]);
+    }, 400);
+    return () => clearTimeout(timer);
   }, []);
 
-  // Auto-save to API and localStorage
+  // Recalculate score preview whenever extracted data changes
   useEffect(() => {
-    // Save to localStorage immediately
-    localStorage.setItem('founderAssessment', JSON.stringify(data));
+    calculatePreviewScore(extracted);
+  }, [extracted]);
 
-    // Debounce API save (save after 2 seconds of no changes)
-    const timer = setTimeout(async () => {
-      try {
-        await fetch('/api/assessment/save', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ assessmentData: data }),
-        });
-      } catch (e) {
-        console.error('Auto-save failed:', e);
+  // Auto-save draft every 30 seconds if there's data
+  useEffect(() => {
+    if (Object.keys(extracted).length === 0) return;
+    const timer = setInterval(() => {
+      saveDraft(extracted);
+    }, 30000);
+    return () => clearInterval(timer);
+  }, [extracted]);
+
+  const calculatePreviewScore = (data: ExtractedData) => {
+    // Simplified dimension scoring based on extracted fields
+    const scores: Record<string, number> = {};
+
+    // Market: tam, targetCustomers, conversionRate
+    let market = 0;
+    if (data.tam) market += 35;
+    if (data.targetCustomers) market += 30;
+    if (data.conversionRate) market += 20;
+    if (data.som || data.sam) market += 15;
+    scores.market = Math.min(market, 100);
+
+    // Product: customerQuote, conversationCount, tested, results, failedBelief
+    let product = 0;
+    if (data.conversationCount && Number(data.conversationCount) > 0) product += 25;
+    if (data.customerQuote) product += 20;
+    if (data.tested) product += 15;
+    if (data.results) product += 15;
+    if (data.failedBelief) product += 15;
+    if (data.customerSurprise) product += 10;
+    scores.product = Math.min(product, 100);
+
+    // GTM: icpDescription, channelsTried, currentCAC
+    let gtm = 0;
+    if (data.icpDescription) gtm += 35;
+    if (data.channelsTried && Array.isArray(data.channelsTried) && data.channelsTried.length > 0) gtm += 30;
+    if (data.currentCAC) gtm += 20;
+    if (data.messagingTested) gtm += 15;
+    scores.gtm = Math.min(gtm, 100);
+
+    // Financial: mrr, monthlyBurn, runway, grossMargin
+    let financial = 0;
+    if (data.mrr) financial += 25;
+    if (data.monthlyBurn) financial += 20;
+    if (data.runway) financial += 20;
+    if (data.grossMargin) financial += 15;
+    if (data.projectedRevenue12mo) financial += 10;
+    if (data.arr) financial += 10;
+    scores.financial = Math.min(financial, 100);
+
+    // Team: problemStory, advantages, hardshipStory
+    let team = 0;
+    if (data.problemStory) team += 35;
+    if (data.advantages) team += 25;
+    if (data.advantageExplanation) team += 15;
+    if (data.hardshipStory) team += 15;
+    if (data.motivation) team += 10;
+    scores.team = Math.min(team, 100);
+
+    // Traction: conversationCount, customerCommitment, mrr
+    let traction = 0;
+    if (data.conversationCount && Number(data.conversationCount) >= 20) traction += 30;
+    else if (data.conversationCount && Number(data.conversationCount) >= 5) traction += 15;
+    if (data.customerCommitment) traction += 25;
+    if (data.mrr && Number(data.mrr) > 0) traction += 25;
+    if (data.channelsTried) traction += 10;
+    if (data.customerQuote) traction += 10;
+    scores.traction = Math.min(traction, 100);
+
+    setDimScores(scores);
+
+    // Weighted overall
+    const overall = Math.round(
+      (scores.market || 0) * 0.20 +
+      (scores.product || 0) * 0.18 +
+      (scores.gtm || 0) * 0.17 +
+      (scores.financial || 0) * 0.18 +
+      (scores.team || 0) * 0.15 +
+      (scores.traction || 0) * 0.12
+    );
+    setOverallScore(overall);
+  };
+
+  const saveDraft = async (data: ExtractedData) => {
+    try {
+      await fetch("/api/assessment/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assessmentData: data }),
+      });
+    } catch {
+      // Silent fail for auto-save
+    }
+  };
+
+  // ─── send message ─────────────────────────────────────────────────────────
+  const handleSend = useCallback(async (text?: string) => {
+    const msg = (text ?? input).trim();
+    if (!msg || typing) return;
+    setInput("");
+
+    const userMsg: UiMessage = { role: "user", text: msg };
+    setMessages(prev => [...prev, userMsg]);
+    const newHistory = [...apiHistory, { role: "user", content: msg }];
+    setApiHistory(newHistory);
+    setTyping(true);
+
+    try {
+      const res = await fetch("/api/assessment/interview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: msg,
+          conversationHistory: newHistory,
+          currentTopic: TOPICS[currentTopic]?.key ?? "your_story",
+          coveredTopics,
+          extractedData: extracted,
+        }),
+      });
+
+      const data = await res.json();
+      const reply = data.reply || "Let's continue — tell me more.";
+
+      setMessages(prev => [...prev, { role: "q", text: reply }]);
+      setApiHistory(prev => [...prev, { role: "assistant", content: reply }]);
+
+      // Merge extraction
+      if (data.extraction && Object.keys(data.extraction).length > 0) {
+        setExtracted(prev => ({ ...prev, ...data.extraction }));
       }
-    }, 2000);
 
-    return () => clearTimeout(timer);
-  }, [data]);
-
-  const sections = [
-    {
-      id: 'problem-origin',
-      title: 'Problem Origin Story',
-      category: 'Founder-Problem Fit',
-      time: 3,
-      icon: Target,
-      points: 100,
-    },
-    {
-      id: 'unique-advantage',
-      title: 'Your Unique Advantages',
-      category: 'Founder-Problem Fit',
-      time: 3,
-      icon: Zap,
-      points: 100,
-    },
-    {
-      id: 'customer-evidence',
-      title: 'Customer Evidence',
-      category: 'Customer Understanding',
-      time: 4,
-      icon: Users,
-      points: 200,
-    },
-    {
-      id: 'failed-assumptions',
-      title: 'Failed Assumptions',
-      category: 'Customer Understanding',
-      time: 2,
-      icon: Brain,
-      points: 100,
-    },
-    {
-      id: 'learning-velocity',
-      title: 'Build-Measure-Learn',
-      category: 'Execution Speed',
-      time: 4,
-      icon: Zap,
-      points: 150,
-    },
-    {
-      id: 'market-sizing',
-      title: 'Market Sizing',
-      category: 'Market Realism',
-      time: 2,
-      icon: TrendingUp,
-      points: 150,
-    },
-    {
-      id: 'go-to-market',
-      title: 'Go-to-Market Strategy',
-      category: 'GTM & Distribution',
-      time: 4,
-      icon: Target,
-      points: 170,
-    },
-    {
-      id: 'financial-health',
-      title: 'Financial Health',
-      category: 'Unit Economics & Runway',
-      time: 3,
-      icon: TrendingUp,
-      points: 180,
-    },
-    {
-      id: 'resilience',
-      title: 'Hardest Moment',
-      category: 'Resilience',
-      time: 2,
-      icon: Heart,
-      points: 100,
-    },
-  ];
-
-  const getCurrentSection = () => sections[currentSection];
-  const _getProgressPercentage = () => ((currentSection + 1) / sections.length) * 100;
-
-  const handleNext = async () => {
-    if (currentSection < sections.length - 1) {
-      setCurrentSection(currentSection + 1);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else {
-      // Complete assessment - save for AI agent context and submit to API
-      try {
-        // Save assessment data to localStorage for AI agents to use
-        localStorage.setItem('assessmentData', JSON.stringify(data));
-
-        // Also update founder profile with startup details from assessment
-        const existingProfile = JSON.parse(localStorage.getItem('founderProfile') || '{}');
-        const enrichedProfile = {
-          ...existingProfile,
-          startupName: existingProfile.startupName || 'My Startup',
-          industry: existingProfile.industry || 'Technology',
-          description: data.problemStory?.substring(0, 200) || '',
-        };
-        localStorage.setItem('founderProfile', JSON.stringify(enrichedProfile));
-
-        const response = await fetch('/api/assessment/submit', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ assessmentData: data }),
-        });
-
-        if (response.ok) {
-          const result = await response.json();
-          console.log('Assessment submitted successfully:', result);
-
-          // Navigate to dashboard
-          window.location.href = '/founder/dashboard';
-        } else {
-          console.error('Failed to submit assessment');
-          // Still navigate but show error
-          alert('There was an issue submitting your assessment. Please try again later.');
-          window.location.href = '/founder/dashboard';
+      // Topic progression
+      if (data.topicComplete) {
+        const topicKey = TOPICS[currentTopic]?.key;
+        if (topicKey && !coveredTopics.includes(topicKey)) {
+          setCoveredTopics(prev => [...prev, topicKey]);
         }
-      } catch (error) {
-        console.error('Error submitting assessment:', error);
-        // Still navigate but show error
-        alert('There was an issue submitting your assessment. Please try again later.');
-        window.location.href = '/founder/dashboard';
+        if (data.suggestedNextTopic) {
+          const nextIdx = TOPICS.findIndex(t => t.key === data.suggestedNextTopic);
+          if (nextIdx >= 0) setCurrentTopic(nextIdx);
+        } else if (currentTopic < TOPICS.length - 1) {
+          setCurrentTopic(prev => prev + 1);
+        }
       }
+    } catch {
+      setMessages(prev => [...prev, { role: "q", text: "Connection hiccup — try again." }]);
+    } finally {
+      setTyping(false);
+    }
+  }, [input, typing, apiHistory, currentTopic, coveredTopics, extracted]);
+
+  // ─── file upload ──────────────────────────────────────────────────────────
+  const handleFileUpload = async (file: File) => {
+    setUploading(true);
+    setDragOver(false);
+
+    setMessages(prev => [...prev, { role: "user", text: `📎 Uploaded: ${file.name}` }]);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/assessment/upload", { method: "POST", body: formData });
+      const data = await res.json();
+
+      if (data.error) {
+        setMessages(prev => [...prev, { role: "q", text: data.error }]);
+      } else {
+        // Merge extracted data
+        if (data.extracted && Object.keys(data.extracted).length > 0) {
+          setExtracted(prev => ({ ...prev, ...data.extracted }));
+        }
+
+        const summary = data.summary || `Processed ${file.name}.`;
+        const fieldCount = Object.keys(data.extracted || {}).length;
+        setMessages(prev => [...prev, {
+          role: "q",
+          text: `${summary}\n\nI extracted ${fieldCount} data point${fieldCount !== 1 ? "s" : ""} from your document — you can see them in the panel on the right. Let me know if anything looks off, or we can continue the conversation.`,
+        }]);
+      }
+    } catch {
+      setMessages(prev => [...prev, { role: "q", text: "Couldn't process that file. Try sharing the key details in chat instead." }]);
+    } finally {
+      setUploading(false);
     }
   };
 
-  const handleBack = () => {
-    if (currentSection > 0) {
-      setCurrentSection(currentSection - 1);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files[0];
+    if (file) handleFileUpload(file);
+  };
+
+  // ─── complete assessment ──────────────────────────────────────────────────
+  const canComplete = coveredTopics.length >= 4;
+
+  const handleComplete = async () => {
+    setTyping(true);
+    try {
+      // Save final draft
+      await saveDraft(extracted);
+
+      // Transform extracted data to match assessment data structure
+      const assessmentData = transformExtractedToAssessment(extracted);
+
+      // Submit assessment
+      const res = await fetch("/api/assessment/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assessmentData }),
+      });
+
+      if (res.ok) {
+        // Save to localStorage for dashboard
+        localStorage.setItem("assessmentData", JSON.stringify(assessmentData));
+        router.push("/founder/dashboard");
+      } else {
+        setMessages(prev => [...prev, { role: "q", text: "There was an issue submitting. Let's try again." }]);
+      }
+    } catch {
+      setMessages(prev => [...prev, { role: "q", text: "Submission failed. Please try again." }]);
+    } finally {
+      setTyping(false);
     }
   };
 
-  const updateData = (field: keyof NewAssessmentData, value: unknown) => {
-    setData(prev => ({ ...prev, [field]: value }));
+  // ─── edit extracted field ─────────────────────────────────────────────────
+  const startEdit = (key: string) => {
+    setEditingField(key);
+    setEditValue(String(extracted[key] ?? ""));
   };
 
-  // Validation logic for each section
-  // Set to true to disable validation during development
-  const DEV_MODE = true;
-
-  const canContinue = () => {
-    if (DEV_MODE) return true; // Skip validation in dev mode
-
-    switch (currentSection) {
-      case 0: // Problem Origin
-        return data.problemStory.split(/\s+/).length >= 100;
-      case 1: // Unique Advantage
-        return data.advantages.length > 0 && data.advantageExplanation.split(/\s+/).length >= 75;
-      case 2: // Customer Evidence
-        return data.customerQuote.length >= 50 && data.conversationCount > 0;
-      case 3: // Failed Assumptions
-        return data.failedBelief.length >= 20 && data.failedDiscovery.length >= 20;
-      case 4: // Learning Velocity
-        return data.tested.length >= 20 && data.learned.length >= 20;
-      case 5: // Market Sizing
-        return data.targetCustomers > 0 && data.talkToCount > 0 && data.avgContractValue > 0;
-      case 6: // Go-to-Market
-        return data.icpDescription.split(/\s+/).length >= 30 && data.channelsTried.length > 0;
-      case 7: // Financial Health
-        return data.monthlyBurn > 0 && data.runway > 0;
-      case 8: // Resilience
-        return data.hardestMoment.length >= 50 && data.whatKeptGoing.length >= 20;
-      default:
-        return true;
+  const saveEdit = () => {
+    if (editingField) {
+      const num = Number(editValue);
+      setExtracted(prev => ({
+        ...prev,
+        [editingField]: !isNaN(num) && editValue.trim() !== "" ? num : editValue,
+      }));
+      setEditingField(null);
+      setEditValue("");
     }
   };
 
-  const renderSection = () => {
-    switch (currentSection) {
-      case 0: // Problem Origin Story
-        return (
-          <ProblemOriginForm
-            value={data.problemStory}
-            onChange={(value) => updateData('problemStory', value)}
-          />
-        );
-
-      case 1: // Unique Advantage
-        return (
-          <UniqueAdvantageForm
-            selectedAdvantages={data.advantages}
-            explanation={data.advantageExplanation}
-            onAdvantagesChange={(advantages) => updateData('advantages', advantages)}
-            onExplanationChange={(explanation) => updateData('advantageExplanation', explanation)}
-          />
-        );
-
-      case 2: // Customer Evidence
-        return (
-          <CustomerEvidenceForm
-            data={{
-              customerType: data.customerType,
-              conversationDate: data.conversationDate,
-              customerQuote: data.customerQuote,
-              customerSurprise: data.customerSurprise,
-              customerCommitment: data.customerCommitment,
-              conversationCount: data.conversationCount,
-              customerList: data.customerList,
-            }}
-            onChange={(field, value) => updateData(field as keyof NewAssessmentData, value)}
-          />
-        );
-
-      case 3: // Failed Assumptions
-        return (
-          <FailedAssumptionsForm
-            data={{
-              failedBelief: data.failedBelief,
-              failedReasoning: data.failedReasoning,
-              failedDiscovery: data.failedDiscovery,
-              failedChange: data.failedChange,
-            }}
-            onChange={(field, value) => updateData(field as keyof NewAssessmentData, value)}
-          />
-        );
-
-      case 4: // Learning Velocity
-        return (
-          <LearningVelocityForm
-            data={{
-              tested: data.tested,
-              buildTime: data.buildTime,
-              measurement: data.measurement,
-              results: data.results,
-              learned: data.learned,
-              changed: data.changed,
-            }}
-            onChange={(field, value) => updateData(field as keyof NewAssessmentData, value)}
-          />
-        );
-
-      case 5: // Market Sizing
-        return (
-          <MarketCalculator
-            data={{
-              targetCustomers: data.targetCustomers,
-              talkToCount: data.talkToCount,
-              conversionRate: data.conversionRate,
-              avgContractValue: data.avgContractValue,
-              customerLifetimeMonths: data.customerLifetimeMonths,
-              validationChecks: data.validationChecks,
-            }}
-            onChange={(field, value) => updateData(field as keyof NewAssessmentData, value)}
-          />
-        );
-
-      case 6: // Go-to-Market
-        return (
-          <GoToMarketForm
-            data={{
-              icpDescription: data.icpDescription,
-              channelsTried: data.channelsTried,
-              channelResults: data.channelResults,
-              currentCAC: data.currentCAC,
-              targetCAC: data.targetCAC,
-              messagingTested: data.messagingTested,
-              messagingResults: data.messagingResults,
-            }}
-            onChange={(field, value) => updateData(field as keyof NewAssessmentData, value)}
-          />
-        );
-
-      case 7: // Financial Health
-        return (
-          <FinancialHealthForm
-            data={{
-              revenueModel: data.revenueModel,
-              mrr: data.mrr,
-              arr: data.arr,
-              monthlyBurn: data.monthlyBurn,
-              runway: data.runway,
-              cogs: data.cogs,
-              averageDealSize: data.averageDealSize,
-              projectedRevenue12mo: data.projectedRevenue12mo,
-              revenueAssumptions: data.revenueAssumptions,
-              previousMrr: data.previousMrr,
-            }}
-            onChange={(field, value) => updateData(field as keyof NewAssessmentData, value)}
-          />
-        );
-
-      case 8: // Resilience
-        return (
-          <ResilienceForm
-            data={{
-              hardestMoment: data.hardestMoment,
-              quitScale: data.quitScale,
-              whatKeptGoing: data.whatKeptGoing,
-            }}
-            onChange={(field, value) => updateData(field as keyof NewAssessmentData, value)}
-          />
-        );
-
-      default:
-        return null;
-    }
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
 
-  const currentSectionData = getCurrentSection();
+  // ─── SVG ring ─────────────────────────────────────────────────────────────
+  const circumference = 2 * Math.PI * 42;
+  const strokeDash = circumference * (1 - overallScore / 100);
 
-  // ── cream palette ──────────────────────────────────────────────────────────
-  const bg    = "#F9F7F2";
-  const surf  = "#F0EDE6";
-  const bdr   = "#E2DDD5";
-  const ink   = "#18160F";
-  const muted = "#8A867C";
-  const blue  = "#2563EB";
+  // Visible extracted metrics
+  const visibleMetrics = KEY_METRICS.filter(m => extracted[m.key] != null && extracted[m.key] !== "" && extracted[m.key] !== 0);
 
   return (
-    <div style={{ minHeight: "100vh", background: bg, color: ink }}>
+    <div style={{ height: "100vh", display: "flex", flexDirection: "column", background: bg, color: ink }}>
 
-      {/* ── sticky header ──────────────────────────────────────────────── */}
-      <div style={{ position: "sticky", top: 0, zIndex: 10, background: bg, borderBottom: `1px solid ${bdr}`, padding: "14px 24px" }}>
-        <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          {/* logo + section name */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ height: 30, width: 30, borderRadius: 7, background: blue, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <span style={{ color: "#fff", fontWeight: 900, fontSize: 8 }}>EA</span>
-            </div>
-            <div>
-              <p style={{ fontSize: 13, fontWeight: 600, color: ink, lineHeight: 1.2 }}>Q-Score Assessment</p>
-              <p style={{ fontSize: 11, color: muted }}>{currentSectionData.category}</p>
-            </div>
+      {/* ── header ──────────────────────────────────────────────────────── */}
+      <div style={{
+        flexShrink: 0, borderBottom: `1px solid ${bdr}`,
+        padding: "16px 28px",
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+      }}>
+        <div>
+          <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", color: blue, fontWeight: 600, marginBottom: 2 }}>
+            Q-Score Assessment
+          </p>
+          <p style={{ fontSize: "clamp(1rem,2vw,1.2rem)", fontWeight: 300, letterSpacing: "-0.02em", color: ink }}>
+            The Interview
+          </p>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ padding: "4px 12px", background: surf, border: `1px solid ${bdr}`, borderRadius: 999, fontSize: 11, color: muted }}>
+            {coveredTopics.length} / {TOPICS.length} topics covered
           </div>
-
-          {/* section pill + time */}
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ fontSize: 12, color: muted }}>~{currentSectionData.time} min</span>
-            <div style={{ padding: "4px 12px", background: surf, border: `1px solid ${bdr}`, borderRadius: 999, fontSize: 12, color: ink, fontWeight: 600 }}>
-              {currentSection + 1} / {sections.length}
-            </div>
-          </div>
+          {canComplete && (
+            <button
+              onClick={handleComplete}
+              disabled={typing}
+              style={{
+                padding: "6px 16px", background: green, color: "#fff",
+                border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600,
+                cursor: "pointer", fontFamily: "inherit",
+              }}
+            >
+              Complete Assessment
+            </button>
+          )}
         </div>
       </div>
 
-      {/* ── main content ───────────────────────────────────────────────── */}
-      <div style={{ padding: "40px 24px 80px", display: "flex", justifyContent: "center" }}>
-        <div style={{ width: "100%", maxWidth: 720 }}>
+      {/* ── body ────────────────────────────────────────────────────────── */}
+      <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
 
-          {/* section header */}
-          <div style={{ marginBottom: 28 }}>
-            <p style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.18em", color: muted, fontWeight: 600, marginBottom: 8 }}>
-              Section {currentSection + 1} — {currentSectionData.category}
-            </p>
-            <h1 style={{ fontSize: "clamp(1.5rem,3.5vw,2rem)", fontWeight: 300, letterSpacing: "-0.03em", color: ink, marginBottom: 6 }}>
-              {currentSectionData.title}
-            </h1>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <span style={{ fontSize: 12, color: muted }}>
-                Up to <strong style={{ color: blue, fontWeight: 600 }}>+{currentSectionData.points} pts</strong> toward your Q-Score
-              </span>
-              <span style={{ fontSize: 11, color: muted, opacity: 0.5 }}>·</span>
-              <span style={{ fontSize: 12, color: muted }}>Auto-saved</span>
+        {/* ── chat column ───────────────────────────────────────────────── */}
+        <div
+          style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}
+          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={handleDrop}
+        >
+          {/* messages */}
+          <div style={{ flex: 1, overflowY: "auto", padding: "24px 28px" }}>
+            <div style={{ maxWidth: 680, margin: "0 auto", display: "flex", flexDirection: "column", gap: 14 }}>
+              <AnimatePresence>
+                {messages.map((msg, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.2 }}
+                    style={{ display: "flex", gap: 10, flexDirection: msg.role === "user" ? "row-reverse" : "row" }}
+                  >
+                    {msg.role === "q" && (
+                      <div style={{
+                        height: 28, width: 28, borderRadius: 8, flexShrink: 0, marginTop: 2,
+                        background: ink, color: bg,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: 13, fontWeight: 700,
+                      }}>
+                        Q
+                      </div>
+                    )}
+                    <div style={{
+                      maxWidth: "78%", padding: "11px 16px",
+                      fontSize: 14, lineHeight: 1.65, whiteSpace: "pre-wrap",
+                      borderRadius: 14,
+                      background:           msg.role === "user" ? ink  : surf,
+                      color:                msg.role === "user" ? bg   : ink,
+                      border:               msg.role === "q"    ? `1px solid ${bdr}` : "none",
+                      borderTopLeftRadius:  msg.role === "q"    ? 4    : 14,
+                      borderTopRightRadius: msg.role === "user" ? 4    : 14,
+                    }}>
+                      {msg.text}
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+
+              {/* typing indicator */}
+              {typing && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ display: "flex", gap: 10 }}>
+                  <div style={{ height: 28, width: 28, borderRadius: 8, flexShrink: 0, background: ink, color: bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700 }}>Q</div>
+                  <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 14, borderTopLeftRadius: 4, padding: "14px 18px", display: "flex", gap: 5, alignItems: "center" }}>
+                    {[0, 0.18, 0.36].map((d, i) => (
+                      <motion.div key={i} style={{ height: 5, width: 5, background: muted, borderRadius: "50%" }} animate={{ y: [0, -4, 0] }} transition={{ repeat: Infinity, duration: 0.8, delay: d }} />
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+              <div ref={chatEndRef} />
             </div>
           </div>
 
-          {/* section content box */}
-          <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 16, padding: "28px 28px", marginBottom: 28 }}>
-            {renderSection()}
-          </div>
+          {/* drag overlay */}
+          {dragOver && (
+            <div style={{
+              position: "absolute", inset: 0, background: "rgba(37,99,235,0.08)",
+              border: `2px dashed ${blue}`, borderRadius: 12,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              zIndex: 10, pointerEvents: "none",
+            }}>
+              <p style={{ fontSize: 16, fontWeight: 600, color: blue }}>Drop your file here</p>
+            </div>
+          )}
 
-          {/* navigation */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <button
-              onClick={handleBack}
-              disabled={currentSection === 0}
-              style={{
-                display: "flex", alignItems: "center", gap: 6,
-                fontSize: 14, color: currentSection === 0 ? bdr : muted,
-                background: "none", border: "none", cursor: currentSection === 0 ? "not-allowed" : "pointer",
-                transition: "color .15s",
-              }}
-              onMouseEnter={(e) => { if (currentSection > 0) (e.currentTarget as HTMLElement).style.color = ink; }}
-              onMouseLeave={(e) => { if (currentSection > 0) (e.currentTarget as HTMLElement).style.color = muted; }}
-            >
-              <ArrowLeft style={{ height: 15, width: 15 }} />
-              Back
-            </button>
-
-            <button
-              onClick={handleNext}
-              disabled={!canContinue()}
-              style={{
-                display: "inline-flex", alignItems: "center", gap: 8,
-                background: canContinue() ? ink : bdr,
-                color: canContinue() ? bg : muted,
-                fontWeight: 500, padding: "12px 28px", borderRadius: 999,
-                fontSize: 14, border: "none",
-                cursor: canContinue() ? "pointer" : "not-allowed",
-                transition: "opacity .15s",
-                minWidth: 140,
-              }}
-              onMouseEnter={(e) => { if (canContinue()) (e.currentTarget as HTMLElement).style.opacity = "0.85"; }}
-              onMouseLeave={(e) => { if (canContinue()) (e.currentTarget as HTMLElement).style.opacity = "1"; }}
-            >
-              {currentSection === sections.length - 1 ? (
-                <>Complete <CheckCircle style={{ height: 15, width: 15 }} /></>
-              ) : (
-                <>Continue <ArrowRight style={{ height: 15, width: 15 }} /></>
-              )}
-            </button>
-          </div>
-
-          {/* progress dots */}
-          <div style={{ marginTop: 32, display: "flex", alignItems: "center", gap: 6 }}>
-            {sections.map((section, idx) => (
-              <div
-                key={section.id}
-                title={section.title}
+          {/* input area */}
+          <div style={{ flexShrink: 0, borderTop: `1px solid ${bdr}`, padding: "12px 28px", background: bg }}>
+            {/* upload bar */}
+            <div style={{
+              maxWidth: 680, margin: "0 auto 10px",
+              display: "flex", alignItems: "center", gap: 8,
+            }}>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
                 style={{
-                  flex: 1, height: 3, borderRadius: 999,
-                  background: idx < currentSection ? "#16A34A" : idx === currentSection ? blue : bdr,
-                  transition: "background .3s",
+                  display: "flex", alignItems: "center", gap: 5,
+                  padding: "5px 12px", background: surf, border: `1px solid ${bdr}`,
+                  borderRadius: 8, fontSize: 11, color: muted, cursor: "pointer", fontFamily: "inherit",
+                }}
+              >
+                <Upload style={{ height: 11, width: 11 }} />
+                {uploading ? "Processing..." : "Upload pitch deck or financials"}
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.csv,.txt,.md"
+                style={{ display: "none" }}
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); }}
+              />
+              <span style={{ fontSize: 10, color: muted, opacity: 0.6 }}>PDF, CSV, or text</span>
+            </div>
+
+            {/* text input */}
+            <div style={{ maxWidth: 680, margin: "0 auto", display: "flex", alignItems: "flex-end", gap: 10 }}>
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Type your response..."
+                disabled={typing}
+                rows={1}
+                style={{
+                  flex: 1, background: surf, border: `1px solid ${bdr}`, borderRadius: 8,
+                  padding: "11px 14px", fontSize: 14, color: ink,
+                  resize: "none", outline: "none", fontFamily: "inherit",
+                  lineHeight: 1.5, maxHeight: 120, overflowY: "auto",
+                  opacity: typing ? 0.5 : 1,
+                }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = ink; }}
+                onBlur={(e)  => { e.currentTarget.style.borderColor = bdr; }}
+                onInput={(e) => {
+                  const el = e.currentTarget;
+                  el.style.height = "auto";
+                  el.style.height = Math.min(el.scrollHeight, 120) + "px";
                 }}
               />
-            ))}
+              <button
+                onClick={() => handleSend()}
+                disabled={!input.trim() || typing}
+                style={{
+                  height: 42, width: 42, flexShrink: 0,
+                  background: !input.trim() || typing ? surf : ink,
+                  border: `1px solid ${!input.trim() || typing ? bdr : ink}`,
+                  borderRadius: 8,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  cursor: !input.trim() || typing ? "not-allowed" : "pointer",
+                }}
+              >
+                <Send style={{ height: 15, width: 15, color: !input.trim() || typing ? muted : bg }} />
+              </button>
+            </div>
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
-            <span style={{ fontSize: 11, color: muted }}>{currentSection} completed</span>
-            <span style={{ fontSize: 11, color: muted }}>{sections.length - currentSection - 1} remaining</span>
+        </div>
+
+        {/* ── score builder panel ───────────────────────────────────────── */}
+        <div style={{
+          width: 340, flexShrink: 0,
+          borderLeft: `1px solid ${bdr}`,
+          background: bg, overflowY: "auto",
+          display: "flex", flexDirection: "column",
+        }}>
+
+          {/* Q-Score ring */}
+          <div style={{ padding: "24px 20px", borderBottom: `1px solid ${bdr}`, textAlign: "center" }}>
+            <svg width="100" height="100" viewBox="0 0 100 100" style={{ margin: "0 auto", display: "block" }}>
+              <circle cx="50" cy="50" r="42" fill="none" stroke={bdr} strokeWidth="6" />
+              <circle
+                cx="50" cy="50" r="42" fill="none"
+                stroke={overallScore >= 70 ? green : overallScore >= 40 ? amber : overallScore > 0 ? red : bdr}
+                strokeWidth="6" strokeLinecap="round"
+                strokeDasharray={circumference}
+                strokeDashoffset={strokeDash}
+                transform="rotate(-90 50 50)"
+                style={{ transition: "stroke-dashoffset 0.6s ease, stroke 0.3s" }}
+              />
+              <text x="50" y="46" textAnchor="middle" fill={ink} fontSize="22" fontWeight="700">
+                {overallScore || "—"}
+              </text>
+              <text x="50" y="60" textAnchor="middle" fill={muted} fontSize="9" fontWeight="600">
+                Q-SCORE
+              </text>
+            </svg>
           </div>
 
+          {/* dimension bars */}
+          <div style={{ padding: "16px 20px", borderBottom: `1px solid ${bdr}` }}>
+            <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", color: muted, fontWeight: 600, marginBottom: 12 }}>
+              Dimensions
+            </p>
+            {DIMENSIONS.map(({ key, label, weight }) => {
+              const score = dimScores[key] || 0;
+              return (
+                <div key={key} style={{ marginBottom: 10 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                    <span style={{ fontSize: 11, color: ink, fontWeight: 500 }}>{label}</span>
+                    <span style={{ fontSize: 10, color: score > 0 ? dimColor(score) : muted, fontWeight: 600 }}>
+                      {score > 0 ? score : "—"} <span style={{ fontWeight: 400, color: muted }}>({weight})</span>
+                    </span>
+                  </div>
+                  <div style={{ height: 4, background: surf, borderRadius: 99 }}>
+                    <motion.div
+                      style={{ height: "100%", borderRadius: 99, background: dimColor(score) }}
+                      animate={{ width: `${score}%` }}
+                      transition={{ duration: 0.5, ease: "easeOut" }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* topic progress */}
+          <div style={{ padding: "16px 20px", borderBottom: `1px solid ${bdr}` }}>
+            <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", color: muted, fontWeight: 600, marginBottom: 10 }}>
+              Topics
+            </p>
+            {TOPICS.map((topic, i) => {
+              const covered = coveredTopics.includes(topic.key);
+              const active  = i === currentTopic;
+              return (
+                <div
+                  key={topic.key}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 8, marginBottom: 6,
+                    cursor: "pointer", padding: "4px 0",
+                  }}
+                  onClick={() => { if (!typing) setCurrentTopic(i); }}
+                >
+                  {covered
+                    ? <CheckCircle style={{ height: 14, width: 14, color: green, flexShrink: 0 }} />
+                    : <Circle style={{ height: 14, width: 14, color: active ? blue : bdr, flexShrink: 0 }} />
+                  }
+                  <span style={{
+                    fontSize: 12,
+                    color: covered ? green : active ? ink : muted,
+                    fontWeight: active ? 600 : 400,
+                  }}>
+                    {topic.label}
+                  </span>
+                  <span style={{ fontSize: 10, color: muted, marginLeft: "auto" }}>{topic.dimension}</span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* extracted data */}
+          {visibleMetrics.length > 0 && (
+            <div style={{ padding: "16px 20px", borderBottom: `1px solid ${bdr}` }}>
+              <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", color: muted, fontWeight: 600, marginBottom: 10 }}>
+                Extracted Data
+              </p>
+              {visibleMetrics.map(({ key, label, prefix, suffix }) => (
+                <div key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 7 }}>
+                  <span style={{ fontSize: 12, color: muted }}>{label}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    {editingField === key ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <input
+                          autoFocus
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Enter") saveEdit(); if (e.key === "Escape") setEditingField(null); }}
+                          style={{
+                            width: 80, padding: "2px 6px", fontSize: 12, border: `1px solid ${blue}`,
+                            borderRadius: 4, outline: "none", background: bg, color: ink, fontFamily: "inherit",
+                          }}
+                        />
+                        <button onClick={saveEdit} style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                          <CheckCircle style={{ height: 12, width: 12, color: green }} />
+                        </button>
+                        <button onClick={() => setEditingField(null)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                          <X style={{ height: 12, width: 12, color: muted }} />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: ink }}>
+                          {prefix}{String(extracted[key])}{suffix}
+                        </span>
+                        <button
+                          onClick={() => startEdit(key)}
+                          style={{ background: "none", border: "none", cursor: "pointer", padding: 0, marginLeft: 2 }}
+                        >
+                          <Edit3 style={{ height: 10, width: 10, color: muted }} />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* complete CTA */}
+          <div style={{ padding: "16px 20px", marginTop: "auto" }}>
+            <button
+              onClick={handleComplete}
+              disabled={!canComplete || typing}
+              style={{
+                width: "100%", padding: "10px 14px",
+                background: canComplete ? green : surf,
+                color: canComplete ? "#fff" : muted,
+                border: `1px solid ${canComplete ? green : bdr}`,
+                borderRadius: 8, fontSize: 13, fontWeight: 600,
+                cursor: canComplete ? "pointer" : "not-allowed",
+                fontFamily: "inherit", transition: "opacity .15s",
+              }}
+            >
+              {canComplete ? "Complete Assessment" : `Cover ${4 - coveredTopics.length} more topic${4 - coveredTopics.length === 1 ? "" : "s"}`}
+            </button>
+            <p style={{ fontSize: 10, color: muted, textAlign: "center", marginTop: 6, opacity: 0.7 }}>
+              {canComplete ? "Your Q-Score will be calculated" : "Minimum 4 topics required to submit"}
+            </p>
+          </div>
         </div>
       </div>
     </div>
   );
+}
+
+// ─── transform extracted flat data to assessment structure ──────────────────
+function transformExtractedToAssessment(data: ExtractedData) {
+  return {
+    problemStory: String(data.problemStory || ""),
+    problemFollowUps: [],
+    advantages: Array.isArray(data.advantages) ? data.advantages : [],
+    advantageExplanation: String(data.advantageExplanation || ""),
+    customerType: String(data.customerType || ""),
+    conversationDate: null,
+    customerQuote: String(data.customerQuote || ""),
+    customerSurprise: String(data.customerSurprise || ""),
+    customerCommitment: String(data.customerCommitment || ""),
+    conversationCount: Number(data.conversationCount) || 0,
+    customerList: Array.isArray(data.customerList) ? data.customerList : [],
+    failedBelief: String(data.failedBelief || ""),
+    failedReasoning: String(data.failedReasoning || ""),
+    failedDiscovery: String(data.failedDiscovery || ""),
+    failedChange: String(data.failedChange || ""),
+    tested: String(data.tested || ""),
+    buildTime: Number(data.buildTime) || 0,
+    measurement: String(data.measurement || ""),
+    results: String(data.results || ""),
+    learned: String(data.learned || ""),
+    changed: String(data.changed || ""),
+    targetCustomers: Number(data.targetCustomers) || 0,
+    conversionRate: Number(data.conversionRate) || 0,
+    dailyActivity: 0,
+    lifetimeValue: Number(data.lifetimeValue) || 0,
+    costPerAcquisition: Number(data.costPerAcquisition || data.currentCAC) || 0,
+    hardshipStory: String(data.hardshipStory || data.hardestMoment || ""),
+    hardshipType: "",
+    gtm: {
+      icpDescription: String(data.icpDescription || ""),
+      channelsTried: Array.isArray(data.channelsTried) ? data.channelsTried : [],
+      channelResults: [],
+      currentCAC: Number(data.currentCAC) || undefined,
+      targetCAC: Number(data.targetCAC) || undefined,
+      messagingTested: Boolean(data.messagingTested),
+      messagingResults: String(data.messagingResults || ""),
+    },
+    financial: {
+      mrr: Number(data.mrr) || undefined,
+      arr: Number(data.arr) || undefined,
+      monthlyBurn: Number(data.monthlyBurn) || 0,
+      runway: Number(data.runway) || undefined,
+      cogs: Number(data.cogs) || undefined,
+      averageDealSize: Number(data.averageDealSize) || undefined,
+      projectedRevenue12mo: Number(data.projectedRevenue12mo) || undefined,
+      revenueAssumptions: String(data.revenueAssumptions || ""),
+    },
+  };
 }
