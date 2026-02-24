@@ -4,14 +4,14 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Shield, Building2, Target, Sparkles, CheckCircle2,
-  ArrowRight, TrendingUp, Users, DollarSign, Globe, Eye, EyeOff
+  ArrowRight, TrendingUp, Users, DollarSign, Globe, Eye, EyeOff, Loader2
 } from 'lucide-react'
 
 // ─── design tokens ────────────────────────────────────────────────────────────
-const bg   = '#F9F7F2'
-const surf = '#F0EDE6'
-const bdr  = '#E2DDD5'
-const ink  = '#18160F'
+const bg    = '#F9F7F2'
+const surf  = '#F0EDE6'
+const bdr   = '#E2DDD5'
+const ink   = '#18160F'
 const muted = '#8A867C'
 const blue  = '#2563EB'
 
@@ -32,12 +32,16 @@ const INITIAL: FormData = {
   thesis: '', dealFlow: '', decisionProcess: '', timeline: '',
 }
 
+type Mode = 'choice' | 'signin' | 'signup'
+
 export default function InvestorOnboarding() {
-  const [step, setStep]           = useState(1)   // 1=account, 2=personal, 3=firm, 4=criteria, 5=thesis
+  const [mode, setMode]           = useState<Mode>('choice')
+  const [step, setStep]           = useState(1)   // 1=account, 2=personal, 3=firm, 4=criteria, 5=thesis, 6=processing
   const [form, setForm]           = useState<FormData>(INITIAL)
   const [showPwd, setShowPwd]     = useState(false)
   const [loading, setLoading]     = useState(false)
   const [error, setError]         = useState('')
+  const [processingMsg, setProcessingMsg] = useState('Saving your profile…')
   const router = useRouter()
 
   // Redirect already-authenticated investors to dashboard
@@ -58,6 +62,24 @@ export default function InvestorOnboarding() {
     set(field, arr.includes(value) ? arr.filter(x => x !== value) : [...arr, value])
   }
 
+  // ── Sign In ──────────────────────────────────────────────────────────────────
+  const handleSignIn = async () => {
+    if (!form.email || !form.password) { setError('Email and password are required'); return }
+    setError(''); setLoading(true)
+    try {
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+      const { error: signInErr } = await supabase.auth.signInWithPassword({
+        email: form.email, password: form.password,
+      })
+      if (signInErr) { setError('Invalid email or password'); setLoading(false); return }
+      router.push('/investor/dashboard')
+    } catch {
+      setError('Something went wrong. Please try again.')
+      setLoading(false)
+    }
+  }
+
   // ── Step 1: Account creation ────────────────────────────────────────────────
   const handleCreateAccount = async () => {
     if (!form.email || !form.password) { setError('Email and password are required'); return }
@@ -72,7 +94,6 @@ export default function InvestorOnboarding() {
       const data = await res.json()
       if (!res.ok) { setError(data.error || 'Failed to create account'); setLoading(false); return }
 
-      // Sign into a browser session via the SSR-compatible client
       const { createClient } = await import('@/lib/supabase/client')
       const supabase = createClient()
       const { error: signInErr } = await supabase.auth.signInWithPassword({
@@ -91,9 +112,10 @@ export default function InvestorOnboarding() {
   const handleNext = () => setStep(s => Math.min(s + 1, totalSteps))
   const handleBack = () => setStep(s => Math.max(s - 1, 1))
 
-  // ── Step 5: final submit ────────────────────────────────────────────────────
+  // ── Step 5: final submit → step 6: AI processing ───────────────────────────
   const handleSubmit = async () => {
     setLoading(true)
+    // Save profile data
     try {
       const res = await fetch('/api/investor/onboarding', {
         method: 'POST',
@@ -107,10 +129,30 @@ export default function InvestorOnboarding() {
     } catch (err) {
       console.error('Investor onboarding error:', err)
     }
+
+    // Move to AI processing step
+    setStep(6)
+    setLoading(false)
+
+    // Run AI personalization in the background
+    setProcessingMsg('Analysing your investment thesis…')
+    await new Promise(r => setTimeout(r, 900))
+    setProcessingMsg('Scanning founder deal flow for matches…')
+    await new Promise(r => setTimeout(r, 1100))
+
+    try {
+      await fetch('/api/investor/personalize', { method: 'POST' })
+    } catch {
+      // non-blocking — dashboard will still load
+    }
+
+    setProcessingMsg('Curating your personalised dashboard…')
+    await new Promise(r => setTimeout(r, 800))
+
     router.push('/investor/dashboard')
   }
 
-  // ─── shared input style ───────────────────────────────────────────────────
+  // ─── shared styles ───────────────────────────────────────────────────────
   const inputStyle: React.CSSProperties = {
     width: '100%', padding: '10px 14px', borderRadius: 8,
     border: `1px solid ${bdr}`, background: surf, color: ink,
@@ -173,8 +215,119 @@ export default function InvestorOnboarding() {
     </div>
   )
 
-  // ─── Step renders ─────────────────────────────────────────────────────────
+  // ─── Choice screen ─────────────────────────────────────────────────────────
+  const renderChoice = () => (
+    <div style={{ textAlign: 'center' }}>
+      <div style={{ marginBottom: 40 }}>
+        <p style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.18em', color: muted, marginBottom: 16 }}>Investor Access</p>
+        <h2 style={{ fontSize: 28, fontWeight: 300, letterSpacing: '-0.03em', margin: '0 0 12px', color: ink }}>
+          Welcome to Edge Alpha
+        </h2>
+        <p style={{ fontSize: 15, color: muted, lineHeight: 1.65, maxWidth: 380, margin: '0 auto' }}>
+          AI-ranked deal flow, curated to your thesis. Join the platform that scores every founder before they reach your inbox.
+        </p>
+      </div>
 
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 360, margin: '0 auto' }}>
+        <button
+          onClick={() => { setMode('signup'); setStep(1) }}
+          style={{
+            padding: '18px 28px', borderRadius: 12, border: 'none',
+            background: ink, color: bg, fontSize: 15, fontWeight: 500,
+            cursor: 'pointer', display: 'flex', alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <span>
+            <span style={{ display: 'block', fontSize: 12, opacity: 0.6, fontWeight: 400, marginBottom: 2 }}>New investor</span>
+            Create your account
+          </span>
+          <ArrowRight size={18} />
+        </button>
+
+        <button
+          onClick={() => setMode('signin')}
+          style={{
+            padding: '18px 28px', borderRadius: 12,
+            border: `1px solid ${bdr}`, background: surf,
+            color: ink, fontSize: 15, fontWeight: 500,
+            cursor: 'pointer', display: 'flex', alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <span>
+            <span style={{ display: 'block', fontSize: 12, color: muted, fontWeight: 400, marginBottom: 2 }}>Already have an account</span>
+            Sign in
+          </span>
+          <ArrowRight size={18} color={muted} />
+        </button>
+      </div>
+
+      <div style={{ marginTop: 48, padding: '24px', borderRadius: 12, background: surf, border: `1px solid ${bdr}`, textAlign: 'left' }}>
+        <p style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.15em', color: muted, marginBottom: 12 }}>What you get</p>
+        {[
+          ['Q-Scored deal flow', 'Every founder is scored across 6 dimensions before appearing in your pipeline'],
+          ['AI thesis matching', 'We rank founders by how well they match your specific investment thesis'],
+          ['Direct messaging', 'Connect and message founders without the email back-and-forth'],
+        ].map(([title, desc]) => (
+          <div key={title} style={{ display: 'flex', gap: 12, marginBottom: 14, alignItems: 'flex-start' }}>
+            <CheckCircle2 size={16} color={blue} style={{ marginTop: 1, flexShrink: 0 }} />
+            <div>
+              <p style={{ fontSize: 13, fontWeight: 600, color: ink, margin: '0 0 2px' }}>{title}</p>
+              <p style={{ fontSize: 12, color: muted, margin: 0, lineHeight: 1.5 }}>{desc}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+
+  // ─── Sign In screen ────────────────────────────────────────────────────────
+  const renderSignIn = () => (
+    <div>
+      {sectionTitle('Welcome back', 'Sign in to your investor account', Shield)}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div>
+          <label style={labelStyle}>Email</label>
+          <input style={inputStyle} type="email" value={form.email}
+            onChange={e => set('email', e.target.value)}
+            placeholder="you@fund.com"
+            onKeyDown={e => e.key === 'Enter' && handleSignIn()} />
+        </div>
+        <div>
+          <label style={labelStyle}>Password</label>
+          <div style={{ position: 'relative' }}>
+            <input style={{ ...inputStyle, paddingRight: 44 }}
+              type={showPwd ? 'text' : 'password'}
+              value={form.password}
+              onChange={e => set('password', e.target.value)}
+              placeholder="Your password"
+              onKeyDown={e => e.key === 'Enter' && handleSignIn()} />
+            <button
+              onClick={() => setShowPwd(v => !v)}
+              style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+                background: 'none', border: 'none', cursor: 'pointer', color: muted }}>
+              {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          </div>
+        </div>
+        {error && <p style={{ fontSize: 13, color: '#DC2626', margin: 0 }}>{error}</p>}
+        <button style={{ ...btnPrimary, justifyContent: 'center' }}
+          onClick={handleSignIn} disabled={loading}>
+          {loading ? 'Signing in…' : <>Sign In <ArrowRight size={16} /></>}
+        </button>
+        <p style={{ fontSize: 12, color: muted, textAlign: 'center', margin: 0 }}>
+          New to Edge Alpha?{' '}
+          <span style={{ color: blue, cursor: 'pointer' }}
+            onClick={() => { setMode('signup'); setStep(1); setError('') }}>
+            Create an account
+          </span>
+        </p>
+      </div>
+    </div>
+  )
+
+  // ─── Step 1: Account creation ──────────────────────────────────────────────
   const renderStep1 = () => (
     <div>
       {sectionTitle('Create your account', 'Start your journey to smarter deal flow', Shield)}
@@ -210,7 +363,7 @@ export default function InvestorOnboarding() {
         <p style={{ fontSize: 12, color: muted, textAlign: 'center', margin: 0 }}>
           Already have an account?{' '}
           <span style={{ color: blue, cursor: 'pointer' }}
-            onClick={() => router.push('/login')}>Sign in</span>
+            onClick={() => { setMode('signin'); setError('') }}>Sign in</span>
         </p>
       </div>
     </div>
@@ -413,9 +566,12 @@ export default function InvestorOnboarding() {
         </div>
 
         <div style={{ padding: 20, borderRadius: 12, background: surf, border: `1px solid ${bdr}` }}>
-          <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, color: ink }}>AI-Powered Matching</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <Sparkles size={14} color={blue} />
+            <p style={{ fontSize: 13, fontWeight: 600, margin: 0, color: ink }}>AI-Powered Matching</p>
+          </div>
           <p style={{ fontSize: 13, color: muted, margin: 0 }}>
-            Based on your criteria, our AI will surface the most relevant founders and Q-Scores, filtered to your thesis.
+            After you finish, our AI will read your thesis and score every founder on the platform against it — so your deal flow is ranked by fit, not recency.
           </p>
         </div>
 
@@ -430,6 +586,47 @@ export default function InvestorOnboarding() {
     </div>
   )
 
+  // ─── Step 6: AI Processing ─────────────────────────────────────────────────
+  const renderProcessing = () => (
+    <div style={{ textAlign: 'center', padding: '40px 0' }}>
+      <div style={{
+        width: 72, height: 72, borderRadius: '50%', background: surf,
+        border: `1px solid ${bdr}`, display: 'flex', alignItems: 'center',
+        justifyContent: 'center', margin: '0 auto 24px',
+        animation: 'spin 1.5s linear infinite',
+      }}>
+        <Loader2 size={28} color={blue} />
+      </div>
+      <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
+
+      <h2 style={{ fontSize: 22, fontWeight: 300, letterSpacing: '-0.03em', margin: '0 0 12px', color: ink }}>
+        Setting up your dashboard
+      </h2>
+      <p style={{ fontSize: 14, color: muted, margin: '0 0 40px', lineHeight: 1.6 }}>
+        {processingMsg}
+      </p>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 320, margin: '0 auto' }}>
+        {[
+          'Saving investor profile',
+          'Analysing your investment thesis',
+          'Scoring founders against your criteria',
+          'Curating personalised deal flow',
+        ].map((label, i) => (
+          <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <CheckCircle2 size={16} color={blue} style={{ flexShrink: 0 }} />
+            <span style={{ fontSize: 13, color: i < 2 ? ink : muted }}>{label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+
+  // ─── layout ───────────────────────────────────────────────────────────────
+  const isProcessing = mode === 'signup' && step === 6
+  const isChoice     = mode === 'choice'
+  const showProgress = mode === 'signup' && step >= 1 && step <= 5
+
   return (
     <div style={{ minHeight: '100vh', background: bg, color: ink, fontFamily: 'inherit' }}>
       {/* nav */}
@@ -442,26 +639,39 @@ export default function InvestorOnboarding() {
           </div>
           <span style={{ fontWeight: 600, fontSize: 15, letterSpacing: '-0.01em' }}>Edge Alpha</span>
         </div>
-        <span style={{ fontSize: 12, color: muted }}>
-          Step {step} of {totalSteps}
-        </span>
+        {showProgress && (
+          <span style={{ fontSize: 12, color: muted }}>Step {step} of {totalSteps}</span>
+        )}
+        {mode === 'signin' && (
+          <button
+            onClick={() => { setMode('choice'); setError('') }}
+            style={{ fontSize: 12, color: muted, background: 'none', border: 'none', cursor: 'pointer' }}>
+            ← Back
+          </button>
+        )}
       </div>
 
       {/* body */}
       <div style={{ maxWidth: 560, margin: '0 auto', padding: '48px 24px' }}>
-        {/* thin progress bar */}
-        <div style={{ height: 2, background: surf, borderRadius: 2, marginBottom: 48, overflow: 'hidden' }}>
-          <div style={{ height: '100%', background: ink, width: `${(step / totalSteps) * 100}%`,
-            transition: 'width 0.35s ease', borderRadius: 2 }} />
-        </div>
+        {/* progress bar — only in signup flow */}
+        {showProgress && (
+          <>
+            <div style={{ height: 2, background: surf, borderRadius: 2, marginBottom: 48, overflow: 'hidden' }}>
+              <div style={{ height: '100%', background: ink, width: `${(step / totalSteps) * 100}%`,
+                transition: 'width 0.35s ease', borderRadius: 2 }} />
+            </div>
+            {renderProgress()}
+          </>
+        )}
 
-        {renderProgress()}
-
-        {step === 1 && renderStep1()}
-        {step === 2 && renderStep2()}
-        {step === 3 && renderStep3()}
-        {step === 4 && renderStep4()}
-        {step === 5 && renderStep5()}
+        {isChoice && renderChoice()}
+        {mode === 'signin' && renderSignIn()}
+        {mode === 'signup' && step === 1 && renderStep1()}
+        {mode === 'signup' && step === 2 && renderStep2()}
+        {mode === 'signup' && step === 3 && renderStep3()}
+        {mode === 'signup' && step === 4 && renderStep4()}
+        {mode === 'signup' && step === 5 && renderStep5()}
+        {isProcessing && renderProcessing()}
       </div>
     </div>
   )

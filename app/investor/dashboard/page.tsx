@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Search, TrendingUp, Inbox, ChevronRight, CheckCircle, Clock, AlertCircle, XCircle } from 'lucide-react'
+import { Search, TrendingUp, Inbox, ChevronRight, CheckCircle, Clock, AlertCircle, XCircle, Sparkles } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { ConnectionRequestCard } from '@/features/investor/components/ConnectionRequestCard'
 import { MeetingSchedulerModal } from '@/features/investor/components/MeetingSchedulerModal'
@@ -77,10 +77,21 @@ export default function InvestorDashboard() {
   const [showDeclineForm,    setShowDeclineForm]    = useState(false)
   const [dealFlow,           setDealFlow]           = useState<Startup[]>([])
   const [loading,            setLoading]            = useState(true)
+  const [aiInsight,          setAiInsight]          = useState<string | null>(null)
 
   useEffect(() => {
     let done = 0
-    const tryDone = () => { done++; if (done >= 2) setLoading(false) }
+    const tryDone = () => { done++; if (done >= 3) setLoading(false) }
+
+    // Fetch AI insight from investor profile
+    fetch('/api/investor/profile')
+      .then(r => r.json())
+      .then(data => {
+        const insight = data.profile?.ai_personalization?.insight
+        if (insight) setAiInsight(insight)
+      })
+      .catch(() => {})
+      .finally(tryDone)
 
     // Fetch real connection requests
     fetch('/api/investor/connections')
@@ -89,7 +100,7 @@ export default function InvestorDashboard() {
       .catch(() => {})
       .finally(tryDone)
 
-    // Fetch real deal flow
+    // Fetch real deal flow (already sorted by personalized match score)
     fetch('/api/investor/deal-flow')
       .then(r => r.json())
       .then(data => {
@@ -97,12 +108,12 @@ export default function InvestorDashboard() {
           setDealFlow(data.founders.map((f: {
             id: string; name: string; tagline: string; qScore: number; stage: string;
             sector: string; location: string; fundingGoal: string; lastActive: string;
-            founder: { name: string }; status: 'new'
+            founder: { name: string }; status: 'new'; matchScore: number
           }) => ({
             id: f.id, name: f.name, tagline: f.tagline, logo: '',
             qScore: f.qScore, stage: f.stage, sector: f.sector,
             location: f.location, fundingGoal: f.fundingGoal, traction: '',
-            matchScore: Math.min(99, f.qScore + 10),
+            matchScore: f.matchScore,
             lastActive: new Date(f.lastActive).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
             founder: { name: f.founder.name, avatar: '', background: '' },
             metrics: { revenue: '', growth: '', customers: 0, team: 0 },
@@ -184,6 +195,14 @@ export default function InvestorDashboard() {
           </h1>
           <p style={{ fontSize: 14, color: muted }}>Founders with completed Q-Score assessments, ranked by score.</p>
         </div>
+
+        {/* ── AI insight card ──────────────────────────────────────────── */}
+        {!loading && aiInsight && (
+          <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', padding: '16px 20px', borderRadius: 12, background: surf, border: `1px solid ${bdr}`, marginBottom: 24 }}>
+            <Sparkles size={16} color={blue} style={{ marginTop: 2, flexShrink: 0 }} />
+            <p style={{ fontSize: 13, color: ink, lineHeight: 1.65, margin: 0 }}>{aiInsight}</p>
+          </div>
+        )}
 
         {/* ── stats row ────────────────────────────────────────────────── */}
         {!loading && (

@@ -75,10 +75,26 @@ export async function GET() {
       })
     )
 
-    // Sort by Q-Score descending, founders without a score at the bottom
-    enriched.sort((a, b) => b.qScore - a.qScore)
+    // Fetch investor's AI personalization for match scores
+    const { data: investorProfile } = await supabase
+      .from('investor_profiles')
+      .select('ai_personalization')
+      .eq('user_id', user.id)
+      .single()
 
-    return NextResponse.json({ founders: enriched })
+    const aiMatches = (investorProfile?.ai_personalization as { matches?: Record<string, { score: number; reason: string }> } | null)?.matches ?? {}
+
+    // Apply personalized match scores where available
+    const withMatch = enriched.map(f => ({
+      ...f,
+      matchScore: aiMatches[f.id]?.score ?? Math.round(50 + (f.qScore / 100) * 40),
+      matchReason: aiMatches[f.id]?.reason ?? null,
+    }))
+
+    // Sort by personalized match score, then by Q-Score as tiebreaker
+    withMatch.sort((a, b) => b.matchScore - a.matchScore || b.qScore - a.qScore)
+
+    return NextResponse.json({ founders: withMatch })
   } catch (err) {
     console.error('Deal flow GET error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
