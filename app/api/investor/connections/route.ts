@@ -14,23 +14,10 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Fetch pending requests addressed to this investor
+    // Fetch pending requests addressed to this investor (no inline join — founder_id FK points to auth.users)
     const { data: requests, error } = await supabase
       .from('connection_requests')
-      .select(`
-        id,
-        founder_id,
-        status,
-        personal_message,
-        founder_qscore,
-        created_at,
-        founder_profiles!connection_requests_founder_id_fkey (
-          full_name,
-          startup_name,
-          industry,
-          stage
-        )
-      `)
+      .select('id, founder_id, status, personal_message, founder_qscore, created_at')
       .eq('investor_id', user.id)
       .eq('status', 'pending')
       .order('created_at', { ascending: false })
@@ -40,20 +27,23 @@ export async function GET() {
       return NextResponse.json({ error: 'Failed to fetch requests' }, { status: 500 })
     }
 
-    // For each request, fetch the latest Q-Score breakdown
+    // For each request, fetch founder profile + latest Q-Score separately
     const enriched = await Promise.all(
       (requests ?? []).map(async (req) => {
-        const { data: qrow } = await supabase
-          .from('qscore_history')
-          .select('overall_score, market_score, product_score, gtm_score, financial_score, team_score, traction_score, percentile')
-          .eq('user_id', req.founder_id)
-          .order('calculated_at', { ascending: false })
-          .limit(1)
-          .single()
-
-        const profile = (req.founder_profiles as unknown) as {
-          full_name: string; startup_name: string; industry: string; stage: string
-        } | null
+        const [{ data: profile }, { data: qrow }] = await Promise.all([
+          supabase
+            .from('founder_profiles')
+            .select('full_name, startup_name, industry, stage')
+            .eq('user_id', req.founder_id)
+            .single(),
+          supabase
+            .from('qscore_history')
+            .select('overall_score, market_score, product_score, gtm_score, financial_score, team_score, traction_score, percentile')
+            .eq('user_id', req.founder_id)
+            .order('calculated_at', { ascending: false })
+            .limit(1)
+            .single(),
+        ])
 
         return {
           id: req.id,

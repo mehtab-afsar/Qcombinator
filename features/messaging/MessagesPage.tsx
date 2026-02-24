@@ -9,6 +9,7 @@ import {
   MessageCircle, Calendar, TrendingUp,
   ChevronRight, ArrowLeft, X, Check, Users,
   Inbox, UserPlus, Globe, Clock, CheckCheck,
+  Heart, MessageSquare, Sparkles,
 } from 'lucide-react'
 
 // ─── palette ──────────────────────────────────────────────────────────────────
@@ -159,6 +160,12 @@ export default function MessagesPage() {
   const [messageInput,  setMessageInput]  = useState('')
   const [searchTerm,    setSearchTerm]    = useState('')
   const [showProfile,   setShowProfile]   = useState(true)
+  const [networkPosts,  setNetworkPosts]  = useState(mockNetwork)
+  const [likedPosts,    setLikedPosts]    = useState<Set<string>>(new Set())
+  const [replyingTo,    setReplyingTo]    = useState<string | null>(null)
+  const [replyInput,    setReplyInput]    = useState('')
+  const [composeText,   setComposeText]   = useState('')
+  const [composeOpen,   setComposeOpen]   = useState(false)
   const bottomRef                         = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -665,47 +672,27 @@ export default function MessagesPage() {
             </div>
           )}
 
-          {/* ── tab: NETWORK ──────────────────────────────────────────────── */}
+          {/* ── tab: NETWORK — left sidebar shows topic pills only ──────── */}
           {tab === 'network' && (
-            <div style={{ flex: 1, overflowY: 'auto', padding: '12px 12px' }}>
-              <p style={{ fontSize: 11, color: muted, marginBottom: 12, paddingLeft: 2 }}>
-                Founder &amp; investor insights — open to everyone in the ecosystem
+            <div style={{ flex: 1, overflowY: 'auto', padding: '16px 12px' }}>
+              <p style={{ fontSize: 11, color: muted, marginBottom: 14, paddingLeft: 2 }}>
+                Trending topics
               </p>
-              {mockNetwork.map((post, i) => (
-                <motion.div
-                  key={post.id}
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.07 }}
-                  style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 14, padding: '14px 14px', marginBottom: 10 }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 9, marginBottom: 10 }}>
-                    <div style={{ height: 34, width: 34, borderRadius: 10, background: surf, border: `1px solid ${bdr}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: muted, flexShrink: 0 }}>
-                      {initials(post.author.name)}
-                    </div>
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: ink }}>{post.author.name}</span>
-                        <RoleBadge type={post.author.type} />
-                        {post.author.qScore && <span style={{ fontSize: 10, color: qCol(post.author.qScore), fontWeight: 700 }}>Q:{post.author.qScore}</span>}
-                      </div>
-                      <p style={{ fontSize: 11, color: muted }}>{post.author.company} · {post.timestamp}</p>
-                    </div>
-                  </div>
-                  <p style={{ fontSize: 13, color: ink, lineHeight: 1.65, marginBottom: 10 }}>{post.content}</p>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-                    <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                      {post.tags.map(tag => (
-                        <span key={tag} style={{ fontSize: 10, padding: '2px 8px', background: surf, border: `1px solid ${bdr}`, borderRadius: 999, color: muted }}>#{tag}</span>
-                      ))}
-                    </div>
-                    <div style={{ display: 'flex', gap: 12 }}>
-                      <span style={{ fontSize: 11, color: muted }}>♡ {post.likes}</span>
-                      <span style={{ fontSize: 11, color: muted }}>↩ {post.replies}</span>
-                    </div>
-                  </div>
-                </motion.div>
+              {['enterprise-sales', 'due-diligence', 'q-score', 'fundraising', 'ai-ml', 'gtm', 'market', 'pilots', 'tips'].map(tag => (
+                <div key={tag} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', marginBottom: 6, borderRadius: 9, background: bg, border: `1px solid ${bdr}`, cursor: 'pointer' }}>
+                  <span style={{ fontSize: 12, color: ink }}>#{tag}</span>
+                  <TrendingUp style={{ height: 10, width: 10, color: muted }} />
+                </div>
               ))}
+              <div style={{ marginTop: 20, padding: '12px 10px', borderRadius: 10, background: surf, border: `1px solid ${bdr}` }}>
+                <p style={{ fontSize: 11, fontWeight: 600, color: ink, marginBottom: 4 }}>Share an insight</p>
+                <p style={{ fontSize: 11, color: muted }}>Help the ecosystem by posting what&apos;s working for you.</p>
+                <button
+                  onClick={() => setComposeOpen(true)}
+                  style={{ marginTop: 10, width: '100%', padding: '7px 0', fontSize: 11, fontWeight: 600, background: ink, color: bg, border: 'none', borderRadius: 8, cursor: 'pointer' }}>
+                  + Write post
+                </button>
+              </div>
             </div>
           )}
         </motion.div>
@@ -887,29 +874,178 @@ export default function MessagesPage() {
               <p style={{ fontSize: 12, color: muted }}>Pick a conversation from the sidebar</p>
             </motion.div>
           </div>
-        ) : (
+        ) : tab === 'requests' ? (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: bg }}>
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} style={{ textAlign: 'center' }}>
-              {tab === 'requests' ? (
-                <>
-                  <div style={{ height: 60, width: 60, background: surf, border: `1px solid ${bdr}`, borderRadius: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-                    <UserPlus style={{ height: 24, width: 24, color: muted }} />
-                  </div>
-                  <p style={{ fontSize: 16, fontWeight: 300, color: ink, letterSpacing: '-0.02em', marginBottom: 6 }}>
-                    {pendingRequests.length} connection request{pendingRequests.length !== 1 ? 's' : ''}
-                  </p>
-                  <p style={{ fontSize: 12, color: muted }}>Accept to start a conversation</p>
-                </>
-              ) : (
-                <>
-                  <div style={{ height: 60, width: 60, background: surf, border: `1px solid ${bdr}`, borderRadius: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-                    <Globe style={{ height: 24, width: 24, color: muted }} />
-                  </div>
-                  <p style={{ fontSize: 16, fontWeight: 300, color: ink, letterSpacing: '-0.02em', marginBottom: 6 }}>Ecosystem Network</p>
-                  <p style={{ fontSize: 12, color: muted }}>Insights from founders and investors</p>
-                </>
-              )}
+              <div style={{ height: 60, width: 60, background: surf, border: `1px solid ${bdr}`, borderRadius: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+                <UserPlus style={{ height: 24, width: 24, color: muted }} />
+              </div>
+              <p style={{ fontSize: 16, fontWeight: 300, color: ink, letterSpacing: '-0.02em', marginBottom: 6 }}>
+                {pendingRequests.length} connection request{pendingRequests.length !== 1 ? 's' : ''}
+              </p>
+              <p style={{ fontSize: 12, color: muted }}>Accept to start a conversation</p>
             </motion.div>
+          </div>
+        ) : (
+          // ── NETWORK FEED (right panel) ────────────────────────────────────
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: bg }}>
+            {/* network header */}
+            <div style={{ background: surf, borderBottom: `1px solid ${bdr}`, padding: '14px 24px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <p style={{ fontSize: 15, fontWeight: 400, color: ink, letterSpacing: '-0.02em' }}>Ecosystem Network</p>
+                <p style={{ fontSize: 11, color: muted }}>Insights from founders &amp; investors — open to the whole ecosystem</p>
+              </div>
+              <button
+                onClick={() => setComposeOpen(v => !v)}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', fontSize: 12, fontWeight: 600, background: ink, color: bg, border: 'none', borderRadius: 999, cursor: 'pointer' }}>
+                <Sparkles style={{ height: 12, width: 12 }} />
+                Share insight
+              </button>
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto', padding: '24px 24px' }}>
+
+              {/* compose box */}
+              <AnimatePresence>
+                {composeOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    style={{ overflow: 'hidden', marginBottom: 20 }}
+                  >
+                    <div style={{ border: `1px solid ${bdr}`, borderRadius: 14, padding: '16px 18px', background: surf }}>
+                      <p style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 10 }}>Share an insight with the ecosystem</p>
+                      <textarea
+                        placeholder="What's working for you? A lesson, a tactic, a question…"
+                        value={composeText}
+                        onChange={e => setComposeText(e.target.value)}
+                        rows={4}
+                        style={{ width: '100%', padding: '10px 12px', fontSize: 13, color: ink, background: bg, border: `1px solid ${bdr}`, borderRadius: 10, outline: 'none', fontFamily: 'inherit', resize: 'none', boxSizing: 'border-box', lineHeight: 1.6 }}
+                      />
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 }}>
+                        <button onClick={() => { setComposeOpen(false); setComposeText('') }} style={{ padding: '7px 16px', fontSize: 12, background: 'transparent', border: `1px solid ${bdr}`, borderRadius: 999, cursor: 'pointer', color: muted }}>Cancel</button>
+                        <button
+                          onClick={() => {
+                            if (!composeText.trim()) return
+                            const newPost: NetworkPost = {
+                              id: `u-${Date.now()}`,
+                              author: { id: 'me', name: 'You', title: 'Member', company: 'Edge Alpha', type: 'founder' },
+                              content: composeText.trim(),
+                              timestamp: 'Just now',
+                              likes: 0, replies: 0,
+                              tags: [],
+                            }
+                            setNetworkPosts(prev => [newPost, ...prev])
+                            setComposeText(''); setComposeOpen(false)
+                          }}
+                          style={{ padding: '7px 16px', fontSize: 12, fontWeight: 600, background: ink, color: bg, border: 'none', borderRadius: 999, cursor: 'pointer' }}>
+                          Post
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* posts */}
+              {networkPosts.map((post, i) => {
+                const liked    = likedPosts.has(post.id)
+                const replying = replyingTo === post.id
+                return (
+                  <motion.div
+                    key={post.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.05 }}
+                    style={{ border: `1px solid ${bdr}`, borderRadius: 16, padding: '18px 20px', marginBottom: 14, background: surf }}
+                  >
+                    {/* author row */}
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
+                      <div style={{ height: 40, width: 40, borderRadius: 12, background: bg, border: `1px solid ${bdr}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: muted, flexShrink: 0 }}>
+                        {initials(post.author.name)}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 14, fontWeight: 600, color: ink }}>{post.author.name}</span>
+                          <RoleBadge type={post.author.type} />
+                          {post.author.qScore && (
+                            <span style={{ fontSize: 11, color: qCol(post.author.qScore), fontWeight: 700 }}>Q-Score {post.author.qScore}</span>
+                          )}
+                        </div>
+                        <p style={{ fontSize: 12, color: muted }}>{post.author.company} · {post.author.stage ?? ''}{post.author.stage && post.author.sector ? ' · ' : ''}{post.author.sector ?? ''} · {post.timestamp}</p>
+                      </div>
+                    </div>
+
+                    {/* content */}
+                    <p style={{ fontSize: 14, color: ink, lineHeight: 1.7, marginBottom: 14 }}>{post.content}</p>
+
+                    {/* tags */}
+                    {post.tags.length > 0 && (
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+                        {post.tags.map(tag => (
+                          <span key={tag} style={{ fontSize: 11, padding: '3px 10px', background: bg, border: `1px solid ${bdr}`, borderRadius: 999, color: muted }}>#{tag}</span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* actions */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, borderTop: `1px solid ${bdr}`, paddingTop: 12 }}>
+                      <button
+                        onClick={() => {
+                          setLikedPosts(prev => {
+                            const next = new Set(prev)
+                            if (next.has(post.id)) { next.delete(post.id); setNetworkPosts(p => p.map(x => x.id === post.id ? { ...x, likes: x.likes - 1 } : x)) }
+                            else { next.add(post.id); setNetworkPosts(p => p.map(x => x.id === post.id ? { ...x, likes: x.likes + 1 } : x)) }
+                            return next
+                          })
+                        }}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 12px', fontSize: 12, fontWeight: 500, background: liked ? '#FEF2F2' : 'transparent', color: liked ? red : muted, border: `1px solid ${liked ? '#FECACA' : bdr}`, borderRadius: 999, cursor: 'pointer', transition: 'all 0.15s' }}>
+                        <Heart style={{ height: 12, width: 12 }} fill={liked ? red : 'none'} />
+                        {post.likes}
+                      </button>
+                      <button
+                        onClick={() => setReplyingTo(replying ? null : post.id)}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 12px', fontSize: 12, fontWeight: 500, background: replying ? surf : 'transparent', color: replying ? ink : muted, border: `1px solid ${replying ? bdr : bdr}`, borderRadius: 999, cursor: 'pointer', transition: 'all 0.15s' }}>
+                        <MessageSquare style={{ height: 12, width: 12 }} />
+                        {post.replies} {post.replies === 1 ? 'reply' : 'replies'}
+                      </button>
+                    </div>
+
+                    {/* inline reply box */}
+                    <AnimatePresence>
+                      {replying && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          style={{ overflow: 'hidden' }}
+                        >
+                          <div style={{ display: 'flex', gap: 8, marginTop: 12, alignItems: 'flex-end' }}>
+                            <textarea
+                              placeholder={`Reply to ${post.author.name}…`}
+                              value={replyInput}
+                              onChange={e => setReplyInput(e.target.value)}
+                              rows={2}
+                              style={{ flex: 1, padding: '8px 12px', fontSize: 12, color: ink, background: bg, border: `1px solid ${bdr}`, borderRadius: 10, outline: 'none', fontFamily: 'inherit', resize: 'none', boxSizing: 'border-box', lineHeight: 1.6 }}
+                            />
+                            <button
+                              onClick={() => {
+                                if (!replyInput.trim()) return
+                                setNetworkPosts(p => p.map(x => x.id === post.id ? { ...x, replies: x.replies + 1 } : x))
+                                setReplyInput(''); setReplyingTo(null)
+                              }}
+                              style={{ padding: '8px 14px', fontSize: 12, fontWeight: 600, background: ink, color: bg, border: 'none', borderRadius: 9, cursor: 'pointer', flexShrink: 0 }}>
+                              Reply
+                            </button>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </motion.div>
+                )
+              })}
+            </div>
           </div>
         )}
       </div>
