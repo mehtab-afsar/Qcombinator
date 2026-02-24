@@ -1,12 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
-import { X, Send } from "lucide-react";
+import { X, Send, Check } from "lucide-react";
 
+// ─── palette ──────────────────────────────────────────────────────────────────
+const bg    = "#F9F7F2";
+const surf  = "#F0EDE6";
+const bdr   = "#E2DDD5";
+const ink   = "#18160F";
+const muted = "#8A867C";
+const red   = "#DC2626";
+
+// ─── types ────────────────────────────────────────────────────────────────────
 interface DeclineFeedbackFormProps {
   isOpen: boolean;
   onClose: () => void;
@@ -15,160 +20,218 @@ interface DeclineFeedbackFormProps {
   startupName: string;
 }
 
+const DECLINE_REASONS = [
+  { id: "stage",     label: "Not at the right stage for our fund" },
+  { id: "sector",    label: "Outside our investment focus area" },
+  { id: "geography", label: "Geographic mismatch" },
+  { id: "portfolio", label: "Conflict with existing portfolio company" },
+  { id: "capacity",  label: "Currently at capacity for new investments" },
+  { id: "thesis",    label: "Does not align with our investment thesis" },
+  { id: "other",     label: "Other reason" },
+];
+
+// ─── component ────────────────────────────────────────────────────────────────
 export function DeclineFeedbackForm({
-  isOpen,
-  onClose,
-  onSubmit,
-  founderName,
-  startupName
+  isOpen, onClose, onSubmit, founderName, startupName,
 }: DeclineFeedbackFormProps) {
-  const [selectedReasons, setSelectedReasons] = useState<string[]>([]);
+  const [selectedReasons,    setSelectedReasons]    = useState<string[]>([]);
   const [additionalFeedback, setAdditionalFeedback] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitting,       setIsSubmitting]       = useState(false);
 
-  const declineReasons = [
-    { id: 'stage', label: 'Not at the right stage for our fund' },
-    { id: 'sector', label: 'Outside our investment focus area' },
-    { id: 'geography', label: 'Geographic mismatch' },
-    { id: 'portfolio', label: 'Conflict with existing portfolio company' },
-    { id: 'capacity', label: 'Currently at capacity for new investments' },
-    { id: 'thesis', label: 'Does not align with our investment thesis' },
-    { id: 'other', label: 'Other reason' }
-  ];
+  if (!isOpen) return null;
 
-  const toggleReason = (reasonId: string) => {
+  const toggleReason = (id: string) => {
     setSelectedReasons(prev =>
-      prev.includes(reasonId)
-        ? prev.filter(id => id !== reasonId)
-        : [...prev, reasonId]
+      prev.includes(id) ? prev.filter(r => r !== id) : [...prev, id]
     );
   };
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise(r => setTimeout(r, 800));
     onSubmit(selectedReasons, additionalFeedback);
     setIsSubmitting(false);
+    setSelectedReasons([]);
+    setAdditionalFeedback("");
+  };
 
-    // Reset form
+  const handleSkip = () => {
+    onSubmit([], "");
     setSelectedReasons([]);
     setAdditionalFeedback("");
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle className="text-2xl">
-            Decline Connection Request
-          </DialogTitle>
-          <p className="text-sm text-gray-600">
-            {founderName} from {startupName}
-          </p>
-        </DialogHeader>
+    <div
+      style={{
+        position: "fixed", inset: 0, zIndex: 200,
+        background: "rgba(24,22,15,0.5)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: 20,
+      }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div style={{
+        background: bg, border: `1px solid ${bdr}`, borderRadius: 18,
+        maxWidth: 520, width: "100%", maxHeight: "90vh", overflowY: "auto",
+        boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
+      }}>
 
-        <div className="space-y-6">
-          {/* Info Banner */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <p className="text-sm text-gray-700">
-              Optional: Providing feedback helps founders improve their pitch and understand why they may not be a fit.
-              Your feedback will be shared anonymously if you choose to provide it.
+        {/* ── header ──────────────────────────────────────────────────── */}
+        <div style={{
+          padding: "22px 24px 18px", borderBottom: `1px solid ${bdr}`,
+          display: "flex", alignItems: "flex-start", justifyContent: "space-between",
+        }}>
+          <div>
+            <p style={{ fontSize: 18, fontWeight: 500, color: ink, letterSpacing: "-0.02em", marginBottom: 2 }}>
+              Decline Request
+            </p>
+            <p style={{ fontSize: 12, color: muted }}>{founderName} · {startupName}</p>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              height: 32, width: 32, flexShrink: 0,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              background: surf, border: `1px solid ${bdr}`, borderRadius: 8, cursor: "pointer",
+            }}
+          >
+            <X style={{ height: 13, width: 13, color: muted }} />
+          </button>
+        </div>
+
+        <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 18 }}>
+
+          {/* ── info banner ─────────────────────────────────────────── */}
+          <div style={{ padding: "10px 14px", background: surf, border: `1px solid ${bdr}`, borderRadius: 10 }}>
+            <p style={{ fontSize: 12, color: muted, lineHeight: 1.6 }}>
+              Providing feedback (optional) helps founders improve. Your identity will be shared anonymously.
             </p>
           </div>
 
-          {/* Reasons Checklist */}
+          {/* ── reasons checklist ───────────────────────────────────── */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              Reason for Declining <span className="text-gray-500">(optional, select all that apply)</span>
-            </label>
-            <div className="space-y-3">
-              {declineReasons.map((reason) => (
-                <div key={reason.id} className="flex items-center space-x-3">
-                  <Checkbox
-                    id={reason.id}
-                    checked={selectedReasons.includes(reason.id)}
-                    onCheckedChange={() => toggleReason(reason.id)}
-                  />
-                  <label
-                    htmlFor={reason.id}
-                    className="text-sm text-gray-700 cursor-pointer"
+            <p style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 10 }}>
+              Reason for declining{" "}
+              <span style={{ color: muted, fontWeight: 400 }}>(optional)</span>
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {DECLINE_REASONS.map(reason => {
+                const checked = selectedReasons.includes(reason.id);
+                return (
+                  <div
+                    key={reason.id}
+                    onClick={() => toggleReason(reason.id)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 10,
+                      padding: "9px 12px",
+                      background: checked ? surf : "transparent",
+                      border: `1px solid ${checked ? bdr : "transparent"}`,
+                      borderRadius: 8, cursor: "pointer", transition: "all 0.12s",
+                    }}
                   >
-                    {reason.label}
-                  </label>
-                </div>
-              ))}
+                    <div style={{
+                      height: 16, width: 16, borderRadius: 4, flexShrink: 0,
+                      border: `2px solid ${checked ? ink : bdr}`,
+                      background: checked ? ink : "transparent",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      transition: "all 0.12s",
+                    }}>
+                      {checked && <Check style={{ height: 10, width: 10, color: bg }} />}
+                    </div>
+                    <p style={{ fontSize: 13, color: checked ? ink : muted }}>{reason.label}</p>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
-          {/* Additional Feedback */}
+          {/* ── additional feedback ─────────────────────────────────── */}
           <div>
-            <label htmlFor="additional-feedback" className="block text-sm font-medium text-gray-700 mb-2">
-              Additional Feedback <span className="text-gray-500">(optional)</span>
-            </label>
-            <Textarea
-              id="additional-feedback"
-              placeholder="Any constructive feedback that might help the founder in their fundraising journey..."
+            <p style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 6 }}>
+              Additional feedback{" "}
+              <span style={{ color: muted, fontWeight: 400 }}>(optional)</span>
+            </p>
+            <textarea
+              placeholder="Constructive feedback for the founder..."
               value={additionalFeedback}
-              onChange={(e) => setAdditionalFeedback(e.target.value)}
+              onChange={e => setAdditionalFeedback(e.target.value)}
               rows={4}
-              className="w-full"
               maxLength={500}
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              {additionalFeedback.length}/500 characters
-            </p>
-          </div>
-
-          {/* Privacy Notice */}
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-            <p className="text-xs text-gray-600">
-              <strong>Privacy:</strong> Your feedback will be shared anonymously. The founder will not see your name
-              or firm, only the reasons and feedback you provide.
-            </p>
-          </div>
-
-          {/* Actions */}
-          <div className="flex items-center justify-between pt-4 border-t">
-            <Button
-              variant="ghost"
-              onClick={() => {
-                // Skip feedback and decline immediately
-                onSubmit([], "");
-                setSelectedReasons([]);
-                setAdditionalFeedback("");
+              style={{
+                width: "100%", padding: "10px 12px", fontSize: 12, color: ink,
+                background: surf, border: `1px solid ${bdr}`, borderRadius: 10,
+                outline: "none", fontFamily: "inherit", resize: "none",
+                boxSizing: "border-box", transition: "border-color 0.15s",
               }}
+              onFocus={e => (e.currentTarget.style.borderColor = muted)}
+              onBlur={e  => (e.currentTarget.style.borderColor = bdr)}
+            />
+            <p style={{ fontSize: 10, color: muted, marginTop: 3 }}>{additionalFeedback.length}/500</p>
+          </div>
+
+          {/* ── privacy note ────────────────────────────────────────── */}
+          <div style={{ padding: "9px 12px", background: surf, border: `1px solid ${bdr}`, borderRadius: 8 }}>
+            <p style={{ fontSize: 11, color: muted, lineHeight: 1.5 }}>
+              <strong style={{ color: ink }}>Privacy:</strong>{" "}
+              Feedback is shared anonymously. The founder will not see your name or firm.
+            </p>
+          </div>
+
+          {/* ── actions ─────────────────────────────────────────────── */}
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            paddingTop: 4, borderTop: `1px solid ${bdr}`,
+          }}>
+            <button
+              onClick={handleSkip}
               disabled={isSubmitting}
-              className="text-gray-600"
+              style={{
+                fontSize: 12, color: muted, background: "none", border: "none",
+                cursor: "pointer", padding: "9px 4px", fontFamily: "inherit",
+              }}
             >
-              Skip & Decline
-            </Button>
-            <div className="flex space-x-3">
-              <Button
-                variant="outline"
+              Skip &amp; Decline
+            </button>
+
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
                 onClick={onClose}
                 disabled={isSubmitting}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 5,
+                  padding: "9px 16px", fontSize: 12, fontWeight: 500,
+                  color: muted, background: surf, border: `1px solid ${bdr}`,
+                  borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
+                }}
               >
-                <X className="h-4 w-4 mr-2" />
+                <X style={{ height: 12, width: 12 }} />
                 Cancel
-              </Button>
-              <Button
+              </button>
+
+              <button
                 onClick={handleSubmit}
                 disabled={isSubmitting}
-                className="bg-red-600 hover:bg-red-700"
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 5,
+                  padding: "9px 16px", fontSize: 12, fontWeight: 700,
+                  color: "#fff", background: isSubmitting ? muted : red,
+                  border: "none", borderRadius: 8,
+                  cursor: isSubmitting ? "default" : "pointer",
+                  fontFamily: "inherit", transition: "background 0.15s",
+                }}
               >
-                {isSubmitting ? (
-                  <>Submitting...</>
-                ) : (
+                {isSubmitting ? "Submitting…" : (
                   <>
-                    <Send className="h-4 w-4 mr-2" />
+                    <Send style={{ height: 12, width: 12 }} />
                     Decline with Feedback
                   </>
                 )}
-              </Button>
+              </button>
             </div>
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   );
 }

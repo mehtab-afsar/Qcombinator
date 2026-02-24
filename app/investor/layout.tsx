@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import InvestorSidebar from "@/features/investor/components/InvestorSidebar";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 export default function InvestorLayout({
   children,
@@ -14,17 +15,18 @@ export default function InvestorLayout({
   const hideSidebar = pathname.includes('/onboarding');
 
   if (hideSidebar) {
-    return <>{children}</>;
+    return <ErrorBoundary>{children}</ErrorBoundary>;
   }
 
   return (
-    <div style={{ display: "flex", height: "100vh", background: "#F9F7F2" }}>
-      <div style={{ flexShrink: 0 }}>
-        <InvestorSidebar className="h-full" />
+    <ErrorBoundary>
+      <div style={{ display: "flex", height: "100vh", background: "#F9F7F2" }}>
+        <InvestorSidebar />
+        {/* 52px left margin matches the collapsed sidebar width */}
+        <div style={{ flex: 1, overflowY: "auto", marginLeft: 52 }}>
+          {children}
+        </div>
       </div>
-      <div style={{ flex: 1, overflowY: "auto" }}>
-        {children}
-      </div>
-    </div>
+    </ErrorBoundary>
   );
 }

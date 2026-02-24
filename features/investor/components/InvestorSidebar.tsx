@@ -1,54 +1,14 @@
 "use client";
 
-import { usePathname } from "next/navigation";
-import Link from "next/link";
+import { motion } from "framer-motion";
 import {
-  Home,
-  Search,
-  Brain,
-  PieChart,
-  TrendingUp,
+  Home, Search, Brain, PieChart, MessageSquare,
+  ChevronsUpDown, LogOut, Settings, UserCircle,
 } from "lucide-react";
-
-interface NavigationItem {
-  name: string;
-  href: string;
-  icon: React.ElementType;
-  badge?: string;
-  description?: string;
-}
-
-// Only pages that actually exist
-const investorNavigation: NavigationItem[] = [
-  {
-    name: "Dashboard",
-    href: "/investor/dashboard",
-    icon: Home,
-    description: "Investment overview & metrics"
-  },
-  {
-    name: "Deal Flow",
-    href: "/investor/deal-flow",
-    icon: Search,
-    description: "Discover new opportunities"
-  },
-  {
-    name: "AI Analysis",
-    href: "/investor/ai-analysis",
-    icon: Brain,
-    description: "Deep startup intelligence"
-  },
-  {
-    name: "Portfolio",
-    href: "/investor/portfolio",
-    icon: PieChart,
-    description: "Track your investments"
-  },
-];
-
-interface InvestorSidebarProps {
-  className?: string;
-}
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useState, useRef, useEffect } from "react";
+import { useAuth } from "@/features/auth/hooks/useAuth";
 
 // ─── palette ──────────────────────────────────────────────────────────────────
 const bg    = "#F9F7F2";
@@ -58,104 +18,309 @@ const ink   = "#18160F";
 const muted = "#8A867C";
 const blue  = "#2563EB";
 
-export default function InvestorSidebar({ className }: InvestorSidebarProps) {
-  const pathname = usePathname();
+// ─── nav items ────────────────────────────────────────────────────────────────
+const nav = [
+  { name: "Dashboard",   href: "/investor/dashboard",   icon: Home,          badge: null   },
+  { name: "Deal Flow",   href: "/investor/deal-flow",   icon: Search,        badge: "Live" },
+  { name: "AI Analysis", href: "/investor/ai-analysis", icon: Brain,         badge: null   },
+  { name: "Portfolio",   href: "/investor/portfolio",   icon: PieChart,      badge: null   },
+  { name: "Messages",    href: "/investor/messages",      icon: MessageSquare, badge: "3"    },
+];
+
+const BADGE: Record<string, { bg: string; color: string }> = {
+  "Live": { bg: "#F0FDF4", color: "#166534" },
+  "3":    { bg: surf,      color: muted     },
+};
+
+// ─── dropdown ─────────────────────────────────────────────────────────────────
+function Dropdown({
+  trigger,
+  children,
+  align = "left",
+}: {
+  trigger: React.ReactNode;
+  children: React.ReactNode;
+  align?: "left" | "right";
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   return (
-    <div
-      className={className}
-      style={{ display: "flex", flexDirection: "column", height: "100%", background: bg, borderRight: `1px solid ${bdr}`, width: 240 }}
+    <div ref={ref} style={{ position: "relative" }}>
+      <div onClick={() => setOpen(o => !o)}>{trigger}</div>
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: "100%",
+            [align]: 0,
+            marginBottom: 6,
+            minWidth: 200,
+            background: bg,
+            border: `1px solid ${bdr}`,
+            borderRadius: 10,
+            boxShadow: "0 8px 24px rgba(0,0,0,0.08)",
+            padding: "6px 0",
+            zIndex: 100,
+          }}
+          onClick={() => setOpen(false)}
+        >
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DropItem({
+  href,
+  icon: Icon,
+  label,
+  onClick,
+  danger,
+}: {
+  href?: string;
+  icon: React.ElementType;
+  label: string;
+  onClick?: () => void;
+  danger?: boolean;
+}) {
+  const style: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "8px 14px",
+    fontSize: 13,
+    color: danger ? "#DC2626" : ink,
+    textDecoration: "none",
+    cursor: "pointer",
+    background: "transparent",
+    border: "none",
+    width: "100%",
+    fontFamily: "inherit",
+    transition: "background .12s",
+  };
+  const hover = (e: React.MouseEvent) => ((e.currentTarget as HTMLElement).style.background = surf);
+  const leave = (e: React.MouseEvent) => ((e.currentTarget as HTMLElement).style.background = "transparent");
+
+  if (href) {
+    return (
+      <Link href={href} replace style={style} onMouseEnter={hover} onMouseLeave={leave}>
+        <Icon style={{ height: 14, width: 14, color: danger ? "#DC2626" : muted }} />
+        {label}
+      </Link>
+    );
+  }
+  return (
+    <button onClick={onClick} style={style} onMouseEnter={hover} onMouseLeave={leave}>
+      <Icon style={{ height: 14, width: 14, color: danger ? "#DC2626" : muted }} />
+      {label}
+    </button>
+  );
+}
+
+function DropSep() {
+  return <div style={{ height: 1, background: bdr, margin: "4px 0" }} />;
+}
+
+// ─── component ────────────────────────────────────────────────────────────────
+export default function InvestorSidebar() {
+  const [expanded, setExpanded] = useState(false);
+  const pathname = usePathname();
+  const router   = useRouter();
+  const { user, signOut } = useAuth();
+
+  const displayName = (user?.user_metadata?.full_name as string) || user?.email?.split("@")[0] || "Investor";
+  const fundName    = (user?.user_metadata?.fund_name as string) || "Edge Alpha";
+  const initials    = displayName.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase();
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.push("/login");
+  };
+
+  const W_OPEN   = 220;
+  const W_CLOSED = 52;
+
+  return (
+    <motion.nav
+      style={{
+        position: "fixed", left: 0, top: 0, zIndex: 40,
+        height: "100vh",
+        background: bg,
+        borderRight: `1px solid ${bdr}`,
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+      }}
+      animate={{ width: expanded ? W_OPEN : W_CLOSED }}
+      transition={{ ease: "easeOut", duration: 0.2 }}
+      onMouseEnter={() => setExpanded(true)}
+      onMouseLeave={() => setExpanded(false)}
     >
-      {/* logo */}
-      <div style={{ padding: "20px 20px 18px", borderBottom: `1px solid ${bdr}` }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ height: 30, width: 30, borderRadius: 8, background: blue, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <span style={{ color: "#fff", fontWeight: 900, fontSize: 7, letterSpacing: "0.05em" }}>EA</span>
-          </div>
-          <div>
-            <p style={{ fontSize: 14, fontWeight: 600, color: ink, lineHeight: 1.2 }}>Edge Alpha</p>
-            <p style={{ fontSize: 11, color: muted }}>Investor Portal</p>
-          </div>
+
+      {/* ── top: EA logo row ──────────────────────────────────────────── */}
+      <div style={{
+        height: 52, flexShrink: 0,
+        borderBottom: `1px solid ${bdr}`,
+        display: "flex", alignItems: "center",
+        padding: "0 10px",
+      }}>
+        <div style={{
+          height: 28, width: 28, borderRadius: 7, flexShrink: 0,
+          background: blue, color: "#fff",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 9, fontWeight: 900, letterSpacing: "0.05em",
+        }}>
+          EA
         </div>
+        <motion.div
+          animate={{ opacity: expanded ? 1 : 0, x: expanded ? 0 : -4 }}
+          transition={{ duration: 0.15 }}
+          style={{ marginLeft: 10, overflow: "hidden", whiteSpace: "nowrap" }}
+        >
+          <p style={{ fontSize: 13, fontWeight: 600, color: ink, lineHeight: 1.2 }}>
+            {fundName}
+          </p>
+          <p style={{ fontSize: 10, color: muted }}>Investor</p>
+        </motion.div>
       </div>
 
-      {/* fund pulse */}
-      <div style={{ padding: "16px 20px", borderBottom: `1px solid ${bdr}` }}>
-        <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", color: muted, fontWeight: 600, marginBottom: 10 }}>Fund Pulse</p>
-        <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-          {[
-            { label: "Deal Flow", value: "+15%", dot: "#22C55E" },
-            { label: "Valuations", value: "Stable", dot: "#EAB308" },
-            { label: "AI/ML Sector", value: "Hot", dot: "#3B82F6" },
-          ].map(r => (
-            <div key={r.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                <div style={{ height: 6, width: 6, borderRadius: "50%", background: r.dot, flexShrink: 0 }} />
-                <span style={{ fontSize: 12, color: ink }}>{r.label}</span>
-              </div>
-              <span style={{ fontSize: 12, color: muted }}>{r.value}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+      {/* ── middle: nav links ────────────────────────────────────────── */}
+      <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "8px 6px" }}>
+        {nav.map(item => {
+          const active = pathname === item.href || pathname.startsWith(item.href + "/");
+          const Icon   = item.icon;
+          const bs     = item.badge ? BADGE[item.badge] : null;
 
-      {/* performance strip */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1, background: bdr, borderBottom: `1px solid ${bdr}` }}>
-        {[{ label: "IRR", value: "24.3%", color: "#16A34A" }, { label: "MOIC", value: "2.8×", color: "#16A34A" }].map(s => (
-          <div key={s.label} style={{ background: bg, padding: "10px 16px" }}>
-            <p style={{ fontSize: 10, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 2 }}>{s.label}</p>
-            <p style={{ fontSize: 14, fontWeight: 700, color: s.color }}>{s.value}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* nav */}
-      <nav style={{ flex: 1, overflowY: "auto", padding: "10px 10px" }}>
-        {investorNavigation.map(item => {
-          const isActive = pathname === item.href;
-          const Icon = item.icon;
           return (
-            <Link key={item.name} href={item.href} style={{ textDecoration: "none" }}>
-              <div style={{
+            <Link
+              key={item.href}
+              href={item.href}
+              replace
+              style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 10,
-                padding: "9px 10px",
+                height: 36,
                 borderRadius: 8,
+                padding: "0 10px",
                 marginBottom: 2,
-                background: isActive ? surf : "transparent",
-                border: isActive ? `1px solid ${bdr}` : "1px solid transparent",
-                transition: "background .15s",
-                cursor: "pointer",
+                textDecoration: "none",
+                background: active ? "#EEF2FF" : "transparent",
+                transition: "background .12s",
               }}
-                onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = surf; }}
-                onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+              onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = surf; }}
+              onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+            >
+              <Icon style={{
+                height: 16, width: 16, flexShrink: 0,
+                color: active ? blue : muted,
+              }} />
+
+              <motion.div
+                animate={{ opacity: expanded ? 1 : 0, x: expanded ? 0 : -4 }}
+                transition={{ duration: 0.15 }}
+                style={{
+                  marginLeft: 10, display: "flex", alignItems: "center",
+                  flex: 1, overflow: "hidden", whiteSpace: "nowrap",
+                }}
               >
-                <Icon style={{ height: 15, width: 15, color: isActive ? blue : muted, flexShrink: 0 }} />
-                <div>
-                  <p style={{ fontSize: 13, fontWeight: isActive ? 600 : 400, color: isActive ? ink : ink, lineHeight: 1.2 }}>{item.name}</p>
-                  {item.description && (
-                    <p style={{ fontSize: 11, color: muted, marginTop: 1 }}>{item.description}</p>
-                  )}
-                </div>
-              </div>
+                <span style={{
+                  fontSize: 13, fontWeight: 500,
+                  color: active ? blue : ink,
+                }}>
+                  {item.name}
+                </span>
+
+                {bs && item.badge && (
+                  <span style={{
+                    marginLeft: "auto", flexShrink: 0,
+                    padding: "1px 7px",
+                    borderRadius: 999,
+                    fontSize: 10, fontWeight: 600,
+                    background: bs.bg, color: bs.color,
+                  }}>
+                    {item.badge}
+                  </span>
+                )}
+              </motion.div>
             </Link>
           );
         })}
-      </nav>
-
-      {/* footer */}
-      <div style={{ padding: "14px 20px", borderTop: `1px solid ${bdr}` }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ height: 28, width: 28, borderRadius: "50%", background: surf, border: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <TrendingUp style={{ height: 12, width: 12, color: muted }} />
-          </div>
-          <div>
-            <p style={{ fontSize: 12, fontWeight: 600, color: ink }}>Acme Ventures</p>
-            <p style={{ fontSize: 11, color: muted }}>Series A-B · $50M fund</p>
-          </div>
-        </div>
       </div>
-    </div>
+
+      {/* ── bottom: user ─────────────────────────────────────────────── */}
+      <div style={{
+        flexShrink: 0,
+        borderTop: `1px solid ${bdr}`,
+        padding: "8px 6px",
+      }}>
+        <Dropdown
+          trigger={
+            <div
+              style={{
+                display: "flex", alignItems: "center",
+                height: 36, borderRadius: 8, padding: "0 10px",
+                cursor: "pointer",
+                transition: "background .12s",
+              }}
+              onMouseEnter={e => ((e.currentTarget as HTMLElement).style.background = surf)}
+              onMouseLeave={e => ((e.currentTarget as HTMLElement).style.background = "transparent")}
+            >
+              <div style={{
+                height: 24, width: 24, borderRadius: "50%", flexShrink: 0,
+                background: ink, color: bg,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 9, fontWeight: 700,
+              }}>
+                {initials}
+              </div>
+              <motion.div
+                animate={{ opacity: expanded ? 1 : 0, x: expanded ? 0 : -4 }}
+                transition={{ duration: 0.15 }}
+                style={{
+                  marginLeft: 10, display: "flex", alignItems: "center",
+                  flex: 1, overflow: "hidden", whiteSpace: "nowrap",
+                }}
+              >
+                <span style={{ fontSize: 13, fontWeight: 500, color: ink }}>
+                  {displayName}
+                </span>
+                <ChevronsUpDown style={{ marginLeft: "auto", height: 12, width: 12, color: muted, flexShrink: 0 }} />
+              </motion.div>
+            </div>
+          }
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px" }}>
+            <div style={{
+              height: 28, width: 28, borderRadius: "50%", flexShrink: 0,
+              background: ink, color: bg,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 10, fontWeight: 700,
+            }}>
+              {initials}
+            </div>
+            <div style={{ overflow: "hidden" }}>
+              <p style={{ fontSize: 13, fontWeight: 600, color: ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{displayName}</p>
+              <p style={{ fontSize: 11, color: muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{user?.email}</p>
+            </div>
+          </div>
+          <DropSep />
+          <DropItem href="/investor/portfolio" icon={UserCircle} label="Profile" />
+          <DropItem href="/investor/settings"  icon={Settings}   label="Settings" />
+          <DropSep />
+          <DropItem icon={LogOut} label="Sign out" onClick={handleSignOut} danger />
+        </Dropdown>
+      </div>
+
+    </motion.nav>
   );
 }

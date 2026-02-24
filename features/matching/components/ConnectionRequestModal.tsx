@@ -120,7 +120,7 @@ export function ConnectionRequestModal({
                   Request sent to {investorName}
                 </p>
                 <p style={{ fontSize: 13, color: muted, lineHeight: 1.6 }}>
-                  You'll be notified when they respond. Average response time is 2–4 business days.
+                  You&apos;ll be notified when they respond. Average response time is 2–4 business days.
                 </p>
               </motion.div>
             ) : (

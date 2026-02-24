@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Search, TrendingUp, Inbox, ChevronRight, CheckCircle, Clock, AlertCircle, XCircle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -38,116 +38,20 @@ interface Startup {
   status: 'new' | 'reviewing' | 'interested' | 'passed'
 }
 
-// ─── mock data ────────────────────────────────────────────────────────────────
-const mockConnectionRequests = [
-  {
-    id: 'req-001',
-    founderName: 'Sarah Mitchell',
-    startupName: 'CloudSync',
-    oneLiner: 'Real-time collaboration platform for distributed teams',
-    qScore: 78,
-    qScorePercentile: 85,
-    qScoreBreakdown: { market: 82, product: 75, goToMarket: 68, financial: 80, team: 85, traction: 72 },
-    personalMessage: 'Hi! I noticed your investment in similar collaboration tools. Would love to discuss how CloudSync is different and our traction in the enterprise segment.',
-    requestedDate: '2026-01-26',
-    stage: 'Seed',
-    industry: 'SaaS',
-    fundingTarget: '$2M'
-  },
-  {
-    id: 'req-002',
-    founderName: 'Marcus Johnson',
-    startupName: 'EcoTrack',
-    oneLiner: 'Carbon footprint tracking and reduction platform for businesses',
-    qScore: 72,
-    qScorePercentile: 78,
-    qScoreBreakdown: { market: 75, product: 70, goToMarket: 65, financial: 72, team: 78, traction: 70 },
-    personalMessage: undefined,
-    requestedDate: '2026-01-27',
-    stage: 'Pre-Seed',
-    industry: 'Climate Tech',
-    fundingTarget: '$1.5M'
-  },
-  {
-    id: 'req-003',
-    founderName: 'Lisa Park',
-    startupName: 'HealthMetrics AI',
-    oneLiner: 'AI-powered health analytics for preventative care',
-    qScore: 85,
-    qScorePercentile: 92,
-    qScoreBreakdown: { market: 88, product: 85, goToMarket: 80, financial: 82, team: 90, traction: 85 },
-    personalMessage: 'Your portfolio company MedTech Solutions operates in adjacent space. I believe there could be strategic synergies. Would love to explore partnership opportunities.',
-    requestedDate: '2026-01-27',
-    stage: 'Seed',
-    industry: 'HealthTech',
-    fundingTarget: '$3M'
-  }
-]
-
-const mockStartups: Startup[] = [
-  {
-    id: '1', name: 'TechFlow AI',
-    tagline: 'AI-powered workflow automation for enterprise teams',
-    logo: '/api/placeholder/64/64', qScore: 84, stage: 'Series A', sector: 'AI/ML',
-    location: 'San Francisco, CA', fundingGoal: '$5M', traction: '$2.1M ARR',
-    matchScore: 94, lastActive: '2h ago',
-    founder: { name: 'Alex Thompson', avatar: '', background: 'Ex-Google, Stanford CS' },
-    metrics: { revenue: '$2.1M ARR', growth: '+180% YoY', customers: 47, team: 12 },
-    tags: ['Enterprise', 'AI/ML'], status: 'new'
-  },
-  {
-    id: '2', name: 'HealthTech Pro',
-    tagline: 'Remote patient monitoring and care coordination platform',
-    logo: '/api/placeholder/64/64', qScore: 79, stage: 'Seed', sector: 'Healthcare',
-    location: 'Boston, MA', fundingGoal: '$2M', traction: '$450K ARR',
-    matchScore: 88, lastActive: '5h ago',
-    founder: { name: 'Dr. Sarah Chen', avatar: '', background: 'Ex-Kaiser, Harvard Med' },
-    metrics: { revenue: '$450K ARR', growth: '+240% YoY', customers: 23, team: 8 },
-    tags: ['Healthcare', 'B2B'], status: 'reviewing'
-  },
-  {
-    id: '3', name: 'FinanceOS',
-    tagline: 'Next-gen financial planning software for SMBs',
-    logo: '/api/placeholder/64/64', qScore: 82, stage: 'Series A', sector: 'Fintech',
-    location: 'New York, NY', fundingGoal: '$8M', traction: '$3.5M ARR',
-    matchScore: 91, lastActive: '1d ago',
-    founder: { name: 'Michael Rodriguez', avatar: '', background: 'Ex-Goldman, Wharton MBA' },
-    metrics: { revenue: '$3.5M ARR', growth: '+150% YoY', customers: 340, team: 18 },
-    tags: ['Fintech', 'SaaS'], status: 'interested'
-  },
-  {
-    id: '4', name: 'GreenEnergy Labs',
-    tagline: 'Smart grid optimization using AI and IoT',
-    logo: '/api/placeholder/64/64', qScore: 77, stage: 'Pre-Seed', sector: 'Climate',
-    location: 'Austin, TX', fundingGoal: '$1.5M', traction: '$120K ARR',
-    matchScore: 85, lastActive: '3h ago',
-    founder: { name: 'Emily Watson', avatar: '', background: 'Ex-Tesla, MIT' },
-    metrics: { revenue: '$120K ARR', growth: '+320% YoY', customers: 12, team: 5 },
-    tags: ['CleanTech', 'IoT'], status: 'new'
-  },
-  {
-    id: '5', name: 'DataHub Analytics',
-    tagline: 'Real-time data analytics for e-commerce businesses',
-    logo: '/api/placeholder/64/64', qScore: 81, stage: 'Seed', sector: 'SaaS',
-    location: 'Seattle, WA', fundingGoal: '$3M', traction: '$890K ARR',
-    matchScore: 89, lastActive: '4h ago',
-    founder: { name: 'James Park', avatar: '', background: 'Ex-Amazon, Berkeley' },
-    metrics: { revenue: '$890K ARR', growth: '+210% YoY', customers: 67, team: 10 },
-    tags: ['Analytics', 'B2B'], status: 'reviewing'
-  },
-  {
-    id: '6', name: 'SecureCloud',
-    tagline: 'Enterprise-grade cybersecurity platform for cloud infrastructure',
-    logo: '/api/placeholder/64/64', qScore: 84, stage: 'Series A', sector: 'Cybersecurity',
-    location: 'Palo Alto, CA', fundingGoal: '$6M', traction: '$2.8M ARR',
-    matchScore: 92, lastActive: '6h ago',
-    founder: { name: 'David Kim', avatar: '', background: 'Ex-Palo Alto Networks, CMU' },
-    metrics: { revenue: '$2.8M ARR', growth: '+190% YoY', customers: 89, team: 15 },
-    tags: ['Security', 'Enterprise'], status: 'new'
-  }
-]
-
-const stats = { totalDeals: 1247, newThisWeek: 23, averageQScore: 74, matchingCriteria: 89 }
+interface ConnectionRequest {
+  id: string
+  founderName: string
+  startupName: string
+  oneLiner: string
+  qScore: number
+  qScorePercentile: number
+  qScoreBreakdown: { market: number; product: number; goToMarket: number; financial: number; team: number; traction: number }
+  personalMessage: string | undefined
+  requestedDate: string
+  stage: string
+  industry: string
+  fundingTarget: string
+}
 
 // ─── status helpers ────────────────────────────────────────────────────────────
 function statusStyle(status: Startup['status']) {
@@ -167,10 +71,48 @@ export default function InvestorDashboard() {
   const [selectedSector, setSelectedSector] = useState('all')
   const [activeTab,      setActiveTab]      = useState<'all' | Startup['status']>('all')
 
-  const [connectionRequests, setConnectionRequests] = useState(mockConnectionRequests)
-  const [selectedRequest,    setSelectedRequest]    = useState<typeof mockConnectionRequests[0] | null>(null)
+  const [connectionRequests, setConnectionRequests] = useState<ConnectionRequest[]>([])
+  const [selectedRequest,    setSelectedRequest]    = useState<ConnectionRequest | null>(null)
   const [showScheduler,      setShowScheduler]      = useState(false)
   const [showDeclineForm,    setShowDeclineForm]    = useState(false)
+  const [dealFlow,           setDealFlow]           = useState<Startup[]>([])
+  const [loading,            setLoading]            = useState(true)
+
+  useEffect(() => {
+    let done = 0
+    const tryDone = () => { done++; if (done >= 2) setLoading(false) }
+
+    // Fetch real connection requests
+    fetch('/api/investor/connections')
+      .then(r => r.json())
+      .then(data => { if (data.requests) setConnectionRequests(data.requests) })
+      .catch(() => {})
+      .finally(tryDone)
+
+    // Fetch real deal flow
+    fetch('/api/investor/deal-flow')
+      .then(r => r.json())
+      .then(data => {
+        if (data.founders && data.founders.length > 0) {
+          setDealFlow(data.founders.map((f: {
+            id: string; name: string; tagline: string; qScore: number; stage: string;
+            sector: string; location: string; fundingGoal: string; lastActive: string;
+            founder: { name: string }; status: 'new'
+          }) => ({
+            id: f.id, name: f.name, tagline: f.tagline, logo: '',
+            qScore: f.qScore, stage: f.stage, sector: f.sector,
+            location: f.location, fundingGoal: f.fundingGoal, traction: '',
+            matchScore: Math.min(99, f.qScore + 10),
+            lastActive: new Date(f.lastActive).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+            founder: { name: f.founder.name, avatar: '', background: '' },
+            metrics: { revenue: '', growth: '', customers: 0, team: 0 },
+            tags: [f.sector], status: f.status,
+          })))
+        }
+      })
+      .catch(() => {})
+      .finally(tryDone)
+  }, [])
 
   const handleAcceptRequest = (requestId: string) => {
     const req = connectionRequests.find(r => r.id === requestId)
@@ -184,19 +126,35 @@ export default function InvestorDashboard() {
 
   const handleScheduleMeeting = (_date: string, _time: string, _notes: string) => {
     if (!selectedRequest) return
+    // Persist to DB
+    fetch('/api/investor/connections', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requestId: selectedRequest.id, action: 'accept' }),
+    }).catch(() => {})
     setConnectionRequests(prev => prev.filter(r => r.id !== selectedRequest.id))
     setShowScheduler(false)
     setSelectedRequest(null)
   }
 
-  const handleDeclineWithFeedback = (_reasons: string[], _feedback: string) => {
+  const handleDeclineWithFeedback = (reasons: string[], feedback: string) => {
     if (!selectedRequest) return
+    // Persist to DB
+    fetch('/api/investor/connections', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        requestId: selectedRequest.id,
+        action: 'decline',
+        feedback: { reasons, text: feedback },
+      }),
+    }).catch(() => {})
     setConnectionRequests(prev => prev.filter(r => r.id !== selectedRequest.id))
     setShowDeclineForm(false)
     setSelectedRequest(null)
   }
 
-  const filtered = mockStartups.filter(s => {
+  const filtered = dealFlow.filter(s => {
     const matchSearch = !searchTerm || s.name.toLowerCase().includes(searchTerm.toLowerCase()) || s.sector.toLowerCase().includes(searchTerm.toLowerCase())
     const matchStage  = selectedStage  === 'all' || s.stage.toLowerCase().replace(/\s+/g, '-') === selectedStage
     const matchSector = selectedSector === 'all' || s.sector.toLowerCase().replace(/\//g, '-') === selectedSector
@@ -205,11 +163,11 @@ export default function InvestorDashboard() {
   })
 
   const tabs: { key: 'all' | Startup['status']; label: string }[] = [
-    { key: 'all',       label: `All (${mockStartups.length})` },
-    { key: 'new',       label: `New (${mockStartups.filter(s => s.status === 'new').length})` },
-    { key: 'reviewing', label: `Reviewing (${mockStartups.filter(s => s.status === 'reviewing').length})` },
-    { key: 'interested',label: `Interested (${mockStartups.filter(s => s.status === 'interested').length})` },
-    { key: 'passed',    label: `Passed (${mockStartups.filter(s => s.status === 'passed').length})` },
+    { key: 'all',       label: `All (${dealFlow.length})` },
+    { key: 'new',       label: `New (${dealFlow.filter(s => s.status === 'new').length})` },
+    { key: 'reviewing', label: `Reviewing (${dealFlow.filter(s => s.status === 'reviewing').length})` },
+    { key: 'interested',label: `Interested (${dealFlow.filter(s => s.status === 'interested').length})` },
+    { key: 'passed',    label: `Passed (${dealFlow.filter(s => s.status === 'passed').length})` },
   ]
 
   return (
@@ -224,23 +182,25 @@ export default function InvestorDashboard() {
           <h1 style={{ fontSize: 'clamp(1.8rem,4vw,2.4rem)', fontWeight: 300, letterSpacing: '-0.03em', color: ink, marginBottom: 6 }}>
             Deal flow.
           </h1>
-          <p style={{ fontSize: 14, color: muted }}>Demo data — real founders appear once assessments are complete.</p>
+          <p style={{ fontSize: 14, color: muted }}>Founders with completed Q-Score assessments, ranked by score.</p>
         </div>
 
         {/* ── stats row ────────────────────────────────────────────────── */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 1, background: bdr, border: `1px solid ${bdr}`, borderRadius: 12, overflow: 'hidden', marginBottom: 32 }}>
-          {[
-            { label: 'Total Deals',       value: stats.totalDeals.toLocaleString(), accent: ink   },
-            { label: 'New This Week',      value: stats.newThisWeek,                 accent: green },
-            { label: 'Avg Q-Score',        value: stats.averageQScore,               accent: blue  },
-            { label: 'Match Criteria',     value: `${stats.matchingCriteria}%`,      accent: amber },
-          ].map((s, i) => (
-            <div key={i} style={{ background: bg, padding: '20px 20px' }}>
-              <p style={{ fontSize: 11, color: muted, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>{s.label}</p>
-              <p style={{ fontSize: 22, fontWeight: 700, color: s.accent }}>{s.value}</p>
-            </div>
-          ))}
-        </div>
+        {!loading && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 1, background: bdr, border: `1px solid ${bdr}`, borderRadius: 12, overflow: 'hidden', marginBottom: 32 }}>
+            {[
+              { label: 'Total Deals',   value: dealFlow.length, accent: ink   },
+              { label: 'New',           value: dealFlow.filter(s => s.status === 'new').length, accent: green },
+              { label: 'Avg Q-Score',   value: dealFlow.length ? Math.round(dealFlow.reduce((a, s) => a + s.qScore, 0) / dealFlow.length) : '—', accent: blue },
+              { label: 'Requests',      value: connectionRequests.length, accent: amber },
+            ].map((s, i) => (
+              <div key={i} style={{ background: bg, padding: '20px 20px' }}>
+                <p style={{ fontSize: 11, color: muted, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>{s.label}</p>
+                <p style={{ fontSize: 22, fontWeight: 700, color: s.accent }}>{s.value}</p>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* ── connection requests ───────────────────────────────────────── */}
         {connectionRequests.length > 0 && (
@@ -271,8 +231,42 @@ export default function InvestorDashboard() {
           </div>
         )}
 
+        {/* ── loading skeleton ──────────────────────────────────────────── */}
+        {loading && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '80px 0', color: muted, fontSize: 13 }}>
+            Loading deal flow…
+          </div>
+        )}
+
+        {/* ── empty state / welcome ─────────────────────────────────────── */}
+        {!loading && dealFlow.length === 0 && (
+          <div style={{ border: `1px solid ${bdr}`, borderRadius: 14, padding: '40px 36px', textAlign: 'center', marginBottom: 32 }}>
+            <p style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.18em', color: muted, marginBottom: 20 }}>Getting started</p>
+            <h2 style={{ fontSize: 22, fontWeight: 300, letterSpacing: '-0.02em', color: ink, marginBottom: 12 }}>
+              Welcome to Qcombinator
+            </h2>
+            <p style={{ fontSize: 14, color: muted, lineHeight: 1.65, maxWidth: 440, margin: '0 auto 32px' }}>
+              Founders complete a Q-Score assessment before appearing in your deal flow. Once they do, you&apos;ll see them here ranked by score with full breakdowns.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, maxWidth: 560, margin: '0 auto 32px', textAlign: 'left' }}>
+              {[
+                { step: '01', title: 'Founders assess', body: 'Founders complete a 7-topic interview. Q calculates a score across market, product, GTM, team, financial, and traction.' },
+                { step: '02', title: 'You get matched', body: 'Scored founders appear in your deal flow, ranked by Q-Score. Filter by stage, sector, or location.' },
+                { step: '03', title: 'Connect & close', body: 'Send or accept connection requests, message founders directly, and schedule intro calls — all inside the platform.' },
+              ].map(({ step, title, body }) => (
+                <div key={step} style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 10, padding: '16px 16px' }}>
+                  <p style={{ fontSize: 10, color: muted, fontWeight: 700, letterSpacing: '0.12em', marginBottom: 8 }}>{step}</p>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: ink, marginBottom: 6 }}>{title}</p>
+                  <p style={{ fontSize: 12, color: muted, lineHeight: 1.55 }}>{body}</p>
+                </div>
+              ))}
+            </div>
+            <p style={{ fontSize: 12, color: muted, opacity: 0.6 }}>Check back soon — new founders are assessed every day.</p>
+          </div>
+        )}
+
         {/* ── deal flow ────────────────────────────────────────────────── */}
-        <div>
+        {!loading && dealFlow.length > 0 && <div>
           {/* section header */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
             <p style={{ fontSize: 14, fontWeight: 600, color: ink }}>Deal Flow Pipeline</p>
@@ -423,12 +417,14 @@ export default function InvestorDashboard() {
               )
             })}
           </div>
-        </div>
+        </div>}
 
         {/* footnote */}
-        <p style={{ marginTop: 48, fontSize: 11, color: muted, opacity: 0.5, textAlign: 'center' }}>
-          {filtered.length} startups shown · Powered by Q-Score Algorithm v2
-        </p>
+        {!loading && dealFlow.length > 0 && (
+          <p style={{ marginTop: 48, fontSize: 11, color: muted, opacity: 0.5, textAlign: 'center' }}>
+            {filtered.length} startups shown · Powered by Q-Score Algorithm v2
+          </p>
+        )}
       </div>
 
       {/* ── modals ───────────────────────────────────────────────────────── */}

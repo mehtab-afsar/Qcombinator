@@ -2,12 +2,10 @@ import { Clock, Eye, Calendar, X } from "lucide-react";
 
 // ─── palette ──────────────────────────────────────────────────────────────────
 const bdr   = "#E2DDD5";
-const ink   = "#18160F";
 const muted = "#8A867C";
 const blue  = "#2563EB";
 const green = "#16A34A";
 const red   = "#DC2626";
-const amber = "#D97706";
 
 export type ConnectionStatus = 'pending' | 'viewed' | 'meeting-scheduled' | 'passed' | 'none';
 

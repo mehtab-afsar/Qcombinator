@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  GraduationCap, Calendar, Users, Clock, Star,
+  Calendar, Users, Clock, Star,
   Award, ArrowRight, Video, Play, CheckCircle,
-  ChevronRight, Sparkles, BookOpen, Zap,
+  Sparkles, BookOpen, Zap,
 } from "lucide-react";
 import {
   getUpcomingWorkshops, getPastWorkshops, mentors,
@@ -18,7 +18,6 @@ const surf  = "#F0EDE6";
 const bdr   = "#E2DDD5";
 const ink   = "#18160F";
 const muted = "#8A867C";
-const blue  = "#2563EB";
 
 const TOPIC_COLORS: Record<string, { bg: string; text: string }> = {
   "go-to-market": { bg: "#EEF2FF", text: "#3730A3" },

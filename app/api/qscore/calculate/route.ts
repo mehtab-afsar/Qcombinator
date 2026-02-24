@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { calculatePRDQScore } from '@/features/qscore/calculators/prd-aligned-qscore';
-import { AssessmentData } from '@/features/qscore/types/qscore.types';
+import { AssessmentData, calculateGrade } from '@/features/qscore/types/qscore.types';
+import { detectBluffSignals, applyBluffPenalty } from '@/features/qscore/utils/bluff-detection';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export async function POST(request: NextRequest) {
@@ -42,6 +43,13 @@ export async function POST(request: NextRequest) {
       assessmentData as AssessmentData,
       previousScoreData || undefined
     );
+
+    // Run bluff detection — penalize inflated/AI-generated inputs
+    const bluffSignals = detectBluffSignals(assessmentData as AssessmentData);
+    if (bluffSignals.length > 0) {
+      qScore.overall = applyBluffPenalty(qScore.overall, bluffSignals);
+      qScore.grade = calculateGrade(qScore.overall);
+    }
 
     // Calculate percentile (compare to cohort)
     const percentile = await calculatePercentile(qScore.overall, user.id, supabase);

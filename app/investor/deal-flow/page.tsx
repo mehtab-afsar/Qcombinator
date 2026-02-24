@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Search, TrendingUp, Sparkles, ChevronRight } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -35,70 +35,6 @@ interface Deal {
   viewed: boolean;
 }
 
-// ─── mock data ────────────────────────────────────────────────────────────────
-const mockDeals: Deal[] = [
-  {
-    id: "1", name: "NeuralFlow AI",
-    tagline: "Real-time ML model optimization for edge devices",
-    qScore: 89, stage: "Series A", sector: "AI/ML",
-    location: "San Francisco, CA", fundingGoal: "$8M", valuation: "$45M",
-    matchScore: 96, addedDate: "2h ago",
-    founder: { name: "Dr. Lisa Zhang", title: "CEO & Co-founder" },
-    highlights: ["Ex-DeepMind team", "3 Fortune 500 clients", "250% YoY growth"],
-    momentum: "hot", viewed: false
-  },
-  {
-    id: "2", name: "BioSense Labs",
-    tagline: "Non-invasive glucose monitoring wearable",
-    qScore: 87, stage: "Seed", sector: "Healthcare",
-    location: "Boston, MA", fundingGoal: "$4M", valuation: "$18M",
-    matchScore: 94, addedDate: "5h ago",
-    founder: { name: "Dr. Raj Patel", title: "Founder & CTO" },
-    highlights: ["FDA breakthrough designation", "Harvard partnership", "10K waitlist"],
-    momentum: "trending", viewed: false
-  },
-  {
-    id: "3", name: "CryptoGuard",
-    tagline: "Enterprise blockchain security platform",
-    qScore: 84, stage: "Series A", sector: "Cybersecurity",
-    location: "Austin, TX", fundingGoal: "$10M", valuation: "$60M",
-    matchScore: 91, addedDate: "1d ago",
-    founder: { name: "Marcus Chen", title: "CEO" },
-    highlights: ["$5M ARR", "85 enterprise clients", "SOC 2 certified"],
-    momentum: "steady", viewed: true
-  },
-  {
-    id: "4", name: "EcoCharge",
-    tagline: "Ultra-fast EV charging network powered by solar",
-    qScore: 82, stage: "Series B", sector: "CleanTech",
-    location: "Los Angeles, CA", fundingGoal: "$25M", valuation: "$150M",
-    matchScore: 89, addedDate: "2d ago",
-    founder: { name: "Sarah Martinez", title: "Founder & CEO" },
-    highlights: ["200+ charging stations", "Partnership with Tesla", "Break-even in Q2"],
-    momentum: "hot", viewed: true
-  },
-  {
-    id: "5", name: "TalentAI",
-    tagline: "AI-powered recruiting and talent matching",
-    qScore: 80, stage: "Seed", sector: "HR Tech",
-    location: "New York, NY", fundingGoal: "$3.5M", valuation: "$15M",
-    matchScore: 87, addedDate: "3d ago",
-    founder: { name: "Jennifer Wu", title: "Co-founder & CEO" },
-    highlights: ["$1.2M ARR", "500+ companies", "92% retention"],
-    momentum: "trending", viewed: false
-  },
-  {
-    id: "6", name: "FoodTech Solutions",
-    tagline: "Vertical farming automation and optimization",
-    qScore: 78, stage: "Pre-Seed", sector: "AgTech",
-    location: "Denver, CO", fundingGoal: "$2M", valuation: "$8M",
-    matchScore: 84, addedDate: "4d ago",
-    founder: { name: "Tom Anderson", title: "Founder" },
-    highlights: ["3 pilot farms", "MIT incubator", "40% cost reduction"],
-    momentum: "steady", viewed: false
-  }
-];
-
 function momentumStyle(m: Deal["momentum"]) {
   if (m === "hot")      return { color: red,   bg: "#FEF2F2", label: "Hot",      Icon: Sparkles }
   if (m === "trending") return { color: amber, bg: "#FFFBEB", label: "Trending", Icon: TrendingUp }
@@ -112,8 +48,42 @@ export default function DealFlowPage() {
   const [selectedStage,  setSelectedStage]  = useState("all");
   const [selectedSector, setSelectedSector] = useState("all");
   const [activeTab,      setActiveTab]      = useState<"all" | "hot" | "new" | "high-match">("all");
+  const [deals,          setDeals]          = useState<Deal[]>([]);
+  const [loading,        setLoading]        = useState(true);
 
-  const filtered = mockDeals.filter(d => {
+  useEffect(() => {
+    fetch("/api/investor/deal-flow")
+      .then(r => r.json())
+      .then(data => {
+        if (data.founders && data.founders.length > 0) {
+          setDeals(data.founders.map((f: {
+            id: string; name: string; tagline: string; qScore: number; stage: string;
+            sector: string; location: string; fundingGoal: string; lastActive: string;
+            founder: { name: string }; hasScore: boolean;
+          }) => ({
+            id: f.id,
+            name: f.name,
+            tagline: f.tagline || f.sector,
+            qScore: f.qScore,
+            stage: f.stage || "Unknown",
+            sector: f.sector || "Other",
+            location: f.location || "",
+            fundingGoal: f.fundingGoal || "",
+            valuation: "",
+            matchScore: Math.min(99, f.qScore + 10),
+            addedDate: new Date(f.lastActive).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+            founder: { name: f.founder?.name || "Founder", title: "Founder" },
+            highlights: [f.sector, f.stage].filter(Boolean) as string[],
+            momentum: (f.qScore >= 80 ? "hot" : f.qScore >= 65 ? "trending" : "steady") as Deal["momentum"],
+            viewed: false,
+          })));
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const filtered = deals.filter(d => {
     const matchSearch  = !searchTerm || d.name.toLowerCase().includes(searchTerm.toLowerCase()) || d.sector.toLowerCase().includes(searchTerm.toLowerCase());
     const matchStage   = selectedStage  === "all" || d.stage.toLowerCase().replace(/\s+/g, "-") === selectedStage;
     const matchSector  = selectedSector === "all" || d.sector.toLowerCase().replace(/\//g, "-").replace(/\s+/g, "-") === selectedSector;
@@ -125,10 +95,10 @@ export default function DealFlowPage() {
   });
 
   const tabs = [
-    { key: "all"        as const, label: `All (${mockDeals.length})` },
-    { key: "hot"        as const, label: `Hot (${mockDeals.filter(d => d.momentum === "hot").length})` },
-    { key: "new"        as const, label: `New (${mockDeals.filter(d => !d.viewed).length})` },
-    { key: "high-match" as const, label: `High Match (${mockDeals.filter(d => d.matchScore >= 90).length})` },
+    { key: "all"        as const, label: `All (${deals.length})` },
+    { key: "hot"        as const, label: `Hot (${deals.filter(d => d.momentum === "hot").length})` },
+    { key: "new"        as const, label: `New (${deals.filter(d => !d.viewed).length})` },
+    { key: "high-match" as const, label: `High Match (${deals.filter(d => d.matchScore >= 90).length})` },
   ];
 
   return (
@@ -193,7 +163,16 @@ export default function DealFlowPage() {
 
         {/* rows */}
         <div style={{ border: `1px solid ${bdr}`, borderTop: "none", borderRadius: "0 0 12px 12px", overflow: "hidden" }}>
-          {filtered.length === 0 ? (
+          {loading ? (
+            <div style={{ padding: "60px 16px", textAlign: "center", color: muted, fontSize: 13 }}>Loading deal flow…</div>
+          ) : deals.length === 0 ? (
+            <div style={{ padding: "60px 24px", textAlign: "center" }}>
+              <p style={{ fontSize: 14, fontWeight: 500, color: ink, marginBottom: 8 }}>No founders yet</p>
+              <p style={{ fontSize: 13, color: muted, lineHeight: 1.6 }}>
+                Founders appear here after completing their Q-Score assessment.<br />Check back soon — new founders are assessed daily.
+              </p>
+            </div>
+          ) : filtered.length === 0 ? (
             <div style={{ padding: "40px 16px", textAlign: "center", color: muted, fontSize: 14 }}>No deals match your filters.</div>
           ) : filtered.map((deal, i) => {
             const ms = momentumStyle(deal.momentum);

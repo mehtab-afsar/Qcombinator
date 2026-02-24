@@ -98,12 +98,12 @@ export interface AssessmentData {
   learned: string;
   changed: string;
 
-  // Market Realism (for Market dimension)
-  targetCustomers: number;
-  conversionRate: number;
-  dailyActivity: number;
-  lifetimeValue: number;
-  costPerAcquisition: number;
+  // Market Realism (for Market dimension) — optional, may not be available from onboarding
+  targetCustomers?: number;
+  conversionRate?: number;
+  dailyActivity?: number;
+  lifetimeValue?: number;
+  costPerAcquisition?: number;
 
   // Resilience (for Team dimension)
   hardshipStory: string;

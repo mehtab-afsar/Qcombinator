@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Shield, Building2, Target, Sparkles, CheckCircle2,
@@ -39,6 +39,15 @@ export default function InvestorOnboarding() {
   const [loading, setLoading]     = useState(false)
   const [error, setError]         = useState('')
   const router = useRouter()
+
+  // Redirect already-authenticated investors to dashboard
+  useEffect(() => {
+    import('@/lib/supabase/client').then(({ createClient }) => {
+      createClient().auth.getSession().then(({ data: { session } }) => {
+        if (session) router.replace('/investor/dashboard')
+      })
+    })
+  }, [router])
 
   const totalSteps = 5
   const set = (field: keyof FormData, value: string | string[]) =>
@@ -356,7 +365,7 @@ export default function InvestorOnboarding() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
         <div>
           <label style={labelStyle}>Your Investment Thesis</label>
-          <p style={{ fontSize: 12, color: muted, marginBottom: 8 }}>What types of companies excite you? What's your edge as an investor?</p>
+          <p style={{ fontSize: 12, color: muted, marginBottom: 8 }}>What types of companies excite you? What&apos;s your edge as an investor?</p>
           <textarea
             rows={4}
             style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' } as React.CSSProperties}

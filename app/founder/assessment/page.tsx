@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Upload, CheckCircle, Circle, X, FileText, Edit3 } from "lucide-react";
+import { Send, Upload, CheckCircle, Circle, X, Edit3 } from "lucide-react";
 
 // ─── palette ──────────────────────────────────────────────────────────────────
 const bg    = "#F9F7F2";
@@ -26,6 +26,47 @@ const TOPICS = [
   { key: "financials",        label: "The Numbers",         dimension: "Financial" },
   { key: "resilience",        label: "Resilience",          dimension: "Traction" },
 ] as const;
+
+// Fields required per topic (mirrors interview API — used for pre-coverage detection)
+const TOPIC_FIELDS: Record<string, string[]> = {
+  your_story:        ["problemStory", "advantages", "advantageExplanation"],
+  customer_evidence: ["customerQuote", "customerSurprise", "customerCommitment", "conversationCount", "failedBelief"],
+  learning_velocity: ["tested", "buildTime", "measurement", "results", "learned", "changed"],
+  market:            ["targetCustomers", "conversionRate", "lifetimeValue", "costPerAcquisition"],
+  gtm:               ["icpDescription", "channelsTried", "currentCAC"],
+  financials:        ["mrr", "monthlyBurn", "runway"],
+  resilience:        ["hardshipStory", "motivation"],
+};
+
+// Opening question for each topic (used in the greeting when resuming)
+const TOPIC_OPENING: Record<string, string> = {
+  your_story:        "Tell me about yourself and the problem you're solving. What's the personal story behind this startup?",
+  customer_evidence: "Let's talk about your customers. How many conversations have you had, and what did they say?",
+  learning_velocity: "What have you actually built and tested so far? Walk me through one specific experiment — what you built, how long it took, and what you measured.",
+  market:            "How big is your market? How many people have the problem you're solving, and how do you know?",
+  gtm:               "How are you reaching customers today? What channels have you tried and what's working?",
+  financials:        "Let's look at the numbers. What's your MRR, monthly burn, and runway?",
+  resilience:        "Every startup hits a wall. What was your hardest moment so far and how did you get through it?",
+};
+
+// Detect which topics are already sufficiently covered by prior data (onboarding or saved draft).
+// Uses 50% field coverage threshold — more lenient than in-interview (70%) since onboarding
+// data only captures a subset of each topic's full field set.
+function getPreCoveredTopics(data: ExtractedData): string[] {
+  const covered: string[] = [];
+  for (const topic of TOPICS) {
+    const fields = TOPIC_FIELDS[topic.key] ?? [];
+    if (fields.length === 0) continue;
+    const populated = fields.filter(f => {
+      const val = data[f];
+      return val != null && val !== "" && val !== 0 && val !== false;
+    }).length;
+    if (populated / fields.length >= 0.5) {
+      covered.push(topic.key);
+    }
+  }
+  return covered;
+}
 
 const DIMENSIONS = [
   { key: "market",    label: "Market",    weight: "20%" },
@@ -64,6 +105,24 @@ function dimColor(score: number): string {
   return bdr;
 }
 
+function sanitizeReply(text: string): string {
+  if (!text) return "Let's continue — tell me more.";
+  const trimmed = text.trim();
+  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      return parsed.reply || parsed.message || "Let's continue — tell me more.";
+    } catch {
+      return trimmed
+        .replace(/[{}"\\[\]]/g, '')
+        .replace(/\b(reply|extraction|topicComplete|suggestedNextTopic)\b\s*:/gi, '')
+        .replace(/,\s*/g, ' ')
+        .trim() || "Let's continue — tell me more.";
+    }
+  }
+  return text;
+}
+
 // ─── component ────────────────────────────────────────────────────────────────
 export default function AssessmentInterview() {
   const router = useRouter();
@@ -90,17 +149,66 @@ export default function AssessmentInterview() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, typing]);
 
-  // Opening message from Q
+  // Load onboarding data + opening message
   useEffect(() => {
-    const timer = setTimeout(() => {
-      const greeting: UiMessage = {
-        role: "q",
-        text: "Welcome to your Q-Score assessment. I'm Q — think of me as a sharp VC evaluator who genuinely wants to understand your startup.\n\nWe'll cover 7 topics through a conversation. You can also drag-and-drop your pitch deck or financials at any time — I'll extract what I can.\n\nLet's start: Tell me about yourself and the problem you're solving. What's the personal story behind this startup?",
-      };
+    let cancelled = false;
+    async function init() {
+      // Try to load onboarding data for refinement flow
+      let onboardingData: ExtractedData = {};
+      const preCovered: string[] = [];
+      let firstUncovered = 0;
+
+      try {
+        const res = await fetch("/api/onboarding/data");
+        const { extractedData } = await res.json();
+        if (extractedData && Object.keys(extractedData).length > 0) {
+          onboardingData = extractedData;
+          // Detect covered topics using TOPIC_FIELDS with 50% threshold
+          const detected = getPreCoveredTopics(extractedData);
+          preCovered.push(...detected);
+        }
+      } catch {
+        // No onboarding data — start fresh
+      }
+
+      if (cancelled) return;
+
+      // Pre-populate extracted data from onboarding
+      if (Object.keys(onboardingData).length > 0) {
+        setExtracted(prev => ({ ...prev, ...onboardingData }));
+      }
+      if (preCovered.length > 0) {
+        setCoveredTopics(preCovered);
+        firstUncovered = TOPICS.findIndex(t => !preCovered.includes(t.key));
+        if (firstUncovered < 0) firstUncovered = TOPICS.length - 1; // all covered, start last
+        setCurrentTopic(firstUncovered);
+      }
+
+      // Build greeting based on what we know
+      const nextTopicKey  = TOPICS[firstUncovered]?.key ?? "your_story";
+      const nextTopicLabel = TOPICS[firstUncovered]?.label ?? "Your Story";
+      const openingQuestion = TOPIC_OPENING[nextTopicKey] ?? TOPIC_OPENING.your_story;
+      const coveredLabels = preCovered
+        .map(k => TOPICS.find(t => t.key === k)?.label)
+        .filter(Boolean)
+        .join(", ");
+
+      const greeting: UiMessage = preCovered.length > 0
+        ? {
+            role: "q",
+            text: `Welcome back! I've reviewed your onboarding conversation and already have good data on ${coveredLabels}.\n\nLet's fill in the gaps — starting with **${nextTopicLabel}**. You can also drag-and-drop your pitch deck or financials at any time.\n\n${openingQuestion}`,
+          }
+        : {
+            role: "q",
+            text: "Welcome to your Q-Score assessment. I'm Q — think of me as a sharp VC evaluator who genuinely wants to understand your startup.\n\nWe'll cover 7 topics through a conversation. You can also drag-and-drop your pitch deck or financials at any time — I'll extract what I can.\n\nLet's start: Tell me about yourself and the problem you're solving. What's the personal story behind this startup?",
+          };
+
       setMessages([greeting]);
       setApiHistory([{ role: "assistant", content: greeting.text }]);
-    }, 400);
-    return () => clearTimeout(timer);
+    }
+
+    const timer = setTimeout(init, 400);
+    return () => { cancelled = true; clearTimeout(timer); };
   }, []);
 
   // Recalculate score preview whenever extracted data changes
@@ -228,7 +336,7 @@ export default function AssessmentInterview() {
       });
 
       const data = await res.json();
-      const reply = data.reply || "Let's continue — tell me more.";
+      const reply = sanitizeReply(data.reply);
 
       setMessages(prev => [...prev, { role: "q", text: reply }]);
       setApiHistory(prev => [...prev, { role: "assistant", content: reply }]);
@@ -251,11 +359,17 @@ export default function AssessmentInterview() {
           setCurrentTopic(prev => prev + 1);
         }
       }
+
+      // Auto-complete when interview signals it's done
+      if (data.interviewComplete) {
+        setTimeout(() => handleComplete(), 1500);
+      }
     } catch {
       setMessages(prev => [...prev, { role: "q", text: "Connection hiccup — try again." }]);
     } finally {
       setTyping(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [input, typing, apiHistory, currentTopic, coveredTopics, extracted]);
 
   // ─── file upload ──────────────────────────────────────────────────────────
@@ -736,11 +850,11 @@ function transformExtractedToAssessment(data: ExtractedData) {
     results: String(data.results || ""),
     learned: String(data.learned || ""),
     changed: String(data.changed || ""),
-    targetCustomers: Number(data.targetCustomers) || 0,
-    conversionRate: Number(data.conversionRate) || 0,
-    dailyActivity: 0,
-    lifetimeValue: Number(data.lifetimeValue) || 0,
-    costPerAcquisition: Number(data.costPerAcquisition || data.currentCAC) || 0,
+    targetCustomers: data.targetCustomers ? Number(data.targetCustomers) : undefined,
+    conversionRate: data.conversionRate ? Number(data.conversionRate) : undefined,
+    dailyActivity: data.dailyActivity ? Number(data.dailyActivity) : undefined,
+    lifetimeValue: data.lifetimeValue ? Number(data.lifetimeValue) : undefined,
+    costPerAcquisition: (data.costPerAcquisition || data.currentCAC) ? Number(data.costPerAcquisition || data.currentCAC) : undefined,
     hardshipStory: String(data.hardshipStory || data.hardestMoment || ""),
     hardshipType: "",
     gtm: {
