@@ -205,45 +205,6 @@ export function getAgentById(id: string): Agent | undefined {
 }
 
 /**
- * Get pillar display name
- */
-export function getPillarName(pillar: AgentPillar): string {
-  const names: Record<AgentPillar, string> = {
-    'sales-marketing': 'Sales & Marketing',
-    'operations-finance': 'Operations & Finance',
-    'product-strategy': 'Product & Strategy'
-  };
-  return names[pillar];
-}
-
-/**
- * Get pillar color classes
- */
-export function getPillarColor(pillar: AgentPillar) {
-  const colors = {
-    'sales-marketing': {
-      bg: 'bg-blue-100',
-      text: 'text-blue-600',
-      border: 'border-blue-200',
-      hover: 'hover:bg-blue-50'
-    },
-    'operations-finance': {
-      bg: 'bg-green-100',
-      text: 'text-green-600',
-      border: 'border-green-200',
-      hover: 'hover:bg-green-50'
-    },
-    'product-strategy': {
-      bg: 'bg-purple-100',
-      text: 'text-purple-600',
-      border: 'border-purple-200',
-      hover: 'hover:bg-purple-50'
-    }
-  };
-  return colors[pillar];
-}
-
-/**
  * Get agents by Q-Score dimension they improve
  */
 export function getAgentsByDimension(dimension: string): Agent[] {

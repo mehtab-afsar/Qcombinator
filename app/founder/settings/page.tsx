@@ -69,12 +69,12 @@ export default function SettingsPage() {
 
   const handleSaveAccount = () => {
     const ok = storageService.updateFounderProfile({ fullName, email });
-    ok ? toast.success('Account settings saved') : toast.error('Failed to save settings');
+    if (ok) { toast.success('Account settings saved'); } else { toast.error('Failed to save settings'); }
   };
 
   const handleSaveCompany = () => {
     const ok = storageService.updateFounderProfile({ startupName, industry, description });
-    ok ? toast.success('Company settings saved') : toast.error('Failed to save settings');
+    if (ok) { toast.success('Company settings saved'); } else { toast.error('Failed to save settings'); }
   };
 
   const handleExportData = () => {

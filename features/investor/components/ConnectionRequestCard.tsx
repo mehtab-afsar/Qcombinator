@@ -1,18 +1,20 @@
 "use client";
 
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import {
-  Check,
-  X,
-  DollarSign,
-  ChevronDown,
-  ChevronUp
-} from "lucide-react";
+import { Check, X, ChevronDown, ChevronUp, DollarSign } from "lucide-react";
 import { useState } from "react";
 
+// ─── palette ──────────────────────────────────────────────────────────────────
+const bg    = "#F9F7F2";
+const surf  = "#F0EDE6";
+const bdr   = "#E2DDD5";
+const ink   = "#18160F";
+const muted = "#8A867C";
+const blue  = "#2563EB";
+const green = "#16A34A";
+const red   = "#DC2626";
+const amber = "#D97706";
+
+// ─── types ────────────────────────────────────────────────────────────────────
 interface ConnectionRequest {
   id: string;
   founderName: string;
@@ -41,126 +43,176 @@ interface ConnectionRequestCardProps {
   onDecline: (requestId: string) => void;
 }
 
+function qScoreColor(score: number): string {
+  if (score >= 80) return green;
+  if (score >= 70) return blue;
+  if (score >= 60) return amber;
+  return red;
+}
+
+const DIMENSION_LABELS: Record<string, string> = {
+  market: "Market", product: "Product", goToMarket: "GTM",
+  financial: "Financial", team: "Team", traction: "Traction",
+};
+
+// ─── component ────────────────────────────────────────────────────────────────
 export function ConnectionRequestCard({ request, onAccept, onDecline }: ConnectionRequestCardProps) {
   const [showDetails, setShowDetails] = useState(false);
 
-  const getQScoreColor = (score: number) => {
-    if (score >= 80) return 'text-green-600 bg-green-50 border-green-200';
-    if (score >= 70) return 'text-blue-600 bg-blue-50 border-blue-200';
-    if (score >= 60) return 'text-yellow-600 bg-yellow-50 border-yellow-200';
-    return 'text-orange-600 bg-orange-50 border-orange-200';
-  };
-
-  const getDimensionLabel = (key: string) => {
-    const labels: Record<string, string> = {
-      market: 'Market',
-      product: 'Product',
-      goToMarket: 'GTM',
-      financial: 'Financial',
-      team: 'Team',
-      traction: 'Traction'
-    };
-    return labels[key] || key;
-  };
+  const qColor = qScoreColor(request.qScore);
+  const initials = request.founderName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
 
   return (
-    <Card className="hover:shadow-md transition-shadow">
-      <CardContent className="p-6">
-        <div className="flex items-start justify-between mb-4">
-          {/* Founder Info */}
-          <div className="flex items-start space-x-4 flex-1">
-            <Avatar className="h-12 w-12">
-              <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-500 text-white font-bold">
-                {request.founderName.split(' ').map(n => n[0]).join('')}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1">
-              <div className="flex items-center space-x-2 mb-1">
-                <h3 className="font-bold text-lg text-gray-900">{request.founderName}</h3>
-                <span className="text-gray-500">•</span>
-                <span className="font-semibold text-gray-700">{request.startupName}</span>
-              </div>
-              <p className="text-sm text-gray-600 mb-2">{request.oneLiner}</p>
-              <div className="flex flex-wrap gap-2">
-                <Badge variant="outline" className="text-xs">{request.stage}</Badge>
-                <Badge variant="outline" className="text-xs">{request.industry}</Badge>
-                <Badge variant="outline" className="text-xs">
-                  <DollarSign className="h-3 w-3 mr-1" />
-                  {request.fundingTarget}
-                </Badge>
-              </div>
-            </div>
-          </div>
+    <div style={{ padding: "20px 20px", background: bg }}>
 
-          {/* Q-Score Badge */}
-          <div className={`text-center px-4 py-2 rounded-lg border-2 ${getQScoreColor(request.qScore)}`}>
-            <div className="text-3xl font-bold">{request.qScore}</div>
-            <div className="text-xs font-medium">Q-Score</div>
-            <div className="text-xs opacity-75">{request.qScorePercentile}th percentile</div>
+      {/* ── top row ─────────────────────────────────────────────────────── */}
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 14 }}>
+
+        {/* avatar */}
+        <div style={{
+          height: 44, width: 44, borderRadius: 12, flexShrink: 0,
+          background: surf, border: `1px solid ${bdr}`,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 14, fontWeight: 700, color: muted,
+        }}>
+          {initials}
+        </div>
+
+        {/* info */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 3 }}>
+            <p style={{ fontSize: 15, fontWeight: 600, color: ink }}>{request.founderName}</p>
+            <span style={{ fontSize: 13, color: muted }}>·</span>
+            <p style={{ fontSize: 13, color: muted, fontWeight: 500 }}>{request.startupName}</p>
+          </div>
+          <p style={{ fontSize: 12, color: muted, marginBottom: 8, lineHeight: 1.5 }}>{request.oneLiner}</p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+            {[request.stage, request.industry].map(tag => (
+              <span key={tag} style={{
+                padding: "2px 9px", fontSize: 11, color: muted,
+                background: surf, border: `1px solid ${bdr}`, borderRadius: 999,
+              }}>
+                {tag}
+              </span>
+            ))}
+            <span style={{
+              padding: "2px 9px", fontSize: 11, color: muted,
+              background: surf, border: `1px solid ${bdr}`, borderRadius: 999,
+              display: "inline-flex", alignItems: "center", gap: 3,
+            }}>
+              <DollarSign style={{ height: 9, width: 9 }} />
+              {request.fundingTarget}
+            </span>
           </div>
         </div>
 
-        {/* Personal Message */}
-        {request.personalMessage && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-            <p className="text-sm text-gray-700 italic">&quot;{request.personalMessage}&quot;</p>
-          </div>
-        )}
+        {/* Q-Score badge */}
+        <div style={{
+          textAlign: "center", padding: "10px 14px", flexShrink: 0,
+          border: `2px solid ${qColor}30`,
+          background: `${qColor}08`,
+          borderRadius: 12,
+        }}>
+          <p style={{ fontSize: 26, fontWeight: 700, color: qColor, lineHeight: 1 }}>{request.qScore}</p>
+          <p style={{ fontSize: 10, color: muted, fontWeight: 600, marginTop: 2 }}>Q-Score</p>
+          <p style={{ fontSize: 9, color: muted, marginTop: 1 }}>{request.qScorePercentile}th %ile</p>
+        </div>
+      </div>
 
-        {/* Q-Score Breakdown Toggle */}
-        <div className="mb-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowDetails(!showDetails)}
-            className="w-full justify-between"
-          >
-            <span className="text-sm font-medium">Q-Score Breakdown</span>
-            {showDetails ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          </Button>
+      {/* ── personal message ────────────────────────────────────────────── */}
+      {request.personalMessage && (
+        <div style={{
+          background: surf, borderLeft: `3px solid ${bdr}`,
+          borderRadius: "0 8px 8px 0", padding: "9px 12px", marginBottom: 14,
+        }}>
+          <p style={{ fontSize: 12, color: muted, lineHeight: 1.6, fontStyle: "italic" }}>
+            &ldquo;{request.personalMessage}&rdquo;
+          </p>
+        </div>
+      )}
 
-          {showDetails && (
-            <div className="grid grid-cols-3 gap-3 mt-3 p-3 bg-gray-50 rounded-lg">
-              {Object.entries(request.qScoreBreakdown).map(([key, value]) => (
-                <div key={key} className="text-center">
-                  <div className="text-lg font-bold text-gray-900">{value}</div>
-                  <div className="text-xs text-gray-600">{getDimensionLabel(key)}</div>
+      {/* ── Q-Score breakdown toggle ─────────────────────────────────────── */}
+      <div style={{ marginBottom: 14 }}>
+        <button
+          onClick={() => setShowDetails(v => !v)}
+          style={{
+            width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "8px 12px", fontSize: 12, fontWeight: 500, color: ink,
+            background: surf, border: `1px solid ${bdr}`, borderRadius: 8,
+            cursor: "pointer", fontFamily: "inherit", transition: "background 0.12s",
+          }}
+          onMouseEnter={e => (e.currentTarget.style.background = bdr)}
+          onMouseLeave={e => (e.currentTarget.style.background = surf)}
+        >
+          <span>Q-Score Breakdown</span>
+          {showDetails
+            ? <ChevronUp style={{ height: 13, width: 13, color: muted }} />
+            : <ChevronDown style={{ height: 13, width: 13, color: muted }} />
+          }
+        </button>
+
+        {showDetails && (
+          <div style={{
+            display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8,
+            marginTop: 8, padding: "12px 12px",
+            background: surf, border: `1px solid ${bdr}`, borderRadius: 10,
+          }}>
+            {Object.entries(request.qScoreBreakdown).map(([key, value]) => {
+              const col = qScoreColor(value);
+              return (
+                <div key={key} style={{ textAlign: "center" }}>
+                  <p style={{ fontSize: 18, fontWeight: 700, color: col }}>{value}</p>
+                  <p style={{ fontSize: 10, color: muted }}>{DIMENSION_LABELS[key] || key}</p>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Actions */}
-        <div className="flex items-center justify-between pt-4 border-t">
-          <div className="text-xs text-gray-500">
-            Requested {new Date(request.requestedDate).toLocaleDateString('en-US', {
-              month: 'short',
-              day: 'numeric',
-              year: 'numeric'
+              );
             })}
           </div>
-          <div className="flex space-x-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onDecline(request.id)}
-              className="border-red-200 text-red-600 hover:bg-red-50"
-            >
-              <X className="h-4 w-4 mr-1" />
-              Decline
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => onAccept(request.id)}
-              className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
-            >
-              <Check className="h-4 w-4 mr-1" />
-              Accept & Schedule
-            </Button>
-          </div>
+        )}
+      </div>
+
+      {/* ── footer: date + actions ──────────────────────────────────────── */}
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        paddingTop: 12, borderTop: `1px solid ${bdr}`,
+      }}>
+        <p style={{ fontSize: 11, color: muted }}>
+          Requested {new Date(request.requestedDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+        </p>
+
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            onClick={() => onDecline(request.id)}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 5,
+              padding: "7px 16px", fontSize: 12, fontWeight: 500,
+              color: red, background: "transparent",
+              border: "1px solid #FCA5A5", borderRadius: 8,
+              cursor: "pointer", fontFamily: "inherit", transition: "background 0.12s",
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = "#FEF2F2")}
+            onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+          >
+            <X style={{ height: 12, width: 12 }} />
+            Decline
+          </button>
+
+          <button
+            onClick={() => onAccept(request.id)}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 5,
+              padding: "7px 16px", fontSize: 12, fontWeight: 700,
+              color: bg, background: ink,
+              border: "none", borderRadius: 8,
+              cursor: "pointer", fontFamily: "inherit", transition: "opacity 0.15s",
+            }}
+            onMouseEnter={e => (e.currentTarget.style.opacity = "0.85")}
+            onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
+          >
+            <Check style={{ height: 12, width: 12 }} />
+            Accept &amp; Schedule
+          </button>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

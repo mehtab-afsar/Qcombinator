@@ -88,7 +88,7 @@ export default function AgentsHub() {
                     transition={{ delay: pi * 0.06 + ai * 0.04 }}
                     style={{ borderBottom: `1px solid ${bdr}` }}
                   >
-                    <Link href={`/founder/agents/${agent.id}`} style={{ textDecoration: "none" }}>
+                    <Link href={`/founder/agents/${agent.id}`} replace style={{ textDecoration: "none" }}>
                       <div
                         style={{
                           display: "flex", alignItems: "center", gap: 16,

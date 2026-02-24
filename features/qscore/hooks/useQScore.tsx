@@ -61,7 +61,6 @@ export function QScoreProvider({ children }: { children: React.ReactNode }) {
 
       // If API returns null (no Q-Score in database), check localStorage
       if (!data.qScore) {
-        console.log('No Q-Score in database, checking localStorage...');
         loadFromLocalStorage();
       } else {
         setQScore(data.qScore);
@@ -86,7 +85,6 @@ export function QScoreProvider({ children }: { children: React.ReactNode }) {
         // Calculate a basic Q-Score from assessment data
         const calculatedScore = calculateLocalQScore(assessment);
         setQScore(calculatedScore);
-        console.log('✅ Loaded Q-Score from localStorage:', calculatedScore);
       } else {
         setQScore(null);
       }
@@ -161,8 +159,6 @@ export function QScoreProvider({ children }: { children: React.ReactNode }) {
           filter: `user_id=eq.${user.id}`,
         },
         (payload: { new: Record<string, unknown> }) => {
-          console.log('New Q-Score received:', payload.new);
-
           // Refetch to get formatted data with trends
           fetchQScore();
 

@@ -18,7 +18,6 @@ const muted = "#8A867C";
 const green = "#16A34A";
 const amber = "#D97706";
 const red   = "#DC2626";
-const blue  = "#2563EB";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 function trendColor(v: number) { return v > 0 ? green : v < 0 ? red : muted; }
@@ -197,7 +196,7 @@ export default function MetricsTracker() {
           </div>
           <h2 style={{ fontSize: 22, fontWeight: 300, color: ink, marginBottom: 10 }}>No metrics yet</h2>
           <p style={{ fontSize: 14, fontWeight: 300, color: muted, marginBottom: 28, lineHeight: 1.6 }}>
-            Complete your assessment to unlock your startup's key performance indicators.
+            Complete your assessment to unlock your startup&apos;s key performance indicators.
           </p>
           <Link href="/founder/assessment" style={{ textDecoration: "none" }}>
             <button

@@ -10,6 +10,7 @@ import { calculateGTMScore } from './dimensions/gtm';
 import { calculateFinancialScore } from './dimensions/financial';
 import { calculateTeamScore } from './dimensions/team';
 import { calculateTractionScore } from './dimensions/traction';
+import { calculateConfidence, adjustForConfidence } from '../utils/confidence';
 
 /**
  * Main Q-Score calculation function
@@ -24,15 +25,47 @@ export function calculatePRDQScore(assessmentData: AssessmentData, previousScore
   const teamResult = calculateTeamScore(assessmentData);
   const tractionResult = calculateTractionScore(assessmentData);
 
+  // Apply confidence adjustment — don't inflate scores from missing data
+  const confidence = calculateConfidence(assessmentData);
+  marketResult.score = adjustForConfidence(marketResult.score, confidence.market);
+  productResult.score = adjustForConfidence(productResult.score, confidence.product);
+  gtmResult.score = adjustForConfidence(gtmResult.score, confidence.goToMarket);
+  financialResult.score = adjustForConfidence(financialResult.score, confidence.financial);
+  teamResult.score = adjustForConfidence(teamResult.score, confidence.team);
+  tractionResult.score = adjustForConfidence(tractionResult.score, confidence.traction);
+
   // Apply PRD weights to get overall score (0-100)
-  const overall = Math.round(
-    marketResult.score * PRD_WEIGHTS.market +
-    productResult.score * PRD_WEIGHTS.product +
-    gtmResult.score * PRD_WEIGHTS.goToMarket +
-    financialResult.score * PRD_WEIGHTS.financial +
-    teamResult.score * PRD_WEIGHTS.team +
-    tractionResult.score * PRD_WEIGHTS.traction
-  );
+  // Only count dimensions with data toward the weighted average
+  const dimensionResults = [
+    { result: marketResult, weight: PRD_WEIGHTS.market, conf: confidence.market },
+    { result: productResult, weight: PRD_WEIGHTS.product, conf: confidence.product },
+    { result: gtmResult, weight: PRD_WEIGHTS.goToMarket, conf: confidence.goToMarket },
+    { result: financialResult, weight: PRD_WEIGHTS.financial, conf: confidence.financial },
+    { result: teamResult, weight: PRD_WEIGHTS.team, conf: confidence.team },
+    { result: tractionResult, weight: PRD_WEIGHTS.traction, conf: confidence.traction },
+  ];
+
+  const activeDimensions = dimensionResults.filter(d => d.conf.status !== 'none');
+  let overall: number;
+
+  if (activeDimensions.length === 0) {
+    overall = 0;
+  } else if (activeDimensions.length === dimensionResults.length) {
+    // All dimensions have data — use standard weighted average
+    overall = Math.round(
+      dimensionResults.reduce((sum, d) => sum + d.result.score * d.weight, 0)
+    );
+  } else {
+    // Partial data — re-normalize weights across dimensions with data
+    const totalActiveWeight = activeDimensions.reduce((sum, d) => sum + d.weight, 0);
+    const rawWeighted = activeDimensions.reduce(
+      (sum, d) => sum + d.result.score * (d.weight / totalActiveWeight), 0
+    );
+    // Apply a penalty for missing dimensions (each missing dim reduces score slightly)
+    const missingCount = dimensionResults.length - activeDimensions.length;
+    const coveragePenalty = 1 - (missingCount * 0.05); // 5% penalty per missing dimension
+    overall = Math.round(rawWeighted * coveragePenalty);
+  }
 
   // Calculate trends if previous score exists
   const calculateTrend = (current: number, previous?: number): { trend: 'up' | 'down' | 'neutral', change: number } => {

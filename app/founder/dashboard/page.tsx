@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useState, useEffect } from "react";
 import {
   ArrowRight,
   Lock,
@@ -86,10 +87,59 @@ const pillarAccent: Record<string, string> = {
   "product-strategy":   "#7C3AED",
 };
 
+// ─── sparkline ────────────────────────────────────────────────────────────────
+function Sparkline({ points, color }: { points: number[]; color: string }) {
+  if (points.length < 2) return null;
+  const w = 220, h = 52, pad = 6;
+  const min = Math.min(...points), max = Math.max(...points);
+  const range = max - min || 1;
+  const xs = points.map((_, i) => pad + (i / (points.length - 1)) * (w - pad * 2));
+  const ys = points.map(v => h - pad - ((v - min) / range) * (h - pad * 2));
+  const d = xs.map((x, i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${ys[i].toFixed(1)}`).join(" ");
+  const fill = `${d} L${xs[xs.length - 1].toFixed(1)},${h} L${xs[0].toFixed(1)},${h} Z`;
+  return (
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} style={{ overflow: "visible" }}>
+      <defs>
+        <linearGradient id="sg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.18" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={fill} fill="url(#sg)" />
+      <path d={d} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={xs[xs.length - 1]} cy={ys[ys.length - 1]} r="3.5" fill={color} />
+    </svg>
+  );
+}
+
 // ─── component ────────────────────────────────────────────────────────────────
 export default function FounderDashboard() {
   const { loading: authLoading } = useAuth();
   const { qScore: realQScore, loading: qScoreLoading } = useQScore();
+  const [scoreHistory, setScoreHistory] = useState<{ score: number; date: string }[]>([]);
+
+  useEffect(() => {
+    import("@/lib/supabase/client").then(({ createClient }) => {
+      const supabase = createClient();
+      supabase.auth.getUser().then(({ data: { user } }) => {
+        if (!user) return;
+        supabase
+          .from("qscore_history")
+          .select("overall_score, calculated_at")
+          .eq("user_id", user.id)
+          .order("calculated_at", { ascending: true })
+          .limit(12)
+          .then(({ data }) => {
+            if (data && data.length > 0) {
+              setScoreHistory(data.map((r: { overall_score: number; calculated_at: string }) => ({
+                score: r.overall_score,
+                date: r.calculated_at,
+              })));
+            }
+          });
+      });
+    });
+  }, []);
 
   if (authLoading || qScoreLoading) {
     return (
@@ -401,8 +451,58 @@ export default function FounderDashboard() {
           </motion.div>
         </div>
 
-        {/* ── bottom row: investor pulse + academy ──────────────────── */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+        {/* ── bottom row: score history + investor pulse + academy ─── */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 24 }} className="dashboard-bottom">
+
+          {/* score history sparkline */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.45 }}
+            style={{ padding: "22px 24px", background: surf, border: `1px solid ${bdr}`, borderRadius: 18 }}
+          >
+            <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", color: muted, fontWeight: 600, marginBottom: 14 }}>
+              Score history
+            </p>
+            {scoreHistory.length >= 2 ? (
+              <>
+                <Sparkline points={scoreHistory.map(h => h.score)} color={scoreColor(qs.overall)} />
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
+                  <span style={{ fontSize: 10, color: muted }}>
+                    {new Date(scoreHistory[0].date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                  </span>
+                  <span style={{ fontSize: 10, color: muted }}>
+                    {new Date(scoreHistory[scoreHistory.length - 1].date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                  </span>
+                </div>
+                <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 22, fontWeight: 300, color: ink, letterSpacing: "-0.03em" }}>{qs.overall}</span>
+                  {scoreHistory.length >= 2 && (() => {
+                    const diff = scoreHistory[scoreHistory.length - 1].score - scoreHistory[0].score;
+                    const col = diff > 0 ? green : diff < 0 ? red : muted;
+                    return (
+                      <span style={{ fontSize: 11, fontWeight: 600, color: col }}>
+                        {diff > 0 ? "+" : ""}{diff} since start
+                      </span>
+                    );
+                  })()}
+                </div>
+              </>
+            ) : (
+              <div style={{ paddingTop: 8 }}>
+                <p style={{ fontSize: 13, color: muted, lineHeight: 1.6 }}>
+                  Complete your assessment to start tracking your score over time.
+                </p>
+                <Link href="/founder/assessment" style={{
+                  display: "inline-flex", alignItems: "center", gap: 5,
+                  marginTop: 14, padding: "7px 16px", background: ink, color: bg,
+                  fontSize: 12, fontWeight: 500, borderRadius: 999, textDecoration: "none",
+                }}>
+                  Take assessment <ArrowRight style={{ height: 11, width: 11 }} />
+                </Link>
+              </div>
+            )}
+          </motion.div>
 
           {/* investor pulse */}
           <motion.div
@@ -411,12 +511,12 @@ export default function FounderDashboard() {
             transition={{ delay: 0.5 }}
           >
             {qs.overall >= 65 ? (
-              <Link href="/founder/matching" style={{ textDecoration: "none" }}>
+              <Link href="/founder/matching" style={{ textDecoration: "none", display: "block", height: "100%" }}>
                 <div
                   style={{
-                    padding: "22px 24px", background: ink, borderRadius: 18,
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                    cursor: "pointer", transition: "opacity 0.15s",
+                    padding: "22px 24px", background: ink, borderRadius: 18, height: "100%",
+                    display: "flex", flexDirection: "column", justifyContent: "space-between",
+                    cursor: "pointer", transition: "opacity 0.15s", boxSizing: "border-box",
                   }}
                   onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.opacity = "0.88")}
                   onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.opacity = "1")}
@@ -428,13 +528,15 @@ export default function FounderDashboard() {
                     <p style={{ fontSize: 15, fontWeight: 400, color: "#F9F7F2", marginBottom: 4 }}>500+ verified investors</p>
                     <p style={{ fontSize: 11, color: "rgba(249,247,242,0.5)" }}>Your Q-Score qualifies you.</p>
                   </div>
-                  <div style={{ height: 40, width: 40, borderRadius: 10, background: "rgba(249,247,242,0.1)", border: "1px solid rgba(249,247,242,0.15)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <ArrowRight style={{ height: 16, width: 16, color: "#F9F7F2" }} />
+                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
+                    <div style={{ height: 36, width: 36, borderRadius: 10, background: "rgba(249,247,242,0.1)", border: "1px solid rgba(249,247,242,0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <ArrowRight style={{ height: 14, width: 14, color: "#F9F7F2" }} />
+                    </div>
                   </div>
                 </div>
               </Link>
             ) : (
-              <div style={{ padding: "22px 24px", background: surf, border: `1px solid ${bdr}`, borderRadius: 18 }}>
+              <div style={{ padding: "22px 24px", background: surf, border: `1px solid ${bdr}`, borderRadius: 18, height: "100%", boxSizing: "border-box" }}>
                 <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.16em", color: muted, fontWeight: 600, marginBottom: 8 }}>
                   Investor Marketplace
                 </p>
@@ -479,17 +581,18 @@ export default function FounderDashboard() {
                 <p style={{ fontSize: 13, fontWeight: 500, color: ink, marginBottom: 2 }}>{MOCK_WORKSHOP.title}</p>
                 <p style={{ fontSize: 11, color: muted }}>{MOCK_WORKSHOP.instructor} · {MOCK_WORKSHOP.date}</p>
               </div>
-              <Link href="/founder/academy"
-                style={{
-                  padding: "7px 16px", border: `1px solid ${bdr}`, borderRadius: 999,
-                  fontSize: 12, color: ink, textDecoration: "none", fontWeight: 500, flexShrink: 0, transition: "border-color 0.15s",
-                }}
-                onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.borderColor = ink)}
-                onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.borderColor = bdr)}
-              >
-                Register
-              </Link>
             </div>
+            <Link href="/founder/academy"
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 5,
+                marginTop: 16, padding: "7px 16px", border: `1px solid ${bdr}`, borderRadius: 999,
+                fontSize: 12, color: ink, textDecoration: "none", fontWeight: 500, transition: "border-color 0.15s",
+              }}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.borderColor = ink)}
+              onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.borderColor = bdr)}
+            >
+              Register
+            </Link>
           </motion.div>
         </div>
 
@@ -499,12 +602,10 @@ export default function FounderDashboard() {
       <style>{`
         @media (max-width: 900px) {
           .dashboard-hero { grid-template-columns: 1fr !important; }
+          .dashboard-bottom { grid-template-columns: 1fr 1fr !important; }
         }
-        @media (max-width: 700px) {
-          .dashboard-hero ~ div { grid-template-columns: 1fr 1fr !important; }
-        }
-        @media (max-width: 500px) {
-          .dashboard-hero ~ div { grid-template-columns: 1fr !important; }
+        @media (max-width: 600px) {
+          .dashboard-bottom { grid-template-columns: 1fr !important; }
         }
       `}</style>
     </div>

@@ -118,7 +118,7 @@ function DropItem({
 
   if (href) {
     return (
-      <Link href={href} style={style} onMouseEnter={hover} onMouseLeave={leave}>
+      <Link href={href} replace style={style} onMouseEnter={hover} onMouseLeave={leave}>
         <Icon style={{ height: 14, width: 14, color: danger ? "#DC2626" : muted }} />
         {label}
       </Link>
@@ -211,6 +211,7 @@ export default function FounderSidebar() {
             <Link
               key={item.href}
               href={item.href}
+              replace
               style={{
                 display: "flex",
                 alignItems: "center",

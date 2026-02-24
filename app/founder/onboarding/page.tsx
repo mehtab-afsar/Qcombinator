@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   ArrowRight,
-  Bot,
   Send,
   Play,
   ChevronRight,
@@ -127,6 +126,16 @@ function OnboardingContent() {
   const [rawScore, setRawScore]             = useState(0);
   const [displayedScore, setDisplayedScore] = useState(0);
   const [scoreRevealed, setScoreRevealed]   = useState(false);
+  const [onboardingExtracted, setOnboardingExtracted] = useState<Record<string, unknown>>({});
+
+  // Redirect already-authenticated founders to dashboard
+  useEffect(() => {
+    import("@/lib/supabase/client").then(({ createClient }) => {
+      createClient().auth.getSession().then(({ data: { session } }) => {
+        if (session) router.replace("/founder/dashboard");
+      });
+    });
+  }, [router]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -158,11 +167,25 @@ function OnboardingContent() {
       setApiMessages((prev) => [...prev, { role: "assistant", content: data.content }]);
       if (data.isComplete) {
         setChatDone(true);
+        // Quick client-side score for immediate feedback
         const allUserText = history.filter((m) => m.role === "user").map((m) => m.content).join(" ");
         const dims = scoreConversation(allUserText);
         const total = dims.reduce((s, d) => s + d.score, 0);
         setDimensions(dims);
         setRawScore(total);
+        // Run LLM extraction in background for real data
+        fetch("/api/onboarding/extract", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ conversationHistory: history }),
+        })
+          .then((r) => r.json())
+          .then((result) => {
+            if (result.extractedData && Object.keys(result.extractedData).length > 0) {
+              setOnboardingExtracted(result.extractedData);
+            }
+          })
+          .catch(() => { /* extraction failed — use keyword score as fallback */ });
         setTimeout(() => setStep("signup"), 2500);
       }
     } catch {
@@ -218,6 +241,25 @@ function OnboardingContent() {
       const { createClient } = await import("@/lib/supabase/client");
       const supabase = createClient();
       await supabase.auth.signInWithPassword({ email: signup.email, password: signup.password });
+
+      // Persist onboarding data + score to database
+      try {
+        const completeRes = await fetch("/api/onboarding/complete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            extractedData: Object.keys(onboardingExtracted).length > 0 ? onboardingExtracted : {},
+            chatHistory: apiMessages,
+          }),
+        });
+        const completeData = await completeRes.json();
+        if (completeData.qScore) {
+          setRawScore(completeData.qScore.overall);
+        }
+      } catch {
+        // Non-fatal — score still visible from client-side calculation
+      }
+
       toast.success("Account created!");
       setStep("score");
       setTimeout(() => setScoreRevealed(true), 500);
@@ -347,7 +389,7 @@ function OnboardingContent() {
             <div style={{ position: "sticky", top: 0, zIndex: 10, background: bg, borderBottom: `1px solid ${bdr}`, padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{ height: 34, width: 34, borderRadius: 8, background: blue, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Bot style={{ height: 16, width: 16, color: "#fff" }} />
+                  <span style={{ color: "#fff", fontWeight: 800, fontSize: 11, letterSpacing: "-0.02em" }}>EA</span>
                 </div>
                 <div>
                   <p style={{ fontSize: 14, fontWeight: 600, color: ink, marginBottom: 1 }}>Edge Alpha Adviser</p>
@@ -390,7 +432,7 @@ function OnboardingContent() {
                   >
                     {msg.role === "agent" && (
                       <div style={{ height: 28, width: 28, borderRadius: 8, background: blue, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2 }}>
-                        <Bot style={{ height: 13, width: 13, color: "#fff" }} />
+                        <span style={{ color: "#fff", fontWeight: 800, fontSize: 9, letterSpacing: "-0.02em" }}>EA</span>
                       </div>
                     )}
                     <div
@@ -417,7 +459,7 @@ function OnboardingContent() {
                 {agentTyping && (
                   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ display: "flex", gap: 12 }}>
                     <div style={{ height: 28, width: 28, borderRadius: 8, background: blue, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      <Bot style={{ height: 13, width: 13, color: "#fff" }} />
+                      <span style={{ color: "#fff", fontWeight: 800, fontSize: 9, letterSpacing: "-0.02em" }}>EA</span>
                     </div>
                     <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 18, borderTopLeftRadius: 4, padding: "14px 18px", display: "flex", gap: 5, alignItems: "center" }}>
                       {[0, 0.2, 0.4].map((d, i) => (

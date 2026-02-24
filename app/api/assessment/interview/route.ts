@@ -29,13 +29,35 @@ const TOPIC_LABELS: Record<Topic, string> = {
   resilience:        'Resilience',
 };
 
+// ─── termination logic ───────────────────────────────────────────────────────
+const MAX_EXCHANGES_PER_TOPIC = 4;
+const MAX_TOTAL_EXCHANGES = 25;
+
+const TOPIC_FIELDS: Record<Topic, string[]> = {
+  your_story:        ['problemStory', 'advantages', 'advantageExplanation'],
+  customer_evidence: ['customerQuote', 'customerSurprise', 'customerCommitment', 'conversationCount', 'failedBelief'],
+  learning_velocity: ['tested', 'buildTime', 'measurement', 'results', 'learned', 'changed'],
+  market:            ['targetCustomers', 'conversionRate', 'lifetimeValue', 'costPerAcquisition'],
+  gtm:              ['icpDescription', 'channelsTried', 'currentCAC'],
+  financials:        ['mrr', 'monthlyBurn', 'runway'],
+  resilience:        ['hardshipStory', 'motivation'],
+};
+
+function isTopicSufficient(topic: Topic, data: Record<string, unknown>): boolean {
+  const fields = TOPIC_FIELDS[topic] || [];
+  if (fields.length === 0) return false;
+  const populated = fields.filter(f => data[f] != null && data[f] !== '' && data[f] !== 0).length;
+  return populated / fields.length >= 0.7;
+}
+
 function buildSystemPrompt(currentTopic: Topic, coveredTopics: string[], extractedData: Record<string, unknown>) {
   const coveredStr = coveredTopics.length > 0
     ? `Topics already covered: ${coveredTopics.join(', ')}.`
     : 'No topics covered yet — this is the start of the interview.';
 
-  const extractedStr = Object.keys(extractedData).length > 0
-    ? `\nData already extracted:\n${JSON.stringify(extractedData, null, 2)}`
+  const hasExistingData = Object.keys(extractedData).length > 0;
+  const extractedStr = hasExistingData
+    ? `\nData already extracted:\n${JSON.stringify(extractedData, null, 2)}\n\nIMPORTANT: Data has already been collected from a previous conversation. Do NOT re-ask about fields that are already populated. Focus on GAPS — fields that are missing or weak. Acknowledge what you know and move to what's missing.`
     : '';
 
   return `You are Q, a sharp VC evaluator at Edge Alpha conducting a founder assessment interview. You are direct, warm, and insightful — like a top-tier investor who genuinely wants founders to succeed.
@@ -107,11 +129,64 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'API key not configured' }, { status: 500 });
     }
 
+    // ── termination checks ──────────────────────────────────────────────
+    const userMessageCount = conversationHistory.filter(
+      (m: { role: string }) => m.role === 'user'
+    ).length + 1; // +1 for current message
+
+    // Hard cap: force completion after max total exchanges
+    if (userMessageCount >= MAX_TOTAL_EXCHANGES) {
+      return NextResponse.json({
+        reply: "We've covered a lot of ground — I have everything I need to calculate your Q-Score. Let me process your assessment now.",
+        extraction: {},
+        topicComplete: true,
+        suggestedNextTopic: null,
+        interviewComplete: true,
+      });
+    }
+
+    // Check if current topic has enough data → auto-advance
+    const topic = currentTopic as Topic;
+    let forceTopicAdvance = false;
+    if (isTopicSufficient(topic, extractedData)) {
+      forceTopicAdvance = true;
+    }
+
+    // Per-topic exchange cap: count exchanges since last topic change
+    // Approximate by counting recent user messages not in covered topics' context
+    const recentUserMsgs = conversationHistory.filter(
+      (m: { role: string }) => m.role === 'user'
+    ).length;
+    const topicStartIndex = coveredTopics.length > 0
+      ? Math.max(0, recentUserMsgs - MAX_EXCHANGES_PER_TOPIC)
+      : 0;
+    const topicExchanges = recentUserMsgs - topicStartIndex;
+    if (topicExchanges >= MAX_EXCHANGES_PER_TOPIC) {
+      forceTopicAdvance = true;
+    }
+
+    // Build system prompt with optional advance nudge
+    let promptAddendum = '';
+    if (forceTopicAdvance) {
+      const remainingTopics = TOPICS.filter(t => !coveredTopics.includes(t) && t !== topic);
+      if (remainingTopics.length === 0) {
+        // All topics covered
+        return NextResponse.json({
+          reply: "Excellent — we've covered all the key areas. I have a solid picture of your startup. Let me calculate your Q-Score now.",
+          extraction: {},
+          topicComplete: true,
+          suggestedNextTopic: null,
+          interviewComplete: true,
+        });
+      }
+      promptAddendum = `\n\nIMPORTANT: You have enough data on "${TOPIC_LABELS[topic]}". Wrap up this topic NOW — set topicComplete to true and suggestedNextTopic to "${remainingTopics[0]}". Do NOT ask more questions on this topic.`;
+    }
+
     const systemPrompt = buildSystemPrompt(
-      currentTopic as Topic,
+      topic,
       coveredTopics,
       extractedData,
-    );
+    ) + promptAddendum;
 
     const messages = [
       { role: 'system', content: systemPrompt },
@@ -157,20 +232,53 @@ export async function POST(request: NextRequest) {
     try {
       parsed = JSON.parse(rawContent);
     } catch {
-      // If AI didn't return valid JSON, wrap it
-      parsed = {
-        reply: rawContent,
-        extraction: {},
-        topicComplete: false,
-        suggestedNextTopic: null,
-      };
+      // AI didn't return valid JSON — extract reply text safely
+      // Try to extract just the "reply" field from malformed JSON
+      const replyMatch = rawContent.match(/"reply"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+      if (replyMatch) {
+        parsed = {
+          reply: replyMatch[1].replace(/\\"/g, '"').replace(/\\n/g, '\n'),
+          extraction: {},
+          topicComplete: false,
+          suggestedNextTopic: null,
+        };
+      } else if (rawContent.trim().startsWith('{')) {
+        // Looks like JSON but failed to parse — strip JSON artifacts
+        const cleaned = rawContent
+          .replace(/[{}"\\[\]]/g, '')
+          .replace(/\b(reply|extraction|topicComplete|suggestedNextTopic)\b\s*:/gi, '')
+          .replace(/,\s*/g, ' ')
+          .trim();
+        parsed = {
+          reply: cleaned || "Let me rephrase that. Tell me more about what you're working on.",
+          extraction: {},
+          topicComplete: false,
+          suggestedNextTopic: null,
+        };
+      } else {
+        // Plain text response from AI
+        parsed = {
+          reply: rawContent,
+          extraction: {},
+          topicComplete: false,
+          suggestedNextTopic: null,
+        };
+      }
     }
+
+    // Check if interview should complete (all topics covered)
+    const topicComplete = parsed.topicComplete || forceTopicAdvance || false;
+    const updatedCovered = topicComplete && !coveredTopics.includes(topic)
+      ? [...coveredTopics, topic]
+      : coveredTopics;
+    const allCovered = TOPICS.every(t => updatedCovered.includes(t));
 
     return NextResponse.json({
       reply: parsed.reply || rawContent,
       extraction: parsed.extraction || {},
-      topicComplete: parsed.topicComplete || false,
+      topicComplete,
       suggestedNextTopic: parsed.suggestedNextTopic || null,
+      interviewComplete: allCovered,
     });
 
   } catch (error) {

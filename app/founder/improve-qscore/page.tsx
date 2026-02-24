@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React from "react";
 import { motion } from "framer-motion";
 import {
   ArrowLeft,
@@ -134,7 +134,7 @@ function barColor(s: number) {
 
 // ─── component ────────────────────────────────────────────────────────────────
 export default function ImproveQScorePage() {
-  const { qScore, loading } = useQScore();
+  const { qScore } = useQScore();
 
   const overall = qScore?.overall ?? 58;
   const targetScore = 65;
