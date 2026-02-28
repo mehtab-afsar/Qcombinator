@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Upload, CheckCircle, Circle, X, Edit3 } from "lucide-react";
+import { Send, Paperclip, CheckCircle, Circle, X, Edit3, FileText } from "lucide-react";
 
 // ─── palette ──────────────────────────────────────────────────────────────────
 const bg    = "#F9F7F2";
@@ -78,7 +78,26 @@ const DIMENSIONS = [
 ];
 
 // ─── types ────────────────────────────────────────────────────────────────────
-interface UiMessage { role: "q" | "user"; text: string; }
+interface FileUploadData {
+  id: string;
+  name: string;
+  size: number;
+  mimeType: string;
+  status: "uploading" | "done" | "error";
+}
+interface UiMessage { role: "q" | "user"; text: string; fileUpload?: FileUploadData; }
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+function fileTypeLabel(mimeType: string, name: string): string {
+  if (mimeType === "application/pdf" || name.endsWith(".pdf")) return "PDF";
+  if (mimeType === "text/csv" || name.endsWith(".csv")) return "CSV";
+  if (name.endsWith(".md")) return "MD";
+  return "TXT";
+}
 
 // Extracted data fields (flat map that accumulates during the interview)
 type ExtractedData = Record<string, string | number | string[] | boolean | null>;
@@ -138,6 +157,7 @@ export default function AssessmentInterview() {
   const [dimScores,      setDimScores]      = useState<Record<string, number>>({});
   const [overallScore,   setOverallScore]   = useState(0);
   const [uploading,      setUploading]      = useState(false);
+  const [isSavingDraft,  setIsSavingDraft]  = useState(false);
   const [dragOver,       setDragOver]       = useState(false);
   const [editingField,   setEditingField]   = useState<string | null>(null);
   const [editValue,      setEditValue]      = useState("");
@@ -378,7 +398,12 @@ export default function AssessmentInterview() {
     setUploading(true);
     setDragOver(false);
 
-    setMessages(prev => [...prev, { role: "user", text: `📎 Uploaded: ${file.name}` }]);
+    const uploadId = `upload-${Date.now()}`;
+    setMessages(prev => [...prev, {
+      role: "user",
+      text: "",
+      fileUpload: { id: uploadId, name: file.name, size: file.size, mimeType: file.type, status: "uploading" },
+    }]);
 
     try {
       const formData = new FormData();
@@ -388,13 +413,17 @@ export default function AssessmentInterview() {
       const data = await res.json();
 
       if (data.error) {
+        setMessages(prev => prev.map(m =>
+          m.fileUpload?.id === uploadId ? { ...m, fileUpload: { ...m.fileUpload!, status: "error" } } : m
+        ));
         setMessages(prev => [...prev, { role: "q", text: data.error }]);
       } else {
-        // Merge extracted data
+        setMessages(prev => prev.map(m =>
+          m.fileUpload?.id === uploadId ? { ...m, fileUpload: { ...m.fileUpload!, status: "done" } } : m
+        ));
         if (data.extracted && Object.keys(data.extracted).length > 0) {
           setExtracted(prev => ({ ...prev, ...data.extracted }));
         }
-
         const summary = data.summary || `Processed ${file.name}.`;
         const fieldCount = Object.keys(data.extracted || {}).length;
         setMessages(prev => [...prev, {
@@ -403,6 +432,9 @@ export default function AssessmentInterview() {
         }]);
       }
     } catch {
+      setMessages(prev => prev.map(m =>
+        m.fileUpload?.id === uploadId ? { ...m, fileUpload: { ...m.fileUpload!, status: "error" } } : m
+      ));
       setMessages(prev => [...prev, { role: "q", text: "Couldn't process that file. Try sharing the key details in chat instead." }]);
     } finally {
       setUploading(false);
@@ -502,6 +534,24 @@ export default function AssessmentInterview() {
           <div style={{ padding: "4px 12px", background: surf, border: `1px solid ${bdr}`, borderRadius: 999, fontSize: 11, color: muted }}>
             {coveredTopics.length} / {TOPICS.length} topics covered
           </div>
+          <button
+            onClick={async () => {
+              setIsSavingDraft(true);
+              await saveDraft(extracted);
+              setIsSavingDraft(false);
+              router.push("/founder/dashboard");
+            }}
+            disabled={isSavingDraft}
+            style={{
+              padding: "6px 14px", background: "transparent", color: muted,
+              border: `1px solid ${bdr}`, borderRadius: 8, fontSize: 12, fontWeight: 500,
+              cursor: "pointer", fontFamily: "inherit", transition: "border-color .15s, color .15s",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = ink; e.currentTarget.style.color = ink; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = bdr; e.currentTarget.style.color = muted; }}
+          >
+            {isSavingDraft ? "Saving…" : "Continue Later"}
+          </button>
           {canComplete && (
             <button
               onClick={handleComplete}
@@ -550,18 +600,71 @@ export default function AssessmentInterview() {
                         Q
                       </div>
                     )}
-                    <div style={{
-                      maxWidth: "78%", padding: "11px 16px",
-                      fontSize: 14, lineHeight: 1.65, whiteSpace: "pre-wrap",
-                      borderRadius: 14,
-                      background:           msg.role === "user" ? ink  : surf,
-                      color:                msg.role === "user" ? bg   : ink,
-                      border:               msg.role === "q"    ? `1px solid ${bdr}` : "none",
-                      borderTopLeftRadius:  msg.role === "q"    ? 4    : 14,
-                      borderTopRightRadius: msg.role === "user" ? 4    : 14,
-                    }}>
-                      {msg.text}
-                    </div>
+
+                    {/* File upload card */}
+                    {msg.fileUpload ? (
+                      <div style={{
+                        display: "flex", alignItems: "center", gap: 10,
+                        padding: "10px 14px",
+                        background: ink, borderRadius: 14, borderTopRightRadius: 4,
+                        maxWidth: 300, minWidth: 220,
+                      }}>
+                        {/* file type badge */}
+                        <div style={{
+                          height: 42, width: 38, flexShrink: 0,
+                          background: "rgba(255,255,255,0.08)",
+                          border: "1px solid rgba(255,255,255,0.12)",
+                          borderRadius: 8,
+                          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2,
+                        }}>
+                          <FileText style={{ height: 14, width: 14, color: "rgba(249,247,242,0.7)" }} />
+                          <span style={{ fontSize: 8, fontWeight: 700, color: "rgba(249,247,242,0.5)", letterSpacing: "0.04em" }}>
+                            {fileTypeLabel(msg.fileUpload.mimeType, msg.fileUpload.name)}
+                          </span>
+                        </div>
+                        {/* file info */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ fontSize: 12, fontWeight: 600, color: bg, marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {msg.fileUpload.name}
+                          </p>
+                          <p style={{ fontSize: 10, color: "rgba(249,247,242,0.45)" }}>
+                            {formatFileSize(msg.fileUpload.size)}
+                          </p>
+                        </div>
+                        {/* status indicator */}
+                        {msg.fileUpload.status === "uploading" && (
+                          <motion.div
+                            style={{ height: 18, width: 18, flexShrink: 0, borderRadius: "50%", border: "2px solid rgba(255,255,255,0.2)", borderTopColor: "rgba(255,255,255,0.8)" }}
+                            animate={{ rotate: 360 }}
+                            transition={{ repeat: Infinity, duration: 0.75, ease: "linear" }}
+                          />
+                        )}
+                        {msg.fileUpload.status === "done" && (
+                          <div style={{ height: 20, width: 20, flexShrink: 0, borderRadius: "50%", background: green, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <CheckCircle style={{ height: 11, width: 11, color: "#fff" }} />
+                          </div>
+                        )}
+                        {msg.fileUpload.status === "error" && (
+                          <div style={{ height: 20, width: 20, flexShrink: 0, borderRadius: "50%", background: red, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <X style={{ height: 11, width: 11, color: "#fff" }} />
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      /* Regular text bubble */
+                      <div style={{
+                        maxWidth: "78%", padding: "11px 16px",
+                        fontSize: 14, lineHeight: 1.65, whiteSpace: "pre-wrap",
+                        borderRadius: 14,
+                        background:           msg.role === "user" ? ink  : surf,
+                        color:                msg.role === "user" ? bg   : ink,
+                        border:               msg.role === "q"    ? `1px solid ${bdr}` : "none",
+                        borderTopLeftRadius:  msg.role === "q"    ? 4    : 14,
+                        borderTopRightRadius: msg.role === "user" ? 4    : 14,
+                      }}>
+                        {msg.text}
+                      </div>
+                    )}
                   </motion.div>
                 ))}
               </AnimatePresence>
@@ -595,40 +698,43 @@ export default function AssessmentInterview() {
 
           {/* input area */}
           <div style={{ flexShrink: 0, borderTop: `1px solid ${bdr}`, padding: "12px 28px", background: bg }}>
-            {/* upload bar */}
-            <div style={{
-              maxWidth: 680, margin: "0 auto 10px",
-              display: "flex", alignItems: "center", gap: 8,
-            }}>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.csv,.txt,.md"
+              style={{ display: "none" }}
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) { handleFileUpload(f); e.target.value = ""; } }}
+            />
+            <div style={{ maxWidth: 680, margin: "0 auto", display: "flex", alignItems: "flex-end", gap: 8 }}>
+              {/* attachment button */}
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
+                title="Upload pitch deck or financials (PDF, CSV, TXT)"
                 style={{
-                  display: "flex", alignItems: "center", gap: 5,
-                  padding: "5px 12px", background: surf, border: `1px solid ${bdr}`,
-                  borderRadius: 8, fontSize: 11, color: muted, cursor: "pointer", fontFamily: "inherit",
+                  height: 42, width: 42, flexShrink: 0,
+                  background: uploading ? surf : "transparent",
+                  border: `1px solid ${bdr}`,
+                  borderRadius: 8,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  cursor: uploading ? "not-allowed" : "pointer",
+                  transition: "background .15s, border-color .15s",
                 }}
+                onMouseEnter={(e) => { if (!uploading) { e.currentTarget.style.background = surf; e.currentTarget.style.borderColor = ink; }}}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = bdr; }}
               >
-                <Upload style={{ height: 11, width: 11 }} />
-                {uploading ? "Processing..." : "Upload pitch deck or financials"}
+                {uploading
+                  ? <motion.div style={{ height: 14, width: 14, borderRadius: "50%", border: `2px solid ${bdr}`, borderTopColor: blue }} animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.75, ease: "linear" }} />
+                  : <Paperclip style={{ height: 15, width: 15, color: muted }} />
+                }
               </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".pdf,.csv,.txt,.md"
-                style={{ display: "none" }}
-                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); }}
-              />
-              <span style={{ fontSize: 10, color: muted, opacity: 0.6 }}>PDF, CSV, or text</span>
-            </div>
 
-            {/* text input */}
-            <div style={{ maxWidth: 680, margin: "0 auto", display: "flex", alignItems: "flex-end", gap: 10 }}>
+              {/* text input */}
               <textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Type your response..."
+                placeholder="Type your response…"
                 disabled={typing}
                 rows={1}
                 style={{
@@ -646,6 +752,8 @@ export default function AssessmentInterview() {
                   el.style.height = Math.min(el.scrollHeight, 120) + "px";
                 }}
               />
+
+              {/* send button */}
               <button
                 onClick={() => handleSend()}
                 disabled={!input.trim() || typing}
@@ -656,11 +764,15 @@ export default function AssessmentInterview() {
                   borderRadius: 8,
                   display: "flex", alignItems: "center", justifyContent: "center",
                   cursor: !input.trim() || typing ? "not-allowed" : "pointer",
+                  transition: "background .15s",
                 }}
               >
                 <Send style={{ height: 15, width: 15, color: !input.trim() || typing ? muted : bg }} />
               </button>
             </div>
+            <p style={{ maxWidth: 680, margin: "6px auto 0", textAlign: "center", fontSize: 10, color: muted, opacity: 0.5 }}>
+              Enter to send · Attach pitch deck or financials with the clip icon
+            </p>
           </div>
         </div>
 

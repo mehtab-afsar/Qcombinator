@@ -9,10 +9,6 @@ import {
   Play,
   ChevronRight,
   Lock,
-  Users,
-  Lightbulb,
-  ShieldCheck,
-  Heart,
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -23,7 +19,7 @@ import Link from "next/link";
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
-type Step = "video" | "chat" | "signup" | "score";
+type Step = "video" | "chat" | "signup" | "emailsent";
 
 interface ChatMessage {
   role: "agent" | "user";
@@ -40,67 +36,6 @@ interface SignupData {
   lastName: string;
   email: string;
   password: string;
-}
-
-interface Dimension {
-  label: string;
-  icon: React.ElementType;
-  score: number;
-  max: number;
-}
-
-// ─── scoring ──────────────────────────────────────────────────────────────────
-
-function scoreConversation(allUserText: string): Dimension[] {
-  const t = allUserText.toLowerCase();
-  const kw = (words: string[]) => words.filter((w) => t.includes(w)).length;
-  const wordCount = allUserText.split(/\s+/).filter(Boolean).length;
-  const lenBonus = (max: number) => Math.min(Math.floor(wordCount / 30), max);
-
-  const problemScore = Math.min(
-    6 +
-      kw(["year", "2020", "2021", "2022", "2023", "2024", "when i was", "i was working", "i noticed", "i discovered", "we found", "back in"]) * 2 +
-      kw(["i realized", "that's when", "epiphany", "aha moment", "suddenly", "couldn't believe", "saw that"]) * 2 +
-      kw(["problem", "pain", "frustrated", "annoying", "broken", "manual", "spreadsheet", "slow", "expensive", "wasted"]) * 1 +
-      lenBonus(4),
-    25
-  );
-
-  const advantageScore = Math.min(
-    6 +
-      kw(["years experience", "10 years", "8 years", "5 years", "3 years", "domain expert", "industry", "worked at", "built", "technical", "engineer", "cto", "proprietary"]) * 2 +
-      kw(["customer relationships", "existing relationships", "know the buyers", "network", "distribution", "audience", "newsletter", "community", "partnerships"]) * 3 +
-      kw(["data", "insight", "unique angle", "unfair", "advantage", "moat", "ip"]) * 2 +
-      lenBonus(3),
-    25
-  );
-
-  const custScore = Math.min(
-    5 +
-      kw(["they said", "told me", "literally said", "her exact words", "his exact words", "quote", "feedback", "pain point"]) * 2 +
-      kw(["last week", "yesterday", "last month", "two weeks ago", "recently", "this week"]) * 2 +
-      kw(["loi", "letter of intent", "signed", "paid", "paying customer", "committed", "willing to pay", "switch to us", "pre-order"]) * 4 +
-      kw(["50 conversations", "30 conversations", "20 conversations", "40 people", "talked to over", "spoken to"]) * 3 +
-      kw(["10", "15", "20", "25", "30", "conversations", "interviews", "discovery calls", "users"]) * 1 +
-      lenBonus(4),
-    30
-  );
-
-  const resScore = Math.min(
-    5 +
-      kw(["almost quit", "wanted to quit", "nearly gave up", "close to quitting", "darkest moment", "hardest moment", "failed", "rejected", "churned", "fell apart", "crisis", "ran out"]) * 3 +
-      kw(["kept going", "what kept me", "mission", "believe in", "passionate", "customers need", "problem is real", "can't give up", "have to solve", "why i started"]) * 3 +
-      kw(["7", "8", "9", "10", "out of 10", "/10", "really close", "very close"]) * 2 +
-      lenBonus(2),
-    20
-  );
-
-  return [
-    { label: "Problem Origin",      icon: Lightbulb,   score: problemScore,    max: 25 },
-    { label: "Founder Edge",        icon: ShieldCheck, score: advantageScore,  max: 25 },
-    { label: "Customer Validation", icon: Users,       score: custScore,       max: 30 },
-    { label: "Resilience",          icon: Heart,       score: resScore,        max: 20 },
-  ];
 }
 
 // ─── component ────────────────────────────────────────────────────────────────
@@ -120,10 +55,6 @@ function OnboardingContent() {
   const [signup, setSignup] = useState<SignupData>({ firstName: "", lastName: "", email: "", password: "" });
   const [signingUp, setSigningUp] = useState(false);
 
-  const [dimensions, setDimensions]         = useState<Dimension[]>([]);
-  const [rawScore, setRawScore]             = useState(0);
-  const [displayedScore, setDisplayedScore] = useState(0);
-  const [scoreRevealed, setScoreRevealed]   = useState(false);
   const [onboardingExtracted, setOnboardingExtracted] = useState<Record<string, unknown>>({});
 
   // Redirect already-authenticated founders to dashboard
@@ -139,19 +70,7 @@ function OnboardingContent() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [uiMessages, agentTyping]);
 
-  useEffect(() => {
-    if (!scoreRevealed || rawScore === 0) return;
-    let cur = 0;
-    const inc = Math.max(1, Math.ceil(rawScore / 40));
-    const id = setInterval(() => {
-      cur = Math.min(cur + inc, rawScore);
-      setDisplayedScore(cur);
-      if (cur >= rawScore) clearInterval(id);
-    }, 28);
-    return () => clearInterval(id);
-  }, [scoreRevealed, rawScore]);
-
-  const callAI = useCallback(async (history: ApiMessage[]) => {
+const callAI = useCallback(async (history: ApiMessage[]) => {
     setAgentTyping(true);
     try {
       const res = await fetch("/api/onboarding/chat", {
@@ -165,12 +84,6 @@ function OnboardingContent() {
       setApiMessages((prev) => [...prev, { role: "assistant", content: data.content }]);
       if (data.isComplete) {
         setChatDone(true);
-        // Quick client-side score for immediate feedback
-        const allUserText = history.filter((m) => m.role === "user").map((m) => m.content).join(" ");
-        const dims = scoreConversation(allUserText);
-        const total = dims.reduce((s, d) => s + d.score, 0);
-        setDimensions(dims);
-        setRawScore(total);
         // Run LLM extraction in background for real data
         fetch("/api/onboarding/extract", {
           method: "POST",
@@ -250,21 +163,15 @@ function OnboardingContent() {
             chatHistory: apiMessages,
           }),
         });
-        if (completeRes.ok) {
-          const completeData = await completeRes.json();
-          if (completeData.qScore) {
-            setRawScore(completeData.qScore.overall);
-          }
-        } else {
-          console.warn("Onboarding data persistence failed — client-side score shown as fallback");
+        if (!completeRes.ok) {
+          console.warn("Onboarding data persistence failed");
         }
       } catch {
         // Non-fatal — score still visible from client-side calculation
       }
 
       toast.success("Account created!");
-      setStep("score");
-      setTimeout(() => setScoreRevealed(true), 500);
+      setStep("emailsent");
     } catch {
       toast.error("Something went wrong. Please try again.");
     }
@@ -553,20 +460,6 @@ function OnboardingContent() {
                 <span style={{ fontWeight: 600, fontSize: 15, color: ink }}>Edge Alpha</span>
               </div>
 
-              {/* score teaser */}
-              <div style={{ marginBottom: 28, padding: 16, background: surf, border: `1px solid ${bdr}`, borderRadius: 16, display: "flex", alignItems: "center", gap: 14 }}>
-                <div style={{ height: 56, width: 56, borderRadius: 12, background: bg, border: `1px solid ${bdr}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <span style={{ fontSize: 22, fontWeight: 700, color: blue }}>{rawScore}</span>
-                  <span style={{ fontSize: 9, color: muted, fontFamily: "monospace" }}>/100</span>
-                </div>
-                <div>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: ink, marginBottom: 3 }}>Your Q-Score is ready</p>
-                  <p style={{ fontSize: 12, color: muted, lineHeight: 1.5 }}>
-                    Create your account to see the full breakdown — and unlock Categories 2 & 3.
-                  </p>
-                </div>
-              </div>
-
               <h1 style={{ fontSize: 28, fontWeight: 300, letterSpacing: "-0.03em", color: ink, marginBottom: 6 }}>Create your account</h1>
               <p style={{ color: muted, fontSize: 14, marginBottom: 28 }}>Free to start. No credit card required.</p>
 
@@ -651,150 +544,69 @@ function OnboardingContent() {
           </motion.div>
         )}
 
-        {/* ── SCORE REVEAL ──────────────────────────────────────────────────── */}
-        {step === "score" && (
+        {/* ── EMAIL SENT ────────────────────────────────────────────────────── */}
+        {step === "emailsent" && (
           <motion.div
-            key="score"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5 }}
+            key="emailsent"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
             style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "48px 24px" }}
           >
-            <div style={{ width: "100%", maxWidth: 480 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 36 }}>
+            <div style={{ width: "100%", maxWidth: 440, textAlign: "center" }}>
+              {/* logo */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 40 }}>
                 <div style={{ height: 32, width: 32, borderRadius: 8, background: blue, display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <span style={{ color: "#fff", fontWeight: 900, fontSize: 8 }}>EA</span>
                 </div>
                 <span style={{ fontWeight: 600, fontSize: 15, color: ink }}>Edge Alpha</span>
               </div>
 
-              <p style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.18em", color: blue, fontWeight: 600, marginBottom: 8 }}>
-                Category 1 of 3 Complete
-              </p>
-              <h1 style={{ fontSize: "clamp(1.8rem,4vw,2.6rem)", fontWeight: 300, letterSpacing: "-0.03em", color: ink, marginBottom: 8 }}>
-                Your initial Q-Score.
-              </h1>
-              <p style={{ color: muted, fontSize: 14, marginBottom: 36, lineHeight: 1.7 }}>
-                Based on your conversation covering Problem, Team & Validation. Complete Categories 2 & 3 in your dashboard for your full score.
-              </p>
-
-              {/* ring */}
+              {/* envelope icon */}
               <motion.div
-                style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 36 }}
-                initial={{ scale: 0.85, opacity: 0 }}
+                initial={{ scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                transition={{ delay: 0.2, type: "spring", stiffness: 130 }}
+                transition={{ delay: 0.1, type: "spring", stiffness: 160 }}
+                style={{ width: 72, height: 72, borderRadius: 20, background: surf, border: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 28px" }}
               >
-                <div style={{ position: "relative", height: 176, width: 176 }}>
-                  <svg style={{ position: "absolute", inset: 0, transform: "rotate(-90deg)" }} viewBox="0 0 144 144">
-                    <circle cx="72" cy="72" r="64" fill="none" stroke={bdr} strokeWidth="8" />
-                    <motion.circle
-                      cx="72" cy="72" r="64"
-                      fill="none" stroke={blue} strokeWidth="8" strokeLinecap="round"
-                      strokeDasharray={`${2 * Math.PI * 64}`}
-                      initial={{ strokeDashoffset: 2 * Math.PI * 64 }}
-                      animate={scoreRevealed ? { strokeDashoffset: 2 * Math.PI * 64 * (1 - rawScore / 100) } : {}}
-                      transition={{ duration: 1.2, delay: 0.4, ease: "easeOut" }}
-                    />
-                  </svg>
-                  <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-                    <span style={{ fontSize: 48, fontWeight: 600, color: ink, fontVariantNumeric: "tabular-nums" }}>{displayedScore}</span>
-                    <span style={{ fontSize: 12, color: muted, marginTop: 2 }}>out of 100</span>
-                  </div>
-                </div>
-                <div style={{
-                  marginTop: 14,
-                  padding: "6px 16px",
-                  borderRadius: 999,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  border: `1px solid ${bdr}`,
-                  background: surf,
-                  color: rawScore >= 80 ? "#16A34A" : rawScore >= 60 ? blue : rawScore >= 40 ? "#D97706" : "#DC2626",
-                }}>
-                  {rawScore >= 80 ? "Strong Start" : rawScore >= 60 ? "Good Foundation" : rawScore >= 40 ? "Needs Development" : "Early Stage"}
-                </div>
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={blue} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="4" width="20" height="16" rx="2" />
+                  <polyline points="2,4 12,13 22,4" />
+                </svg>
               </motion.div>
 
-              {/* dimension bars */}
-              <div style={{ marginBottom: 24 }}>
-                <p style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.14em", color: muted, fontWeight: 600, marginBottom: 14 }}>Category 1 breakdown</p>
-                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  {dimensions.map((dim, i) => {
-                    const Icon = dim.icon;
-                    const pct = (dim.score / dim.max) * 100;
-                    return (
-                      <motion.div key={dim.label} style={{ display: "flex", alignItems: "center", gap: 12 }}
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={scoreRevealed ? { opacity: 1, x: 0 } : {}}
-                        transition={{ delay: 0.55 + i * 0.08 }}
-                      >
-                        <div style={{ height: 28, width: 28, borderRadius: 8, background: surf, border: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                          <Icon style={{ height: 13, width: 13, color: muted }} />
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
-                            <span style={{ fontSize: 12, color: ink, fontWeight: 500 }}>{dim.label}</span>
-                            <span style={{ fontSize: 11, color: muted, fontFamily: "monospace" }}>{dim.score}/{dim.max}</span>
-                          </div>
-                          <div style={{ height: 3, background: surf, borderRadius: 999, overflow: "hidden", border: `1px solid ${bdr}` }}>
-                            <motion.div
-                              style={{ height: "100%", borderRadius: 999, background: pct >= 70 ? blue : pct >= 40 ? "#D97706" : "#EF4444" }}
-                              initial={{ width: 0 }}
-                              animate={scoreRevealed ? { width: `${pct}%` } : {}}
-                              transition={{ delay: 0.65 + i * 0.08, duration: 0.6, ease: "easeOut" }}
-                            />
-                          </div>
-                        </div>
-                      </motion.div>
-                    );
-                  })}
+              <h1 style={{ fontSize: "clamp(1.6rem,4vw,2.2rem)", fontWeight: 300, letterSpacing: "-0.03em", color: ink, marginBottom: 10 }}>
+                Check your inbox
+              </h1>
+              <p style={{ color: muted, fontSize: 14, lineHeight: 1.7, marginBottom: 8 }}>
+                We sent a confirmation link to
+              </p>
+              <p style={{ color: ink, fontSize: 14, fontWeight: 600, marginBottom: 28 }}>
+                {signup.email}
+              </p>
+
+              {/* info box */}
+              <div style={{ padding: "16px 20px", background: surf, border: `1px solid ${bdr}`, borderRadius: 14, marginBottom: 32, textAlign: "left" }}>
+                <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                  <div style={{ height: 32, width: 32, borderRadius: 8, background: bg, border: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
+                    <Lock style={{ height: 13, width: 13, color: blue }} />
+                  </div>
+                  <div>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: ink, marginBottom: 4 }}>Your Q-Score is waiting</p>
+                    <p style={{ fontSize: 12, color: muted, lineHeight: 1.6 }}>
+                      Once you confirm your email, you&apos;ll be taken to your dashboard where your full Q-Score breakdown and AI advisers are ready.
+                    </p>
+                  </div>
                 </div>
               </div>
 
-              {/* locked categories */}
-              <motion.div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 28 }}
-                initial={{ opacity: 0 }} animate={scoreRevealed ? { opacity: 1 } : {}} transition={{ delay: 1.1 }}>
-                {[
-                  { label: "Category 2", desc: "Customer Validation · Market Sizing · Learning Velocity", pts: "+33 pts" },
-                  { label: "Category 3", desc: "Go-to-Market · Financial Health", pts: "+34 pts" },
-                ].map((cat) => (
-                  <div key={cat.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: surf, border: `1px solid ${bdr}`, borderRadius: 12 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <Lock style={{ height: 13, width: 13, color: muted }} />
-                      <div>
-                        <p style={{ fontSize: 12, fontWeight: 600, color: ink }}>{cat.label}</p>
-                        <p style={{ fontSize: 11, color: muted }}>{cat.desc}</p>
-                      </div>
-                    </div>
-                    <span style={{ fontSize: 11, fontWeight: 600, color: muted }}>{cat.pts}</span>
-                  </div>
-                ))}
-              </motion.div>
+              <p style={{ fontSize: 12, color: muted, marginBottom: 20 }}>
+                Didn&apos;t receive it? Check your spam folder or{" "}
+                <Link href="/login" style={{ color: blue, fontWeight: 500 }}>sign in here</Link>.
+              </p>
 
-              {/* CTAs */}
-              <motion.div style={{ display: "flex", flexDirection: "column", gap: 10 }}
-                initial={{ opacity: 0, y: 10 }} animate={scoreRevealed ? { opacity: 1, y: 0 } : {}} transition={{ delay: 1.3 }}>
-                <button
-                  onClick={() => router.push("/founder/assessment")}
-                  style={{ width: "100%", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, background: ink, color: bg, fontWeight: 500, padding: "14px 0", borderRadius: 999, fontSize: 15, border: "none", cursor: "pointer", transition: "opacity .15s" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.85")}
-                  onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
-                >
-                  Complete my full assessment <ArrowRight style={{ height: 16, width: 16 }} />
-                </button>
-                <button
-                  onClick={() => router.push("/founder/dashboard")}
-                  style={{ width: "100%", display: "inline-flex", alignItems: "center", justifyContent: "center", color: muted, border: `1px solid ${bdr}`, background: "transparent", fontWeight: 500, padding: "14px 0", borderRadius: 999, fontSize: 14, cursor: "pointer", transition: "border-color .15s" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.borderColor = ink)}
-                  onMouseLeave={(e) => (e.currentTarget.style.borderColor = bdr)}
-                >
-                  Go to dashboard first
-                </button>
-              </motion.div>
-
-              <p style={{ textAlign: "center", fontSize: 11, color: muted, marginTop: 20, opacity: 0.6 }}>
-                Your Q-Score improves as you complete assessments and work with AI advisers.
+              <p style={{ textAlign: "center", fontSize: 11, color: muted, opacity: 0.6 }}>
+                The confirmation link expires in 24 hours.
               </p>
             </div>
           </motion.div>

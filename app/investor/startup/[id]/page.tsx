@@ -81,6 +81,13 @@ interface StartupData {
   aiAnalysis: { strengths: string[]; risks: string[]; recommendations: string[] }
   startupProfile: StartupProfile
   artifactCoverage: Record<string, boolean>
+  agentStats?: {
+    activeAgents: number
+    actionsThisWeek: number
+    totalDeliverables: number
+    lastActiveAt: string | null
+    lastActiveDays: number | null
+  }
 }
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -391,6 +398,38 @@ export default function StartupDeepDive({ params }: { params: { id: string } }) 
 
             {/* ── OVERVIEW ──────────────────────────────────────── */}
             {activeTab === "overview" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              {/* ── Agent Activity Strip ── */}
+              {s.agentStats && (
+                <div style={{ background: "#EFF6FF", border: `1px solid #BFDBFE`, borderRadius: 14, padding: "14px 22px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+                    <div>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>Founder Activity</p>
+                      <p style={{ fontSize: 11, color: muted }}>
+                        {s.agentStats.lastActiveDays !== null
+                          ? s.agentStats.lastActiveDays === 0
+                            ? "Active today"
+                            : s.agentStats.lastActiveDays === 1
+                              ? "Active yesterday"
+                              : `Last active ${s.agentStats.lastActiveDays}d ago`
+                          : "No recent activity"}
+                      </p>
+                    </div>
+                    <div style={{ display: "flex", gap: 20 }}>
+                      {[
+                        { label: "Active Agents", value: `${s.agentStats.activeAgents}/9` },
+                        { label: "Actions (7d)", value: String(s.agentStats.actionsThisWeek) },
+                        { label: "Deliverables", value: `${s.agentStats.totalDeliverables}/12` },
+                      ].map(({ label, value }) => (
+                        <div key={label} style={{ textAlign: "center" }}>
+                          <p style={{ fontSize: 18, fontWeight: 800, color: blue, lineHeight: 1 }}>{value}</p>
+                          <p style={{ fontSize: 10, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginTop: 3 }}>{label}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 20, alignItems: "start" }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
@@ -581,6 +620,7 @@ export default function StartupDeepDive({ params }: { params: { id: string } }) 
                     </div>
                   )}
                 </div>
+              </div>
               </div>
             )}
 

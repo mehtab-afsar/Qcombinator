@@ -28,20 +28,20 @@ Right now agents share context via artifact reads. That's passive. They need to 
 ### Current state: Has lead enrichment, outreach send, landing page deploy, web research. Solid.
 
 ### Missing actions
-- [ ] **Outreach reply tracking** — right now emails go out but there's no way to know what happened. Add Resend webhook listener for opens, clicks, replies. Surface stats inline: "Batch #3: 47 sent, 12 opened, 3 replied"
+- [x] **Outreach reply tracking** — `app/api/webhook/resend/route.ts` — Resend webhook listener for opens, clicks, replies. Inline stats: "Batch #3: 47 sent, 12 opened, 3 replied"
 - [ ] **Outreach reply drafting** — when a reply comes in, Patel should auto-draft a response based on the reply content and the original context
-- [ ] **Outreach sequence automation** — right now it's a one-shot blast. Build multi-step: Day 0 intro → Day 3 follow-up → Day 7 value add → Day 14 breakup. Each step auto-sends unless founder pauses
-- [ ] **A/B test outreach** — split contacts into groups, send variant A to half, variant B to other half, track which performs better, auto-declare winner
-- [ ] **Landing page analytics** — the Netlify deploy works but there are zero analytics. Add a tracking pixel or simple hit counter to deployed pages. Surface visits in chat: "Your landing page got 83 visits this week, 12 from LinkedIn"
+- [ ] **Outreach sequence automation** — multi-step: Day 0 intro → Day 3 follow-up → Day 7 value add → Day 14 breakup
+- [ ] **A/B test outreach** — split contacts into groups, send variant A to half, variant B to other half, track which performs better
+- [ ] **Landing page analytics** — surface visits in chat: "Your landing page got 83 visits this week, 12 from LinkedIn"
 - [ ] **Landing page iteration** — founder says "change the headline" → Patel regenerates just that section, re-deploys, preserves URL
-- [ ] **Channel-specific content** — GTM playbook says "LinkedIn is your top channel" → Patel should auto-generate 2 weeks of LinkedIn posts ready to copy
-- [ ] **Directory/listing submissions** — Patel should generate submission-ready copy for Product Hunt, HackerNews Show, BetaList, relevant directories. Not templates — actual form-fillable text
-- [ ] **ICP validation loop** — after outreach runs, Patel should analyze: which ICP segments had highest open/reply rates? Recommend ICP refinement based on real data
+- [x] **Channel-specific content** — `app/api/agents/patel/content-calendar/route.ts` — 4-week social media plan with actual written posts
+- [x] **Directory/listing submissions** — `app/api/agents/patel/directories/route.ts` — Product Hunt, HackerNews, BetaList, vertical directories with submission-ready copy
+- [x] **ICP validation loop** — `app/api/agents/patel/icp-validation/route.ts` — analyzes outreach_sends by ICP segment, recommends refinements based on real open/reply data
 
 ### Missing artifacts
-- [ ] **Content Calendar** — 4-week social media plan with actual written posts (currently not a deliverable)
-- [ ] **Launch Plan** — pre-launch checklist, launch day schedule, post-launch week plan (currently not a deliverable)
-- [ ] **Landing Page Copy** — standalone copy artifact separate from the deployed page (for founders who want to use their own hosting)
+- [x] **Content Calendar** — 4-week social media plan with actual written posts
+- [ ] **Launch Plan** — pre-launch checklist, launch day schedule, post-launch week plan
+- [ ] **Landing Page Copy** — standalone copy artifact separate from the deployed page
 
 ---
 
@@ -50,15 +50,15 @@ Right now agents share context via artifact reads. That's passive. They need to 
 ### Current state: Has deal pipeline CRM, deal reminders, proposal generation. Decent but disconnected.
 
 ### Missing actions
-- [ ] **Auto-enrich new deals** — when a deal enters pipeline (from Patel outreach or manual), auto-run Hunter.io to get contact details, company info, LinkedIn URL
-- [ ] **Deal scoring** — score each deal by likelihood to close based on: stage, days in stage, engagement signals, company size vs your ICP. Surface as a number on each deal card
-- [ ] **Follow-up drafting** — when deal reminder fires, don't just say "follow up" — auto-draft the actual follow-up email based on last interaction and deal context
-- [ ] **Auto-move stale deals** — deals stuck in a stage for >14 days should auto-flag as at-risk, deals stuck >30 days auto-suggest moving to lost
-- [ ] **Revenue forecasting** — based on pipeline: "You have $45K in qualified pipeline. At your 20% close rate, expected revenue is $9K in 60 days"
-- [ ] **Win/loss logging** — when a deal moves to closed_won or closed_lost, Susi should ask why and store the reason. After 10+ deals, pattern detection kicks in
-- [ ] **Proposal tracking** — after sending a proposal, track if it was opened (if sent via a trackable link). Alert founder when prospect opens it
-- [ ] **Meeting prep** — founder has a call with a prospect tomorrow → Susi should auto-generate a brief: company background, contact's role, deal history, suggested talking points, objections to prepare for
-- [ ] **Pipeline analytics dashboard** — conversion rates per stage, average time in each stage, velocity trends. Not a separate page — surface inside the agent chat as a card
+- [ ] **Auto-enrich new deals** — when a deal enters pipeline, auto-run Hunter.io to get contact details, company info, LinkedIn URL
+- [ ] **Deal scoring** — score each deal by likelihood to close based on: stage, days in stage, engagement signals, company size vs ICP
+- [x] **Follow-up drafting** — `app/api/agents/susi/followup/route.ts` — auto-draft follow-up email based on last interaction and deal context
+- [ ] **Auto-move stale deals** — deals stuck >14 days auto-flag as at-risk, >30 days auto-suggest moving to lost
+- [x] **Revenue forecasting** — `app/api/agents/susi/forecast/route.ts` — stage-weighted pipeline forecast: "You have $45K in qualified pipeline. Expected revenue: $9K in 60 days"
+- [x] **Win/loss logging** — win/loss modal in SalesScriptRenderer; win_reason + loss_reason columns in `deals` table
+- [ ] **Proposal tracking** — track if proposal was opened (trackable link). Alert founder when prospect opens it
+- [x] **Meeting prep** — `app/api/agents/susi/meeting-prep/route.ts` — company background, contact's role, deal history, talking points, objections
+- [ ] **Pipeline analytics dashboard** — conversion rates per stage, average time in each stage, velocity trends
 
 ### Missing artifacts
 - [ ] **Pricing Strategy** — recommended pricing model, price points, tier structure, discounting policy
@@ -72,20 +72,20 @@ Right now agents share context via artifact reads. That's passive. They need to 
 ### Current state: Has Stripe connect, investor update email, financial summary artifact. The weakest "action" agent.
 
 ### Missing actions
-- [ ] **Auto-refresh Stripe data** — right now it's a one-time pull. Build a scheduled job that pulls MRR weekly and updates the financial summary artifact automatically
-- [ ] **Runway alarm** — when runway calculation drops below 6 months, auto-alert founder. Below 3 months, escalate to Strategy agent
-- [ ] **Actuals vs projections tracking** — Felix builds a model with projections. Each week, compare against actuals from Stripe. "You projected $32K MRR by March. You're at $28K. You're 12% behind plan."
-- [ ] **Bank connect** — Mercury API integration to pull real burn rate and cash position (not just revenue from Stripe)
-- [ ] **Invoice generation** — founder says "invoice Acme Corp $5,000 for March" → Felix generates a PDF invoice with company details pre-filled
-- [ ] **Expense categorization** — founder lists expenses → Felix categorizes (payroll, infra, marketing, legal) and surfaces burn breakdown
-- [ ] **Scenario modeling** — "What if I hire 2 engineers?" or "What if churn doubles?" → Felix recalculates runway, burn, break-even in real-time
-- [ ] **Board deck financials** — auto-generate the financial slides for a board deck from current Stripe + expense data
+- [ ] **Auto-refresh Stripe data** — scheduled job that pulls MRR weekly and updates the financial summary artifact automatically
+- [x] **Runway alarm** — `app/api/agents/felix/runway-alert/route.ts` — when runway drops below threshold, sends email alert via Resend
+- [x] **Actuals vs projections tracking** — `app/api/agents/felix/actuals/route.ts` — compares actual MRR vs projected, LLM variance analysis with drivers and actions
+- [ ] **Bank connect** — Mercury API integration to pull real burn rate and cash position
+- [x] **Invoice generation** — `app/api/agents/felix/invoice/route.ts` — generates styled HTML invoice with company details pre-filled, downloads as file
+- [x] **Expense categorization** — `app/api/agents/felix/expenses/route.ts` — categorizes expenses (payroll, infra, marketing, legal), surfaces burn breakdown
+- [x] **Scenario modeling** — `app/api/agents/felix/scenario/route.ts` — "What if I hire 2 engineers?" → recalculates runway, burn, break-even in real-time
+- [x] **Board deck financials** — `app/api/agents/felix/board-deck/route.ts` — auto-generates financial slides from Stripe + expense data, downloadable HTML
 
 ### Missing artifacts
 - [ ] **Financial Model** — 24-month projection with assumptions, 3 scenarios, exportable CSV
-- [ ] **Fundraising Calculator** — how much to raise, use of funds, dilution scenarios
-- [ ] **Cap Table** — current ownership, post-round modeling, SAFE conversion scenarios
-- [ ] **Board Update** — monthly metrics email (different from investor update — internal board facing)
+- [x] **Fundraising Calculator** — `app/api/agents/felix/fundraising/route.ts` — dilution calc, post-money valuation, use-of-funds breakdown, AI recommendation
+- [x] **Cap Table** — `app/api/agents/leo/cap-table/route.ts` — health score, dilution analysis, issues panel (built under Leo)
+- [ ] **Board Update** — monthly metrics email (internal board-facing, different from investor update)
 
 ---
 
@@ -94,13 +94,13 @@ Right now agents share context via artifact reads. That's passive. They need to 
 ### Current state: Has brand messaging artifact, blog post generation, landing page deploy, social templates. Good content generation.
 
 ### Missing actions
-- [ ] **Blog post SEO optimization** — Maya generates a blog post but doesn't optimize it. Add keyword research via Tavily, optimize title/meta/headers, suggest internal/external links
-- [ ] **Content repurposing engine** — founder writes one blog post → Maya auto-generates a Twitter thread, LinkedIn post, email newsletter excerpt, and social graphic description from it
-- [ ] **Social media post scheduling** — right now Maya generates posts but founder has to manually copy them. Add Buffer/Typefully integration to actually schedule them
-- [ ] **Email newsletter builder** — not just investor updates. Actual product newsletter: subject line, body, CTA, segment targeting, send via Resend to a subscriber list
-- [ ] **Brand consistency checker** — founder pastes any copy (website, email, deck) → Maya scores it against the brand messaging artifact for tone, voice, positioning consistency
-- [ ] **Pitch deck narrative** — Maya should generate the narrative flow of the deck, not just copy. "Open with the patient story, then pivot to the market failure, then reveal the product as inevitable"
-- [ ] **Press kit generation** — company boilerplate, founder bio, logo usage guidelines, key stats, media contact — downloadable as one package
+- [ ] **Blog post SEO optimization** — keyword research via Tavily, optimize title/meta/headers, suggest internal/external links
+- [x] **Content repurposing engine** — `app/api/agents/maya/repurpose/route.ts` — Twitter thread, LinkedIn post, newsletter excerpt, social graphic from one blog post
+- [ ] **Social media post scheduling** — Buffer/Typefully integration to actually schedule posts
+- [x] **Email newsletter builder** — `app/api/agents/maya/newsletter/route.ts` — subject line, body, CTA, send via Resend, downloads as HTML
+- [x] **Brand consistency checker** — `app/api/agents/maya/brand-check/route.ts` — scores copy against brand messaging for tone, voice, positioning consistency
+- [x] **Pitch deck narrative** — `app/founder/pitch-deck/page.tsx` — 10-slide deck generator pulling real agent artifacts, downloadable HTML presentation
+- [x] **Press kit generation** — `app/api/agents/maya/press-kit/route.ts` — company boilerplate, founder bio, key stats, logo guidelines, media contact — HTML download
 
 ### Missing artifacts
 - [ ] **Investor Narrative** — the story arc specifically for fundraising conversations
@@ -114,20 +114,20 @@ Right now agents share context via artifact reads. That's passive. They need to 
 ### Current state: Has hiring plan artifact, public job application page, resume screener. The application flow is strong.
 
 ### Missing actions
-- [ ] **Candidate sourcing** — Harper should actively search for candidates. Use Tavily to search LinkedIn/GitHub/AngelList for profiles matching the job description. Surface top 10 candidates with reasoning
-- [ ] **Candidate outreach** — found a great candidate → Harper drafts a personalized recruiting message, sends via Resend or generates LinkedIn DM copy
-- [ ] **Interview scheduling** — candidate passes screening → Harper generates a Calendly link or suggests available times
-- [ ] **Interview scorecard** — after founder interviews a candidate, Harper presents a structured evaluation form. Scores stored against the application
-- [ ] **Offer letter generation** — candidate accepted? Harper generates an offer letter with compensation details from the hiring plan artifact
-- [ ] **Pipeline analytics** — sourced → applied → screened → interviewed → offered → hired funnel. Conversion rates, time-in-stage, bottleneck detection
-- [ ] **Reference check kit** — Harper generates reference check questions specific to the role and the candidate's claimed experience
-- [ ] **Rejection emails** — auto-draft personalized, respectful rejection emails for candidates who don't pass screening
+- [x] **Candidate sourcing** — `app/api/agents/harper/source/route.ts` — searches GitHub, LinkedIn, AngelList for profiles matching JD via Tavily, surfaces top candidates
+- [x] **Candidate outreach** — `app/api/agents/harper/outreach/route.ts` — drafts personalized recruiting message for email/LinkedIn/Twitter with "Open in Gmail" link
+- [ ] **Interview scheduling** — candidate passes screening → generate Calendly link or suggest available times
+- [x] **Interview scorecard** — `app/api/agents/harper/scorecard/route.ts` — structured evaluation form per application, scores stored in DB
+- [x] **Offer letter generation** — `app/api/agents/harper/offer-letter/route.ts` — styled HTML offer letter with compensation details, optional Resend delivery
+- [x] **Pipeline analytics** — `app/api/agents/harper/pipeline/route.ts` — sourced → applied → screened → interviewed → offered → hired funnel with conversion rates, time-in-stage
+- [x] **Reference check kit** — `app/api/agents/harper/reference/route.ts` — role-specific reference questions with red-flag probes and signal questions
+- [x] **Rejection emails** — `app/api/agents/harper/reject/route.ts` — personalized rejection email via Resend, marks application rejected in DB
 
 ### Missing artifacts
 - [ ] **Job Descriptions** — individual JDs per role (currently only hiring_plan which lists roles)
 - [ ] **Interview Kit** — per-role structured interview plan with questions and scoring rubric
 - [ ] **Compensation Framework** — salary bands, equity ranges, negotiation playbook
-- [ ] **Onboarding Checklist** — week 1 plan, tools, people to meet, 30/60/90 goals
+- [x] **Onboarding Checklist** — `app/api/agents/harper/onboarding/route.ts` — week-1 plan, tools, people to meet, 30-day goals; downloads as print-ready HTML
 
 ---
 
@@ -136,14 +136,14 @@ Right now agents share context via artifact reads. That's passive. They need to 
 ### Current state: Has competitive matrix artifact, live Tavily research, competitor tracking, Google Alerts links. Good foundation.
 
 ### Missing actions
-- [ ] **Automated periodic monitoring** — right now tracking is manual. Build a weekly cron job that re-scrapes each tracked competitor and diffs against last snapshot. Auto-generate a "Competitive Weekly Digest"
-- [ ] **Tech stack detection** — use BuiltWith or Wappalyzer API to detect competitor tech stacks. "Competitor X switched from React to Next.js" or "They added Stripe, likely launching paid plans"
-- [ ] **Job posting monitoring** — scrape competitor careers pages. "Competitor Y posted 3 ML engineer roles this week — likely building AI features"
-- [ ] **App store review monitoring** — for competitors with mobile apps, scrape reviews weekly. Summarize sentiment trends, surface complaints founder can exploit
-- [ ] **Social listening** — search Twitter/Reddit/HN for competitor mentions weekly. Sentiment analysis, trending complaints, praise patterns
-- [ ] **Pricing change detection** — snapshot competitor pricing pages weekly. Alert on any change with a diff
-- [ ] **Market sizing from competitive data** — "Based on competitor headcount, funding, and pricing, estimated combined market revenue is $X. Your addressable share is Y"
-- [ ] **Competitive deal alert** — when Susi logs a lost deal to a specific competitor, Atlas auto-updates that competitor's battle card with the loss reason
+- [ ] **Automated periodic monitoring** — weekly cron job that re-scrapes each tracked competitor and diffs against last snapshot
+- [x] **Tech stack detection** — `app/api/agents/atlas/techstack/route.ts` — detects competitor tech stacks via Tavily research
+- [x] **Job posting monitoring** — `app/api/agents/atlas/job-postings/route.ts` — scrapes competitor careers pages, surfaces hiring signals and role patterns
+- [x] **App store review monitoring** — `app/api/agents/atlas/review-analysis/route.ts` — scrapes reviews weekly, summarizes sentiment trends, surfaces exploitable complaints
+- [x] **Social listening** — `app/api/agents/atlas/social/route.ts` — searches Twitter/Reddit/HN for competitor mentions, sentiment analysis, trending complaints
+- [ ] **Pricing change detection** — snapshot competitor pricing pages weekly, alert on any change with a diff
+- [ ] **Market sizing from competitive data** — estimate combined market revenue from headcount, funding, and pricing
+- [ ] **Competitive deal alert** — when Susi logs a lost deal to a specific competitor, Atlas auto-updates that competitor's battle card
 
 ### Missing artifacts
 - [ ] **Battle Cards** — individual per-competitor cards (currently bundled in competitive_matrix)
@@ -157,19 +157,19 @@ Right now agents share context via artifact reads. That's passive. They need to 
 ### Current state: Has strategic plan artifact, investor update email, investor contacts CRM. The least "active" agent.
 
 ### Missing actions
-- [ ] **Goal tracking with accountability** — Sage sets OKRs → tracks progress weekly → sends Monday morning "This week's priorities" and Friday "How did you do?" check-ins via in-app notification or email
-- [ ] **Milestone countdown** — Sage knows fundraising timeline → shows "47 days until target raise date. You've hit 2/5 milestones. Behind on: revenue target, hire #2"
-- [ ] **Cross-agent weekly briefing** — every Monday, Sage auto-generates a briefing pulling data from all agents: sales pipeline status (Susi), competitive moves (Atlas), financial position (Felix), brand activity (Maya), hiring pipeline (Harper), PMF signals (Nova)
-- [ ] **Decision journal** — founder logs key decisions with reasoning. Sage stores them, periodically reviews outcomes vs expectations, surfaces "Your decision to focus on enterprise 8 weeks ago has resulted in +$12K MRR but +40% longer sales cycle"
-- [ ] **Strategic contradiction detection** — Sage reads across all agent artifacts and flags contradictions: "Your GTM playbook targets SMBs but your hiring plan has 2 enterprise sales reps. Misalignment?"
-- [ ] **Pivot signal monitoring** — Sage continuously evaluates: retention rate, revenue growth, PMF score, competitive pressure, burn rate. When multiple signals turn negative, proactively asks "Should we discuss a pivot?"
-- [ ] **Board meeting prep** — generates a full board deck by pulling from all agents: Felix financials + Atlas competitive + Harper team + Nova PMF + Susi pipeline + Sage strategy
-- [ ] **Investor outreach execution** — Sage has investor contacts table. Should be able to actually send warm intro request emails, track responses, schedule meetings
+- [x] **Goal tracking with accountability** — `app/api/agents/sage/goals/route.ts` — OKR progress sliders, weekly check-ins, LLM accountability feedback, momentum badges
+- [x] **Milestone countdown** — `app/api/agents/sage/milestone/route.ts` — fundraising milestones with countdown, completion tracking, LLM assessment
+- [x] **Cross-agent weekly briefing** — `app/api/agents/sage/briefing/route.ts` — Monday briefing pulling from all 9 agents: pipeline, competitive, financial, brand, hiring, PMF signals
+- [x] **Decision journal** — `app/api/agents/sage/decisions/route.ts` — logs decisions with LLM confidence/reversibility/watchFor assessment, stored in agent_activity
+- [x] **Strategic contradiction detection** — `app/api/agents/sage/contradictions/route.ts` — reads across all 12 artifact types, flags misalignments with alignment score
+- [x] **Pivot signal monitoring** — `app/api/agents/sage/pivot/route.ts` — evaluates Q-Score, pipeline win rate, NPS, MRR, runway; returns pivotScore 0-100 with pivot options
+- [x] **Board meeting prep** — `app/api/agents/sage/board-prep/route.ts` — full board packet from all agents: Felix financials + Atlas + Harper + Nova + Susi + Sage strategy
+- [x] **Investor outreach execution** — `app/api/agents/sage/investor-update/route.ts` + `app/api/agents/investor/contacts/route.ts` — sends warm intro emails, tracks contacts
 
 ### Missing artifacts
-- [ ] **OKRs** — quarterly objectives and key results
-- [ ] **Weekly Briefing** — auto-generated founder summary
-- [ ] **Pivot/Persevere Analysis** — evidence-based framework when things aren't working
+- [x] **OKRs** — covered by strategic_plan artifact + sage/goals check-in system
+- [x] **Weekly Briefing** — sage/briefing generates and stores as agent artifact
+- [x] **Pivot/Persevere Analysis** — sage/pivot generates full evaluation with pivot options, red flags, green lights
 
 ---
 
@@ -178,14 +178,14 @@ Right now agents share context via artifact reads. That's passive. They need to 
 ### Current state: Has PMF survey artifact, hosted survey page, survey results aggregation. Solid survey flow.
 
 ### Missing actions
-- [ ] **Survey distribution** — Nova creates the survey but founder has to share the link manually. Nova should send the survey via Resend to a customer list (paste emails or pull from Susi's pipeline closed_won deals)
-- [ ] **Continuous response monitoring** — as responses come in, Nova should auto-analyze and update the PMF assessment in real-time. "3 new responses today. NPS moved from 42 to 47. Key theme: users love feature X but struggle with onboarding"
-- [ ] **Reddit/Twitter/forum scraping for problem validation** — search for people discussing the problem you solve. Surface real quotes, links, and potential early adopters
-- [ ] **Churn prediction signals** — if connected to product analytics or Stripe, identify users showing churn signals (decreased usage, failed payments, support tickets). Alert founder with save playbook
-- [ ] **Feature request aggregation** — pull from survey responses, support tickets, social mentions. Cluster into themes, rank by frequency, map to product roadmap
-- [ ] **User interview scheduling** — identify power users from survey responses (high NPS respondents), auto-draft interview request email, provide Calendly link
-- [ ] **Cohort analysis** — segment survey respondents by signup date, plan, usage level. "Users who signed up in January have 2x higher NPS than February cohort. What changed?"
-- [ ] **PMF score calculation** — beyond Sean Ellis "very disappointed" metric. Composite score from: retention, NPS, organic referrals, usage frequency, expansion revenue. Track over time
+- [x] **Survey distribution** — `app/api/agents/nova/distribute/route.ts` — sends survey via Resend to customer list, batched delivery
+- [x] **Continuous response monitoring** — `app/api/survey/analyze/route.ts` — auto-analyzes responses as they come in, updates PMF assessment in real-time
+- [x] **Reddit/Twitter/forum scraping for problem validation** — `app/api/agents/nova/validate-problem/route.ts` — surfaces real quotes, links, and potential early adopters
+- [x] **Churn prediction signals** — `app/api/agents/nova/churn/route.ts` — churn risk score, at-risk segments, churn predictors, save playbook, early warning metrics
+- [x] **Feature request aggregation** — `app/api/agents/nova/features/route.ts` — clusters feedback into themes, ranks by frequency, maps to product roadmap
+- [x] **User interview scheduling** — `app/api/agents/nova/interview-schedule/route.ts` + `app/api/agents/nova/interview-notes/route.ts` — identifies power users, drafts interview request, structures notes
+- [x] **Cohort analysis** — `app/api/agents/nova/cohort/route.ts` — segments respondents by signup date/plan/usage, NPS by cohort, trend analysis
+- [ ] **PMF score calculation** — composite score from: retention, NPS, organic referrals, usage frequency, expansion revenue. Track over time
 
 ### Missing artifacts
 - [ ] **Customer Insight Report** — synthesis of all customer data into themes, personas, opportunities
@@ -200,48 +200,48 @@ Right now agents share context via artifact reads. That's passive. They need to 
 ### Current state: Has legal checklist artifact, NDA generator, term sheet analyzer. Functional but limited.
 
 ### Missing actions
-- [ ] **Document version tracking** — Leo generates a SAFE, founder negotiates, pastes revised version → Leo diffs the two, highlights every change, explains implications
-- [ ] **Compliance monitoring** — Leo should periodically scan the founder's product (privacy policy page, data practices described in onboarding) and flag gaps: "You collect email addresses but your privacy policy doesn't mention email marketing consent"
-- [ ] **Contract clause library** — founder is drafting any agreement → can ask Leo for standard clauses: non-compete, non-solicitation, indemnification, limitation of liability. Customized to their jurisdiction
-- [ ] **IP audit** — Leo should ask: who wrote the code? Any prior employers with IP claims? Open source licenses in your stack? Contractor IP assignments signed? Generate a risk assessment
-- [ ] **Regulatory research** — founder enters their industry → Leo researches industry-specific regulations (HIPAA for health, SOX for finance, COPPA for kids) and generates a compliance checklist
-- [ ] **Cap table validation** — Leo reviews the cap table (from Felix) for legal issues: missing option pool, vesting not started, advisor shares without agreements, founder shares not restricted
+- [x] **Document version tracking** — `app/api/agents/leo/diff/route.ts` — diffs two contract versions, highlights every change, severity rating, founder vs investor impact
+- [ ] **Compliance monitoring** — periodically scan privacy policy page and data practices, flag gaps (GDPR, email consent, etc.)
+- [x] **Contract clause library** — `app/api/agents/leo/clauses/route.ts` — 10 clause types, 3 risk-level variants each, key terms to negotiate
+- [x] **IP audit** — `app/api/agents/leo/ip-audit/route.ts` — code authors, prior employer claims, OSS licenses, contractor IP assignments; risk score + recommendations
+- [x] **Regulatory research** — `app/api/agents/leo/regulatory/route.ts` — industry-specific regulations (HIPAA, SOX, COPPA), compliance checklist
+- [x] **Cap table validation** — `app/api/agents/leo/cap-table/route.ts` — health score, legal issues (missing option pool, unvested shares, advisor agreements)
 
 ### Missing artifacts
-- [ ] **SAFE Agreement Draft** — pre-filled, ready to use (currently only legal_checklist exists)
-- [ ] **Privacy Policy + ToS** — actual drafted documents, not just a checklist item
+- [x] **SAFE Agreement Draft** — `app/api/agents/leo/safe/route.ts` — pre-filled SAFE (post-money or pre-money), downloads as print-ready HTML
+- [x] **Privacy Policy + ToS** — `app/api/agents/leo/privacy-policy/route.ts` — actual drafted documents, downloads as HTML
 - [ ] **Contractor Agreement** — ready-to-sign IC agreement
-- [ ] **Co-Founder Agreement** — vesting, roles, IP, exit provisions
+- [x] **Co-Founder Agreement** — `app/api/agents/leo/cofounder/route.ts` — equity split, vesting, IP assignment, dispute resolution, exit provisions; print-ready HTML
 
 ---
 
 ## Agent UX Improvements (All Agents)
 
 ### Chat experience
-- [ ] **Structured intake mode** — when building an artifact, don't open-ended chat. Show a step-by-step form: "Step 1 of 5: Tell me about your target customer" with a text area. More focused, faster, better output
-- [ ] **Inline action cards** — when an agent suggests an action ("Want me to send these emails?"), render it as a card with approve/reject buttons, not just text
-- [ ] **Progress indicators during actions** — "Enriching 47 contacts..." with a progress bar, not just a spinner
-- [ ] **Action preview before execution** — before Patel sends emails, show a preview panel: subject line, body, recipient list. Founder reviews and clicks "Send All" or edits individual ones
-- [ ] **Artifact diff on regeneration** — when regenerating an artifact, show what changed from the previous version, not just replace it
-- [ ] **Artifact section editing** — highlight a section of an artifact → "Revise this section" → agent rewrites just that part while keeping everything else
+- [ ] **Structured intake mode** — step-by-step form for artifact building: "Step 1 of 5: Tell me about your target customer"
+- [ ] **Inline action cards** — when agent suggests an action, render as approve/reject card, not just text
+- [ ] **Progress indicators during actions** — "Enriching 47 contacts..." with a progress bar
+- [ ] **Action preview before execution** — before Patel sends emails, show preview panel with approve/edit per recipient
+- [ ] **Artifact diff on regeneration** — show what changed from previous version, not just replace it
+- [x] **Artifact section editing** — Revise mode in DeliverablePanel: highlight section → "Revise this section" → agent rewrites just that part
 
 ### Agent workspace
-- [ ] **Unified inbox for all agent actions** — one place to see: Patel's outreach replies, Harper's new applications, Susi's deal reminders, Nova's survey responses, Atlas's competitive alerts. Currently scattered across agent chats
-- [ ] **Agent scheduling** — "Patel, send follow-ups every Tuesday at 9am" or "Atlas, run competitive scan every Monday" — agent remembers and executes on schedule
-- [ ] **Undo/rollback** — agent sent bad emails? Revert a deal stage change? Undo last artifact regeneration? Every action should be reversible within a window
-- [ ] **Agent delegation** — founder in Strategy chat says "Get me a financial model" → Sage delegates to Felix, Felix builds it, result surfaces back in Sage's chat
+- [ ] **Unified inbox for all agent actions** — one place for: Patel's replies, Harper's applications, Susi's reminders, Nova's responses, Atlas's alerts
+- [ ] **Agent scheduling** — "Patel, send follow-ups every Tuesday at 9am" — agent remembers and executes on schedule
+- [ ] **Undo/rollback** — every action reversible within a window
+- [ ] **Agent delegation** — founder in Strategy chat says "Get me a financial model" → Sage delegates to Felix, result surfaces back
 
 ---
 
 ## Data Connections That Would Transform Agents
 
 ### High impact integrations
-- [ ] **Stripe** (already started) — expand beyond MRR. Pull churn events, failed charges, plan changes, customer count over time. Feed to Felix, Nova, and Q-Score automatically
-- [ ] **Google Analytics / Plausible / PostHog** — pull real traffic data. Feed to Patel for GTM performance, Maya for content performance, Nova for activation funnel analysis
-- [ ] **Intercom / Crisp / support tool** — pull support tickets. Feed to Nova for churn signals and feature requests. Feed to Atlas for competitive mentions in support convos
-- [ ] **GitHub** — pull commit frequency, contributors, deployment frequency. Feed to Q-Score product dimension. Feed to Harper for engineering team capacity assessment
-- [ ] **Calendly / Cal.com** — real meeting data. Feed to Susi for sales velocity. Feed to Sage for investor meeting tracking
-- [ ] **Google Sheets / Airtable** — let founders connect existing data sources. Pull whatever metrics they're already tracking
+- [x] **Stripe** — `app/api/agents/felix/stripe/route.ts` — restricted key, pulls real MRR/ARR/active subscriptions/last 30d revenue
+- [ ] **Google Analytics / Plausible / PostHog** — pull real traffic data for Patel GTM performance, Maya content performance, Nova activation funnel
+- [ ] **Intercom / Crisp / support tool** — pull support tickets for Nova churn signals and Atlas competitive mentions
+- [ ] **GitHub** — commit frequency, contributors, deployment frequency → Q-Score product dimension
+- [ ] **Calendly / Cal.com** — real meeting data for Susi sales velocity and Sage investor meeting tracking
+- [ ] **Google Sheets / Airtable** — let founders connect existing data sources
 
 ---
 
@@ -250,12 +250,12 @@ Right now agents share context via artifact reads. That's passive. They need to 
 ### What exists: Agent artifact completion gives a one-time dimension boost. That's it.
 
 ### What should exist
-- [ ] **Action-based scoring** — not just "built artifact" but "sent 200 outreach emails, got 12 replies, booked 3 calls" should boost GTM score more than just having a GTM playbook document
-- [ ] **Outcome-based scoring** — Stripe MRR goes up after GTM actions → traction dimension auto-increases. Hire made through Harper → team dimension auto-increases
-- [ ] **Engagement quality scoring** — founders who use agents daily and iterate on artifacts should score higher on "coachability" (visible to investors) than founders who generated one artifact and never returned
-- [ ] **Score challenge completion** — dashboard shows "GTM is 52, complete these 3 actions to reach 65": (1) Build ICP document, (2) Send first outreach batch, (3) Get 5+ replies. Each completed action is verified by agent data, not self-reported
-- [ ] **Investor-visible agent activity** — on the investor deal flow page, show not just Q-Score but: "Active agents: 7/9. Actions this week: 23. Deliverables: 8/12. Last active: 2 hours ago." Investors can see who's actually executing
-- [ ] **Decay tied to agent activity** — Q-Score decays faster if agents are inactive. Stays fresh if founder is actively using agents and executing. Incentivizes continuous usage
+- [ ] **Action-based scoring** — "sent 200 outreach emails, got 12 replies, booked 3 calls" should boost GTM score more than just having a GTM playbook
+- [ ] **Outcome-based scoring** — Stripe MRR goes up after GTM actions → traction dimension auto-increases
+- [ ] **Engagement quality scoring** — founders who use agents daily and iterate should score higher on "coachability"
+- [x] **Score challenge completion** — `app/founder/improve-qscore/page.tsx` — 12 artifact challenges with completion status, evidence attachment, each verified by agent data
+- [x] **Investor-visible agent activity** — deal flow page shows `agentActionsThisWeek` badge + "Active agents" count + deliverables count
+- [ ] **Decay tied to agent activity** — Q-Score decays faster if agents are inactive, stays fresh with active execution
 
 ---
 
@@ -263,8 +263,8 @@ Right now agents share context via artifact reads. That's passive. They need to 
 
 ### Right now agents are 9 separate tools. They should feel like ONE system running your startup.
 
-- [ ] **Morning briefing** — every day at 8am, generate a single digest: overnight outreach replies, new applications, competitive alerts, financial position, today's priorities, upcoming deadlines. Email + in-app
-- [ ] **Weekly scorecard** — auto-generated every Sunday night: metrics this week vs last week, agent activity summary, Q-Score movement, top wins, biggest risks, next week's focus
-- [ ] **Task extraction** — every agent conversation should extract action items. "You mentioned you'd follow up with Acme" → task created, reminder set, tracked to completion
-- [ ] **Unified timeline** — single chronological feed of everything: emails sent, deals moved, applications received, competitors tracked, surveys completed, documents generated, score changes. The founder's startup story in real-time
-- [ ] **"What should I work on right now?"** — AI looks at all agent data, deadline proximity, pipeline health, score gaps, runway, and recommends the single most important thing to do TODAY
+- [x] **Morning briefing** — `app/api/digest/daily/route.ts` — daily digest: overnight replies, new applications, competitive alerts, financial position, today's priorities; email via Resend
+- [x] **Weekly scorecard** — `app/api/digest/weekly/route.ts` — Sunday night digest: metrics vs last week, agent activity summary, Q-Score movement, wins, risks, next week's focus; email via Resend
+- [ ] **Task extraction** — every agent conversation extracts action items → task created, reminder set, tracked to completion
+- [x] **Unified timeline** — `app/founder/activity/page.tsx` — chronological feed of everything: emails sent, deals moved, applications, competitors tracked, surveys, documents generated, score changes
+- [x] **"What should I work on right now?"** — `app/api/qscore/priority/route.ts` + Dashboard "Today's Focus" widget — AI looks at all agent data, deadline proximity, pipeline health, score gaps, runway → recommends top 3 priorities

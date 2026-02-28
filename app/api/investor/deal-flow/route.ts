@@ -41,16 +41,33 @@ export async function GET() {
       return NextResponse.json({ founders: [] })
     }
 
-    // For each founder, get their latest Q-Score
+    const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+
+    // For each founder, get their latest Q-Score + activity signals
     const enriched = await Promise.all(
       founders.map(async (f) => {
-        const { data: qrow } = await supabase
-          .from('qscore_history')
-          .select('overall_score, market_score, product_score, gtm_score, financial_score, team_score, traction_score, percentile, calculated_at')
-          .eq('user_id', f.user_id)
-          .order('calculated_at', { ascending: false })
-          .limit(1)
-          .single()
+        const [
+          { data: qrow },
+          { count: weeklyActions },
+          { count: deliverableCount },
+        ] = await Promise.all([
+          supabase
+            .from('qscore_history')
+            .select('overall_score, market_score, product_score, gtm_score, financial_score, team_score, traction_score, percentile, calculated_at')
+            .eq('user_id', f.user_id)
+            .order('calculated_at', { ascending: false })
+            .limit(1)
+            .single(),
+          supabase
+            .from('agent_activity')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', f.user_id)
+            .gte('created_at', since7d),
+          supabase
+            .from('agent_artifacts')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', f.user_id),
+        ])
 
         // Map DB stage values to display labels
         const stageLabel: Record<string, string> = {
@@ -73,6 +90,9 @@ export async function GET() {
         if (sp.businessModel) highlights.push(sp.businessModel as string)
         if (sp.whyNow)        highlights.push((sp.whyNow as string).slice(0, 60))
 
+        const agentActionsThisWeek = weeklyActions ?? 0
+        const totalDeliverables    = deliverableCount ?? 0
+
         return {
           id: f.user_id,
           name: f.startup_name || (sp.companyName as string) || `${f.full_name}'s Startup`,
@@ -89,6 +109,10 @@ export async function GET() {
           founder: { name: f.full_name },
           status: 'new' as const,
           hasScore: !!qrow,
+          // Activity signals — visible to investors
+          agentActionsThisWeek,
+          totalDeliverables,
+          isActiveFounder: agentActionsThisWeek >= 3,
         }
       })
     )

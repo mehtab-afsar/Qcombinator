@@ -19,11 +19,15 @@ export async function GET(
 
     const { id: founderId } = await params
 
-    // Fetch in parallel: founder profile + latest Q-Score + latest artifacts
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+
+    // Fetch in parallel: founder profile + latest Q-Score + latest artifacts + agent activity
     const [
       { data: profile, error: profileError },
       { data: qrow },
       { data: artifacts },
+      { data: allArtifacts },
+      { data: recentActivity },
     ] = await Promise.all([
       supabase
         .from('founder_profiles')
@@ -45,6 +49,19 @@ export async function GET(
         .eq('user_id', founderId)
         .in('artifact_type', ['financial_summary', 'hiring_plan', 'competitive_matrix', 'gtm_playbook', 'brand_messaging', 'strategic_plan'])
         .order('created_at', { ascending: false }),
+
+      supabase
+        .from('agent_artifacts')
+        .select('artifact_type')
+        .eq('user_id', founderId),
+
+      supabase
+        .from('agent_activity')
+        .select('agent_id, action_type, created_at')
+        .eq('user_id', founderId)
+        .gte('created_at', sevenDaysAgo)
+        .order('created_at', { ascending: false })
+        .limit(50),
     ])
 
     if (profileError || !profile) {
@@ -197,6 +214,26 @@ export async function GET(
         hasStrategicPlan:     'strategic_plan' in latestByType,
         hasStartupProfile:    Object.keys(sp).length > 0,
       },
+
+      // Investor-visible agent activity — signals founder execution
+      agentStats: (() => {
+        const acts = recentActivity ?? []
+        const allArt = allArtifacts ?? []
+        const uniqueAgents = new Set(acts.map(a => a.agent_id)).size
+        const actionsThisWeek = acts.length
+        const totalDeliverables = new Set(allArt.map(a => a.artifact_type)).size
+        const lastActiveAt = acts[0]?.created_at ?? null
+        const lastActiveDays = lastActiveAt
+          ? Math.floor((Date.now() - new Date(lastActiveAt).getTime()) / 86400000)
+          : null
+        return {
+          activeAgents: uniqueAgents,
+          actionsThisWeek,
+          totalDeliverables,
+          lastActiveAt,
+          lastActiveDays,
+        }
+      })(),
     }
 
     return NextResponse.json({ startup: result })

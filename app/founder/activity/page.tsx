@@ -197,8 +197,25 @@ export default function ActivityPage() {
   const [error,         setError]         = useState<string | null>(null);
   const [groups,        setGroups]        = useState<Group[]>([]);
   const [agentFilter,   setAgentFilter]   = useState<string>("all");
-  const [sendingDigest, setSendingDigest] = useState(false);
-  const [digestToast,   setDigestToast]   = useState<{ ok: boolean; msg: string } | null>(null);
+  const [sendingDigest,   setSendingDigest]   = useState(false);
+  const [digestToast,     setDigestToast]     = useState<{ ok: boolean; msg: string } | null>(null);
+  const [sendingBriefing, setSendingBriefing] = useState(false);
+
+  async function handleSendBriefing() {
+    setSendingBriefing(true);
+    setDigestToast(null);
+    try {
+      const res = await fetch("/api/digest/daily", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to send");
+      setDigestToast({ ok: true, msg: `Morning briefing sent ☀️` });
+    } catch (err) {
+      setDigestToast({ ok: false, msg: err instanceof Error ? err.message : "Failed to send briefing" });
+    } finally {
+      setSendingBriefing(false);
+      setTimeout(() => setDigestToast(null), 5000);
+    }
+  }
 
   async function handleSendDigest() {
     setSendingDigest(true);
@@ -359,6 +376,25 @@ export default function ActivityPage() {
               {totalCount}
             </div>
           )}
+
+          {/* Morning briefing */}
+          <button
+            onClick={handleSendBriefing}
+            disabled={sendingBriefing}
+            style={{
+              background: sendingBriefing ? surf : amber,
+              border: `1.5px solid ${sendingBriefing ? bdr : amber}`,
+              borderRadius: 8, padding: "6px 14px", cursor: sendingBriefing ? "default" : "pointer",
+              display: "flex", alignItems: "center", gap: 6,
+              fontFamily: "system-ui, -apple-system, sans-serif",
+              fontSize: 12, fontWeight: 600,
+              color: sendingBriefing ? muted : "#fff",
+              transition: "all 0.15s",
+              opacity: sendingBriefing ? 0.7 : 1,
+            }}
+          >
+            {sendingBriefing ? "Sending…" : "☀️ Morning Briefing"}
+          </button>
 
           {/* Send weekly digest */}
           <button

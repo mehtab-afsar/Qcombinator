@@ -17,7 +17,7 @@ export async function GET() {
 
     const { data, error } = await supabase
       .from('deals')
-      .select('id, company, contact_name, contact_email, contact_title, stage, value, notes, next_action, next_action_date, source, created_at, updated_at')
+      .select('id, company, contact_name, contact_email, contact_title, stage, value, notes, next_action, next_action_date, source, win_reason, loss_reason, created_at, updated_at')
       .eq('user_id', user.id)
       .order('updated_at', { ascending: false })
 

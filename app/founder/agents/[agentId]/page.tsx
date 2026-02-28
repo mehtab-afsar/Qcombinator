@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Send, TrendingUp, ChevronRight, Copy, Check, X, RefreshCw, FileText, Mail, Swords, BookOpen, Sparkles, DollarSign, Scale, Users, Search, Compass, BarChart3, Zap, Highlighter, Share2, Download, Upload, Loader2, CheckCircle2, PlayCircle } from "lucide-react";
+import { ArrowLeft, Send, TrendingUp, ChevronRight, Copy, Check, X, RefreshCw, FileText, Mail, Swords, BookOpen, Sparkles, DollarSign, Scale, Users, Search, Compass, BarChart3, Zap, Highlighter, Share2, Download, Upload, Loader2, CheckCircle2, PlayCircle, Paperclip } from "lucide-react";
 import Link from "next/link";
 import { getAgentById } from "@/features/agents/data/agents";
 
@@ -40,8 +40,21 @@ const dimensionLabel: Record<string, string> = {
 };
 
 // ─── types ────────────────────────────────────────────────────────────────────
-interface UiMessage  { role: "agent" | "user"; text: string; }
+interface FileUploadData { id: string; name: string; size: number; mimeType: string; status: "uploading" | "done" | "error"; }
+interface UiMessage  { role: "agent" | "user"; text: string; fileUpload?: FileUploadData; }
 interface ApiMessage { role: "user" | "assistant"; content: string; }
+
+function fmtFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+function fmtFileType(mimeType: string, name: string): string {
+  if (mimeType === "application/pdf" || name.endsWith(".pdf")) return "PDF";
+  if (mimeType === "text/csv" || name.endsWith(".csv")) return "CSV";
+  if (name.endsWith(".md")) return "MD";
+  return "TXT";
+}
 
 interface FinModel {
   mrr: string; growthRate: string; burn: string; grossMargin: string;
@@ -478,14 +491,22 @@ function OutreachRenderer({ data, artifactId, sequenceName }: { data: Record<str
   const [sendResult,    setSendResult]    = useState<{ sent: number; failed: number } | null>(null);
   const [previewIdx,    setPreviewIdx]    = useState(0);
   const [totalSent,     setTotalSent]     = useState(0);
+  const [totalOpened,   setTotalOpened]   = useState(0);
+  const [totalReplied,  setTotalReplied]  = useState(0);
   const [loadingStats,  setLoadingStats]  = useState(false);
 
-  // Load total sent count on mount + pick up leads added from Hunter enrichment
+  // Load total sent count + engagement stats on mount + after send
   useEffect(() => {
     setLoadingStats(true);
     fetch('/api/agents/outreach/send')
       .then(r => r.json())
-      .then(d => { if (d.stats) setTotalSent(d.stats.total) })
+      .then(d => {
+        if (d.stats) {
+          setTotalSent(d.stats.total);
+          setTotalOpened(d.stats.opened ?? 0);
+          setTotalReplied(d.stats.replied ?? 0);
+        }
+      })
       .catch(() => {})
       .finally(() => setLoadingStats(false));
     // Pre-fill contacts from Hunter enrichment (set via sessionStorage)
@@ -596,7 +617,9 @@ function OutreachRenderer({ data, artifactId, sequenceName }: { data: Record<str
               </p>
             )}
             <p style={{ fontSize: 11, color: muted, marginTop: 1 }}>
-              {loadingStats ? '…' : totalSent > 0 ? `${totalSent} emails sent total` : 'Add contacts and send — Patel personalizes each one'}
+              {loadingStats ? '…' : totalSent > 0
+                ? `${totalSent} sent · ${totalOpened} opened · ${totalReplied} replied${totalSent > 0 ? ` (${Math.round(totalOpened / totalSent * 100)}% open rate)` : ''}`
+                : 'Add contacts and send — Patel personalizes each one'}
             </p>
           </div>
         </div>
@@ -916,6 +939,124 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
   const [deployedUrl, setDeployedUrl] = useState<string | null>(null);
   const [deployError, setDeployError] = useState<string | null>(null);
 
+  // Launch copy state
+  const [showLaunchCopy, setShowLaunchCopy] = useState(false);
+  const [launchCopyLoading, setLaunchCopyLoading] = useState(false);
+  const [launchCopyResult, setLaunchCopyResult] = useState<Record<string, Record<string, string>> | null>(null);
+  const [launchCopyError, setLaunchCopyError] = useState<string | null>(null);
+  const [copiedLaunch, setCopiedLaunch] = useState<string | null>(null);
+
+  // Directory submissions state
+  const [directoriesLoading, setDirectoriesLoading] = useState(false);
+  const [directoriesResult, setDirectoriesResult]   = useState<{
+    productHunt?: { name: string; tagline: string; description: string; topics: string[]; firstComment: string; hunterNote: string };
+    hackerNews?: { title: string; body: string; timing: string };
+    betaList?: { headline: string; description: string; callToAction: string };
+    indieHackers?: { title: string; description: string; milestone: string };
+    verticalDirectories?: { directory: string; url: string; submissionTip: string }[];
+    launchChecklist?: string[];
+  } | null>(null);
+  const [directoriesError, setDirectoriesError]     = useState<string | null>(null);
+  const [showDirectories, setShowDirectories]       = useState(false);
+  const [activeDirectory, setActiveDirectory]       = useState<"productHunt" | "hackerNews" | "betaList" | "indieHackers" | "verticalDirectories">("productHunt");
+  const [copiedDir, setCopiedDir]                   = useState<string | null>(null);
+
+  async function handleGenerateDirectories() {
+    if (directoriesLoading) return;
+    setDirectoriesLoading(true); setDirectoriesError(null);
+    try {
+      const res = await fetch('/api/agents/patel/directories', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok) { setDirectoriesResult(r.result); setShowDirectories(true); }
+      else setDirectoriesError(r.error ?? 'Failed to generate submissions');
+    } catch { setDirectoriesError('Network error'); }
+    finally { setDirectoriesLoading(false); }
+  }
+
+  // Content calendar state
+  const [calendarLoading, setCalendarLoading] = useState(false);
+  const [calendarResult, setCalendarResult] = useState<{
+    weeks?: { week: number; theme: string; objective: string; posts: { day: string; platform: string; type: string; hook: string; body: string; cta?: string; hashtags: string[] }[] }[];
+    contentPillars?: string[];
+    growthTip?: string;
+  } | null>(null);
+  const [calendarError, setCalendarError] = useState<string | null>(null);
+  const [showCalendar, setShowCalendar] = useState(false);
+
+  // ICP validation state
+  const [runningIcpValidation, setRunningIcpValidation] = useState(false);
+  const [icpValidationResult, setIcpValidationResult]   = useState<{
+    totalSent?: number; overallOpenRate?: number; overallReplyRate?: number;
+    segments?: { segment: string; sent: number; openRate: number; replyRate: number; verdict: string }[];
+    verdict?: string; bestSegment?: string; worstSegment?: string;
+    icpRefinements?: string[]; messagingInsight?: string; nextTest?: string; projectedImpact?: string;
+  } | null>(null);
+  const [icpValidationError, setIcpValidationError]     = useState<string | null>(null);
+  const [showIcpValidation, setShowIcpValidation]       = useState(false);
+  const [calendarWeek, setCalendarWeek] = useState(1);
+  const [copiedPost, setCopiedPost] = useState<string | null>(null);
+
+  async function handleGenerateCalendar() {
+    if (calendarLoading) return;
+    setCalendarLoading(true); setCalendarError(null);
+    try {
+      const res = await fetch('/api/agents/patel/content-calendar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      const r = await res.json();
+      if (res.ok) { setCalendarResult(r.calendar); setShowCalendar(true); }
+      else setCalendarError(r.error ?? 'Failed to generate calendar');
+    } catch { setCalendarError('Network error'); }
+    finally { setCalendarLoading(false); }
+  }
+
+  function copyPost(key: string, text: string) {
+    navigator.clipboard.writeText(text).then(() => { setCopiedPost(key); setTimeout(() => setCopiedPost(null), 1500); }).catch(() => {});
+  }
+
+  async function handleGenerateLaunchCopy() {
+    if (launchCopyLoading) return;
+    setLaunchCopyLoading(true); setLaunchCopyError(null); setLaunchCopyResult(null);
+    // Pull context from the playbook data
+    const targeting = d.icp?.summary || d.icp?.segments?.join(", ") || "early-stage startups";
+    const positioning = d.positioning?.statement || d.companyContext || "";
+    const channels = (d.channels ?? []).map(c => c.channel).slice(0, 3).join(", ");
+    try {
+      const res = await fetch('/api/agents/patel/launch-copy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          startupName: "My Startup",
+          tagline: d.positioning?.statement?.slice(0, 60),
+          problem: targeting,
+          solution: positioning || channels || "a better way",
+          targetUser: targeting,
+        }),
+      });
+      const r = await res.json();
+      if (res.ok) setLaunchCopyResult(r.copy as Record<string, Record<string, string>>);
+      else setLaunchCopyError(r.error ?? 'Failed to generate launch copy');
+    } catch { setLaunchCopyError('Network error'); }
+    finally { setLaunchCopyLoading(false); }
+  }
+
+  function copyLaunchText(key: string, text: string) {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedLaunch(key);
+      setTimeout(() => setCopiedLaunch(null), 1500);
+    }).catch(() => {});
+  }
+
+  async function handleRunIcpValidation() {
+    if (runningIcpValidation) return;
+    setRunningIcpValidation(true); setIcpValidationError(null);
+    try {
+      const res = await fetch('/api/agents/patel/icp-validation', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok) { setIcpValidationResult(r); setShowIcpValidation(true); }
+      else setIcpValidationError(r.error ?? 'ICP validation failed');
+    } catch { setIcpValidationError('Network error'); }
+    finally { setRunningIcpValidation(false); }
+  }
+
   useEffect(() => {
     if (!artifactId) return;
     fetch(`/api/agents/landingpage/deploy?artifactId=${artifactId}`)
@@ -968,6 +1109,140 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
           </button>
         </div>
       </div>
+      {/* ── Launch Copy CTA ── */}
+      <div style={{ background: "#FFFBEB", border: `1px solid #FDE68A`, borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ flex: 1 }}>
+          <p style={{ fontSize: 12, fontWeight: 700, color: amber, marginBottom: 2 }}>Get Launch Copy</p>
+          <p style={{ fontSize: 11, color: muted }}>Product Hunt tagline, HN post, BetaList pitch, Twitter announcement — all generated from your GTM strategy.</p>
+          {launchCopyError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{launchCopyError}</p>}
+        </div>
+        <button onClick={() => { setShowLaunchCopy(p => !p); if (!launchCopyResult) handleGenerateLaunchCopy(); }} disabled={launchCopyLoading} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: launchCopyLoading ? bdr : amber, color: launchCopyLoading ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: launchCopyLoading ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}>
+          {launchCopyLoading ? "Generating…" : launchCopyResult ? (showLaunchCopy ? "Hide" : "Show Copy") : "Generate Copy"}
+        </button>
+      </div>
+
+      {/* ── Launch Copy inline display ── */}
+      {showLaunchCopy && launchCopyResult && (() => {
+        const PLATFORMS: { key: string; label: string; icon: string; fields: string[] }[] = [
+          { key: "productHunt", label: "Product Hunt", icon: "🐱", fields: ["tagline", "description", "firstComment"] },
+          { key: "hackerNews", label: "Hacker News", icon: "🗞", fields: ["title", "body"] },
+          { key: "twitter", label: "Twitter / X", icon: "𝕏", fields: ["announcement"] },
+          { key: "betaList", label: "BetaList", icon: "🅱", fields: ["description"] },
+          { key: "redditIntro", label: "Reddit", icon: "🤖", fields: ["title", "body"] },
+        ];
+        return (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {PLATFORMS.map(({ key, label, icon, fields }) => {
+              const platform = (launchCopyResult as Record<string, Record<string, string>>)[key];
+              if (!platform) return null;
+              return (
+                <div key={key} style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 10, padding: "12px 16px" }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 10 }}>{icon} {label}</p>
+                  {fields.map(f => {
+                    const text = String(platform[f] ?? "");
+                    const copyKey = `${key}-${f}`;
+                    return (
+                      <div key={f} style={{ marginBottom: 8 }}>
+                        {fields.length > 1 && <p style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: "capitalize", marginBottom: 3 }}>{f}</p>}
+                        <div style={{ position: "relative" }}>
+                          <p style={{ fontSize: 12, color: ink, lineHeight: 1.6, background: surf, padding: "8px 40px 8px 10px", borderRadius: 6, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{text}</p>
+                          <button onClick={() => copyLaunchText(copyKey, text)} style={{ position: "absolute", top: 6, right: 6, padding: "2px 8px", borderRadius: 4, border: `1px solid ${bdr}`, background: copiedLaunch === copyKey ? green : bg, color: copiedLaunch === copyKey ? "#fff" : muted, fontSize: 10, cursor: "pointer" }}>
+                            {copiedLaunch === copyKey ? "✓" : "Copy"}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
+
+      {/* ── Content Calendar CTA ── */}
+      <div style={{ background: "#F0FDF4", border: `1px solid #BBF7D0`, borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ flex: 1 }}>
+          <p style={{ fontSize: 12, fontWeight: 700, color: green, marginBottom: 2 }}>Generate 4-Week Content Calendar</p>
+          <p style={{ fontSize: 11, color: muted }}>Fully-written LinkedIn + Twitter posts for 4 weeks — problem awareness → solution → social proof → CTA.</p>
+          {calendarError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{calendarError}</p>}
+        </div>
+        <button onClick={() => { if (!calendarResult) handleGenerateCalendar(); else setShowCalendar(p => !p); }} disabled={calendarLoading} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: calendarLoading ? bdr : green, color: calendarLoading ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: calendarLoading ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}>
+          {calendarLoading ? "Generating…" : calendarResult ? (showCalendar ? "Hide" : "Show Calendar") : "Generate Calendar"}
+        </button>
+      </div>
+
+      {/* ── Content Calendar inline display ── */}
+      {showCalendar && calendarResult && (() => {
+        const weeks = calendarResult.weeks ?? [];
+        const activeWeekData = weeks.find(w => w.week === calendarWeek);
+        return (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {/* Week tabs */}
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {weeks.map(w => (
+                <button key={w.week} onClick={() => setCalendarWeek(w.week)} style={{ padding: "5px 14px", borderRadius: 999, border: `1px solid ${calendarWeek === w.week ? green : bdr}`, background: calendarWeek === w.week ? green : bg, color: calendarWeek === w.week ? "#fff" : ink, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                  Week {w.week}
+                </button>
+              ))}
+            </div>
+            {/* Week header */}
+            {activeWeekData && (
+              <>
+                <div style={{ background: "#F0FDF4", border: `1px solid #BBF7D0`, borderRadius: 8, padding: "10px 14px" }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: green, marginBottom: 2 }}>{activeWeekData.theme}</p>
+                  <p style={{ fontSize: 11, color: muted }}>{activeWeekData.objective}</p>
+                </div>
+                {/* Posts */}
+                {activeWeekData.posts.map((post, pi) => {
+                  const postKey = `w${calendarWeek}-p${pi}`;
+                  const fullText = `${post.hook}\n\n${post.body}${post.cta ? `\n\n${post.cta}` : ''}${post.hashtags?.length ? `\n\n${post.hashtags.join(' ')}` : ''}`;
+                  return (
+                    <div key={pi} style={{ background: "#fff", border: `1px solid ${bdr}`, borderRadius: 10, padding: "14px 16px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: muted }}>{post.day}</span>
+                          <span style={{ padding: "2px 8px", borderRadius: 999, fontSize: 10, fontWeight: 700, background: post.platform === "LinkedIn" ? "#DBEAFE" : "#F3F4F6", color: post.platform === "LinkedIn" ? blue : ink }}>{post.platform}</span>
+                          <span style={{ padding: "2px 8px", borderRadius: 999, fontSize: 10, background: surf, color: muted }}>{post.type?.replace(/_/g, " ")}</span>
+                        </div>
+                        <button onClick={() => copyPost(postKey, fullText)} style={{ padding: "3px 10px", borderRadius: 6, border: `1px solid ${bdr}`, background: copiedPost === postKey ? green : bg, color: copiedPost === postKey ? "#fff" : muted, fontSize: 10, cursor: "pointer" }}>
+                          {copiedPost === postKey ? "✓ Copied" : "Copy"}
+                        </button>
+                      </div>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 6, lineHeight: 1.4 }}>{post.hook}</p>
+                      <p style={{ fontSize: 12, color: ink, lineHeight: 1.7, whiteSpace: "pre-wrap", marginBottom: post.cta || post.hashtags?.length ? 8 : 0 }}>{post.body}</p>
+                      {post.cta && <p style={{ fontSize: 12, fontWeight: 600, color: blue }}>{post.cta}</p>}
+                      {post.hashtags?.length > 0 && (
+                        <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 6 }}>
+                          {post.hashtags.map((h, hi) => <span key={hi} style={{ fontSize: 10, color: blue, background: "#EFF6FF", padding: "2px 6px", borderRadius: 4 }}>{h}</span>)}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </>
+            )}
+            {/* Content pillars + growth tip */}
+            {(calendarResult.contentPillars?.length || calendarResult.growthTip) && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                {calendarResult.contentPillars && calendarResult.contentPillars.length > 0 && (
+                  <div style={{ background: surf, borderRadius: 8, padding: "12px 14px", border: `1px solid ${bdr}` }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Content Pillars</p>
+                    {calendarResult.contentPillars.map((p, pi) => <p key={pi} style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>• {p}</p>)}
+                  </div>
+                )}
+                {calendarResult.growthTip && (
+                  <div style={{ background: "#FFFBEB", borderRadius: 8, padding: "12px 14px", border: `1px solid #FDE68A` }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: amber, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>Growth Tip</p>
+                    <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{calendarResult.growthTip}</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {/* Company Context */}
       {d.companyContext && (
         <div style={{ background: surf, borderRadius: 10, padding: "14px 16px", border: `1px solid ${bdr}` }}>
@@ -1092,6 +1367,215 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
           ))}
         </div>
       )}
+
+      {/* ── Directory Submissions ─────────────────────────────────────────────── */}
+      <div style={{ background: showDirectories && directoriesResult ? "#EFF6FF" : surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${showDirectories && directoriesResult ? "#BFDBFE" : bdr}` }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>Directory Submissions</p>
+            <p style={{ fontSize: 11, color: muted }}>Launch-ready copy for Product Hunt, HackerNews Show HN, BetaList, and Indie Hackers — tailored per platform.</p>
+          </div>
+          <button onClick={() => { if (showDirectories && !directoriesLoading) { setShowDirectories(false); } else if (!directoriesResult) { handleGenerateDirectories(); } else setShowDirectories(true); }} disabled={directoriesLoading} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: directoriesLoading ? bdr : blue, color: directoriesLoading ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: directoriesLoading ? "not-allowed" : "pointer", flexShrink: 0, whiteSpace: "nowrap" }}>
+            {directoriesLoading ? "Generating…" : directoriesResult ? (showDirectories ? "Hide" : "Show Submissions") : "Generate"}
+          </button>
+        </div>
+        {directoriesError && <p style={{ fontSize: 12, color: red, marginTop: 8 }}>{directoriesError}</p>}
+        {showDirectories && directoriesResult && (
+          <div style={{ marginTop: 14 }}>
+            {/* Platform tabs */}
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+              {(["productHunt", "hackerNews", "betaList", "indieHackers", "verticalDirectories"] as const).map(p => (
+                <button key={p} onClick={() => setActiveDirectory(p)} style={{ padding: "5px 12px", borderRadius: 8, border: `1px solid ${activeDirectory === p ? blue : bdr}`, background: activeDirectory === p ? "#EFF6FF" : bg, color: activeDirectory === p ? blue : muted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                  {p === "productHunt" ? "Product Hunt" : p === "hackerNews" ? "HackerNews" : p === "betaList" ? "BetaList" : p === "indieHackers" ? "Indie Hackers" : "Directories"}
+                </button>
+              ))}
+            </div>
+
+            {/* Product Hunt */}
+            {activeDirectory === "productHunt" && directoriesResult.productHunt && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ background: "#fff", borderRadius: 10, padding: "14px 16px", border: `1px solid ${bdr}` }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, color: "#FF6154", marginBottom: 4 }}>🐱 PRODUCT HUNT</p>
+                  <p style={{ fontSize: 16, fontWeight: 700, color: ink }}>{directoriesResult.productHunt.name}</p>
+                  <p style={{ fontSize: 13, color: muted, marginTop: 2 }}>{directoriesResult.productHunt.tagline}</p>
+                  {directoriesResult.productHunt.topics && (
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+                      {directoriesResult.productHunt.topics.map((t, i) => (
+                        <span key={i} style={{ fontSize: 10, padding: "2px 8px", borderRadius: 999, background: "#FFF1EE", color: "#FF6154", fontWeight: 600 }}>#{t}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {[
+                  { label: "Page Description", text: directoriesResult.productHunt.description },
+                  { label: "First Comment (Launch Day)", text: directoriesResult.productHunt.firstComment },
+                  { label: "Hunter Pitch", text: directoriesResult.productHunt.hunterNote },
+                ].map(({ label, text }, i) => (
+                  <div key={i} style={{ background: surf, borderRadius: 8, padding: "10px 14px", border: `1px solid ${bdr}` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase" }}>{label}</p>
+                      <button onClick={() => { navigator.clipboard.writeText(text); setCopiedDir(label); setTimeout(() => setCopiedDir(null), 1500); }} style={{ fontSize: 10, color: blue, background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>
+                        {copiedDir === label ? "Copied!" : "Copy"}
+                      </button>
+                    </div>
+                    <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{text}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* HackerNews */}
+            {activeDirectory === "hackerNews" && directoriesResult.hackerNews && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ background: "#fff", borderRadius: 10, padding: "14px 16px", border: `1px solid ${bdr}` }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, color: "#FF6600", marginBottom: 6 }}>Y COMBINATOR HACKER NEWS</p>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: ink, marginBottom: 4 }}>{directoriesResult.hackerNews.title}</p>
+                  {directoriesResult.hackerNews.timing && <p style={{ fontSize: 11, color: green }}>Best time to post: {directoriesResult.hackerNews.timing}</p>}
+                </div>
+                <div style={{ background: surf, borderRadius: 8, padding: "10px 14px", border: `1px solid ${bdr}` }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase" }}>Post Body</p>
+                    <button onClick={() => { navigator.clipboard.writeText(directoriesResult!.hackerNews!.title + '\n\n' + directoriesResult!.hackerNews!.body); setCopiedDir('hn'); setTimeout(() => setCopiedDir(null), 1500); }} style={{ fontSize: 10, color: blue, background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>
+                      {copiedDir === 'hn' ? "Copied!" : "Copy All"}
+                    </button>
+                  </div>
+                  <p style={{ fontSize: 12, color: ink, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{directoriesResult.hackerNews.body}</p>
+                </div>
+              </div>
+            )}
+
+            {/* BetaList */}
+            {activeDirectory === "betaList" && directoriesResult.betaList && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {[
+                  { label: "BetaList Headline", text: directoriesResult.betaList.headline },
+                  { label: "Description", text: directoriesResult.betaList.description },
+                  { label: "Call to Action", text: directoriesResult.betaList.callToAction },
+                ].map(({ label, text }, i) => (
+                  <div key={i} style={{ background: surf, borderRadius: 8, padding: "10px 14px", border: `1px solid ${bdr}` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase" }}>{label}</p>
+                      <button onClick={() => { navigator.clipboard.writeText(text); setCopiedDir(label); setTimeout(() => setCopiedDir(null), 1500); }} style={{ fontSize: 10, color: blue, background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>
+                        {copiedDir === label ? "Copied!" : "Copy"}
+                      </button>
+                    </div>
+                    <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{text}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Indie Hackers */}
+            {activeDirectory === "indieHackers" && directoriesResult.indieHackers && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ background: "#fff", borderRadius: 10, padding: "14px 16px", border: `1px solid ${bdr}` }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, color: "#6366F1", marginBottom: 6 }}>INDIE HACKERS</p>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: ink }}>{directoriesResult.indieHackers.title}</p>
+                </div>
+                {[
+                  { label: "Product Description", text: directoriesResult.indieHackers.description },
+                  { label: "Milestone Post Angle", text: directoriesResult.indieHackers.milestone },
+                ].map(({ label, text }, i) => (
+                  <div key={i} style={{ background: surf, borderRadius: 8, padding: "10px 14px", border: `1px solid ${bdr}` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase" }}>{label}</p>
+                      <button onClick={() => { navigator.clipboard.writeText(text); setCopiedDir(label); setTimeout(() => setCopiedDir(null), 1500); }} style={{ fontSize: 10, color: blue, background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>
+                        {copiedDir === label ? "Copied!" : "Copy"}
+                      </button>
+                    </div>
+                    <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{text}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Vertical Directories */}
+            {activeDirectory === "verticalDirectories" && directoriesResult.verticalDirectories && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {directoriesResult.verticalDirectories.map((dir, i) => (
+                  <div key={i} style={{ background: surf, borderRadius: 8, padding: "10px 14px", border: `1px solid ${bdr}` }}>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 2 }}>{dir.directory}</p>
+                    <p style={{ fontSize: 11, color: muted, marginBottom: 4 }}>{dir.submissionTip}</p>
+                    {dir.url && <p style={{ fontSize: 10, color: blue }}>{dir.url}</p>}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Launch checklist */}
+            {directoriesResult.launchChecklist && directoriesResult.launchChecklist.length > 0 && (
+              <div style={{ marginTop: 14, background: "#F0FDF4", borderRadius: 8, padding: "10px 14px", border: "1px solid #BBF7D0" }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: green, marginBottom: 6 }}>48-HOUR LAUNCH CHECKLIST</p>
+                {directoriesResult.launchChecklist.map((item, i) => (
+                  <p key={i} style={{ fontSize: 12, color: ink, lineHeight: 1.5, marginBottom: 3 }}>☐ {item}</p>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── ICP Validation ── */}
+      <div style={{ background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: 12, padding: "14px 18px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: amber, marginBottom: 2 }}>ICP Validation — Real Outreach Data</p>
+            <p style={{ fontSize: 11, color: muted }}>Analyze your sent outreach to identify which ICP segments actually respond — and refine your targeting.</p>
+            {icpValidationError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{icpValidationError}</p>}
+          </div>
+          <button onClick={handleRunIcpValidation} disabled={runningIcpValidation} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: runningIcpValidation ? bdr : amber, color: runningIcpValidation ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: runningIcpValidation ? "not-allowed" : "pointer", whiteSpace: "nowrap", marginLeft: 12 }}>
+            {runningIcpValidation ? "Analyzing…" : icpValidationResult ? (showIcpValidation ? "Refresh" : "Show Results") : "Analyze ICP"}
+          </button>
+        </div>
+        {showIcpValidation && icpValidationResult && (
+          <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+              <div style={{ background: bg, borderRadius: 8, padding: "8px 12px", border: `1px solid ${bdr}`, textAlign: "center" }}>
+                <p style={{ fontSize: 10, color: muted, textTransform: "uppercase", marginBottom: 2 }}>Emails Sent</p>
+                <p style={{ fontSize: 18, fontWeight: 800, color: ink }}>{icpValidationResult.totalSent ?? 0}</p>
+              </div>
+              <div style={{ background: bg, borderRadius: 8, padding: "8px 12px", border: `1px solid ${bdr}`, textAlign: "center" }}>
+                <p style={{ fontSize: 10, color: muted, textTransform: "uppercase", marginBottom: 2 }}>Open Rate</p>
+                <p style={{ fontSize: 18, fontWeight: 800, color: blue }}>{icpValidationResult.overallOpenRate ?? 0}%</p>
+              </div>
+              <div style={{ background: bg, borderRadius: 8, padding: "8px 12px", border: `1px solid ${bdr}`, textAlign: "center" }}>
+                <p style={{ fontSize: 10, color: muted, textTransform: "uppercase", marginBottom: 2 }}>Reply Rate</p>
+                <p style={{ fontSize: 18, fontWeight: 800, color: green }}>{icpValidationResult.overallReplyRate ?? 0}%</p>
+              </div>
+            </div>
+            {icpValidationResult.verdict && (
+              <div style={{ background: "#FFFBEB", borderRadius: 8, padding: "10px 14px", border: "1px solid #FDE68A" }}>
+                <p style={{ fontSize: 11, color: ink, lineHeight: 1.6 }}>{icpValidationResult.verdict}</p>
+              </div>
+            )}
+            {icpValidationResult.segments && icpValidationResult.segments.length > 0 && (
+              <div>
+                <p style={{ fontSize: 10, fontWeight: 700, color: muted, marginBottom: 6 }}>SEGMENT BREAKDOWN</p>
+                {icpValidationResult.segments.map((seg, i) => (
+                  <div key={i} style={{ background: bg, borderRadius: 8, padding: "8px 12px", border: `1px solid ${bdr}`, marginBottom: 6 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                      <p style={{ fontSize: 12, fontWeight: 600, color: ink }}>{seg.segment}</p>
+                      <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 999, background: seg.verdict === "strong" ? "#F0FDF4" : seg.verdict === "weak" ? "#FEF2F2" : "#FFFBEB", color: seg.verdict === "strong" ? green : seg.verdict === "weak" ? red : amber, fontWeight: 700 }}>{seg.verdict}</span>
+                    </div>
+                    <p style={{ fontSize: 11, color: muted }}>{seg.sent} sent · {seg.openRate}% open · {seg.replyRate}% reply</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {icpValidationResult.icpRefinements && icpValidationResult.icpRefinements.length > 0 && (
+              <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "10px 14px", border: "1px solid #BBF7D0" }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: green, marginBottom: 6 }}>ICP REFINEMENTS</p>
+                {icpValidationResult.icpRefinements.map((r, i) => (
+                  <p key={i} style={{ fontSize: 12, color: ink, lineHeight: 1.5, marginBottom: 3 }}>→ {r}</p>
+                ))}
+              </div>
+            )}
+            {icpValidationResult.nextTest && (
+              <p style={{ fontSize: 11, color: muted, fontStyle: "italic" }}>Next test: {icpValidationResult.nextTest}</p>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -1099,7 +1583,7 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
 // ═══════════════════════════════════════════════════════════════════════════════
 // SALES SCRIPT RENDERER  (Susi — proposals + pipeline CRM)
 // ═══════════════════════════════════════════════════════════════════════════════
-type Deal = { id: string; company: string; contact_name?: string; contact_email?: string; contact_title?: string; stage: string; value?: string; notes?: string; next_action?: string };
+type Deal = { id: string; company: string; contact_name?: string; contact_email?: string; contact_title?: string; stage: string; value?: string; notes?: string; next_action?: string; created_at?: string; updated_at?: string; win_reason?: string; loss_reason?: string };
 
 function SalesScriptRenderer({ data, artifactId }: { data: Record<string, unknown>; artifactId?: string }) {
   const d = data as {
@@ -1130,6 +1614,52 @@ function SalesScriptRenderer({ data, artifactId }: { data: Record<string, unknow
   const [webhookCopied, setWebhookCopied] = useState(false);
   const [founderInfo, setFounderInfo]     = useState<{ name: string; email: string; company: string } | null>(null);
 
+  // ── Win/Loss reason modal ──
+  const [winLossPending, setWinLossPending] = useState<{ dealId: string; stage: "won" | "lost"; company: string } | null>(null);
+  const [winLossReason, setWinLossReason]   = useState("");
+  const [savingWinLoss, setSavingWinLoss]   = useState(false);
+
+  // ── Follow-up email draft ──
+  const [followUpDeal, setFollowUpDeal]     = useState<Deal | null>(null);
+  const [draftingFollowUp, setDraftingFollowUp] = useState(false);
+  const [followUpDraft, setFollowUpDraft]   = useState<{ subject: string; body: string; suggestedSendTime?: string; talkingPoints?: string[] } | null>(null);
+  const [followUpError, setFollowUpError]   = useState<string | null>(null);
+  const [followUpCopied, setFollowUpCopied] = useState(false);
+
+  // ── AI Revenue Forecast ──
+  const [showForecastPanel, setShowForecastPanel] = useState(false);
+  const [runningForecast, setRunningForecast]     = useState(false);
+  const [forecastResult, setForecastResult]       = useState<{
+    thirtyDay?: { expected: string; optimistic: string; pessimistic: string; reasoning: string };
+    sixtyDay?: { expected: string; optimistic: string; pessimistic: string; reasoning: string };
+    ninetyDay?: { expected: string; optimistic: string; pessimistic: string; reasoning: string };
+    closeRateEstimate?: string; pipelineHealth?: string;
+    pipelineGaps?: string[]; riskDeals?: string[]; topDeals?: string[]; recommendation?: string;
+  } | null>(null);
+  const [forecastError, setForecastError] = useState<string | null>(null);
+
+  async function handleAIForecast() {
+    if (runningForecast) return;
+    setRunningForecast(true); setForecastError(null); setForecastResult(null);
+    try {
+      const res = await fetch('/api/agents/susi/forecast', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.forecast) setForecastResult(r.forecast);
+      else setForecastError(r.error ?? 'Forecast failed');
+    } catch { setForecastError('Network error'); }
+    finally { setRunningForecast(false); }
+  }
+
+  // ── Meeting prep ──
+  const [meetingPrepDeal, setMeetingPrepDeal] = useState<Deal | null>(null);
+  const [loadingMeetingPrep, setLoadingMeetingPrep] = useState(false);
+  const [meetingPrep, setMeetingPrep]         = useState<{
+    companySnapshot?: string; contactInsight?: string; dealContext?: string;
+    talkingPoints?: string[]; likelyObjections?: { objection: string; response: string }[];
+    openingQuestion?: string; meetingGoal?: string; redFlags?: string[];
+  } | null>(null);
+  const [meetingPrepError, setMeetingPrepError] = useState<string | null>(null);
+
   useEffect(() => {
     import('@/lib/supabase/client').then(({ createClient }) => {
       const sb = createClient();
@@ -1156,9 +1686,9 @@ function SalesScriptRenderer({ data, artifactId }: { data: Record<string, unknow
 
   const totalDeals = Object.values(deals).reduce((n, arr) => n + arr.length, 0);
 
-  // Load deals when tab switches to pipeline
+  // Load deals when tab switches to pipeline or analytics
   useEffect(() => {
-    if (activeTab !== "pipeline") return;
+    if (activeTab !== "pipeline" && (activeTab as string) !== "analytics") return;
     setLoadingDeals(true);
     fetch("/api/agents/deals")
       .then(r => r.json())
@@ -1207,13 +1737,27 @@ function SalesScriptRenderer({ data, artifactId }: { data: Record<string, unknow
     }
   }
 
-  async function handleMoveDeal(dealId: string, newStage: string) {
+  async function handleMoveDeal(dealId: string, newStage: string, dealCompany?: string) {
+    // For won/lost, show reason modal first
+    if (newStage === "won" || newStage === "lost") {
+      setWinLossReason("");
+      setWinLossPending({ dealId, stage: newStage, company: dealCompany ?? "this deal" });
+      return;
+    }
+    await _applyMoveDeal(dealId, newStage);
+  }
+
+  async function _applyMoveDeal(dealId: string, newStage: string, reason?: string) {
     setMovingDeal(dealId);
     try {
       await fetch("/api/agents/deals", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: dealId, stage: newStage }),
+        body: JSON.stringify({
+          id: dealId,
+          stage: newStage,
+          ...(reason ? (newStage === "won" ? { win_reason: reason } : { loss_reason: reason }) : {}),
+        }),
       });
       const r = await fetch("/api/agents/deals");
       const d = await r.json();
@@ -1221,6 +1765,65 @@ function SalesScriptRenderer({ data, artifactId }: { data: Record<string, unknow
     } catch {} finally {
       setMovingDeal(null);
     }
+  }
+
+  async function handleConfirmWinLoss() {
+    if (!winLossPending || savingWinLoss) return;
+    setSavingWinLoss(true);
+    await _applyMoveDeal(winLossPending.dealId, winLossPending.stage, winLossReason || undefined);
+    setSavingWinLoss(false);
+    setWinLossPending(null);
+    setWinLossReason("");
+  }
+
+  async function handleDraftFollowUp(deal: Deal) {
+    setFollowUpDeal(deal);
+    setFollowUpDraft(null);
+    setFollowUpError(null);
+    setFollowUpCopied(false);
+    setDraftingFollowUp(true);
+    try {
+      const daysAgo = deal.updated_at
+        ? Math.floor((Date.now() - new Date(deal.updated_at).getTime()) / 86400000)
+        : undefined;
+      const res = await fetch('/api/agents/susi/followup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dealId: deal.id, company: deal.company, contactName: deal.contact_name,
+          contactTitle: deal.contact_title, stage: deal.stage, value: deal.value,
+          notes: deal.notes, nextAction: deal.next_action, daysSinceContact: daysAgo,
+          founderName: founderInfo?.name, founderCompany: founderInfo?.company,
+        }),
+      });
+      const r = await res.json();
+      if (res.ok && r.draft?.subject) setFollowUpDraft(r.draft);
+      else setFollowUpError(r.error ?? 'Draft failed');
+    } catch { setFollowUpError('Network error'); }
+    finally { setDraftingFollowUp(false); }
+  }
+
+  async function handleMeetingPrep(deal: Deal) {
+    setMeetingPrepDeal(deal);
+    setMeetingPrep(null);
+    setMeetingPrepError(null);
+    setLoadingMeetingPrep(true);
+    try {
+      const res = await fetch('/api/agents/susi/meeting-prep', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dealId: deal.id, company: deal.company, contactName: deal.contact_name,
+          contactTitle: deal.contact_title, contactEmail: deal.contact_email,
+          stage: deal.stage, value: deal.value, notes: deal.notes,
+          nextAction: deal.next_action, founderCompany: founderInfo?.company,
+        }),
+      });
+      const r = await res.json();
+      if (res.ok && r.prep) setMeetingPrep(r.prep);
+      else setMeetingPrepError(r.error ?? 'Prep failed');
+    } catch { setMeetingPrepError('Network error'); }
+    finally { setLoadingMeetingPrep(false); }
   }
 
   const sectionHead: React.CSSProperties = { fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.14em", color: muted, marginBottom: 10 };
@@ -1258,10 +1861,10 @@ function SalesScriptRenderer({ data, artifactId }: { data: Record<string, unknow
 
       {/* ── Tab bar ── */}
       <div style={{ display: "flex", gap: 4, marginBottom: 18, borderBottom: `1px solid ${bdr}`, paddingBottom: 0 }}>
-        {(["script", "pipeline", "webhook"] as const).map(tab => (
+        {(["script", "pipeline", "analytics", "webhook"] as const).map(tab => (
           <button
             key={tab}
-            onClick={() => setActiveTab(tab)}
+            onClick={() => setActiveTab(tab as "script" | "pipeline" | "webhook")}
             style={{
               padding: "7px 16px", borderRadius: "8px 8px 0 0", border: `1px solid ${activeTab === tab ? bdr : "transparent"}`,
               borderBottom: activeTab === tab ? `1px solid ${bg}` : "none",
@@ -1270,7 +1873,7 @@ function SalesScriptRenderer({ data, artifactId }: { data: Record<string, unknow
               cursor: "pointer", marginBottom: -1,
             }}
           >
-            {tab === "script" ? "Sales Script" : tab === "pipeline" ? `Pipeline${totalDeals > 0 ? ` (${totalDeals})` : ""}` : "Lead Webhook"}
+            {tab === "script" ? "Sales Script" : tab === "pipeline" ? `Pipeline${totalDeals > 0 ? ` (${totalDeals})` : ""}` : tab === "analytics" ? "Analytics" : "Lead Webhook"}
           </button>
         ))}
       </div>
@@ -1376,11 +1979,39 @@ function SalesScriptRenderer({ data, artifactId }: { data: Record<string, unknow
                             <p style={{ fontSize: 11, color: blue, marginBottom: 6 }}>→ {deal.next_action}</p>
                           )}
                           {/* Stage mover */}
-                          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                          <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
+                            {/* Deal score badge */}
+                            {/* Deal score badge + stale flag */}
+                            {(() => {
+                              const stagePts: Record<string, number> = { lead: 20, qualified: 40, proposal: 60, negotiating: 75, won: 100, lost: 0 };
+                              const daysSinceUpdate = deal.updated_at ? Math.floor((Date.now() - new Date(deal.updated_at).getTime()) / 86400000) : (deal.created_at ? Math.floor((Date.now() - new Date(deal.created_at).getTime()) / 86400000) : 0);
+                              const daysOld = deal.created_at ? Math.floor((Date.now() - new Date(deal.created_at).getTime()) / 86400000) : 0;
+                              const stalePenalty = Math.min(daysOld * 1.5, 25);
+                              const score = Math.max(0, Math.round((stagePts[stage] ?? 20) - stalePenalty));
+                              const sc = score >= 70 ? green : score >= 40 ? amber : red;
+                              if (stage === "won" || stage === "lost") return null;
+                              return (
+                                <>
+                                  <span title="Deal score — likelihood to close" style={{ fontSize: 10, fontWeight: 700, color: sc, background: sc + "1A", padding: "2px 7px", borderRadius: 999, border: `1px solid ${sc}40`, marginRight: 4 }}>
+                                    {score}
+                                  </span>
+                                  {daysSinceUpdate >= 30 && (
+                                    <span title="Stale — no activity in 30+ days" style={{ fontSize: 10, fontWeight: 700, color: red, background: "#FEF2F2", padding: "2px 7px", borderRadius: 999, border: "1px solid #FECACA", marginRight: 4 }}>
+                                      ⚠ Stale {daysSinceUpdate}d
+                                    </span>
+                                  )}
+                                  {daysSinceUpdate >= 14 && daysSinceUpdate < 30 && (
+                                    <span title="At risk — no activity in 14+ days" style={{ fontSize: 10, fontWeight: 700, color: amber, background: "#FFFBEB", padding: "2px 7px", borderRadius: 999, border: "1px solid #FDE68A", marginRight: 4 }}>
+                                      ⚡ {daysSinceUpdate}d stale
+                                    </span>
+                                  )}
+                                </>
+                              );
+                            })()}
                             {STAGES.filter(s => s !== stage).map(s => (
                               <button
                                 key={s}
-                                onClick={() => handleMoveDeal(deal.id, s)}
+                                onClick={() => handleMoveDeal(deal.id, s, deal.company)}
                                 disabled={movingDeal === deal.id}
                                 style={{
                                   padding: "2px 8px", borderRadius: 4, border: `1px solid ${STAGE_COLORS[s]}`,
@@ -1392,6 +2023,23 @@ function SalesScriptRenderer({ data, artifactId }: { data: Record<string, unknow
                               </button>
                             ))}
                           </div>
+                          {/* Action buttons */}
+                          {stage !== "won" && stage !== "lost" && (
+                            <div style={{ display: "flex", gap: 6, marginTop: 8, paddingTop: 8, borderTop: `1px solid ${bdr}` }}>
+                              <button
+                                onClick={() => handleDraftFollowUp(deal)}
+                                style={{ padding: "4px 10px", borderRadius: 6, border: `1px solid ${blue}`, background: "transparent", color: blue, fontSize: 10, fontWeight: 600, cursor: "pointer" }}
+                              >
+                                Draft Follow-up
+                              </button>
+                              <button
+                                onClick={() => handleMeetingPrep(deal)}
+                                style={{ padding: "4px 10px", borderRadius: 6, border: `1px solid ${"#7C3AED"}`, background: "transparent", color: "#7C3AED", fontSize: 10, fontWeight: 600, cursor: "pointer" }}
+                              >
+                                Meeting Prep
+                              </button>
+                            </div>
+                          )}
                         </div>
                       ))
                     )}
@@ -1404,8 +2052,219 @@ function SalesScriptRenderer({ data, artifactId }: { data: Record<string, unknow
                   <p style={{ fontSize: 11, color: muted }}>Send a proposal — it automatically creates a deal here.</p>
                 </div>
               )}
+
+              {/* Revenue forecast */}
+              {totalDeals > 0 && (() => {
+                const CLOSE_RATES: Record<string, number> = { lead: 0.05, qualified: 0.15, proposal: 0.30, negotiating: 0.60, won: 1, lost: 0 };
+                let weightedPipeline = 0;
+                let totalPipeline    = 0;
+                Object.entries(deals).forEach(([stage, dealList]) => {
+                  dealList.forEach(d => {
+                    const val = d.value ? parseFloat(String(d.value).replace(/[^0-9.]/g, "")) : 0;
+                    if (val > 0) {
+                      totalPipeline    += val;
+                      weightedPipeline += val * (CLOSE_RATES[stage] ?? 0);
+                    }
+                  });
+                });
+                if (totalPipeline === 0) return null;
+                const fmt = (n: number) => n >= 1000 ? `$${(n / 1000).toFixed(0)}K` : `$${Math.round(n)}`;
+                return (
+                  <div style={{ marginTop: 16, background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 10, padding: "12px 16px" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: green, marginBottom: 6 }}>📈 Revenue Forecast</p>
+                    <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
+                      <div>
+                        <p style={{ fontSize: 18, fontWeight: 700, color: ink }}>{fmt(totalPipeline)}</p>
+                        <p style={{ fontSize: 10, color: muted }}>Total pipeline value</p>
+                      </div>
+                      <div>
+                        <p style={{ fontSize: 18, fontWeight: 700, color: green }}>{fmt(weightedPipeline)}</p>
+                        <p style={{ fontSize: 10, color: muted }}>Expected revenue (probability-weighted)</p>
+                      </div>
+                    </div>
+                    <p style={{ fontSize: 11, color: muted, marginTop: 6 }}>Based on close rates: Lead 5% · Qualified 15% · Proposal 30% · Negotiating 60%</p>
+                  </div>
+                );
+              })()}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Follow-up Draft Modal ── */}
+      {followUpDeal && (
+        <div onClick={() => { if (!draftingFollowUp) { setFollowUpDeal(null); setFollowUpDraft(null); } }} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: bg, borderRadius: 14, padding: 28, width: "100%", maxWidth: 540, maxHeight: "85vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <p style={{ fontSize: 15, fontWeight: 700, color: ink }}>Follow-up Email — {followUpDeal.company}</p>
+              <button onClick={() => { setFollowUpDeal(null); setFollowUpDraft(null); }} style={{ background: "none", border: "none", cursor: "pointer", color: muted, fontSize: 18 }}>×</button>
+            </div>
+            {draftingFollowUp ? (
+              <p style={{ fontSize: 13, color: muted, textAlign: "center", padding: "32px 0" }}>Drafting follow-up…</p>
+            ) : followUpError ? (
+              <p style={{ fontSize: 13, color: red }}>{followUpError}</p>
+            ) : followUpDraft ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div style={{ background: surf, borderRadius: 8, padding: "10px 14px", border: `1px solid ${bdr}` }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", marginBottom: 4 }}>Subject</p>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>{followUpDraft.subject}</p>
+                </div>
+                <div style={{ background: surf, borderRadius: 8, padding: "12px 14px", border: `1px solid ${bdr}` }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", marginBottom: 6 }}>Body</p>
+                  <p style={{ fontSize: 13, color: ink, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{followUpDraft.body}</p>
+                </div>
+                {followUpDraft.suggestedSendTime && (
+                  <p style={{ fontSize: 11, color: muted }}>Best time to send: <strong>{followUpDraft.suggestedSendTime}</strong></p>
+                )}
+                {followUpDraft.talkingPoints && followUpDraft.talkingPoints.length > 0 && (
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", marginBottom: 6 }}>Key Points</p>
+                    {followUpDraft.talkingPoints.map((pt, i) => <p key={i} style={{ fontSize: 12, color: ink, marginBottom: 3 }}>• {pt}</p>)}
+                  </div>
+                )}
+                <div style={{ display: "flex", gap: 8 }}>
+                  {followUpDraft.subject && followUpDraft.body && (
+                    <a
+                      href={`https://mail.google.com/mail/?view=cm&su=${encodeURIComponent(followUpDraft.subject)}&body=${encodeURIComponent(followUpDraft.body)}`}
+                      target="_blank" rel="noopener noreferrer"
+                      style={{ padding: "9px 16px", borderRadius: 8, border: "none", background: blue, color: "#fff", fontSize: 12, fontWeight: 700, textDecoration: "none" }}
+                    >
+                      Open in Gmail
+                    </a>
+                  )}
+                  <button
+                    onClick={() => { navigator.clipboard.writeText(`Subject: ${followUpDraft.subject}\n\n${followUpDraft.body}`); setFollowUpCopied(true); setTimeout(() => setFollowUpCopied(false), 2000); }}
+                    style={{ padding: "9px 16px", borderRadius: 8, border: `1px solid ${bdr}`, background: "transparent", color: ink, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                  >
+                    {followUpCopied ? "Copied ✓" : "Copy Text"}
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      )}
+
+      {/* ── Meeting Prep Modal ── */}
+      {meetingPrepDeal && (
+        <div onClick={() => { if (!loadingMeetingPrep) { setMeetingPrepDeal(null); setMeetingPrep(null); } }} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: bg, borderRadius: 14, padding: 28, width: "100%", maxWidth: 580, maxHeight: "88vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <div>
+                <p style={{ fontSize: 15, fontWeight: 700, color: ink }}>Meeting Prep — {meetingPrepDeal.company}</p>
+                {meetingPrepDeal.contact_name && <p style={{ fontSize: 11, color: muted }}>{meetingPrepDeal.contact_name}{meetingPrepDeal.contact_title ? ` · ${meetingPrepDeal.contact_title}` : ""}</p>}
+              </div>
+              <button onClick={() => { setMeetingPrepDeal(null); setMeetingPrep(null); }} style={{ background: "none", border: "none", cursor: "pointer", color: muted, fontSize: 18 }}>×</button>
+            </div>
+            {loadingMeetingPrep ? (
+              <p style={{ fontSize: 13, color: muted, textAlign: "center", padding: "32px 0" }}>Researching company and preparing brief…</p>
+            ) : meetingPrepError ? (
+              <p style={{ fontSize: 13, color: red }}>{meetingPrepError}</p>
+            ) : meetingPrep ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {meetingPrep.meetingGoal && (
+                  <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "10px 14px", border: "1px solid #BBF7D0" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: green, textTransform: "uppercase", marginBottom: 4 }}>Meeting Goal</p>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>{meetingPrep.meetingGoal}</p>
+                  </div>
+                )}
+                {meetingPrep.companySnapshot && (
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", marginBottom: 4 }}>Company Snapshot</p>
+                    <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{meetingPrep.companySnapshot}</p>
+                  </div>
+                )}
+                {meetingPrep.contactInsight && (
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", marginBottom: 4 }}>Contact Intel</p>
+                    <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{meetingPrep.contactInsight}</p>
+                  </div>
+                )}
+                {meetingPrep.openingQuestion && (
+                  <div style={{ background: "#EFF6FF", borderRadius: 8, padding: "10px 14px", border: "1px solid #BFDBFE" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: blue, textTransform: "uppercase", marginBottom: 4 }}>Open With</p>
+                    <p style={{ fontSize: 13, fontStyle: "italic", color: ink }}>&ldquo;{meetingPrep.openingQuestion}&rdquo;</p>
+                  </div>
+                )}
+                {meetingPrep.talkingPoints && meetingPrep.talkingPoints.length > 0 && (
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", marginBottom: 6 }}>Talking Points</p>
+                    {meetingPrep.talkingPoints.map((pt, i) => (
+                      <div key={i} style={{ display: "flex", gap: 8, marginBottom: 6, alignItems: "flex-start" }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: blue, flexShrink: 0, marginTop: 1 }}>{i + 1}.</span>
+                        <p style={{ fontSize: 12, color: ink, lineHeight: 1.5 }}>{pt}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {meetingPrep.likelyObjections && meetingPrep.likelyObjections.length > 0 && (
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", marginBottom: 6 }}>Likely Objections</p>
+                    {meetingPrep.likelyObjections.map((obj, i) => (
+                      <div key={i} style={{ background: surf, borderRadius: 8, padding: "10px 12px", border: `1px solid ${bdr}`, marginBottom: 6 }}>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: amber, marginBottom: 4 }}>&quot;{obj.objection}&quot;</p>
+                        <p style={{ fontSize: 11, color: ink, lineHeight: 1.5 }}>→ {obj.response}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {meetingPrep.redFlags && meetingPrep.redFlags.length > 0 && (
+                  <div style={{ background: "#FEF2F2", borderRadius: 8, padding: "10px 12px", border: "1px solid #FECACA" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: red, textTransform: "uppercase", marginBottom: 6 }}>Watch Out</p>
+                    {meetingPrep.redFlags.map((flag, i) => <p key={i} style={{ fontSize: 11, color: ink, marginBottom: 3 }}>⚠ {flag}</p>)}
+                  </div>
+                )}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      )}
+
+      {/* ── Win/Loss Reason Modal ── */}
+      {winLossPending && (
+        <div onClick={() => { if (!savingWinLoss) { setWinLossPending(null); setWinLossReason(""); } }} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: bg, borderRadius: 14, padding: 28, width: "100%", maxWidth: 420, boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <p style={{ fontSize: 15, fontWeight: 700, color: ink }}>
+                {winLossPending.stage === "won" ? "🎉 Mark as Won" : "📝 Mark as Lost"}
+              </p>
+              <button onClick={() => { setWinLossPending(null); setWinLossReason(""); }} style={{ background: "none", border: "none", cursor: "pointer", color: muted, fontSize: 18 }}>×</button>
+            </div>
+            <p style={{ fontSize: 13, color: muted, marginBottom: 14, lineHeight: 1.5 }}>
+              {winLossPending.stage === "won"
+                ? `Congrats on closing ${winLossPending.company}! What was the key reason you won?`
+                : `What was the reason ${winLossPending.company} didn't close? (helps Susi spot patterns)`}
+            </p>
+            <textarea
+              value={winLossReason}
+              onChange={e => setWinLossReason(e.target.value)}
+              placeholder={winLossPending.stage === "won"
+                ? "e.g. Strong ROI case, champion inside the company…"
+                : "e.g. Budget freeze, chose competitor X, bad timing…"}
+              rows={3}
+              style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${bdr}`, background: surf, fontSize: 13, color: ink, resize: "vertical", boxSizing: "border-box", fontFamily: "inherit" }}
+            />
+            <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+              <button
+                onClick={() => { setWinLossPending(null); setWinLossReason(""); }}
+                style={{ flex: 1, padding: "9px", borderRadius: 8, border: `1px solid ${bdr}`, background: surf, color: ink, fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+              >
+                Skip
+              </button>
+              <button
+                onClick={handleConfirmWinLoss}
+                disabled={savingWinLoss}
+                style={{
+                  flex: 1, padding: "9px", borderRadius: 8, border: "none",
+                  background: winLossPending.stage === "won" ? green : red,
+                  color: "#fff", fontSize: 13, fontWeight: 700, cursor: savingWinLoss ? "not-allowed" : "pointer",
+                  opacity: savingWinLoss ? 0.7 : 1,
+                }}
+              >
+                {savingWinLoss ? "Saving…" : winLossPending.stage === "won" ? "Mark Won" : "Mark Lost"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1483,6 +2342,330 @@ function SalesScriptRenderer({ data, artifactId }: { data: Record<string, unknow
           </div>
         </div>
       )}
+
+      {/* ── Analytics tab ── */}
+      {(activeTab as string) === "analytics" && (() => {
+        const allDeals = Object.values(deals).flat();
+        const activeDeals = allDeals.filter(d => d.stage !== "won" && d.stage !== "lost");
+        const wonDeals    = deals.won  ?? [];
+        const lostDeals   = deals.lost ?? [];
+
+        // Funnel stage counts
+        const funnelStages = ["lead", "qualified", "proposal", "negotiating"] as const;
+        const funnelCounts = funnelStages.map(s => (deals[s] ?? []).length);
+
+        // Conversion rates between consecutive funnel stages
+        const convRates = funnelStages.slice(1).map((_, i) =>
+          funnelCounts[i] > 0 ? Math.round((funnelCounts[i + 1] / funnelCounts[i]) * 100) : 0
+        );
+
+        // Total pipeline value
+        const pipelineValue = activeDeals.reduce((sum, d) => {
+          const v = parseFloat((d.value ?? "").replace(/[^0-9.]/g, ""));
+          return sum + (isNaN(v) ? 0 : v);
+        }, 0);
+
+        // Stale deals (no update in 14+ days)
+        const now = Date.now();
+        const staleDeals = activeDeals.filter(d => {
+          if (!d.updated_at && !d.created_at) return false;
+          const ts = new Date(d.updated_at ?? d.created_at ?? "").getTime();
+          return (now - ts) / 86400000 > 14;
+        });
+
+        // Win rate
+        const closedCount = wonDeals.length + lostDeals.length;
+        const winRate = closedCount > 0 ? Math.round((wonDeals.length / closedCount) * 100) : null;
+
+        // Avg deal value (won deals)
+        const wonValues = wonDeals
+          .map(d => parseFloat((d.value ?? "").replace(/[^0-9.]/g, "")))
+          .filter(v => !isNaN(v) && v > 0);
+        const avgWonValue = wonValues.length > 0 ? Math.round(wonValues.reduce((a, b) => a + b, 0) / wonValues.length) : null;
+
+        const statCard = (label: string, value: string, sub?: string, accent?: string) => (
+          <div style={{ background: "#fff", border: `1px solid ${bdr}`, borderRadius: 12, padding: "18px 20px", flex: 1, minWidth: 120 }}>
+            <p style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>{label}</p>
+            <p style={{ fontSize: 26, fontWeight: 800, color: accent ?? ink, lineHeight: 1 }}>{value}</p>
+            {sub && <p style={{ fontSize: 11, color: muted, marginTop: 4 }}>{sub}</p>}
+          </div>
+        );
+
+        return (
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            {/* KPI row */}
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              {statCard("Active Deals", String(activeDeals.length), `${wonDeals.length} won · ${lostDeals.length} lost`)}
+              {statCard("Pipeline Value", pipelineValue > 0 ? `$${pipelineValue.toLocaleString()}` : "—", "active stages")}
+              {statCard("Win Rate", winRate !== null ? `${winRate}%` : "—", `${closedCount} closed deals`, winRate !== null ? (winRate >= 50 ? green : red) : undefined)}
+              {statCard("Avg Won Value", avgWonValue ? `$${avgWonValue.toLocaleString()}` : "—", wonValues.length > 0 ? `${wonValues.length} deals` : "no data")}
+            </div>
+
+            {/* Funnel */}
+            <div style={{ background: "#fff", border: `1px solid ${bdr}`, borderRadius: 12, padding: "20px 22px" }}>
+              <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 16 }}>Sales Funnel</p>
+              {funnelStages.map((stage, i) => {
+                const count = funnelCounts[i];
+                const maxCount = Math.max(...funnelCounts, 1);
+                const pct = Math.round((count / maxCount) * 100);
+                const colors = [muted, blue, amber, "#7C3AED"];
+                return (
+                  <div key={stage} style={{ marginBottom: i < funnelStages.length - 1 ? 10 : 0 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: colors[i], textTransform: "capitalize" }}>{stage}</span>
+                      <span style={{ fontSize: 12, color: muted }}>{count} deal{count !== 1 ? "s" : ""}{i > 0 && funnelCounts[i - 1] > 0 ? ` · ${convRates[i - 1]}% from prev` : ""}</span>
+                    </div>
+                    <div style={{ height: 8, borderRadius: 4, background: surf, overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: `${pct}%`, background: colors[i], borderRadius: 4, transition: "width 0.4s" }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Stale deals alert */}
+            {staleDeals.length > 0 && (
+              <div style={{ background: "#FFFBEB", border: `1px solid #FDE68A`, borderRadius: 12, padding: "16px 20px" }}>
+                <p style={{ fontSize: 13, fontWeight: 700, color: amber, marginBottom: 8 }}>⚠ {staleDeals.length} Stale Deal{staleDeals.length !== 1 ? "s" : ""} (14+ days inactive)</p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {staleDeals.map(d => {
+                    const ts = new Date(d.updated_at ?? d.created_at ?? "").getTime();
+                    const days = Math.floor((now - ts) / 86400000);
+                    return (
+                      <span key={d.id} style={{ fontSize: 11, fontWeight: 600, background: "#FEF3C7", borderRadius: 6, padding: "3px 10px", color: "#92400E" }}>
+                        {d.company} · {days}d
+                      </span>
+                    );
+                  })}
+                </div>
+                <p style={{ fontSize: 11, color: muted, marginTop: 10 }}>Use &quot;Draft Follow-up&quot; in the Pipeline tab to re-engage.</p>
+              </div>
+            )}
+
+            {/* Stage breakdown table */}
+            <div style={{ background: "#fff", border: `1px solid ${bdr}`, borderRadius: 12, padding: "20px 22px" }}>
+              <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 14 }}>Stage Breakdown</p>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                <thead>
+                  <tr style={{ borderBottom: `1px solid ${bdr}` }}>
+                    {["Stage", "Deals", "Value", "% of Pipeline"].map(h => (
+                      <th key={h} style={{ textAlign: "left", padding: "6px 8px", fontWeight: 600, color: muted, fontSize: 11, textTransform: "uppercase" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(["lead", "qualified", "proposal", "negotiating", "won", "lost"] as const).map(stage => {
+                    const stageDls = deals[stage] ?? [];
+                    const stageVal = stageDls.reduce((sum, dl) => {
+                      const v = parseFloat((dl.value ?? "").replace(/[^0-9.]/g, ""));
+                      return sum + (isNaN(v) ? 0 : v);
+                    }, 0);
+                    const totalVal = allDeals.reduce((sum, dl) => {
+                      const v = parseFloat((dl.value ?? "").replace(/[^0-9.]/g, ""));
+                      return sum + (isNaN(v) ? 0 : v);
+                    }, 0);
+                    const stageColors: Record<string, string> = { lead: muted, qualified: blue, proposal: amber, negotiating: "#7C3AED", won: green, lost: red };
+                    return (
+                      <tr key={stage} style={{ borderBottom: `1px solid ${surf}` }}>
+                        <td style={{ padding: "9px 8px" }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: stageColors[stage], textTransform: "capitalize" }}>{stage}</span>
+                        </td>
+                        <td style={{ padding: "9px 8px", color: ink, fontWeight: 600 }}>{stageDls.length}</td>
+                        <td style={{ padding: "9px 8px", color: muted }}>{stageVal > 0 ? `$${stageVal.toLocaleString()}` : "—"}</td>
+                        <td style={{ padding: "9px 8px", color: muted }}>{totalVal > 0 && stageVal > 0 ? `${Math.round((stageVal / totalVal) * 100)}%` : "—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* ── Revenue Forecast ── */}
+            {activeDeals.length > 0 && (() => {
+              // Stage-based close probability weights
+              const stageProbability: Record<string, number> = { lead: 0.10, qualified: 0.25, proposal: 0.45, negotiating: 0.75 };
+              // Expected revenue = Σ (deal_value × close_probability)
+              const expectedRevenue = activeDeals.reduce((sum, d) => {
+                const v = parseFloat((d.value ?? "").replace(/[^0-9.]/g, ""));
+                const prob = stageProbability[d.stage] ?? 0.10;
+                return sum + (isNaN(v) ? 0 : v * prob);
+              }, 0);
+              // Historical win rate adjusted forecast
+              const wrAdjusted = winRate !== null ? activeDeals.reduce((sum, d) => {
+                const v = parseFloat((d.value ?? "").replace(/[^0-9.]/g, ""));
+                return sum + (isNaN(v) ? 0 : v * winRate / 100);
+              }, 0) : null;
+              // Avg deal age in days
+              const ages = activeDeals.map(d => {
+                const ts = new Date(d.created_at ?? Date.now()).getTime();
+                return Math.floor((Date.now() - ts) / 86400000);
+              });
+              const avgAge = ages.length > 0 ? Math.round(ages.reduce((a, b) => a + b, 0) / ages.length) : 0;
+              // Estimated close window (rough: most startups close in 30-90 days)
+              const closeWindow = avgAge < 30 ? "30–60 days" : avgAge < 60 ? "60–90 days" : "90+ days";
+              return (
+                <div style={{ background: "#EFF6FF", border: `1px solid #BFDBFE`, borderRadius: 12, padding: "20px 22px" }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: blue, marginBottom: 4 }}>Revenue Forecast</p>
+                  <p style={{ fontSize: 11, color: muted, marginBottom: 16 }}>Based on {activeDeals.length} active deal{activeDeals.length !== 1 ? "s" : ""} and stage close probabilities.</p>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
+                    {[
+                      { label: "Expected (weighted)", value: `$${Math.round(expectedRevenue).toLocaleString()}`, sub: "stage probability model", accent: blue },
+                      { label: "Historical Rate", value: wrAdjusted !== null ? `$${Math.round(wrAdjusted).toLocaleString()}` : "—", sub: winRate !== null ? `${winRate}% win rate` : "no closed deals yet", accent: winRate !== null && winRate >= 50 ? green : red },
+                      { label: "Likely Close Window", value: closeWindow, sub: `avg deal age: ${avgAge}d`, accent: ink },
+                    ].map(({ label, value, sub, accent }) => (
+                      <div key={label} style={{ background: "#fff", borderRadius: 8, padding: "14px 16px", border: `1px solid #BFDBFE` }}>
+                        <p style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>{label}</p>
+                        <p style={{ fontSize: 22, fontWeight: 800, color: accent, lineHeight: 1 }}>{value}</p>
+                        <p style={{ fontSize: 10, color: muted, marginTop: 4 }}>{sub}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Per-stage forecast breakdown */}
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: muted, letterSpacing: "0.1em", marginBottom: 8 }}>Stage Contribution</p>
+                    {(["lead", "qualified", "proposal", "negotiating"] as const).map(stage => {
+                      const stageDls = (deals[stage] ?? []);
+                      const stageExpected = stageDls.reduce((sum, d) => {
+                        const v = parseFloat((d.value ?? "").replace(/[^0-9.]/g, ""));
+                        const prob = stageProbability[stage];
+                        return sum + (isNaN(v) ? 0 : v * prob);
+                      }, 0);
+                      const contrib = expectedRevenue > 0 ? Math.round((stageExpected / expectedRevenue) * 100) : 0;
+                      const sc = { lead: muted, qualified: blue, proposal: amber, negotiating: "#7C3AED" }[stage];
+                      if (stageDls.length === 0) return null;
+                      return (
+                        <div key={stage} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                          <span style={{ fontSize: 11, fontWeight: 600, color: sc, textTransform: "capitalize", width: 90 }}>{stage}</span>
+                          <div style={{ flex: 1, height: 6, background: surf, borderRadius: 999, overflow: "hidden" }}>
+                            <div style={{ width: `${contrib}%`, height: "100%", background: sc, borderRadius: 999 }} />
+                          </div>
+                          <span style={{ fontSize: 11, color: muted, width: 80, textAlign: "right" }}>${Math.round(stageExpected).toLocaleString()} ({Math.round(stageProbability[stage] * 100)}%)</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p style={{ fontSize: 10, color: muted, marginTop: 12, fontStyle: "italic" }}>Probabilities: Lead 10% · Qualified 25% · Proposal 45% · Negotiating 75%</p>
+                </div>
+              );
+            })()}
+
+            {/* ── AI Revenue Forecast ── */}
+            <div style={{ background: showForecastPanel && forecastResult ? "#EFF6FF" : surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${showForecastPanel && forecastResult ? "#BFDBFE" : bdr}` }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>
+                    AI Revenue Forecast
+                    {forecastResult?.pipelineHealth && <span style={{ marginLeft: 8, fontSize: 10, padding: "2px 8px", borderRadius: 999, background: forecastResult.pipelineHealth === 'strong' ? "#DCFCE7" : forecastResult.pipelineHealth === 'at_risk' ? "#FEE2E2" : "#FEF3C7", color: forecastResult.pipelineHealth === 'strong' ? green : forecastResult.pipelineHealth === 'at_risk' ? red : amber, fontWeight: 700, textTransform: "capitalize" }}>{forecastResult.pipelineHealth.replace('_', ' ')}</span>}
+                  </p>
+                  <p style={{ fontSize: 11, color: muted }}>AI-powered 30/60/90 day forecast from your pipeline using close rate modeling and deal stage weighting.</p>
+                </div>
+                <button onClick={() => { setShowForecastPanel(!showForecastPanel); if (!forecastResult && !showForecastPanel) handleAIForecast(); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: blue, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0, marginLeft: 12 }}>
+                  {showForecastPanel ? "Hide" : "Run Forecast"}
+                </button>
+              </div>
+              {showForecastPanel && (
+                <div style={{ marginTop: 14 }}>
+                  {runningForecast ? (
+                    <p style={{ fontSize: 12, color: muted, textAlign: "center", padding: "24px 0" }}>Analyzing pipeline and modeling revenue…</p>
+                  ) : forecastError ? (
+                    <p style={{ fontSize: 12, color: red }}>{forecastError}</p>
+                  ) : forecastResult ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                      {/* 30/60/90 grid */}
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+                        {([["30-Day", forecastResult.thirtyDay], ["60-Day", forecastResult.sixtyDay], ["90-Day", forecastResult.ninetyDay]] as [string, typeof forecastResult.thirtyDay][]).map(([label, p]) => p ? (
+                          <div key={label} style={{ background: bg, borderRadius: 10, padding: "12px 14px", border: `1px solid ${bdr}` }}>
+                            <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", marginBottom: 6 }}>{label}</p>
+                            <p style={{ fontSize: 18, fontWeight: 800, color: blue }}>{p.expected}</p>
+                            <p style={{ fontSize: 10, color: green, marginTop: 2 }}>↑ {p.optimistic}</p>
+                            <p style={{ fontSize: 10, color: red }}>↓ {p.pessimistic}</p>
+                            <p style={{ fontSize: 10, color: muted, marginTop: 4, lineHeight: 1.4 }}>{p.reasoning}</p>
+                          </div>
+                        ) : null)}
+                      </div>
+                      {forecastResult.closeRateEstimate && (
+                        <p style={{ fontSize: 11, color: muted }}>Est. close rate: <strong style={{ color: ink }}>{forecastResult.closeRateEstimate}</strong></p>
+                      )}
+                      {forecastResult.topDeals && forecastResult.topDeals.length > 0 && (
+                        <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "10px 12px", border: "1px solid #BBF7D0" }}>
+                          <p style={{ fontSize: 10, fontWeight: 700, color: green, textTransform: "uppercase", marginBottom: 6 }}>Most Likely to Close</p>
+                          {forecastResult.topDeals.map((d, i) => <p key={i} style={{ fontSize: 11, color: ink, marginBottom: 3 }}>✓ {d}</p>)}
+                        </div>
+                      )}
+                      {forecastResult.riskDeals && forecastResult.riskDeals.length > 0 && (
+                        <div style={{ background: "#FEF2F2", borderRadius: 8, padding: "10px 12px", border: "1px solid #FECACA" }}>
+                          <p style={{ fontSize: 10, fontWeight: 700, color: red, textTransform: "uppercase", marginBottom: 6 }}>At Risk</p>
+                          {forecastResult.riskDeals.map((d, i) => <p key={i} style={{ fontSize: 11, color: ink, marginBottom: 3 }}>⚠ {d}</p>)}
+                        </div>
+                      )}
+                      {forecastResult.recommendation && (
+                        <div style={{ background: "#EFF6FF", borderRadius: 8, padding: "10px 12px", border: "1px solid #BFDBFE" }}>
+                          <p style={{ fontSize: 10, fontWeight: 700, color: blue, textTransform: "uppercase", marginBottom: 4 }}>Susi Recommends</p>
+                          <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{forecastResult.recommendation}</p>
+                        </div>
+                      )}
+                      <button onClick={handleAIForecast} style={{ padding: "6px 14px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>Refresh Forecast</button>
+                    </div>
+                  ) : null}
+                </div>
+              )}
+            </div>
+
+            {/* ── Deal Scoring ── */}
+            {activeDeals.length > 0 && (() => {
+              // Score each deal 0-100 based on stage, idle time, and deal value
+              const STAGE_BASE: Record<string, number> = { lead: 15, qualified: 35, proposal: 60, negotiating: 80 };
+              type Deal = { company: string; stage: string; value?: string; updated_at?: string; created_at?: string; contact_name?: string };
+              const scored = (activeDeals as Deal[]).map((d) => {
+                const stageScore = STAGE_BASE[d.stage] ?? 10;
+                const lastUpdate = d.updated_at ?? d.created_at ?? "";
+                const idleDays = lastUpdate ? Math.floor((Date.now() - new Date(lastUpdate).getTime()) / 86400000) : 0;
+                const idlePenalty = Math.min(idleDays * 1.5, 30); // -1.5 per idle day, max -30
+                const val = parseFloat((d.value ?? "").replace(/[^0-9.]/g, "")) || 0;
+                const valueBump = val >= 10000 ? 5 : val >= 5000 ? 3 : val >= 1000 ? 1 : 0;
+                const score = Math.max(5, Math.min(98, stageScore - idlePenalty + valueBump));
+                return { company: d.company, stage: d.stage, score: Math.round(score), idleDays, value: d.value };
+              }).sort((a, b) => b.score - a.score);
+
+              return (
+                <div style={{ background: surf, borderRadius: 12, padding: "16px 20px", border: `1px solid ${bdr}` }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 4 }}>Deal Scoring — Close Likelihood</p>
+                  <p style={{ fontSize: 11, color: muted, marginBottom: 14 }}>Ranked by probability to close. Score = stage + recency + deal size. Idle deals lose score over time.</p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {scored.map((d, i) => (
+                      <div key={i} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <div style={{ width: 44, height: 44, borderRadius: 10, background: d.score >= 70 ? "#F0FDF4" : d.score >= 45 ? "#FFFBEB" : "#FEF2F2", border: `2px solid ${d.score >= 70 ? green : d.score >= 45 ? amber : red}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          <p style={{ fontSize: 14, fontWeight: 800, color: d.score >= 70 ? green : d.score >= 45 ? amber : red }}>{d.score}</p>
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>{d.company}</p>
+                            <span style={{ fontSize: 9, padding: "2px 7px", borderRadius: 999, background: surf, border: `1px solid ${bdr}`, color: muted, textTransform: "capitalize" }}>{d.stage}</span>
+                            {d.value && <span style={{ fontSize: 10, color: green, fontWeight: 600 }}>{d.value}</span>}
+                          </div>
+                          <div style={{ marginTop: 4, height: 5, background: bdr, borderRadius: 3, overflow: "hidden" }}>
+                            <div style={{ width: `${d.score}%`, height: "100%", background: d.score >= 70 ? green : d.score >= 45 ? amber : red, borderRadius: 3 }} />
+                          </div>
+                        </div>
+                        {d.idleDays > 7 && (
+                          <span style={{ fontSize: 10, color: red, fontWeight: 600, flexShrink: 0 }}>⚠ {d.idleDays}d idle</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {allDeals.length === 0 && (
+              <div style={{ textAlign: "center", padding: "40px 20px", color: muted }}>
+                <p style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>No pipeline data yet</p>
+                <p style={{ fontSize: 12 }}>Add deals in the Pipeline tab to see analytics.</p>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ── Webhook tab ── */}
       {activeTab === "webhook" && (
@@ -1576,6 +2759,81 @@ function BrandMessagingRenderer({ data, artifactId }: { data: Record<string, unk
   const [bufferResult, setBufferResult]       = useState<{ scheduled: number; profiles: string[] } | null>(null);
   const [bufferError, setBufferError]         = useState<string | null>(null);
 
+  // Content repurposing state
+  const [repurposing, setRepurposing]           = useState(false);
+  const [repurposeResult, setRepurposeResult]   = useState<{
+    twitterThread?: { tweets: string[]; hook: string };
+    linkedInPost?: { body: string; hook: string };
+    newsletterExcerpt?: { subject: string; preheader: string; body: string };
+    socialGraphicCopy?: { headline: string; subheadline: string; cta: string };
+  } | null>(null);
+  const [repurposeError, setRepurposeError]     = useState<string | null>(null);
+  const [repurposeTab, setRepurposeTab]         = useState<"twitter" | "linkedin" | "newsletter" | "graphic">("twitter");
+  const [copiedRepurpose, setCopiedRepurpose]   = useState<string | null>(null);
+
+  // Brand consistency checker state
+  const [showBrandCheck, setShowBrandCheck]   = useState(false);
+  const [brandCheckCopy, setBrandCheckCopy]   = useState("");
+  const [brandCheckType, setBrandCheckType]   = useState<"website" | "email" | "social" | "deck" | "general">("general");
+  const [brandChecking, setBrandChecking]     = useState(false);
+  const [brandCheckResult, setBrandCheckResult] = useState<{
+    overallScore: number; grade: string;
+    dimensions: { name: string; score: number; status: string; feedback: string }[];
+    topIssues: string[]; topStrengths: string[]; revisedOpening?: string;
+  } | null>(null);
+  const [brandCheckError, setBrandCheckError] = useState<string | null>(null);
+
+  // Newsletter state
+  const [showNewsletterModal, setShowNewsletterModal] = useState(false);
+  const [newsletterTopic, setNewsletterTopic]         = useState("");
+  const [newsletterSubs, setNewsletterSubs]           = useState("");
+  const [newsletterSend, setNewsletterSend]           = useState(false);
+  const [newsletterLoading, setNewsletterLoading]     = useState(false);
+  const [newsletterResult, setNewsletterResult]       = useState<{ subject?: string; sent?: number; failed?: number; html?: string } | null>(null);
+  const [newsletterError, setNewsletterError]         = useState<string | null>(null);
+
+  async function handleSendNewsletter() {
+    if (newsletterLoading || !newsletterTopic.trim()) return;
+    setNewsletterLoading(true); setNewsletterError(null); setNewsletterResult(null);
+    const subscribers = newsletterSubs.split(/[\n,]+/).map(e => e.trim()).filter(e => e.includes('@'));
+    try {
+      const res = await fetch('/api/agents/maya/newsletter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic: newsletterTopic, subscribers, send: newsletterSend && subscribers.length > 0 }),
+      });
+      const r = await res.json();
+      if (res.ok) setNewsletterResult(r);
+      else setNewsletterError(r.error ?? 'Failed to generate newsletter');
+    } catch { setNewsletterError('Network error'); }
+    finally { setNewsletterLoading(false); }
+  }
+
+  // Press kit state
+  const [generatingPressKit, setGeneratingPressKit] = useState(false);
+  const [pressKitError, setPressKitError]           = useState<string | null>(null);
+
+  async function handleGeneratePressKit() {
+    if (generatingPressKit) return;
+    setGeneratingPressKit(true); setPressKitError(null);
+    try {
+      const res = await fetch('/api/agents/maya/press-kit', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.html) {
+        const blob = new Blob([r.html], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'press-kit.html';
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        setPressKitError(r.error ?? 'Failed to generate press kit');
+      }
+    } catch { setPressKitError('Network error'); }
+    finally { setGeneratingPressKit(false); }
+  }
+
   useEffect(() => {
     if (!artifactId) return;
     fetch(`/api/agents/landingpage/deploy?artifactId=${artifactId}`)
@@ -1656,6 +2914,47 @@ function BrandMessagingRenderer({ data, artifactId }: { data: Record<string, unk
       else setBufferError(r.error ?? 'Scheduling failed');
     } catch { setBufferError('Network error'); }
     finally { setScheduling(false); }
+  }
+
+  async function handleBrandCheck() {
+    if (!brandCheckCopy.trim() || brandChecking) return;
+    setBrandChecking(true); setBrandCheckError(null); setBrandCheckResult(null);
+    try {
+      const res = await fetch('/api/agents/maya/brand-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ copy: brandCheckCopy.trim(), contentType: brandCheckType }),
+      });
+      const r = await res.json();
+      if (res.ok && r.result?.overallScore !== undefined) setBrandCheckResult(r.result);
+      else setBrandCheckError(r.error ?? 'Check failed');
+    } catch { setBrandCheckError('Network error'); }
+    finally { setBrandChecking(false); }
+  }
+
+  async function handleRepurpose() {
+    if (!blogHtml || repurposing) return;
+    setRepurposing(true); setRepurposeError(null); setRepurposeResult(null);
+    // Strip HTML tags to get plain text for repurposing
+    const plainText = blogHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    try {
+      const res = await fetch('/api/agents/maya/repurpose', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: plainText, topic: blogTopic, artifactId }),
+      });
+      const r = await res.json();
+      if (res.ok && r.repurposed) setRepurposeResult(r.repurposed);
+      else setRepurposeError(r.error ?? 'Repurposing failed');
+    } catch { setRepurposeError('Network error'); }
+    finally { setRepurposing(false); }
+  }
+
+  function copyRepurpose(text: string, key: string) {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedRepurpose(key);
+      setTimeout(() => setCopiedRepurpose(null), 2000);
+    }).catch(() => {});
   }
 
   const sectionHead: React.CSSProperties = { fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.14em", color: muted, marginBottom: 10 };
@@ -1982,20 +3281,531 @@ function BrandMessagingRenderer({ data, artifactId }: { data: Record<string, unk
                 {blogPublishError && (
                   <div style={{ padding: "8px 12px", borderRadius: 8, background: "#FEF2F2", border: "1px solid #FECACA", marginBottom: 12, fontSize: 13, color: "#DC2626" }}>{blogPublishError}</div>
                 )}
-                <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-                  <button onClick={() => { setBlogHtml(null); setBlogTopic(""); setBlogPublishedUrl(null); }} style={{ padding: "9px 18px", borderRadius: 8, border: `1px solid ${bdr}`, background: "transparent", color: ink, fontSize: 13, cursor: "pointer" }}>Write Another</button>
+                <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+                  <button onClick={() => { setBlogHtml(null); setBlogTopic(""); setBlogPublishedUrl(null); setRepurposeResult(null); }} style={{ padding: "9px 18px", borderRadius: 8, border: `1px solid ${bdr}`, background: "transparent", color: ink, fontSize: 13, cursor: "pointer" }}>Write Another</button>
                   <button onClick={downloadBlog} style={{ padding: "9px 18px", borderRadius: 8, border: `1px solid ${bdr}`, background: "transparent", color: ink, fontSize: 13, cursor: "pointer" }}>
                     Download HTML
+                  </button>
+                  <button onClick={handleRepurpose} disabled={repurposing} style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: repurposing ? bdr : "#059669", color: repurposing ? muted : "#fff", fontSize: 13, fontWeight: 600, cursor: repurposing ? "not-allowed" : "pointer" }}>
+                    {repurposing ? "Repurposing…" : "♻ Repurpose"}
                   </button>
                   <button onClick={handlePublishBlog} disabled={publishingBlog || !!blogPublishedUrl} style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: publishingBlog ? bdr : blogPublishedUrl ? "#16A34A" : purple, color: publishingBlog ? muted : "#fff", fontSize: 13, fontWeight: 600, cursor: publishingBlog || blogPublishedUrl ? "default" : "pointer" }}>
                     {publishingBlog ? "Publishing…" : blogPublishedUrl ? "Published ✓" : "Publish to Site"}
                   </button>
                 </div>
+                {repurposeError && <p style={{ fontSize: 12, color: red, marginTop: 8 }}>{repurposeError}</p>}
+                {/* Repurposed content panel */}
+                {repurposeResult && (
+                  <div style={{ marginTop: 16, border: `1px solid ${bdr}`, borderRadius: 10, overflow: "hidden" }}>
+                    <div style={{ display: "flex", borderBottom: `1px solid ${bdr}` }}>
+                      {([
+                        { key: "twitter", label: "Twitter Thread" },
+                        { key: "linkedin", label: "LinkedIn" },
+                        { key: "newsletter", label: "Newsletter" },
+                        { key: "graphic", label: "Social Graphic" },
+                      ] as const).map(({ key, label }) => (
+                        <button key={key} onClick={() => setRepurposeTab(key)} style={{ flex: 1, padding: "8px 4px", border: "none", borderRight: `1px solid ${bdr}`, background: repurposeTab === key ? purple : "transparent", color: repurposeTab === key ? "#fff" : muted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{ padding: "14px 16px" }}>
+                      {repurposeTab === "twitter" && repurposeResult.twitterThread && (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                          {repurposeResult.twitterThread.tweets.map((tweet, i) => (
+                            <div key={i} style={{ background: surf, borderRadius: 8, padding: "10px 12px", border: `1px solid ${bdr}`, display: "flex", gap: 8, alignItems: "flex-start" }}>
+                              <span style={{ fontSize: 10, fontWeight: 700, color: muted, flexShrink: 0, marginTop: 2 }}>{i + 1}/</span>
+                              <p style={{ fontSize: 13, color: ink, lineHeight: 1.6, flex: 1 }}>{tweet}</p>
+                              <button onClick={() => copyRepurpose(tweet, `tw${i}`)} style={{ padding: "3px 8px", borderRadius: 6, border: `1px solid ${bdr}`, background: "transparent", fontSize: 10, color: muted, cursor: "pointer", flexShrink: 0 }}>{copiedRepurpose === `tw${i}` ? "✓" : "Copy"}</button>
+                            </div>
+                          ))}
+                          <button onClick={() => copyRepurpose(repurposeResult.twitterThread!.tweets.join('\n\n'), 'twAll')} style={{ padding: "7px 14px", borderRadius: 8, border: `1px solid #1DA1F2`, background: "transparent", color: "#1DA1F2", fontSize: 12, fontWeight: 600, cursor: "pointer", alignSelf: "flex-start" }}>
+                            {copiedRepurpose === "twAll" ? "Copied ✓" : "Copy All Tweets"}
+                          </button>
+                        </div>
+                      )}
+                      {repurposeTab === "linkedin" && repurposeResult.linkedInPost && (
+                        <div>
+                          <p style={{ fontSize: 13, color: ink, lineHeight: 1.75, whiteSpace: "pre-wrap", marginBottom: 12 }}>{repurposeResult.linkedInPost.body}</p>
+                          <button onClick={() => copyRepurpose(repurposeResult.linkedInPost!.body, 'li')} style={{ padding: "7px 14px", borderRadius: 8, border: "1px solid #0077B5", background: "transparent", color: "#0077B5", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                            {copiedRepurpose === "li" ? "Copied ✓" : "Copy LinkedIn Post"}
+                          </button>
+                        </div>
+                      )}
+                      {repurposeTab === "newsletter" && repurposeResult.newsletterExcerpt && (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                          <div><p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", marginBottom: 3 }}>Subject Line</p><p style={{ fontSize: 13, fontWeight: 600, color: ink }}>{repurposeResult.newsletterExcerpt.subject}</p></div>
+                          <div><p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", marginBottom: 3 }}>Preheader</p><p style={{ fontSize: 12, color: muted }}>{repurposeResult.newsletterExcerpt.preheader}</p></div>
+                          <div><p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", marginBottom: 3 }}>Body</p><p style={{ fontSize: 13, color: ink, lineHeight: 1.7 }}>{repurposeResult.newsletterExcerpt.body}</p></div>
+                          <button onClick={() => copyRepurpose(`Subject: ${repurposeResult.newsletterExcerpt!.subject}\n\n${repurposeResult.newsletterExcerpt!.body}`, 'nl')} style={{ padding: "7px 14px", borderRadius: 8, border: `1px solid ${bdr}`, background: "transparent", color: ink, fontSize: 12, fontWeight: 600, cursor: "pointer", alignSelf: "flex-start" }}>
+                            {copiedRepurpose === "nl" ? "Copied ✓" : "Copy Newsletter"}
+                          </button>
+                        </div>
+                      )}
+                      {repurposeTab === "graphic" && repurposeResult.socialGraphicCopy && (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                          <div style={{ background: "linear-gradient(135deg, #7C3AED, #4F46E5)", borderRadius: 10, padding: "24px", textAlign: "center" }}>
+                            <p style={{ fontSize: 22, fontWeight: 800, color: "#fff", marginBottom: 6 }}>{repurposeResult.socialGraphicCopy.headline}</p>
+                            <p style={{ fontSize: 14, color: "rgba(255,255,255,0.8)", marginBottom: 12 }}>{repurposeResult.socialGraphicCopy.subheadline}</p>
+                            <span style={{ display: "inline-block", padding: "6px 16px", borderRadius: 999, background: "rgba(255,255,255,0.2)", color: "#fff", fontSize: 12, fontWeight: 700 }}>{repurposeResult.socialGraphicCopy.cta}</span>
+                          </div>
+                          <button onClick={() => copyRepurpose(`Headline: ${repurposeResult.socialGraphicCopy!.headline}\nSubheadline: ${repurposeResult.socialGraphicCopy!.subheadline}\nCTA: ${repurposeResult.socialGraphicCopy!.cta}`, 'sg')} style={{ padding: "7px 14px", borderRadius: 8, border: `1px solid ${bdr}`, background: "transparent", color: ink, fontSize: 12, fontWeight: 600, cursor: "pointer", alignSelf: "flex-start" }}>
+                            {copiedRepurpose === "sg" ? "Copied ✓" : "Copy Text"}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </div>
         </div>
       )}
+      {/* ── Brand Consistency Checker ──────────────────────────────────────── */}
+      <div
+        style={{
+          background: "#FAFAF5",
+          borderRadius: 12,
+          padding: "16px 18px",
+          border: `1px solid ${bdr}`,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: showBrandCheck ? 14 : 0,
+          }}
+        >
+          <div>
+            <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 2 }}>
+              Check Brand Consistency
+            </p>
+            <p style={{ fontSize: 11, color: muted }}>
+              Paste any copy — website, email, social post — and Maya scores it against your brand
+              guide.
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              setShowBrandCheck((v) => !v);
+              setBrandCheckResult(null);
+              setBrandCheckError(null);
+            }}
+            style={{
+              padding: "7px 14px",
+              borderRadius: 8,
+              border: `1px solid ${purple}`,
+              background: showBrandCheck ? purple : "transparent",
+              color: showBrandCheck ? "#fff" : purple,
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: "pointer",
+              flexShrink: 0,
+            }}
+          >
+            {showBrandCheck ? "Close" : "Check Copy"}
+          </button>
+        </div>
+
+        {showBrandCheck && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {(["general", "website", "email", "social", "deck"] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setBrandCheckType(t)}
+                  style={{
+                    padding: "4px 12px",
+                    borderRadius: 999,
+                    border: `1px solid ${brandCheckType === t ? purple : bdr}`,
+                    background: brandCheckType === t ? "#F5F3FF" : "transparent",
+                    color: brandCheckType === t ? purple : muted,
+                    fontSize: 11,
+                    fontWeight: brandCheckType === t ? 700 : 400,
+                    cursor: "pointer",
+                    textTransform: "capitalize",
+                  }}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+            <textarea
+              value={brandCheckCopy}
+              onChange={(e) => setBrandCheckCopy(e.target.value)}
+              placeholder="Paste your copy here (website headline, email subject + body, social post, deck slide text…)"
+              rows={5}
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                borderRadius: 8,
+                border: `1px solid ${bdr}`,
+                fontSize: 13,
+                color: ink,
+                resize: "vertical",
+                fontFamily: "inherit",
+                lineHeight: 1.6,
+                boxSizing: "border-box",
+              }}
+            />
+            {brandCheckError && <p style={{ fontSize: 12, color: red }}>{brandCheckError}</p>}
+            <button
+              onClick={handleBrandCheck}
+              disabled={brandChecking || !brandCheckCopy.trim()}
+              style={{
+                padding: "9px 18px",
+                borderRadius: 8,
+                border: "none",
+                background: brandChecking || !brandCheckCopy.trim() ? bdr : purple,
+                color: brandChecking || !brandCheckCopy.trim() ? muted : "#fff",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: brandChecking || !brandCheckCopy.trim() ? "not-allowed" : "pointer",
+                alignSelf: "flex-start",
+              }}
+            >
+              {brandChecking ? "Checking…" : "Analyse Copy"}
+            </button>
+            {brandCheckResult &&
+              (() => {
+                const scoreColor =
+                  brandCheckResult.overallScore >= 70
+                    ? green
+                    : brandCheckResult.overallScore >= 45
+                      ? amber
+                      : red;
+                const statusColor = (s: string) =>
+                  s === "strong" ? green : s === "okay" ? amber : red;
+                return (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 4 }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 14,
+                        padding: "14px 16px",
+                        background: "#fff",
+                        borderRadius: 10,
+                        border: `1px solid ${bdr}`,
+                      }}
+                    >
+                      <div style={{ textAlign: "center", minWidth: 60 }}>
+                        <p
+                          style={{
+                            fontSize: 32,
+                            fontWeight: 800,
+                            color: scoreColor,
+                            lineHeight: 1,
+                          }}
+                        >
+                          {brandCheckResult.overallScore}
+                        </p>
+                        <p
+                          style={{
+                            fontSize: 10,
+                            color: muted,
+                            fontWeight: 600,
+                            textTransform: "uppercase",
+                            letterSpacing: "0.1em",
+                          }}
+                        >
+                          / 100
+                        </p>
+                      </div>
+                      <div style={{ width: 1, height: 40, background: bdr }} />
+                      <div>
+                        <span
+                          style={{
+                            display: "inline-block",
+                            padding: "3px 10px",
+                            borderRadius: 6,
+                            background: scoreColor + "18",
+                            color: scoreColor,
+                            fontSize: 15,
+                            fontWeight: 800,
+                            marginBottom: 2,
+                          }}
+                        >
+                          Grade {brandCheckResult.grade}
+                        </span>
+                        <p style={{ fontSize: 11, color: muted, marginTop: 2 }}>
+                          Scored on {brandCheckResult.dimensions?.length ?? 5} dimensions
+                        </p>
+                      </div>
+                    </div>
+                    {brandCheckResult.dimensions && brandCheckResult.dimensions.length > 0 && (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        {brandCheckResult.dimensions.map((dim, i) => (
+                          <div
+                            key={i}
+                            style={{
+                              padding: "10px 14px",
+                              background: "#fff",
+                              borderRadius: 8,
+                              border: `1px solid ${bdr}`,
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                marginBottom: 4,
+                              }}
+                            >
+                              <span style={{ fontSize: 12, fontWeight: 600, color: ink }}>
+                                {dim.name}
+                              </span>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <span
+                                  style={{
+                                    fontSize: 11,
+                                    color: statusColor(dim.status),
+                                    fontWeight: 600,
+                                    textTransform: "capitalize",
+                                  }}
+                                >
+                                  {dim.status}
+                                </span>
+                                <span
+                                  style={{
+                                    fontSize: 12,
+                                    fontWeight: 700,
+                                    color: statusColor(dim.status),
+                                  }}
+                                >
+                                  {dim.score}
+                                </span>
+                              </div>
+                            </div>
+                            <div
+                              style={{
+                                height: 4,
+                                background: bdr,
+                                borderRadius: 2,
+                                marginBottom: 6,
+                              }}
+                            >
+                              <div
+                                style={{
+                                  height: 4,
+                                  borderRadius: 2,
+                                  background: statusColor(dim.status),
+                                  width: `${dim.score}%`,
+                                }}
+                              />
+                            </div>
+                            <p style={{ fontSize: 11, color: muted, lineHeight: 1.5 }}>
+                              {dim.feedback}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                      {brandCheckResult.topIssues && brandCheckResult.topIssues.length > 0 && (
+                        <div
+                          style={{
+                            background: "#FEF2F2",
+                            borderRadius: 8,
+                            padding: "10px 12px",
+                            border: "1px solid #FECACA",
+                          }}
+                        >
+                          <p
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 700,
+                              color: red,
+                              marginBottom: 6,
+                              textTransform: "uppercase",
+                              letterSpacing: "0.1em",
+                            }}
+                          >
+                            Fix These
+                          </p>
+                          {brandCheckResult.topIssues.map((issue, i) => (
+                            <p
+                              key={i}
+                              style={{ fontSize: 11, color: ink, lineHeight: 1.5, marginBottom: 4 }}
+                            >
+                              • {issue}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                      {brandCheckResult.topStrengths && brandCheckResult.topStrengths.length > 0 && (
+                        <div
+                          style={{
+                            background: "#F0FDF4",
+                            borderRadius: 8,
+                            padding: "10px 12px",
+                            border: "1px solid #BBF7D0",
+                          }}
+                        >
+                          <p
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 700,
+                              color: green,
+                              marginBottom: 6,
+                              textTransform: "uppercase",
+                              letterSpacing: "0.1em",
+                            }}
+                          >
+                            Strengths
+                          </p>
+                          {brandCheckResult.topStrengths.map((s, i) => (
+                            <p
+                              key={i}
+                              style={{ fontSize: 11, color: ink, lineHeight: 1.5, marginBottom: 4 }}
+                            >
+                              ✓ {s}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {brandCheckResult.revisedOpening && (
+                      <div
+                        style={{
+                          padding: "10px 14px",
+                          background: "#F5F3FF",
+                          borderRadius: 8,
+                          border: `1px solid #DDD6FE`,
+                        }}
+                      >
+                        <p
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 700,
+                            color: purple,
+                            marginBottom: 4,
+                            textTransform: "uppercase",
+                            letterSpacing: "0.1em",
+                          }}
+                        >
+                          Suggested Opening
+                        </p>
+                        <p style={{ fontSize: 12, color: ink, fontStyle: "italic", lineHeight: 1.6 }}>
+                          &ldquo;{brandCheckResult.revisedOpening}&rdquo;
+                        </p>
+                      </div>
+                    )}
+                    <button
+                      onClick={() => {
+                        setBrandCheckResult(null);
+                        setBrandCheckCopy("");
+                      }}
+                      style={{
+                        padding: "7px 14px",
+                        borderRadius: 8,
+                        border: `1px solid ${bdr}`,
+                        background: "transparent",
+                        color: muted,
+                        fontSize: 12,
+                        cursor: "pointer",
+                        alignSelf: "flex-start",
+                      }}
+                    >
+                      Check Another
+                    </button>
+                  </div>
+                );
+              })()}
+          </div>
+        )}
+      </div>
+
+      {/* ── Newsletter Builder CTA ── */}
+      <div style={{ background: "#EFF6FF", border: `1px solid #BFDBFE`, borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ flex: 1 }}>
+          <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>Send Product Newsletter</p>
+          <p style={{ fontSize: 11, color: muted }}>AI writes a product newsletter in your brand voice — then optionally sends it to your subscriber list via email.</p>
+        </div>
+        <button onClick={() => setShowNewsletterModal(true)} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: blue, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
+          Write Newsletter
+        </button>
+      </div>
+
+      {/* ── Newsletter Modal ── */}
+      {showNewsletterModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={e => { if (e.target === e.currentTarget) setShowNewsletterModal(false); }}>
+          <div style={{ background: "#fff", borderRadius: 14, padding: 28, width: "100%", maxWidth: 480, display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <p style={{ fontSize: 15, fontWeight: 700, color: ink }}>Product Newsletter</p>
+              <button onClick={() => setShowNewsletterModal(false)} style={{ background: "none", border: "none", fontSize: 18, color: muted, cursor: "pointer" }}>×</button>
+            </div>
+            {!newsletterResult ? (
+              <>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Newsletter Topic *</label>
+                  <input value={newsletterTopic} onChange={e => setNewsletterTopic(e.target.value)} placeholder="e.g. New feature launch, Q1 milestones, tips for your users…" style={{ width: "100%", border: `1px solid ${bdr}`, borderRadius: 8, padding: "9px 12px", fontSize: 13, color: ink, outline: "none", boxSizing: "border-box" }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Subscriber Emails (optional)</label>
+                  <textarea value={newsletterSubs} onChange={e => setNewsletterSubs(e.target.value)} placeholder="Paste emails separated by comma or newline&#10;user@example.com, another@test.com" rows={4} style={{ width: "100%", border: `1px solid ${bdr}`, borderRadius: 8, padding: "9px 12px", fontSize: 12, color: ink, outline: "none", resize: "vertical", boxSizing: "border-box" }} />
+                  <p style={{ fontSize: 10, color: muted, marginTop: 3 }}>Leave blank to preview only — we won&apos;t send without emails.</p>
+                </div>
+                {newsletterSubs.split(/[\n,]+/).map(e => e.trim()).filter(e => e.includes('@')).length > 0 && (
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: ink, cursor: "pointer" }}>
+                    <input type="checkbox" checked={newsletterSend} onChange={e => setNewsletterSend(e.target.checked)} />
+                    Send to subscribers now (via Resend)
+                  </label>
+                )}
+                {newsletterError && <p style={{ fontSize: 11, color: red }}>{newsletterError}</p>}
+                <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 4 }}>
+                  <button onClick={() => setShowNewsletterModal(false)} style={{ padding: "8px 16px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 13, cursor: "pointer" }}>Cancel</button>
+                  <button onClick={handleSendNewsletter} disabled={newsletterLoading || !newsletterTopic.trim()} style={{ padding: "8px 18px", borderRadius: 8, border: "none", background: newsletterLoading ? bdr : blue, color: newsletterLoading ? muted : "#fff", fontSize: 13, fontWeight: 600, cursor: newsletterLoading || !newsletterTopic.trim() ? "not-allowed" : "pointer" }}>
+                    {newsletterLoading ? "Generating…" : "Generate Newsletter"}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "12px 14px", border: "1px solid #BBF7D0" }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: green, marginBottom: 4 }}>Newsletter generated!</p>
+                  <p style={{ fontSize: 12, color: ink }}>Subject: <strong>{newsletterResult.subject}</strong></p>
+                  {newsletterSend && <p style={{ fontSize: 11, color: muted, marginTop: 4 }}>Sent: {newsletterResult.sent ?? 0} · Failed: {newsletterResult.failed ?? 0}</p>}
+                </div>
+                {newsletterResult.html && (
+                  <button onClick={() => {
+                    const blob = new Blob([newsletterResult.html!], { type: 'text/html;charset=utf-8' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a'); a.href = url; a.download = 'newsletter.html'; a.click();
+                    URL.revokeObjectURL(url);
+                  }} style={{ padding: "9px 16px", borderRadius: 8, border: "none", background: blue, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                    Download HTML
+                  </button>
+                )}
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button onClick={() => { setNewsletterResult(null); setNewsletterTopic(""); setNewsletterSubs(""); setNewsletterSend(false); }} style={{ flex: 1, padding: "8px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: ink, fontSize: 12, cursor: "pointer" }}>New Newsletter</button>
+                  <button onClick={() => setShowNewsletterModal(false)} style={{ flex: 1, padding: "8px", borderRadius: 8, border: "none", background: surf, color: muted, fontSize: 12, cursor: "pointer" }}>Done</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Press Kit CTA ── */}
+      <div style={{ background: "#FFF7ED", border: "1px solid #FED7AA", borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ flex: 1 }}>
+          <p style={{ fontSize: 11, fontWeight: 700, color: "#EA580C", marginBottom: 2 }}>Generate Press Kit</p>
+          <p style={{ fontSize: 11, color: muted }}>Downloads a ready-to-share HTML press kit — company boilerplate, founder bio, key stats, logo guidelines, and media contact.</p>
+          {pressKitError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{pressKitError}</p>}
+        </div>
+        <button
+          onClick={handleGeneratePressKit}
+          disabled={generatingPressKit}
+          style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingPressKit ? bdr : "#EA580C", color: generatingPressKit ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingPressKit ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0 }}
+        >
+          {generatingPressKit ? "Generating…" : "Download Press Kit"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -2042,6 +3852,51 @@ function FinancialSummaryRenderer({ data, artifactId }: { data: Record<string, u
   } | null>(null);
   const [cutsError, setCutsError]             = useState<string | null>(null);
 
+  // Scenario modeling state
+  const [showScenarioModal, setShowScenarioModal] = useState(false);
+  const [scenarioInput, setScenarioInput]         = useState("");
+  const [modelingScenario, setModelingScenario]   = useState(false);
+  const [scenarioResult, setScenarioResult]       = useState<{
+    scenarioSummary?: string;
+    assumptions?: string[];
+    impacts?: { metric: string; current: string; projected: string; change: string; direction: string }[];
+    runwayImpact?: string;
+    breakEvenImpact?: string;
+    recommendation?: string;
+    alternativeScenario?: string;
+  } | null>(null);
+  const [scenarioError, setScenarioError]         = useState<string | null>(null);
+
+  // Expense categorization state
+  const [showExpensesPanel, setShowExpensesPanel] = useState(false);
+  const [expensesInput, setExpensesInput]         = useState("");
+  const [categorizingExpenses, setCategorizingExpenses] = useState(false);
+  const [expensesResult, setExpensesResult]       = useState<{
+    lineItems?: { description: string; amount: number; category: string; subcategory: string; isRecurring: boolean }[];
+    totals?: Record<string, number>;
+    totalMonthlyBurn?: number;
+    largestCategories?: string[];
+    savingsOpportunities?: { item: string; suggestion: string; estimatedSaving: number }[];
+    burnHealthNote?: string;
+  } | null>(null);
+  const [expensesError, setExpensesError]         = useState<string | null>(null);
+
+  async function handleCategorizeExpenses() {
+    if (!expensesInput.trim() || categorizingExpenses) return;
+    setCategorizingExpenses(true); setExpensesError(null); setExpensesResult(null);
+    try {
+      const res = await fetch('/api/agents/felix/expenses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expenses: expensesInput }),
+      });
+      const r = await res.json();
+      if (res.ok && r.result) setExpensesResult(r.result);
+      else setExpensesError(r.error ?? 'Categorization failed');
+    } catch { setExpensesError('Network error'); }
+    finally { setCategorizingExpenses(false); }
+  }
+
   // Invoice state
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [invoiceEmail, setInvoiceEmail]         = useState("");
@@ -2053,20 +3908,142 @@ function FinancialSummaryRenderer({ data, artifactId }: { data: Record<string, u
   const [invoiceResult, setInvoiceResult]       = useState<{ invoiceNumber?: string; invoiceUrl?: string; platform?: string } | null>(null);
   const [invoiceError, setInvoiceError]         = useState<string | null>(null);
 
+  // Actuals vs Projections state
+  const [showActualsPanel, setShowActualsPanel] = useState(false);
+  const [actualMRRInput, setActualMRRInput]     = useState("");
+  const [runningActuals, setRunningActuals]     = useState(false);
+  const [actualsResult, setActualsResult]       = useState<{
+    actualMRR?: number; projectedMRR?: number | null; variance?: number | null; variancePct?: number | null; onTrack?: boolean | null;
+    analysis?: { headline?: string; status?: string; drivers?: string[]; risks?: string[]; actions?: { priority: string; action: string; impact: string }[]; forecastNote?: string };
+  } | null>(null);
+  const [actualsError, setActualsError]         = useState<string | null>(null);
+
+  // Fundraising modeler state
+  const [showFundraisingModal, setShowFundraisingModal] = useState(false);
+  const [calcRaiseAmount, setCalcRaiseAmount]           = useState("");
+  const [calcPreMoney, setCalcPreMoney]                 = useState("");
+  const [calcInstrument, setCalcInstrument]             = useState("SAFE");
+  const [calculatingFundraising, setCalculatingFundraising] = useState(false);
+  const [fundraisingCalcResult, setFundraisingCalcResult] = useState<{
+    raiseAmount?: number; postMoneyValuation?: number | null; investorPercent?: number | null;
+    yourRemaining?: number | null; runwayExtensionMonths?: number | null;
+    recommendation?: string; timeline?: string;
+    useOfFunds?: { category: string; percentage: number; amount: string; rationale: string }[];
+    investorReturn?: string; milestoneToHit?: string; dilutionComment?: string; alternativeStructure?: string;
+  } | null>(null);
+  const [fundraisingCalcError, setFundraisingCalcError] = useState<string | null>(null);
+
+  async function handleRunActuals() {
+    const mrr = parseFloat(actualMRRInput.replace(/[^0-9.]/g, ''));
+    if (isNaN(mrr) || mrr <= 0 || runningActuals) return;
+    setRunningActuals(true); setActualsError(null); setActualsResult(null);
+    try {
+      const res = await fetch('/api/agents/felix/actuals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ actualMRR: mrr, financialSnapshot: d.snapshot }),
+      });
+      const result = await res.json();
+      if (res.ok) setActualsResult(result);
+      else setActualsError(result.error ?? 'Analysis failed');
+    } catch { setActualsError('Network error'); }
+    finally { setRunningActuals(false); }
+  }
+
+  async function handleModelScenario() {
+    if (!scenarioInput.trim() || modelingScenario) return;
+    setModelingScenario(true); setScenarioError(null); setScenarioResult(null);
+    try {
+      const res = await fetch('/api/agents/felix/scenario', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scenario: scenarioInput.trim(), financialSnapshot: d.snapshot }),
+      });
+      const r = await res.json();
+      if (res.ok && r.result) setScenarioResult(r.result);
+      else setScenarioError(r.error ?? 'Modeling failed');
+    } catch { setScenarioError('Network error'); }
+    finally { setModelingScenario(false); }
+  }
+
+  async function handleModelFundraising() {
+    const raise = parseFloat(calcRaiseAmount.replace(/[^0-9.]/g, ''));
+    if (isNaN(raise) || raise <= 0 || calculatingFundraising) return;
+    setCalculatingFundraising(true); setFundraisingCalcError(null); setFundraisingCalcResult(null);
+    try {
+      const preMoney = parseFloat(calcPreMoney.replace(/[^0-9.]/g, ''));
+      const res = await fetch('/api/agents/felix/fundraising', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          raiseAmount: raise,
+          preMoneyValuation: isNaN(preMoney) || preMoney <= 0 ? undefined : preMoney,
+          instrument: calcInstrument,
+        }),
+      });
+      const r = await res.json();
+      if (res.ok) setFundraisingCalcResult(r);
+      else setFundraisingCalcError(r.error ?? 'Modeling failed');
+    } catch { setFundraisingCalcError('Network error'); }
+    finally { setCalculatingFundraising(false); }
+  }
+
   async function handleSendInvoice() {
-    if (!invoiceEmail || !invoiceAmount || !invoiceDesc || sendingInvoice) return;
+    if (!invoiceAmount || !invoiceDesc || sendingInvoice) return;
     setSendingInvoice(true); setInvoiceError(null); setInvoiceResult(null);
     try {
       const res = await fetch('/api/agents/felix/invoice', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customerEmail: invoiceEmail, customerName: invoiceName, amount: parseFloat(invoiceAmount), description: invoiceDesc, dueDate: invoiceDue || undefined }),
+        body: JSON.stringify({
+          clientName:  invoiceName || 'Client',
+          clientEmail: invoiceEmail || undefined,
+          lineItems:   [{ description: invoiceDesc, quantity: 1, unitPrice: parseFloat(invoiceAmount) }],
+          dueDate:     invoiceDue || undefined,
+        }),
       });
       const result = await res.json();
-      if (res.ok) setInvoiceResult(result);
-      else setInvoiceError(result.error ?? 'Failed to create invoice');
+      if (res.ok && result.html) {
+        // Download directly
+        const blob = new Blob([result.html], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `invoice-${result.invoiceNumber ?? Date.now()}.html`;
+        a.click();
+        URL.revokeObjectURL(url);
+        setInvoiceResult({ invoiceNumber: result.invoiceNumber });
+      } else {
+        setInvoiceError(result.error ?? 'Failed to create invoice');
+      }
     } catch { setInvoiceError('Network error'); }
     finally { setSendingInvoice(false); }
+  }
+
+  // Board Deck Financials state
+  const [showBoardDeckPanel, setShowBoardDeckPanel] = useState(false);
+  const [generatingBoardDeck, setGeneratingBoardDeck] = useState(false);
+  const [boardDeckResult, setBoardDeckResult]         = useState<{
+    slides?: { title: string; type: string; headline: string; keyNumbers: { label: string; value: string; change: string | null; trend: string | null }[]; narrative: string; footnote: string | null }[];
+    cfoNotes?: string;
+    redFlags?: string[];
+    positives?: string[];
+    guidanceStatement?: string;
+  } | null>(null);
+  const [boardDeckHtml, setBoardDeckHtml]           = useState<string | null>(null);
+  const [boardDeckError, setBoardDeckError]         = useState<string | null>(null);
+  const [boardDeckSlide, setBoardDeckSlide]         = useState(0);
+
+  async function handleGenerateBoardDeck() {
+    if (generatingBoardDeck) return;
+    setGeneratingBoardDeck(true); setBoardDeckError(null); setBoardDeckResult(null); setBoardDeckHtml(null);
+    try {
+      const res = await fetch('/api/agents/felix/board-deck', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok) { setBoardDeckResult(r.result ?? null); setBoardDeckHtml(r.htmlDeck ?? null); setBoardDeckSlide(0); }
+      else setBoardDeckError(r.error ?? 'Generation failed');
+    } catch { setBoardDeckError('Network error'); }
+    finally { setGeneratingBoardDeck(false); }
   }
 
   // Parse runway from snapshot
@@ -2312,6 +4289,114 @@ function FinancialSummaryRenderer({ data, artifactId }: { data: Record<string, u
         </div>
       )}
 
+      {/* ── Fundraising Round Modeler ── */}
+      {showFundraisingModal ? (
+        <div style={{ background: "#EFF6FF", borderRadius: 12, padding: "16px 18px", border: "1px solid #BFDBFE" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: blue }}>Fundraising Round Modeler</p>
+            <button onClick={() => { setShowFundraisingModal(false); setFundraisingCalcResult(null); setFundraisingCalcError(null); }} style={{ background: "none", border: "none", cursor: "pointer", color: muted, fontSize: 13, lineHeight: 1 }}>✕</button>
+          </div>
+          {!fundraisingCalcResult ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Raise Amount ($) *</label>
+                <input value={calcRaiseAmount} onChange={e => setCalcRaiseAmount(e.target.value)} placeholder="e.g. 500000" style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, fontSize: 13, color: ink, boxSizing: "border-box" }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Pre-Money Valuation ($) — optional for SAFE</label>
+                <input value={calcPreMoney} onChange={e => setCalcPreMoney(e.target.value)} placeholder="e.g. 4000000" style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, fontSize: 13, color: ink, boxSizing: "border-box" }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Instrument</label>
+                <select value={calcInstrument} onChange={e => setCalcInstrument(e.target.value)} style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, fontSize: 13, color: ink, boxSizing: "border-box" }}>
+                  <option>SAFE</option>
+                  <option>Convertible Note</option>
+                  <option>Priced Round</option>
+                </select>
+              </div>
+              {fundraisingCalcError && <p style={{ fontSize: 11, color: red }}>{fundraisingCalcError}</p>}
+              <button onClick={handleModelFundraising} disabled={!calcRaiseAmount || calculatingFundraising} style={{ padding: "9px", borderRadius: 8, border: "none", background: !calcRaiseAmount ? bdr : blue, color: !calcRaiseAmount ? muted : "#fff", fontSize: 13, fontWeight: 700, cursor: !calcRaiseAmount ? "not-allowed" : "pointer" }}>
+                {calculatingFundraising ? "Modeling…" : "Model Round"}
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {(fundraisingCalcResult.postMoneyValuation || fundraisingCalcResult.investorPercent != null) && (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 8 }}>
+                  {fundraisingCalcResult.postMoneyValuation && (
+                    <div style={{ background: bg, borderRadius: 8, padding: "10px 12px", border: `1px solid ${bdr}`, textAlign: "center" }}>
+                      <p style={{ fontSize: 10, color: muted, textTransform: "uppercase", marginBottom: 4 }}>Post-Money</p>
+                      <p style={{ fontSize: 16, fontWeight: 800, color: blue }}>${(fundraisingCalcResult.postMoneyValuation / 1e6).toFixed(1)}M</p>
+                    </div>
+                  )}
+                  {fundraisingCalcResult.investorPercent != null && (
+                    <div style={{ background: bg, borderRadius: 8, padding: "10px 12px", border: `1px solid ${bdr}`, textAlign: "center" }}>
+                      <p style={{ fontSize: 10, color: muted, textTransform: "uppercase", marginBottom: 4 }}>Investor Gets</p>
+                      <p style={{ fontSize: 16, fontWeight: 800, color: ink }}>{fundraisingCalcResult.investorPercent}%</p>
+                    </div>
+                  )}
+                  {fundraisingCalcResult.yourRemaining != null && (
+                    <div style={{ background: bg, borderRadius: 8, padding: "10px 12px", border: `1px solid ${bdr}`, textAlign: "center" }}>
+                      <p style={{ fontSize: 10, color: muted, textTransform: "uppercase", marginBottom: 4 }}>You Retain</p>
+                      <p style={{ fontSize: 16, fontWeight: 800, color: green }}>{fundraisingCalcResult.yourRemaining}%</p>
+                    </div>
+                  )}
+                  {fundraisingCalcResult.runwayExtensionMonths && (
+                    <div style={{ background: bg, borderRadius: 8, padding: "10px 12px", border: `1px solid ${bdr}`, textAlign: "center" }}>
+                      <p style={{ fontSize: 10, color: muted, textTransform: "uppercase", marginBottom: 4 }}>Runway Added</p>
+                      <p style={{ fontSize: 16, fontWeight: 800, color: amber }}>{fundraisingCalcResult.runwayExtensionMonths}mo</p>
+                    </div>
+                  )}
+                </div>
+              )}
+              {fundraisingCalcResult.recommendation && (
+                <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "10px 14px", border: "1px solid #BBF7D0" }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, color: green, marginBottom: 4 }}>RECOMMENDATION</p>
+                  <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{fundraisingCalcResult.recommendation}</p>
+                </div>
+              )}
+              {fundraisingCalcResult.dilutionComment && (
+                <div style={{ background: surf, borderRadius: 8, padding: "10px 14px", border: `1px solid ${bdr}` }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, color: muted, marginBottom: 4 }}>DILUTION NOTE</p>
+                  <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{fundraisingCalcResult.dilutionComment}</p>
+                </div>
+              )}
+              {fundraisingCalcResult.useOfFunds && fundraisingCalcResult.useOfFunds.length > 0 && (
+                <div>
+                  <p style={{ fontSize: 10, fontWeight: 700, color: muted, marginBottom: 8 }}>USE OF FUNDS</p>
+                  {fundraisingCalcResult.useOfFunds.map((u, i) => (
+                    <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${bdr}` }}>
+                      <div>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: ink }}>{u.category}</p>
+                        <p style={{ fontSize: 11, color: muted }}>{u.rationale}</p>
+                      </div>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: blue, whiteSpace: "nowrap", marginLeft: 12 }}>{u.amount ?? `${u.percentage}%`}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {fundraisingCalcResult.milestoneToHit && (
+                <div style={{ background: "#FFFBEB", borderRadius: 8, padding: "10px 14px", border: "1px solid #FDE68A" }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, color: amber, marginBottom: 4 }}>KEY MILESTONE FOR NEXT ROUND</p>
+                  <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{fundraisingCalcResult.milestoneToHit}</p>
+                </div>
+              )}
+              <button onClick={() => { setFundraisingCalcResult(null); setCalcRaiseAmount(""); setCalcPreMoney(""); }} style={{ padding: "7px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer" }}>New Scenario</button>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div style={{ background: "#EFF6FF", borderRadius: 12, padding: "14px 18px", border: "1px solid #BFDBFE", display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: blue, marginBottom: 2 }}>Model a Fundraising Round</p>
+            <p style={{ fontSize: 11, color: muted }}>Calculate dilution, post-money valuation, and get AI-powered use-of-funds recommendations.</p>
+          </div>
+          <button onClick={() => setShowFundraisingModal(true)} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: blue, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+            Model Round
+          </button>
+        </div>
+      )}
+
       {/* ── Investor Update CTA ── */}
       <div style={{ background: "#EFF6FF", borderRadius: 12, padding: "16px 18px", border: `1px solid #BFDBFE`, display: "flex", alignItems: "center", gap: 12 }}>
         <div style={{ flex: 1 }}>
@@ -2410,13 +4495,13 @@ function FinancialSummaryRenderer({ data, artifactId }: { data: Record<string, u
             {invoiceResult ? (
               <div style={{ textAlign: "center", padding: "20px 0" }}>
                 <p style={{ fontSize: 32, marginBottom: 10 }}>🧾</p>
-                <p style={{ fontSize: 16, fontWeight: 700, color: green, marginBottom: 6 }}>Invoice sent!</p>
+                <p style={{ fontSize: 16, fontWeight: 700, color: green, marginBottom: 6 }}>Invoice downloaded!</p>
                 {invoiceResult.invoiceNumber && <p style={{ fontSize: 12, color: muted, marginBottom: 4 }}>Invoice #{invoiceResult.invoiceNumber}</p>}
-                {invoiceResult.invoiceUrl && (
-                  <a href={invoiceResult.invoiceUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: blue }}>View Stripe invoice →</a>
-                )}
-                <p style={{ fontSize: 11, color: muted, marginTop: 8 }}>via {invoiceResult.platform === 'stripe' ? 'Stripe' : 'Resend email'}</p>
-                <button onClick={() => setShowInvoiceModal(false)} style={{ display: "block", margin: "16px auto 0", padding: "9px 20px", borderRadius: 8, border: "none", background: ink, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Done</button>
+                <p style={{ fontSize: 11, color: muted, marginTop: 4 }}>Open the HTML file in any browser and print to PDF to send.</p>
+                <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 14 }}>
+                  <button onClick={() => { setInvoiceResult(null); setInvoiceName(""); setInvoiceEmail(""); setInvoiceAmount(""); setInvoiceDesc(""); setInvoiceDue(""); }} style={{ padding: "9px 18px", borderRadius: 8, border: `1px solid ${bdr}`, background: "transparent", color: ink, fontSize: 13, cursor: "pointer" }}>New Invoice</button>
+                  <button onClick={() => setShowInvoiceModal(false)} style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: ink, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Done</button>
+                </div>
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -2452,7 +4537,7 @@ function FinancialSummaryRenderer({ data, artifactId }: { data: Record<string, u
                     disabled={sendingInvoice || !invoiceEmail || !invoiceAmount || !invoiceDesc}
                     style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: sendingInvoice ? bdr : blue, color: sendingInvoice ? muted : "#fff", fontSize: 13, fontWeight: 600, cursor: sendingInvoice ? "not-allowed" : "pointer" }}
                   >
-                    {sendingInvoice ? "Creating…" : "Send Invoice"}
+                    {sendingInvoice ? "Generating…" : "Download Invoice"}
                   </button>
                 </div>
               </div>
@@ -2521,6 +4606,413 @@ function FinancialSummaryRenderer({ data, artifactId }: { data: Record<string, u
             <span key={i} style={{ padding: "4px 10px", borderRadius: 999, fontSize: 11, background: "white", color: green, border: `1px solid #BBF7D0`, fontWeight: 600 }}>{label}</span>
           ))}
         </div>
+      </div>
+
+      {/* ── Actuals vs Projections ── */}
+      <div style={{ background: "#FFFBEB", borderRadius: 12, padding: "14px 18px", border: "1px solid #FDE68A" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <div>
+            <p style={{ fontSize: 11, fontWeight: 700, color: amber, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 2 }}>Actuals vs Projections</p>
+            <p style={{ fontSize: 11, color: muted }}>Compare your real MRR against your financial model — get a variance analysis and action plan.</p>
+          </div>
+          <button onClick={() => { setShowActualsPanel(v => !v); setActualsResult(null); setActualsError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: amber, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>
+            {showActualsPanel ? "Close" : "Compare"}
+          </button>
+        </div>
+        {showActualsPanel && (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Current Actual MRR ($)</label>
+                <input
+                  value={actualMRRInput}
+                  onChange={e => setActualMRRInput(e.target.value)}
+                  placeholder={stripeMetrics ? String(stripeMetrics.mrr) : "e.g. 28500"}
+                  type="number"
+                  min="0"
+                  style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: `1px solid ${bdr}`, fontSize: 12, color: ink, boxSizing: "border-box" }}
+                  onKeyDown={e => { if (e.key === "Enter") handleRunActuals(); }}
+                />
+              </div>
+              {stripeMetrics && (
+                <div style={{ display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
+                  <button onClick={() => setActualMRRInput(String(stripeMetrics.mrr))} style={{ padding: "8px 12px", borderRadius: 7, border: `1px solid ${bdr}`, background: surf, color: muted, fontSize: 11, cursor: "pointer", whiteSpace: "nowrap" }}>
+                    Use Stripe MRR
+                  </button>
+                </div>
+              )}
+            </div>
+            {actualsError && <p style={{ fontSize: 12, color: red, marginBottom: 8 }}>{actualsError}</p>}
+            <button onClick={handleRunActuals} disabled={runningActuals || !actualMRRInput} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: runningActuals ? bdr : amber, color: runningActuals ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: runningActuals ? "not-allowed" : "pointer" }}>
+              {runningActuals ? "Analyzing…" : "Run Analysis"}
+            </button>
+            {actualsResult && actualsResult.analysis && (
+              <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+                {/* Summary cards */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+                  {[
+                    { label: "Actual MRR", value: `$${(actualsResult.actualMRR ?? 0).toLocaleString()}`, color: ink },
+                    { label: "Projected MRR", value: actualsResult.projectedMRR ? `$${actualsResult.projectedMRR.toLocaleString()}` : "N/A", color: muted },
+                    { label: "Variance", value: actualsResult.variancePct !== null && actualsResult.variancePct !== undefined ? `${actualsResult.variancePct > 0 ? "+" : ""}${actualsResult.variancePct}%` : "N/A", color: actualsResult.variancePct !== null && actualsResult.variancePct !== undefined ? (actualsResult.variancePct >= 0 ? green : red) : muted },
+                  ].map(c => (
+                    <div key={c.label} style={{ background: "#fff", borderRadius: 8, padding: "10px 12px", border: `1px solid ${bdr}` }}>
+                      <p style={{ fontSize: 10, color: muted, marginBottom: 2 }}>{c.label}</p>
+                      <p style={{ fontSize: 16, fontWeight: 700, color: c.color }}>{c.value}</p>
+                    </div>
+                  ))}
+                </div>
+                {/* Headline + status */}
+                {actualsResult.analysis.headline && (
+                  <div style={{ background: actualsResult.onTrack ? "#F0FDF4" : "#FEF2F2", borderRadius: 8, padding: "10px 14px", border: `1px solid ${actualsResult.onTrack ? "#BBF7D0" : "#FECACA"}` }}>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: actualsResult.onTrack ? green : red }}>{actualsResult.onTrack ? "✓" : "⚠"} {actualsResult.analysis.headline}</p>
+                  </div>
+                )}
+                {/* Drivers */}
+                {actualsResult.analysis.drivers && actualsResult.analysis.drivers.length > 0 && (
+                  <div>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: muted, marginBottom: 6 }}>LIKELY DRIVERS</p>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      {actualsResult.analysis.drivers.map((d, i) => <p key={i} style={{ fontSize: 12, color: ink, lineHeight: 1.5 }}>• {d}</p>)}
+                    </div>
+                  </div>
+                )}
+                {/* Actions */}
+                {actualsResult.analysis.actions && actualsResult.analysis.actions.length > 0 && (
+                  <div>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: muted, marginBottom: 6 }}>RECOMMENDED ACTIONS</p>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {actualsResult.analysis.actions.map((a, i) => (
+                        <div key={i} style={{ background: "#fff", borderRadius: 8, padding: "10px 12px", border: `1px solid ${bdr}`, display: "flex", gap: 10 }}>
+                          <span style={{ padding: "2px 7px", borderRadius: 999, fontSize: 10, fontWeight: 700, background: a.priority === "high" ? "#FEF2F2" : "#FFFBEB", color: a.priority === "high" ? red : amber, flexShrink: 0 }}>{a.priority}</span>
+                          <div>
+                            <p style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 2 }}>{a.action}</p>
+                            <p style={{ fontSize: 11, color: muted }}>{a.impact}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {actualsResult.analysis.forecastNote && (
+                  <p style={{ fontSize: 12, color: muted, fontStyle: "italic", lineHeight: 1.5 }}>📈 {actualsResult.analysis.forecastNote}</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Expense Categorization ── */}
+      <div style={{ background: "#EFF6FF", borderRadius: 12, padding: "14px 18px", border: "1px solid #BFDBFE" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: showExpensesPanel ? 12 : 0 }}>
+          <div>
+            <p style={{ fontSize: 11, fontWeight: 700, color: blue, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 2 }}>Expense Categorization</p>
+            <p style={{ fontSize: 11, color: muted }}>Paste your expense list — Felix categorizes into buckets, calculates burn, and finds savings opportunities.</p>
+          </div>
+          <button onClick={() => { setShowExpensesPanel(v => !v); setExpensesResult(null); setExpensesError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: blue, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>
+            {showExpensesPanel ? "Close" : "Categorize"}
+          </button>
+        </div>
+        {showExpensesPanel && !expensesResult && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <p style={{ fontSize: 11, color: muted, lineHeight: 1.6 }}>Paste any format — one per line, CSV, or free text. Include amounts if known.</p>
+            <textarea
+              value={expensesInput}
+              onChange={e => setExpensesInput(e.target.value)}
+              placeholder={`AWS - $2,400/mo\nPayroll: 2 engineers @ $150k = $25,000/mo\nGitHub $84\nLinearB $200\nOffice rent $1,800\nTailwind UI $299/yr\nContractor (design) $3,000/mo`}
+              rows={6}
+              style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 12, color: ink, resize: "vertical", fontFamily: "inherit", boxSizing: "border-box" }}
+            />
+            {expensesError && <p style={{ fontSize: 12, color: red }}>{expensesError}</p>}
+            <button onClick={handleCategorizeExpenses} disabled={categorizingExpenses || !expensesInput.trim()} style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: categorizingExpenses ? bdr : blue, color: categorizingExpenses ? muted : "#fff", fontSize: 13, fontWeight: 600, cursor: categorizingExpenses ? "not-allowed" : "pointer", alignSelf: "flex-start" }}>
+              {categorizingExpenses ? "Categorizing…" : "Analyze Expenses"}
+            </button>
+          </div>
+        )}
+        {expensesResult && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {/* Total burn + categories */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <div style={{ background: "#fff", borderRadius: 10, padding: "12px 14px", border: `1px solid ${bdr}`, gridColumn: "1 / -1" }}>
+                <p style={{ fontSize: 10, color: muted, marginBottom: 2 }}>Total Monthly Burn</p>
+                <p style={{ fontSize: 22, fontWeight: 800, color: red }}>${(expensesResult.totalMonthlyBurn ?? 0).toLocaleString()}</p>
+                {expensesResult.burnHealthNote && <p style={{ fontSize: 11, color: muted, marginTop: 4, fontStyle: "italic" }}>{expensesResult.burnHealthNote}</p>}
+              </div>
+              {expensesResult.totals && Object.entries(expensesResult.totals)
+                .filter(([, v]) => v > 0)
+                .sort(([, a], [, b]) => b - a)
+                .map(([cat, val]) => {
+                  const pct = expensesResult.totalMonthlyBurn ? Math.round((val / expensesResult.totalMonthlyBurn!) * 100) : 0;
+                  const catColors: Record<string, string> = { payroll: blue, infra: "#7C3AED", marketing: amber, legal: "#DC2626", software: "#0891B2", contractors: green, office: muted, other: muted };
+                  const c = catColors[cat] ?? muted;
+                  return (
+                    <div key={cat} style={{ background: "#fff", borderRadius: 8, padding: "10px 12px", border: `1px solid ${bdr}` }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                        <p style={{ fontSize: 11, fontWeight: 600, color: ink, textTransform: "capitalize" }}>{cat}</p>
+                        <p style={{ fontSize: 11, fontWeight: 700, color: c }}>${val.toLocaleString()}</p>
+                      </div>
+                      <div style={{ height: 3, background: bdr, borderRadius: 2 }}>
+                        <div style={{ height: "100%", borderRadius: 2, width: `${pct}%`, background: c }} />
+                      </div>
+                      <p style={{ fontSize: 10, color: muted, marginTop: 2 }}>{pct}% of burn</p>
+                    </div>
+                  );
+                })
+              }
+            </div>
+            {/* Savings opportunities */}
+            {expensesResult.savingsOpportunities && expensesResult.savingsOpportunities.length > 0 && (
+              <div style={{ background: "#F0FDF4", borderRadius: 10, padding: "12px 14px", border: "1px solid #BBF7D0" }}>
+                <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: green, marginBottom: 8 }}>Savings Opportunities</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {expensesResult.savingsOpportunities.map((opp, oi) => (
+                    <div key={oi} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 2 }}>{opp.item}</p>
+                        <p style={{ fontSize: 11, color: muted, lineHeight: 1.5 }}>{opp.suggestion}</p>
+                      </div>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: green, flexShrink: 0 }}>-${opp.estimatedSaving.toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* Line items table */}
+            {expensesResult.lineItems && expensesResult.lineItems.length > 0 && (
+              <div style={{ background: "#fff", borderRadius: 10, border: `1px solid ${bdr}`, overflow: "hidden" }}>
+                <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: muted, padding: "10px 14px", borderBottom: `1px solid ${bdr}` }}>Line Items</p>
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  {expensesResult.lineItems.map((item, ii) => (
+                    <div key={ii} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 14px", borderBottom: ii < expensesResult.lineItems!.length - 1 ? `1px solid ${bdr}` : "none" }}>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ fontSize: 12, color: ink }}>{item.description}</p>
+                        <p style={{ fontSize: 10, color: muted, textTransform: "capitalize" }}>{item.subcategory}{item.isRecurring ? " · recurring" : ""}</p>
+                      </div>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: red }}>${item.amount.toLocaleString()}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <button onClick={() => { setExpensesResult(null); setExpensesInput(""); }} style={{ padding: "7px 14px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>
+              ← Analyze Different Expenses
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Scenario Modeling CTA ── */}
+      <div style={{ background: "#F5F3FF", borderRadius: 12, padding: "14px 18px", border: "1px solid #DDD6FE", display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ flex: 1 }}>
+          <p style={{ fontSize: 11, fontWeight: 700, color: "#7C3AED", marginBottom: 2 }}>Model a Financial Scenario</p>
+          <p style={{ fontSize: 11, color: muted }}>Ask &ldquo;What if I hire 2 engineers?&rdquo; or &ldquo;What if churn doubles?&rdquo; — Felix models the impact on your runway and burn.</p>
+        </div>
+        <button onClick={() => { setShowScenarioModal(true); setScenarioResult(null); setScenarioError(null); setScenarioInput(""); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: "#7C3AED", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>
+          Run Scenario
+        </button>
+      </div>
+
+      {/* ── Scenario Modal ── */}
+      {showScenarioModal && (
+        <div onClick={() => { if (!modelingScenario) setShowScenarioModal(false); }} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: bg, borderRadius: 14, padding: 28, width: "100%", maxWidth: 560, maxHeight: "88vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}>
+              <p style={{ fontSize: 15, fontWeight: 700, color: ink }}>Financial Scenario Modeler</p>
+              <button onClick={() => setShowScenarioModal(false)} style={{ background: "none", border: "none", cursor: "pointer", color: muted, fontSize: 18 }}>×</button>
+            </div>
+            {!scenarioResult ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <p style={{ fontSize: 12, color: muted, lineHeight: 1.6 }}>Describe any change to your business and Felix will model the financial impact against your current numbers.</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {["What if I hire 2 engineers at $150K each?", "What if churn doubles to 10%?", "What if I raise prices by 30%?", "What if I cut marketing spend in half?"].map(example => (
+                    <button key={example} onClick={() => setScenarioInput(example)} style={{ textAlign: "left", padding: "8px 12px", borderRadius: 8, border: `1px solid ${bdr}`, background: scenarioInput === example ? "#F5F3FF" : surf, color: scenarioInput === example ? "#7C3AED" : muted, fontSize: 12, cursor: "pointer" }}>
+                      {example}
+                    </button>
+                  ))}
+                </div>
+                <textarea
+                  value={scenarioInput}
+                  onChange={e => setScenarioInput(e.target.value)}
+                  placeholder="Or describe your own scenario…"
+                  rows={3}
+                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 13, color: ink, resize: "vertical", fontFamily: "inherit", boxSizing: "border-box" }}
+                />
+                {scenarioError && <p style={{ fontSize: 12, color: red }}>{scenarioError}</p>}
+                <button onClick={handleModelScenario} disabled={modelingScenario || !scenarioInput.trim()} style={{ padding: "10px", borderRadius: 8, border: "none", background: modelingScenario || !scenarioInput.trim() ? bdr : "#7C3AED", color: modelingScenario || !scenarioInput.trim() ? muted : "#fff", fontSize: 13, fontWeight: 700, cursor: modelingScenario || !scenarioInput.trim() ? "not-allowed" : "pointer" }}>
+                  {modelingScenario ? "Modeling…" : "Run Scenario"}
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {scenarioResult.scenarioSummary && (
+                  <div style={{ background: "#F5F3FF", borderRadius: 8, padding: "10px 14px", border: "1px solid #DDD6FE" }}>
+                    <p style={{ fontSize: 12, fontWeight: 600, color: "#7C3AED" }}>{scenarioResult.scenarioSummary}</p>
+                  </div>
+                )}
+                {scenarioResult.impacts && scenarioResult.impacts.length > 0 && (
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Impact on Key Metrics</p>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {scenarioResult.impacts.map((impact, i) => {
+                        const dirColor = impact.direction === "positive" ? green : impact.direction === "negative" ? red : muted;
+                        return (
+                          <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto", gap: 8, alignItems: "center", padding: "8px 12px", background: surf, borderRadius: 8, border: `1px solid ${bdr}` }}>
+                            <p style={{ fontSize: 12, fontWeight: 600, color: ink }}>{impact.metric}</p>
+                            <p style={{ fontSize: 11, color: muted }}>{impact.current}</p>
+                            <p style={{ fontSize: 11, color: ink }}>{impact.projected}</p>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: dirColor, whiteSpace: "nowrap" }}>{impact.change}</span>
+                          </div>
+                        );
+                      })}
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto", gap: 8, padding: "0 12px" }}>
+                        {["Metric", "Current", "Projected", "Change"].map(h => (
+                          <p key={h} style={{ fontSize: 9, color: muted, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em" }}>{h}</p>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {scenarioResult.runwayImpact && (
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", marginBottom: 4 }}>Runway Impact</p>
+                    <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{scenarioResult.runwayImpact}</p>
+                  </div>
+                )}
+                {scenarioResult.recommendation && (
+                  <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "10px 14px", border: "1px solid #BBF7D0" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: green, textTransform: "uppercase", marginBottom: 4 }}>Felix&apos;s Recommendation</p>
+                    <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{scenarioResult.recommendation}</p>
+                  </div>
+                )}
+                {scenarioResult.alternativeScenario && (
+                  <p style={{ fontSize: 11, color: muted, fontStyle: "italic" }}>Alternative: {scenarioResult.alternativeScenario}</p>
+                )}
+                {scenarioResult.assumptions && scenarioResult.assumptions.length > 0 && (
+                  <details style={{ cursor: "pointer" }}>
+                    <summary style={{ fontSize: 11, color: muted, fontWeight: 600 }}>Assumptions used</summary>
+                    <div style={{ paddingTop: 8 }}>
+                      {scenarioResult.assumptions.map((a, i) => <p key={i} style={{ fontSize: 11, color: muted, lineHeight: 1.5, marginBottom: 3 }}>• {a}</p>)}
+                    </div>
+                  </details>
+                )}
+                <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                  <button onClick={() => { setScenarioResult(null); setScenarioInput(""); }} style={{ padding: "9px 16px", borderRadius: 8, border: `1px solid ${bdr}`, background: "transparent", color: ink, fontSize: 12, cursor: "pointer" }}>Model Another</button>
+                  <button onClick={() => setShowScenarioModal(false)} style={{ padding: "9px 16px", borderRadius: 8, border: "none", background: "#7C3AED", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Done</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Board Deck Financials ─────────────────────────────────────────────── */}
+      <div style={{ background: showBoardDeckPanel && boardDeckResult ? "#0F172A" : surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${showBoardDeckPanel && boardDeckResult ? "#334155" : bdr}` }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <p style={{ fontSize: 11, fontWeight: 700, color: showBoardDeckPanel && boardDeckResult ? "#94A3B8" : ink, marginBottom: 2 }}>Board Deck Financials</p>
+            <p style={{ fontSize: 11, color: muted }}>Generate investor-grade financial slides for your next board meeting — metrics dashboard, revenue trend, unit economics, cash position, forecast.</p>
+          </div>
+          <button onClick={() => { if (showBoardDeckPanel && !generatingBoardDeck) setShowBoardDeckPanel(false); else { setShowBoardDeckPanel(true); if (!boardDeckResult) handleGenerateBoardDeck(); } }} style={{ padding: "6px 14px", borderRadius: 8, border: "none", background: generatingBoardDeck ? bdr : "#1E293B", color: generatingBoardDeck ? muted : "#94A3B8", fontSize: 11, fontWeight: 600, cursor: generatingBoardDeck ? "not-allowed" : "pointer", flexShrink: 0 }}>
+            {generatingBoardDeck ? "Generating…" : showBoardDeckPanel ? "Close" : boardDeckResult ? "View Slides" : "Generate Slides"}
+          </button>
+        </div>
+        {showBoardDeckPanel && (
+          <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 12 }}>
+            {generatingBoardDeck && (
+              <p style={{ fontSize: 12, color: muted, textAlign: "center", padding: "16px 0" }}>Building financial slides from your Stripe and expense data…</p>
+            )}
+            {boardDeckError && <p style={{ fontSize: 12, color: red }}>{boardDeckError}</p>}
+            {boardDeckResult && !generatingBoardDeck && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {/* Slide navigator */}
+                {boardDeckResult.slides && boardDeckResult.slides.length > 0 && (
+                  <div style={{ background: "#0F172A", borderRadius: 12, padding: 24, border: "1px solid #334155" }}>
+                    {/* Slide tabs */}
+                    <div style={{ display: "flex", gap: 4, marginBottom: 20, flexWrap: "wrap" }}>
+                      {boardDeckResult.slides.map((s, i) => (
+                        <button key={i} onClick={() => setBoardDeckSlide(i)} style={{ padding: "4px 10px", borderRadius: 6, border: "none", background: boardDeckSlide === i ? "#3B82F6" : "#1E293B", color: boardDeckSlide === i ? "#fff" : "#94A3B8", fontSize: 10, fontWeight: 600, cursor: "pointer" }}>
+                          {String(s.type ?? '').replace(/_/g, ' ')}
+                        </button>
+                      ))}
+                    </div>
+                    {/* Active slide */}
+                    {(() => {
+                      const slide = boardDeckResult.slides![boardDeckSlide];
+                      if (!slide) return null;
+                      return (
+                        <div>
+                          <p style={{ fontSize: 10, fontWeight: 700, color: "#3B82F6", textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 6 }}>{String(slide.type ?? '').replace(/_/g, ' ')}</p>
+                          <p style={{ fontSize: 22, fontWeight: 800, color: "#F8FAFC", marginBottom: 6, lineHeight: 1.2 }}>{slide.title}</p>
+                          <p style={{ fontSize: 13, color: "#94A3B8", marginBottom: 20, lineHeight: 1.5 }}>{slide.headline}</p>
+                          {slide.keyNumbers && slide.keyNumbers.length > 0 && (
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 12, marginBottom: 20 }}>
+                              {slide.keyNumbers.map((n, i) => (
+                                <div key={i} style={{ background: "#1E293B", borderRadius: 10, padding: "14px 16px", border: "1px solid #334155" }}>
+                                  <p style={{ fontSize: 10, color: "#64748B", fontWeight: 600, textTransform: "uppercase", marginBottom: 4 }}>{n.label}</p>
+                                  <p style={{ fontSize: 22, fontWeight: 800, color: "#F8FAFC" }}>{n.value}</p>
+                                  {n.change && <p style={{ fontSize: 11, fontWeight: 600, marginTop: 2, color: n.trend === "up" ? "#22C55E" : n.trend === "down" ? "#EF4444" : "#94A3B8" }}>{n.change}</p>}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {slide.narrative && (
+                            <p style={{ fontSize: 13, color: "#CBD5E1", lineHeight: 1.7, borderTop: "1px solid #334155", paddingTop: 14 }}>{slide.narrative}</p>
+                          )}
+                          {slide.footnote && (
+                            <p style={{ fontSize: 11, color: "#475569", fontStyle: "italic", marginTop: 8 }}>* {slide.footnote}</p>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {/* CFO notes + guidance */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  {boardDeckResult.positives && boardDeckResult.positives.length > 0 && (
+                    <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "10px 14px", border: "1px solid #BBF7D0" }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: green, marginBottom: 6 }}>EMPHASIZE</p>
+                      {boardDeckResult.positives.map((p, i) => <p key={i} style={{ fontSize: 11, color: ink, marginBottom: 3 }}>✓ {p}</p>)}
+                    </div>
+                  )}
+                  {boardDeckResult.redFlags && boardDeckResult.redFlags.length > 0 && (
+                    <div style={{ background: "#FEF2F2", borderRadius: 8, padding: "10px 14px", border: "1px solid #FECACA" }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: red, marginBottom: 6 }}>BOARD WILL FLAG</p>
+                      {boardDeckResult.redFlags.map((f, i) => <p key={i} style={{ fontSize: 11, color: ink, marginBottom: 3 }}>⚠ {f}</p>)}
+                    </div>
+                  )}
+                </div>
+
+                {boardDeckResult.cfoNotes && (
+                  <div style={{ background: "#EFF6FF", borderRadius: 8, padding: "10px 14px", border: "1px solid #BFDBFE" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: blue, marginBottom: 4 }}>CFO NOTES — ANTICIPATED Q&A</p>
+                    <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{boardDeckResult.cfoNotes}</p>
+                  </div>
+                )}
+
+                {boardDeckResult.guidanceStatement && (
+                  <div style={{ background: surf, borderRadius: 8, padding: "10px 14px", border: `1px solid ${bdr}` }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: muted, marginBottom: 4 }}>QUARTERLY GUIDANCE</p>
+                    <p style={{ fontSize: 12, color: ink, lineHeight: 1.6, fontStyle: "italic" }}>{boardDeckResult.guidanceStatement}</p>
+                  </div>
+                )}
+
+                {/* Download button */}
+                {boardDeckHtml && (
+                  <button onClick={() => {
+                    const blob = new Blob([boardDeckHtml], { type: 'text/html;charset=utf-8' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url; a.download = 'board-financials.html'; a.click();
+                    URL.revokeObjectURL(url);
+                  }} style={{ padding: "10px 18px", borderRadius: 8, border: "none", background: "#1E293B", color: "#94A3B8", fontSize: 12, fontWeight: 600, cursor: "pointer", alignSelf: "flex-start", display: "flex", alignItems: "center", gap: 6 }}>
+                    ⬇ Download Board Deck HTML
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── Investor Update Modal ── */}
@@ -2626,6 +5118,17 @@ function LegalChecklistRenderer({ data, artifactId: _artifactId }: { data: Recor
   const [generatingSafe, setGeneratingSafe]   = useState(false);
   const [safeError, setSafeError]             = useState<string | null>(null);
 
+  // Co-founder agreement state
+  const [showCoFounderModal, setShowCoFounderModal]   = useState(false);
+  const [coFounderName, setCoFounderName]             = useState("");
+  const [coFounderRole, setCoFounderRole]             = useState("");
+  const [coFounderEquityPct, setCoFounderEquityPct]   = useState("50");
+  const [yourEquityPct, setYourEquityPct]             = useState("50");
+  const [coFounderVesting, setCoFounderVesting]       = useState("4");
+  const [coFounderCliff, setCoFounderCliff]           = useState("12");
+  const [generatingCoFounder, setGeneratingCoFounder] = useState(false);
+  const [coFounderError, setCoFounderError]           = useState<string | null>(null);
+
   async function handleGenerateSafe() {
     if (!safeInvestor || !safeAmount || !safeCap || generatingSafe) return;
     setGeneratingSafe(true); setSafeError(null);
@@ -2655,6 +5158,267 @@ function LegalChecklistRenderer({ data, artifactId: _artifactId }: { data: Recor
       }
     } catch { setSafeError('Network error'); }
     finally { setGeneratingSafe(false); }
+  }
+
+  async function handleGenerateCoFounder() {
+    if (!coFounderName.trim() || !coFounderRole.trim() || generatingCoFounder) return;
+    setGeneratingCoFounder(true); setCoFounderError(null);
+    try {
+      const res = await fetch('/api/agents/leo/cofounder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          coFounderName: coFounderName.trim(),
+          coFounderRole: coFounderRole.trim(),
+          equityA: parseFloat(yourEquityPct) || 50,
+          equityB: parseFloat(coFounderEquityPct) || 50,
+          vestingYears: parseInt(coFounderVesting) || 4,
+          cliffMonths: parseInt(coFounderCliff) || 12,
+        }),
+      });
+      const r = await res.json();
+      if (res.ok && r.html) {
+        const blob = new Blob([r.html], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `cofounder-agreement-${coFounderName.trim().toLowerCase().replace(/\s+/g, '-')}.html`;
+        a.click();
+        URL.revokeObjectURL(url);
+        setShowCoFounderModal(false);
+      } else {
+        setCoFounderError(r.error ?? 'Failed to generate');
+      }
+    } catch { setCoFounderError('Network error'); }
+    finally { setGeneratingCoFounder(false); }
+  }
+
+  // Privacy Policy + ToS generator state
+  const [showLegalDocModal, setShowLegalDocModal]   = useState(false);
+  const [legalDocType, setLegalDocType]             = useState<"privacy" | "tos" | "both">("both");
+  const [legalCollectsPayments, setLegalCollectsPayments] = useState(false);
+  const [legalHasAccounts, setLegalHasAccounts]     = useState(true);
+  const [legalExtraContext, setLegalExtraContext]   = useState("");
+  const [generatingLegal, setGeneratingLegal]       = useState(false);
+  const [legalError, setLegalError]                 = useState<string | null>(null);
+
+  async function handleGenerateLegalDocs() {
+    if (generatingLegal) return;
+    setGeneratingLegal(true); setLegalError(null);
+    try {
+      const res = await fetch('/api/agents/leo/privacy-policy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          docType: legalDocType,
+          collectsPayments: legalCollectsPayments,
+          hasUserAccounts: legalHasAccounts,
+          extraContext: legalExtraContext.trim() || undefined,
+        }),
+      });
+      const r = await res.json();
+      if (res.ok && r.html) {
+        const blob = new Blob([r.html], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${r.company?.replace(/\s+/g, '-').toLowerCase() ?? 'company'}-legal-docs.html`;
+        a.click(); URL.revokeObjectURL(url);
+        setShowLegalDocModal(false);
+      } else {
+        setLegalError(r.error ?? 'Failed to generate');
+      }
+    } catch { setLegalError('Network error'); }
+    finally { setGeneratingLegal(false); }
+  }
+
+  // Contract clause library state
+  const CLAUSE_TYPES = [
+    { key: 'non-disclosure', label: 'NDA / Non-Disclosure' },
+    { key: 'non-compete', label: 'Non-Compete' },
+    { key: 'non-solicitation', label: 'Non-Solicitation' },
+    { key: 'ip-assignment', label: 'IP Assignment' },
+    { key: 'indemnification', label: 'Indemnification' },
+    { key: 'limitation-of-liability', label: 'Limitation of Liability' },
+    { key: 'governing-law', label: 'Governing Law' },
+    { key: 'dispute-resolution', label: 'Dispute Resolution' },
+    { key: 'termination', label: 'Termination' },
+    { key: 'payment-terms', label: 'Payment Terms' },
+  ];
+  // Document diff state
+  // IP Audit state
+  const [showIPAuditPanel, setShowIPAuditPanel] = useState(false);
+  const [ipCodeAuthors, setIpCodeAuthors]       = useState("");
+  const [ipPriorEmployers, setIpPriorEmployers] = useState("");
+  const [ipOSSLibraries, setIpOSSLibraries]     = useState("");
+  const [ipHasContracts, setIpHasContracts]     = useState<boolean | undefined>(undefined);
+  const [ipContext, setIpContext]               = useState("");
+  const [runningIPAudit, setRunningIPAudit]     = useState(false);
+  const [ipAuditResult, setIpAuditResult]       = useState<{
+    riskScore?: number; riskLevel?: string;
+    risks?: { category: string; risk: string; severity: string; likelihood: string; explanation: string }[];
+    urgentItems?: string[];
+    recommendations?: { action: string; timeline: string; cost: string }[];
+    investorReadiness?: string;
+    cleanBillOfHealth?: string[];
+    priorityQuestion?: string;
+  } | null>(null);
+  const [ipAuditError, setIpAuditError]         = useState<string | null>(null);
+
+  async function handleRunIPAudit() {
+    if (runningIPAudit) return;
+    setRunningIPAudit(true); setIpAuditError(null); setIpAuditResult(null);
+    try {
+      const res = await fetch('/api/agents/leo/ip-audit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          codeAuthors: ipCodeAuthors.trim() || undefined,
+          priorEmployers: ipPriorEmployers.trim() || undefined,
+          ossLibraries: ipOSSLibraries.trim() || undefined,
+          hasContractorAgreements: ipHasContracts,
+          additionalContext: ipContext.trim() || undefined,
+        }),
+      });
+      const r = await res.json();
+      if (res.ok && r.audit) setIpAuditResult(r.audit);
+      else setIpAuditError(r.error ?? 'IP audit failed');
+    } catch { setIpAuditError('Network error'); }
+    finally { setRunningIPAudit(false); }
+  }
+
+  // Regulatory Research state
+  const [showRegulatoryPanel, setShowRegulatoryPanel] = useState(false);
+  const [regulatoryIndustry, setRegulatoryIndustry]   = useState("");
+  const [regulatoryContext, setRegulatoryContext]     = useState("");
+  const [runningRegulatory, setRunningRegulatory]     = useState(false);
+  const [regulatoryResult, setRegulatoryResult]       = useState<{
+    regulations?: { name: string; applies: boolean; severity: string; summary: string; penalty: string; applicableBecause: string }[];
+    complianceChecklist?: { item: string; category: string; timeline: string; difficulty: string; estimatedCost: string }[];
+    riskAreas?: { area: string; risk: string; severity: string }[];
+    complianceScore?: number;
+    biggestRisk?: string;
+    quickWins?: string[];
+    expertAdvice?: string;
+  } | null>(null);
+  const [regulatoryError, setRegulatoryError]         = useState<string | null>(null);
+  const [regActiveTab, setRegActiveTab]               = useState<"overview" | "checklist" | "risks">("overview");
+
+  async function handleRegulatoryResearch() {
+    if (runningRegulatory) return;
+    setRunningRegulatory(true); setRegulatoryError(null); setRegulatoryResult(null);
+    try {
+      const res = await fetch('/api/agents/leo/regulatory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          industry: regulatoryIndustry.trim() || undefined,
+          additionalContext: regulatoryContext.trim() || undefined,
+        }),
+      });
+      const r = await res.json();
+      if (res.ok && r.result) setRegulatoryResult(r.result);
+      else setRegulatoryError(r.error ?? 'Research failed');
+    } catch { setRegulatoryError('Network error'); }
+    finally { setRunningRegulatory(false); }
+  }
+
+  // Cap Table Validation state
+  const [showCapTablePanel, setShowCapTablePanel] = useState(false);
+  const [capTableData, setCapTableData]           = useState("");
+  const [capTableContext, setCapTableContext]      = useState("");
+  const [runningCapTable, setRunningCapTable]     = useState(false);
+  const [capTableResult, setCapTableResult]       = useState<{
+    healthScore?: number;
+    overallAssessment?: string;
+    issues?: { issue: string; category: string; severity: string; explanation: string; howToFix: string; timeline: string }[];
+    urgentFixes?: string[];
+    investorReadinessGaps?: string[];
+    safeHarbor?: string[];
+    optionPoolAnalysis?: { currentSize: string; recommendedSize: string; reasoning: string };
+    nextSteps?: string;
+    lawyerBrief?: string;
+  } | null>(null);
+  const [capTableError, setCapTableError]         = useState<string | null>(null);
+  const [capTableTab, setCapTableTab]             = useState<"issues" | "urgent" | "investor">("issues");
+
+  async function handleValidateCapTable() {
+    if (!capTableData.trim() || runningCapTable) return;
+    setRunningCapTable(true); setCapTableError(null); setCapTableResult(null);
+    try {
+      const res = await fetch('/api/agents/leo/cap-table', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          capTableData: capTableData.trim(),
+          additionalContext: capTableContext.trim() || undefined,
+        }),
+      });
+      const r = await res.json();
+      if (res.ok && r.result) setCapTableResult(r.result);
+      else setCapTableError(r.error ?? 'Validation failed');
+    } catch { setCapTableError('Network error'); }
+    finally { setRunningCapTable(false); }
+  }
+
+  const [showDiffModal, setShowDiffModal]     = useState(false);
+  const [diffDocType, setDiffDocType]         = useState("contract");
+  const [diffOriginal, setDiffOriginal]       = useState("");
+  const [diffRevised, setDiffRevised]         = useState("");
+  const [diffing, setDiffing]                 = useState(false);
+  const [diffResult, setDiffResult]           = useState<{
+    summary?: string;
+    overallImpact?: string;
+    changes?: { section: string; type: string; original: string | null; revised: string | null; explanation: string; severity: string; founderImpact: string }[];
+    redFlags?: string[];
+    winsBySide?: { founder: string[]; investor: string[] };
+    negotiationAdvice?: string | null;
+  } | null>(null);
+  const [diffError, setDiffError]             = useState<string | null>(null);
+
+  async function handleRunDiff() {
+    if (!diffOriginal.trim() || !diffRevised.trim() || diffing) return;
+    setDiffing(true); setDiffError(null); setDiffResult(null);
+    try {
+      const res = await fetch('/api/agents/leo/diff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ docType: diffDocType, original: diffOriginal, revised: diffRevised }),
+      });
+      const r = await res.json();
+      if (res.ok && r.diff) setDiffResult(r.diff);
+      else setDiffError(r.error ?? 'Diff failed');
+    } catch { setDiffError('Network error'); }
+    finally { setDiffing(false); }
+  }
+
+  const [showClausePanel, setShowClausePanel]       = useState(false);
+  const [selectedClause, setSelectedClause]         = useState<string | null>(null);
+  const [clauseContext, setClauseContext]           = useState("");
+  const [fetchingClause, setFetchingClause]         = useState(false);
+  const [clauseResult, setClauseResult]             = useState<{
+    clauseType?: string; summary?: string;
+    variants?: { label: string; riskLevel: string; text: string; notes: string }[];
+    keyTermsToNegotiate?: string[]; redFlags?: string[];
+  } | null>(null);
+  const [clauseError, setClauseError]               = useState<string | null>(null);
+  const [copiedClause, setCopiedClause]             = useState<string | null>(null);
+  const [selectedVariant, setSelectedVariant]       = useState(0);
+
+  async function handleFetchClause(type: string) {
+    if (fetchingClause) return;
+    setSelectedClause(type); setFetchingClause(true); setClauseError(null); setClauseResult(null); setSelectedVariant(0);
+    try {
+      const res = await fetch('/api/agents/leo/clauses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clauseType: type, context: clauseContext.trim() || undefined }),
+      });
+      const r = await res.json();
+      if (res.ok) setClauseResult(r.clause);
+      else setClauseError(r.error ?? 'Failed to generate clause');
+    } catch { setClauseError('Network error'); }
+    finally { setFetchingClause(false); }
   }
 
   // Term sheet analyzer state
@@ -2901,6 +5665,62 @@ function LegalChecklistRenderer({ data, artifactId: _artifactId }: { data: Recor
         </div>
       )}
 
+      {/* ── Co-Founder Agreement ── */}
+      {showCoFounderModal ? (
+        <div style={{ background: "#F5F3FF", borderRadius: 12, padding: "16px 18px", border: "1px solid #DDD6FE" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: "#7C3AED" }}>Co-Founder Agreement Generator</p>
+            <button onClick={() => { setShowCoFounderModal(false); setCoFounderError(null); }} style={{ background: "none", border: "none", cursor: "pointer", color: muted, fontSize: 13, lineHeight: 1 }}>✕</button>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Co-Founder Name *</label>
+                <input value={coFounderName} onChange={e => setCoFounderName(e.target.value)} placeholder="Jane Smith" style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, fontSize: 13, color: ink, boxSizing: "border-box" }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Co-Founder Role *</label>
+                <input value={coFounderRole} onChange={e => setCoFounderRole(e.target.value)} placeholder="CTO" style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, fontSize: 13, color: ink, boxSizing: "border-box" }} />
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Your Equity %</label>
+                <input type="number" value={yourEquityPct} onChange={e => setYourEquityPct(e.target.value)} min={0} max={100} style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, fontSize: 13, color: ink, boxSizing: "border-box" }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Co-Founder Equity %</label>
+                <input type="number" value={coFounderEquityPct} onChange={e => setCoFounderEquityPct(e.target.value)} min={0} max={100} style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, fontSize: 13, color: ink, boxSizing: "border-box" }} />
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Vesting Years</label>
+                <input type="number" value={coFounderVesting} onChange={e => setCoFounderVesting(e.target.value)} min={1} max={10} style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, fontSize: 13, color: ink, boxSizing: "border-box" }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Cliff Months</label>
+                <input type="number" value={coFounderCliff} onChange={e => setCoFounderCliff(e.target.value)} min={0} max={24} style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, fontSize: 13, color: ink, boxSizing: "border-box" }} />
+              </div>
+            </div>
+            {coFounderError && <p style={{ fontSize: 11, color: red }}>{coFounderError}</p>}
+            <button onClick={handleGenerateCoFounder} disabled={!coFounderName || !coFounderRole || generatingCoFounder} style={{ padding: "9px", borderRadius: 8, border: "none", background: !coFounderName || !coFounderRole ? bdr : "#7C3AED", color: !coFounderName || !coFounderRole ? muted : "#fff", fontSize: 13, fontWeight: 700, cursor: !coFounderName || !coFounderRole ? "not-allowed" : "pointer" }}>
+              {generatingCoFounder ? "Generating…" : "Download Agreement HTML"}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ background: "#F5F3FF", borderRadius: 12, padding: "14px 18px", border: "1px solid #DDD6FE", display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: "#7C3AED", marginBottom: 2 }}>Co-Founder Agreement</p>
+            <p style={{ fontSize: 11, color: muted }}>Generate a co-founder agreement with equity split, vesting schedule, IP assignment, and dispute resolution — downloads as print-ready HTML.</p>
+          </div>
+          <button onClick={() => setShowCoFounderModal(true)} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: "#7C3AED", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+            Draft Agreement
+          </button>
+        </div>
+      )}
+
       {/* ── Build Data Room ─────────────────────────────────────────────────── */}
       <div style={{ background: "#F5F3FF", borderRadius: 12, padding: "14px 16px", border: `1px solid #DDD6FE` }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: dataRoomMeta ? 10 : 0 }}>
@@ -3084,6 +5904,705 @@ function LegalChecklistRenderer({ data, artifactId: _artifactId }: { data: Recor
           </div>
         </div>
       )}
+
+      {/* ── Privacy Policy + ToS Generator ── */}
+      <div style={{ background: "#F0FDF4", border: `1px solid #BBF7D0`, borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ flex: 1 }}>
+          <p style={{ fontSize: 12, fontWeight: 700, color: green, marginBottom: 2 }}>Generate Privacy Policy + Terms of Service</p>
+          <p style={{ fontSize: 11, color: muted }}>Leo generates complete, founder-friendly legal docs customized to your product — downloadable HTML, ready to publish.</p>
+        </div>
+        <button onClick={() => { setShowLegalDocModal(true); setLegalError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: green, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
+          Generate Docs
+        </button>
+      </div>
+
+      {/* ── Legal Docs Modal ── */}
+      {showLegalDocModal && (
+        <div onClick={e => { if (e.target === e.currentTarget) setShowLegalDocModal(false); }} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ background: bg, borderRadius: 14, padding: 28, width: "100%", maxWidth: 460, display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <p style={{ fontSize: 15, fontWeight: 700, color: ink }}>Legal Documents</p>
+              <button onClick={() => setShowLegalDocModal(false)} style={{ background: "none", border: "none", fontSize: 18, color: muted, cursor: "pointer" }}>×</button>
+            </div>
+            {/* Doc type */}
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 6 }}>What to generate</label>
+              <div style={{ display: "flex", gap: 6 }}>
+                {([["both", "Both (recommended)"], ["privacy", "Privacy Policy"], ["tos", "Terms of Service"]] as const).map(([val, label]) => (
+                  <button key={val} onClick={() => setLegalDocType(val)} style={{ flex: 1, padding: "7px 8px", borderRadius: 8, border: `1px solid ${legalDocType === val ? green : bdr}`, background: legalDocType === val ? "#F0FDF4" : bg, color: legalDocType === val ? green : muted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{label}</button>
+                ))}
+              </div>
+            </div>
+            {/* Checkboxes */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: ink, cursor: "pointer" }}>
+                <input type="checkbox" checked={legalHasAccounts} onChange={e => setLegalHasAccounts(e.target.checked)} />
+                My product has user accounts / login
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: ink, cursor: "pointer" }}>
+                <input type="checkbox" checked={legalCollectsPayments} onChange={e => setLegalCollectsPayments(e.target.checked)} />
+                My product collects payments
+              </label>
+            </div>
+            {/* Extra context */}
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Any special notes? (optional)</label>
+              <textarea value={legalExtraContext} onChange={e => setLegalExtraContext(e.target.value)} placeholder="e.g. HIPAA compliance needed, GDPR applies, minors may use the product…" rows={3} style={{ width: "100%", border: `1px solid ${bdr}`, borderRadius: 8, padding: "9px 12px", fontSize: 12, color: ink, outline: "none", resize: "none", boxSizing: "border-box" }} />
+            </div>
+            {legalError && <p style={{ fontSize: 11, color: red }}>{legalError}</p>}
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button onClick={() => setShowLegalDocModal(false)} style={{ padding: "9px 16px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 13, cursor: "pointer" }}>Cancel</button>
+              <button onClick={handleGenerateLegalDocs} disabled={generatingLegal} style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: generatingLegal ? bdr : green, color: generatingLegal ? muted : "#fff", fontSize: 13, fontWeight: 600, cursor: generatingLegal ? "not-allowed" : "pointer" }}>
+                {generatingLegal ? "Generating…" : "Download HTML"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Contract Clause Library ── */}
+      <div style={{ background: "#F5F3FF", border: `1px solid #DDD6FE`, borderRadius: 12, padding: "14px 18px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: showClausePanel ? 14 : 0 }}>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: "#7C3AED", marginBottom: 2 }}>Contract Clause Library</p>
+            <p style={{ fontSize: 11, color: muted }}>Get 3 variants of any standard clause — founder-friendly, balanced, and investor-friendly — ready to paste.</p>
+          </div>
+          <button onClick={() => setShowClausePanel(p => !p)} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: "#7C3AED", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
+            {showClausePanel ? "Hide" : "Browse Clauses"}
+          </button>
+        </div>
+        {showClausePanel && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {/* Clause type grid */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+              {CLAUSE_TYPES.map(c => (
+                <button key={c.key} onClick={() => handleFetchClause(c.key)} disabled={fetchingClause} style={{ textAlign: "left", padding: "8px 12px", borderRadius: 8, border: `1px solid ${selectedClause === c.key ? "#7C3AED" : bdr}`, background: selectedClause === c.key ? "#EDE9FE" : bg, color: selectedClause === c.key ? "#7C3AED" : ink, fontSize: 12, cursor: fetchingClause ? "not-allowed" : "pointer", fontWeight: selectedClause === c.key ? 600 : 400 }}>
+                  {fetchingClause && selectedClause === c.key ? "Generating…" : c.label}
+                </button>
+              ))}
+            </div>
+            {/* Optional context */}
+            <input value={clauseContext} onChange={e => setClauseContext(e.target.value)} placeholder="Optional: add context (e.g. 'contractor agreement for offshore dev')" style={{ border: `1px solid ${bdr}`, borderRadius: 8, padding: "8px 12px", fontSize: 12, color: ink, outline: "none", width: "100%", boxSizing: "border-box" as const }} />
+            {clauseError && <p style={{ fontSize: 11, color: red }}>{clauseError}</p>}
+            {/* Clause result */}
+            {clauseResult && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div style={{ background: "#EDE9FE", borderRadius: 8, padding: "10px 14px" }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: "#7C3AED", marginBottom: 3 }}>{clauseResult.clauseType}</p>
+                  <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{clauseResult.summary}</p>
+                </div>
+                {/* Variant tabs */}
+                {clauseResult.variants && clauseResult.variants.length > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      {clauseResult.variants.map((v, vi) => {
+                        const vc = v.riskLevel === "low" ? green : v.riskLevel === "high" ? red : amber;
+                        return (
+                          <button key={vi} onClick={() => setSelectedVariant(vi)} style={{ flex: 1, padding: "6px 10px", borderRadius: 8, border: `1px solid ${selectedVariant === vi ? vc : bdr}`, background: selectedVariant === vi ? vc + "1A" : bg, color: selectedVariant === vi ? vc : muted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                            {v.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {(() => {
+                      const v = clauseResult.variants![selectedVariant];
+                      if (!v) return null;
+                      const ck = `clause-${selectedVariant}`;
+                      return (
+                        <div style={{ background: "#fff", border: `1px solid ${bdr}`, borderRadius: 10, padding: "14px 16px" }}>
+                          <p style={{ fontSize: 11, color: muted, marginBottom: 8, fontStyle: "italic" }}>{v.notes}</p>
+                          <div style={{ position: "relative" }}>
+                            <pre style={{ fontSize: 11, color: ink, lineHeight: 1.8, whiteSpace: "pre-wrap", wordBreak: "break-word", background: surf, borderRadius: 8, padding: "12px 40px 12px 12px", fontFamily: "inherit", margin: 0 }}>{v.text}</pre>
+                            <button onClick={() => { navigator.clipboard.writeText(v.text).then(() => { setCopiedClause(ck); setTimeout(() => setCopiedClause(null), 1500); }).catch(() => {}); }} style={{ position: "absolute", top: 8, right: 8, padding: "4px 10px", borderRadius: 6, border: `1px solid ${bdr}`, background: copiedClause === ck ? green : bg, color: copiedClause === ck ? "#fff" : muted, fontSize: 10, cursor: "pointer" }}>
+                              {copiedClause === ck ? "✓" : "Copy"}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+                {/* Negotiate + red flags */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  {clauseResult.keyTermsToNegotiate && clauseResult.keyTermsToNegotiate.length > 0 && (
+                    <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "10px 12px", border: `1px solid #BBF7D0` }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: green, marginBottom: 6 }}>What to Negotiate</p>
+                      {clauseResult.keyTermsToNegotiate.map((t, ti) => <p key={ti} style={{ fontSize: 11, color: ink, lineHeight: 1.6 }}>• {t}</p>)}
+                    </div>
+                  )}
+                  {clauseResult.redFlags && clauseResult.redFlags.length > 0 && (
+                    <div style={{ background: "#FEF2F2", borderRadius: 8, padding: "10px 12px", border: `1px solid #FECACA` }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: red, marginBottom: 6 }}>Red Flags to Watch</p>
+                      {clauseResult.redFlags.map((f, fi) => <p key={fi} style={{ fontSize: 11, color: ink, lineHeight: 1.6 }}>• {f}</p>)}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── IP Audit ─────────────────────────────────────────────────────────── */}
+      <div style={{ background: showIPAuditPanel && ipAuditResult ? "#FFFBEB" : surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${showIPAuditPanel && ipAuditResult ? "#FDE68A" : bdr}` }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <p style={{ fontSize: 11, fontWeight: 700, color: amber, marginBottom: 2 }}>
+              IP Audit
+              {ipAuditResult?.riskLevel && <span style={{ marginLeft: 6, fontSize: 10, padding: "2px 8px", borderRadius: 999, background: ipAuditResult.riskLevel === "critical" ? "#FEF2F2" : ipAuditResult.riskLevel === "high" ? "#FFFBEB" : "#F0FDF4", color: ipAuditResult.riskLevel === "critical" ? red : ipAuditResult.riskLevel === "high" ? amber : green, fontWeight: 700 }}>{ipAuditResult.riskLevel?.toUpperCase()}</span>}
+            </p>
+            <p style={{ fontSize: 11, color: muted }}>Check code ownership, prior employer claims, OSS licenses, and contractor IP before fundraising.</p>
+          </div>
+          <button onClick={() => { if (showIPAuditPanel && !runningIPAudit) setShowIPAuditPanel(false); else setShowIPAuditPanel(true); }} style={{ padding: "6px 14px", borderRadius: 8, border: "none", background: amber, color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+            {showIPAuditPanel ? "Close" : "Audit IP"}
+          </button>
+        </div>
+        {showIPAuditPanel && (
+          <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 12 }}>
+            {!ipAuditResult ? (
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Who wrote the code?</label>
+                    <input value={ipCodeAuthors} onChange={e => setIpCodeAuthors(e.target.value)} placeholder="Founder 1, Contractor X, 3 employees..." style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: `1px solid ${bdr}`, fontSize: 12, color: ink, boxSizing: "border-box" }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Prior employers of founders/devs</label>
+                    <input value={ipPriorEmployers} onChange={e => setIpPriorEmployers(e.target.value)} placeholder="Google, Meta, Stripe..." style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: `1px solid ${bdr}`, fontSize: 12, color: ink, boxSizing: "border-box" }} />
+                  </div>
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Open source libraries used</label>
+                  <input value={ipOSSLibraries} onChange={e => setIpOSSLibraries(e.target.value)} placeholder="React (MIT), PostgreSQL (BSD), ffmpeg..." style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: `1px solid ${bdr}`, fontSize: 12, color: ink, boxSizing: "border-box" }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 6 }}>Contractor IP assignments signed?</label>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    {[{ label: "Yes, all signed", val: true }, { label: "No / unsure", val: false }].map(opt => (
+                      <button key={String(opt.val)} onClick={() => setIpHasContracts(opt.val)} style={{ flex: 1, padding: "7px 12px", borderRadius: 8, border: `1px solid ${ipHasContracts === opt.val ? (opt.val ? green : red) : bdr}`, background: ipHasContracts === opt.val ? (opt.val ? "#F0FDF4" : "#FEF2F2") : bg, color: ipHasContracts === opt.val ? (opt.val ? green : red) : muted, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Anything else Leo should know?</label>
+                  <textarea value={ipContext} onChange={e => setIpContext(e.target.value)} placeholder="Any unusual IP situations, joint development, university IP, open source contributions..." rows={2} style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 12, color: ink, resize: "none", fontFamily: "inherit", boxSizing: "border-box" }} />
+                </div>
+                {ipAuditError && <p style={{ fontSize: 12, color: red }}>{ipAuditError}</p>}
+                <button onClick={handleRunIPAudit} disabled={runningIPAudit} style={{ padding: "10px", borderRadius: 8, border: "none", background: runningIPAudit ? bdr : amber, color: runningIPAudit ? muted : "#fff", fontSize: 13, fontWeight: 700, cursor: runningIPAudit ? "not-allowed" : "pointer" }}>
+                  {runningIPAudit ? "Auditing…" : "Run IP Audit"}
+                </button>
+              </>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {/* Risk score */}
+                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                  <div style={{ width: 64, height: 64, borderRadius: "50%", border: `4px solid ${(ipAuditResult.riskScore ?? 0) >= 60 ? red : (ipAuditResult.riskScore ?? 0) >= 35 ? amber : green}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <p style={{ fontSize: 18, fontWeight: 700, color: (ipAuditResult.riskScore ?? 0) >= 60 ? red : (ipAuditResult.riskScore ?? 0) >= 35 ? amber : green }}>{ipAuditResult.riskScore}</p>
+                  </div>
+                  <div>
+                    <p style={{ fontSize: 14, fontWeight: 700, color: ink }}>IP Risk Score</p>
+                    <p style={{ fontSize: 11, color: muted }}>0 = clean · 100 = critical risk</p>
+                    {ipAuditResult.investorReadiness && <p style={{ fontSize: 12, color: muted, marginTop: 4 }}>{ipAuditResult.investorReadiness}</p>}
+                  </div>
+                </div>
+
+                {/* Urgent items */}
+                {ipAuditResult.urgentItems && ipAuditResult.urgentItems.length > 0 && (
+                  <div style={{ background: "#FEF2F2", borderRadius: 8, padding: "10px 14px", border: "1px solid #FECACA" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: red, marginBottom: 6 }}>FIX BEFORE FUNDRAISING</p>
+                    {ipAuditResult.urgentItems.map((item, i) => (
+                      <p key={i} style={{ fontSize: 12, color: ink, lineHeight: 1.5, marginBottom: 3 }}>⚠ {item}</p>
+                    ))}
+                  </div>
+                )}
+
+                {/* Risks */}
+                {ipAuditResult.risks && ipAuditResult.risks.length > 0 && (
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: muted, marginBottom: 8 }}>IP Risks</p>
+                    {ipAuditResult.risks.filter(r => r.severity !== "low").map((r, i) => (
+                      <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "8px 0", borderBottom: `1px solid ${bdr}` }}>
+                        <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 999, background: r.severity === "critical" ? "#FEF2F2" : r.severity === "high" ? "#FFFBEB" : surf, color: r.severity === "critical" ? red : r.severity === "high" ? amber : muted, fontWeight: 700, flexShrink: 0, marginTop: 2 }}>{r.severity?.toUpperCase()}</span>
+                        <div>
+                          <p style={{ fontSize: 12, fontWeight: 600, color: ink }}>{r.risk}</p>
+                          <p style={{ fontSize: 11, color: muted }}>{r.explanation}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Recommendations */}
+                {ipAuditResult.recommendations && ipAuditResult.recommendations.length > 0 && (
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: muted, marginBottom: 8 }}>Recommended Actions</p>
+                    {ipAuditResult.recommendations.map((r, i) => (
+                      <div key={i} style={{ background: surf, borderRadius: 8, padding: "8px 12px", border: `1px solid ${bdr}`, marginBottom: 6 }}>
+                        <div style={{ display: "flex", gap: 8, marginBottom: 3 }}>
+                          <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 999, background: r.timeline === "immediately" ? "#FEF2F2" : "#FFFBEB", color: r.timeline === "immediately" ? red : amber, fontWeight: 700 }}>{r.timeline?.replace("_", " ").toUpperCase()}</span>
+                          <span style={{ fontSize: 10, color: green }}>{r.cost}</span>
+                        </div>
+                        <p style={{ fontSize: 12, color: ink }}>{r.action}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Clean items */}
+                {ipAuditResult.cleanBillOfHealth && ipAuditResult.cleanBillOfHealth.length > 0 && (
+                  <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "10px 14px", border: "1px solid #BBF7D0" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: green, marginBottom: 6 }}>✓ LOOKING GOOD</p>
+                    {ipAuditResult.cleanBillOfHealth.map((c, i) => (
+                      <p key={i} style={{ fontSize: 12, color: ink, lineHeight: 1.5 }}>✓ {c}</p>
+                    ))}
+                  </div>
+                )}
+
+                {ipAuditResult.priorityQuestion && (
+                  <div style={{ background: "#EFF6FF", borderRadius: 8, padding: "10px 14px", border: `1px solid #BFDBFE` }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: blue, marginBottom: 4 }}>ASK YOUR LAWYER</p>
+                    <p style={{ fontSize: 12, color: ink }}>{ipAuditResult.priorityQuestion}</p>
+                  </div>
+                )}
+
+                <button onClick={() => { setIpAuditResult(null); setShowIPAuditPanel(false); }} style={{ padding: "8px 16px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 12, cursor: "pointer", alignSelf: "flex-start" }}>
+                  Close
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Regulatory Research ───────────────────────────────────────────────── */}
+      <div style={{ background: showRegulatoryPanel && regulatoryResult ? "#EFF6FF" : surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${showRegulatoryPanel && regulatoryResult ? "#BFDBFE" : bdr}` }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>
+              Regulatory Research
+              {regulatoryResult?.complianceScore !== undefined && (
+                <span style={{ marginLeft: 8, fontSize: 10, padding: "2px 8px", borderRadius: 999, background: regulatoryResult.complianceScore >= 70 ? "#F0FDF4" : regulatoryResult.complianceScore >= 40 ? "#FFFBEB" : "#FEF2F2", color: regulatoryResult.complianceScore >= 70 ? green : regulatoryResult.complianceScore >= 40 ? amber : red, fontWeight: 700 }}>
+                  Compliance: {regulatoryResult.complianceScore}/100
+                </span>
+              )}
+            </p>
+            <p style={{ fontSize: 11, color: muted }}>Industry-specific regulations that apply to your startup — what you must comply with and by when.</p>
+          </div>
+          <button onClick={() => { if (showRegulatoryPanel && !runningRegulatory) setShowRegulatoryPanel(false); else setShowRegulatoryPanel(true); }} style={{ padding: "6px 14px", borderRadius: 8, border: "none", background: blue, color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+            {showRegulatoryPanel ? "Close" : regulatoryResult ? "Refresh" : "Research"}
+          </button>
+        </div>
+        {showRegulatoryPanel && (
+          <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 12 }}>
+            {!regulatoryResult && !runningRegulatory && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div>
+                  <p style={{ fontSize: 11, fontWeight: 600, color: ink, marginBottom: 4 }}>Industry (optional — uses your profile if blank)</p>
+                  <input value={regulatoryIndustry} onChange={e => setRegulatoryIndustry(e.target.value)} placeholder="e.g. HealthTech, FinTech, EdTech, SaaS…" style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 12, color: ink, fontFamily: "inherit", boxSizing: "border-box" as const }} />
+                </div>
+                <div>
+                  <p style={{ fontSize: 11, fontWeight: 600, color: ink, marginBottom: 4 }}>Additional context (optional)</p>
+                  <textarea value={regulatoryContext} onChange={e => setRegulatoryContext(e.target.value)} placeholder="e.g. We handle health data, process payments, have users in EU..." rows={2} style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 12, color: ink, resize: "none", fontFamily: "inherit", boxSizing: "border-box" as const }} />
+                </div>
+                {regulatoryError && <p style={{ fontSize: 12, color: red }}>{regulatoryError}</p>}
+                <button onClick={handleRegulatoryResearch} disabled={runningRegulatory} style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: blue, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", alignSelf: "flex-start" }}>
+                  Research Regulations
+                </button>
+              </div>
+            )}
+            {runningRegulatory && (
+              <p style={{ fontSize: 12, color: muted, textAlign: "center", padding: "16px 0" }}>Researching applicable regulations for your industry…</p>
+            )}
+            {regulatoryResult && !runningRegulatory && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {/* Biggest risk banner */}
+                {regulatoryResult.biggestRisk && (
+                  <div style={{ background: "#FEF2F2", borderRadius: 8, padding: "10px 14px", border: "1px solid #FECACA" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: red, marginBottom: 4 }}>HIGHEST RISK</p>
+                    <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{regulatoryResult.biggestRisk}</p>
+                  </div>
+                )}
+
+                {/* Quick wins */}
+                {regulatoryResult.quickWins && regulatoryResult.quickWins.length > 0 && (
+                  <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "10px 14px", border: "1px solid #BBF7D0" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: green, marginBottom: 6 }}>DO THIS WEEK</p>
+                    {regulatoryResult.quickWins.map((w, i) => (
+                      <p key={i} style={{ fontSize: 12, color: ink, marginBottom: 3 }}>✓ {w}</p>
+                    ))}
+                  </div>
+                )}
+
+                {/* Tabs */}
+                <div style={{ display: "flex", gap: 4 }}>
+                  {(["overview", "checklist", "risks"] as const).map(tab => (
+                    <button key={tab} onClick={() => setRegActiveTab(tab)} style={{ padding: "5px 12px", borderRadius: 20, border: "none", background: regActiveTab === tab ? blue : surf, color: regActiveTab === tab ? "#fff" : ink, fontSize: 11, fontWeight: 600, cursor: "pointer", textTransform: "capitalize" }}>
+                      {tab === "overview" ? "Regulations" : tab === "checklist" ? "Checklist" : "Risk Areas"}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Regulations tab */}
+                {regActiveTab === "overview" && regulatoryResult.regulations && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {regulatoryResult.regulations.map((reg, i) => (
+                      <div key={i} style={{ background: surf, borderRadius: 8, padding: "10px 14px", border: `1px solid ${reg.severity === "must_comply" ? "#FECACA" : reg.severity === "likely_applies" ? "#FDE68A" : bdr}` }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
+                          <p style={{ fontSize: 12, fontWeight: 700, color: ink }}>{reg.name}</p>
+                          <span style={{ fontSize: 9, padding: "2px 8px", borderRadius: 999, background: reg.severity === "must_comply" ? "#FEF2F2" : reg.severity === "likely_applies" ? "#FFFBEB" : surf, color: reg.severity === "must_comply" ? red : reg.severity === "likely_applies" ? amber : muted, fontWeight: 700, flexShrink: 0, marginLeft: 8 }}>{(reg.severity ?? "").replace(/_/g, " ").toUpperCase()}</span>
+                        </div>
+                        <p style={{ fontSize: 11, color: ink, lineHeight: 1.6, marginBottom: 4 }}>{reg.summary}</p>
+                        <p style={{ fontSize: 10, color: muted }}>{reg.applicableBecause}</p>
+                        {reg.penalty && <p style={{ fontSize: 10, color: red, marginTop: 4 }}>⚠ Penalty: {reg.penalty}</p>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Checklist tab */}
+                {regActiveTab === "checklist" && regulatoryResult.complianceChecklist && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {regulatoryResult.complianceChecklist.map((item, i) => (
+                      <div key={i} style={{ display: "flex", gap: 10, padding: "8px 12px", borderRadius: 8, background: surf, border: `1px solid ${bdr}`, alignItems: "flex-start" }}>
+                        <div style={{ flexShrink: 0, width: 28, height: 28, borderRadius: "50%", background: item.timeline === "immediately" ? "#FEF2F2" : item.timeline === "before_launch" ? "#FFFBEB" : "#EFF6FF", border: `1px solid ${item.timeline === "immediately" ? "#FECACA" : item.timeline === "before_launch" ? "#FDE68A" : "#BFDBFE"}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <span style={{ fontSize: 10, color: item.timeline === "immediately" ? red : item.timeline === "before_launch" ? amber : blue, fontWeight: 700 }}>{item.timeline === "immediately" ? "!" : item.timeline === "before_launch" ? "◷" : "→"}</span>
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <p style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 2 }}>{item.item}</p>
+                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                            <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 999, background: "#F0F0F0", color: muted, fontWeight: 600 }}>{(item.category ?? "").replace(/_/g, " ")}</span>
+                            <span style={{ fontSize: 9, padding: "1px 6px", borderRadius: 999, background: "#F0F0F0", color: muted, fontWeight: 600 }}>{item.difficulty}</span>
+                            {item.estimatedCost && <span style={{ fontSize: 9, color: muted }}>~{item.estimatedCost}</span>}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Risks tab */}
+                {regActiveTab === "risks" && regulatoryResult.riskAreas && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {regulatoryResult.riskAreas.map((r, i) => (
+                      <div key={i} style={{ padding: "8px 12px", borderRadius: 8, background: r.severity === "high" ? "#FEF2F2" : r.severity === "medium" ? "#FFFBEB" : surf, border: `1px solid ${r.severity === "high" ? "#FECACA" : r.severity === "medium" ? "#FDE68A" : bdr}` }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                          <p style={{ fontSize: 12, fontWeight: 700, color: r.severity === "high" ? red : r.severity === "medium" ? amber : ink }}>{r.area}</p>
+                          <span style={{ fontSize: 9, fontWeight: 700, color: r.severity === "high" ? red : r.severity === "medium" ? amber : muted, textTransform: "uppercase" }}>{r.severity}</span>
+                        </div>
+                        <p style={{ fontSize: 11, color: ink, lineHeight: 1.5 }}>{r.risk}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Expert advice */}
+                {regulatoryResult.expertAdvice && (
+                  <div style={{ background: "#EFF6FF", borderRadius: 8, padding: "10px 14px", border: "1px solid #BFDBFE" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: blue, marginBottom: 4 }}>WHICH LAWYER TO HIRE</p>
+                    <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{regulatoryResult.expertAdvice}</p>
+                  </div>
+                )}
+
+                <button onClick={() => { setRegulatoryResult(null); setRegActiveTab("overview"); }} style={{ padding: "8px 16px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 12, cursor: "pointer", alignSelf: "flex-start" }}>
+                  New Research
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Cap Table Validation ──────────────────────────────────────────────── */}
+      <div style={{ background: showCapTablePanel && capTableResult ? "#FFFBEB" : surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${showCapTablePanel && capTableResult ? "#FDE68A" : bdr}` }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <p style={{ fontSize: 11, fontWeight: 700, color: amber, marginBottom: 2 }}>
+              Cap Table Validation
+              {capTableResult?.healthScore !== undefined && (
+                <span style={{ marginLeft: 8, fontSize: 10, padding: "2px 8px", borderRadius: 999, background: capTableResult.healthScore >= 70 ? "#F0FDF4" : capTableResult.healthScore >= 40 ? "#FFFBEB" : "#FEF2F2", color: capTableResult.healthScore >= 70 ? green : capTableResult.healthScore >= 40 ? amber : red, fontWeight: 700 }}>
+                  Health: {capTableResult.healthScore}/100
+                </span>
+              )}
+            </p>
+            <p style={{ fontSize: 11, color: muted }}>Leo reviews your cap table for legal gaps, investor red flags, and missing agreements investors will find in due diligence.</p>
+          </div>
+          <button onClick={() => { if (showCapTablePanel && !runningCapTable) setShowCapTablePanel(false); else setShowCapTablePanel(true); }} style={{ padding: "6px 14px", borderRadius: 8, border: "none", background: amber, color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+            {showCapTablePanel ? "Close" : capTableResult ? "Refresh" : "Validate"}
+          </button>
+        </div>
+        {showCapTablePanel && (
+          <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 12 }}>
+            {!capTableResult && !runningCapTable && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div>
+                  <p style={{ fontSize: 11, fontWeight: 600, color: ink, marginBottom: 4 }}>Paste your cap table * (text description is fine)</p>
+                  <textarea value={capTableData} onChange={e => setCapTableData(e.target.value)} placeholder={"Founders:\n- Alice Smith: 45% (vesting 4yr/1yr cliff, start Jan 2024)\n- Bob Jones: 45% (same)\n\nOption Pool: 10% (ESOP)\n- Issued to engineers: 3%\n- Advisors: 1% (verbal agreement, no SAFE)\n\nSAFE holders: YC $500K MFN SAFE (unconverted)"} rows={8} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 12, color: ink, resize: "vertical", fontFamily: "monospace", boxSizing: "border-box" as const }} />
+                </div>
+                <div>
+                  <p style={{ fontSize: 11, fontWeight: 600, color: ink, marginBottom: 4 }}>Additional context (optional)</p>
+                  <input value={capTableContext} onChange={e => setCapTableContext(e.target.value)} placeholder="e.g. Delaware C-Corp, raising Series A, 83(b) filed for founders" style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 12, color: ink, fontFamily: "inherit", boxSizing: "border-box" as const }} />
+                </div>
+                {capTableError && <p style={{ fontSize: 12, color: red }}>{capTableError}</p>}
+                <button onClick={handleValidateCapTable} disabled={!capTableData.trim() || runningCapTable} style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: !capTableData.trim() ? bdr : amber, color: !capTableData.trim() ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: !capTableData.trim() ? "not-allowed" : "pointer", alignSelf: "flex-start" }}>
+                  Validate Cap Table
+                </button>
+              </div>
+            )}
+            {runningCapTable && (
+              <p style={{ fontSize: 12, color: muted, textAlign: "center", padding: "16px 0" }}>Reviewing cap table structure and identifying legal gaps…</p>
+            )}
+            {capTableResult && !runningCapTable && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {/* Health score + assessment */}
+                <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+                  {capTableResult.healthScore !== undefined && (
+                    <div style={{ textAlign: "center", flexShrink: 0 }}>
+                      <div style={{ width: 64, height: 64, borderRadius: "50%", background: capTableResult.healthScore >= 70 ? "#F0FDF4" : capTableResult.healthScore >= 40 ? "#FFFBEB" : "#FEF2F2", border: `3px solid ${capTableResult.healthScore >= 70 ? green : capTableResult.healthScore >= 40 ? amber : red}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                        <span style={{ fontSize: 18, fontWeight: 800, color: capTableResult.healthScore >= 70 ? green : capTableResult.healthScore >= 40 ? amber : red }}>{capTableResult.healthScore}</span>
+                        <span style={{ fontSize: 8, color: muted, fontWeight: 600 }}>HEALTH</span>
+                      </div>
+                    </div>
+                  )}
+                  {capTableResult.overallAssessment && (
+                    <p style={{ fontSize: 13, color: ink, lineHeight: 1.7, flex: 1 }}>{capTableResult.overallAssessment}</p>
+                  )}
+                </div>
+
+                {/* Option pool analysis */}
+                {capTableResult.optionPoolAnalysis && (
+                  <div style={{ background: surf, borderRadius: 8, padding: "10px 14px", border: `1px solid ${bdr}`, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                    <div><p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase" }}>Current Pool</p><p style={{ fontSize: 15, fontWeight: 700, color: ink }}>{capTableResult.optionPoolAnalysis.currentSize}</p></div>
+                    <div><p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase" }}>Recommended</p><p style={{ fontSize: 15, fontWeight: 700, color: blue }}>{capTableResult.optionPoolAnalysis.recommendedSize}</p></div>
+                    <p style={{ fontSize: 11, color: muted, gridColumn: "1 / -1" }}>{capTableResult.optionPoolAnalysis.reasoning}</p>
+                  </div>
+                )}
+
+                {/* Tabs */}
+                <div style={{ display: "flex", gap: 4 }}>
+                  {(["issues", "urgent", "investor"] as const).map(tab => (
+                    <button key={tab} onClick={() => setCapTableTab(tab)} style={{ padding: "5px 12px", borderRadius: 20, border: "none", background: capTableTab === tab ? amber : surf, color: capTableTab === tab ? "#fff" : ink, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                      {tab === "issues" ? `Issues (${capTableResult?.issues?.length ?? 0})` : tab === "urgent" ? "Urgent Fixes" : "Investor Gaps"}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Issues tab */}
+                {capTableTab === "issues" && capTableResult.issues && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {capTableResult.issues.map((issue, i) => (
+                      <div key={i} style={{ background: issue.severity === "critical" ? "#FEF2F2" : issue.severity === "high" ? "#FFFBEB" : surf, borderRadius: 8, padding: "10px 14px", border: `1px solid ${issue.severity === "critical" ? "#FECACA" : issue.severity === "high" ? "#FDE68A" : bdr}` }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
+                          <p style={{ fontSize: 12, fontWeight: 700, color: issue.severity === "critical" ? red : issue.severity === "high" ? amber : ink }}>{issue.issue}</p>
+                          <div style={{ display: "flex", gap: 4, flexShrink: 0, marginLeft: 8 }}>
+                            <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 999, background: surf, color: muted, fontWeight: 700 }}>{issue.severity.toUpperCase()}</span>
+                            <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 999, background: surf, color: muted, fontWeight: 600 }}>{(issue.category ?? "").replace(/_/g, " ")}</span>
+                          </div>
+                        </div>
+                        <p style={{ fontSize: 11, color: ink, lineHeight: 1.5, marginBottom: 4 }}>{issue.explanation}</p>
+                        <p style={{ fontSize: 11, color: blue, fontWeight: 500 }}>Fix: {issue.howToFix}</p>
+                        <p style={{ fontSize: 10, color: muted, marginTop: 2 }}>Timeline: {(issue.timeline ?? "").replace(/_/g, " ")}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Urgent fixes tab */}
+                {capTableTab === "urgent" && capTableResult.urgentFixes && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <p style={{ fontSize: 11, color: muted }}>Address these before your next fundraising conversation:</p>
+                    {capTableResult.urgentFixes.map((f, i) => (
+                      <div key={i} style={{ display: "flex", gap: 10, padding: "8px 12px", borderRadius: 8, background: "#FEF2F2", border: "1px solid #FECACA" }}>
+                        <span style={{ fontSize: 14, color: red, fontWeight: 700, flexShrink: 0 }}>{i + 1}</span>
+                        <p style={{ fontSize: 12, color: ink, lineHeight: 1.5 }}>{f}</p>
+                      </div>
+                    ))}
+                    {capTableResult.safeHarbor && capTableResult.safeHarbor.length > 0 && (
+                      <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "10px 14px", border: "1px solid #BBF7D0", marginTop: 8 }}>
+                        <p style={{ fontSize: 10, fontWeight: 700, color: green, marginBottom: 6 }}>DOING WELL — DON&apos;T CHANGE</p>
+                        {capTableResult.safeHarbor.map((s, i) => <p key={i} style={{ fontSize: 11, color: ink, marginBottom: 3 }}>✓ {s}</p>)}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Investor gaps tab */}
+                {capTableTab === "investor" && capTableResult.investorReadinessGaps && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <p style={{ fontSize: 11, color: muted }}>Sophisticated investors will flag these in due diligence:</p>
+                    {capTableResult.investorReadinessGaps.map((g, i) => (
+                      <div key={i} style={{ padding: "8px 12px", borderRadius: 8, background: "#FFFBEB", border: "1px solid #FDE68A" }}>
+                        <p style={{ fontSize: 12, color: ink, lineHeight: 1.5 }}>⚠ {g}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Next steps + lawyer brief */}
+                {capTableResult.nextSteps && (
+                  <div style={{ background: "#EFF6FF", borderRadius: 8, padding: "10px 14px", border: "1px solid #BFDBFE" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: blue, marginBottom: 4 }}>NEXT STEPS</p>
+                    <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{capTableResult.nextSteps}</p>
+                  </div>
+                )}
+                {capTableResult.lawyerBrief && (
+                  <div style={{ background: surf, borderRadius: 8, padding: "10px 14px", border: `1px solid ${bdr}` }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: muted, marginBottom: 4 }}>WHAT TO TELL YOUR LAWYER</p>
+                    <p style={{ fontSize: 12, color: ink, lineHeight: 1.6, fontStyle: "italic" }}>{capTableResult.lawyerBrief}</p>
+                  </div>
+                )}
+
+                <button onClick={() => { setCapTableResult(null); setCapTableData(""); setCapTableContext(""); }} style={{ padding: "8px 16px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 12, cursor: "pointer", alignSelf: "flex-start" }}>
+                  Validate Another
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Document Version Diff ── */}
+      <div style={{ background: "#FEF2F2", borderRadius: 12, padding: "14px 18px", border: "1px solid #FECACA" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <div>
+            <p style={{ fontSize: 11, fontWeight: 700, color: red, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 2 }}>Document Version Diff</p>
+            <p style={{ fontSize: 11, color: muted }}>Paste two versions of any legal document — Leo highlights every change, explains the impact, and flags what to negotiate.</p>
+          </div>
+          <button onClick={() => { setShowDiffModal(true); setDiffResult(null); setDiffError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: red, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>
+            Compare Versions
+          </button>
+        </div>
+      </div>
+
+      {/* ── Document Diff Modal ── */}
+      {showDiffModal && (
+        <div onClick={() => { if (!diffing) setShowDiffModal(false); }} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: bg, borderRadius: 16, padding: 28, width: "100%", maxWidth: 780, maxHeight: "92vh", overflowY: "auto", boxShadow: "0 24px 80px rgba(0,0,0,0.22)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <div>
+                <p style={{ fontSize: 15, fontWeight: 700, color: ink }}>Document Diff Analyzer</p>
+                <p style={{ fontSize: 11, color: muted, marginTop: 2 }}>Paste original and revised — Leo finds every change and explains the legal impact</p>
+              </div>
+              <button onClick={() => setShowDiffModal(false)} style={{ background: "none", border: "none", cursor: "pointer", color: muted, fontSize: 18 }}>×</button>
+            </div>
+            {!diffResult ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {/* Doc type */}
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 6 }}>Document Type</label>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {["SAFE", "Term Sheet", "NDA", "SERP", "Contractor Agreement", "Custom"].map(dt => (
+                      <button key={dt} onClick={() => setDiffDocType(dt.toLowerCase().replace(/ /g, '_'))} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${diffDocType === dt.toLowerCase().replace(/ /g, '_') ? red : bdr}`, background: diffDocType === dt.toLowerCase().replace(/ /g, '_') ? "#FEF2F2" : bg, color: diffDocType === dt.toLowerCase().replace(/ /g, '_') ? red : muted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                        {dt}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {/* Side by side textareas */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Original Version</label>
+                    <textarea
+                      value={diffOriginal}
+                      onChange={e => setDiffOriginal(e.target.value)}
+                      placeholder="Paste the original document text here…"
+                      rows={10}
+                      style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 11, color: ink, resize: "vertical", fontFamily: "inherit", boxSizing: "border-box" }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Revised Version</label>
+                    <textarea
+                      value={diffRevised}
+                      onChange={e => setDiffRevised(e.target.value)}
+                      placeholder="Paste the revised document text here…"
+                      rows={10}
+                      style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 11, color: ink, resize: "vertical", fontFamily: "inherit", boxSizing: "border-box" }}
+                    />
+                  </div>
+                </div>
+                {diffError && <p style={{ fontSize: 12, color: red }}>{diffError}</p>}
+                <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                  <button onClick={() => setShowDiffModal(false)} style={{ padding: "9px 16px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 13, cursor: "pointer" }}>Cancel</button>
+                  <button onClick={handleRunDiff} disabled={diffing || !diffOriginal.trim() || !diffRevised.trim()} style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: diffing ? bdr : red, color: diffing ? muted : "#fff", fontSize: 13, fontWeight: 600, cursor: diffing ? "not-allowed" : "pointer" }}>
+                    {diffing ? "Analyzing…" : "Compare Versions"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {/* Summary + overall impact */}
+                <div style={{ background: diffResult.overallImpact === "founder_favorable" ? "#F0FDF4" : diffResult.overallImpact === "investor_favorable" ? "#FEF2F2" : "#FFFBEB", borderRadius: 10, padding: "12px 16px", border: `1px solid ${diffResult.overallImpact === "founder_favorable" ? "#BBF7D0" : diffResult.overallImpact === "investor_favorable" ? "#FECACA" : "#FDE68A"}` }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: diffResult.overallImpact === "founder_favorable" ? green : diffResult.overallImpact === "investor_favorable" ? red : amber, marginBottom: 4 }}>
+                    {diffResult.overallImpact === "founder_favorable" ? "✓ Favorable to Founder" : diffResult.overallImpact === "investor_favorable" ? "⚠ Favorable to Investor" : "↔ Neutral Changes"}
+                  </p>
+                  <p style={{ fontSize: 13, fontWeight: 500, color: ink, lineHeight: 1.6 }}>{diffResult.summary}</p>
+                </div>
+                {/* Changes */}
+                {diffResult.changes && diffResult.changes.length > 0 && (
+                  <div>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: "uppercase", marginBottom: 8 }}>{diffResult.changes.length} Change{diffResult.changes.length !== 1 ? 's' : ''} Found</p>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {diffResult.changes.map((c, ci) => {
+                        const typeColor = c.type === "removed" ? red : c.type === "added" ? green : c.type === "tightened" ? amber : blue;
+                        const sevColor = c.severity === "major" ? red : c.severity === "moderate" ? amber : muted;
+                        return (
+                          <div key={ci} style={{ background: "#fff", borderRadius: 10, padding: "12px 14px", border: `1px solid ${c.severity === "major" ? "#FECACA" : bdr}` }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                                <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 999, background: typeColor + "1A", color: typeColor, textTransform: "uppercase" }}>{c.type}</span>
+                                <p style={{ fontSize: 12, fontWeight: 600, color: ink }}>{c.section}</p>
+                              </div>
+                              <span style={{ fontSize: 10, fontWeight: 700, color: sevColor }}>{c.severity}</span>
+                            </div>
+                            <p style={{ fontSize: 12, color: ink, lineHeight: 1.6, marginBottom: 6 }}>{c.explanation}</p>
+                            <p style={{ fontSize: 11, color: muted, fontStyle: "italic" }}>Impact on you: {c.founderImpact}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                {/* Red flags */}
+                {diffResult.redFlags && diffResult.redFlags.length > 0 && (
+                  <div style={{ background: "#FEF2F2", borderRadius: 10, padding: "12px 14px", border: "1px solid #FECACA" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: red, marginBottom: 8 }}>🚩 Red Flags</p>
+                    {diffResult.redFlags.map((f, fi) => <p key={fi} style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>• {f}</p>)}
+                  </div>
+                )}
+                {/* Wins by side */}
+                {diffResult.winsBySide && (
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                    {diffResult.winsBySide.founder && diffResult.winsBySide.founder.length > 0 && (
+                      <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "10px 12px", border: "1px solid #BBF7D0" }}>
+                        <p style={{ fontSize: 10, fontWeight: 700, color: green, marginBottom: 6 }}>✓ Your Wins</p>
+                        {diffResult.winsBySide.founder.map((w, wi) => <p key={wi} style={{ fontSize: 11, color: ink, lineHeight: 1.5 }}>• {w}</p>)}
+                      </div>
+                    )}
+                    {diffResult.winsBySide.investor && diffResult.winsBySide.investor.length > 0 && (
+                      <div style={{ background: "#FEF2F2", borderRadius: 8, padding: "10px 12px", border: "1px solid #FECACA" }}>
+                        <p style={{ fontSize: 10, fontWeight: 700, color: red, marginBottom: 6 }}>⚠ Investor Wins</p>
+                        {diffResult.winsBySide.investor.map((w, wi) => <p key={wi} style={{ fontSize: 11, color: ink, lineHeight: 1.5 }}>• {w}</p>)}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {diffResult.negotiationAdvice && (
+                  <div style={{ background: "#FFFBEB", borderRadius: 10, padding: "12px 14px", border: "1px solid #FDE68A" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: amber, marginBottom: 4 }}>What to Push Back On</p>
+                    <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{diffResult.negotiationAdvice}</p>
+                  </div>
+                )}
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => { setDiffResult(null); setDiffOriginal(""); setDiffRevised(""); }} style={{ padding: "8px 16px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 12, cursor: "pointer" }}>Compare Another</button>
+                  <button onClick={() => setShowDiffModal(false)} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: ink, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Done</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -3101,10 +6620,89 @@ function HiringPlanRenderer({ data, artifactId, userId }: { data: Record<string,
     cultureValues?: string[];
   };
 
-  type Application = { id: string; role_slug: string; role_title?: string; applicant_name: string; applicant_email: string; score?: number; score_notes?: string; created_at: string };
+  type Application = { id: string; role_slug: string; role_title?: string; applicant_name: string; applicant_email: string; score?: number; score_notes?: string; created_at: string; status?: string };
   const [applications, setApplications] = useState<Application[]>([]);
   const [showApps, setShowApps]         = useState(false);
   const [loadingApps, setLoadingApps]   = useState(false);
+
+  // Hiring funnel analytics state
+  const [showFunnelPanel, setShowFunnelPanel] = useState(false);
+  const [loadingFunnel, setLoadingFunnel]     = useState(false);
+  const [funnelData, setFunnelData]           = useState<{
+    funnel?: { sourced: number; outreached: number; applied: number; screened: number; interviewed: number; offered: number; hired: number };
+    conversionRates?: { sourceToApply: number | null; applyToScreen: number | null; screenToInterview: number | null; interviewToOffer: number | null; offerToHire: number | null };
+    avgScore?: number | null;
+    scoreDistribution?: { strong: number; good: number; weak: number };
+    byRole?: Record<string, { applied: number; screened: number }>;
+    avgDaysToOffer?: number | null;
+  } | null>(null);
+
+  async function loadFunnelData() {
+    if (loadingFunnel) return;
+    setLoadingFunnel(true); setShowFunnelPanel(true);
+    try {
+      const res = await fetch('/api/agents/harper/pipeline');
+      if (res.ok) { const r = await res.json(); setFunnelData(r); }
+    } catch { /* ignore */ }
+    finally { setLoadingFunnel(false); }
+  }
+
+  // Rejection state
+  const [rejectingId, setRejectingId]   = useState<string | null>(null);
+  const [rejectSentIds, setRejectSentIds] = useState<Set<string>>(new Set());
+
+  // Interview scorecard state
+  const [scorecardApp, setScorecardApp]       = useState<Application | null>(null);
+  const [scorecardNotes, setScorecardNotes]   = useState("");
+  const [scoringApp, setScoringApp]           = useState(false);
+  const [scorecardResult, setScorecardResult] = useState<{
+    overallScore?: number; recommendation?: string; summary?: string;
+    dimensions?: { name: string; score: number; maxScore: number; evidence: string; gap: string | null }[];
+    strengths?: string[]; concerns?: string[]; suggestedNextSteps?: string; referenceCheckFocus?: string;
+  } | null>(null);
+  const [scorecardError, setScorecardError] = useState<string | null>(null);
+
+  async function handleGenerateScorecard() {
+    if (!scorecardApp || !scorecardNotes.trim() || scoringApp) return;
+    setScoringApp(true); setScorecardError(null); setScorecardResult(null);
+    try {
+      const res = await fetch('/api/agents/harper/scorecard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          candidateName: scorecardApp.applicant_name,
+          role: scorecardApp.role_title ?? scorecardApp.role_slug,
+          interviewNotes: scorecardNotes,
+          applicationId: scorecardApp.id,
+        }),
+      });
+      const r = await res.json();
+      if (res.ok) setScorecardResult(r.scorecard);
+      else setScorecardError(r.error ?? 'Failed to generate scorecard');
+    } catch { setScorecardError('Network error'); }
+    finally { setScoringApp(false); }
+  }
+
+  async function handleSendRejection(app: Application) {
+    if (rejectingId === app.id) return;
+    setRejectingId(app.id);
+    try {
+      const res = await fetch('/api/agents/harper/reject', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          applicationId:  app.id,
+          applicantName:  app.applicant_name,
+          applicantEmail: app.applicant_email,
+          roleTitle:      app.role_title ?? app.role_slug,
+          score:          app.score,
+          scoreNotes:     app.score_notes,
+        }),
+      });
+      if (res.ok) setRejectSentIds(prev => new Set([...prev, app.id]));
+    } catch { /* non-critical */ }
+    finally { setRejectingId(null); }
+  }
 
   // Offer letter state
   const [showOfferModal, setShowOfferModal]     = useState(false);
@@ -3118,6 +6716,83 @@ function HiringPlanRenderer({ data, artifactId, userId }: { data: Record<string,
   const [offerHtml, setOfferHtml]               = useState<string | null>(null);
   const [offerError, setOfferError]             = useState<string | null>(null);
   const [offerSendEmail, setOfferSendEmail]     = useState(false);
+
+  // Candidate outreach state
+  const [showOutreachModal, setShowOutreachModal] = useState(false);
+  // Reference check kit state
+  const [showRefKitPanel, setShowRefKitPanel]     = useState(false);
+  const [refCandidateName, setRefCandidateName]   = useState("");
+  const [refRole, setRefRole]                     = useState("");
+  const [refClaimedExp, setRefClaimedExp]         = useState("");
+  const [refConcerns, setRefConcerns]             = useState("");
+  const [generatingRefKit, setGeneratingRefKit]   = useState(false);
+  const [refKitResult, setRefKitResult]           = useState<{
+    intro?: string;
+    questions?: { category: string; question: string; whyItMatters: string; followUp: string | null; redFlagAnswer: string | null }[];
+    redFlagProbes?: { concern: string; question: string }[];
+    signalQuestions?: string[];
+    outro?: string;
+    interpretationGuide?: string;
+  } | null>(null);
+  const [refKitError, setRefKitError]             = useState<string | null>(null);
+  const [refActiveSection, setRefActiveSection]   = useState<"questions" | "redflags" | "signals">("questions");
+
+  async function handleGenerateRefKit() {
+    if (!refCandidateName.trim() || !refRole.trim() || generatingRefKit) return;
+    setGeneratingRefKit(true); setRefKitError(null); setRefKitResult(null);
+    try {
+      const res = await fetch('/api/agents/harper/reference', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          candidateName: refCandidateName.trim(),
+          role: refRole.trim(),
+          claimedExperience: refClaimedExp.trim() || undefined,
+          concerns: refConcerns.trim() || undefined,
+        }),
+      });
+      const r = await res.json();
+      if (res.ok && r.kit) setRefKitResult(r.kit);
+      else setRefKitError(r.error ?? 'Generation failed');
+    } catch { setRefKitError('Network error'); }
+    finally { setGeneratingRefKit(false); }
+  }
+
+  const [outreachName, setOutreachName]           = useState("");
+  const [outreachTitle, setOutreachTitle]         = useState("");
+  const [outreachCompany, setOutreachCompany]     = useState("");
+  const [outreachUrl, setOutreachUrl]             = useState("");
+  const [outreachRole, setOutreachRole]           = useState("");
+  const [outreachChannel, setOutreachChannel]     = useState<"email" | "linkedin" | "twitter">("linkedin");
+  const [outreachContext, setOutreachContext]     = useState("");
+  const [draftingOutreach, setDraftingOutreach]   = useState(false);
+  const [outreachDraft, setOutreachDraft]         = useState<{ subject?: string | null; message?: string; hook?: string; followUpNote?: string } | null>(null);
+  const [outreachError, setOutreachError]         = useState<string | null>(null);
+  const [copiedOutreach, setCopiedOutreach]       = useState(false);
+
+  async function handleDraftOutreach() {
+    if (!outreachName.trim() || !outreachRole.trim() || draftingOutreach) return;
+    setDraftingOutreach(true); setOutreachError(null); setOutreachDraft(null);
+    try {
+      const res = await fetch('/api/agents/harper/outreach', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          candidateName: outreachName.trim(),
+          candidateTitle: outreachTitle.trim() || undefined,
+          candidateCompany: outreachCompany.trim() || undefined,
+          candidateUrl: outreachUrl.trim() || undefined,
+          role: outreachRole.trim(),
+          channel: outreachChannel,
+          extraContext: outreachContext.trim() || undefined,
+        }),
+      });
+      const r = await res.json();
+      if (res.ok) setOutreachDraft(r.draft);
+      else setOutreachError(r.error ?? 'Failed to draft message');
+    } catch { setOutreachError('Network error'); }
+    finally { setDraftingOutreach(false); }
+  }
 
   // Multi-board job posting state
   const [showBoardModal, setShowBoardModal]   = useState(false);
@@ -3198,6 +6873,75 @@ function HiringPlanRenderer({ data, artifactId, userId }: { data: Record<string,
       .catch(() => {})
       .finally(() => setLoadingApps(false));
   }, [artifactId]);
+
+  // ── Candidate Sourcing ──
+  const [sourcingRole, setSourcingRole]         = useState<string | null>(null);
+  const [sourcingResult, setSourcingResult]     = useState<Record<string, unknown> | null>(null);
+  const [sourcingError, setSourcingError]       = useState<string | null>(null);
+  const [sourcingLoading, setSourcingLoading]   = useState(false);
+  const [showSourcingFor, setShowSourcingFor]   = useState<string | null>(null); // role name
+
+  // Onboarding kit state
+  const [onboardingRole, setOnboardingRole]           = useState<string | null>(null);
+  const [generatingOnboarding, setGeneratingOnboarding] = useState(false);
+  const [onboardingHtml, setOnboardingHtml]           = useState<string | null>(null);
+  const [onboardingError, setOnboardingError]         = useState<string | null>(null);
+  const [onboardingNewHireName, setOnboardingNewHireName] = useState("");
+  const [onboardingStartDate, setOnboardingStartDate] = useState("");
+  const [showOnboardingFor, setShowOnboardingFor]     = useState<string | null>(null);
+
+  async function handleSourceCandidates(hire: { role: string; requirements?: string[] }) {
+    if (sourcingLoading) return;
+    setSourcingLoading(true); setSourcingError(null); setSourcingResult(null);
+    setSourcingRole(hire.role); setShowSourcingFor(hire.role);
+    try {
+      const res = await fetch('/api/agents/harper/source', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roleName: hire.role,
+          skills: hire.requirements?.slice(0, 5) ?? [],
+          remoteOk: true,
+          seniority: 'senior',
+        }),
+      });
+      const r = await res.json();
+      if (res.ok) setSourcingResult(r.sourced);
+      else setSourcingError(r.error ?? 'Sourcing failed');
+    } catch { setSourcingError('Network error'); }
+    finally { setSourcingLoading(false); }
+  }
+
+  async function handleGenerateOnboarding(roleName: string) {
+    if (generatingOnboarding) return;
+    setOnboardingRole(roleName); setGeneratingOnboarding(true); setOnboardingError(null); setOnboardingHtml(null);
+    try {
+      const res = await fetch('/api/agents/harper/onboarding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roleName,
+          newHireName: onboardingNewHireName.trim() || undefined,
+          startDate: onboardingStartDate || undefined,
+        }),
+      });
+      const r = await res.json();
+      if (res.ok && r.html) {
+        const blob = new Blob([r.html], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `onboarding-kit-${roleName.toLowerCase().replace(/\s+/g, '-')}.html`;
+        a.click();
+        URL.revokeObjectURL(url);
+        setOnboardingHtml(r.html);
+        setShowOnboardingFor(roleName);
+      } else {
+        setOnboardingError(r.error ?? 'Failed to generate onboarding kit');
+      }
+    } catch { setOnboardingError('Network error'); }
+    finally { setGeneratingOnboarding(false); }
+  }
 
   const sectionHead: React.CSSProperties = { fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.14em", color: muted, marginBottom: 10 };
   const priorityColor: Record<string, string> = { critical: red, high: amber, "nice-to-have": muted };
@@ -3303,7 +7047,59 @@ function HiringPlanRenderer({ data, artifactId, userId }: { data: Record<string,
                   >
                     📋 Post to All Boards
                   </button>
+                  <button
+                    onClick={() => handleSourceCandidates(hire)}
+                    disabled={sourcingLoading && sourcingRole === hire.role}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: "#F0FDF4", color: green, border: "1px solid #BBF7D0", cursor: sourcingLoading ? "not-allowed" : "pointer", opacity: sourcingLoading && sourcingRole === hire.role ? 0.6 : 1 }}
+                    title="Harper searches GitHub, LinkedIn & AngelList for matching candidates"
+                  >
+                    {sourcingLoading && sourcingRole === hire.role ? "Searching…" : "🔍 Source Candidates"}
+                  </button>
                 </div>
+
+                {/* Inline sourcing results for this role */}
+                {showSourcingFor === hire.role && (sourcingResult || sourcingError) && (
+                  <div style={{ marginTop: 12, background: "#F0FDF4", borderRadius: 8, padding: "12px 14px", border: "1px solid #BBF7D0" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: green }}>Candidate Search Results</p>
+                      <button onClick={() => { setShowSourcingFor(null); setSourcingResult(null); }} style={{ background: "none", border: "none", cursor: "pointer", color: muted, fontSize: 13, lineHeight: 1 }}>✕</button>
+                    </div>
+                    {sourcingError && <p style={{ fontSize: 12, color: red }}>{sourcingError}</p>}
+                    {sourcingResult && (() => {
+                      const sr = sourcingResult as { candidates?: { name: string; profileUrl: string; platform: string; matchScore: number; skills: string[]; summary: string; outreachAngle: string }[]; searchSummary?: string; recommendedChannels?: string[] };
+                      return (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                          {sr.searchSummary && <p style={{ fontSize: 11, color: muted, lineHeight: 1.5 }}>{sr.searchSummary}</p>}
+                          {(sr.candidates ?? []).slice(0, 5).map((c, ci) => (
+                            <div key={ci} style={{ background: "white", borderRadius: 8, padding: "10px 12px", border: `1px solid ${bdr}` }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
+                                <div>
+                                  <a href={c.profileUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, fontWeight: 700, color: blue, textDecoration: "none" }}>
+                                    {c.name !== "Unknown" ? c.name : c.platform + " profile"} ↗
+                                  </a>
+                                  <span style={{ fontSize: 10, color: muted, marginLeft: 6 }}>{c.platform}</span>
+                                </div>
+                                <span style={{ fontSize: 10, fontWeight: 700, color: c.matchScore >= 70 ? green : c.matchScore >= 50 ? amber : muted, background: c.matchScore >= 70 ? "#F0FDF4" : c.matchScore >= 50 ? "#FFFBEB" : surf, padding: "2px 7px", borderRadius: 5 }}>
+                                  {c.matchScore}%
+                                </span>
+                              </div>
+                              <p style={{ fontSize: 11, color: ink, lineHeight: 1.5, marginBottom: 4 }}>{c.summary}</p>
+                              {c.outreachAngle && <p style={{ fontSize: 10, color: blue, fontStyle: "italic" }}>Outreach angle: {c.outreachAngle}</p>}
+                              {c.skills?.length > 0 && (
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
+                                  {c.skills.slice(0, 5).map((sk, si) => <span key={si} style={{ fontSize: 9, padding: "2px 6px", borderRadius: 4, background: surf, border: `1px solid ${bdr}`, color: muted }}>{sk}</span>)}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                          {sr.recommendedChannels && sr.recommendedChannels.length > 0 && (
+                            <p style={{ fontSize: 10, color: muted }}>Best channels: {sr.recommendedChannels.join(", ")}</p>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -3342,6 +7138,44 @@ function HiringPlanRenderer({ data, artifactId, userId }: { data: Record<string,
         </div>
       )}
 
+      {/* ── Onboarding Kit ── */}
+      <div style={{ background: "#F0FDF4", borderRadius: 12, padding: "14px 18px", border: "1px solid #BBF7D0" }}>
+        <p style={{ fontSize: 11, fontWeight: 700, color: green, marginBottom: 4 }}>Generate Onboarding Kit</p>
+        <p style={{ fontSize: 11, color: muted, marginBottom: 10 }}>Create a week-1 onboarding plan for a new hire — welcome note, daily schedule, tools, check-ins. Downloads as print-ready HTML.</p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+          <input value={onboardingNewHireName} onChange={e => setOnboardingNewHireName(e.target.value)} placeholder="New hire name (optional)" style={{ flex: 1, minWidth: 140, padding: "7px 10px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, fontSize: 12, color: ink, boxSizing: "border-box" }} />
+          <input type="date" value={onboardingStartDate} onChange={e => setOnboardingStartDate(e.target.value)} style={{ flex: 1, minWidth: 140, padding: "7px 10px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, fontSize: 12, color: ink, boxSizing: "border-box" }} />
+        </div>
+        {d.nextHires && d.nextHires.length > 0 ? (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {d.nextHires.map((hire, i) => (
+              <button
+                key={i}
+                onClick={() => handleGenerateOnboarding(hire.role)}
+                disabled={generatingOnboarding}
+                style={{ padding: "6px 14px", borderRadius: 8, border: `1px solid #BBF7D0`, background: generatingOnboarding && onboardingRole === hire.role ? bdr : "white", color: generatingOnboarding && onboardingRole === hire.role ? muted : green, fontSize: 12, fontWeight: 600, cursor: generatingOnboarding ? "not-allowed" : "pointer" }}
+              >
+                {generatingOnboarding && onboardingRole === hire.role ? "Generating…" : `Kit for ${hire.role}`}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div style={{ display: "flex", gap: 8 }}>
+            <input placeholder="Role name (e.g. Head of Sales)" onChange={e => setOnboardingRole(e.target.value)} style={{ flex: 1, padding: "7px 10px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, fontSize: 12, color: ink, boxSizing: "border-box" }} />
+            <button onClick={() => onboardingRole && handleGenerateOnboarding(onboardingRole)} disabled={!onboardingRole || generatingOnboarding} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: !onboardingRole ? bdr : green, color: !onboardingRole ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: !onboardingRole ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}>
+              {generatingOnboarding ? "Generating…" : "Generate Kit"}
+            </button>
+          </div>
+        )}
+        {onboardingError && <p style={{ fontSize: 11, color: red, marginTop: 6 }}>{onboardingError}</p>}
+        {showOnboardingFor && onboardingHtml && (
+          <div style={{ marginTop: 10, padding: "8px 12px", background: "#DCFCE7", borderRadius: 8, border: "1px solid #BBF7D0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <p style={{ fontSize: 12, color: green, fontWeight: 600 }}>✓ Onboarding kit downloaded for {showOnboardingFor}</p>
+            <button onClick={() => { if (onboardingHtml) { const blob = new Blob([onboardingHtml], { type: 'text/html;charset=utf-8' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `onboarding-kit.html`; a.click(); URL.revokeObjectURL(url); } }} style={{ padding: "4px 10px", borderRadius: 6, border: `1px solid ${green}`, background: "transparent", color: green, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Re-download</button>
+          </div>
+        )}
+      </div>
+
       {/* ── Applications Inbox ──────────────────────────────────────────────── */}
       <div style={{ background: "#F0FDF4", borderRadius: 12, padding: "14px 16px", border: `1px solid #BBF7D0` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -3368,17 +7202,35 @@ function HiringPlanRenderer({ data, artifactId, userId }: { data: Record<string,
                     <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>{app.applicant_name}</p>
                     <p style={{ fontSize: 11, color: muted }}>{app.applicant_email} · {app.role_title ?? app.role_slug}</p>
                   </div>
-                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
                     {app.score !== null && app.score !== undefined && (
                       <span style={{ fontSize: 12, fontWeight: 700, padding: "4px 10px", borderRadius: 6, background: (app.score ?? 0) >= 70 ? "#F0FDF4" : (app.score ?? 0) >= 50 ? "#FFFBEB" : "#FEF2F2", color: (app.score ?? 0) >= 70 ? green : (app.score ?? 0) >= 50 ? amber : red }}>
                         {app.score}/100
                       </span>
+                    )}
+                    {/* Reject button — hidden if already sent or status === 'rejected' */}
+                    {app.status !== 'rejected' && !rejectSentIds.has(app.id) ? (
+                      <button
+                        onClick={() => handleSendRejection(app)}
+                        disabled={rejectingId === app.id}
+                        style={{ padding: "4px 10px", borderRadius: 6, border: `1px solid ${red}40`, background: "#FEF2F2", fontSize: 11, fontWeight: 600, color: red, cursor: rejectingId === app.id ? "not-allowed" : "pointer", opacity: rejectingId === app.id ? 0.6 : 1 }}
+                      >
+                        {rejectingId === app.id ? "Sending…" : "Reject"}
+                      </button>
+                    ) : (
+                      <span style={{ fontSize: 10, color: muted, fontWeight: 600 }}>✓ Rejected</span>
                     )}
                     <button
                       onClick={() => { setOfferCandidate(app.applicant_name); setOfferEmail(app.applicant_email); setOfferRole(app.role_title ?? app.role_slug); setShowOfferModal(true); setOfferHtml(null); setOfferError(null); }}
                       style={{ padding: "4px 10px", borderRadius: 6, border: `1px solid ${bdr}`, background: bg, fontSize: 11, fontWeight: 600, color: ink, cursor: "pointer" }}
                     >
                       Send Offer
+                    </button>
+                    <button
+                      onClick={() => { setScorecardApp(app); setScorecardNotes(""); setScorecardResult(null); setScorecardError(null); }}
+                      style={{ padding: "4px 10px", borderRadius: 6, border: `1px solid #7C3AED40`, background: "#F5F3FF", fontSize: 11, fontWeight: 600, color: "#7C3AED", cursor: "pointer" }}
+                    >
+                      Scorecard
                     </button>
                   </div>
                 </div>
@@ -3388,6 +7240,101 @@ function HiringPlanRenderer({ data, artifactId, userId }: { data: Record<string,
           </div>
         )}
       </div>
+
+      {/* ── Interview Scorecard Modal ── */}
+      {scorecardApp && (
+        <div onClick={e => { if (e.target === e.currentTarget) { setScorecardApp(null); } }} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ background: bg, borderRadius: 14, padding: 28, width: "100%", maxWidth: 540, maxHeight: "90vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <p style={{ fontSize: 15, fontWeight: 700, color: ink }}>Interview Scorecard</p>
+                <p style={{ fontSize: 12, color: muted }}>{scorecardApp.applicant_name} · {scorecardApp.role_title ?? scorecardApp.role_slug}</p>
+              </div>
+              <button onClick={() => setScorecardApp(null)} style={{ background: "none", border: "none", fontSize: 18, color: muted, cursor: "pointer" }}>×</button>
+            </div>
+            {!scorecardResult ? (
+              <>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Interview Notes *</label>
+                  <textarea value={scorecardNotes} onChange={e => setScorecardNotes(e.target.value)} placeholder="Paste your raw interview notes — what they said, how they answered, observations. The more detail, the better the scorecard." rows={7} style={{ width: "100%", border: `1px solid ${bdr}`, borderRadius: 8, padding: "10px 12px", fontSize: 12, color: ink, outline: "none", resize: "vertical", boxSizing: "border-box" }} />
+                </div>
+                {scorecardError && <p style={{ fontSize: 11, color: red }}>{scorecardError}</p>}
+                <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                  <button onClick={() => setScorecardApp(null)} style={{ padding: "8px 16px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 13, cursor: "pointer" }}>Cancel</button>
+                  <button onClick={handleGenerateScorecard} disabled={scoringApp || !scorecardNotes.trim()} style={{ padding: "8px 18px", borderRadius: 8, border: "none", background: scoringApp ? bdr : "#7C3AED", color: scoringApp ? muted : "#fff", fontSize: 13, fontWeight: 600, cursor: scoringApp || !scorecardNotes.trim() ? "not-allowed" : "pointer" }}>
+                    {scoringApp ? "Scoring…" : "Generate Scorecard"}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {/* Header */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <div style={{ background: (scorecardResult.overallScore ?? 0) >= 70 ? "#F0FDF4" : (scorecardResult.overallScore ?? 0) >= 50 ? "#FFFBEB" : "#FEF2F2", borderRadius: 10, padding: "14px", border: `1px solid ${(scorecardResult.overallScore ?? 0) >= 70 ? "#BBF7D0" : (scorecardResult.overallScore ?? 0) >= 50 ? "#FDE68A" : "#FECACA"}` }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: muted, marginBottom: 4 }}>Overall Score</p>
+                    <p style={{ fontSize: 28, fontWeight: 800, color: (scorecardResult.overallScore ?? 0) >= 70 ? green : (scorecardResult.overallScore ?? 0) >= 50 ? amber : red }}>{scorecardResult.overallScore ?? "—"}<span style={{ fontSize: 14, fontWeight: 400, color: muted }}>/100</span></p>
+                  </div>
+                  <div style={{ background: surf, borderRadius: 10, padding: "14px", border: `1px solid ${bdr}` }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: muted, marginBottom: 4 }}>Recommendation</p>
+                    <p style={{ fontSize: 14, fontWeight: 700, color: scorecardResult.recommendation?.includes("yes") ? green : red, textTransform: "capitalize" }}>{scorecardResult.recommendation?.replace(/_/g, " ") ?? "—"}</p>
+                  </div>
+                </div>
+                {scorecardResult.summary && <p style={{ fontSize: 13, color: ink, lineHeight: 1.7, background: surf, borderRadius: 8, padding: "10px 14px", border: `1px solid ${bdr}` }}>{scorecardResult.summary}</p>}
+                {/* Dimension bars */}
+                {scorecardResult.dimensions && scorecardResult.dimensions.length > 0 && (
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: muted, marginBottom: 8 }}>Dimension Scores</p>
+                    {scorecardResult.dimensions.map((dim, di) => {
+                      const pct = Math.round((dim.score / dim.maxScore) * 100);
+                      const dc = pct >= 70 ? green : pct >= 50 ? amber : red;
+                      return (
+                        <div key={di} style={{ marginBottom: 10 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                            <p style={{ fontSize: 12, fontWeight: 600, color: ink }}>{dim.name}</p>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: dc }}>{dim.score}/{dim.maxScore}</span>
+                          </div>
+                          <div style={{ height: 6, background: bdr, borderRadius: 999, overflow: "hidden", marginBottom: 4 }}>
+                            <div style={{ width: `${pct}%`, height: "100%", background: dc, borderRadius: 999 }} />
+                          </div>
+                          <p style={{ fontSize: 11, color: muted, lineHeight: 1.5 }}>{dim.evidence}</p>
+                          {dim.gap && <p style={{ fontSize: 11, color: red, marginTop: 2 }}>⚠ {dim.gap}</p>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {/* Strengths + concerns */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  {scorecardResult.strengths && scorecardResult.strengths.length > 0 && (
+                    <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "10px 12px", border: `1px solid #BBF7D0` }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: green, marginBottom: 6 }}>Strengths</p>
+                      {scorecardResult.strengths.map((s, si) => <p key={si} style={{ fontSize: 11, color: ink, lineHeight: 1.6 }}>+ {s}</p>)}
+                    </div>
+                  )}
+                  {scorecardResult.concerns && scorecardResult.concerns.length > 0 && (
+                    <div style={{ background: "#FEF2F2", borderRadius: 8, padding: "10px 12px", border: `1px solid #FECACA` }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: red, marginBottom: 6 }}>Concerns</p>
+                      {scorecardResult.concerns.map((c, ci) => <p key={ci} style={{ fontSize: 11, color: ink, lineHeight: 1.6 }}>⚠ {c}</p>)}
+                    </div>
+                  )}
+                </div>
+                {scorecardResult.suggestedNextSteps && (
+                  <div style={{ background: "#EFF6FF", borderRadius: 8, padding: "10px 14px", border: `1px solid #BFDBFE` }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: blue, marginBottom: 4 }}>Next Steps</p>
+                    <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{scorecardResult.suggestedNextSteps}</p>
+                  </div>
+                )}
+                {scorecardResult.referenceCheckFocus && (
+                  <p style={{ fontSize: 11, color: muted, fontStyle: "italic" }}>Reference focus: {scorecardResult.referenceCheckFocus}</p>
+                )}
+                <button onClick={() => { setScorecardResult(null); setScorecardNotes(""); }} style={{ padding: "8px 16px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 12, cursor: "pointer", alignSelf: "flex-start" }}>
+                  Score Another Candidate
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── Offer Letter CTA ── */}
       <div style={{ background: "#EFF6FF", border: `1px solid #BFDBFE`, borderRadius: 12, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
@@ -3459,6 +7406,257 @@ function HiringPlanRenderer({ data, artifactId, userId }: { data: Record<string,
                 <button onClick={handleGenerateOffer} disabled={!offerCandidate.trim() || !offerRole.trim() || !offerSalary.trim() || generatingOffer} style={{ padding: "10px", borderRadius: 8, border: "none", background: (!offerCandidate.trim() || !offerRole.trim() || !offerSalary.trim()) ? bdr : blue, color: (!offerCandidate.trim() || !offerRole.trim() || !offerSalary.trim()) ? muted : "#fff", fontSize: 13, fontWeight: 700, cursor: (!offerCandidate.trim() || !offerRole.trim() || !offerSalary.trim()) ? "not-allowed" : "pointer" }}>
                   {generatingOffer ? "Generating…" : "Generate Offer Letter"}
                 </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Hiring Pipeline Analytics ─────────────────────────────────────── */}
+      <div style={{ borderRadius: 12, border: `1px solid ${bdr}`, overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: surf }}>
+          <div>
+            <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 2 }}>Hiring Funnel Analytics</p>
+            <p style={{ fontSize: 11, color: muted }}>Track sourced → applied → hired conversion rates</p>
+          </div>
+          <button onClick={() => { if (showFunnelPanel) { setShowFunnelPanel(false); } else { loadFunnelData(); } }} style={{ padding: "6px 14px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: ink, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+            {showFunnelPanel ? "Close" : "View Funnel"}
+          </button>
+        </div>
+        {showFunnelPanel && (
+          <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 12 }}>
+            {loadingFunnel ? (
+              <p style={{ fontSize: 12, color: muted, textAlign: "center" }}>Loading funnel data…</p>
+            ) : funnelData ? (
+              <>
+                {/* Funnel bars */}
+                {funnelData.funnel && (() => {
+                  const stages = [
+                    { label: "Sourced", value: funnelData.funnel!.sourced, color: "#6366F1" },
+                    { label: "Outreached", value: funnelData.funnel!.outreached, color: "#7C3AED" },
+                    { label: "Applied", value: funnelData.funnel!.applied, color: blue },
+                    { label: "Screened", value: funnelData.funnel!.screened, color: "#0891B2" },
+                    { label: "Interviewed", value: funnelData.funnel!.interviewed, color: amber },
+                    { label: "Offered", value: funnelData.funnel!.offered, color: green },
+                    { label: "Hired", value: funnelData.funnel!.hired, color: "#065F46" },
+                  ];
+                  const maxVal = Math.max(...stages.map(s => s.value), 1);
+                  return (
+                    <div>
+                      <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: muted, marginBottom: 8 }}>Funnel Breakdown</p>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        {stages.map((s, i) => (
+                          <div key={i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <span style={{ fontSize: 10, color: muted, width: 68, flexShrink: 0 }}>{s.label}</span>
+                            <div style={{ flex: 1, height: 8, background: bdr, borderRadius: 4, overflow: "hidden" }}>
+                              <div style={{ height: "100%", width: `${(s.value / maxVal) * 100}%`, background: s.color, borderRadius: 4, transition: "width 0.4s" }} />
+                            </div>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: s.value > 0 ? ink : muted, width: 20, textAlign: "right" }}>{s.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Conversion rates */}
+                {funnelData.conversionRates && (() => {
+                  const cvrs = [
+                    { label: "Outreach → Apply", value: funnelData.conversionRates!.sourceToApply },
+                    { label: "Apply → Screen", value: funnelData.conversionRates!.applyToScreen },
+                    { label: "Screen → Interview", value: funnelData.conversionRates!.screenToInterview },
+                    { label: "Interview → Offer", value: funnelData.conversionRates!.interviewToOffer },
+                    { label: "Offer → Hire", value: funnelData.conversionRates!.offerToHire },
+                  ].filter(c => c.value !== null);
+                  if (cvrs.length === 0) return null;
+                  return (
+                    <div>
+                      <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: muted, marginBottom: 6 }}>Conversion Rates</p>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                        {cvrs.map((c, i) => (
+                          <div key={i} style={{ background: surf, borderRadius: 8, padding: "8px 12px", border: `1px solid ${bdr}`, textAlign: "center", minWidth: 100 }}>
+                            <p style={{ fontSize: 16, fontWeight: 700, color: (c.value ?? 0) >= 50 ? green : (c.value ?? 0) >= 25 ? amber : red }}>{c.value}%</p>
+                            <p style={{ fontSize: 10, color: muted }}>{c.label}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Score distribution */}
+                {funnelData.scoreDistribution && (funnelData.scoreDistribution.strong + funnelData.scoreDistribution.good + funnelData.scoreDistribution.weak) > 0 && (
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: muted, marginBottom: 6 }}>
+                      Candidate Quality {funnelData.avgScore !== null && funnelData.avgScore !== undefined ? `· Avg Score: ${funnelData.avgScore}/100` : ""}
+                    </p>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <div style={{ flex: 1, background: "#F0FDF4", borderRadius: 8, padding: "8px 12px", textAlign: "center", border: "1px solid #BBF7D0" }}>
+                        <p style={{ fontSize: 18, fontWeight: 700, color: green }}>{funnelData.scoreDistribution.strong}</p>
+                        <p style={{ fontSize: 10, color: green }}>Strong (70+)</p>
+                      </div>
+                      <div style={{ flex: 1, background: "#FFFBEB", borderRadius: 8, padding: "8px 12px", textAlign: "center", border: "1px solid #FDE68A" }}>
+                        <p style={{ fontSize: 18, fontWeight: 700, color: amber }}>{funnelData.scoreDistribution.good}</p>
+                        <p style={{ fontSize: 10, color: amber }}>Good (50-70)</p>
+                      </div>
+                      <div style={{ flex: 1, background: "#FEF2F2", borderRadius: 8, padding: "8px 12px", textAlign: "center", border: "1px solid #FECACA" }}>
+                        <p style={{ fontSize: 18, fontWeight: 700, color: red }}>{funnelData.scoreDistribution.weak}</p>
+                        <p style={{ fontSize: 10, color: red }}>Weak (&lt;50)</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Per-role breakdown */}
+                {funnelData.byRole && Object.keys(funnelData.byRole).length > 0 && (
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: muted, marginBottom: 6 }}>By Role</p>
+                    {Object.entries(funnelData.byRole).map(([role, stats], i) => (
+                      <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: i < Object.keys(funnelData!.byRole!).length - 1 ? `1px solid ${bdr}` : "none" }}>
+                        <p style={{ fontSize: 12, color: ink }}>{role}</p>
+                        <p style={{ fontSize: 11, color: muted }}>{stats.applied} applied · {stats.screened} screened</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {funnelData.avgDaysToOffer !== null && funnelData.avgDaysToOffer !== undefined && (
+                  <p style={{ fontSize: 11, color: muted }}>⏱ Avg time to offer: <strong>{funnelData.avgDaysToOffer} days</strong></p>
+                )}
+              </>
+            ) : (
+              <p style={{ fontSize: 12, color: muted }}>No pipeline data yet — candidates need to apply first.</p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Candidate Outreach CTA ── */}
+      <div style={{ background: "#EFF6FF", border: `1px solid #BFDBFE`, borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ flex: 1 }}>
+          <p style={{ fontSize: 12, fontWeight: 700, color: blue, marginBottom: 2 }}>Draft Recruiting Message</p>
+          <p style={{ fontSize: 11, color: muted }}>Found a great candidate on LinkedIn, GitHub, or AngelList? Harper drafts a personalized outreach for email, LinkedIn, or Twitter.</p>
+        </div>
+        <button onClick={() => { setShowOutreachModal(true); setOutreachDraft(null); setOutreachError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: blue, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
+          Draft Message
+        </button>
+      </div>
+
+      {/* ── Candidate Outreach Modal ── */}
+      {showOutreachModal && (
+        <div onClick={() => { if (!draftingOutreach) setShowOutreachModal(false); }} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: bg, borderRadius: 16, padding: 28, width: "100%", maxWidth: 520, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <p style={{ fontSize: 15, fontWeight: 700, color: ink }}>Draft Recruiting Message</p>
+              <button onClick={() => setShowOutreachModal(false)} style={{ background: "none", border: "none", cursor: "pointer", color: muted, fontSize: 18 }}>×</button>
+            </div>
+            {!outreachDraft ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {/* Channel selector */}
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 6 }}>Channel</label>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    {(["linkedin", "email", "twitter"] as const).map(ch => (
+                      <button key={ch} onClick={() => setOutreachChannel(ch)} style={{ flex: 1, padding: "7px 8px", borderRadius: 8, border: `1px solid ${outreachChannel === ch ? blue : bdr}`, background: outreachChannel === ch ? "#EFF6FF" : bg, color: outreachChannel === ch ? blue : muted, fontSize: 11, fontWeight: 600, cursor: "pointer", textTransform: "capitalize" }}>
+                        {ch === "linkedin" ? "LinkedIn DM" : ch === "email" ? "Email" : "Twitter DM"}
+                      </button>
+                    ))}
+                  </div>
+                  <p style={{ fontSize: 10, color: muted, marginTop: 4 }}>
+                    {outreachChannel === "linkedin" ? "Max 300 chars — connection request note" : outreachChannel === "twitter" ? "Max 280 chars — casual DM" : "Subject + 3 paragraphs (~150 words)"}
+                  </p>
+                </div>
+                {/* Candidate info */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Candidate Name *</label>
+                    <input value={outreachName} onChange={e => setOutreachName(e.target.value)} placeholder="Alex Chen" style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: `1px solid ${bdr}`, fontSize: 12, color: ink, boxSizing: "border-box" }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Role Hiring For *</label>
+                    <select value={outreachRole} onChange={e => setOutreachRole(e.target.value)} style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: `1px solid ${bdr}`, fontSize: 12, color: ink, background: bg, boxSizing: "border-box" }}>
+                      <option value="">Select role…</option>
+                      {(d.nextHires ?? []).map((h, hi) => <option key={hi} value={h.role}>{h.role}</option>)}
+                      <option value="_custom">Custom role…</option>
+                    </select>
+                    {outreachRole === "_custom" && (
+                      <input value="" onChange={e => setOutreachRole(e.target.value)} placeholder="e.g. Senior Frontend Engineer" style={{ marginTop: 6, width: "100%", padding: "8px 10px", borderRadius: 7, border: `1px solid ${bdr}`, fontSize: 12, color: ink, boxSizing: "border-box" }} />
+                    )}
+                  </div>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Their Title / Role</label>
+                    <input value={outreachTitle} onChange={e => setOutreachTitle(e.target.value)} placeholder="Staff Engineer at Google" style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: `1px solid ${bdr}`, fontSize: 12, color: ink, boxSizing: "border-box" }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Current Company</label>
+                    <input value={outreachCompany} onChange={e => setOutreachCompany(e.target.value)} placeholder="Google" style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: `1px solid ${bdr}`, fontSize: 12, color: ink, boxSizing: "border-box" }} />
+                  </div>
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Profile URL (optional)</label>
+                  <input value={outreachUrl} onChange={e => setOutreachUrl(e.target.value)} placeholder="https://linkedin.com/in/..." style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: `1px solid ${bdr}`, fontSize: 12, color: ink, boxSizing: "border-box" }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Why them? (optional)</label>
+                  <input value={outreachContext} onChange={e => setOutreachContext(e.target.value)} placeholder="Built the auth system at their last startup, open source React contributor…" style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: `1px solid ${bdr}`, fontSize: 12, color: ink, boxSizing: "border-box" }} />
+                </div>
+                {outreachError && <p style={{ fontSize: 12, color: red }}>{outreachError}</p>}
+                <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                  <button onClick={() => setShowOutreachModal(false)} style={{ padding: "9px 16px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 13, cursor: "pointer" }}>Cancel</button>
+                  <button onClick={handleDraftOutreach} disabled={draftingOutreach || !outreachName.trim() || !outreachRole.trim() || outreachRole === "_custom"} style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: draftingOutreach ? bdr : blue, color: draftingOutreach ? muted : "#fff", fontSize: 13, fontWeight: 600, cursor: draftingOutreach ? "not-allowed" : "pointer" }}>
+                    {draftingOutreach ? "Drafting…" : "Draft Message"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {/* Hook */}
+                {outreachDraft.hook && (
+                  <div style={{ background: "#EFF6FF", borderRadius: 8, padding: "10px 14px", border: "1px solid #BFDBFE" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: blue, marginBottom: 3 }}>Why They&apos;re a Fit</p>
+                    <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{outreachDraft.hook}</p>
+                  </div>
+                )}
+                {/* Subject (email only) */}
+                {outreachDraft.subject && (
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Subject Line</label>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: ink, background: surf, borderRadius: 7, padding: "8px 12px" }}>{outreachDraft.subject}</p>
+                  </div>
+                )}
+                {/* Message */}
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: muted }}>Message</label>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      {outreachChannel === "email" && outreachDraft.subject && (
+                        <button onClick={() => { const gmailUrl = `https://mail.google.com/mail/?view=cm&su=${encodeURIComponent(outreachDraft.subject ?? '')}&body=${encodeURIComponent(outreachDraft.message ?? '')}`; window.open(gmailUrl, "_blank"); }} style={{ padding: "5px 10px", borderRadius: 6, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer" }}>
+                          Open in Gmail
+                        </button>
+                      )}
+                      <button onClick={() => { navigator.clipboard.writeText((outreachDraft.subject ? `Subject: ${outreachDraft.subject}\n\n` : '') + (outreachDraft.message ?? '')).then(() => { setCopiedOutreach(true); setTimeout(() => setCopiedOutreach(false), 1500); }).catch(() => {}); }} style={{ padding: "5px 10px", borderRadius: 6, border: `1px solid ${bdr}`, background: copiedOutreach ? green : bg, color: copiedOutreach ? "#fff" : muted, fontSize: 11, cursor: "pointer" }}>
+                        {copiedOutreach ? "✓ Copied" : "Copy"}
+                      </button>
+                    </div>
+                  </div>
+                  <div style={{ background: "#fff", border: `1px solid ${bdr}`, borderRadius: 10, padding: "14px 16px" }}>
+                    <pre style={{ fontSize: 12, color: ink, lineHeight: 1.8, whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "inherit", margin: 0 }}>{outreachDraft.message}</pre>
+                  </div>
+                  {outreachChannel !== "email" && (
+                    <p style={{ fontSize: 10, color: outreachDraft.message && outreachDraft.message.length > (outreachChannel === "linkedin" ? 300 : 280) ? red : muted, marginTop: 4 }}>
+                      {outreachDraft.message?.length ?? 0} chars {outreachChannel === "linkedin" ? "(max 300)" : "(max 280)"}
+                    </p>
+                  )}
+                </div>
+                {outreachDraft.followUpNote && (
+                  <p style={{ fontSize: 11, color: muted, fontStyle: "italic" }}>💬 Follow-up: {outreachDraft.followUpNote}</p>
+                )}
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => { setOutreachDraft(null); setOutreachName(""); setOutreachTitle(""); setOutreachCompany(""); setOutreachUrl(""); setOutreachContext(""); }} style={{ padding: "8px 16px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 12, cursor: "pointer" }}>Draft Another</button>
+                  <button onClick={() => setShowOutreachModal(false)} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: ink, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Done</button>
+                </div>
               </div>
             )}
           </div>
@@ -3570,6 +7768,149 @@ function HiringPlanRenderer({ data, artifactId, userId }: { data: Record<string,
           </div>
         </div>
       )}
+
+      {/* ── Reference Check Kit ───────────────────────────────────────────────── */}
+      <div style={{ background: showRefKitPanel && refKitResult ? "#EFF6FF" : surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${showRefKitPanel && refKitResult ? "#BFDBFE" : bdr}` }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>Reference Check Kit</p>
+            <p style={{ fontSize: 11, color: muted }}>Tailored behavioral questions + red flag probes for any candidate and role. STAR-format, legally safe.</p>
+          </div>
+          <button onClick={() => { if (showRefKitPanel && !generatingRefKit) setShowRefKitPanel(false); else setShowRefKitPanel(true); }} style={{ padding: "6px 14px", borderRadius: 8, border: "none", background: blue, color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+            {showRefKitPanel ? "Close" : "Generate Kit"}
+          </button>
+        </div>
+        {showRefKitPanel && (
+          <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 12 }}>
+            {!refKitResult && !generatingRefKit && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  <div>
+                    <p style={{ fontSize: 11, fontWeight: 600, color: ink, marginBottom: 4 }}>Candidate Name *</p>
+                    <input value={refCandidateName} onChange={e => setRefCandidateName(e.target.value)} placeholder="Jane Smith" style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 12, color: ink, fontFamily: "inherit", boxSizing: "border-box" as const }} />
+                  </div>
+                  <div>
+                    <p style={{ fontSize: 11, fontWeight: 600, color: ink, marginBottom: 4 }}>Role *</p>
+                    <input value={refRole} onChange={e => setRefRole(e.target.value)} placeholder="Head of Engineering" style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 12, color: ink, fontFamily: "inherit", boxSizing: "border-box" as const }} />
+                  </div>
+                </div>
+                <div>
+                  <p style={{ fontSize: 11, fontWeight: 600, color: ink, marginBottom: 4 }}>Key experience they claim (optional)</p>
+                  <input value={refClaimedExp} onChange={e => setRefClaimedExp(e.target.value)} placeholder="Led 20-person eng team at Series B startup, shipped 3 major features..." style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 12, color: ink, fontFamily: "inherit", boxSizing: "border-box" as const }} />
+                </div>
+                <div>
+                  <p style={{ fontSize: 11, fontWeight: 600, color: ink, marginBottom: 4 }}>Areas of concern from interview (optional)</p>
+                  <textarea value={refConcerns} onChange={e => setRefConcerns(e.target.value)} placeholder="Seemed unclear about how they handled conflict, gave vague answers about retention..." rows={2} style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 12, color: ink, resize: "none", fontFamily: "inherit", boxSizing: "border-box" as const }} />
+                </div>
+                {refKitError && <p style={{ fontSize: 12, color: red }}>{refKitError}</p>}
+                <button onClick={handleGenerateRefKit} disabled={!refCandidateName.trim() || !refRole.trim() || generatingRefKit} style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: !refCandidateName.trim() || !refRole.trim() ? bdr : blue, color: !refCandidateName.trim() || !refRole.trim() ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: !refCandidateName.trim() || !refRole.trim() ? "not-allowed" : "pointer", alignSelf: "flex-start" }}>
+                  Generate Questions
+                </button>
+              </div>
+            )}
+            {generatingRefKit && (
+              <p style={{ fontSize: 12, color: muted, textAlign: "center", padding: "16px 0" }}>Generating tailored reference check questions for {refCandidateName}…</p>
+            )}
+            {refKitResult && !generatingRefKit && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {/* Intro script */}
+                {refKitResult.intro && (
+                  <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "10px 14px", border: "1px solid #BBF7D0" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: green, marginBottom: 4 }}>OPENING SCRIPT</p>
+                    <p style={{ fontSize: 12, color: ink, lineHeight: 1.7, fontStyle: "italic" }}>{refKitResult.intro}</p>
+                  </div>
+                )}
+
+                {/* Section tabs */}
+                <div style={{ display: "flex", gap: 4 }}>
+                  {(["questions", "redflags", "signals"] as const).map(tab => (
+                    <button key={tab} onClick={() => setRefActiveSection(tab)} style={{ padding: "5px 12px", borderRadius: 20, border: "none", background: refActiveSection === tab ? blue : surf, color: refActiveSection === tab ? "#fff" : ink, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                      {tab === "questions" ? `Questions (${refKitResult?.questions?.length ?? 0})` : tab === "redflags" ? "Red Flag Probes" : "Signal Questions"}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Questions tab */}
+                {refActiveSection === "questions" && refKitResult.questions && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {refKitResult.questions.map((q, i) => (
+                      <div key={i} style={{ background: surf, borderRadius: 8, padding: "12px 14px", border: `1px solid ${bdr}` }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+                          <span style={{ fontSize: 9, padding: "2px 8px", borderRadius: 999, background: "#EFF6FF", color: blue, fontWeight: 700 }}>{(q.category ?? "").replace(/_/g, " ")}</span>
+                          <span style={{ fontSize: 10, color: muted, fontWeight: 600 }}>Q{i + 1}</span>
+                        </div>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: ink, lineHeight: 1.5, marginBottom: 6 }}>{q.question}</p>
+                        <p style={{ fontSize: 11, color: muted, marginBottom: 4 }}>Why it matters: {q.whyItMatters}</p>
+                        {q.followUp && (
+                          <p style={{ fontSize: 11, color: blue, fontStyle: "italic" }}>↳ Follow up: {q.followUp}</p>
+                        )}
+                        {q.redFlagAnswer && (
+                          <p style={{ fontSize: 10, color: red, marginTop: 4 }}>⚠ Red flag: {q.redFlagAnswer}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Red flag probes tab */}
+                {refActiveSection === "redflags" && refKitResult.redFlagProbes && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {refKitResult.redFlagProbes.map((p, i) => (
+                      <div key={i} style={{ background: "#FEF2F2", borderRadius: 8, padding: "10px 14px", border: "1px solid #FECACA" }}>
+                        <p style={{ fontSize: 11, fontWeight: 700, color: red, marginBottom: 4 }}>Concern: {p.concern}</p>
+                        <p style={{ fontSize: 12, color: ink, lineHeight: 1.6, fontStyle: "italic" }}>{p.question}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Signal questions tab */}
+                {refActiveSection === "signals" && refKitResult.signalQuestions && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <p style={{ fontSize: 11, color: muted, lineHeight: 1.6 }}>These indirect questions reveal character and culture fit better than direct questions.</p>
+                    {refKitResult.signalQuestions.map((q, i) => (
+                      <div key={i} style={{ background: "#FFFBEB", borderRadius: 8, padding: "10px 14px", border: "1px solid #FDE68A" }}>
+                        <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{q}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Outro + interpretation guide */}
+                {refKitResult.outro && (
+                  <div style={{ background: surf, borderRadius: 8, padding: "10px 14px", border: `1px solid ${bdr}` }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: muted, marginBottom: 4 }}>CLOSING SCRIPT</p>
+                    <p style={{ fontSize: 12, color: ink, lineHeight: 1.7, fontStyle: "italic" }}>{refKitResult.outro}</p>
+                  </div>
+                )}
+                {refKitResult.interpretationGuide && (
+                  <div style={{ background: "#EFF6FF", borderRadius: 8, padding: "10px 14px", border: "1px solid #BFDBFE" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: blue, marginBottom: 4 }}>HOW TO INTERPRET ACROSS REFERENCES</p>
+                    <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{refKitResult.interpretationGuide}</p>
+                  </div>
+                )}
+
+                {/* Copy all button */}
+                <button onClick={() => {
+                  const text = [
+                    refKitResult?.intro ? `OPENING SCRIPT:\n${refKitResult.intro}` : '',
+                    refKitResult?.questions ? `\n\nQUESTIONS:\n${refKitResult.questions.map((q, i) => `${i + 1}. [${q.category}] ${q.question}${q.followUp ? `\n   Follow up: ${q.followUp}` : ''}`).join('\n\n')}` : '',
+                    refKitResult?.redFlagProbes ? `\n\nRED FLAG PROBES:\n${refKitResult.redFlagProbes.map(p => `${p.concern}: ${p.question}`).join('\n')}` : '',
+                    refKitResult?.outro ? `\n\nCLOSING:\n${refKitResult.outro}` : '',
+                  ].filter(Boolean).join('');
+                  navigator.clipboard.writeText(text).catch(() => {});
+                }} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: blue, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", alignSelf: "flex-start" }}>
+                  Copy Full Kit
+                </button>
+
+                <button onClick={() => { setRefKitResult(null); setRefCandidateName(""); setRefRole(""); setRefClaimedExp(""); setRefConcerns(""); }} style={{ padding: "7px 14px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 12, cursor: "pointer", alignSelf: "flex-start" }}>
+                  New Candidate
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -3593,6 +7934,199 @@ function PMFSurveyRenderer({ data, artifactId, userId }: { data: Record<string, 
   } | null>(null);
   const [showResponses, setShowResponses] = useState(false);
   const [linkCopied, setLinkCopied]       = useState(false);
+
+  // Survey response auto-analysis state
+  const [analyzing, setAnalyzing]                         = useState(false);
+  const [analysisResult, setAnalysisResult]               = useState<{
+    totalCount?: number; newCount?: number; pmfScore?: number;
+    analysis?: {
+      pmfSignal?: string; pmfScore?: number; trendNote?: string;
+      topThemes?: string[]; topQuote?: string | null;
+      earlyAdopterSegment?: string | null; actionableInsight?: string;
+      alerts?: string[];
+    } | null;
+  } | null>(null);
+  const [analyzeError, setAnalyzeError] = useState<string | null>(null);
+
+  async function handleAnalyzeSurvey() {
+    if (!artifactId || analyzing) return;
+    setAnalyzing(true); setAnalyzeError(null); setAnalysisResult(null);
+    try {
+      const res = await fetch('/api/survey/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ surveyId: artifactId }),
+      });
+      const r = await res.json();
+      if (res.ok) setAnalysisResult(r);
+      else setAnalyzeError(r.error ?? 'Analysis failed');
+    } catch { setAnalyzeError('Network error'); }
+    finally { setAnalyzing(false); }
+  }
+
+  // Churn prediction state
+  const [showChurnPanel, setShowChurnPanel]     = useState(false);
+  const [churnManualData, setChurnManualData]   = useState("");
+  const [analyzingChurn, setAnalyzingChurn]     = useState(false);
+  const [churnResult, setChurnResult]           = useState<{
+    churnScore?: number; riskLevel?: string;
+    atRiskSegments?: { segment: string; signal: string; size: string }[];
+    churnPredictors?: { predictor: string; severity: string; evidence: string }[];
+    savePlaybook?: { action: string; timing: string; target: string; expectedImpact: string }[];
+    immediateActions?: string[];
+    earlyWarningMetrics?: string[];
+    retentionInsight?: string;
+  } | null>(null);
+  const [churnError, setChurnError]             = useState<string | null>(null);
+
+  async function handleAnalyzeChurn() {
+    if (analyzingChurn) return;
+    setAnalyzingChurn(true); setChurnError(null); setChurnResult(null);
+    try {
+      const res = await fetch('/api/agents/nova/churn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          surveyId: artifactId || undefined,
+          manualData: churnManualData.trim() || undefined,
+        }),
+      });
+      const r = await res.json();
+      if (res.ok && r.analysis) setChurnResult(r.analysis);
+      else setChurnError(r.error ?? 'Analysis failed');
+    } catch { setChurnError('Network error'); }
+    finally { setAnalyzingChurn(false); }
+  }
+
+  // Cohort Analysis state
+  const [showCohortPanel, setShowCohortPanel]     = useState(false);
+  const [cohortSurveyId, setCohortSurveyId]       = useState("");
+  const [cohortManualData, setCohortManualData]   = useState("");
+  const [runningCohort, setRunningCohort]         = useState(false);
+  const [cohortResult, setCohortResult]           = useState<{
+    cohorts?: { name: string; size: string | number; nps: number | null; sentiment: string; keyCharacteristics: string[]; retentionSignal: string }[];
+    bestCohort?: { description: string; whatWorksForThem: string; howToGetMore: string };
+    worstCohort?: { description: string; rootCause: string; intervention: string };
+    cohortTrend?: string;
+    actionableFindings?: { finding: string; action: string; priority: string }[];
+    productInsight?: string;
+    bestFitProfile?: string;
+  } | null>(null);
+  const [cohortSummaries, setCohortSummaries]     = useState<{ week: string; count: number; avgNPS: number | null }[]>([]);
+  const [cohortError, setCohortError]             = useState<string | null>(null);
+
+  async function handleCohortAnalysis() {
+    if (runningCohort) return;
+    setRunningCohort(true); setCohortError(null); setCohortResult(null); setCohortSummaries([]);
+    try {
+      const res = await fetch('/api/agents/nova/cohort', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          surveyId: cohortSurveyId.trim() || undefined,
+          manualResponses: cohortManualData.trim() || undefined,
+        }),
+      });
+      const r = await res.json();
+      if (res.ok && r.result) { setCohortResult(r.result); setCohortSummaries(r.cohortSummaries ?? []); }
+      else setCohortError(r.error ?? 'Analysis failed');
+    } catch { setCohortError('Network error'); }
+    finally { setRunningCohort(false); }
+  }
+
+  // Feature request aggregation state
+  const [showFeaturesPanel, setShowFeaturesPanel] = useState(false);
+  const [featuresInput, setFeaturesInput]         = useState("");
+  const [aggregatingFeatures, setAggregatingFeatures] = useState(false);
+  const [featuresResult, setFeaturesResult]       = useState<{
+    clusters?: { theme: string; category: string; frequency: number; requests: string[]; effort: string; impact: string; riceScore: number; priority: string; representativeQuote: string | null }[];
+    totalFeedbackItems?: number;
+    topInsight?: string;
+    quickWins?: string[];
+    strategicBets?: string[];
+  } | null>(null);
+  const [featuresError, setFeaturesError]         = useState<string | null>(null);
+
+  async function handleAggregateFeatures() {
+    if (aggregatingFeatures) return;
+    setAggregatingFeatures(true); setFeaturesError(null); setFeaturesResult(null);
+    try {
+      const res = await fetch('/api/agents/nova/features', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(
+          artifactId
+            ? { surveyId: artifactId }
+            : { manualFeedback: featuresInput }
+        ),
+      });
+      const r = await res.json();
+      if (res.ok && r.analysis) setFeaturesResult(r.analysis);
+      else setFeaturesError(r.error ?? 'Aggregation failed');
+    } catch { setFeaturesError('Network error'); }
+    finally { setAggregatingFeatures(false); }
+  }
+
+  // Survey distribution state
+  const [showDistributePanel, setShowDistributePanel] = useState(false);
+  const [distributeEmails, setDistributeEmails]       = useState("");
+  const [distributeSubject, setDistributeSubject]     = useState("");
+  const [distributeMessage, setDistributeMessage]     = useState("");
+  const [distributing, setDistributing]               = useState(false);
+  const [distributeResult, setDistributeResult]       = useState<{ sent: number; failed: number; surveyUrl?: string; simulated?: boolean } | null>(null);
+  const [distributeError, setDistributeError]         = useState<string | null>(null);
+
+  async function handleDistributeSurvey() {
+    if (distributing) return;
+    const emails = distributeEmails.split(/[\n,;]+/).map(e => e.trim()).filter(e => e.includes('@') && e.includes('.'));
+    if (!emails.length) { setDistributeError('No valid email addresses found'); return; }
+    setDistributing(true); setDistributeError(null); setDistributeResult(null);
+    try {
+      const res = await fetch('/api/agents/nova/distribute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          emails,
+          subject: distributeSubject.trim() || undefined,
+          customMessage: distributeMessage.trim() || undefined,
+        }),
+      });
+      const r = await res.json();
+      if (res.ok) setDistributeResult({ sent: r.sent, failed: r.failed, surveyUrl: r.surveyUrl, simulated: r.simulated });
+      else setDistributeError(r.error ?? 'Failed to send');
+    } catch { setDistributeError('Network error'); }
+    finally { setDistributing(false); }
+  }
+
+  // Problem validation state
+  const [showValidatePanel, setShowValidatePanel]           = useState(false);
+  const [validateProblem, setValidateProblem]               = useState("");
+  const [validateAudience, setValidateAudience]             = useState("");
+  const [validating, setValidating]                         = useState(false);
+  const [validateResult, setValidateResult]                 = useState<{
+    validationSignal?: string; painLevel?: number;
+    quotes?: { text: string; source: string; url?: string }[];
+    themes?: string[]; earlyAdopterSignals?: string[];
+    competitorMentions?: string[];
+    messagingInsights?: string[]; nextSteps?: string[];
+  } | null>(null);
+  const [validateError, setValidateError]                   = useState<string | null>(null);
+
+  async function handleValidateProblem() {
+    if (validating || !validateProblem.trim()) return;
+    setValidating(true); setValidateError(null); setValidateResult(null);
+    try {
+      const res = await fetch('/api/agents/nova/validate-problem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ problemStatement: validateProblem, targetAudience: validateAudience.trim() || undefined }),
+      });
+      const r = await res.json();
+      if (res.ok) { setValidateResult(r.validation); setShowValidatePanel(true); }
+      else setValidateError(r.error ?? 'Failed to validate');
+    } catch { setValidateError('Network error'); }
+    finally { setValidating(false); }
+  }
 
   // Interview scheduler state
   const [showScheduleModal, setShowScheduleModal] = useState(false);
@@ -3665,14 +8199,61 @@ function PMFSurveyRenderer({ data, artifactId, userId }: { data: Record<string, 
             <p style={{ fontSize: 12, fontWeight: 700, color: purple, marginBottom: 2 }}>Share this survey</p>
             <p style={{ fontSize: 11, color: muted }}>Send to customers — responses tracked in real-time.</p>
           </div>
-          {surveyLink ? (
-            <button onClick={() => { navigator.clipboard.writeText(surveyLink).catch(() => {}); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: linkCopied ? green : purple, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
-              {linkCopied ? "Copied!" : "Copy Survey Link"}
-            </button>
-          ) : (
-            <span style={{ fontSize: 11, color: muted }}>Generate this artifact first</span>
-          )}
+          <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+            {surveyLink && artifactId && (
+              <button onClick={() => setShowDistributePanel(p => !p)} style={{ padding: "7px 14px", borderRadius: 8, border: `1px solid ${purple}`, background: "transparent", color: purple, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+                📧 Send via Email
+              </button>
+            )}
+            {surveyLink ? (
+              <button onClick={() => { navigator.clipboard.writeText(surveyLink).catch(() => {}); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: linkCopied ? green : purple, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+                {linkCopied ? "Copied!" : "Copy Link"}
+              </button>
+            ) : (
+              <span style={{ fontSize: 11, color: muted }}>Generate this artifact first</span>
+            )}
+          </div>
         </div>
+
+        {/* Distribution panel */}
+        {showDistributePanel && (
+          <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid #DDD6FE`, display: "flex", flexDirection: "column", gap: 8 }}>
+            {distributeResult ? (
+              <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "10px 12px", border: "1px solid #BBF7D0" }}>
+                <p style={{ fontSize: 13, fontWeight: 700, color: green, marginBottom: 2 }}>✓ Survey sent to {distributeResult.sent} customer{distributeResult.sent !== 1 ? "s" : ""}!</p>
+                {distributeResult.failed > 0 && <p style={{ fontSize: 11, color: muted }}>{distributeResult.failed} failed to send</p>}
+                <button onClick={() => { setDistributeResult(null); setDistributeEmails(""); }} style={{ marginTop: 6, padding: "4px 12px", borderRadius: 6, border: "none", background: green, color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Send more</button>
+              </div>
+            ) : (
+              <>
+                <div>
+                  <label style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 4 }}>Customer emails (one per line or comma-separated)</label>
+                  <textarea
+                    value={distributeEmails}
+                    onChange={e => setDistributeEmails(e.target.value)}
+                    placeholder={"alice@company.com\nbob@startup.io, carol@acme.com"}
+                    rows={3}
+                    style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid #DDD6FE`, background: bg, fontSize: 12, color: ink, resize: "vertical", boxSizing: "border-box", fontFamily: "inherit" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 4 }}>Custom message (optional)</label>
+                  <input
+                    value={distributeMessage}
+                    onChange={e => setDistributeMessage(e.target.value)}
+                    placeholder="We'd love your feedback — it helps us improve..."
+                    style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid #DDD6FE`, background: bg, fontSize: 12, color: ink, boxSizing: "border-box", fontFamily: "inherit" }}
+                  />
+                </div>
+                {distributeError && <p style={{ fontSize: 11, color: red }}>{distributeError}</p>}
+                <button onClick={handleDistributeSurvey} disabled={distributing || !distributeEmails.trim()} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: distributing || !distributeEmails.trim() ? bdr : purple, color: distributing || !distributeEmails.trim() ? muted : "#fff", fontSize: 12, fontWeight: 700, cursor: distributing ? "not-allowed" : "pointer" }}>
+                  {distributing ? "Sending…" : "Send Survey Invites"}
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
         {surveyStats && (
           <div style={{ paddingTop: 8, borderTop: `1px solid #DDD6FE` }}>
             <div style={{ display: "flex", gap: 16, marginBottom: surveyStats.distribution ? 12 : 0 }}>
@@ -3730,6 +8311,193 @@ function PMFSurveyRenderer({ data, artifactId, userId }: { data: Record<string, 
           </div>
         )}
       </div>
+      {/* ── AI Response Analysis ── */}
+      {artifactId && (
+        <div style={{ background: "#F5F3FF", border: `1px solid #DDD6FE`, borderRadius: 10, padding: "14px 16px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: analysisResult ? 14 : 0 }}>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: 12, fontWeight: 700, color: "#7C3AED", marginBottom: 2 }}>AI Response Analysis</p>
+              <p style={{ fontSize: 11, color: muted }}>Nova analyzes all survey responses — themes, PMF signal, top quotes, and what to do next.</p>
+              {analyzeError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{analyzeError}</p>}
+            </div>
+            <button onClick={handleAnalyzeSurvey} disabled={analyzing} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: analyzing ? bdr : "#7C3AED", color: analyzing ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: analyzing ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
+              {analyzing ? "Analyzing…" : analysisResult ? "Re-analyze" : "Analyze Responses"}
+            </button>
+          </div>
+          {analysisResult && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {/* Header stats */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                <div style={{ background: "#fff", borderRadius: 8, padding: "10px 12px", border: `1px solid #DDD6FE`, textAlign: "center" }}>
+                  <p style={{ fontSize: 20, fontWeight: 800, color: "#7C3AED" }}>{analysisResult.totalCount ?? 0}</p>
+                  <p style={{ fontSize: 10, color: muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Total</p>
+                </div>
+                <div style={{ background: "#fff", borderRadius: 8, padding: "10px 12px", border: `1px solid #DDD6FE`, textAlign: "center" }}>
+                  <p style={{ fontSize: 20, fontWeight: 800, color: (analysisResult.newCount ?? 0) > 0 ? green : muted }}>{analysisResult.newCount ?? 0}</p>
+                  <p style={{ fontSize: 10, color: muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>New (24h)</p>
+                </div>
+                <div style={{ background: "#fff", borderRadius: 8, padding: "10px 12px", border: `1px solid #DDD6FE`, textAlign: "center" }}>
+                  <p style={{ fontSize: 20, fontWeight: 800, color: (analysisResult.pmfScore ?? 0) >= 40 ? green : (analysisResult.pmfScore ?? 0) >= 25 ? amber : red }}>{analysisResult.pmfScore ?? 0}%</p>
+                  <p style={{ fontSize: 10, color: muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>PMF Score</p>
+                </div>
+              </div>
+              {analysisResult.analysis && (
+                <>
+                  {/* Signal + trend */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    <div style={{ background: "#EDE9FE", borderRadius: 8, padding: "10px 12px" }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: "#7C3AED", marginBottom: 3 }}>PMF Signal</p>
+                      <p style={{ fontSize: 14, fontWeight: 800, color: "#7C3AED", textTransform: "capitalize" }}>{analysisResult.analysis.pmfSignal ?? "—"}</p>
+                    </div>
+                    {analysisResult.analysis.trendNote && (
+                      <div style={{ background: surf, borderRadius: 8, padding: "10px 12px", border: `1px solid ${bdr}` }}>
+                        <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: muted, marginBottom: 3 }}>Trend</p>
+                        <p style={{ fontSize: 12, color: ink, lineHeight: 1.5 }}>{analysisResult.analysis.trendNote}</p>
+                      </div>
+                    )}
+                  </div>
+                  {/* Top themes */}
+                  {analysisResult.analysis.topThemes && analysisResult.analysis.topThemes.length > 0 && (
+                    <div style={{ background: "#fff", borderRadius: 8, padding: "12px 14px", border: `1px solid ${bdr}` }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: muted, marginBottom: 8 }}>Top Themes</p>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        {analysisResult.analysis.topThemes.map((t, ti) => <span key={ti} style={{ fontSize: 12, background: "#F5F3FF", color: "#7C3AED", padding: "3px 10px", borderRadius: 999 }}>{t}</span>)}
+                      </div>
+                    </div>
+                  )}
+                  {/* Top quote */}
+                  {analysisResult.analysis.topQuote && (
+                    <div style={{ background: "#F5F3FF", borderRadius: 8, padding: "12px 14px", border: `1px solid #DDD6FE` }}>
+                      <p style={{ fontSize: 12, color: ink, fontStyle: "italic", lineHeight: 1.7 }}>&quot;{analysisResult.analysis.topQuote}&quot;</p>
+                    </div>
+                  )}
+                  {/* Action + alerts */}
+                  {analysisResult.analysis.actionableInsight && (
+                    <div style={{ background: "#EFF6FF", borderRadius: 8, padding: "10px 14px", border: `1px solid #BFDBFE` }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: blue, marginBottom: 4 }}>What to Do</p>
+                      <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{analysisResult.analysis.actionableInsight}</p>
+                    </div>
+                  )}
+                  {analysisResult.analysis.alerts && analysisResult.analysis.alerts.length > 0 && (
+                    <div style={{ background: "#FEF2F2", borderRadius: 8, padding: "10px 14px", border: `1px solid #FECACA` }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: red, marginBottom: 6 }}>Alerts</p>
+                      {analysisResult.analysis.alerts.map((a, ai) => <p key={ai} style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>⚠ {a}</p>)}
+                    </div>
+                  )}
+                </>
+              )}
+              {(analysisResult.totalCount ?? 0) < 3 && (
+                <p style={{ fontSize: 11, color: muted, fontStyle: "italic" }}>Need at least 3 responses for AI theme analysis. Keep sharing your survey!</p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Feature Request Aggregation ── */}
+      <div style={{ background: "#F5F3FF", borderRadius: 12, padding: "14px 18px", border: "1px solid #DDD6FE" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: showFeaturesPanel ? 12 : 0 }}>
+          <div>
+            <p style={{ fontSize: 11, fontWeight: 700, color: "#7C3AED", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 2 }}>Feature Request Aggregation</p>
+            <p style={{ fontSize: 11, color: muted }}>{artifactId ? "Pull themes from your survey open-text responses — RICE scored and ranked." : "Paste customer feedback — Nova clusters into themes and ranks by impact."}</p>
+          </div>
+          <button onClick={() => { setShowFeaturesPanel(v => !v); setFeaturesResult(null); setFeaturesError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: "#7C3AED", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>
+            {showFeaturesPanel ? "Close" : "Aggregate"}
+          </button>
+        </div>
+        {showFeaturesPanel && !featuresResult && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {!artifactId && (
+              <>
+                <p style={{ fontSize: 11, color: muted }}>Paste customer feedback, support tickets, or interview notes — one item per line.</p>
+                <textarea
+                  value={featuresInput}
+                  onChange={e => setFeaturesInput(e.target.value)}
+                  placeholder={"I wish it had a Zapier integration\nThe export to CSV is broken and I need it for reporting\nWould love dark mode\nCan you add a bulk edit feature? Super annoying to do one by one\nIntegration with Slack would be huge for our team\nNeed better mobile app"}
+                  rows={6}
+                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 12, color: ink, resize: "vertical", fontFamily: "inherit", boxSizing: "border-box" }}
+                />
+              </>
+            )}
+            {artifactId && <p style={{ fontSize: 12, color: muted }}>Will analyze open-text responses from your live survey ({(surveyStats?.total ?? 0)} responses).</p>}
+            {featuresError && <p style={{ fontSize: 12, color: red }}>{featuresError}</p>}
+            <button onClick={handleAggregateFeatures} disabled={aggregatingFeatures || (!artifactId && !featuresInput.trim())} style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: aggregatingFeatures ? bdr : "#7C3AED", color: aggregatingFeatures ? muted : "#fff", fontSize: 13, fontWeight: 600, cursor: aggregatingFeatures ? "not-allowed" : "pointer", alignSelf: "flex-start" }}>
+              {aggregatingFeatures ? "Clustering…" : "Find Feature Themes"}
+            </button>
+          </div>
+        )}
+        {featuresResult && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {/* Top insight */}
+            {featuresResult.topInsight && (
+              <div style={{ background: "#EDE9FE", borderRadius: 8, padding: "10px 14px" }}>
+                <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: "#7C3AED", marginBottom: 4 }}>Top Insight</p>
+                <p style={{ fontSize: 13, fontWeight: 500, color: ink, lineHeight: 1.6 }}>{featuresResult.topInsight}</p>
+              </div>
+            )}
+            {/* Quick wins + strategic bets */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              {featuresResult.quickWins && featuresResult.quickWins.length > 0 && (
+                <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "10px 12px", border: "1px solid #BBF7D0" }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, color: green, marginBottom: 6 }}>⚡ Quick Wins</p>
+                  {featuresResult.quickWins.map((w, wi) => <p key={wi} style={{ fontSize: 11, color: ink, lineHeight: 1.6 }}>• {w}</p>)}
+                </div>
+              )}
+              {featuresResult.strategicBets && featuresResult.strategicBets.length > 0 && (
+                <div style={{ background: "#FFFBEB", borderRadius: 8, padding: "10px 12px", border: "1px solid #FDE68A" }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, color: amber, marginBottom: 6 }}>🎯 Strategic Bets</p>
+                  {featuresResult.strategicBets.map((b, bi) => <p key={bi} style={{ fontSize: 11, color: ink, lineHeight: 1.6 }}>• {b}</p>)}
+                </div>
+              )}
+            </div>
+            {/* Clusters */}
+            {featuresResult.clusters && featuresResult.clusters.length > 0 && (
+              <div>
+                <p style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: "uppercase", marginBottom: 8 }}>Feature Clusters (sorted by RICE score)</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {featuresResult.clusters
+                    .sort((a, b) => (b.riceScore ?? 0) - (a.riceScore ?? 0))
+                    .map((cluster, ci) => {
+                      const prioColor = cluster.priority === "must_have" ? red : cluster.priority === "should_have" ? amber : cluster.priority === "nice_to_have" ? blue : muted;
+                      const prioLabel = cluster.priority === "must_have" ? "Must Have" : cluster.priority === "should_have" ? "Should Have" : cluster.priority === "nice_to_have" ? "Nice to Have" : "Later";
+                      return (
+                        <div key={ci} style={{ background: "#fff", borderRadius: 10, padding: "12px 14px", border: `1px solid ${cluster.priority === "must_have" ? "#FECACA" : bdr}` }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                              <p style={{ fontSize: 13, fontWeight: 700, color: ink }}>{cluster.theme}</p>
+                              <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 999, background: prioColor + "1A", color: prioColor, fontWeight: 600 }}>{prioLabel}</span>
+                            </div>
+                            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                              <span style={{ fontSize: 10, color: muted }}>{cluster.frequency}× mentioned</span>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: "#7C3AED" }}>RICE {cluster.riceScore}</span>
+                            </div>
+                          </div>
+                          <div style={{ display: "flex", gap: 12, marginBottom: 8 }}>
+                            <span style={{ fontSize: 10, color: muted }}>Effort: <strong style={{ color: ink }}>{cluster.effort}</strong></span>
+                            <span style={{ fontSize: 10, color: muted }}>Impact: <strong style={{ color: ink }}>{cluster.impact}</strong></span>
+                          </div>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: cluster.representativeQuote ? 8 : 0 }}>
+                            {cluster.requests.map((req, ri) => (
+                              <span key={ri} style={{ fontSize: 11, background: surf, padding: "3px 8px", borderRadius: 4, color: muted }}>{req}</span>
+                            ))}
+                          </div>
+                          {cluster.representativeQuote && (
+                            <p style={{ fontSize: 11, color: muted, fontStyle: "italic", lineHeight: 1.5, borderTop: `1px solid ${bdr}`, paddingTop: 8 }}>&ldquo;{cluster.representativeQuote}&rdquo;</p>
+                          )}
+                        </div>
+                      );
+                    })
+                  }
+                </div>
+              </div>
+            )}
+            <button onClick={() => { setFeaturesResult(null); setFeaturesInput(""); }} style={{ padding: "7px 14px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>
+              ← Analyze Different Feedback
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* ── Customer Interview Scheduler ── */}
       <div style={{ background: "#F0FDF4", border: `1px solid #BBF7D0`, borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <div style={{ flex: 1 }}>
@@ -3988,8 +8756,404 @@ function PMFSurveyRenderer({ data, artifactId, userId }: { data: Record<string, 
         </div>
       )}
 
+      {/* ── Problem Validation CTA ────────────────────────────────────────────── */}
+      <div style={{ background: "#FFF7ED", border: `1px solid #FED7AA`, borderRadius: 10, padding: "12px 16px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: showValidatePanel ? 14 : 0 }}>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: amber, marginBottom: 2 }}>Validate Your Problem</p>
+            <p style={{ fontSize: 11, color: muted }}>Scans Reddit, HN, Quora & IndieHackers for real complaints matching your problem — confirm demand before you build.</p>
+            {validateError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{validateError}</p>}
+          </div>
+          <button onClick={() => setShowValidatePanel(p => !p)} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: amber, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
+            {showValidatePanel ? "Hide" : "Validate Problem"}
+          </button>
+        </div>
+        {showValidatePanel && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {!validateResult ? (
+              <>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Problem Statement *</label>
+                  <textarea value={validateProblem} onChange={e => setValidateProblem(e.target.value)} placeholder="e.g. Founders waste hours formatting pitch decks manually instead of building" rows={3} style={{ width: "100%", border: `1px solid ${bdr}`, borderRadius: 8, padding: "9px 12px", fontSize: 12, color: ink, outline: "none", resize: "vertical", boxSizing: "border-box" }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Target Audience (optional)</label>
+                  <input value={validateAudience} onChange={e => setValidateAudience(e.target.value)} placeholder="e.g. early-stage B2B SaaS founders" style={{ width: "100%", border: `1px solid ${bdr}`, borderRadius: 8, padding: "8px 12px", fontSize: 12, color: ink, outline: "none", boxSizing: "border-box" }} />
+                </div>
+                <button onClick={handleValidateProblem} disabled={validating || !validateProblem.trim()} style={{ padding: "9px 16px", borderRadius: 8, border: "none", background: validating ? bdr : amber, color: validating ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: validating || !validateProblem.trim() ? "not-allowed" : "pointer", alignSelf: "flex-start" }}>
+                  {validating ? "Scanning…" : "Run Validation"}
+                </button>
+              </>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {/* Signal + pain level */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <div style={{ background: validateResult.validationSignal === "strong" ? "#F0FDF4" : validateResult.validationSignal === "moderate" ? "#FFFBEB" : "#FEF2F2", borderRadius: 8, padding: "12px 14px", border: `1px solid ${validateResult.validationSignal === "strong" ? "#BBF7D0" : validateResult.validationSignal === "moderate" ? "#FDE68A" : "#FECACA"}` }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: muted, marginBottom: 4 }}>Validation Signal</p>
+                    <p style={{ fontSize: 16, fontWeight: 800, color: validateResult.validationSignal === "strong" ? green : validateResult.validationSignal === "moderate" ? amber : red, textTransform: "capitalize" }}>{validateResult.validationSignal ?? "—"}</p>
+                  </div>
+                  <div style={{ background: surf, borderRadius: 8, padding: "12px 14px", border: `1px solid ${bdr}` }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: muted, marginBottom: 4 }}>Pain Level</p>
+                    <p style={{ fontSize: 16, fontWeight: 800, color: (validateResult.painLevel ?? 0) >= 7 ? red : (validateResult.painLevel ?? 0) >= 5 ? amber : green }}>{validateResult.painLevel ?? "—"}<span style={{ fontSize: 11, color: muted, fontWeight: 400 }}>/10</span></p>
+                  </div>
+                </div>
+                {/* Quotes */}
+                {validateResult.quotes && validateResult.quotes.length > 0 && (
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: muted, letterSpacing: "0.1em", marginBottom: 8 }}>Real Complaints Found</p>
+                    {validateResult.quotes.slice(0, 4).map((q, qi) => (
+                      <div key={qi} style={{ background: "#fff", border: `1px solid ${bdr}`, borderRadius: 8, padding: "10px 12px", marginBottom: 6 }}>
+                        <p style={{ fontSize: 12, color: ink, lineHeight: 1.6, fontStyle: "italic", marginBottom: 4 }}>&quot;{q.text}&quot;</p>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span style={{ fontSize: 10, color: muted }}>{q.source}</span>
+                          {q.url && <a href={q.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 10, color: blue, textDecoration: "underline" }}>View →</a>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* Themes + early adopter signals */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  {validateResult.themes && validateResult.themes.length > 0 && (
+                    <div style={{ background: surf, borderRadius: 8, padding: "10px 12px", border: `1px solid ${bdr}` }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: muted, marginBottom: 6 }}>Themes</p>
+                      {validateResult.themes.map((t, ti) => <p key={ti} style={{ fontSize: 11, color: ink, lineHeight: 1.6 }}>• {t}</p>)}
+                    </div>
+                  )}
+                  {validateResult.earlyAdopterSignals && validateResult.earlyAdopterSignals.length > 0 && (
+                    <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "10px 12px", border: `1px solid #BBF7D0` }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: green, marginBottom: 6 }}>Early Adopter Signals</p>
+                      {validateResult.earlyAdopterSignals.map((s, si) => <p key={si} style={{ fontSize: 11, color: ink, lineHeight: 1.6 }}>• {s}</p>)}
+                    </div>
+                  )}
+                </div>
+                {/* Messaging insights */}
+                {validateResult.messagingInsights && validateResult.messagingInsights.length > 0 && (
+                  <div style={{ background: "#EFF6FF", borderRadius: 8, padding: "10px 12px", border: `1px solid #BFDBFE` }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: blue, marginBottom: 6 }}>Messaging Insights</p>
+                    {validateResult.messagingInsights.map((m, mi) => <p key={mi} style={{ fontSize: 11, color: ink, lineHeight: 1.6 }}>→ {m}</p>)}
+                  </div>
+                )}
+                <button onClick={() => { setValidateResult(null); setValidateProblem(""); setValidateAudience(""); }} style={{ padding: "7px 14px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>
+                  ← New Validation
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Churn Prediction ─────────────────────────────────────────────────── */}
+      <div style={{ background: showChurnPanel && churnResult ? "#FEF2F2" : surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${showChurnPanel && churnResult ? "#FECACA" : bdr}` }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <p style={{ fontSize: 11, fontWeight: 700, color: churnResult?.riskLevel === "critical" || churnResult?.riskLevel === "high" ? red : ink, marginBottom: 2 }}>
+              Churn Prediction Signals
+              {churnResult?.riskLevel && <span style={{ marginLeft: 6, fontSize: 10, padding: "2px 8px", borderRadius: 999, background: churnResult.riskLevel === "critical" ? "#FEF2F2" : churnResult.riskLevel === "high" ? "#FFFBEB" : "#F0FDF4", color: churnResult.riskLevel === "critical" ? red : churnResult.riskLevel === "high" ? amber : green, fontWeight: 700 }}>{churnResult.riskLevel.toUpperCase()}</span>}
+            </p>
+            <p style={{ fontSize: 11, color: muted }}>Identify at-risk customers before they churn. Connects with Stripe + survey data.</p>
+          </div>
+          <button onClick={() => { if (showChurnPanel && !analyzingChurn) { setShowChurnPanel(false); } else { setShowChurnPanel(true); if (!churnResult) handleAnalyzeChurn(); } }} style={{ padding: "6px 14px", borderRadius: 8, border: "none", background: red, color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>
+            {showChurnPanel ? "Close" : "Analyze Risk"}
+          </button>
+        </div>
+        {showChurnPanel && (
+          <div style={{ marginTop: 14 }}>
+            {analyzingChurn ? (
+              <p style={{ fontSize: 12, color: muted, textAlign: "center", padding: "24px 0" }}>Analyzing churn signals…</p>
+            ) : churnError ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <p style={{ fontSize: 12, color: muted }}>{churnError}</p>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Paste customer feedback or usage notes</label>
+                  <textarea value={churnManualData} onChange={e => setChurnManualData(e.target.value)} placeholder="Paste support tickets, customer complaints, usage drop observations, NPS comments..." rows={4} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 12, color: ink, resize: "none", fontFamily: "inherit", boxSizing: "border-box" }} />
+                </div>
+                <button onClick={handleAnalyzeChurn} disabled={!churnManualData.trim()} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: !churnManualData.trim() ? bdr : red, color: !churnManualData.trim() ? muted : "#fff", fontSize: 12, fontWeight: 700, cursor: !churnManualData.trim() ? "not-allowed" : "pointer", alignSelf: "flex-start" }}>
+                  Analyze
+                </button>
+              </div>
+            ) : churnResult ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {/* Churn score gauge */}
+                {churnResult.churnScore !== undefined && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                    <div style={{ width: 64, height: 64, borderRadius: "50%", border: `4px solid ${(churnResult.churnScore ?? 0) >= 70 ? red : (churnResult.churnScore ?? 0) >= 40 ? amber : green}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <p style={{ fontSize: 18, fontWeight: 700, color: (churnResult.churnScore ?? 0) >= 70 ? red : (churnResult.churnScore ?? 0) >= 40 ? amber : green }}>{churnResult.churnScore}</p>
+                    </div>
+                    <div>
+                      <p style={{ fontSize: 14, fontWeight: 700, color: ink }}>Churn Risk Score</p>
+                      <p style={{ fontSize: 12, color: muted }}>0 = low risk · 100 = critical</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Immediate actions */}
+                {churnResult.immediateActions && churnResult.immediateActions.length > 0 && (
+                  <div style={{ background: "#fff", borderRadius: 10, padding: "12px 14px", border: `1px solid ${bdr}` }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: red, marginBottom: 8 }}>Do This Now</p>
+                    {churnResult.immediateActions.map((action, i) => (
+                      <p key={i} style={{ fontSize: 12, color: ink, marginBottom: 4, lineHeight: 1.5 }}>• {action}</p>
+                    ))}
+                  </div>
+                )}
+
+                {/* Churn predictors */}
+                {churnResult.churnPredictors && churnResult.churnPredictors.length > 0 && (
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: muted, marginBottom: 8 }}>Churn Predictors</p>
+                    {churnResult.churnPredictors.map((p, i) => (
+                      <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "6px 0", borderBottom: i < churnResult.churnPredictors!.length - 1 ? `1px solid ${bdr}` : "none" }}>
+                        <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 999, background: p.severity === "high" ? "#FEF2F2" : p.severity === "medium" ? "#FFFBEB" : surf, color: p.severity === "high" ? red : p.severity === "medium" ? amber : muted, fontWeight: 700, flexShrink: 0, marginTop: 2 }}>{p.severity?.toUpperCase()}</span>
+                        <div>
+                          <p style={{ fontSize: 12, fontWeight: 600, color: ink }}>{p.predictor}</p>
+                          <p style={{ fontSize: 11, color: muted }}>{p.evidence}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Save playbook */}
+                {churnResult.savePlaybook && churnResult.savePlaybook.length > 0 && (
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: muted, marginBottom: 8 }}>Save Playbook</p>
+                    {churnResult.savePlaybook.map((step, i) => (
+                      <div key={i} style={{ background: surf, borderRadius: 8, padding: "10px 12px", border: `1px solid ${bdr}`, marginBottom: 6 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                          <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 999, background: step.timing === "immediate" ? "#FEF2F2" : step.timing === "this_week" ? "#FFFBEB" : bg, color: step.timing === "immediate" ? red : step.timing === "this_week" ? amber : muted, fontWeight: 700 }}>{step.timing?.toUpperCase().replace("_", " ")}</span>
+                          <span style={{ fontSize: 10, color: muted }}>{step.target}</span>
+                        </div>
+                        <p style={{ fontSize: 12, color: ink, marginBottom: 2 }}>{step.action}</p>
+                        <p style={{ fontSize: 11, color: green }}>{step.expectedImpact}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Early warning metrics */}
+                {churnResult.earlyWarningMetrics && churnResult.earlyWarningMetrics.length > 0 && (
+                  <div style={{ background: "#FFFBEB", borderRadius: 8, padding: "10px 14px", border: "1px solid #FDE68A" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: amber, marginBottom: 6 }}>Monitor Weekly</p>
+                    {churnResult.earlyWarningMetrics.map((m, i) => (
+                      <p key={i} style={{ fontSize: 12, color: ink, marginBottom: 3 }}>• {m}</p>
+                    ))}
+                  </div>
+                )}
+
+                {churnResult.retentionInsight && (
+                  <p style={{ fontSize: 12, color: muted, fontStyle: "italic", lineHeight: 1.6 }}>💡 {churnResult.retentionInsight}</p>
+                )}
+              </div>
+            ) : null}
+          </div>
+        )}
+      </div>
+
+      {/* ── Cohort Analysis ──────────────────────────────────────────────────── */}
+      <div style={{ background: showCohortPanel && cohortResult ? "#F5F3FF" : surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${showCohortPanel && cohortResult ? "#DDD6FE" : bdr}` }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <p style={{ fontSize: 11, fontWeight: 700, color: showCohortPanel && cohortResult ? "#7C3AED" : ink, marginBottom: 2 }}>
+              Cohort Analysis
+              {cohortResult?.cohortTrend && (
+                <span style={{ marginLeft: 8, fontSize: 10, padding: "2px 8px", borderRadius: 999, background: cohortResult.cohortTrend === "improving" ? "#F0FDF4" : cohortResult.cohortTrend === "declining" ? "#FEF2F2" : "#EFF6FF", color: cohortResult.cohortTrend === "improving" ? green : cohortResult.cohortTrend === "declining" ? red : blue, fontWeight: 700 }}>
+                  {cohortResult.cohortTrend === "improving" ? "↗ Improving" : cohortResult.cohortTrend === "declining" ? "↘ Declining" : cohortResult.cohortTrend === "stable" ? "→ Stable" : "Insufficient data"}
+                </span>
+              )}
+            </p>
+            <p style={{ fontSize: 11, color: muted }}>Segment survey respondents by signup cohort. Identify which customers are happiest and why.</p>
+          </div>
+          <button onClick={() => { if (showCohortPanel && !runningCohort) setShowCohortPanel(false); else setShowCohortPanel(true); }} style={{ padding: "6px 14px", borderRadius: 8, border: "none", background: "#7C3AED", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+            {showCohortPanel ? "Close" : cohortResult ? "Refresh" : "Analyze Cohorts"}
+          </button>
+        </div>
+        {showCohortPanel && (
+          <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 12 }}>
+            {!cohortResult && !runningCohort && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div>
+                  <p style={{ fontSize: 11, fontWeight: 600, color: ink, marginBottom: 4 }}>Survey ID (optional — from your hosted survey)</p>
+                  <input value={cohortSurveyId} onChange={e => setCohortSurveyId(e.target.value)} placeholder="Paste survey ID or leave blank for manual data" style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 12, color: ink, fontFamily: "inherit", boxSizing: "border-box" as const }} />
+                </div>
+                <div>
+                  <p style={{ fontSize: 11, fontWeight: 600, color: ink, marginBottom: 4 }}>Paste cohort data manually (optional)</p>
+                  <textarea value={cohortManualData} onChange={e => setCohortManualData(e.target.value)} placeholder="e.g. Jan cohort: 42 users, NPS 45, mostly B2B. Feb cohort: 60 users, NPS 61..." rows={3} style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 12, color: ink, resize: "none", fontFamily: "inherit", boxSizing: "border-box" as const }} />
+                </div>
+                {cohortError && <p style={{ fontSize: 12, color: red }}>{cohortError}</p>}
+                <button onClick={handleCohortAnalysis} style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: "#7C3AED", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", alignSelf: "flex-start" }}>
+                  Run Cohort Analysis
+                </button>
+              </div>
+            )}
+            {runningCohort && (
+              <p style={{ fontSize: 12, color: muted, textAlign: "center", padding: "16px 0" }}>Segmenting cohorts and analyzing NPS differences…</p>
+            )}
+            {cohortResult && !runningCohort && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {/* Cohort timeline bar */}
+                {cohortSummaries.length > 0 && (
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", marginBottom: 8 }}>Cohort Timeline</p>
+                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                      {cohortSummaries.map((c, i) => (
+                        <div key={i} style={{ background: surf, borderRadius: 6, padding: "6px 10px", border: `1px solid ${bdr}`, textAlign: "center" }}>
+                          <p style={{ fontSize: 9, color: muted, fontWeight: 600 }}>{c.week}</p>
+                          <p style={{ fontSize: 13, fontWeight: 700, color: ink }}>{c.count}</p>
+                          {c.avgNPS !== null && <p style={{ fontSize: 10, color: c.avgNPS >= 50 ? green : c.avgNPS >= 20 ? amber : red }}>NPS {c.avgNPS}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Best + Worst cohort */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  {cohortResult.bestCohort && (
+                    <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "10px 14px", border: "1px solid #BBF7D0" }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: green, marginBottom: 4 }}>BEST COHORT</p>
+                      <p style={{ fontSize: 12, color: ink, marginBottom: 4, lineHeight: 1.5 }}>{cohortResult.bestCohort.description}</p>
+                      <p style={{ fontSize: 11, color: muted, lineHeight: 1.5 }}>Get more: {cohortResult.bestCohort.howToGetMore}</p>
+                    </div>
+                  )}
+                  {cohortResult.worstCohort && (
+                    <div style={{ background: "#FEF2F2", borderRadius: 8, padding: "10px 14px", border: "1px solid #FECACA" }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: red, marginBottom: 4 }}>LOWEST SATISFACTION</p>
+                      <p style={{ fontSize: 12, color: ink, marginBottom: 4, lineHeight: 1.5 }}>{cohortResult.worstCohort.description}</p>
+                      <p style={{ fontSize: 11, color: muted, lineHeight: 1.5 }}>Root cause: {cohortResult.worstCohort.rootCause}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Cohort list */}
+                {cohortResult.cohorts && cohortResult.cohorts.length > 0 && (
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", marginBottom: 8 }}>All Cohorts</p>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {cohortResult.cohorts.map((c, i) => (
+                        <div key={i} style={{ background: surf, borderRadius: 8, padding: "10px 14px", border: `1px solid ${bdr}` }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                            <p style={{ fontSize: 12, fontWeight: 700, color: ink }}>{c.name}</p>
+                            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                              {c.nps !== null && <span style={{ fontSize: 10, fontWeight: 700, color: (c.nps ?? 0) >= 50 ? green : (c.nps ?? 0) >= 20 ? amber : red }}>NPS {c.nps}</span>}
+                              <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 999, background: c.sentiment === "strong" ? "#F0FDF4" : c.sentiment === "positive" ? "#ECFDF5" : c.sentiment === "negative" ? "#FEF2F2" : surf, color: c.sentiment === "strong" || c.sentiment === "positive" ? green : c.sentiment === "negative" ? red : muted, fontWeight: 600 }}>{c.sentiment}</span>
+                            </div>
+                          </div>
+                          <p style={{ fontSize: 11, color: muted }}>{c.retentionSignal}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Actionable findings */}
+                {cohortResult.actionableFindings && cohortResult.actionableFindings.length > 0 && (
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", marginBottom: 8 }}>Action Items</p>
+                    {cohortResult.actionableFindings.map((f, i) => (
+                      <div key={i} style={{ display: "flex", gap: 10, padding: "8px 0", borderBottom: i < cohortResult.actionableFindings!.length - 1 ? `1px solid ${bdr}` : "none" }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: f.priority === "high" ? "#FEF2F2" : f.priority === "medium" ? "#FFFBEB" : surf, color: f.priority === "high" ? red : f.priority === "medium" ? amber : muted, flexShrink: 0, alignSelf: "flex-start", marginTop: 2 }}>{f.priority}</span>
+                        <div>
+                          <p style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 2 }}>{f.finding}</p>
+                          <p style={{ fontSize: 11, color: muted }}>{f.action}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Product insight + best fit profile */}
+                {cohortResult.productInsight && (
+                  <div style={{ background: "#EFF6FF", borderRadius: 8, padding: "10px 14px", border: "1px solid #BFDBFE" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: blue, marginBottom: 4 }}>KEY PRODUCT DECISION</p>
+                    <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{cohortResult.productInsight}</p>
+                  </div>
+                )}
+                {cohortResult.bestFitProfile && (
+                  <p style={{ fontSize: 11, color: muted, fontStyle: "italic" }}>🎯 Best-fit customer: {cohortResult.bestFitProfile}</p>
+                )}
+
+                <button onClick={() => { setCohortResult(null); setCohortSummaries([]); }} style={{ padding: "8px 16px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 12, cursor: "pointer", alignSelf: "flex-start" }}>
+                  New Analysis
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* ── Interview Notes Analyzer ─────────────────────────────────────────── */}
       <InterviewNotesAnalyzer artifactId={artifactId} />
+
+      {/* ── Survey Distribution ───────────────────────────────────────────────── */}
+      <div style={{ background: showDistributePanel && distributeResult ? "#F0FDF4" : surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${showDistributePanel && distributeResult ? "#BBF7D0" : bdr}` }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <p style={{ fontSize: 11, fontWeight: 700, color: green, marginBottom: 2 }}>
+              Distribute Survey
+              {distributeResult && <span style={{ marginLeft: 8, fontSize: 10, padding: "2px 8px", borderRadius: 999, background: "#F0FDF4", color: green, fontWeight: 700 }}>✓ {distributeResult.sent} sent</span>}
+            </p>
+            <p style={{ fontSize: 11, color: muted }}>Send your PMF survey to a customer list via email. Paste emails or pull from your pipeline.</p>
+          </div>
+          <button onClick={() => { if (showDistributePanel && !distributing) setShowDistributePanel(false); else setShowDistributePanel(true); }} style={{ padding: "6px 14px", borderRadius: 8, border: "none", background: green, color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+            {showDistributePanel ? "Close" : "Send Survey"}
+          </button>
+        </div>
+        {showDistributePanel && (
+          <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+            {distributeResult ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "14px 16px", border: "1px solid #BBF7D0" }}>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: green, marginBottom: 6 }}>
+                    {distributeResult.simulated ? "📧 Simulated (add Resend key to send live)" : "✓ Survey distributed!"}
+                  </p>
+                  <div style={{ display: "flex", gap: 20 }}>
+                    <div><p style={{ fontSize: 11, color: muted }}>Sent</p><p style={{ fontSize: 22, fontWeight: 800, color: green }}>{distributeResult.sent}</p></div>
+                    {distributeResult.failed > 0 && <div><p style={{ fontSize: 11, color: muted }}>Failed</p><p style={{ fontSize: 22, fontWeight: 800, color: red }}>{distributeResult.failed}</p></div>}
+                  </div>
+                  {distributeResult.surveyUrl && (
+                    <p style={{ fontSize: 11, color: muted, marginTop: 8 }}>Survey: <a href={distributeResult.surveyUrl} target="_blank" rel="noopener noreferrer" style={{ color: blue }}>{distributeResult.surveyUrl}</a></p>
+                  )}
+                </div>
+                <button onClick={() => { setDistributeResult(null); setDistributeEmails(""); }} style={{ padding: "7px 14px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 12, cursor: "pointer", alignSelf: "flex-start" }}>
+                  Send to Another List
+                </button>
+              </div>
+            ) : (
+              <>
+                <div>
+                  <p style={{ fontSize: 11, fontWeight: 600, color: ink, marginBottom: 4 }}>Customer emails * (one per line, or comma-separated)</p>
+                  <textarea
+                    value={distributeEmails}
+                    onChange={e => setDistributeEmails(e.target.value)}
+                    placeholder={"alice@company.com\nbob@startup.io\ncarol@acme.com"}
+                    rows={4}
+                    style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 12, color: ink, resize: "vertical", fontFamily: "monospace", boxSizing: "border-box" as const }}
+                  />
+                  <p style={{ fontSize: 10, color: muted, marginTop: 4 }}>
+                    {distributeEmails.split(/[\n,;]+/).filter(e => e.trim().includes('@')).length} valid emails detected
+                  </p>
+                </div>
+                <div>
+                  <p style={{ fontSize: 11, fontWeight: 600, color: ink, marginBottom: 4 }}>Email subject (optional)</p>
+                  <input value={distributeSubject} onChange={e => setDistributeSubject(e.target.value)} placeholder="Quick question from [your name] — 2 minutes max" style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 12, color: ink, fontFamily: "inherit", boxSizing: "border-box" as const }} />
+                </div>
+                <div>
+                  <p style={{ fontSize: 11, fontWeight: 600, color: ink, marginBottom: 4 }}>Personal message (optional — replaces default body)</p>
+                  <textarea value={distributeMessage} onChange={e => setDistributeMessage(e.target.value)} placeholder="Hi, I'm building [product] for [persona]. Your feedback would mean a lot..." rows={3} style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 12, color: ink, resize: "none", fontFamily: "inherit", boxSizing: "border-box" as const }} />
+                </div>
+                {distributeError && <p style={{ fontSize: 12, color: red }}>{distributeError}</p>}
+                <button
+                  onClick={handleDistributeSurvey}
+                  disabled={distributing || distributeEmails.split(/[\n,;]+/).filter(e => e.trim().includes('@')).length === 0}
+                  style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: distributing || distributeEmails.split(/[\n,;]+/).filter(e => e.trim().includes('@')).length === 0 ? bdr : green, color: distributing || distributeEmails.split(/[\n,;]+/).filter(e => e.trim().includes('@')).length === 0 ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", alignSelf: "flex-start" }}
+                >
+                  {distributing ? `Sending to ${distributeEmails.split(/[\n,;]+/).filter(e => e.trim().includes('@')).length} recipients…` : `Send Survey Email`}
+                </button>
+              </>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* ── Fake Door Test ──────────────────────────────────────────────────── */}
       <FakeDoorSection artifactId={artifactId} userId={userId} data={data} />
@@ -4390,6 +9554,27 @@ function CompetitiveMatrixRenderer({ data, artifactId: _artifactId }: { data: Re
   } | null>(null);
   const [jobError, setJobError] = useState<string | null>(null);
 
+  // Competitor monitor state
+  const [showMonitorPanel, setShowMonitorPanel] = useState(false);
+  const [runningMonitor, setRunningMonitor]     = useState(false);
+  const [monitorResult, setMonitorResult]       = useState<{
+    digest?: { competitor: string; signals: { type: string; signal: string; implication: string; urgency: string }[]; overallMovement: string; actionable: string }[];
+    summary?: string; mostUrgent?: string; recommendedResponse?: string;
+  } | null>(null);
+  const [monitorError, setMonitorError] = useState<string | null>(null);
+
+  async function handleRunMonitor() {
+    if (runningMonitor) return;
+    setRunningMonitor(true); setMonitorError(null);
+    try {
+      const res = await fetch('/api/agents/atlas/monitor', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.digest) setMonitorResult(r.digest);
+      else setMonitorError(r.error ?? 'Monitor failed');
+    } catch { setMonitorError('Network error'); }
+    finally { setRunningMonitor(false); }
+  }
+
   async function handleAnalyzeJobs() {
     if (!jobCompetitor.trim() || jobText.trim().length < 10 || analyzingJobs) return;
     setAnalyzingJobs(true); setJobError(null); setJobAnalysis(null);
@@ -4422,6 +9607,44 @@ function CompetitiveMatrixRenderer({ data, artifactId: _artifactId }: { data: Re
     finally { setAnalyzingReviews(false); }
   }
 
+  // Social listening state
+  const [showSocialPanel, setShowSocialPanel]     = useState(false);
+  const [socialCompetitors, setSocialCompetitors] = useState("");
+  const [socialTopics, setSocialTopics]           = useState("");
+  const [runningSocial, setRunningSocial]         = useState(false);
+  const [socialResult, setSocialResult]           = useState<{
+    overallSentiment?: string;
+    topComplaints?: { complaint: string; frequency: string; quote?: string | null; opportunity: string }[];
+    topPraise?: { praise: string; implication: string }[];
+    emergingThemes?: string[];
+    battleCardUpdates?: string[];
+    earlyWarning?: string | null;
+    recommendedAction?: string;
+    mentionCount?: number;
+  } | null>(null);
+  const [socialMentions, setSocialMentions]       = useState<{ title: string; url: string; content: string; source: string }[]>([]);
+  const [socialError, setSocialError]             = useState<string | null>(null);
+
+  async function handleSocialListen() {
+    const names = socialCompetitors.split(/[,\n]+/).map(s => s.trim()).filter(Boolean);
+    if (names.length === 0 || runningSocial) return;
+    setRunningSocial(true); setSocialError(null); setSocialResult(null); setSocialMentions([]);
+    try {
+      const res = await fetch('/api/agents/atlas/social', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          competitors: names,
+          topics: socialTopics.split(/[,\n]+/).map(s => s.trim()).filter(Boolean),
+        }),
+      });
+      const r = await res.json();
+      if (res.ok) { setSocialResult(r.analysis); setSocialMentions(r.mentions ?? []); }
+      else setSocialError(r.error ?? 'Social listening failed');
+    } catch { setSocialError('Network error'); }
+    finally { setRunningSocial(false); }
+  }
+
   useEffect(() => {
     fetch('/api/agents/atlas/track')
       .then(r => r.json())
@@ -4449,6 +9672,65 @@ function CompetitiveMatrixRenderer({ data, artifactId: _artifactId }: { data: Re
         setTimeout(() => setTrackDone(false), 3000);
       }
     } catch {} finally { setTracking(false); }
+  }
+
+  // Weekly competitive scan state
+  const [runningWeeklyScan, setRunningWeeklyScan] = useState(false);
+  const [weeklyScanResult, setWeeklyScanResult]   = useState<{
+    headline?: string;
+    topMoves?: { competitor: string; move: string; implication: string; urgency: string }[];
+    pricingAlerts?: string[];
+    hiringSignals?: string[];
+    opportunities?: string[];
+    recommendedActions?: string[];
+    quietCompetitors?: string[];
+    scannedAt?: string;
+    competitorsScanned?: number;
+    competitorsWithChanges?: number;
+  } | null>(null);
+  const [weeklyScanError, setWeeklyScanError]     = useState<string | null>(null);
+
+  async function handleWeeklyScan() {
+    if (runningWeeklyScan) return;
+    setRunningWeeklyScan(true); setWeeklyScanError(null); setWeeklyScanResult(null);
+    try {
+      const res = await fetch('/api/agents/atlas/weekly-scan', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.digest) setWeeklyScanResult(r.digest);
+      else setWeeklyScanError(r.error ?? 'Scan failed');
+    } catch { setWeeklyScanError('Network error'); }
+    finally { setRunningWeeklyScan(false); }
+  }
+
+  // Tech stack detection state
+  const [showTechStackPanel, setShowTechStackPanel] = useState(false);
+  const [techCompetitor, setTechCompetitor]         = useState("");
+  const [techCompetitorUrl, setTechCompetitorUrl]   = useState("");
+  const [detectingStack, setDetectingStack]         = useState(false);
+  const [techStackResult, setTechStackResult]       = useState<{
+    competitorName?: string; confidence?: string; summary?: string;
+    categories?: Record<string, string[]>;
+    keyInsights?: string[]; competitiveImplications?: string;
+    recentChanges?: string | null; sources?: string[];
+  } | null>(null);
+  const [techStackError, setTechStackError] = useState<string | null>(null);
+  const [techStackCompetitorName, setTechStackCompetitorName] = useState<string | null>(null);
+
+  async function handleDetectTechStack() {
+    if (!techCompetitor.trim() || detectingStack) return;
+    const name = techCompetitor.trim();
+    setDetectingStack(true); setTechStackError(null); setTechStackResult(null); setTechStackCompetitorName(name);
+    try {
+      const res = await fetch('/api/agents/atlas/techstack', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ competitorName: name, competitorUrl: techCompetitorUrl.trim() || undefined }),
+      });
+      const r = await res.json();
+      if (res.ok) setTechStackResult(r.techstack);
+      else setTechStackError(r.error ?? 'Detection failed');
+    } catch { setTechStackError('Network error'); }
+    finally { setDetectingStack(false); }
   }
 
   const sectionHead: React.CSSProperties = { fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.14em", color: muted, marginBottom: 10 };
@@ -4665,6 +9947,70 @@ function CompetitiveMatrixRenderer({ data, artifactId: _artifactId }: { data: Re
           </div>
         </div>
       )}
+
+      {/* ── Live Competitor Monitor ───────────────────────────────────────────── */}
+      <div style={{ background: showMonitorPanel && monitorResult ? "#0F172A" : surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${showMonitorPanel && monitorResult ? "#334155" : bdr}` }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <p style={{ fontSize: 11, fontWeight: 700, color: showMonitorPanel && monitorResult ? "#94A3B8" : ink, marginBottom: 2 }}>Live Competitive Monitor</p>
+            <p style={{ fontSize: 11, color: muted }}>Atlas scans your tracked competitors for new job posts, funding, product launches, and market moves via live search.</p>
+            {monitorError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{monitorError}</p>}
+          </div>
+          <button onClick={() => { setShowMonitorPanel(!showMonitorPanel); if (!monitorResult && !showMonitorPanel) handleRunMonitor(); }} style={{ padding: "7px 14px", borderRadius: 8, border: "1px solid #334155", background: runningMonitor ? bdr : "#1E293B", color: runningMonitor ? muted : "#94A3B8", fontSize: 12, fontWeight: 600, cursor: runningMonitor ? "not-allowed" : "pointer", flexShrink: 0, marginLeft: 12 }}>
+            {runningMonitor ? "Scanning…" : showMonitorPanel ? "Hide" : "Run Monitor"}
+          </button>
+        </div>
+        {showMonitorPanel && (
+          <div style={{ marginTop: 14 }}>
+            {runningMonitor ? (
+              <p style={{ fontSize: 12, color: "#94A3B8", textAlign: "center", padding: "20px 0" }}>Scanning competitors via live search…</p>
+            ) : monitorResult ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {monitorResult.mostUrgent && (
+                  <div style={{ background: "#1E293B", borderRadius: 8, padding: "12px 14px", border: "1px solid #EF4444" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: "#EF4444", textTransform: "uppercase", marginBottom: 4 }}>Most Urgent Signal</p>
+                    <p style={{ fontSize: 12, color: "#F8FAFC", lineHeight: 1.6 }}>{monitorResult.mostUrgent}</p>
+                  </div>
+                )}
+                {monitorResult.summary && (
+                  <p style={{ fontSize: 12, color: "#94A3B8", lineHeight: 1.6 }}>{monitorResult.summary}</p>
+                )}
+                {(monitorResult.digest as { competitor: string; signals: { type: string; signal: string; implication: string; urgency: string }[]; overallMovement: string; actionable: string }[] | undefined)?.map((item, i) => (
+                  <div key={i} style={{ background: "#1E293B", borderRadius: 10, padding: "12px 14px", border: "1px solid #334155" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: "#F8FAFC" }}>{item.competitor}</p>
+                      <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 999, background: item.overallMovement === 'expanding' ? "#166534" : item.overallMovement === 'contracting' ? "#7F1D1D" : "#1E3A5F", color: "#fff", textTransform: "capitalize" }}>{item.overallMovement}</span>
+                    </div>
+                    {item.signals.map((sig, j) => (
+                      <div key={j} style={{ marginBottom: 8, paddingBottom: 8, borderBottom: j < item.signals.length - 1 ? "1px solid #334155" : "none" }}>
+                        <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 3 }}>
+                          <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 999, background: sig.urgency === 'high' ? "#7F1D1D" : sig.urgency === 'medium' ? "#78350F" : "#1E3A5F", color: "#fff", textTransform: "capitalize" }}>{sig.urgency}</span>
+                          <span style={{ fontSize: 10, color: "#64748B", textTransform: "capitalize" }}>{sig.type.replace('_', ' ')}</span>
+                        </div>
+                        <p style={{ fontSize: 12, color: "#CBD5E1", marginBottom: 3 }}>{sig.signal}</p>
+                        <p style={{ fontSize: 11, color: "#64748B", fontStyle: "italic" }}>→ {sig.implication}</p>
+                      </div>
+                    ))}
+                    {item.actionable && (
+                      <div style={{ marginTop: 8, background: "#0F172A", borderRadius: 6, padding: "8px 10px" }}>
+                        <p style={{ fontSize: 10, fontWeight: 700, color: "#3B82F6", textTransform: "uppercase", marginBottom: 3 }}>Recommended Action</p>
+                        <p style={{ fontSize: 11, color: "#94A3B8" }}>{item.actionable}</p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+                {monitorResult.recommendedResponse && (
+                  <div style={{ background: "#1E293B", borderRadius: 8, padding: "12px 14px", border: "1px solid #3B82F6" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: "#3B82F6", textTransform: "uppercase", marginBottom: 4 }}>Atlas Recommends</p>
+                    <p style={{ fontSize: 12, color: "#94A3B8", lineHeight: 1.6 }}>{monitorResult.recommendedResponse}</p>
+                  </div>
+                )}
+                <button onClick={handleRunMonitor} style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid #334155", background: "#1E293B", color: "#94A3B8", fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>Re-scan</button>
+              </div>
+            ) : null}
+          </div>
+        )}
+      </div>
 
       {/* ── Competitor Review Analysis ───────────────────────────────────────── */}
       <div style={{ background: "#FEF3C7", borderRadius: 12, padding: "14px 16px", border: `1px solid #FDE68A` }}>
@@ -4913,6 +10259,273 @@ function CompetitiveMatrixRenderer({ data, artifactId: _artifactId }: { data: Re
           </div>
         </div>
       )}
+
+      {/* ── Weekly Competitive Scan ─────────────────────────────────────────── */}
+      <div style={{ background: "#FAFAF5", borderRadius: 12, padding: "14px 18px", border: `1px solid ${bdr}` }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: weeklyScanResult ? 14 : 0 }}>
+          <div>
+            <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 2 }}>Run Weekly Competitive Scan</p>
+            <p style={{ fontSize: 11, color: muted }}>Re-scrapes all {tracked.length > 0 ? `${tracked.length} tracked` : "your tracked"} competitors, detects changes, and generates an actionable digest.</p>
+          </div>
+          <button
+            onClick={handleWeeklyScan}
+            disabled={runningWeeklyScan || tracked.length === 0}
+            style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: runningWeeklyScan || tracked.length === 0 ? bdr : blue, color: runningWeeklyScan || tracked.length === 0 ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: runningWeeklyScan || tracked.length === 0 ? "not-allowed" : "pointer", flexShrink: 0 }}
+          >
+            {runningWeeklyScan ? "Scanning…" : tracked.length === 0 ? "Track competitors first" : "Run Scan"}
+          </button>
+        </div>
+        {weeklyScanError && <p style={{ fontSize: 12, color: red, marginTop: 8 }}>{weeklyScanError}</p>}
+        {weeklyScanResult && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {weeklyScanResult.headline && (
+              <div style={{ background: "#EFF6FF", borderRadius: 8, padding: "10px 14px", border: "1px solid #BFDBFE" }}>
+                <p style={{ fontSize: 13, fontWeight: 700, color: blue }}>{weeklyScanResult.headline}</p>
+                {weeklyScanResult.competitorsScanned && (
+                  <p style={{ fontSize: 10, color: muted, marginTop: 4 }}>Scanned {weeklyScanResult.competitorsScanned} competitors · {weeklyScanResult.competitorsWithChanges} with changes</p>
+                )}
+              </div>
+            )}
+            {weeklyScanResult.topMoves && weeklyScanResult.topMoves.length > 0 && (
+              <div>
+                <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>Top Moves This Week</p>
+                {weeklyScanResult.topMoves.map((move, i) => (
+                  <div key={i} style={{ padding: "10px 12px", background: "#fff", borderRadius: 8, border: `1px solid ${bdr}`, marginBottom: 6 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: ink }}>{move.competitor}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 999, background: move.urgency === "high" ? "#FEF2F2" : move.urgency === "medium" ? "#FFFBEB" : surf, color: move.urgency === "high" ? red : move.urgency === "medium" ? amber : muted }}>{move.urgency}</span>
+                    </div>
+                    <p style={{ fontSize: 12, color: ink, marginBottom: 3 }}>{move.move}</p>
+                    <p style={{ fontSize: 11, color: muted }}>→ {move.implication}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {weeklyScanResult.opportunities && weeklyScanResult.opportunities.length > 0 && (
+                <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "10px 12px", border: "1px solid #BBF7D0" }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, color: green, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>Opportunities</p>
+                  {weeklyScanResult.opportunities.map((o, i) => <p key={i} style={{ fontSize: 11, color: ink, lineHeight: 1.5, marginBottom: 3 }}>• {o}</p>)}
+                </div>
+              )}
+              {weeklyScanResult.recommendedActions && weeklyScanResult.recommendedActions.length > 0 && (
+                <div style={{ background: "#EFF6FF", borderRadius: 8, padding: "10px 12px", border: "1px solid #BFDBFE" }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, color: blue, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>Act This Week</p>
+                  {weeklyScanResult.recommendedActions.map((a, i) => <p key={i} style={{ fontSize: 11, color: ink, lineHeight: 1.5, marginBottom: 3 }}>→ {a}</p>)}
+                </div>
+              )}
+            </div>
+            {(weeklyScanResult.pricingAlerts?.length ?? 0) > 0 && (
+              <div style={{ background: "#FFFBEB", borderRadius: 8, padding: "10px 12px", border: "1px solid #FDE68A" }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: amber, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>Pricing Alerts</p>
+                {weeklyScanResult.pricingAlerts!.map((a, i) => <p key={i} style={{ fontSize: 11, color: ink, marginBottom: 3 }}>⚠ {a}</p>)}
+              </div>
+            )}
+            {(weeklyScanResult.hiringSignals?.length ?? 0) > 0 && (
+              <div>
+                <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>Hiring Signals</p>
+                {weeklyScanResult.hiringSignals!.map((s, i) => <p key={i} style={{ fontSize: 11, color: ink, marginBottom: 3 }}>👥 {s}</p>)}
+              </div>
+            )}
+            <button onClick={() => setWeeklyScanResult(null)} style={{ padding: "7px 14px", borderRadius: 8, border: `1px solid ${bdr}`, background: "transparent", color: muted, fontSize: 12, cursor: "pointer", alignSelf: "flex-start" }}>
+              Clear
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Tech Stack Detection ── */}
+      <div style={{ background: "#F5F3FF", border: `1px solid #DDD6FE`, borderRadius: 12, padding: "14px 18px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: showTechStackPanel ? 14 : 0 }}>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: "#7C3AED", marginBottom: 2 }}>Tech Stack Detection</p>
+            <p style={{ fontSize: 11, color: muted }}>Identifies a competitor&apos;s frontend, backend, database, cloud, and marketing stack — reveals their scale and strategy.</p>
+          </div>
+          <button onClick={() => setShowTechStackPanel(p => !p)} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: "#7C3AED", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
+            {showTechStackPanel ? "Hide" : "Detect Stack"}
+          </button>
+        </div>
+        {showTechStackPanel && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {!techStackResult ? (
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  <input value={techCompetitor} onChange={e => setTechCompetitor(e.target.value)} placeholder="Competitor name *" style={{ border: `1px solid ${bdr}`, borderRadius: 8, padding: "8px 12px", fontSize: 12, color: ink, outline: "none" }} />
+                  <input value={techCompetitorUrl} onChange={e => setTechCompetitorUrl(e.target.value)} placeholder="Their URL (optional)" style={{ border: `1px solid ${bdr}`, borderRadius: 8, padding: "8px 12px", fontSize: 12, color: ink, outline: "none" }} />
+                </div>
+                {/* Quick-fill from tracked competitors */}
+                {tracked.length > 0 && (
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 10, color: muted, alignSelf: "center" }}>Quick fill:</span>
+                    {tracked.slice(0, 5).map(t => (
+                      <button key={t.id} onClick={() => { setTechCompetitor(t.name); setTechCompetitorUrl(t.url ?? ""); }} style={{ padding: "3px 10px", borderRadius: 999, border: `1px solid ${bdr}`, background: bg, fontSize: 11, color: ink, cursor: "pointer" }}>{t.name}</button>
+                    ))}
+                  </div>
+                )}
+                {techStackError && <p style={{ fontSize: 11, color: red }}>{techStackError}</p>}
+                <button onClick={handleDetectTechStack} disabled={detectingStack || !techCompetitor.trim()} style={{ padding: "9px 14px", borderRadius: 8, border: "none", background: detectingStack ? bdr : "#7C3AED", color: detectingStack ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: detectingStack || !techCompetitor.trim() ? "not-allowed" : "pointer", alignSelf: "flex-start" }}>
+                  {detectingStack ? "Detecting…" : "Analyze Stack"}
+                </button>
+              </>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {/* Header */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: ink }}>{techStackResult.competitorName ?? techStackCompetitorName}</p>
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 999, background: techStackResult.confidence === "high" ? "#F0FDF4" : techStackResult.confidence === "medium" ? "#FFFBEB" : "#FEF2F2", color: techStackResult.confidence === "high" ? green : techStackResult.confidence === "medium" ? amber : red, border: `1px solid ${techStackResult.confidence === "high" ? "#BBF7D0" : techStackResult.confidence === "medium" ? "#FDE68A" : "#FECACA"}` }}>
+                    {techStackResult.confidence} confidence
+                  </span>
+                </div>
+                {techStackResult.summary && <p style={{ fontSize: 12, color: ink, lineHeight: 1.7, background: "#EDE9FE", borderRadius: 8, padding: "10px 14px" }}>{techStackResult.summary}</p>}
+                {/* Stack categories */}
+                {techStackResult.categories && (
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    {Object.entries(techStackResult.categories).filter(([, tools]) => Array.isArray(tools) && tools.length > 0).map(([cat, tools]) => (
+                      <div key={cat} style={{ background: "#fff", border: `1px solid ${bdr}`, borderRadius: 8, padding: "10px 12px" }}>
+                        <p style={{ fontSize: 10, fontWeight: 700, textTransform: "capitalize", color: muted, marginBottom: 6 }}>{cat}</p>
+                        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                          {(tools as string[]).map((t, ti) => <span key={ti} style={{ fontSize: 11, background: surf, padding: "2px 8px", borderRadius: 4, color: ink }}>{t}</span>)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* Insights */}
+                {techStackResult.keyInsights && techStackResult.keyInsights.length > 0 && (
+                  <div style={{ background: "#EFF6FF", borderRadius: 8, padding: "10px 14px", border: `1px solid #BFDBFE` }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: blue, marginBottom: 6 }}>What This Reveals</p>
+                    {techStackResult.keyInsights.map((ins, ii) => <p key={ii} style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>→ {ins}</p>)}
+                  </div>
+                )}
+                {techStackResult.competitiveImplications && (
+                  <div style={{ background: "#FFFBEB", borderRadius: 8, padding: "10px 14px", border: `1px solid #FDE68A` }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: amber, marginBottom: 4 }}>Competitive Implications</p>
+                    <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{techStackResult.competitiveImplications}</p>
+                  </div>
+                )}
+                {techStackResult.recentChanges && (
+                  <p style={{ fontSize: 11, color: muted, fontStyle: "italic" }}>Recent changes: {techStackResult.recentChanges}</p>
+                )}
+                <button onClick={() => { setTechStackResult(null); setTechCompetitor(""); setTechCompetitorUrl(""); }} style={{ padding: "7px 14px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>
+                  ← Detect Another
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Social Listening ─────────────────────────────────────────────────── */}
+      <div style={{ background: showSocialPanel && socialResult ? "#F5F3FF" : surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${showSocialPanel && socialResult ? "#DDD6FE" : bdr}` }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <p style={{ fontSize: 11, fontWeight: 700, color: "#7C3AED", marginBottom: 2 }}>Social Listening</p>
+            <p style={{ fontSize: 11, color: muted }}>Search Reddit, Twitter/X, and HN for competitor mentions. Surfaces complaints, praise, and battle card updates.</p>
+          </div>
+          <button onClick={() => { if (showSocialPanel && !runningSocial) setShowSocialPanel(false); else setShowSocialPanel(true); }} style={{ padding: "6px 14px", borderRadius: 8, border: "none", background: "#7C3AED", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+            {showSocialPanel ? "Close" : "Listen"}
+          </button>
+        </div>
+        {showSocialPanel && (
+          <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 12 }}>
+            {!socialResult ? (
+              <>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Competitors to monitor *</label>
+                  <input
+                    value={socialCompetitors}
+                    onChange={e => setSocialCompetitors(e.target.value)}
+                    placeholder={tracked.length > 0 ? tracked.map(t => t.name).join(', ') : "Competitor A, Competitor B"}
+                    style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: `1px solid ${bdr}`, fontSize: 12, color: ink, boxSizing: "border-box" }}
+                  />
+                  {tracked.length > 0 && !socialCompetitors && (
+                    <button onClick={() => setSocialCompetitors(tracked.map(t => t.name).join(', '))} style={{ fontSize: 10, color: "#7C3AED", background: "none", border: "none", cursor: "pointer", marginTop: 4 }}>
+                      Use tracked competitors ↑
+                    </button>
+                  )}
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Focus topics (optional)</label>
+                  <input value={socialTopics} onChange={e => setSocialTopics(e.target.value)} placeholder="pricing, onboarding, support, recent news..." style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: `1px solid ${bdr}`, fontSize: 12, color: ink, boxSizing: "border-box" }} />
+                </div>
+                {socialError && <p style={{ fontSize: 12, color: red }}>{socialError}</p>}
+                <button onClick={handleSocialListen} disabled={runningSocial || !socialCompetitors.trim()} style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: runningSocial || !socialCompetitors.trim() ? bdr : "#7C3AED", color: runningSocial || !socialCompetitors.trim() ? muted : "#fff", fontSize: 13, fontWeight: 600, cursor: runningSocial || !socialCompetitors.trim() ? "not-allowed" : "pointer", alignSelf: "flex-start" }}>
+                  {runningSocial ? "Searching…" : "Search Social & Forums"}
+                </button>
+              </>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {/* Sentiment + early warning */}
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                  {socialResult.overallSentiment && (
+                    <span style={{ fontSize: 11, padding: "4px 12px", borderRadius: 999, fontWeight: 700, background: socialResult.overallSentiment === "negative" ? "#FEF2F2" : socialResult.overallSentiment === "positive" ? "#F0FDF4" : "#FFFBEB", color: socialResult.overallSentiment === "negative" ? red : socialResult.overallSentiment === "positive" ? green : amber }}>
+                      {socialResult.overallSentiment === "negative" ? "🔴 Negative sentiment" : socialResult.overallSentiment === "positive" ? "🟢 Positive sentiment" : socialResult.overallSentiment === "mixed" ? "🟡 Mixed sentiment" : "—"}
+                    </span>
+                  )}
+                  <span style={{ fontSize: 11, color: muted }}>{socialResult.mentionCount ?? socialMentions.length} mentions found</span>
+                </div>
+
+                {socialResult.earlyWarning && (
+                  <div style={{ background: "#FFFBEB", borderRadius: 8, padding: "10px 14px", border: "1px solid #FDE68A" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: amber, marginBottom: 4 }}>⚡ EARLY WARNING</p>
+                    <p style={{ fontSize: 12, color: ink }}>{socialResult.earlyWarning}</p>
+                  </div>
+                )}
+
+                {/* Top complaints */}
+                {socialResult.topComplaints && socialResult.topComplaints.length > 0 && (
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: muted, marginBottom: 8 }}>Top Complaints (Exploit These)</p>
+                    {socialResult.topComplaints.map((c, i) => (
+                      <div key={i} style={{ background: "#fff", borderRadius: 8, padding: "10px 14px", border: `1px solid ${bdr}`, marginBottom: 6 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                          <p style={{ fontSize: 12, fontWeight: 600, color: ink, flex: 1 }}>{c.complaint}</p>
+                          <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 999, background: c.frequency === "high" ? "#FEF2F2" : "#FFFBEB", color: c.frequency === "high" ? red : amber, fontWeight: 700, flexShrink: 0 }}>{c.frequency?.toUpperCase()}</span>
+                        </div>
+                        {c.quote && <p style={{ fontSize: 11, color: muted, fontStyle: "italic", margin: "4px 0" }}>&#34;{c.quote}&#34;</p>}
+                        <p style={{ fontSize: 11, color: green, marginTop: 4 }}>💡 {c.opportunity}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Battle card updates */}
+                {socialResult.battleCardUpdates && socialResult.battleCardUpdates.length > 0 && (
+                  <div style={{ background: "#EFF6FF", borderRadius: 8, padding: "10px 14px", border: `1px solid #BFDBFE` }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: blue, marginBottom: 6 }}>Add to Battle Card</p>
+                    {socialResult.battleCardUpdates.map((u, i) => (
+                      <p key={i} style={{ fontSize: 12, color: ink, lineHeight: 1.5 }}>• {u}</p>
+                    ))}
+                  </div>
+                )}
+
+                {/* Emerging themes */}
+                {socialResult.emergingThemes && socialResult.emergingThemes.length > 0 && (
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: muted, marginBottom: 6 }}>Emerging Themes</p>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {socialResult.emergingThemes.map((t, i) => (
+                        <span key={i} style={{ fontSize: 11, padding: "4px 10px", borderRadius: 999, background: surf, border: `1px solid ${bdr}`, color: ink }}>{t}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {socialResult.recommendedAction && (
+                  <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "10px 14px", border: "1px solid #BBF7D0" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: green, marginBottom: 4 }}>RECOMMENDED ACTION</p>
+                    <p style={{ fontSize: 12, color: ink }}>{socialResult.recommendedAction}</p>
+                  </div>
+                )}
+
+                <button onClick={() => { setSocialResult(null); setSocialMentions([]); }} style={{ padding: "7px 14px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>
+                  ← New Search
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -4936,6 +10549,31 @@ function StrategicPlanRenderer({ data, artifactId }: { data: Record<string, unkn
   const [sageSending, setSageSending]           = useState(false);
   const [sageSent, setSageSent]                 = useState(false);
   const [sageError, setSageError]               = useState<string | null>(null);
+  const [generatingBriefing, setGeneratingBriefing] = useState(false);
+  const [briefingResult, setBriefingResult]     = useState<Record<string, unknown> | null>(null);
+  const [briefingError, setBriefingError]       = useState<string | null>(null);
+
+  // Strategic contradiction detection state
+  const [detectingContradictions, setDetectingContradictions] = useState(false);
+  const [contradictionResult, setContradictionResult]         = useState<{
+    contradictions?: { area: string; description: string; artifactA: string; artifactB: string; severity: string; recommendation: string }[];
+    alignmentScore?: number;
+    summary?: string;
+    strongestAlignments?: string[];
+  } | null>(null);
+  const [contradictionError, setContradictionError]           = useState<string | null>(null);
+
+  async function handleDetectContradictions() {
+    if (detectingContradictions) return;
+    setDetectingContradictions(true); setContradictionError(null); setContradictionResult(null);
+    try {
+      const res = await fetch('/api/agents/sage/contradictions', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.analysis) setContradictionResult(r.analysis);
+      else setContradictionError(r.error ?? 'Detection failed');
+    } catch { setContradictionError('Network error'); }
+    finally { setDetectingContradictions(false); }
+  }
 
   // Weekly standup state
   const [standupSent, setStandupSent]           = useState(false);
@@ -4955,6 +10593,205 @@ function StrategicPlanRenderer({ data, artifactId }: { data: Record<string, unkn
       else { const r = await res.json(); setStandupError(r.error ?? 'Failed to send'); }
     } catch { setStandupError('Network error'); }
     finally { setSendingStandup(false); }
+  }
+
+  // Goal check-in state
+  const [showCheckinPanel, setShowCheckinPanel] = useState(false);
+  const [checkinProgress, setCheckinProgress]  = useState<Record<string, number>>({});
+  const [checkinBlockers, setCheckinBlockers]  = useState<Record<string, string>>({});
+  const [checkinNote, setCheckinNote]          = useState("");
+  const [submittingCheckin, setSubmittingCheckin] = useState(false);
+  const [checkinResult, setCheckinResult]      = useState<{
+    avgProgress?: number;
+    feedback?: { headline?: string; momentum?: string; wins?: string[]; risks?: string[]; focusNext?: string; blockerAdvice?: string | null; motivationalNote?: string };
+  } | null>(null);
+  const [checkinError, setCheckinError]        = useState<string | null>(null);
+  const [checkinHistory, setCheckinHistory]    = useState<{ description: string; created_at: string; metadata: Record<string, unknown> }[]>([]);
+
+  // Decision journal state
+  const [showDecisionModal, setShowDecisionModal] = useState(false);
+  const [decisionText, setDecisionText]           = useState("");
+  const [decisionReasoning, setDecisionReasoning] = useState("");
+  const [decisionAlternatives, setDecisionAlternatives] = useState("");
+  const [decisionOutcome, setDecisionOutcome]     = useState("");
+  const [decisionCategory, setDecisionCategory]   = useState("product");
+  const [loggingDecision, setLoggingDecision]     = useState(false);
+  const [decisionResult, setDecisionResult]       = useState<{
+    assessment?: string; confidence?: string; reversibility?: string; watchFor?: string; reminderDate?: string;
+  } | null>(null);
+  const [decisionError, setDecisionError]         = useState<string | null>(null);
+  const [decisions, setDecisions]                 = useState<{ id: string; description: string; created_at: string; metadata: Record<string, unknown> }[]>([]);
+
+  // Focus Today state
+  const [loadingFocus, setLoadingFocus]   = useState(false);
+  const [focusResult, setFocusResult]     = useState<{
+    topPriority?: { action?: string; whyNow?: string; urgency?: string; estimatedImpact?: string; agent?: string };
+    context?: string;
+    secondaryPriorities?: { action: string; reason: string; urgency: string }[];
+    avoidToday?: string;
+  } | null>(null);
+  const [focusError, setFocusError]       = useState<string | null>(null);
+
+  // Pivot Signal Monitoring state
+  const [showPivotPanel, setShowPivotPanel]       = useState(false);
+  const [runningPivot, setRunningPivot]           = useState(false);
+  const [pivotResult, setPivotResult]             = useState<{
+    pivotScore?: number;
+    recommendation?: string;
+    verdict?: string;
+    redFlags?: string[];
+    greenLights?: string[];
+    pivotOptions?: { type: string; description: string; rationale: string; risk: string }[];
+    persevereCase?: string;
+    nextCheckpoint?: string;
+    urgency?: string;
+  } | null>(null);
+  const [pivotSignals, setPivotSignals]           = useState<Record<string, unknown> | null>(null);
+  const [pivotError, setPivotError]               = useState<string | null>(null);
+
+  async function handlePivotEval() {
+    if (runningPivot) return;
+    setRunningPivot(true); setPivotError(null); setPivotResult(null); setPivotSignals(null);
+    try {
+      const res = await fetch('/api/agents/sage/pivot', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok) { setPivotResult(r.evaluation ?? null); setPivotSignals(r.signals ?? null); }
+      else setPivotError(r.error ?? 'Evaluation failed');
+    } catch { setPivotError('Network error'); }
+    finally { setRunningPivot(false); }
+  }
+
+  // Board Meeting Prep state
+  const [showBoardPrepPanel, setShowBoardPrepPanel] = useState(false);
+  const [generatingBoardPrep, setGeneratingBoardPrep] = useState(false);
+  const [boardPrepResult, setBoardPrepResult]         = useState<{
+    executiveSummary?: { headline: string; keyWin: string; keyChallenge: string; askFromBoard: string };
+    financials?: { snapshot: string; trend: string; highlights: string[]; concerns: string[]; guidance: string };
+    salesPipeline?: { snapshot: string; highlights: string[]; forecast: string; blockers: string[] };
+    product?: { pmfStatus: string; npsComment: string; recentMilestones: string[]; roadmapPriorities: string[] };
+    team?: { currentTeam: string; keyHires: string[]; teamRisks: string[]; culture: string };
+    competitive?: { landscapeShift: string; ourAdvantage: string; threats: string[]; opportunities: string[] };
+    strategy?: { currentBets: string[]; pivotSignals: string; fundraisingStatus: string; milestones: string[] };
+    riskRegister?: { risk: string; likelihood: string; impact: string; mitigation: string }[];
+    boardQuestions?: string[];
+    appendixNotes?: string;
+  } | null>(null);
+  const [boardPrepError, setBoardPrepError]           = useState<string | null>(null);
+  const [boardPrepSection, setBoardPrepSection]       = useState<"summary" | "financials" | "sales" | "product" | "team" | "competitive" | "strategy" | "risks">("summary");
+
+  async function handleGenerateBoardPrep() {
+    if (generatingBoardPrep) return;
+    setGeneratingBoardPrep(true); setBoardPrepError(null); setBoardPrepResult(null);
+    try {
+      const res = await fetch('/api/agents/sage/board-prep', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.boardPacket) setBoardPrepResult(r.boardPacket);
+      else setBoardPrepError(r.error ?? 'Generation failed');
+    } catch { setBoardPrepError('Network error'); }
+    finally { setGeneratingBoardPrep(false); }
+  }
+
+  useEffect(() => {
+    // Fetch check-in history + decision journal
+    fetch('/api/agents/sage/goals')
+      .then(r => r.json())
+      .then(data => {
+        if (data.checkins) setCheckinHistory(data.checkins);
+      })
+      .catch(() => {});
+    fetch('/api/agents/sage/decisions')
+      .then(r => r.json())
+      .then(data => {
+        if (data.decisions) setDecisions(data.decisions);
+      })
+      .catch(() => {});
+  }, []);
+
+  async function handleLogDecision() {
+    if (loggingDecision || !decisionText.trim()) return;
+    setLoggingDecision(true); setDecisionError(null); setDecisionResult(null);
+    try {
+      const res = await fetch('/api/agents/sage/decisions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          decision: decisionText.trim(),
+          reasoning: decisionReasoning.trim() || undefined,
+          alternatives: decisionAlternatives.trim() || undefined,
+          expectedOutcome: decisionOutcome.trim() || undefined,
+          category: decisionCategory,
+        }),
+      });
+      const r = await res.json();
+      if (res.ok) {
+        setDecisionResult(r.assessment);
+        setDecisions(prev => [{ id: String(Date.now()), description: `Decision: "${decisionText.slice(0, 60)}"`, created_at: new Date().toISOString(), metadata: { decision: decisionText, assessment: r.assessment } }, ...prev]);
+        setDecisionText(""); setDecisionReasoning(""); setDecisionAlternatives(""); setDecisionOutcome("");
+      } else setDecisionError(r.error ?? 'Failed to log decision');
+    } catch { setDecisionError('Network error'); }
+    finally { setLoggingDecision(false); }
+  }
+
+  async function handleFocusToday() {
+    if (loadingFocus) return;
+    setLoadingFocus(true); setFocusError(null); setFocusResult(null);
+    try {
+      const res = await fetch('/api/agents/sage/focus', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.focus) setFocusResult(r.focus);
+      else setFocusError(r.error ?? 'Failed to generate focus');
+    } catch { setFocusError('Network error'); }
+    finally { setLoadingFocus(false); }
+  }
+
+  async function handleSubmitCheckin() {
+    if (submittingCheckin || !d.okrs || d.okrs.length === 0) return;
+    const goals = d.okrs.map((okr, i) => ({
+      id: `okr_${i}`,
+      objective: okr.objective,
+      progress: checkinProgress[`okr_${i}`] ?? 0,
+      blocker: checkinBlockers[`okr_${i}`] || undefined,
+    }));
+    setSubmittingCheckin(true); setCheckinError(null); setCheckinResult(null);
+    try {
+      const res = await fetch('/api/agents/sage/goals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ goals, weekNote: checkinNote || undefined }),
+      });
+      const result = await res.json();
+      if (res.ok) setCheckinResult(result);
+      else setCheckinError(result.error ?? 'Check-in failed');
+    } catch { setCheckinError('Network error'); }
+    finally { setSubmittingCheckin(false); }
+  }
+
+  // Milestone countdown state
+  const [milestones, setMilestones]         = useState<{ index: number; text: string; completed: boolean }[]>([]);
+  const [milestoneTarget, setMilestoneTarget] = useState("");
+  const [savingMilestone, setSavingMilestone] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetch('/api/agents/sage/milestone')
+      .then(r => r.json())
+      .then(data => {
+        if (data.milestones?.length) setMilestones(data.milestones);
+      })
+      .catch(() => {});
+  }, []);
+
+  async function handleToggleMilestone(ms: { index: number; text: string; completed: boolean }) {
+    if (ms.completed || savingMilestone === ms.index) return;
+    setSavingMilestone(ms.index);
+    try {
+      await fetch('/api/agents/sage/milestone', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ milestoneIndex: ms.index, milestoneText: ms.text }),
+      });
+      setMilestones(prev => prev.map(m => m.index === ms.index ? { ...m, completed: true } : m));
+    } catch { /* non-critical */ }
+    finally { setSavingMilestone(null); }
   }
 
   // Linear OKR sync state
@@ -5102,6 +10939,18 @@ document.addEventListener('keydown', e => {
     URL.revokeObjectURL(url);
   }
 
+  async function handleGenerateBriefing() {
+    if (generatingBriefing) return;
+    setGeneratingBriefing(true); setBriefingError(null); setBriefingResult(null);
+    try {
+      const res = await fetch('/api/agents/sage/briefing', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.briefing) setBriefingResult(r.briefing.content as Record<string, unknown>);
+      else setBriefingError(r.error ?? 'Failed to generate briefing');
+    } catch { setBriefingError('Network error'); }
+    finally { setGeneratingBriefing(false); }
+  }
+
   async function handleLinearSync() {
     if (!linearApiKey.trim() || syncingLinear) return;
     setSyncingLinear(true); setLinearError(null); setLinearResult(null);
@@ -5123,6 +10972,674 @@ document.addEventListener('keydown', e => {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+      {/* ── Focus Today ─────────────────────────────────────────────────────── */}
+      <div style={{ background: focusResult ? "#EFF6FF" : surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${focusResult ? "#BFDBFE" : bdr}` }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <p style={{ fontSize: 11, fontWeight: 700, color: focusResult ? blue : ink, marginBottom: 2 }}>What should I work on right now?</p>
+            <p style={{ fontSize: 11, color: muted }}>Sage pulls from all agents and tells you the single most important action today.</p>
+          </div>
+          <button onClick={handleFocusToday} disabled={loadingFocus} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: loadingFocus ? bdr : blue, color: loadingFocus ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: loadingFocus ? "not-allowed" : "pointer", flexShrink: 0 }}>
+            {loadingFocus ? "Thinking…" : focusResult ? "Refresh" : "Ask Sage"}
+          </button>
+        </div>
+        {focusError && <p style={{ fontSize: 12, color: red, marginTop: 8 }}>{focusError}</p>}
+        {focusResult && (
+          <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 12 }}>
+            {/* Top priority */}
+            {focusResult.topPriority && (
+              <div style={{ background: "#fff", borderRadius: 10, padding: "14px 16px", border: `2px solid ${blue}` }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 999, background: focusResult.topPriority.urgency === "today" ? "#FEF2F2" : focusResult.topPriority.urgency === "this_week" ? "#FFFBEB" : surf, color: focusResult.topPriority.urgency === "today" ? red : focusResult.topPriority.urgency === "this_week" ? amber : muted }}>
+                    {focusResult.topPriority.urgency === "today" ? "⚡ DO TODAY" : focusResult.topPriority.urgency === "this_week" ? "📅 THIS WEEK" : "NEXT WEEK"}
+                  </span>
+                  {focusResult.topPriority.agent && (
+                    <span style={{ fontSize: 10, color: muted, fontWeight: 600 }}>→ {focusResult.topPriority.agent}</span>
+                  )}
+                </div>
+                <p style={{ fontSize: 14, fontWeight: 700, color: ink, marginBottom: 6, lineHeight: 1.4 }}>{focusResult.topPriority.action}</p>
+                {focusResult.topPriority.whyNow && (
+                  <p style={{ fontSize: 12, color: muted, lineHeight: 1.6, marginBottom: 6 }}>{focusResult.topPriority.whyNow}</p>
+                )}
+                {focusResult.topPriority.estimatedImpact && (
+                  <p style={{ fontSize: 11, color: green, fontWeight: 600 }}>Expected: {focusResult.topPriority.estimatedImpact}</p>
+                )}
+              </div>
+            )}
+            {/* Context */}
+            {focusResult.context && (
+              <p style={{ fontSize: 12, color: muted, lineHeight: 1.6, fontStyle: "italic" }}>{focusResult.context}</p>
+            )}
+            {/* Secondary priorities */}
+            {focusResult.secondaryPriorities && focusResult.secondaryPriorities.length > 0 && (
+              <div>
+                <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: muted, marginBottom: 6 }}>Also on the radar</p>
+                {focusResult.secondaryPriorities.map((sp, i) => (
+                  <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "6px 0", borderBottom: i < focusResult.secondaryPriorities!.length - 1 ? `1px solid ${bdr}` : "none" }}>
+                    <span style={{ fontSize: 10, color: muted, flexShrink: 0, marginTop: 2 }}>{sp.urgency === "this_week" ? "→" : "···"}</span>
+                    <div>
+                      <p style={{ fontSize: 12, fontWeight: 600, color: ink }}>{sp.action}</p>
+                      <p style={{ fontSize: 11, color: muted }}>{sp.reason}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {/* Avoid today */}
+            {focusResult.avoidToday && (
+              <div style={{ background: "#FEF2F2", borderRadius: 8, padding: "8px 12px", border: "1px solid #FECACA" }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: red, marginBottom: 3 }}>SKIP TODAY</p>
+                <p style={{ fontSize: 12, color: red }}>{focusResult.avoidToday}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Decision Journal ─────────────────────────────────────────────────── */}
+      <div style={{ borderRadius: 12, border: `1px solid ${bdr}`, overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: surf }}>
+          <div>
+            <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 2 }}>Decision Journal</p>
+            <p style={{ fontSize: 11, color: muted }}>
+              {decisions.length > 0 ? `${decisions.length} decision${decisions.length !== 1 ? 's' : ''} logged` : "Log key strategic decisions — Sage tracks outcomes and spots patterns"}
+            </p>
+          </div>
+          <button onClick={() => { setShowDecisionModal(true); setDecisionResult(null); setDecisionError(null); }} style={{ padding: "6px 14px", borderRadius: 8, border: "none", background: blue, color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+            Log Decision
+          </button>
+        </div>
+        {decisions.length > 0 && (
+          <div style={{ padding: "10px 16px", display: "flex", flexDirection: "column", gap: 6 }}>
+            {decisions.slice(0, 4).map((dec, i) => {
+              const meta = dec.metadata as Record<string, unknown>;
+              const category = meta?.category as string | undefined;
+              return (
+                <div key={i} style={{ padding: "8px 0", borderBottom: i < Math.min(decisions.length, 4) - 1 ? `1px solid ${bdr}` : "none" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                    {category && <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 999, background: surf, border: `1px solid ${bdr}`, color: muted, textTransform: "uppercase" }}>{category}</span>}
+                    <span style={{ fontSize: 10, color: muted }}>{new Date(dec.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                  </div>
+                  <p style={{ fontSize: 12, color: ink, lineHeight: 1.4 }}>{(meta?.decision as string)?.slice(0, 100) ?? dec.description}</p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Decision Log Modal */}
+      {showDecisionModal && (
+        <div onClick={() => { if (!loggingDecision) { setShowDecisionModal(false); setDecisionResult(null); } }} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: bg, borderRadius: 16, padding: 28, width: "100%", maxWidth: 520, maxHeight: "90vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 14, boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <p style={{ fontSize: 15, fontWeight: 700, color: ink }}>Log a Strategic Decision</p>
+              <button onClick={() => { setShowDecisionModal(false); setDecisionResult(null); }} style={{ background: "none", border: "none", cursor: "pointer", color: muted, fontSize: 18 }}>×</button>
+            </div>
+            {!decisionResult ? (
+              <>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Category</label>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {["product", "hiring", "pricing", "fundraising", "strategy", "partnerships", "technology"].map(cat => (
+                      <button key={cat} onClick={() => setDecisionCategory(cat)} style={{ padding: "4px 12px", borderRadius: 999, border: `1px solid ${decisionCategory === cat ? blue : bdr}`, background: decisionCategory === cat ? "#EFF6FF" : bg, color: decisionCategory === cat ? blue : muted, fontSize: 11, fontWeight: 600, cursor: "pointer", textTransform: "capitalize" }}>
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Decision *</label>
+                  <textarea value={decisionText} onChange={e => setDecisionText(e.target.value)} placeholder="e.g. We decided to pivot from B2C to B2B targeting mid-market SaaS companies" rows={3} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 13, color: ink, resize: "none", fontFamily: "inherit", boxSizing: "border-box" }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Why this decision? (reasoning)</label>
+                  <textarea value={decisionReasoning} onChange={e => setDecisionReasoning(e.target.value)} placeholder="What data or insight drove this?" rows={2} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 13, color: ink, resize: "none", fontFamily: "inherit", boxSizing: "border-box" }} />
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Alternatives considered</label>
+                    <input value={decisionAlternatives} onChange={e => setDecisionAlternatives(e.target.value)} placeholder="What else did you consider?" style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: `1px solid ${bdr}`, fontSize: 12, color: ink, boxSizing: "border-box" }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Expected outcome</label>
+                    <input value={decisionOutcome} onChange={e => setDecisionOutcome(e.target.value)} placeholder="What should happen in 60d?" style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: `1px solid ${bdr}`, fontSize: 12, color: ink, boxSizing: "border-box" }} />
+                  </div>
+                </div>
+                {decisionError && <p style={{ fontSize: 12, color: red }}>{decisionError}</p>}
+                <button onClick={handleLogDecision} disabled={loggingDecision || !decisionText.trim()} style={{ padding: "10px", borderRadius: 8, border: "none", background: loggingDecision || !decisionText.trim() ? bdr : blue, color: loggingDecision || !decisionText.trim() ? muted : "#fff", fontSize: 13, fontWeight: 700, cursor: loggingDecision || !decisionText.trim() ? "not-allowed" : "pointer" }}>
+                  {loggingDecision ? "Logging…" : "Log & Get Sage Assessment"}
+                </button>
+              </>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <p style={{ fontSize: 13, fontWeight: 700, color: green }}>✓ Decision logged</p>
+                {decisionResult.confidence && (
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <span style={{ fontSize: 10, padding: "3px 10px", borderRadius: 999, background: decisionResult.confidence === "high" ? "#F0FDF4" : decisionResult.confidence === "medium" ? "#FFFBEB" : "#FEF2F2", color: decisionResult.confidence === "high" ? green : decisionResult.confidence === "medium" ? amber : red, fontWeight: 700 }}>
+                      Confidence: {decisionResult.confidence}
+                    </span>
+                    {decisionResult.reversibility && (
+                      <span style={{ fontSize: 10, padding: "3px 10px", borderRadius: 999, background: surf, color: muted, fontWeight: 600 }}>
+                        {decisionResult.reversibility === "easily_reversible" ? "↩ Reversible" : decisionResult.reversibility === "partially_reversible" ? "~ Partially reversible" : "⚠ Hard to reverse"}
+                      </span>
+                    )}
+                  </div>
+                )}
+                {decisionResult.assessment && (
+                  <p style={{ fontSize: 13, color: ink, lineHeight: 1.6 }}>{decisionResult.assessment}</p>
+                )}
+                {decisionResult.watchFor && (
+                  <div style={{ background: "#FFFBEB", borderRadius: 8, padding: "10px 14px", border: "1px solid #FDE68A" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: amber, marginBottom: 4 }}>WATCH FOR (next 30 days)</p>
+                    <p style={{ fontSize: 12, color: ink }}>{decisionResult.watchFor}</p>
+                  </div>
+                )}
+                {decisionResult.reminderDate && (
+                  <p style={{ fontSize: 11, color: muted }}>📅 Review this decision: <strong>{decisionResult.reminderDate}</strong></p>
+                )}
+                <button onClick={() => { setShowDecisionModal(false); setDecisionResult(null); }} style={{ padding: "9px", borderRadius: 8, border: "none", background: blue, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                  Done
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Pivot Signal Monitoring ──────────────────────────────────────────── */}
+      <div style={{ background: showPivotPanel && pivotResult ? (pivotResult.recommendation === "pivot_now" ? "#FEF2F2" : pivotResult.recommendation === "explore" ? "#FFFBEB" : "#F0FDF4") : surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${showPivotPanel && pivotResult ? (pivotResult.recommendation === "pivot_now" ? "#FECACA" : pivotResult.recommendation === "explore" ? "#FDE68A" : "#BBF7D0") : bdr}` }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <p style={{ fontSize: 11, fontWeight: 700, color: pivotResult?.recommendation === "pivot_now" ? red : pivotResult?.recommendation === "explore" ? amber : ink, marginBottom: 2 }}>
+              Pivot Signal Monitor
+              {pivotResult?.recommendation && (
+                <span style={{ marginLeft: 8, fontSize: 10, padding: "2px 8px", borderRadius: 999, background: pivotResult.recommendation === "pivot_now" ? "#FEF2F2" : pivotResult.recommendation === "explore" ? "#FFFBEB" : "#F0FDF4", color: pivotResult.recommendation === "pivot_now" ? red : pivotResult.recommendation === "explore" ? amber : green, fontWeight: 700 }}>
+                  {pivotResult.recommendation === "pivot_now" ? "⚠ PIVOT NOW" : pivotResult.recommendation === "explore" ? "🔍 EXPLORE" : "✓ PERSEVERE"}
+                </span>
+              )}
+            </p>
+            <p style={{ fontSize: 11, color: muted }}>Cross-signal analysis: Q-Score trend, pipeline health, PMF, financials — is your trajectory working?</p>
+          </div>
+          <button onClick={() => { if (showPivotPanel && !runningPivot) setShowPivotPanel(false); else { setShowPivotPanel(true); if (!pivotResult) handlePivotEval(); } }} style={{ padding: "6px 14px", borderRadius: 8, border: "none", background: runningPivot ? bdr : (pivotResult?.recommendation === "pivot_now" ? red : pivotResult?.recommendation === "explore" ? amber : blue), color: runningPivot ? muted : "#fff", fontSize: 11, fontWeight: 600, cursor: runningPivot ? "not-allowed" : "pointer", flexShrink: 0 }}>
+            {runningPivot ? "Analyzing…" : showPivotPanel ? "Close" : pivotResult ? "Refresh" : "Run Analysis"}
+          </button>
+        </div>
+        {showPivotPanel && (
+          <div style={{ marginTop: 14 }}>
+            {runningPivot ? (
+              <p style={{ fontSize: 12, color: muted, textAlign: "center", padding: "16px 0" }}>Pulling signals across Q-Score, pipeline, PMF, and financials…</p>
+            ) : pivotError ? (
+              <p style={{ fontSize: 12, color: red }}>{pivotError}</p>
+            ) : pivotResult ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {/* Pivot score + verdict */}
+                <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+                  {typeof pivotResult.pivotScore === "number" && (
+                    <div style={{ textAlign: "center", flexShrink: 0 }}>
+                      <div style={{ width: 64, height: 64, borderRadius: "50%", background: pivotResult.pivotScore >= 76 ? "#FEF2F2" : pivotResult.pivotScore >= 51 ? "#FFFBEB" : pivotResult.pivotScore >= 26 ? "#EFF6FF" : "#F0FDF4", border: `3px solid ${pivotResult.pivotScore >= 76 ? red : pivotResult.pivotScore >= 51 ? amber : pivotResult.pivotScore >= 26 ? blue : green}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                        <span style={{ fontSize: 18, fontWeight: 800, color: pivotResult.pivotScore >= 76 ? red : pivotResult.pivotScore >= 51 ? amber : pivotResult.pivotScore >= 26 ? blue : green }}>{pivotResult.pivotScore}</span>
+                        <span style={{ fontSize: 8, color: muted, fontWeight: 600 }}>PIVOT SCORE</span>
+                      </div>
+                      <p style={{ fontSize: 10, color: muted, marginTop: 4 }}>0=stay, 100=pivot</p>
+                    </div>
+                  )}
+                  {pivotResult.verdict && (
+                    <p style={{ fontSize: 13, color: ink, lineHeight: 1.7, flex: 1 }}>{pivotResult.verdict}</p>
+                  )}
+                </div>
+
+                {/* Signals summary */}
+                {pivotSignals && (
+                  <div style={{ background: surf, borderRadius: 8, padding: "10px 14px", border: `1px solid ${bdr}`, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                    {typeof (pivotSignals as Record<string, unknown>).currentScore === "number" && (
+                      <div><p style={{ fontSize: 9, fontWeight: 700, color: muted, textTransform: "uppercase" }}>Q-Score</p><p style={{ fontSize: 14, fontWeight: 700, color: ink }}>{String((pivotSignals as Record<string, unknown>).currentScore)}<span style={{ fontSize: 10, color: muted }}>/100</span></p></div>
+                    )}
+                    {(pivotSignals as Record<string, unknown>).winRate !== null && (pivotSignals as Record<string, unknown>).winRate !== undefined && (
+                      <div><p style={{ fontSize: 9, fontWeight: 700, color: muted, textTransform: "uppercase" }}>Win Rate</p><p style={{ fontSize: 14, fontWeight: 700, color: ink }}>{String((pivotSignals as Record<string, unknown>).winRate)}%</p></div>
+                    )}
+                    {(pivotSignals as Record<string, unknown>).nps !== undefined && (
+                      <div><p style={{ fontSize: 9, fontWeight: 700, color: muted, textTransform: "uppercase" }}>NPS</p><p style={{ fontSize: 14, fontWeight: 700, color: ink }}>{String((pivotSignals as Record<string, unknown>).nps)}</p></div>
+                    )}
+                    {(pivotSignals as Record<string, unknown>).mrr !== undefined && (
+                      <div><p style={{ fontSize: 9, fontWeight: 700, color: muted, textTransform: "uppercase" }}>MRR</p><p style={{ fontSize: 14, fontWeight: 700, color: ink }}>${Number((pivotSignals as Record<string, unknown>).mrr).toLocaleString()}</p></div>
+                    )}
+                    {!!(pivotSignals as Record<string, unknown>).runway && (
+                      <div><p style={{ fontSize: 9, fontWeight: 700, color: muted, textTransform: "uppercase" }}>Runway</p><p style={{ fontSize: 14, fontWeight: 700, color: ink }}>{String((pivotSignals as Record<string, unknown>).runway)}</p></div>
+                    )}
+                    {!!(pivotSignals as Record<string, unknown>).scoreDeclining && (
+                      <div><p style={{ fontSize: 9, fontWeight: 700, color: red, textTransform: "uppercase" }}>Q-Score</p><p style={{ fontSize: 11, fontWeight: 700, color: red }}>↘ Declining</p></div>
+                    )}
+                  </div>
+                )}
+
+                {/* Red flags */}
+                {pivotResult.redFlags && pivotResult.redFlags.length > 0 && (
+                  <div style={{ background: "#FEF2F2", borderRadius: 8, padding: "10px 14px", border: "1px solid #FECACA" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: red, marginBottom: 6 }}>RED FLAGS</p>
+                    {pivotResult.redFlags.map((f, i) => (
+                      <p key={i} style={{ fontSize: 12, color: ink, marginBottom: 3 }}>⚠ {f}</p>
+                    ))}
+                  </div>
+                )}
+
+                {/* Green lights */}
+                {pivotResult.greenLights && pivotResult.greenLights.length > 0 && (
+                  <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "10px 14px", border: "1px solid #BBF7D0" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: green, marginBottom: 6 }}>GREEN LIGHTS</p>
+                    {pivotResult.greenLights.map((g, i) => (
+                      <p key={i} style={{ fontSize: 12, color: ink, marginBottom: 3 }}>✓ {g}</p>
+                    ))}
+                  </div>
+                )}
+
+                {/* Pivot options */}
+                {pivotResult.pivotOptions && pivotResult.pivotOptions.length > 0 && (
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", marginBottom: 8 }}>Pivot Options to Consider</p>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {pivotResult.pivotOptions.map((opt, i) => (
+                        <div key={i} style={{ background: "#EFF6FF", borderRadius: 8, padding: "10px 14px", border: "1px solid #BFDBFE" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
+                            <p style={{ fontSize: 12, fontWeight: 700, color: blue }}>{opt.description}</p>
+                            <span style={{ fontSize: 9, padding: "2px 8px", borderRadius: 999, background: surf, color: muted, fontWeight: 600, flexShrink: 0, marginLeft: 8 }}>{(opt.type ?? "").replace(/_/g, " ")}</span>
+                          </div>
+                          <p style={{ fontSize: 11, color: ink, marginBottom: 4, lineHeight: 1.5 }}>{opt.rationale}</p>
+                          <p style={{ fontSize: 10, color: amber }}>Trade-off: {opt.risk}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Persevere case */}
+                {pivotResult.persevereCase && (
+                  <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "10px 14px", border: "1px solid #BBF7D0" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: green, marginBottom: 4 }}>STRONGEST CASE FOR STAYING THE COURSE</p>
+                    <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{pivotResult.persevereCase}</p>
+                  </div>
+                )}
+
+                {/* Next checkpoint */}
+                {pivotResult.nextCheckpoint && (
+                  <p style={{ fontSize: 11, color: muted }}>📅 Next review trigger: <strong style={{ color: ink }}>{pivotResult.nextCheckpoint}</strong></p>
+                )}
+
+                <button onClick={() => { setPivotResult(null); setPivotSignals(null); handlePivotEval(); }} style={{ padding: "8px 16px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 12, cursor: "pointer", alignSelf: "flex-start" }}>
+                  Re-evaluate Signals
+                </button>
+              </div>
+            ) : null}
+          </div>
+        )}
+      </div>
+
+      {/* ── Board Meeting Prep ────────────────────────────────────────────────── */}
+      <div style={{ background: showBoardPrepPanel && boardPrepResult ? "#0F172A" : surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${showBoardPrepPanel && boardPrepResult ? "#334155" : bdr}` }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <p style={{ fontSize: 11, fontWeight: 700, color: showBoardPrepPanel && boardPrepResult ? "#94A3B8" : ink, marginBottom: 2 }}>Board Meeting Prep</p>
+            <p style={{ fontSize: 11, color: muted }}>Full board packet — pulls from all agents: Felix financials, Susi pipeline, Atlas competitive, Harper team, Nova PMF, Q-Score.</p>
+          </div>
+          <button onClick={() => { if (showBoardPrepPanel && !generatingBoardPrep) setShowBoardPrepPanel(false); else { setShowBoardPrepPanel(true); if (!boardPrepResult) handleGenerateBoardPrep(); } }} style={{ padding: "6px 14px", borderRadius: 8, border: "none", background: generatingBoardPrep ? bdr : "#1E293B", color: generatingBoardPrep ? muted : "#94A3B8", fontSize: 11, fontWeight: 600, cursor: generatingBoardPrep ? "not-allowed" : "pointer" }}>
+            {generatingBoardPrep ? "Preparing…" : showBoardPrepPanel ? "Close" : boardPrepResult ? "View Packet" : "Prepare Board Pack"}
+          </button>
+        </div>
+        {showBoardPrepPanel && (
+          <div style={{ marginTop: 14 }}>
+            {generatingBoardPrep && (
+              <p style={{ fontSize: 12, color: muted, textAlign: "center", padding: "16px 0" }}>Pulling data from all agents to build your board packet…</p>
+            )}
+            {boardPrepError && <p style={{ fontSize: 12, color: red }}>{boardPrepError}</p>}
+            {boardPrepResult && !generatingBoardPrep && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {/* Section nav */}
+                <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                  {([
+                    ["summary", "Executive Summary"],
+                    ["financials", "Financials"],
+                    ["sales", "Pipeline"],
+                    ["product", "Product"],
+                    ["team", "Team"],
+                    ["competitive", "Competitive"],
+                    ["strategy", "Strategy"],
+                    ["risks", "Risk Register"],
+                  ] as const).map(([key, label]) => (
+                    <button key={key} onClick={() => setBoardPrepSection(key)} style={{ padding: "4px 10px", borderRadius: 6, border: "none", background: boardPrepSection === key ? "#3B82F6" : "#1E293B", color: boardPrepSection === key ? "#fff" : "#94A3B8", fontSize: 10, fontWeight: 600, cursor: "pointer" }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Executive Summary */}
+                {boardPrepSection === "summary" && boardPrepResult.executiveSummary && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    <div style={{ background: "#1E293B", borderRadius: 10, padding: "16px 18px", border: "1px solid #334155" }}>
+                      <p style={{ fontSize: 18, fontWeight: 800, color: "#F8FAFC", lineHeight: 1.3 }}>{boardPrepResult.executiveSummary.headline}</p>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                      <div style={{ background: "#1E293B", borderRadius: 8, padding: "12px 14px", border: "1px solid #334155" }}>
+                        <p style={{ fontSize: 9, fontWeight: 700, color: "#22C55E", textTransform: "uppercase", marginBottom: 6 }}>KEY WIN</p>
+                        <p style={{ fontSize: 12, color: "#CBD5E1", lineHeight: 1.6 }}>{boardPrepResult.executiveSummary.keyWin}</p>
+                      </div>
+                      <div style={{ background: "#1E293B", borderRadius: 8, padding: "12px 14px", border: "1px solid #334155" }}>
+                        <p style={{ fontSize: 9, fontWeight: 700, color: "#EF4444", textTransform: "uppercase", marginBottom: 6 }}>KEY CHALLENGE</p>
+                        <p style={{ fontSize: 12, color: "#CBD5E1", lineHeight: 1.6 }}>{boardPrepResult.executiveSummary.keyChallenge}</p>
+                      </div>
+                    </div>
+                    <div style={{ background: "#1E293B", borderRadius: 8, padding: "12px 14px", border: "1px solid #3B82F6" }}>
+                      <p style={{ fontSize: 9, fontWeight: 700, color: "#3B82F6", textTransform: "uppercase", marginBottom: 6 }}>ASK FROM BOARD</p>
+                      <p style={{ fontSize: 12, color: "#CBD5E1", lineHeight: 1.6 }}>{boardPrepResult.executiveSummary.askFromBoard}</p>
+                    </div>
+                    {boardPrepResult.boardQuestions && boardPrepResult.boardQuestions.length > 0 && (
+                      <div style={{ background: "#1E293B", borderRadius: 8, padding: "12px 14px", border: "1px solid #334155" }}>
+                        <p style={{ fontSize: 9, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", marginBottom: 8 }}>BOARD QUESTIONS TO DRIVE</p>
+                        {boardPrepResult.boardQuestions.map((q, i) => <p key={i} style={{ fontSize: 12, color: "#CBD5E1", marginBottom: 6, lineHeight: 1.5 }}>Q{i + 1}: {q}</p>)}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Financials section */}
+                {boardPrepSection === "financials" && boardPrepResult.financials && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    <div style={{ background: "#1E293B", borderRadius: 10, padding: "14px 16px", border: "1px solid #334155" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                        <p style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase" }}>Snapshot</p>
+                        <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 999, background: boardPrepResult.financials.trend === "improving" ? "#064E3B" : boardPrepResult.financials.trend === "declining" ? "#7F1D1D" : "#1E3A5F", color: boardPrepResult.financials.trend === "improving" ? "#22C55E" : boardPrepResult.financials.trend === "declining" ? "#EF4444" : "#60A5FA", fontWeight: 700 }}>
+                          {boardPrepResult.financials.trend}
+                        </span>
+                      </div>
+                      <p style={{ fontSize: 13, color: "#CBD5E1", lineHeight: 1.7 }}>{boardPrepResult.financials.snapshot}</p>
+                    </div>
+                    {boardPrepResult.financials.highlights && boardPrepResult.financials.highlights.length > 0 && (
+                      <div style={{ background: "#064E3B", borderRadius: 8, padding: "10px 14px", border: "1px solid #065F46" }}>
+                        <p style={{ fontSize: 9, fontWeight: 700, color: "#22C55E", textTransform: "uppercase", marginBottom: 6 }}>HIGHLIGHTS</p>
+                        {boardPrepResult.financials.highlights.map((h, i) => <p key={i} style={{ fontSize: 12, color: "#D1FAE5", marginBottom: 3 }}>✓ {h}</p>)}
+                      </div>
+                    )}
+                    {boardPrepResult.financials.concerns && boardPrepResult.financials.concerns.length > 0 && (
+                      <div style={{ background: "#7F1D1D", borderRadius: 8, padding: "10px 14px", border: "1px solid #991B1B" }}>
+                        <p style={{ fontSize: 9, fontWeight: 700, color: "#EF4444", textTransform: "uppercase", marginBottom: 6 }}>CONCERNS</p>
+                        {boardPrepResult.financials.concerns.map((c, i) => <p key={i} style={{ fontSize: 12, color: "#FECACA", marginBottom: 3 }}>⚠ {c}</p>)}
+                      </div>
+                    )}
+                    {boardPrepResult.financials.guidance && (
+                      <div style={{ background: "#1E293B", borderRadius: 8, padding: "10px 14px", border: "1px solid #334155" }}>
+                        <p style={{ fontSize: 9, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", marginBottom: 4 }}>QUARTERLY GUIDANCE</p>
+                        <p style={{ fontSize: 12, color: "#CBD5E1", lineHeight: 1.6, fontStyle: "italic" }}>{boardPrepResult.financials.guidance}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Sales Pipeline section */}
+                {boardPrepSection === "sales" && boardPrepResult.salesPipeline && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    <div style={{ background: "#1E293B", borderRadius: 10, padding: "14px 16px", border: "1px solid #334155" }}>
+                      <p style={{ fontSize: 13, color: "#CBD5E1", lineHeight: 1.7 }}>{boardPrepResult.salesPipeline.snapshot}</p>
+                    </div>
+                    {boardPrepResult.salesPipeline.highlights && boardPrepResult.salesPipeline.highlights.length > 0 && (
+                      <div style={{ background: "#1E293B", borderRadius: 8, padding: "10px 14px", border: "1px solid #334155" }}>
+                        <p style={{ fontSize: 9, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", marginBottom: 6 }}>KEY DEALS</p>
+                        {boardPrepResult.salesPipeline.highlights.map((h, i) => <p key={i} style={{ fontSize: 12, color: "#CBD5E1", marginBottom: 4 }}>• {h}</p>)}
+                      </div>
+                    )}
+                    {boardPrepResult.salesPipeline.forecast && (
+                      <div style={{ background: "#1E3A5F", borderRadius: 8, padding: "10px 14px", border: "1px solid #1D4ED8" }}>
+                        <p style={{ fontSize: 9, fontWeight: 700, color: "#60A5FA", textTransform: "uppercase", marginBottom: 4 }}>FORECAST</p>
+                        <p style={{ fontSize: 12, color: "#BFDBFE", lineHeight: 1.6 }}>{boardPrepResult.salesPipeline.forecast}</p>
+                      </div>
+                    )}
+                    {boardPrepResult.salesPipeline.blockers && boardPrepResult.salesPipeline.blockers.length > 0 && (
+                      <div style={{ background: "#7F1D1D", borderRadius: 8, padding: "10px 14px", border: "1px solid #991B1B" }}>
+                        <p style={{ fontSize: 9, fontWeight: 700, color: "#EF4444", textTransform: "uppercase", marginBottom: 6 }}>BLOCKERS</p>
+                        {boardPrepResult.salesPipeline.blockers.map((b, i) => <p key={i} style={{ fontSize: 12, color: "#FECACA", marginBottom: 3 }}>⚠ {b}</p>)}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Product section */}
+                {boardPrepSection === "product" && boardPrepResult.product && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                      <span style={{ fontSize: 12, padding: "4px 12px", borderRadius: 999, fontWeight: 700, background: boardPrepResult.product.pmfStatus === "strong" ? "#064E3B" : boardPrepResult.product.pmfStatus === "emerging" ? "#1E3A5F" : "#7F1D1D", color: boardPrepResult.product.pmfStatus === "strong" ? "#22C55E" : boardPrepResult.product.pmfStatus === "emerging" ? "#60A5FA" : "#EF4444" }}>
+                        PMF: {boardPrepResult.product.pmfStatus}
+                      </span>
+                      <p style={{ fontSize: 12, color: "#94A3B8" }}>{boardPrepResult.product.npsComment}</p>
+                    </div>
+                    {boardPrepResult.product.recentMilestones && boardPrepResult.product.recentMilestones.length > 0 && (
+                      <div style={{ background: "#1E293B", borderRadius: 8, padding: "10px 14px", border: "1px solid #334155" }}>
+                        <p style={{ fontSize: 9, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", marginBottom: 6 }}>SHIPPED</p>
+                        {boardPrepResult.product.recentMilestones.map((m, i) => <p key={i} style={{ fontSize: 12, color: "#CBD5E1", marginBottom: 3 }}>✓ {m}</p>)}
+                      </div>
+                    )}
+                    {boardPrepResult.product.roadmapPriorities && boardPrepResult.product.roadmapPriorities.length > 0 && (
+                      <div style={{ background: "#1E293B", borderRadius: 8, padding: "10px 14px", border: "1px solid #334155" }}>
+                        <p style={{ fontSize: 9, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", marginBottom: 6 }}>NEXT QUARTER</p>
+                        {boardPrepResult.product.roadmapPriorities.map((r, i) => <p key={i} style={{ fontSize: 12, color: "#CBD5E1", marginBottom: 3 }}>→ {r}</p>)}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Team section */}
+                {boardPrepSection === "team" && boardPrepResult.team && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    <p style={{ fontSize: 13, color: "#CBD5E1", lineHeight: 1.7, background: "#1E293B", borderRadius: 10, padding: "14px 16px", border: "1px solid #334155" }}>{boardPrepResult.team.currentTeam}</p>
+                    {boardPrepResult.team.keyHires && boardPrepResult.team.keyHires.length > 0 && (
+                      <div style={{ background: "#1E3A5F", borderRadius: 8, padding: "10px 14px", border: "1px solid #1D4ED8" }}>
+                        <p style={{ fontSize: 9, fontWeight: 700, color: "#60A5FA", textTransform: "uppercase", marginBottom: 6 }}>CRITICAL HIRES</p>
+                        {boardPrepResult.team.keyHires.map((h, i) => <p key={i} style={{ fontSize: 12, color: "#BFDBFE", marginBottom: 3 }}>• {h}</p>)}
+                      </div>
+                    )}
+                    {boardPrepResult.team.teamRisks && boardPrepResult.team.teamRisks.length > 0 && (
+                      <div style={{ background: "#7F1D1D", borderRadius: 8, padding: "10px 14px", border: "1px solid #991B1B" }}>
+                        <p style={{ fontSize: 9, fontWeight: 700, color: "#EF4444", textTransform: "uppercase", marginBottom: 6 }}>TEAM RISKS</p>
+                        {boardPrepResult.team.teamRisks.map((r, i) => <p key={i} style={{ fontSize: 12, color: "#FECACA", marginBottom: 3 }}>⚠ {r}</p>)}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Competitive section */}
+                {boardPrepSection === "competitive" && boardPrepResult.competitive && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {boardPrepResult.competitive.landscapeShift && <p style={{ fontSize: 13, color: "#CBD5E1", lineHeight: 1.7, background: "#1E293B", borderRadius: 10, padding: "14px 16px", border: "1px solid #334155" }}>{boardPrepResult.competitive.landscapeShift}</p>}
+                    {boardPrepResult.competitive.ourAdvantage && (
+                      <div style={{ background: "#064E3B", borderRadius: 8, padding: "10px 14px", border: "1px solid #065F46" }}>
+                        <p style={{ fontSize: 9, fontWeight: 700, color: "#22C55E", textTransform: "uppercase", marginBottom: 4 }}>WHERE WE WIN</p>
+                        <p style={{ fontSize: 12, color: "#D1FAE5", lineHeight: 1.6 }}>{boardPrepResult.competitive.ourAdvantage}</p>
+                      </div>
+                    )}
+                    {boardPrepResult.competitive.threats && boardPrepResult.competitive.threats.length > 0 && (
+                      <div style={{ background: "#7F1D1D", borderRadius: 8, padding: "10px 14px", border: "1px solid #991B1B" }}>
+                        <p style={{ fontSize: 9, fontWeight: 700, color: "#EF4444", textTransform: "uppercase", marginBottom: 6 }}>THREATS</p>
+                        {boardPrepResult.competitive.threats.map((t, i) => <p key={i} style={{ fontSize: 12, color: "#FECACA", marginBottom: 3 }}>⚠ {t}</p>)}
+                      </div>
+                    )}
+                    {boardPrepResult.competitive.opportunities && boardPrepResult.competitive.opportunities.length > 0 && (
+                      <div style={{ background: "#1E3A5F", borderRadius: 8, padding: "10px 14px", border: "1px solid #1D4ED8" }}>
+                        <p style={{ fontSize: 9, fontWeight: 700, color: "#60A5FA", textTransform: "uppercase", marginBottom: 6 }}>OPPORTUNITIES</p>
+                        {boardPrepResult.competitive.opportunities.map((o, i) => <p key={i} style={{ fontSize: 12, color: "#BFDBFE", marginBottom: 3 }}>→ {o}</p>)}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Strategy section */}
+                {boardPrepSection === "strategy" && boardPrepResult.strategy && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {boardPrepResult.strategy.currentBets && boardPrepResult.strategy.currentBets.length > 0 && (
+                      <div style={{ background: "#1E293B", borderRadius: 10, padding: "14px 16px", border: "1px solid #334155" }}>
+                        <p style={{ fontSize: 9, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", marginBottom: 8 }}>CURRENT BETS</p>
+                        {boardPrepResult.strategy.currentBets.map((b, i) => <p key={i} style={{ fontSize: 13, color: "#F8FAFC", fontWeight: 600, marginBottom: 6 }}>{i + 1}. {b}</p>)}
+                      </div>
+                    )}
+                    {boardPrepResult.strategy.pivotSignals && (
+                      <p style={{ fontSize: 12, color: "#94A3B8", lineHeight: 1.6, padding: "0 4px" }}>Pivot signals: {boardPrepResult.strategy.pivotSignals}</p>
+                    )}
+                    {boardPrepResult.strategy.fundraisingStatus && (
+                      <div style={{ background: "#1E3A5F", borderRadius: 8, padding: "10px 14px", border: "1px solid #1D4ED8" }}>
+                        <p style={{ fontSize: 9, fontWeight: 700, color: "#60A5FA", textTransform: "uppercase", marginBottom: 4 }}>FUNDRAISING</p>
+                        <p style={{ fontSize: 12, color: "#BFDBFE", lineHeight: 1.6 }}>{boardPrepResult.strategy.fundraisingStatus}</p>
+                      </div>
+                    )}
+                    {boardPrepResult.strategy.milestones && boardPrepResult.strategy.milestones.length > 0 && (
+                      <div style={{ background: "#1E293B", borderRadius: 8, padding: "10px 14px", border: "1px solid #334155" }}>
+                        <p style={{ fontSize: 9, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", marginBottom: 6 }}>BEFORE NEXT BOARD MEETING</p>
+                        {boardPrepResult.strategy.milestones.map((m, i) => <p key={i} style={{ fontSize: 12, color: "#CBD5E1", marginBottom: 3 }}>□ {m}</p>)}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Risk Register section */}
+                {boardPrepSection === "risks" && boardPrepResult.riskRegister && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {boardPrepResult.riskRegister.map((risk, i) => (
+                      <div key={i} style={{ background: "#1E293B", borderRadius: 8, padding: "12px 14px", border: `1px solid ${risk.likelihood === "high" && risk.impact === "high" ? "#EF4444" : risk.likelihood === "high" || risk.impact === "high" ? "#F59E0B" : "#334155"}` }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
+                          <p style={{ fontSize: 12, fontWeight: 700, color: "#F8FAFC" }}>{risk.risk}</p>
+                          <div style={{ display: "flex", gap: 4, flexShrink: 0, marginLeft: 8 }}>
+                            <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 999, background: "#0F172A", color: risk.likelihood === "high" ? "#EF4444" : risk.likelihood === "medium" ? "#F59E0B" : "#94A3B8", fontWeight: 700 }}>{risk.likelihood}</span>
+                            <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 999, background: "#0F172A", color: risk.impact === "high" ? "#EF4444" : risk.impact === "medium" ? "#F59E0B" : "#94A3B8", fontWeight: 700 }}>{risk.impact} impact</span>
+                          </div>
+                        </div>
+                        <p style={{ fontSize: 11, color: "#94A3B8", lineHeight: 1.5 }}>Mitigation: {risk.mitigation}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <button onClick={() => { setBoardPrepResult(null); setBoardPrepSection("summary"); handleGenerateBoardPrep(); }} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #334155", background: "#1E293B", color: "#94A3B8", fontSize: 12, cursor: "pointer", alignSelf: "flex-start" }}>
+                  Refresh Board Pack
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Goal Check-in Panel ── */}
+      {d.okrs && d.okrs.length > 0 && (
+        <div style={{ background: "#F0FDF4", borderRadius: 12, padding: "14px 18px", border: "1px solid #BBF7D0" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <div>
+              <p style={{ fontSize: 11, fontWeight: 700, color: green, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 2 }}>Weekly Goal Check-in</p>
+              <p style={{ fontSize: 11, color: muted }}>Update your OKR progress — Sage gives you accountability feedback and flags blockers.</p>
+            </div>
+            <button onClick={() => { setShowCheckinPanel(v => !v); setCheckinResult(null); setCheckinError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: green, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>
+              {showCheckinPanel ? "Close" : "Check In"}
+            </button>
+          </div>
+          {/* History pills */}
+          {checkinHistory.length > 0 && !showCheckinPanel && (
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
+              {checkinHistory.slice(0, 3).map((c, ci) => {
+                const pct = (c.metadata as Record<string, unknown>)?.avgProgress as number | undefined;
+                return (
+                  <span key={ci} style={{ fontSize: 10, padding: "3px 8px", borderRadius: 999, background: "#fff", color: green, border: "1px solid #BBF7D0", fontWeight: 600 }}>
+                    {new Date(c.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}{pct !== undefined ? ` · ${pct}%` : ''}
+                  </span>
+                );
+              })}
+            </div>
+          )}
+          {showCheckinPanel && !checkinResult && (
+            <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 12 }}>
+              {d.okrs.map((okr, oi) => {
+                const key = `okr_${oi}`;
+                const prog = checkinProgress[key] ?? 0;
+                return (
+                  <div key={oi} style={{ background: "#fff", borderRadius: 10, padding: "12px 14px", border: `1px solid ${bdr}` }}>
+                    <p style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 8 }}>O{oi + 1}: {okr.objective}</p>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                      <input
+                        type="range" min="0" max="100" step="5"
+                        value={prog}
+                        onChange={e => setCheckinProgress(prev => ({ ...prev, [key]: parseInt(e.target.value) }))}
+                        style={{ flex: 1, accentColor: green }}
+                      />
+                      <span style={{ fontSize: 13, fontWeight: 700, color: prog >= 70 ? green : prog >= 40 ? amber : red, minWidth: 36, textAlign: "right" }}>{prog}%</span>
+                    </div>
+                    {/* Progress bar */}
+                    <div style={{ height: 4, background: bdr, borderRadius: 2, marginBottom: 8 }}>
+                      <div style={{ height: "100%", borderRadius: 2, width: `${prog}%`, background: prog >= 70 ? green : prog >= 40 ? amber : red, transition: "width 0.2s" }} />
+                    </div>
+                    <input
+                      value={checkinBlockers[key] ?? ""}
+                      onChange={e => setCheckinBlockers(prev => ({ ...prev, [key]: e.target.value }))}
+                      placeholder="Any blockers? (optional)"
+                      style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: `1px solid ${bdr}`, fontSize: 11, color: ink, boxSizing: "border-box" }}
+                    />
+                  </div>
+                );
+              })}
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>This week&apos;s note (optional)</label>
+                <textarea
+                  value={checkinNote}
+                  onChange={e => setCheckinNote(e.target.value)}
+                  placeholder="Anything you want Sage to know about this week…"
+                  rows={2}
+                  style={{ width: "100%", padding: "8px 10px", borderRadius: 7, border: `1px solid ${bdr}`, fontSize: 12, color: ink, resize: "none", fontFamily: "inherit", boxSizing: "border-box" }}
+                />
+              </div>
+              {checkinError && <p style={{ fontSize: 12, color: red }}>{checkinError}</p>}
+              <button onClick={handleSubmitCheckin} disabled={submittingCheckin} style={{ padding: "10px 18px", borderRadius: 8, border: "none", background: submittingCheckin ? bdr : green, color: submittingCheckin ? muted : "#fff", fontSize: 13, fontWeight: 600, cursor: submittingCheckin ? "not-allowed" : "pointer" }}>
+                {submittingCheckin ? "Getting feedback…" : "Submit Check-in"}
+              </button>
+            </div>
+          )}
+          {checkinResult && checkinResult.feedback && (
+            <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+              {/* Momentum badge */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 999, background: checkinResult.feedback.momentum === "strong" ? "#F0FDF4" : checkinResult.feedback.momentum === "building" ? "#EFF6FF" : checkinResult.feedback.momentum === "stalled" ? "#FFFBEB" : "#FEF2F2", color: checkinResult.feedback.momentum === "strong" ? green : checkinResult.feedback.momentum === "building" ? blue : checkinResult.feedback.momentum === "stalled" ? amber : red, border: "1px solid transparent" }}>
+                  {checkinResult.feedback.momentum === "strong" ? "🚀 Strong momentum" : checkinResult.feedback.momentum === "building" ? "📈 Building" : checkinResult.feedback.momentum === "stalled" ? "⚠ Stalled" : "🔴 Concerning"}
+                </span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: ink }}>{checkinResult.avgProgress}% avg progress</span>
+              </div>
+              {checkinResult.feedback.headline && (
+                <p style={{ fontSize: 13, fontWeight: 600, color: ink, lineHeight: 1.5 }}>{checkinResult.feedback.headline}</p>
+              )}
+              {/* Wins */}
+              {checkinResult.feedback.wins && checkinResult.feedback.wins.length > 0 && (
+                <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "10px 14px", border: "1px solid #BBF7D0" }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, color: green, marginBottom: 6 }}>WINS</p>
+                  {checkinResult.feedback.wins.map((w, wi) => <p key={wi} style={{ fontSize: 12, color: ink, lineHeight: 1.5 }}>✓ {w}</p>)}
+                </div>
+              )}
+              {/* Risks */}
+              {checkinResult.feedback.risks && checkinResult.feedback.risks.length > 0 && (
+                <div style={{ background: "#FEF2F2", borderRadius: 8, padding: "10px 14px", border: "1px solid #FECACA" }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, color: red, marginBottom: 6 }}>RISKS</p>
+                  {checkinResult.feedback.risks.map((r, ri) => <p key={ri} style={{ fontSize: 12, color: ink, lineHeight: 1.5 }}>⚠ {r}</p>)}
+                </div>
+              )}
+              {/* Focus next */}
+              {checkinResult.feedback.focusNext && (
+                <div style={{ background: "#EFF6FF", borderRadius: 8, padding: "10px 14px", border: "1px solid #BFDBFE" }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, color: blue, marginBottom: 4 }}>FOCUS NEXT WEEK</p>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>{checkinResult.feedback.focusNext}</p>
+                </div>
+              )}
+              {checkinResult.feedback.blockerAdvice && (
+                <p style={{ fontSize: 12, color: muted, fontStyle: "italic", lineHeight: 1.6 }}>💡 {checkinResult.feedback.blockerAdvice}</p>
+              )}
+              {checkinResult.feedback.motivationalNote && (
+                <p style={{ fontSize: 12, color: muted, lineHeight: 1.6 }}>{checkinResult.feedback.motivationalNote}</p>
+              )}
+              <button onClick={() => { setCheckinResult(null); setCheckinProgress({}); setCheckinBlockers({}); setCheckinNote(""); }} style={{ padding: "7px 14px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>
+                ← New Check-in
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── Weekly Standup CTA ── */}
       <div style={{ background: "#F0FDF4", border: `1px solid #BBF7D0`, borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
         <div style={{ flex: 1 }}>
@@ -5183,6 +11700,129 @@ document.addEventListener('keydown', e => {
         <button onClick={handleBoardDeck} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: "#0891B2", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
           Download Deck
         </button>
+      </div>
+
+      {/* ── Weekly Briefing CTA ── */}
+      <div style={{ background: "#FDF4FF", border: "1px solid #E9D5FF", borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "flex-start", gap: 12, flexDirection: "column" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, width: "100%" }}>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: "#7C3AED", marginBottom: 2 }}>Generate Weekly Briefing</p>
+            <p style={{ fontSize: 11, color: muted }}>Sage pulls data from all 9 agents — pipeline, outreach, Q-Score, hiring — and synthesises your week into a strategic briefing.</p>
+            {briefingError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{briefingError}</p>}
+          </div>
+          <button onClick={handleGenerateBriefing} disabled={generatingBriefing} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingBriefing ? bdr : "#7C3AED", color: generatingBriefing ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingBriefing ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
+            {generatingBriefing ? "Generating…" : "Generate Briefing"}
+          </button>
+        </div>
+        {briefingResult && (
+          <div style={{ width: "100%", background: bg, border: `1px solid ${bdr}`, borderRadius: 10, padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+            {!!briefingResult.headline && (
+              <p style={{ fontSize: 13, fontWeight: 700, color: ink }}>{String(briefingResult.headline)}</p>
+            )}
+            {!!briefingResult.scoreSummary && (
+              <p style={{ fontSize: 12, color: muted, lineHeight: 1.6 }}>{String(briefingResult.scoreSummary)}</p>
+            )}
+            {Array.isArray(briefingResult.wins) && (briefingResult.wins as string[]).length > 0 && (
+              <div>
+                <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: green, marginBottom: 4 }}>Wins this week</p>
+                {(briefingResult.wins as string[]).map((w, i) => (
+                  <p key={i} style={{ fontSize: 11, color: ink, lineHeight: 1.5 }}>✓ {w}</p>
+                ))}
+              </div>
+            )}
+            {Array.isArray(briefingResult.risks) && (briefingResult.risks as string[]).length > 0 && (
+              <div>
+                <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: red, marginBottom: 4 }}>Watch out for</p>
+                {(briefingResult.risks as string[]).map((r, i) => (
+                  <p key={i} style={{ fontSize: 11, color: ink, lineHeight: 1.5 }}>⚠ {r}</p>
+                ))}
+              </div>
+            )}
+            {Array.isArray(briefingResult.nextWeekFocus) && (briefingResult.nextWeekFocus as string[]).length > 0 && (
+              <div>
+                <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: blue, marginBottom: 4 }}>Next week&apos;s focus</p>
+                {(briefingResult.nextWeekFocus as string[]).map((f, i) => (
+                  <p key={i} style={{ fontSize: 11, color: ink, lineHeight: 1.5 }}>→ {f}</p>
+                ))}
+              </div>
+            )}
+            {!!briefingResult.motivationalClose && (
+              <p style={{ fontSize: 12, color: muted, fontStyle: "italic", borderTop: `1px solid ${bdr}`, paddingTop: 8, lineHeight: 1.6 }}>{String(briefingResult.motivationalClose)}</p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Strategic Contradiction Detection CTA ── */}
+      <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 12, padding: "14px 18px", display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: red, marginBottom: 2 }}>Check for Strategic Contradictions</p>
+            <p style={{ fontSize: 11, color: muted }}>Sage reads all your agent deliverables and flags misalignments — e.g. GTM targets SMBs but hiring plan has enterprise reps.</p>
+            {contradictionError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{contradictionError}</p>}
+          </div>
+          <button
+            onClick={handleDetectContradictions}
+            disabled={detectingContradictions}
+            style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: detectingContradictions ? bdr : red, color: detectingContradictions ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: detectingContradictions ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0 }}
+          >
+            {detectingContradictions ? "Analysing…" : "Run Check"}
+          </button>
+        </div>
+        {contradictionResult && (() => {
+          const cr = contradictionResult;
+          const sev = (s: string) => s === "high" ? red : s === "medium" ? amber : muted;
+          const sevBg = (s: string) => s === "high" ? "#FEF2F2" : s === "medium" ? "#FFFBEB" : surf;
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {/* Alignment score */}
+              {cr.alignmentScore !== undefined && (
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ flex: 1, height: 8, borderRadius: 4, background: surf, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${cr.alignmentScore}%`, background: (cr.alignmentScore ?? 0) >= 70 ? green : (cr.alignmentScore ?? 0) >= 50 ? amber : red, borderRadius: 4 }} />
+                  </div>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: (cr.alignmentScore ?? 0) >= 70 ? green : (cr.alignmentScore ?? 0) >= 50 ? amber : red }}>
+                    {cr.alignmentScore}/100 alignment
+                  </span>
+                </div>
+              )}
+              {cr.summary && <p style={{ fontSize: 11, color: muted, lineHeight: 1.5 }}>{cr.summary}</p>}
+
+              {/* Contradictions */}
+              {(cr.contradictions ?? []).length === 0 ? (
+                <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "10px 14px", border: "1px solid #BBF7D0" }}>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: green }}>✓ No significant contradictions found — your strategy is well-aligned!</p>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {(cr.contradictions ?? []).map((c, i) => (
+                    <div key={i} style={{ background: sevBg(c.severity), borderRadius: 9, padding: "12px 14px", border: `1px solid ${sev(c.severity)}30` }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
+                        <p style={{ fontSize: 12, fontWeight: 700, color: sev(c.severity) }}>{c.area}</p>
+                        <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: sev(c.severity), background: "#fff", padding: "2px 7px", borderRadius: 4, marginLeft: 8, flexShrink: 0 }}>{c.severity}</span>
+                      </div>
+                      <p style={{ fontSize: 12, color: ink, lineHeight: 1.5, marginBottom: 6 }}>{c.description}</p>
+                      <p style={{ fontSize: 10, color: muted }}>↔ {c.artifactA} vs {c.artifactB}</p>
+                      <p style={{ fontSize: 11, color: blue, marginTop: 6 }}>Fix: {c.recommendation}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Strengths */}
+              {(cr.strongestAlignments ?? []).length > 0 && (
+                <div>
+                  <p style={{ fontSize: 10, fontWeight: 700, color: green, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Well-aligned areas</p>
+                  {(cr.strongestAlignments ?? []).map((s, i) => (
+                    <p key={i} style={{ fontSize: 11, color: muted, lineHeight: 1.5 }}>✓ {s}</p>
+                  ))}
+                </div>
+              )}
+
+              <button onClick={() => setContradictionResult(null)} style={{ fontSize: 11, color: muted, background: "none", border: "none", cursor: "pointer", alignSelf: "flex-start", padding: 0 }}>Dismiss ✕</button>
+            </div>
+          );
+        })()}
       </div>
 
       {/* ── Linear Modal ── */}
@@ -5378,14 +12018,111 @@ document.addEventListener('keydown', e => {
         </div>
       )}
 
-      {d.fundraisingMilestones && d.fundraisingMilestones.length > 0 && (
-        <div style={{ background: "#F0FDF4", borderRadius: 10, padding: "12px 14px", border: `1px solid #BBF7D0` }}>
-          <p style={{ fontSize: 10, fontWeight: 700, color: green, textTransform: "uppercase", marginBottom: 8 }}>Fundraising Milestones</p>
-          {d.fundraisingMilestones.map((m, i) => (
-            <p key={i} style={{ fontSize: 12, color: ink, lineHeight: 1.6, marginBottom: 3 }}>→ {m}</p>
-          ))}
-        </div>
-      )}
+      {d.fundraisingMilestones && d.fundraisingMilestones.length > 0 && (() => {
+        // Parse a rough target date from milestone text (Q1/Q2/Q3/Q4 or month name)
+        function parseMilestoneDate(text: string): Date | null {
+          const qMatch = text.match(/Q([1-4])\s+(\d{4})/i);
+          if (qMatch) {
+            const q = parseInt(qMatch[1]);
+            const yr = parseInt(qMatch[2]);
+            const endMonth = q * 3 - 1; // Q1→Feb(2), Q2→May(5), Q3→Aug(8), Q4→Nov(11)
+            const d = new Date(yr, endMonth + 1, 0); // last day of that quarter
+            return d;
+          }
+          const months = ["january","february","march","april","may","june","july","august","september","october","november","december"];
+          const mMatch = text.match(new RegExp(`(${months.join("|")})\\s+(\\d{4})`, "i"));
+          if (mMatch) {
+            const mIdx = months.findIndex(m => m === mMatch[1].toLowerCase());
+            return new Date(parseInt(mMatch[2]), mIdx + 1, 0);
+          }
+          const yearMatch = text.match(/\b(202[5-9]|203\d)\b/);
+          if (yearMatch) return new Date(parseInt(yearMatch[1]), 11, 31);
+          return null;
+        }
+
+        const now = new Date();
+        const msItems = d.fundraisingMilestones!.map((m, mi) => {
+          const target = parseMilestoneDate(m);
+          const daysLeft = target ? Math.ceil((target.getTime() - now.getTime()) / 86400000) : null;
+          return { idx: mi, text: m, target, daysLeft };
+        });
+
+        const hasAnyDate = msItems.some(m => m.target !== null);
+
+        return (
+          <div style={{ background: "#F0FDF4", borderRadius: 12, padding: "16px 18px", border: `1px solid #BBF7D0` }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <p style={{ fontSize: 10, fontWeight: 700, color: green, textTransform: "uppercase", letterSpacing: "0.1em" }}>
+                Fundraising Milestones{hasAnyDate ? " · Countdown" : ""}
+              </p>
+              {milestones.length > 0 && (
+                <span style={{ fontSize: 11, fontWeight: 700, color: green }}>
+                  {milestones.filter(m => m.completed).length}/{milestones.length} complete
+                </span>
+              )}
+            </div>
+            {/* Target date input */}
+            <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center" }}>
+              <label style={{ fontSize: 11, color: muted, flexShrink: 0 }}>Target raise date:</label>
+              <input type="date" value={milestoneTarget} onChange={e => setMilestoneTarget(e.target.value)} style={{ padding: "5px 8px", borderRadius: 6, border: `1px solid ${bdr}`, fontSize: 11, color: ink, background: "#fff" }} />
+              {milestoneTarget && (() => {
+                const days = Math.ceil((new Date(milestoneTarget).getTime() - Date.now()) / 86400000);
+                return <span style={{ fontSize: 11, fontWeight: 700, color: days < 30 ? red : days < 90 ? amber : green }}>{days > 0 ? `${days} days` : "Today"}</span>;
+              })()}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {msItems.map((m, i) => {
+                const overdue  = m.daysLeft !== null && m.daysLeft < 0;
+                const urgent   = m.daysLeft !== null && m.daysLeft >= 0 && m.daysLeft <= 30;
+                const upcoming = m.daysLeft !== null && m.daysLeft > 30 && m.daysLeft <= 90;
+                const badgeColor = overdue ? red : urgent ? amber : upcoming ? "#0891B2" : green;
+                const badgeBg   = overdue ? "#FEF2F2" : urgent ? "#FFFBEB" : upcoming ? "#F0F9FF" : "#F0FDF4";
+
+                const formatDays = (n: number) => {
+                  if (n < 0)   return `${Math.abs(n)}d overdue`;
+                  if (n === 0) return "Today";
+                  if (n < 7)   return `${n}d left`;
+                  if (n < 30)  return `${Math.ceil(n / 7)}w left`;
+                  return `${Math.ceil(n / 30)}mo left`;
+                };
+
+                // Check if this milestone is marked complete in DB state
+                const dbMs = milestones.find(dbm => dbm.index === m.idx);
+                const isComplete = dbMs?.completed ?? false;
+
+                return (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, background: isComplete ? "#F0FDF4" : "#fff", borderRadius: 9, padding: "10px 12px", border: `1px solid ${isComplete ? "#BBF7D0" : "#D1FAE5"}` }}>
+                    <button
+                      onClick={() => dbMs && !isComplete ? handleToggleMilestone(dbMs) : (!isComplete ? handleToggleMilestone({ index: m.idx, text: m.text, completed: false }) : undefined)}
+                      disabled={isComplete || savingMilestone === m.idx}
+                      title={isComplete ? "Completed" : "Mark as complete"}
+                      style={{ width: 20, height: 20, borderRadius: 999, border: `2px solid ${isComplete ? green : bdr}`, background: isComplete ? green : "transparent", cursor: isComplete ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: "#fff", fontSize: 11 }}
+                    >
+                      {isComplete ? "✓" : savingMilestone === m.idx ? "…" : ""}
+                    </button>
+                    <p style={{ fontSize: 12, color: isComplete ? muted : ink, lineHeight: 1.55, flex: 1, margin: 0, textDecoration: isComplete ? "line-through" : "none" }}>{m.text}</p>
+                    {m.daysLeft !== null && !isComplete && (
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, color: badgeColor, background: badgeBg,
+                        borderRadius: 6, padding: "3px 8px", whiteSpace: "nowrap", flexShrink: 0,
+                        border: `1px solid ${badgeColor}22`,
+                      }}>
+                        {formatDays(m.daysLeft)}
+                      </span>
+                    )}
+                    {isComplete && <span style={{ fontSize: 10, fontWeight: 700, color: green, flexShrink: 0 }}>Done</span>}
+                  </div>
+                );
+              })}
+            </div>
+            {!hasAnyDate && (
+              <p style={{ fontSize: 11, color: muted, marginTop: 10, fontStyle: "italic" }}>
+                Tip: include dates like &quot;Q2 2026&quot; or &quot;by June 2026&quot; in milestones to see countdowns.
+              </p>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -6374,7 +13111,9 @@ export default function AgentChat() {
   const [showActions,     setShowActions]     = useState(false);
   // Susi deal reminders
   const [susiReminders,   setSusiReminders]   = useState<{ id: string; company: string; contact_name?: string; stage: string; next_action?: string; label: string; isOverdue: boolean }[]>([]);
-  const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatEndRef    = useRef<HTMLDivElement>(null);
+  const chatFileRef   = useRef<HTMLInputElement>(null);
+  const [agentFileUploading, setAgentFileUploading] = useState(false);
 
   const hasPanel = isFelix || activeArtifact !== null;
 
@@ -6613,6 +13352,41 @@ export default function AgentChat() {
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
+  };
+
+  // ─── chat file upload ──────────────────────────────────────────────────────
+  const handleChatFileUpload = async (file: File) => {
+    if (agentFileUploading) return;
+    setAgentFileUploading(true);
+    const uploadId = `upload-${Date.now()}`;
+    setUiMessages(prev => [...prev, {
+      role: "user",
+      text: "",
+      fileUpload: { id: uploadId, name: file.name, size: file.size, mimeType: file.type, status: "uploading" },
+    }]);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/assessment/upload", { method: "POST", body: formData });
+      const data = await res.json();
+      if (data.error) {
+        setUiMessages(prev => prev.map(m =>
+          m.fileUpload?.id === uploadId ? { ...m, fileUpload: { ...m.fileUpload!, status: "error" } } : m
+        ));
+      } else {
+        setUiMessages(prev => prev.map(m =>
+          m.fileUpload?.id === uploadId ? { ...m, fileUpload: { ...m.fileUpload!, status: "done" } } : m
+        ));
+        const summary = data.summary || "";
+        handleSend(`I've shared a document: ${file.name}${summary ? `\n\n${summary}` : ""}`);
+      }
+    } catch {
+      setUiMessages(prev => prev.map(m =>
+        m.fileUpload?.id === uploadId ? { ...m, fileUpload: { ...m.fileUpload!, status: "error" } } : m
+      ));
+    } finally {
+      setAgentFileUploading(false);
+    }
   };
 
   const handleExtractActions = useCallback(async () => {
@@ -6934,16 +13708,30 @@ export default function AgentChat() {
       <div style={{ flexShrink: 0, borderBottom: `1px solid ${bdr}`, padding: "20px 28px 16px", background: bg }}>
         <div style={{ maxWidth: hasPanel ? "none" : 900, margin: "0 auto" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-            <Link
-              href="/founder/dashboard"
-              replace
-              style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: muted, textDecoration: "none", transition: "color .15s" }}
-              onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = ink)}
-              onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = muted)}
-            >
-              <ArrowLeft style={{ height: 13, width: 13 }} />
-              Dashboard
-            </Link>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <Link
+                href="/founder/dashboard"
+                replace
+                style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: muted, textDecoration: "none", transition: "color .15s" }}
+                onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = ink)}
+                onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = muted)}
+              >
+                <ArrowLeft style={{ height: 13, width: 13 }} />
+                Dashboard
+              </Link>
+              <button
+                onClick={() => router.push("/founder/dashboard")}
+                style={{
+                  padding: "5px 12px", background: "transparent", color: muted,
+                  border: `1px solid ${bdr}`, borderRadius: 8, fontSize: 12, fontWeight: 500,
+                  cursor: "pointer", fontFamily: "inherit", transition: "border-color .15s, color .15s",
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = ink; e.currentTarget.style.color = ink; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = bdr; e.currentTarget.style.color = muted; }}
+              >
+                Continue Later
+              </button>
+            </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               {isFelix && (
@@ -7202,19 +13990,69 @@ export default function AgentChat() {
                     {agent.name[0]}
                   </div>
                 )}
-                <div style={{
-                  maxWidth: "78%",
-                  padding: "11px 16px",
-                  fontSize: 14, lineHeight: 1.65, whiteSpace: "pre-wrap",
-                  borderRadius: 14,
-                  background:          msg.role === "user" ? ink  : surf,
-                  color:               msg.role === "user" ? bg   : ink,
-                  border:              msg.role === "agent" ? `1px solid ${bdr}` : "none",
-                  borderTopLeftRadius: msg.role === "agent" ? 4   : 14,
-                  borderTopRightRadius:msg.role === "user"  ? 4   : 14,
-                }}>
-                  {msg.text}
-                </div>
+
+                {/* file upload card */}
+                {msg.fileUpload ? (
+                  <div style={{
+                    display: "flex", alignItems: "center", gap: 10,
+                    padding: "10px 14px",
+                    background: ink, borderRadius: 14, borderTopRightRadius: 4,
+                    maxWidth: 300, minWidth: 220,
+                  }}>
+                    <div style={{
+                      height: 42, width: 38, flexShrink: 0,
+                      background: "rgba(255,255,255,0.08)",
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      borderRadius: 8,
+                      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2,
+                    }}>
+                      <FileText style={{ height: 14, width: 14, color: "rgba(249,247,242,0.7)" }} />
+                      <span style={{ fontSize: 8, fontWeight: 700, color: "rgba(249,247,242,0.5)", letterSpacing: "0.04em" }}>
+                        {fmtFileType(msg.fileUpload.mimeType, msg.fileUpload.name)}
+                      </span>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 12, fontWeight: 600, color: bg, marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {msg.fileUpload.name}
+                      </p>
+                      <p style={{ fontSize: 10, color: "rgba(249,247,242,0.45)" }}>
+                        {fmtFileSize(msg.fileUpload.size)}
+                      </p>
+                    </div>
+                    {msg.fileUpload.status === "uploading" && (
+                      <motion.div
+                        style={{ height: 18, width: 18, flexShrink: 0, borderRadius: "50%", border: "2px solid rgba(255,255,255,0.2)", borderTopColor: "rgba(255,255,255,0.8)" }}
+                        animate={{ rotate: 360 }}
+                        transition={{ repeat: Infinity, duration: 0.75, ease: "linear" }}
+                      />
+                    )}
+                    {msg.fileUpload.status === "done" && (
+                      <div style={{ height: 20, width: 20, flexShrink: 0, borderRadius: "50%", background: green, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <CheckCircle2 style={{ height: 11, width: 11, color: "#fff" }} />
+                      </div>
+                    )}
+                    {msg.fileUpload.status === "error" && (
+                      <div style={{ height: 20, width: 20, flexShrink: 0, borderRadius: "50%", background: red, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <X style={{ height: 11, width: 11, color: "#fff" }} />
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* regular text bubble */
+                  <div style={{
+                    maxWidth: "78%",
+                    padding: "11px 16px",
+                    fontSize: 14, lineHeight: 1.65, whiteSpace: "pre-wrap",
+                    borderRadius: 14,
+                    background:          msg.role === "user" ? ink  : surf,
+                    color:               msg.role === "user" ? bg   : ink,
+                    border:              msg.role === "agent" ? `1px solid ${bdr}` : "none",
+                    borderTopLeftRadius: msg.role === "agent" ? 4   : 14,
+                    borderTopRightRadius:msg.role === "user"  ? 4   : 14,
+                  }}>
+                    {msg.text}
+                  </div>
+                )}
               </motion.div>
             ))}
 
@@ -7267,11 +14105,41 @@ export default function AgentChat() {
 
       {/* ── input bar ──────────────────────────────────────────────────────── */}
       <div style={{ flexShrink: 0, borderTop: `1px solid ${bdr}`, padding: "14px 28px", background: bg }}>
+        <input
+          ref={chatFileRef}
+          type="file"
+          accept=".pdf,.csv,.txt,.md"
+          style={{ display: "none" }}
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) { handleChatFileUpload(f); e.target.value = ""; } }}
+        />
         <div style={{
           maxWidth: hasPanel ? "none" : 680, margin: "0 auto",
-          display: "flex", alignItems: "flex-end", gap: 10,
+          display: "flex", alignItems: "flex-end", gap: 8,
           paddingRight: hasPanel ? (isFelix ? 356 : 436) : 0,
         }}>
+          {/* attachment button */}
+          <button
+            onClick={() => chatFileRef.current?.click()}
+            disabled={agentFileUploading || typing}
+            title="Attach a document (PDF, CSV, TXT)"
+            style={{
+              height: 42, width: 42, flexShrink: 0,
+              background: agentFileUploading ? surf : "transparent",
+              border: `1px solid ${bdr}`,
+              borderRadius: 8,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: agentFileUploading || typing ? "not-allowed" : "pointer",
+              transition: "background .15s, border-color .15s",
+            }}
+            onMouseEnter={(e) => { if (!agentFileUploading && !typing) { e.currentTarget.style.background = surf; e.currentTarget.style.borderColor = ink; }}}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderColor = bdr; }}
+          >
+            {agentFileUploading
+              ? <motion.div style={{ height: 14, width: 14, borderRadius: "50%", border: `2px solid ${bdr}`, borderTopColor: accent }} animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.75, ease: "linear" }} />
+              : <Paperclip style={{ height: 15, width: 15, color: muted }} />
+            }
+          </button>
+
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -7316,7 +14184,7 @@ export default function AgentChat() {
           marginTop: 8, opacity: 0.5,
           paddingRight: hasPanel ? (isFelix ? 356 : 436) : 0,
         }}>
-          Enter to send · Shift+Enter for new line · Sessions auto-save
+          Enter to send · Shift+Enter for new line · Attach docs with the clip icon
         </p>
       </div>
 

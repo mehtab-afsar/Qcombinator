@@ -33,6 +33,9 @@ interface Deal {
   highlights: string[];
   momentum: "hot" | "trending" | "steady";
   viewed: boolean;
+  agentActionsThisWeek: number;
+  totalDeliverables: number;
+  isActiveFounder: boolean;
 }
 
 function momentumStyle(m: Deal["momentum"]) {
@@ -47,7 +50,7 @@ export default function DealFlowPage() {
   const [searchTerm,     setSearchTerm]     = useState("");
   const [selectedStage,  setSelectedStage]  = useState("all");
   const [selectedSector, setSelectedSector] = useState("all");
-  const [activeTab,      setActiveTab]      = useState<"all" | "hot" | "new" | "high-match">("all");
+  const [activeTab,      setActiveTab]      = useState<"all" | "hot" | "new" | "high-match" | "active">("all");
   const [deals,          setDeals]          = useState<Deal[]>([]);
   const [loading,        setLoading]        = useState(true);
 
@@ -61,6 +64,7 @@ export default function DealFlowPage() {
             sector: string; location: string; fundingGoal: string; teamSize: number | null;
             matchScore: number; highlights: string[]; lastActive: string;
             founder: { name: string }; hasScore: boolean;
+            agentActionsThisWeek: number; totalDeliverables: number; isActiveFounder: boolean;
           }) => ({
             id: f.id,
             name: f.name,
@@ -74,10 +78,12 @@ export default function DealFlowPage() {
             matchScore: f.matchScore,
             addedDate: new Date(f.lastActive).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
             founder: { name: f.founder?.name || "Founder", title: "Founder" },
-            // Use API-provided highlights (TAM, business model, why now) with stage/sector as fallback
             highlights: f.highlights?.length ? f.highlights : [f.sector, f.stage].filter(Boolean) as string[],
             momentum: (f.qScore >= 80 ? "hot" : f.qScore >= 65 ? "trending" : "steady") as Deal["momentum"],
             viewed: false,
+            agentActionsThisWeek: f.agentActionsThisWeek ?? 0,
+            totalDeliverables:    f.totalDeliverables ?? 0,
+            isActiveFounder:      f.isActiveFounder ?? false,
           })));
         }
       })
@@ -92,7 +98,8 @@ export default function DealFlowPage() {
     const matchTab     = activeTab === "all"
       || (activeTab === "hot"        && d.momentum === "hot")
       || (activeTab === "new"        && !d.viewed)
-      || (activeTab === "high-match" && d.matchScore >= 90);
+      || (activeTab === "high-match" && d.matchScore >= 90)
+      || (activeTab === "active"     && d.isActiveFounder);
     return matchSearch && matchStage && matchSector && matchTab;
   });
 
@@ -101,6 +108,7 @@ export default function DealFlowPage() {
     { key: "hot"        as const, label: `Hot (${deals.filter(d => d.momentum === "hot").length})` },
     { key: "new"        as const, label: `New (${deals.filter(d => !d.viewed).length})` },
     { key: "high-match" as const, label: `High Match (${deals.filter(d => d.matchScore >= 90).length})` },
+    { key: "active"     as const, label: `Active (${deals.filter(d => d.isActiveFounder).length})` },
   ];
 
   return (
@@ -203,7 +211,7 @@ export default function DealFlowPage() {
                       )}
                     </div>
                     <div style={{ minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2, flexWrap: "wrap" }}>
                         <p style={{ fontSize: 14, fontWeight: 600, color: ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{deal.name}</p>
                         {MIcon && (
                           <div style={{ display: "flex", alignItems: "center", gap: 3, padding: "2px 7px", background: ms.bg, borderRadius: 999 }}>
@@ -211,8 +219,16 @@ export default function DealFlowPage() {
                             <span style={{ fontSize: 10, color: ms.color, fontWeight: 600 }}>{ms.label}</span>
                           </div>
                         )}
+                        {deal.isActiveFounder && (
+                          <div style={{ display: "flex", alignItems: "center", gap: 3, padding: "2px 7px", background: "#ECFDF5", borderRadius: 999, border: "1px solid #A7F3D0" }}>
+                            <span style={{ fontSize: 9 }}>🤖</span>
+                            <span style={{ fontSize: 10, color: green, fontWeight: 600 }}>{deal.agentActionsThisWeek} actions this week</span>
+                          </div>
+                        )}
                       </div>
-                      <p style={{ fontSize: 12, color: muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{deal.founder.name} · {deal.location}</p>
+                      <p style={{ fontSize: 12, color: muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {deal.founder.name} · {deal.location}{deal.totalDeliverables > 0 ? ` · ${deal.totalDeliverables} deliverable${deal.totalDeliverables !== 1 ? "s" : ""}` : ""}
+                      </p>
                     </div>
                   </div>
 

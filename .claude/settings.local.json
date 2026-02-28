@@ -40,7 +40,9 @@
       "Bash(head -20 /Users/mohammedmehtabafsar/Desktop/Qcombinator/app/api/investor/startup/[id]/route.ts)",
       "Bash(# Check subscription_usage table migration grep -rn \"\"subscription_usage\"\" /Users/mohammedmehtabafsar/Desktop/Qcombinator/supabase/migrations/)",
       "Bash(# Check if there are any env vars missing that would cause 500 grep -n \"\"OPENROUTER_API_KEY\\\\|SUPABASE_SERVICE_ROLE_KEY\\\\|NEXT_PUBLIC_SUPABASE_URL\"\" /Users/mohammedmehtabafsar/Desktop/Qcombinator/.env.local)",
-      "Bash(# Check tables used in Phase 3 routes that might be missing from migrations grep -rh \"\"from\\\\\\(''\\\\|from\\(\\\\\"\"|\\\\.from\\(\"\" \\\\ /Users/mohammedmehtabafsar/Desktop/Qcombinator/app/api/agents/ \\\\ /Users/mohammedmehtabafsar/Desktop/Qcombinator/app/api/webhook/ \\\\ /Users/mohammedmehtabafsar/Desktop/Qcombinator/app/api/waitlist/ \\\\ /Users/mohammedmehtabafsar/Desktop/Qcombinator/app/api/survey/ \\\\)"
+      "Bash(# Check tables used in Phase 3 routes that might be missing from migrations grep -rh \"\"from\\\\\\(''\\\\|from\\(\\\\\"\"|\\\\.from\\(\"\" \\\\ /Users/mohammedmehtabafsar/Desktop/Qcombinator/app/api/agents/ \\\\ /Users/mohammedmehtabafsar/Desktop/Qcombinator/app/api/webhook/ \\\\ /Users/mohammedmehtabafsar/Desktop/Qcombinator/app/api/waitlist/ \\\\ /Users/mohammedmehtabafsar/Desktop/Qcombinator/app/api/survey/ \\\\)",
+      "Bash(/Users/mohammedmehtabafsar/Desktop/Qcombinator/app/api/agents/harper/source/route.ts:*)",
+      "Bash(/Users/mohammedmehtabafsar/Desktop/Qcombinator/app/api/agents/leo/clauses/route.ts:*)"
     ],
     "deny": [],
     "ask": []

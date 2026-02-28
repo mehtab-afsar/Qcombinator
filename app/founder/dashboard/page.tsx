@@ -17,6 +17,8 @@ import {
   Zap,
   Briefcase,
   DollarSign,
+  Target,
+  Loader2,
 } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/features/auth/hooks/useAuth";
@@ -328,6 +330,10 @@ export default function FounderDashboard() {
   const [portfolioViews,   setPortfolioViews]   = useState<{ total: number; last7: number } | null>(null);
   const [approvingId,    setApprovingId]    = useState<string | null>(null);
 
+  type Priority = { title: string; why: string; action: string; agentId?: string; urgency: "high" | "medium" | "low" };
+  const [priorities,       setPriorities]       = useState<Priority[]>([]);
+  const [priorityLoading,  setPriorityLoading]  = useState(false);
+
   async function handleDecision(actionId: string, decision: "approved" | "rejected") {
     setApprovingId(actionId);
     try {
@@ -427,6 +433,14 @@ export default function FounderDashboard() {
           .order("created_at", { ascending: false })
           .limit(10)
           .then(({ data }) => { if (data) setPendingActions(data as PendingRow[]); });
+
+        // Fetch AI priorities ("What to work on today")
+        setPriorityLoading(true);
+        fetch("/api/qscore/priority")
+          .then(r => r.ok ? r.json() : null)
+          .then(d => { if (d?.priorities) setPriorities(d.priorities); })
+          .catch(() => {})
+          .finally(() => setPriorityLoading(false));
       });
     });
   }, []);
@@ -726,6 +740,72 @@ export default function FounderDashboard() {
             </div>
           </motion.div>
         </div>
+
+        {/* ── today's focus ─────────────────────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.22 }}
+          style={{ marginBottom: 24 }}
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ height: 28, width: 28, borderRadius: 7, background: "#EFF6FF", border: "1px solid #BFDBFE", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Target style={{ height: 13, width: 13, color: blue }} />
+              </div>
+              <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", color: muted, fontWeight: 600 }}>
+                Today&apos;s focus — AI-recommended priorities
+              </p>
+            </div>
+            {priorityLoading && <Loader2 style={{ height: 14, width: 14, color: muted, animation: "spin 1s linear infinite" }} />}
+          </div>
+
+          {priorityLoading && priorities.length === 0 ? (
+            <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 14, padding: "20px 22px", display: "flex", alignItems: "center", gap: 10 }}>
+              <Loader2 style={{ height: 16, width: 16, color: muted, animation: "spin 1s linear infinite", flexShrink: 0 }} />
+              <p style={{ fontSize: 13, color: muted }}>Analysing your data to find the highest-impact tasks…</p>
+            </div>
+          ) : priorities.length > 0 ? (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
+              {priorities.map((p, i) => {
+                const urgencyColor = p.urgency === "high" ? red : p.urgency === "medium" ? amber : muted;
+                const urgencyBg    = p.urgency === "high" ? "#FEF2F2" : p.urgency === "medium" ? "#FFFBEB" : surf;
+                const agentHref    = p.agentId ? `/founder/agents/${p.agentId}` : "/founder/agents";
+                return (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.28 + i * 0.06 }}
+                    style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 14, padding: "18px 20px", display: "flex", flexDirection: "column", gap: 10 }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: urgencyColor, padding: "2px 8px", background: urgencyBg, borderRadius: 999 }}>
+                        {p.urgency}
+                      </span>
+                      {p.agentId && (
+                        <span style={{ fontSize: 10, color: muted, fontWeight: 500, textTransform: "capitalize" }}>{p.agentId}</span>
+                      )}
+                    </div>
+                    <div>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: ink, marginBottom: 4, lineHeight: 1.4 }}>{p.title}</p>
+                      <p style={{ fontSize: 11, color: muted, lineHeight: 1.5 }}>{p.why}</p>
+                    </div>
+                    <div style={{ marginTop: "auto", paddingTop: 4, borderTop: `1px solid ${bdr}` }}>
+                      <p style={{ fontSize: 11, color: blue, lineHeight: 1.5, marginBottom: 8 }}>→ {p.action}</p>
+                      <Link
+                        href={agentHref}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, color: blue, textDecoration: "none" }}
+                      >
+                        Start now <ChevronRight style={{ height: 11, width: 11 }} />
+                      </Link>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          ) : null}
+        </motion.div>
 
         {/* ── score challenges ─────────────────────────────────────── */}
         <motion.div
