@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { callOpenRouter } from "@/lib/openrouter";
 
 // ─── system prompt ────────────────────────────────────────────────────────────
 // Covers Category 1 of the Edge Alpha assessment:
@@ -49,11 +50,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid messages format" }, { status: 400 });
     }
 
-    const key = process.env.OPENROUTER_API_KEY;
-    if (!key) {
-      return NextResponse.json({ error: "OpenRouter API key not configured" }, { status: 500 });
-    }
-
     // Count how many times the user has replied
     const userTurns = messages.filter((m: { role: string }) => m.role === "user").length;
 
@@ -70,33 +66,13 @@ export async function POST(req: NextRequest) {
       ? SYSTEM_PROMPT + "\n\nCRITICAL: The founder has just answered your 4th question. This is your FINAL exchange. Do NOT ask another question. Write a warm 1-2 sentence wrap-up of what you heard, then end with [ASSESSMENT_COMPLETE]."
       : SYSTEM_PROMPT;
 
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${key}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://edgealpha.ai",
-        "X-Title": "Edge Alpha Onboarding",
-      },
-      body: JSON.stringify({
-        model: "anthropic/claude-3.5-haiku",
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...messages,
-        ],
-        temperature: 0.7,
-        max_tokens: 300,
-      }),
-    });
-
-    if (!response.ok) {
-      const err = await response.text();
-      console.error("OpenRouter error:", err);
-      return NextResponse.json({ error: "AI service error" }, { status: 502 });
-    }
-
-    const data = await response.json();
-    const content: string = data.choices?.[0]?.message?.content ?? "";
+    const content: string = await callOpenRouter(
+      [
+        { role: "system" as const, content: systemPrompt },
+        ...(messages as { role: 'user' | 'assistant'; content: string }[]),
+      ],
+      { maxTokens: 300, temperature: 0.7 },
+    );
 
     // detect completion signal
     const isComplete = content.includes("[ASSESSMENT_COMPLETE]");

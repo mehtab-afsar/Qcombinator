@@ -3,8 +3,6 @@
 import { useState, useRef, useEffect, useCallback, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   ArrowRight,
   Send,
@@ -252,9 +250,13 @@ function OnboardingContent() {
             chatHistory: apiMessages,
           }),
         });
-        const completeData = await completeRes.json();
-        if (completeData.qScore) {
-          setRawScore(completeData.qScore.overall);
+        if (completeRes.ok) {
+          const completeData = await completeRes.json();
+          if (completeData.qScore) {
+            setRawScore(completeData.qScore.overall);
+          }
+        } else {
+          console.warn("Onboarding data persistence failed — client-side score shown as fallback");
         }
       } catch {
         // Non-fatal — score still visible from client-side calculation
@@ -571,43 +573,43 @@ function OnboardingContent() {
               <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 20 }}>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                   <div>
-                    <Label style={{ fontSize: 12, color: muted, marginBottom: 6, display: "block" }}>First name</Label>
-                    <Input
+                    <label style={{ fontSize: 12, color: muted, marginBottom: 6, display: "block" }}>First name</label>
+                    <input
                       placeholder="Alex"
                       value={signup.firstName}
                       onChange={(e) => setSignup((p) => ({ ...p, firstName: e.target.value }))}
-                      style={{ background: surf, border: `1px solid ${bdr}`, color: ink, borderRadius: 10, height: 42 }}
+                      style={{ width: "100%", background: surf, border: `1px solid ${bdr}`, color: ink, borderRadius: 10, height: 42, padding: "0 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }}
                     />
                   </div>
                   <div>
-                    <Label style={{ fontSize: 12, color: muted, marginBottom: 6, display: "block" }}>Last name</Label>
-                    <Input
+                    <label style={{ fontSize: 12, color: muted, marginBottom: 6, display: "block" }}>Last name</label>
+                    <input
                       placeholder="Smith"
                       value={signup.lastName}
                       onChange={(e) => setSignup((p) => ({ ...p, lastName: e.target.value }))}
-                      style={{ background: surf, border: `1px solid ${bdr}`, color: ink, borderRadius: 10, height: 42 }}
+                      style={{ width: "100%", background: surf, border: `1px solid ${bdr}`, color: ink, borderRadius: 10, height: 42, padding: "0 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }}
                     />
                   </div>
                 </div>
                 <div>
-                  <Label style={{ fontSize: 12, color: muted, marginBottom: 6, display: "block" }}>Work email</Label>
-                  <Input
+                  <label style={{ fontSize: 12, color: muted, marginBottom: 6, display: "block" }}>Work email</label>
+                  <input
                     type="email"
                     placeholder="you@startup.com"
                     value={signup.email}
                     onChange={(e) => setSignup((p) => ({ ...p, email: e.target.value }))}
-                    style={{ background: surf, border: `1px solid ${bdr}`, color: ink, borderRadius: 10, height: 42 }}
+                    style={{ width: "100%", background: surf, border: `1px solid ${bdr}`, color: ink, borderRadius: 10, height: 42, padding: "0 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }}
                   />
                 </div>
                 <div>
-                  <Label style={{ fontSize: 12, color: muted, marginBottom: 6, display: "block" }}>Password</Label>
-                  <Input
+                  <label style={{ fontSize: 12, color: muted, marginBottom: 6, display: "block" }}>Password</label>
+                  <input
                     type="password"
                     placeholder="At least 6 characters"
                     value={signup.password}
                     onChange={(e) => setSignup((p) => ({ ...p, password: e.target.value }))}
                     onKeyDown={(e) => e.key === "Enter" && handleSignup()}
-                    style={{ background: surf, border: `1px solid ${bdr}`, color: ink, borderRadius: 10, height: 42 }}
+                    style={{ width: "100%", background: surf, border: `1px solid ${bdr}`, color: ink, borderRadius: 10, height: 42, padding: "0 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }}
                   />
                 </div>
               </div>

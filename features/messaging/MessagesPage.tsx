@@ -86,34 +86,34 @@ const mockNetwork: NetworkPost[] = [
   {
     id: 'n1',
     author: {
-      id: 'np1', name: 'Alex Thompson', title: 'Founder', company: 'GreenLogistics',
-      type: 'founder', qScore: 67, stage: 'Pre-Seed', sector: 'Climate',
+      id: 'ea', name: 'Edge Alpha', title: 'Platform Insight', company: 'Edge Alpha',
+      type: 'founder', qScore: 0, stage: '', sector: '',
     },
-    content: "Just closed our first pilot with a Fortune 500 logistics company — zero marketing spend. The lesson: solve one painful problem obsessively before anything else. Happy to share how we structured the deal if useful.",
+    content: "Founders who close first pilots without marketing spend typically share one trait: they solved one painfully specific problem obsessively before expanding scope. Narrow beats broad at every pre-seed stage.",
     timestamp: '4h ago',
     likes: 24,
     replies: 7,
-    tags: ['enterprise-sales', 'climate', 'pilots'],
+    tags: ['enterprise-sales', 'pilots', 'focus'],
   },
   {
     id: 'n2',
     author: {
-      id: 'np2', name: 'Keiko Yamamoto', title: 'Co-founder', company: 'Aiko AI',
-      type: 'founder', qScore: 82, stage: 'Series A', sector: 'AI/ML',
+      id: 'ea', name: 'Edge Alpha', title: 'Platform Insight', company: 'Edge Alpha',
+      type: 'founder', qScore: 0, stage: '', sector: '',
     },
-    content: "For anyone doing technical due diligence with investors: build a 1-page architecture doc that answers: scale, latency, data moat, and defensibility. Saved 3+ hours per DD call for us.",
+    content: "Preparing for technical due diligence? Build a 1-page architecture doc that answers four questions investors always ask: How does it scale? What\u2019s the latency profile? Where is the data moat? What makes it defensible? Saves 3+ hours per DD call.",
     timestamp: '1d ago',
     likes: 61,
     replies: 19,
-    tags: ['due-diligence', 'ai-ml', 'fundraising'],
+    tags: ['due-diligence', 'fundraising', 'technical'],
   },
   {
     id: 'n3',
     author: {
-      id: 'np3', name: 'Marcus Reid', title: 'Founder', company: 'BuildStack',
-      type: 'founder', qScore: 74, stage: 'Seed', sector: 'Dev Tools',
+      id: 'ea', name: 'Edge Alpha', title: 'Platform Insight', company: 'Edge Alpha',
+      type: 'founder', qScore: 0, stage: '', sector: '',
     },
-    content: "Q-Score tip: your Market dimension weighs 20% and most founders underinvest in articulating conversion rate assumptions. Even realistic conservative estimates score better than blanks.",
+    content: "Q-Score tip: the Market dimension weighs 20% of your total score. Most founders underinvest in articulating conversion rate assumptions. Even realistic, conservative estimates score significantly better than leaving fields blank \u2014 specificity signals credibility.",
     timestamp: '2d ago',
     likes: 89,
     replies: 31,
@@ -171,6 +171,71 @@ export default function MessagesPage() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [selected])
+
+  // Load outgoing connection requests from DB → show as pending conversations
+  useEffect(() => {
+    async function loadConnections() {
+      try {
+        const [connRes, invRes] = await Promise.all([
+          fetch('/api/connections'),
+          fetch('/api/investors'),
+        ])
+        if (!connRes.ok) return
+        const { connections } = await connRes.json() as { connections: Record<string, string> }
+        const { investors: dbInvestors } = invRes.ok ? await invRes.json() : { investors: [] }
+
+        const investorMap: Record<string, { name: string; firm: string; title: string }> = {}
+        for (const inv of (dbInvestors ?? [])) {
+          investorMap[inv.id] = { name: inv.name, firm: inv.firm, title: inv.title }
+        }
+
+        const pendingConvs: Conversation[] = Object.entries(connections)
+          .filter(([, status]) => status === 'pending' || status === 'meeting-scheduled')
+          .map(([investorId, status]) => {
+            const inv = investorMap[investorId]
+            const isAccepted = status === 'meeting-scheduled'
+            const participant: Participant = {
+              id: investorId,
+              name: inv?.name ?? 'Investor',
+              title: inv?.title ?? 'Partner',
+              company: inv?.firm ?? 'Venture Capital',
+              type: 'investor',
+            }
+            const msgContent = isAccepted
+              ? `${participant.name} from ${participant.company} accepted your connection request. You can now reach out to them directly.`
+              : `Your connection request to ${participant.name} at ${participant.company} is pending. Once accepted you can message each other here.`
+            return {
+              id: `pending-${investorId}`,
+              participant,
+              requestId: investorId,
+              lastMessage: isAccepted ? `Connected with ${participant.name}` : 'Connection request sent',
+              timestamp: 'Recently',
+              unread: isAccepted ? 1 : 0,
+              starred: false,
+              messages: [
+                {
+                  id: 'pending-msg',
+                  content: msgContent,
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  sender: 'user' as const,
+                  type: 'text' as const,
+                }
+              ],
+            }
+          })
+
+        if (pendingConvs.length > 0) {
+          setConversations(prev => {
+            const existingIds = new Set(prev.map(c => c.id))
+            return [...prev, ...pendingConvs.filter(c => !existingIds.has(c.id))]
+          })
+        }
+      } catch (err) {
+        console.error('Messages load error:', err)
+      }
+    }
+    loadConnections()
+  }, [])
 
   // ─ request actions ──────────────────────────────────────────────────────────
   const handleAccept = (reqId: string) => {

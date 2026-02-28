@@ -216,71 +216,162 @@ export default function InvestorOnboarding() {
   )
 
   // ─── Choice screen ─────────────────────────────────────────────────────────
-  const renderChoice = () => (
-    <div style={{ textAlign: 'center' }}>
-      <div style={{ marginBottom: 40 }}>
-        <p style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.18em', color: muted, marginBottom: 16 }}>Investor Access</p>
-        <h2 style={{ fontSize: 28, fontWeight: 300, letterSpacing: '-0.03em', margin: '0 0 12px', color: ink }}>
-          Welcome to Edge Alpha
-        </h2>
-        <p style={{ fontSize: 15, color: muted, lineHeight: 1.65, maxWidth: 380, margin: '0 auto' }}>
-          AI-ranked deal flow, curated to your thesis. Join the platform that scores every founder before they reach your inbox.
-        </p>
-      </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 360, margin: '0 auto' }}>
-        <button
-          onClick={() => { setMode('signup'); setStep(1) }}
-          style={{
-            padding: '18px 28px', borderRadius: 12, border: 'none',
-            background: ink, color: bg, fontSize: 15, fontWeight: 500,
-            cursor: 'pointer', display: 'flex', alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <span>
-            <span style={{ display: 'block', fontSize: 12, opacity: 0.6, fontWeight: 400, marginBottom: 2 }}>New investor</span>
-            Create your account
+  const renderChoice = () => {
+    const mockDeals = [
+      { name: 'Kairo AI', sector: 'AI/ML', stage: 'Seed', q: 84, match: 96, momentum: '#F0FDF4', mColor: '#16A34A' },
+      { name: 'Lendify', sector: 'Fintech', stage: 'Pre-Seed', q: 71, match: 88, momentum: '#FFFBEB', mColor: '#D97706' },
+      { name: 'OpsNova', sector: 'SaaS', stage: 'Seed', q: 78, match: 82, momentum: '#EFF6FF', mColor: blue },
+    ]
+    return (
+      <div>
+        {/* hero ──────────────────────────────────────────────────────── */}
+        <div style={{ textAlign: 'center', marginBottom: 44 }}>
+          <span style={{
+            display: 'inline-block', padding: '4px 12px', borderRadius: 999,
+            background: '#EFF6FF', color: blue, fontSize: 11, fontWeight: 700,
+            letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 18,
+          }}>
+            Investor Platform
           </span>
-          <ArrowRight size={18} />
-        </button>
+          <h1 style={{
+            fontSize: 'clamp(28px, 5vw, 40px)', fontWeight: 300,
+            letterSpacing: '-0.04em', color: ink, margin: '0 0 14px', lineHeight: 1.1,
+          }}>
+            Deal flow that&apos;s<br />
+            <span style={{ fontWeight: 700 }}>already scored.</span>
+          </h1>
+          <p style={{ fontSize: 14, color: muted, lineHeight: 1.7, maxWidth: 400, margin: '0 auto' }}>
+            Every founder on Edge Alpha is evaluated across 6 dimensions before appearing in your pipeline.
+            You review signal, not noise.
+          </p>
+        </div>
 
-        <button
-          onClick={() => setMode('signin')}
-          style={{
-            padding: '18px 28px', borderRadius: 12,
-            border: `1px solid ${bdr}`, background: surf,
-            color: ink, fontSize: 15, fontWeight: 500,
-            cursor: 'pointer', display: 'flex', alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <span>
-            <span style={{ display: 'block', fontSize: 12, color: muted, fontWeight: 400, marginBottom: 2 }}>Already have an account</span>
-            Sign in
-          </span>
-          <ArrowRight size={18} color={muted} />
-        </button>
-      </div>
-
-      <div style={{ marginTop: 48, padding: '24px', borderRadius: 12, background: surf, border: `1px solid ${bdr}`, textAlign: 'left' }}>
-        <p style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.15em', color: muted, marginBottom: 12 }}>What you get</p>
-        {[
-          ['Q-Scored deal flow', 'Every founder is scored across 6 dimensions before appearing in your pipeline'],
-          ['AI thesis matching', 'We rank founders by how well they match your specific investment thesis'],
-          ['Direct messaging', 'Connect and message founders without the email back-and-forth'],
-        ].map(([title, desc]) => (
-          <div key={title} style={{ display: 'flex', gap: 12, marginBottom: 14, alignItems: 'flex-start' }}>
-            <CheckCircle2 size={16} color={blue} style={{ marginTop: 1, flexShrink: 0 }} />
-            <div>
-              <p style={{ fontSize: 13, fontWeight: 600, color: ink, margin: '0 0 2px' }}>{title}</p>
-              <p style={{ fontSize: 12, color: muted, margin: 0, lineHeight: 1.5 }}>{desc}</p>
+        {/* stats row ─────────────────────────────────────────────────── */}
+        <div style={{
+          display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: 1, background: bdr, borderRadius: 12, overflow: 'hidden', marginBottom: 28,
+        }}>
+          {[
+            { value: '847', label: 'scored founders' },
+            { value: '92%', label: 'match accuracy' },
+            { value: '3 days', label: 'avg response time' },
+          ].map(s => (
+            <div key={s.label} style={{ background: surf, padding: '16px 12px', textAlign: 'center' }}>
+              <p style={{ fontSize: 22, fontWeight: 700, color: ink, margin: '0 0 2px', letterSpacing: '-0.02em' }}>{s.value}</p>
+              <p style={{ fontSize: 11, color: muted, margin: 0, textTransform: 'uppercase', letterSpacing: '0.1em' }}>{s.label}</p>
             </div>
+          ))}
+        </div>
+
+        {/* sample deal flow preview ─────────────────────────────────────── */}
+        <div style={{
+          border: `1px solid ${bdr}`, borderRadius: 12, overflow: 'hidden', marginBottom: 28,
+        }}>
+          <div style={{
+            padding: '10px 16px', background: surf, borderBottom: `1px solid ${bdr}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: muted }} />
+              <span style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                Sample deal flow
+              </span>
+            </div>
+            <span style={{ fontSize: 11, color: muted, fontStyle: 'italic' }}>Example preview</span>
           </div>
-        ))}
+          {mockDeals.map((d, i) => (
+            <div key={d.name} style={{
+              display: 'grid', gridTemplateColumns: '1fr 56px 72px',
+              gap: 12, padding: '12px 16px', alignItems: 'center',
+              borderBottom: i < mockDeals.length - 1 ? `1px solid ${bdr}` : 'none',
+              background: bg,
+            }}>
+              <div>
+                <p style={{ fontSize: 13, fontWeight: 600, color: ink, margin: '0 0 2px' }}>{d.name}</p>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <span style={{ fontSize: 10, color: muted }}>{d.sector}</span>
+                  <span style={{ fontSize: 10, color: muted }}>·</span>
+                  <span style={{ fontSize: 10, color: muted }}>{d.stage}</span>
+                </div>
+              </div>
+              {/* Q-Score badge */}
+              <div style={{ textAlign: 'center' }}>
+                <div style={{
+                  width: 36, height: 36, borderRadius: '50%',
+                  border: `2px solid ${d.q >= 80 ? '#16A34A' : d.q >= 65 ? '#D97706' : '#DC2626'}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  margin: '0 auto',
+                }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: ink }}>{d.q}</span>
+                </div>
+                <p style={{ fontSize: 9, color: muted, margin: '2px 0 0', textTransform: 'uppercase' }}>Q-Score</p>
+              </div>
+              {/* match score */}
+              <div style={{ background: d.momentum, borderRadius: 8, padding: '5px 8px', textAlign: 'center' }}>
+                <p style={{ fontSize: 14, fontWeight: 700, color: d.mColor, margin: 0 }}>{d.match}%</p>
+                <p style={{ fontSize: 9, color: d.mColor, margin: 0, opacity: 0.7, textTransform: 'uppercase' }}>match</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* CTA buttons ────────────────────────────────────────────────── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 28 }}>
+          <button
+            onClick={() => { setMode('signup'); setStep(1) }}
+            style={{
+              padding: '15px 24px', borderRadius: 12, border: 'none',
+              background: ink, color: bg, fontSize: 15, fontWeight: 500,
+              cursor: 'pointer', display: 'flex', alignItems: 'center',
+              justifyContent: 'space-between', transition: 'opacity .15s',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
+            onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+          >
+            <span>
+              <span style={{ display: 'block', fontSize: 11, opacity: 0.55, fontWeight: 400, marginBottom: 1 }}>New investor</span>
+              Create your account
+            </span>
+            <ArrowRight size={17} />
+          </button>
+          <button
+            onClick={() => setMode('signin')}
+            style={{
+              padding: '15px 24px', borderRadius: 12,
+              border: `1px solid ${bdr}`, background: 'transparent',
+              color: ink, fontSize: 15, fontWeight: 500,
+              cursor: 'pointer', display: 'flex', alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <span>
+              <span style={{ display: 'block', fontSize: 11, color: muted, fontWeight: 400, marginBottom: 1 }}>Already have an account</span>
+              Sign in
+            </span>
+            <ArrowRight size={17} color={muted} />
+          </button>
+        </div>
+
+        {/* feature grid ──────────────────────────────────────────────── */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+          {[
+            { icon: TrendingUp, title: 'Q-Scored pipeline', desc: '6-dimension founder scoring before they reach your inbox' },
+            { icon: Sparkles,   title: 'Thesis matching',   desc: 'AI ranks every founder against your specific investment thesis' },
+            { icon: Users,      title: 'Direct access',     desc: 'Message founders directly, no warm intro required' },
+          ].map(({ icon: Icon, title, desc }) => (
+            <div key={title} style={{
+              padding: '14px 12px', borderRadius: 10, background: surf,
+              border: `1px solid ${bdr}`,
+            }}>
+              <Icon size={18} color={blue} style={{ marginBottom: 8 }} />
+              <p style={{ fontSize: 12, fontWeight: 600, color: ink, margin: '0 0 4px' }}>{title}</p>
+              <p style={{ fontSize: 11, color: muted, margin: 0, lineHeight: 1.5 }}>{desc}</p>
+            </div>
+          ))}
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
 
   // ─── Sign In screen ────────────────────────────────────────────────────────
   const renderSignIn = () => (

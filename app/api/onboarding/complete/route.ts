@@ -101,6 +101,39 @@ export async function POST(request: NextRequest) {
       // Non-fatal — profile data was saved
     }
 
+    // Fire investor alert if score is strong enough (non-fatal, best-effort)
+    if (qScore.overall >= 50) {
+      try {
+        // Fetch founder profile for name + industry + stage
+        const { data: fp } = await supabase
+          .from('founder_profiles')
+          .select('full_name, startup_name, industry, stage, tagline')
+          .eq('user_id', user.id)
+          .single();
+
+        if (fp) {
+          const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://edgealpha.ai';
+          fetch(`${baseUrl}/api/investor/alerts`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-internal-secret': process.env.INTERNAL_API_SECRET ?? 'ea-internal',
+            },
+            body: JSON.stringify({
+              founderId:   user.id,
+              founderName: fp.full_name ?? 'Founder',
+              startupName: fp.startup_name ?? 'New Startup',
+              industry:    fp.industry ?? '',
+              stage:       fp.stage ?? '',
+              qScore:      qScore.overall,
+              tagline:     fp.tagline ?? '',
+              publicUrl:   `${baseUrl}/p/${user.id}`,
+            }),
+          }).catch(() => { /* fire and forget */ });
+        }
+      } catch { /* non-fatal */ }
+    }
+
     return NextResponse.json({
       success: true,
       qScore: {

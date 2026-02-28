@@ -36,29 +36,42 @@ async function callOpenRouter(
   maxTokens: number = 500,
   temperature: number = 0.7
 ): Promise<string> {
-  const key = process.env.OPENROUTER_API_KEY;
-  if (!key) throw new Error('OPENROUTER_API_KEY not configured');
+  const primaryKey  = process.env.OPENROUTER_API_KEY;
+  const fallbackKey = process.env.OPENROUTER_API_KEY_FALLBACK;
+  if (!primaryKey && !fallbackKey) throw new Error('No OpenRouter API key configured');
 
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${key}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://edgealpha.ai',
-      'X-Title': 'Edge Alpha Agents',
-    },
-    body: JSON.stringify({
-      model: 'anthropic/claude-3.5-haiku',
-      messages,
-      temperature,
-      max_tokens: maxTokens,
-    }),
-  });
+  const tryWithKey = (key: string) =>
+    fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${key}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://edgealpha.ai',
+        'X-Title': 'Edge Alpha Agents',
+      },
+      body: JSON.stringify({
+        model: 'anthropic/claude-3.5-haiku',
+        messages,
+        temperature,
+        max_tokens: maxTokens,
+      }),
+    });
+
+  let response = await tryWithKey(primaryKey ?? fallbackKey!);
+
+  // Primary key hit its limit — retry immediately with fallback
+  if (response.status === 402 && fallbackKey && primaryKey) {
+    console.warn('Primary OpenRouter key hit limit — switching to fallback key');
+    response = await tryWithKey(fallbackKey);
+  }
 
   if (!response.ok) {
     const errText = await response.text();
-    console.error('OpenRouter error:', errText);
-    throw new Error(`OpenRouter API error: ${response.statusText}`);
+    console.error('OpenRouter error:', response.status, errText);
+    if (response.status === 402) {
+      throw new Error('OpenRouter account has insufficient credits. Please top up at openrouter.ai/credits.');
+    }
+    throw new Error(`OpenRouter API error: ${response.status} ${response.statusText}`);
   }
 
   const data = await response.json();
@@ -261,8 +274,59 @@ async function incrementUsage(usageId: string | null, supabaseAdmin: SupabaseCli
 // ─── tool-call detection ─────────────────────────────────────────────────────
 
 interface ToolCall {
-  type: 'icp_document' | 'outreach_sequence' | 'battle_card' | 'gtm_playbook';
+  type:
+    | 'icp_document' | 'outreach_sequence' | 'battle_card' | 'gtm_playbook'
+    | 'sales_script' | 'brand_messaging' | 'financial_summary' | 'legal_checklist'
+    | 'hiring_plan' | 'pmf_survey' | 'competitive_matrix' | 'strategic_plan'
+    | 'lead_enrich' | 'web_research' | 'create_deal';
   context: Record<string, unknown>;
+}
+
+// Hunter.io lead enrichment — returns a formatted markdown table of contacts
+async function executeLeadEnrich(domain: string): Promise<string> {
+  const apiKey = process.env.HUNTER_API_KEY;
+  if (!apiKey) {
+    return '*Lead enrichment requires a Hunter.io API key. Set `HUNTER_API_KEY` in your environment.*';
+  }
+
+  const cleanDomain = domain.trim().replace(/^https?:\/\//i, '').replace(/\/.*/,'').trim();
+  if (!cleanDomain) return '*No domain provided for lead enrichment.*';
+
+  try {
+    const res = await fetch(
+      `https://api.hunter.io/v2/domain-search?domain=${encodeURIComponent(cleanDomain)}&limit=10&api_key=${apiKey}`
+    );
+
+    if (!res.ok) return `Could not enrich ${cleanDomain} — Hunter.io returned ${res.status}.`;
+
+    const data = await res.json() as {
+      data?: {
+        organization?: string;
+        emails?: Array<{ value: string; first_name?: string; last_name?: string; position?: string; confidence: number }>;
+      };
+      meta?: { results: number };
+    };
+
+    const emails = data.data?.emails ?? [];
+    const leads = emails
+      .filter(e => e.value && e.confidence >= 50)
+      .sort((a, b) => b.confidence - a.confidence)
+      .slice(0, 8);
+
+    if (leads.length === 0) return `No high-confidence leads found at **${cleanDomain}**.`;
+
+    const org = data.data?.organization ?? cleanDomain;
+    let result = `**${leads.length} leads found at ${org} (${cleanDomain}):**\n\n`;
+    result += '| Name | Email | Title | Confidence |\n|------|-------|-------|------------|\n';
+    for (const lead of leads) {
+      const name = [lead.first_name, lead.last_name].filter(Boolean).join(' ') || '—';
+      const title = lead.position || '—';
+      result += `| ${name} | ${lead.value} | ${title} | ${lead.confidence}% |\n`;
+    }
+    return result;
+  } catch {
+    return `Error enriching ${cleanDomain}. Please verify the domain and try again.`;
+  }
 }
 
 function extractToolCall(text: string): { chatReply: string; toolCall: ToolCall | null } {
@@ -271,26 +335,34 @@ function extractToolCall(text: string): { chatReply: string; toolCall: ToolCall 
 
   try {
     const toolCall = JSON.parse(match[1]) as ToolCall;
-    const validTypes = ['icp_document', 'outreach_sequence', 'battle_card', 'gtm_playbook'];
+    const validTypes = [
+      'icp_document', 'outreach_sequence', 'battle_card', 'gtm_playbook',
+      'sales_script', 'brand_messaging', 'financial_summary', 'legal_checklist',
+      'hiring_plan', 'pmf_survey', 'competitive_matrix', 'strategic_plan',
+      'lead_enrich', 'web_research', 'create_deal',
+    ];
     if (!validTypes.includes(toolCall.type)) return { chatReply: text, toolCall: null };
 
     const chatReply = text.replace(/<tool_call>[\s\S]*?<\/tool_call>/, '').trim();
     return { chatReply, toolCall };
   } catch {
     console.warn('Failed to parse tool_call JSON');
-    return { chatReply: text, toolCall: null };
+    // Strip the malformed tag so it never reaches the chat UI
+    const stripped = text.replace(/<tool_call>[\s\S]*?<\/tool_call>/g, '').trim();
+    return { chatReply: stripped || text, toolCall: null };
   }
 }
 
 // ─── main handler ────────────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
-  const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-
   try {
+    // Initialise admin client inside try-catch so missing env vars are handled gracefully
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
+      process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
+    );
+
     const { agentId, message, conversationHistory, userContext, conversationId: existingConversationId, userId, stream: wantStream } = await request.json();
 
     if (!agentId || !message) {
@@ -302,26 +374,94 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
     }
 
-    // ── Usage limit check ───────────────────────────────────────────────────
+    // ── Usage limit check (fail-open: never block chat if usage table has issues) ─
     let usageId: string | null = null;
     if (userId) {
-      const usage = await checkUsageAllowed(userId, supabaseAdmin);
-      if (!usage.allowed) {
-        return NextResponse.json({
-          error: 'Monthly message limit reached',
-          limitReached: true,
-          remaining: 0,
-        }, { status: 429 });
+      try {
+        const usage = await checkUsageAllowed(userId, supabaseAdmin);
+        if (!usage.allowed) {
+          return NextResponse.json({
+            error: 'Monthly message limit reached',
+            limitReached: true,
+            remaining: 0,
+          }, { status: 429 });
+        }
+        usageId = usage.usageId;
+      } catch {
+        // Usage check failed (table missing, FK error, etc.) — allow the message through
+        console.warn('Usage check failed — allowing message through');
       }
-      usageId = usage.usageId;
     }
 
-    const isPatel = agentId === 'patel';
-    // Stream for non-Patel agents (Patel needs 2-pass artifact generation)
-    const useStream = !!wantStream && !isPatel;
+    // All agents use non-streaming path for tool_call support across all agents.
+    // The client already has a JSON fallback path that handles this correctly.
+    const useStream = false;
+    void wantStream; // acknowledged but not used
 
     // Use dedicated system prompt if available, fall back to built one
-    const systemPrompt = AGENT_SYSTEM_PROMPTS[agentId] ?? buildAgentSystemPrompt(agent, userContext);
+    let systemPrompt = AGENT_SYSTEM_PROMPTS[agentId] ?? buildAgentSystemPrompt(agent, userContext);
+
+    // ── Agent memory + cross-agent context (fail-open — context is optional) ─
+    if (userId) {
+      try {
+        const { data: allArtifacts } = await supabaseAdmin
+          .from('agent_artifacts')
+          .select('agent_id, artifact_type, title, created_at')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(20);
+
+        if (allArtifacts && allArtifacts.length > 0) {
+          const dayAgo = (iso: string) => {
+            const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+            return d === 0 ? 'today' : d === 1 ? 'yesterday' : `${d} days ago`;
+          };
+
+          type ArtifactRow = { agent_id: string; artifact_type: string; title: string; created_at: string };
+
+          const ownArtifacts   = (allArtifacts as ArtifactRow[]).filter(a => a.agent_id === agentId);
+          const crossArtifacts = (allArtifacts as ArtifactRow[]).filter(a => a.agent_id !== agentId);
+
+          if (ownArtifacts.length > 0) {
+            const memoryLines = ownArtifacts.slice(0, 5).map(a =>
+              `- ${a.artifact_type.replace(/_/g, ' ')} (${dayAgo(a.created_at)}): "${a.title}"`
+            ).join('\n');
+            systemPrompt += `\n\nMEMORY — What you have previously built together with this founder:\n${memoryLines}\nReference these when relevant. Build on them, don't restart from scratch.`;
+          }
+
+          if (crossArtifacts.length > 0) {
+            const crossLines = crossArtifacts.slice(0, 8).map(a =>
+              `- ${a.artifact_type.replace(/_/g, ' ')} by ${a.agent_id} (${dayAgo(a.created_at)}): "${a.title}"`
+            ).join('\n');
+            systemPrompt += `\n\nFOUNDER CONTEXT — Other advisers have already built these for this founder:\n${crossLines}\nUse this context to avoid re-asking what's already known. Reference these outputs to give more tailored advice.`;
+          }
+        }
+
+        // ── Cross-agent activity bus ───────────────────────────────────────
+        const { data: recentActivity } = await supabaseAdmin
+          .from('agent_activity')
+          .select('agent_id, action_type, description, created_at, metadata')
+          .eq('user_id', userId)
+          .neq('agent_id', agentId)
+          .order('created_at', { ascending: false })
+          .limit(8);
+
+        if (recentActivity && recentActivity.length > 0) {
+          type ActivityRow = { agent_id: string; action_type: string; description: string; created_at: string; metadata: Record<string, unknown> | null };
+          const dayAgo = (iso: string) => {
+            const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+            return d === 0 ? 'today' : d === 1 ? 'yesterday' : `${d}d ago`;
+          };
+          const activityLines = (recentActivity as ActivityRow[]).map(a =>
+            `- [${a.agent_id}] ${a.description} (${dayAgo(a.created_at)})`
+          ).join('\n');
+          systemPrompt += `\n\nCROSS-AGENT ACTIVITY — What your fellow advisers did recently:\n${activityLines}\nUse this to give contextually-aware advice. E.g. if Patel just sent outreach, Susi should know those contacts are in the pipeline. If Felix updated financials, Sage can reference the latest MRR.`;
+        }
+      } catch {
+        // Context injection failed — proceed without memory (non-fatal)
+        console.warn('Agent context injection failed — proceeding without memory');
+      }
+    }
 
     const CONVERSATION_RULES = `
 
@@ -431,32 +571,114 @@ CONVERSATION RULES:
     }
 
     // ── Pass 1: regular (non-streaming) chat call ──────────────────────────
-    // Give Patel more tokens for potential tool_call JSON
-    const aiResponse = await callOpenRouter(messages, isPatel ? 900 : 500, 0.7);
+    // 900 tokens for all agents — needed for tool_call JSON in any agent
+    const aiResponse = await callOpenRouter(messages, 900, 0.7);
 
     if (!aiResponse) {
       throw new Error('No response from AI');
     }
 
-    // ── Tool-call detection (Patel only) ───────────────────────────────────
+    // ── Tool-call detection (all agents) ───────────────────────────────────
     let chatReply = aiResponse;
     let artifact = null;
 
-    if (isPatel) {
-      const { chatReply: cleanReply, toolCall } = extractToolCall(aiResponse);
+    const { chatReply: cleanReply, toolCall } = extractToolCall(aiResponse);
 
-      if (toolCall) {
-        chatReply = cleanReply;
+    if (toolCall) {
+      chatReply = cleanReply;
 
-        try {
-          // If battle_card, do Tavily research first
+      try {
+        if (toolCall.type === 'create_deal') {
+          // ── Auto-create deal in Susi's pipeline ───────────────────────
+          const company      = (toolCall.context.company as string) || '';
+          const contactName  = (toolCall.context.contact_name as string) || undefined;
+          const contactEmail = (toolCall.context.contact_email as string) || undefined;
+          const contactTitle = (toolCall.context.contact_title as string) || undefined;
+          const dealValue    = typeof toolCall.context.value === 'number' ? toolCall.context.value : undefined;
+          const stage        = (toolCall.context.stage as string) || 'lead';
+          const notes        = (toolCall.context.notes as string) || undefined;
+
+          if (company && userId) {
+            const { data: deal } = await supabaseAdmin
+              .from('deals')
+              .insert({
+                user_id: userId,
+                company,
+                contact_name:  contactName  ?? null,
+                contact_email: contactEmail ?? null,
+                contact_title: contactTitle ?? null,
+                stage: ['lead','qualified','proposal','negotiating','won','lost'].includes(stage) ? stage : 'lead',
+                value: dealValue ?? null,
+                notes: notes ?? null,
+                source: 'susi_chat',
+              })
+              .select()
+              .single();
+
+            if (deal) {
+              const parts = [
+                `**Deal added to pipeline:** ${company}`,
+                dealValue ? `$${dealValue.toLocaleString()}` : null,
+                `Stage: ${stage}`,
+                contactEmail ? `Contact: ${contactName || contactEmail}` : null,
+              ].filter(Boolean).join(' · ');
+
+              chatReply = cleanReply ? `${cleanReply}\n\n${parts}` : parts;
+
+              void supabaseAdmin.from('agent_activity').insert({
+                user_id: userId,
+                agent_id: 'susi',
+                action_type: 'deal_created',
+                description: `Susi added ${company} to pipeline as ${stage}${dealValue ? ` — $${dealValue.toLocaleString()}` : ''}`,
+                metadata: { deal_id: deal.id, company, stage, value: dealValue },
+              });
+            }
+          }
+
+        } else if (toolCall.type === 'lead_enrich') {
+          // ── Lead enrichment via Hunter.io ─────────────────────────────
+          const domain = (toolCall.context.domain as string) || '';
+          const enriched = await executeLeadEnrich(domain);
+          chatReply = cleanReply ? `${cleanReply}\n\n${enriched}` : enriched;
+
+        } else if (toolCall.type === 'web_research') {
+          // ── Live web research via Tavily + synthesis pass ─────────────
+          const query = (toolCall.context.query as string) || '';
+          const research = await fetchTavilyResearch(query);
+          if (research) {
+            const synthesis = await callOpenRouter(
+              [
+                { role: 'system', content: AGENT_SYSTEM_PROMPTS[agentId] ?? '' },
+                {
+                  role: 'user',
+                  content: `Web search results for "${query}":\n${JSON.stringify(research, null, 2)}\n\nBased on these results, give the founder 3-5 specific, actionable competitive insights. Cite sources by name. Be concrete — mention real pricing, features, or customer sentiments from the data.`,
+                },
+              ],
+              600,
+              0.5
+            );
+            chatReply = cleanReply ? `${cleanReply}\n\n${synthesis}` : synthesis;
+          }
+
+        } else {
+          // ── Artifact-generating tools (all 12 types) ──────────────────
           let researchData: Record<string, unknown> | null = null;
+
+          // Inject live Tavily data for competition-heavy artifact types
           if (toolCall.type === 'battle_card') {
             const competitor = (toolCall.context.competitor as string) || '';
             const product = (toolCall.context.ourProduct as string) || '';
             if (competitor) {
               researchData = await fetchTavilyResearch(
                 `${competitor} company product pricing features reviews competitors vs ${product}`
+              );
+            }
+          } else if (toolCall.type === 'competitive_matrix') {
+            const competitors = (toolCall.context.competitors as string[]) || [];
+            const product = (toolCall.context.product as string) || '';
+            if (competitors.length > 0) {
+              researchData = await fetchTavilyResearch(
+                `${competitors.slice(0, 3).join(' vs ')} competitive analysis pricing features market position ${product}`
               );
             }
           }
@@ -506,64 +728,70 @@ CONVERSATION RULES:
             title: artifactTitle,
             content: parsedContent,
           };
-        } catch (err) {
-          // Artifact generation failed — return chat reply without artifact
-          console.error('Artifact generation error:', err);
-          // chatReply is already set to the clean reply
         }
+      } catch (err) {
+        // Tool execution failed — return clean chat reply without artifact
+        console.error('Tool execution error:', err);
       }
     }
 
-    // ── Persist messages to DB ─────────────────────────────────────────────
+    // ── Persist messages to DB (fail-open — DB issues never break the response) ─
     let conversationId = existingConversationId;
     if (userId) {
-      if (!conversationId) {
-        const { data: conv } = await supabaseAdmin
-          .from('agent_conversations')
-          .insert({
-            user_id: userId,
-            agent_id: agentId,
-            title: message.slice(0, 60),
-            last_message_at: new Date().toISOString(),
-            message_count: 1
-          })
-          .select('id')
-          .single();
-        conversationId = conv?.id;
+      try {
+        if (!conversationId) {
+          const { data: conv } = await supabaseAdmin
+            .from('agent_conversations')
+            .insert({
+              user_id: userId,
+              agent_id: agentId,
+              title: message.slice(0, 60),
+              last_message_at: new Date().toISOString(),
+              message_count: 1
+            })
+            .select('id')
+            .single();
+          conversationId = conv?.id;
 
-        // Update artifact with conversation_id if we just created it
-        if (artifact?.id && conversationId) {
+          // Update artifact with conversation_id if we just created it
+          if (artifact?.id && conversationId) {
+            await supabaseAdmin
+              .from('agent_artifacts')
+              .update({ conversation_id: conversationId })
+              .eq('id', artifact.id);
+          }
+        } else {
           await supabaseAdmin
-            .from('agent_artifacts')
-            .update({ conversation_id: conversationId })
-            .eq('id', artifact.id);
+            .from('agent_conversations')
+            .update({
+              last_message_at: new Date().toISOString(),
+              message_count: (conversationHistory?.length ?? 0) + 2
+            })
+            .eq('id', conversationId);
         }
-      } else {
-        await supabaseAdmin
-          .from('agent_conversations')
-          .update({
-            last_message_at: new Date().toISOString(),
-            message_count: (conversationHistory?.length ?? 0) + 2
-          })
-          .eq('id', conversationId);
+
+        if (conversationId) {
+          await supabaseAdmin.from('agent_messages').insert({
+            conversation_id: conversationId,
+            role: 'user',
+            content: message
+          });
+          await supabaseAdmin.from('agent_messages').insert({
+            conversation_id: conversationId,
+            role: 'assistant',
+            content: chatReply
+          });
+        }
+      } catch {
+        // Persistence failed — the AI reply is still returned to the user
+        console.warn('Message persistence failed — response still returned to client');
       }
 
-      if (conversationId) {
-        await supabaseAdmin.from('agent_messages').insert({
-          conversation_id: conversationId,
-          role: 'user',
-          content: message
-        });
-        await supabaseAdmin.from('agent_messages').insert({
-          conversation_id: conversationId,
-          role: 'assistant',
-          content: chatReply  // store the clean reply without tool_call tags
-        });
+      // Increment usage (also fail-open)
+      if (usageId) {
+        try { await incrementUsage(usageId, supabaseAdmin); } catch { /* non-critical */ }
       }
     }
-
-    // Increment usage after successful non-streaming response
-    if (usageId) await incrementUsage(usageId, supabaseAdmin);
 
     return NextResponse.json({
       response: chatReply,
@@ -575,12 +803,17 @@ CONVERSATION RULES:
     });
 
   } catch (error) {
-    console.error('Agent chat error:', error);
+    const errMsg = error instanceof Error ? error.message : String(error);
+    console.error('Agent chat error:', errMsg, error);
+    const isCredits = errMsg.includes('insufficient credits') || errMsg.includes('Payment Required');
     return NextResponse.json({
-      response: "I apologize, but I'm having trouble connecting right now. Please try again in a moment. In the meantime, feel free to explore the suggested questions or try rephrasing your question.",
+      response: isCredits
+        ? "The AI service is temporarily unavailable due to account credits. The team has been notified. Please try again shortly."
+        : "I apologize, but I'm having trouble connecting right now. Please try again in a moment. In the meantime, feel free to explore the suggested questions or try rephrasing your question.",
       agentId: '',
       timestamp: new Date().toISOString(),
-      error: true
+      error: true,
+      ...(process.env.NODE_ENV === 'development' ? { errorDetail: errMsg } : {}),
     }, { status: 500 });
   }
 }

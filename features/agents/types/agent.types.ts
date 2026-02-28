@@ -16,6 +16,7 @@ export interface Agent {
   suggestedPrompts: string[];
   improvesScore: QScoreDimension;
   color: string; // Tailwind color class
+  artifactType?: string; // default deliverable type this agent generates
 }
 
 export interface AgentMessage {

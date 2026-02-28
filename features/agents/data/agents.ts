@@ -26,7 +26,8 @@ export const agents: Agent[] = [
       'How do I build a sales playbook from scratch?'
     ],
     improvesScore: 'goToMarket',
-    color: 'blue'
+    color: 'blue',
+    // artifactType handled by Patel's own tool_call system (icp_document, outreach_sequence, battle_card, gtm_playbook)
   },
   {
     id: 'susi',
@@ -45,7 +46,8 @@ export const agents: Agent[] = [
       'How do I scale from founder-led sales?'
     ],
     improvesScore: 'traction',
-    color: 'blue'
+    color: 'blue',
+    artifactType: 'sales_script',
   },
   {
     id: 'maya',
@@ -64,7 +66,8 @@ export const agents: Agent[] = [
       'Should I invest in SEO or paid content?'
     ],
     improvesScore: 'goToMarket',
-    color: 'blue'
+    color: 'blue',
+    artifactType: 'brand_messaging',
   },
 
   // ============================================================================
@@ -87,7 +90,8 @@ export const agents: Agent[] = [
       'What metrics do investors care about most?'
     ],
     improvesScore: 'financial',
-    color: 'green'
+    color: 'green',
+    artifactType: 'financial_summary',
   },
   {
     id: 'leo',
@@ -106,7 +110,8 @@ export const agents: Agent[] = [
       'Do I need a trademark for my brand?'
     ],
     improvesScore: 'team',
-    color: 'green'
+    color: 'green',
+    artifactType: 'legal_checklist',
   },
   {
     id: 'harper',
@@ -125,7 +130,8 @@ export const agents: Agent[] = [
       'What makes a great first 10 hires?'
     ],
     improvesScore: 'team',
-    color: 'green'
+    color: 'green',
+    artifactType: 'hiring_plan',
   },
 
   // ============================================================================
@@ -148,7 +154,8 @@ export const agents: Agent[] = [
       'Build a feature prioritization matrix'
     ],
     improvesScore: 'product',
-    color: 'purple'
+    color: 'purple',
+    artifactType: 'pmf_survey',
   },
   {
     id: 'atlas',
@@ -167,7 +174,8 @@ export const agents: Agent[] = [
       'Create a competitive battle card'
     ],
     improvesScore: 'market',
-    color: 'purple'
+    color: 'purple',
+    artifactType: 'competitive_matrix',
   },
   {
     id: 'sage',
@@ -186,7 +194,8 @@ export const agents: Agent[] = [
       'Create an OKR framework for my startup'
     ],
     improvesScore: 'market',
-    color: 'purple'
+    color: 'purple',
+    artifactType: 'strategic_plan',
   }
 ];
 

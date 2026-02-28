@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { callOpenRouter } from '@/lib/openrouter'
 
 // POST /api/agents/actions
 // Body: { conversationId, agentId, conversationHistory }
@@ -29,6 +30,7 @@ export async function POST(request: NextRequest) {
       .join('\n\n')
 
     const extractionPrompt = `You are extracting actionable next steps from a founder–adviser conversation.
+Agent: ${agentId} (e.g. patel=GTM, susi=Sales, felix=Finance, maya=Brand, leo=Legal, harper=HR, nova=PMF, atlas=CompIntel, sage=Strategy)
 
 CONVERSATION:
 ${conversationText}
@@ -39,47 +41,35 @@ Each action item must be:
 - Something the founder can do in the next 1-2 weeks
 - Written as a direct imperative ("Define your ICP criteria...", "Set up A/B test for...")
 
+For each action, also pick the best action_type from this list:
+- "send_outreach"     → sending cold emails or outreach sequences (patel)
+- "send_proposal"    → sending a sales proposal to a prospect (susi)
+- "generate_artifact"→ generating/building a document or plan in the app
+- "view_metrics"     → reviewing financial or performance metrics (felix)
+- "update_pipeline"  → updating the sales CRM pipeline (susi)
+- "schedule_call"    → booking a call or meeting with someone
+- "task"             → a general to-do that doesn't fit the above
+
+And a cta_label: a 2-4 word button label for the action (e.g. "Send Emails", "Send Proposal", "Generate ICP", "Open Dashboard", "Update Pipeline", "Book Call", "Mark Done").
+
 Return ONLY valid JSON, no markdown fences, no explanation:
 {
   "actions": [
-    { "text": "...", "priority": "high" | "medium" | "low" },
-    { "text": "...", "priority": "high" | "medium" | "low" }
+    { "text": "...", "priority": "high" | "medium" | "low", "action_type": "...", "cta_label": "..." },
+    { "text": "...", "priority": "high" | "medium" | "low", "action_type": "...", "cta_label": "..." }
   ]
 }`
 
     // Call OpenRouter for extraction
-    const key = process.env.OPENROUTER_API_KEY
-    if (!key) {
-      return NextResponse.json({ error: 'AI not configured' }, { status: 500 })
-    }
+    const rawContent = await callOpenRouter(
+      [
+        { role: 'system', content: extractionPrompt },
+        { role: 'user', content: 'Extract the action items now.' },
+      ],
+      { maxTokens: 600, temperature: 0.3 },
+    )
 
-    const aiRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${key}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://edgealpha.ai',
-        'X-Title': 'Edge Alpha Actions',
-      },
-      body: JSON.stringify({
-        model: 'anthropic/claude-3.5-haiku',
-        messages: [
-          { role: 'system', content: extractionPrompt },
-          { role: 'user', content: 'Extract the action items now.' },
-        ],
-        temperature: 0.3,
-        max_tokens: 600,
-      }),
-    })
-
-    if (!aiRes.ok) {
-      return NextResponse.json({ error: 'AI extraction failed' }, { status: 500 })
-    }
-
-    const aiData = await aiRes.json()
-    const rawContent = aiData.choices?.[0]?.message?.content ?? '{}'
-
-    let extracted: { actions: { text: string; priority: string }[] } = { actions: [] }
+    let extracted: { actions: { text: string; priority: string; action_type?: string; cta_label?: string }[] } = { actions: [] }
     try {
       const clean = rawContent.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
       extracted = JSON.parse(clean)
@@ -97,6 +87,7 @@ Return ONLY valid JSON, no markdown fences, no explanation:
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
+    const validTypes = ['send_outreach','send_proposal','generate_artifact','view_metrics','update_pipeline','schedule_call','task']
     const rows = extracted.actions.slice(0, 4).map(a => ({
       conversation_id: conversationId ?? null,
       user_id: user.id,
@@ -111,13 +102,20 @@ Return ONLY valid JSON, no markdown fences, no explanation:
       .insert(rows)
       .select('id, action_text, priority, status')
 
+    // Merge action_type + cta_label back into response (not stored in DB yet)
+    const withMeta = (saved ?? extracted.actions.map(a => ({ id: '', action_text: a.text, priority: a.priority, status: 'pending' })))
+      .map((row, i) => ({
+        ...row,
+        action_type: validTypes.includes(extracted.actions[i]?.action_type ?? '') ? extracted.actions[i].action_type : 'task',
+        cta_label: extracted.actions[i]?.cta_label ?? 'Do it',
+      }))
+
     if (saveError) {
       console.error('Save agent_actions error:', saveError)
-      // Return extracted actions even if save fails
-      return NextResponse.json({ actions: extracted.actions })
+      return NextResponse.json({ actions: withMeta })
     }
 
-    return NextResponse.json({ actions: saved })
+    return NextResponse.json({ actions: withMeta })
   } catch (err) {
     console.error('Agent actions extract error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

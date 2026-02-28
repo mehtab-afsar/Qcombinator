@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
+import { callOpenRouter } from '@/lib/openrouter'
 
 // POST /api/investor/personalize
 // Called at the end of investor onboarding — uses AI to score founders
@@ -99,40 +100,23 @@ Return ONLY valid JSON (no markdown, no explanation):
 If there are no founders, return an empty matches object. Score based on sector fit, stage fit, and Q-Score quality. Do not invent founder IDs.`
 
     // ── 4. Call AI ─────────────────────────────────────────────────────────
-    const key = process.env.OPENROUTER_API_KEY
     let insight = `Welcome, ${investor.full_name || 'investor'}. Your deal flow is being curated based on your thesis. Check back as founders complete their Q-Score assessments.`
     const matches: Record<string, { score: number; reason: string }> = {}
 
-    if (key) {
-      try {
-        const aiRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${key}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'anthropic/claude-3.5-haiku',
-            messages: [{ role: 'user', content: prompt }],
-            max_tokens: 1024,
-            temperature: 0.3,
-          }),
-        })
-
-        if (aiRes.ok) {
-          const aiJson = await aiRes.json()
-          const raw = aiJson.choices?.[0]?.message?.content ?? ''
-          // Strip markdown code fences if present
-          const cleaned = raw.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim()
-          const parsed = JSON.parse(cleaned)
-          if (parsed.insight) insight = parsed.insight
-          if (parsed.matches && typeof parsed.matches === 'object') {
-            Object.assign(matches, parsed.matches)
-          }
-        }
-      } catch {
-        // AI call failed — proceed with fallback insight, empty matches
+    try {
+      const raw = await callOpenRouter(
+        [{ role: 'user', content: prompt }],
+        { maxTokens: 1024, temperature: 0.3 },
+      )
+      // Strip markdown code fences if present
+      const cleaned = raw.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim()
+      const parsed = JSON.parse(cleaned)
+      if (parsed.insight) insight = parsed.insight
+      if (parsed.matches && typeof parsed.matches === 'object') {
+        Object.assign(matches, parsed.matches)
       }
+    } catch {
+      // AI call failed — proceed with fallback insight, empty matches
     }
 
     // ── 5. Save to DB ──────────────────────────────────────────────────────

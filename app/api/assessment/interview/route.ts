@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { callOpenRouter } from '@/lib/openrouter';
 
 /**
  * Assessment Interview API
@@ -124,11 +125,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
     }
 
-    const key = process.env.OPENROUTER_API_KEY;
-    if (!key) {
-      return NextResponse.json({ error: 'API key not configured' }, { status: 500 });
-    }
-
     // ── termination checks ──────────────────────────────────────────────
     const userMessageCount = conversationHistory.filter(
       (m: { role: string }) => m.role === 'user'
@@ -188,40 +184,16 @@ export async function POST(request: NextRequest) {
       extractedData,
     ) + promptAddendum;
 
-    const messages = [
+    const messages: { role: 'system' | 'user' | 'assistant'; content: string }[] = [
       { role: 'system', content: systemPrompt },
       ...conversationHistory.slice(-12).map((m: { role: string; content: string }) => ({
-        role: m.role === 'user' ? 'user' : 'assistant',
+        role: (m.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
         content: m.content,
       })),
       { role: 'user', content: message },
     ];
 
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${key}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://edgealpha.ai',
-        'X-Title': 'Edge Alpha Assessment',
-      },
-      body: JSON.stringify({
-        model: 'anthropic/claude-3.5-haiku',
-        messages,
-        temperature: 0.6,
-        max_tokens: 600,
-        response_format: { type: 'json_object' },
-      }),
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error('OpenRouter error:', errText);
-      throw new Error(`OpenRouter API error: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    const rawContent = data.choices[0]?.message?.content;
+    const rawContent = await callOpenRouter(messages, { maxTokens: 600, temperature: 0.6 });
 
     if (!rawContent) {
       throw new Error('No response from AI');
@@ -243,14 +215,10 @@ export async function POST(request: NextRequest) {
           suggestedNextTopic: null,
         };
       } else if (rawContent.trim().startsWith('{')) {
-        // Looks like JSON but failed to parse — strip JSON artifacts
-        const cleaned = rawContent
-          .replace(/[{}"\\[\]]/g, '')
-          .replace(/\b(reply|extraction|topicComplete|suggestedNextTopic)\b\s*:/gi, '')
-          .replace(/,\s*/g, ' ')
-          .trim();
+        // Looks like JSON but failed to parse — use safe fallback rather than
+        // attempting to strip JSON syntax (stripping produces garbled output)
         parsed = {
-          reply: cleaned || "Let me rephrase that. Tell me more about what you're working on.",
+          reply: "Let me rephrase that. Tell me more about what you're working on.",
           extraction: {},
           topicComplete: false,
           suggestedNextTopic: null,

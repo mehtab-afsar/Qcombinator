@@ -96,6 +96,64 @@ export async function POST(request: NextRequest) {
       .update({ role: 'investor' })
       .eq('user_id', user.id);
 
+    // Create / upsert a demo_investors entry so founders can discover + connect with this investor.
+    // demo_investor_id is the bridge between connection_requests and this real investor's account.
+    try {
+      // Check if a demo_investors entry already exists for this investor (re-onboarding case)
+      const { data: existingDemoInv } = await supabase
+        .from('investor_profiles')
+        .select('demo_investor_id')
+        .eq('user_id', user.id)
+        .single()
+
+      if (!existingDemoInv?.demo_investor_id) {
+        // Create a new demo_investors row from the investor's profile data
+        const { data: demoRow } = await supabase
+          .from('demo_investors')
+          .insert({
+            name:         `${firstName} ${lastName}`,
+            firm:         firmName || 'Independent',
+            title:        'Partner',
+            location:     location || 'United States',
+            check_sizes:  checkSize || [],
+            stages:       stages || [],
+            sectors:      sectors || [],
+            geography:    geography || [],
+            thesis:       thesis || null,
+            portfolio:    [],
+            response_rate: 80,
+          })
+          .select('id')
+          .single()
+
+        if (demoRow?.id) {
+          // Store the demo_investor_id back on the investor_profile
+          await supabase
+            .from('investor_profiles')
+            .update({ demo_investor_id: demoRow.id })
+            .eq('user_id', user.id)
+        }
+      } else {
+        // Update the existing demo_investors row with fresh data
+        await supabase
+          .from('demo_investors')
+          .update({
+            name:        `${firstName} ${lastName}`,
+            firm:        firmName || 'Independent',
+            location:    location || 'United States',
+            check_sizes: checkSize || [],
+            stages:      stages || [],
+            sectors:     sectors || [],
+            geography:   geography || [],
+            thesis:      thesis || null,
+          })
+          .eq('id', existingDemoInv.demo_investor_id)
+      }
+    } catch (demoErr) {
+      // Non-fatal — investor profile still saved
+      console.error('demo_investors upsert error:', demoErr)
+    }
+
     return NextResponse.json({ success: true, profile });
   } catch (error) {
     console.error('Investor onboarding error:', error);

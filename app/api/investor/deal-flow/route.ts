@@ -24,6 +24,7 @@ export async function GET() {
         tagline,
         location,
         funding,
+        startup_profile_data,
         updated_at
       `)
       .eq('onboarding_completed', true)
@@ -57,16 +58,33 @@ export async function GET() {
           'pre-seed': 'Pre-Seed', seed: 'Seed', 'series-a': 'Series A', bootstrapped: 'Bootstrapped',
         }
 
+        // Pull richer data from startup_profile_data JSONB
+        const sp = (f.startup_profile_data ?? {}) as Record<string, unknown>
+        const tagline = f.tagline
+          || (sp.oneLiner as string)
+          || (sp.problemStatement as string)?.slice(0, 100)
+          || f.industry
+          || ''
+        const fundingGoal = (sp.raisingAmount as string)
+          || f.funding
+          || ''
+        const highlights: string[] = []
+        if (sp.tamSize)       highlights.push(`TAM: ${sp.tamSize as string}`)
+        if (sp.businessModel) highlights.push(sp.businessModel as string)
+        if (sp.whyNow)        highlights.push((sp.whyNow as string).slice(0, 60))
+
         return {
           id: f.user_id,
-          name: f.startup_name || `${f.full_name}'s Startup`,
-          tagline: f.tagline || f.industry || '',
+          name: f.startup_name || (sp.companyName as string) || `${f.full_name}'s Startup`,
+          tagline,
           qScore: qrow?.overall_score ?? 0,
           qScorePercentile: qrow?.percentile ?? 0,
           stage: stageLabel[f.stage ?? ''] ?? f.stage ?? 'Unknown',
           sector: f.industry ?? 'Other',
           location: f.location ?? '',
-          fundingGoal: f.funding ?? '',
+          fundingGoal,
+          teamSize: sp.teamSize ? Number(sp.teamSize) || null : null,
+          highlights,
           lastActive: f.updated_at,
           founder: { name: f.full_name },
           status: 'new' as const,

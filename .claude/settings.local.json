@@ -28,7 +28,19 @@
       "Bash(tree:*)",
       "WebSearch",
       "mcp__ide__getDiagnostics",
-      "Bash(SUPABASE_URL=https://mktirfhpchgifideincg.supabase.co SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdGlyZmhwY2hnaWZpZGVpbmNnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MTUxNDI4OCwiZXhwIjoyMDg3MDkwMjg4fQ.jOE4hrEG4ALGNn4v7knMYlgfo-uRAbDw9GZGyRY4Q68 node:*)"
+      "Bash(SUPABASE_URL=https://mktirfhpchgifideincg.supabase.co SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1rdGlyZmhwY2hnaWZpZGVpbmNnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MTUxNDI4OCwiZXhwIjoyMDg3MDkwMjg4fQ.jOE4hrEG4ALGNn4v7knMYlgfo-uRAbDw9GZGyRY4Q68 node:*)",
+      "Bash(# Check if startup-profile is linked anywhere in navigation grep -r \"\"startup-profile\"\" app/ features/ --include=\"\"*.tsx\"\" --include=\"\"*.ts\"\" -l)",
+      "Bash(head -10 grep -n \"mock\\\\|Mock\\\\|hardcoded\" app/investor/portfolio/page.tsx)",
+      "Bash(head -10 grep -n \"mock\\\\|Mock\\\\|hardcoded\" app/investor/messages/page.tsx)",
+      "Bash(# Check atlas route for job-postings cat app/api/agents/atlas/job-postings/route.ts)",
+      "Bash(# Any pages still importing from sonner or storageService? grep -r \"\"from \\\\\"\"sonner\\\\\"\"\\\\|from ''@/features/founder/services/founder.service''\"\" app/ --include=\"\"*.tsx\"\" -l)",
+      "Bash(# Final check: any remaining shadcn/ui in active pages grep -r \"\"from \\\\\"\"@/components/ui\"\" app/ --include=\"\"*.tsx\"\" -l)",
+      "Bash(# Final audit echo \"\"=== shadcn/ui usage in active pages ===\"\" && grep -r \"\"from \\\\\"\"@/components/ui\"\" app/ --include=\"\"*.tsx\"\" -l)",
+      "Bash(head -20 app/api/investor/*/route.ts)",
+      "Bash(head -20 /Users/mohammedmehtabafsar/Desktop/Qcombinator/app/api/investor/startup/[id]/route.ts)",
+      "Bash(# Check subscription_usage table migration grep -rn \"\"subscription_usage\"\" /Users/mohammedmehtabafsar/Desktop/Qcombinator/supabase/migrations/)",
+      "Bash(# Check if there are any env vars missing that would cause 500 grep -n \"\"OPENROUTER_API_KEY\\\\|SUPABASE_SERVICE_ROLE_KEY\\\\|NEXT_PUBLIC_SUPABASE_URL\"\" /Users/mohammedmehtabafsar/Desktop/Qcombinator/.env.local)",
+      "Bash(# Check tables used in Phase 3 routes that might be missing from migrations grep -rh \"\"from\\\\\\(''\\\\|from\\(\\\\\"\"|\\\\.from\\(\"\" \\\\ /Users/mohammedmehtabafsar/Desktop/Qcombinator/app/api/agents/ \\\\ /Users/mohammedmehtabafsar/Desktop/Qcombinator/app/api/webhook/ \\\\ /Users/mohammedmehtabafsar/Desktop/Qcombinator/app/api/waitlist/ \\\\ /Users/mohammedmehtabafsar/Desktop/Qcombinator/app/api/survey/ \\\\)"
     ],
     "deny": [],
     "ask": []

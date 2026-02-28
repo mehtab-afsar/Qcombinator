@@ -12,12 +12,12 @@ export default function FounderRedirect() {
   }, [router]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="text-center">
-        <div className="h-12 w-12 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center mx-auto mb-4 animate-pulse">
-          <span className="text-white font-black text-xs">EDGE</span>
+    <div style={{ minHeight: "100vh", background: "#F9F7F2", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ height: 48, width: 48, background: "#18160F", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+          <span style={{ color: "#F9F7F2", fontWeight: 900, fontSize: 10, letterSpacing: "0.05em" }}>EDGE</span>
         </div>
-        <p className="text-gray-600">Redirecting to dashboard...</p>
+        <p style={{ fontSize: 13, color: "#8A867C" }}>Redirecting to dashboard…</p>
       </div>
     </div>
   );

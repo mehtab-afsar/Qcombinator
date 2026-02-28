@@ -69,6 +69,7 @@ export async function POST(request: NextRequest) {
         financial_score: qScore.breakdown.financial.score,
         team_score: qScore.breakdown.team.score,
         traction_score: qScore.breakdown.traction.score,
+        assessment_data: assessmentData,
       })
       .select()
       .single();

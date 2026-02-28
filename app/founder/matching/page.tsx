@@ -53,20 +53,80 @@ interface DBInvestor {
   response_rate: number
 }
 
-// Map a DB row → UI Investor, computing a naive match score
-function mapInvestor(row: DBInvestor): Investor {
+// ─── match score algorithm ───────────────────────────────────────────────────
+// Computes a 0-100 match score from founder context vs investor preferences.
+function computeMatchScore(
+  row: DBInvestor,
+  founderQScore: number,
+  founderSector: string,   // e.g. "ai-ml", "saas", "healthtech"
+  founderStage: string,    // e.g. "pre-seed", "seed", "series-a"
+): number {
+  let score = 40 // base
+
+  // Sector alignment (+30)
+  const investorSectors = (row.sectors ?? []).map(s => s.toLowerCase())
+  const sectorAliases: Record<string, string[]> = {
+    'ai-ml':       ['ai/ml', 'ai', 'ml', 'artificial intelligence', 'machine learning', 'deep tech'],
+    saas:          ['saas', 'b2b saas', 'software', 'enterprise software'],
+    healthtech:    ['healthtech', 'health', 'medtech', 'digital health', 'biotech'],
+    fintech:       ['fintech', 'finance', 'financial services', 'wealthtech'],
+    climate:       ['climate', 'cleantech', 'sustainability', 'energy'],
+    marketplace:   ['marketplace', 'platform', 'two-sided marketplace'],
+    consumer:      ['consumer', 'd2c', 'e-commerce'],
+    edtech:        ['edtech', 'education', 'learning'],
+  }
+  const founderAliases = sectorAliases[founderSector.toLowerCase()] ?? [founderSector.toLowerCase()]
+  const sectorMatch = investorSectors.some(s =>
+    founderAliases.some(alias => s.includes(alias) || alias.includes(s))
+  )
+  if (sectorMatch) score += 30
+
+  // Stage alignment (+20)
+  const investorStages = (row.stages ?? []).map(s => s.toLowerCase())
+  const stageAliases: Record<string, string[]> = {
+    idea:      ['pre-seed', 'idea', 'pre seed', 'concept'],
+    mvp:       ['pre-seed', 'seed', 'mvp'],
+    launched:  ['seed', 'series a', 'launched'],
+    scaling:   ['series a', 'series b', 'growth', 'scaling'],
+  }
+  const founderStageAliases = stageAliases[founderStage.toLowerCase()] ?? [founderStage.toLowerCase()]
+  const stageMatch = investorStages.some(s =>
+    founderStageAliases.some(alias => s.includes(alias) || alias.includes(s))
+  )
+  if (stageMatch) score += 20
+
+  // Q-Score quality signal (+10)
+  if (founderQScore >= 80) score += 10
+  else if (founderQScore >= 65) score += 7
+  else if (founderQScore >= 50) score += 3
+
+  // Response rate bonus (up to +5) — higher rate = investor is more active
+  const responseBonus = Math.round(((row.response_rate - 50) / 100) * 5)
+  score += Math.max(0, responseBonus)
+
+  return Math.min(score, 100)
+}
+
+// Map a DB row → UI Investor
+function mapInvestor(
+  row: DBInvestor,
+  founderQScore: number,
+  founderSector: string,
+  founderStage: string,
+  connectionStatus: ConnectionStatus = 'none',
+): Investor {
   return {
     id: row.id,
     name: row.name,
     firm: row.firm,
-    matchScore: 70 + Math.floor(row.response_rate / 10),  // simple proxy for demo
-    investmentFocus: row.sectors.slice(0, 3),
-    checkSize: row.check_sizes[0] ?? 'Varies',
+    matchScore: computeMatchScore(row, founderQScore, founderSector, founderStage),
+    investmentFocus: (row.sectors ?? []).slice(0, 3),
+    checkSize: (row.check_sizes ?? [])[0] ?? 'Varies',
     location: row.location,
-    portfolio: row.portfolio.slice(0, 3),
+    portfolio: (row.portfolio ?? []).slice(0, 3),
     responseRate: row.response_rate,
     thesis: row.thesis ?? '',
-    connectionStatus: 'none',
+    connectionStatus,
   }
 }
 
@@ -79,20 +139,69 @@ export default function InvestorMatching() {
   const [isModalOpen,      setIsModalOpen]      = useState(false)
   const [investors,        setInvestors]        = useState<Investor[]>([])
   const [loadingInvestors, setLoadingInvestors] = useState(true)
+  const [founderSector,    setFounderSector]    = useState('saas')
+  const [founderStage,     setFounderStage]     = useState('mvp')
   const { qScore } = useQScore()
   const founderQScore = qScore?.overall ?? 62   // use 62 as demo default so gate is visible
   const isLocked = founderQScore < 65
 
-  // Fetch investors from DB on mount
+  // Fetch founder profile + investors + existing connection statuses on mount
   useEffect(() => {
-    fetch('/api/investors')
-      .then(r => r.json())
-      .then(data => {
-        if (data.investors) setInvestors(data.investors.map(mapInvestor))
-      })
-      .catch(console.error)
-      .finally(() => setLoadingInvestors(false))
-  }, [])
+    async function load() {
+      try {
+        // Fetch founder profile for sector + stage
+        const { createClient } = await import('@/lib/supabase/client')
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+
+        let sector = 'saas'
+        let stage  = 'mvp'
+
+        if (user) {
+          const { data: profile } = await supabase
+            .from('founder_profiles')
+            .select('industry, stage')
+            .eq('user_id', user.id)
+            .maybeSingle()
+          if (profile?.industry) { sector = profile.industry; setFounderSector(profile.industry) }
+          if (profile?.stage)    { stage  = profile.stage;    setFounderStage(profile.stage)     }
+        }
+
+        // Fetch existing connection statuses from DB
+        let connectionStatuses: Record<string, ConnectionStatus> = {}
+        if (user) {
+          const res = await fetch('/api/connections')
+          if (res.ok) {
+            const json = await res.json()
+            connectionStatuses = json.connections ?? {}
+          }
+        }
+
+        // Fetch investors and map with real match score
+        const invRes = await fetch('/api/investors')
+        const invData = await invRes.json()
+        if (invData.investors) {
+          const mapped: Investor[] = invData.investors.map((row: DBInvestor) =>
+            mapInvestor(
+              row,
+              founderQScore,
+              sector,
+              stage,
+              (connectionStatuses[row.id] as ConnectionStatus) ?? 'none',
+            )
+          )
+          // Sort by match score descending
+          mapped.sort((a, b) => b.matchScore - a.matchScore)
+          setInvestors(mapped)
+        }
+      } catch (err) {
+        console.error('Matching load error:', err)
+      } finally {
+        setLoadingInvestors(false)
+      }
+    }
+    load()
+  }, [founderQScore])
 
   const handleConnectClick = (investor: Investor) => {
     if (isLocked) return
@@ -100,8 +209,21 @@ export default function InvestorMatching() {
     setIsModalOpen(true)
   }
 
-  const handleConnectionSubmit = (_message: string) => {
+  const handleConnectionSubmit = async (message: string) => {
     if (!selectedInvestor) return
+    try {
+      await fetch('/api/connections', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          demo_investor_id: selectedInvestor.id,
+          personal_message: message,
+          founder_qscore: founderQScore,
+        }),
+      })
+    } catch (err) {
+      console.error('Connection request failed:', err)
+    }
     setInvestors(prev =>
       prev.map(inv =>
         inv.id === selectedInvestor.id
@@ -332,14 +454,14 @@ export default function InvestorMatching() {
           onClose={() => { setIsModalOpen(false); setSelectedInvestor(null); }}
           onSubmit={handleConnectionSubmit}
           investorName={selectedInvestor.name}
-          startupOneLiner="AI-powered platform helping early-stage founders improve their Q-Score and connect with aligned investors"
+          startupOneLiner={`${founderStage.charAt(0).toUpperCase() + founderStage.slice(1)}-stage ${founderSector.toUpperCase()} startup seeking funding`}
           keyMetrics={[
             `Q-Score: ${founderQScore}/100`,
-            'Go-to-Market Score: 45 (Improving)',
-            'Product-Market Fit validation in progress',
-            '3 months runway, seeking seed round',
+            `Stage: ${founderStage}`,
+            `Sector: ${founderSector}`,
+            `Match score: ${selectedInvestor.matchScore}%`,
           ]}
-          matchReason={`Your startup's focus on ${selectedInvestor.investmentFocus[0]} aligns with ${selectedInvestor.firm}'s thesis. ${selectedInvestor.name} has a ${selectedInvestor.responseRate}% response rate.`}
+          matchReason={`${selectedInvestor.name} invests in ${selectedInvestor.investmentFocus.slice(0, 2).join(' and ')} at ${selectedInvestor.firm}. Response rate: ${selectedInvestor.responseRate}%. Match score: ${selectedInvestor.matchScore}%.`}
         />
       )}
     </div>

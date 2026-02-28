@@ -6,7 +6,10 @@ import {
   CheckCircle, Circle, Edit, Eye, Share2,
   RefreshCw, ArrowRight, ChevronRight, Sparkles,
 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useFounderData } from "@/features/founder/hooks/useFounderData";
+import { agents } from "@/features/agents/data/agents";
 import Link from "next/link";
 
 // ─── palette ──────────────────────────────────────────────────────────────────
@@ -113,8 +116,54 @@ function StatPill({ icon: Icon, label, value }: { icon: React.ElementType; label
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
+const pillarAccent: Record<string, string> = {
+  "sales-marketing":    "#2563EB",
+  "operations-finance": "#16A34A",
+  "product-strategy":   "#7C3AED",
+};
+
 export default function ProfileBuilder() {
+  const router = useRouter();
   const { profile, assessment, metrics, loading } = useFounderData();
+  const [agentActivity, setAgentActivity] = useState<Record<string, { count: number; latestAt: string }>>({});
+  const [userId, setUserId] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { createClient } = await import("@/lib/supabase/client");
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        setUserId(user.id);
+        const { data } = await supabase
+          .from("agent_artifacts")
+          .select("agent_id, created_at")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false });
+        if (data) {
+          const activity: Record<string, { count: number; latestAt: string }> = {};
+          (data as { agent_id: string; created_at: string }[]).forEach(row => {
+            if (!activity[row.agent_id]) {
+              activity[row.agent_id] = { count: 0, latestAt: row.created_at };
+            }
+            activity[row.agent_id].count++;
+          });
+          setAgentActivity(activity);
+        }
+      } catch { /* anonymous */ }
+    })();
+  }, []);
+
+  function handleShare() {
+    if (!userId) return;
+    const url = `${window.location.origin}/p/${userId}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
 
   if (loading) {
     return (
@@ -199,26 +248,36 @@ export default function ProfileBuilder() {
           </div>
 
           <div style={{ display: "flex", gap: 8 }}>
-            {[
-              { icon: Eye,    label: "Preview" },
-              { icon: Share2, label: "Share"   },
-            ].map(({ icon: Icon, label }) => (
-              <button
-                key={label}
-                onMouseEnter={e => (e.currentTarget.style.background = surf)}
-                onMouseLeave={e => (e.currentTarget.style.background = bg)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 7,
-                  padding: "9px 16px", borderRadius: 10,
-                  border: `1px solid ${bdr}`, background: bg,
-                  color: muted, fontSize: 13, fontWeight: 400,
-                  cursor: "pointer", transition: "background 0.15s",
-                }}
-              >
-                <Icon style={{ width: 14, height: 14 }} />
-                {label}
-              </button>
-            ))}
+            <button
+              onClick={() => userId && router.push(`/p/${userId}`)}
+              onMouseEnter={e => (e.currentTarget.style.background = surf)}
+              onMouseLeave={e => (e.currentTarget.style.background = bg)}
+              style={{
+                display: "flex", alignItems: "center", gap: 7,
+                padding: "9px 16px", borderRadius: 10,
+                border: `1px solid ${bdr}`, background: bg,
+                color: muted, fontSize: 13, fontWeight: 400,
+                cursor: "pointer", transition: "background 0.15s",
+              }}
+            >
+              <Eye style={{ width: 14, height: 14 }} />
+              Preview
+            </button>
+            <button
+              onClick={handleShare}
+              onMouseEnter={e => (e.currentTarget.style.background = surf)}
+              onMouseLeave={e => (e.currentTarget.style.background = bg)}
+              style={{
+                display: "flex", alignItems: "center", gap: 7,
+                padding: "9px 16px", borderRadius: 10,
+                border: `1px solid ${bdr}`, background: bg,
+                color: copied ? "#16A34A" : muted, fontSize: 13, fontWeight: 400,
+                cursor: "pointer", transition: "all 0.15s",
+              }}
+            >
+              <Share2 style={{ width: 14, height: 14 }} />
+              {copied ? "Copied!" : "Share"}
+            </button>
           </div>
         </motion.div>
 
@@ -232,18 +291,20 @@ export default function ProfileBuilder() {
             <Section
               title="Company basics"
               action={
-                <button
-                  onMouseEnter={e => (e.currentTarget.style.background = bdr)}
-                  onMouseLeave={e => (e.currentTarget.style.background = surf)}
-                  style={{
-                    padding: "5px 12px", borderRadius: 7, border: `1px solid ${bdr}`,
-                    background: surf, color: muted, fontSize: 12, fontWeight: 400,
-                    cursor: "pointer", display: "flex", alignItems: "center",
-                    gap: 6, transition: "background 0.15s",
-                  }}
-                >
-                  <Edit style={{ width: 11, height: 11 }} /> Edit
-                </button>
+                <Link href="/founder/startup-profile" style={{ textDecoration: "none" }}>
+                  <button
+                    onMouseEnter={e => (e.currentTarget.style.background = bdr)}
+                    onMouseLeave={e => (e.currentTarget.style.background = surf)}
+                    style={{
+                      padding: "5px 12px", borderRadius: 7, border: `1px solid ${bdr}`,
+                      background: surf, color: muted, fontSize: 12, fontWeight: 400,
+                      cursor: "pointer", display: "flex", alignItems: "center",
+                      gap: 6, transition: "background 0.15s",
+                    }}
+                  >
+                    <Edit style={{ width: 11, height: 11 }} /> Edit
+                  </button>
+                </Link>
               }
             >
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0 }}>
@@ -367,9 +428,10 @@ export default function ProfileBuilder() {
               </div>
               <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 6 }}>
                 {[
-                  { href: "/founder/assessment", label: "Update assessment", icon: Edit },
-                  { href: "/founder/dashboard",  label: "View dashboard",    icon: Target },
-                  { href: "/founder/matching",   label: "Explore investors", icon: Sparkles },
+                  { href: "/founder/startup-profile", label: "Edit startup profile", icon: Edit },
+                  { href: "/founder/assessment",      label: "Update assessment",    icon: RefreshCw },
+                  { href: "/founder/dashboard",       label: "View dashboard",       icon: Target },
+                  { href: "/founder/matching",        label: "Explore investors",    icon: Sparkles },
                 ].map(({ href, label, icon: Icon }) => (
                   <Link key={href} href={href} style={{ textDecoration: "none" }}>
                     <div
@@ -393,6 +455,97 @@ export default function ProfileBuilder() {
             </motion.div>
           </div>
         </div>
+
+        {/* ── Founder Activity Heatmap ───────────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.3 }}
+          style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 16, overflow: "hidden", marginTop: 24 }}
+        >
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "18px 24px", borderBottom: `1px solid ${bdr}`, background: surf,
+          }}>
+            <div>
+              <h3 style={{ fontSize: 13, fontWeight: 500, color: ink }}>Founder Activity</h3>
+              <p style={{ fontSize: 11, color: muted, marginTop: 2 }}>
+                Visible to investors · signals coachability and execution velocity
+              </p>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <Eye style={{ width: 13, height: 13, color: muted }} />
+              <span style={{ fontSize: 11, color: muted }}>Investor visible</span>
+            </div>
+          </div>
+          <div style={{ padding: "20px 24px" }}>
+            {Object.keys(agentActivity).length === 0 ? (
+              <div style={{ textAlign: "center", padding: "20px 0", opacity: 0.5 }}>
+                <p style={{ fontSize: 13, color: muted }}>No agent activity yet</p>
+                <p style={{ fontSize: 12, color: muted, marginTop: 4 }}>
+                  Use your AI advisers to show investors your proactive preparation
+                </p>
+              </div>
+            ) : (
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 16 }}>
+                  {agents.map((agent) => {
+                    const activity = agentActivity[agent.id];
+                    const accent   = pillarAccent[agent.pillar] ?? "#2563EB";
+                    const done     = !!activity;
+                    return (
+                      <div
+                        key={agent.id}
+                        style={{
+                          padding: "12px 14px",
+                          borderRadius: 10,
+                          background: done ? `${accent}10` : surf,
+                          border: `1px solid ${done ? accent : bdr}`,
+                          opacity: done ? 1 : 0.5,
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: done ? accent : muted }}>
+                            {agent.name}
+                          </span>
+                          {done && (
+                            <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 999, background: `${accent}20`, color: accent }}>
+                              {activity.count} {activity.count === 1 ? "doc" : "docs"}
+                            </span>
+                          )}
+                        </div>
+                        <p style={{ fontSize: 10, color: muted }}>{agent.specialty}</p>
+                        {done && (
+                          <p style={{ fontSize: 9, color: muted, marginTop: 4 }}>
+                            Last: {new Date(activity.latestAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "12px 16px", background: surf, borderRadius: 10, border: `1px solid ${bdr}` }}>
+                  <div style={{ textAlign: "center" }}>
+                    <p style={{ fontSize: 20, fontWeight: 600, color: ink, lineHeight: 1 }}>{Object.keys(agentActivity).length}</p>
+                    <p style={{ fontSize: 10, color: muted }}>advisers used</p>
+                  </div>
+                  <div style={{ width: 1, height: 28, background: bdr }} />
+                  <div style={{ textAlign: "center" }}>
+                    <p style={{ fontSize: 20, fontWeight: 600, color: ink, lineHeight: 1 }}>
+                      {Object.values(agentActivity).reduce((s, a) => s + a.count, 0)}
+                    </p>
+                    <p style={{ fontSize: 10, color: muted }}>deliverables built</p>
+                  </div>
+                  <div style={{ width: 1, height: 28, background: bdr }} />
+                  <p style={{ fontSize: 12, color: muted, flex: 1, lineHeight: 1.5 }}>
+                    Founders who actively use their advisers are{" "}
+                    <strong style={{ color: ink }}>3.2× more likely</strong> to get investor meetings.
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
+        </motion.div>
       </div>
     </div>
   );

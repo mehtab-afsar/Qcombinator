@@ -131,6 +131,7 @@ export default function AssessmentInterview() {
   const [apiHistory,     setApiHistory]     = useState<{ role: string; content: string }[]>([]);
   const [input,          setInput]          = useState("");
   const [typing,         setTyping]         = useState(false);
+  const [completing,     setCompleting]     = useState(false);
   const [currentTopic,   setCurrentTopic]   = useState(0);
   const [coveredTopics,  setCoveredTopics]  = useState<string[]>([]);
   const [extracted,      setExtracted]      = useState<ExtractedData>({});
@@ -361,7 +362,7 @@ export default function AssessmentInterview() {
       }
 
       // Auto-complete when interview signals it's done
-      if (data.interviewComplete) {
+      if (data.interviewComplete && !completing) {
         setTimeout(() => handleComplete(), 1500);
       }
     } catch {
@@ -419,6 +420,8 @@ export default function AssessmentInterview() {
   const canComplete = coveredTopics.length >= 4;
 
   const handleComplete = async () => {
+    if (completing) return;
+    setCompleting(true);
     setTyping(true);
     try {
       // Save final draft
@@ -445,6 +448,7 @@ export default function AssessmentInterview() {
       setMessages(prev => [...prev, { role: "q", text: "Submission failed. Please try again." }]);
     } finally {
       setTyping(false);
+      setCompleting(false);
     }
   };
 

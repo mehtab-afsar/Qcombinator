@@ -14,13 +14,31 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Fetch pending requests addressed to this investor (no inline join — founder_id FK points to auth.users)
-    const { data: requests, error } = await supabase
+    // Look up this investor's demo_investor_id — connections are stored by demo_investor_id,
+    // NOT investor_id (which is an auth.users FK used only for real-auth investor accounts).
+    const { data: investorProfile } = await supabase
+      .from('investor_profiles')
+      .select('demo_investor_id')
+      .eq('user_id', user.id)
+      .single()
+
+    const demoInvestorId = investorProfile?.demo_investor_id
+
+    // Build the base query — try demo_investor_id first (founders connect via demo investors),
+    // fall back to investor_id for any real-auth investor rows.
+    let query = supabase
       .from('connection_requests')
       .select('id, founder_id, status, personal_message, founder_qscore, created_at')
-      .eq('investor_id', user.id)
       .eq('status', 'pending')
       .order('created_at', { ascending: false })
+
+    if (demoInvestorId) {
+      query = query.eq('demo_investor_id', demoInvestorId)
+    } else {
+      query = query.eq('investor_id', user.id)
+    }
+
+    const { data: requests, error } = await query
 
     if (error) {
       console.error('Fetch connection requests error:', error)
@@ -99,11 +117,28 @@ export async function PATCH(request: NextRequest) {
       updated_at: new Date().toISOString(),
     }
 
-    const { error } = await supabase
+    // Look up demo_investor_id to use the correct ownership check
+    const { data: investorProfile } = await supabase
+      .from('investor_profiles')
+      .select('demo_investor_id')
+      .eq('user_id', user.id)
+      .single()
+
+    const demoInvestorId = investorProfile?.demo_investor_id
+
+    let updateQuery = supabase
       .from('connection_requests')
       .update(updatePayload)
       .eq('id', requestId)
-      .eq('investor_id', user.id) // ensure investor owns this request
+
+    // Ensure investor owns this request (via demo_investor_id or investor_id)
+    if (demoInvestorId) {
+      updateQuery = updateQuery.eq('demo_investor_id', demoInvestorId)
+    } else {
+      updateQuery = updateQuery.eq('investor_id', user.id)
+    }
+
+    const { error } = await updateQuery
 
     if (error) {
       console.error('Update connection request error:', error)

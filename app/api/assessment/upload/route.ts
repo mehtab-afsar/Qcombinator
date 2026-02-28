@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { callOpenRouter } from '@/lib/openrouter';
 
 /**
  * Assessment Document Upload API
@@ -14,11 +15,6 @@ export async function POST(request: NextRequest) {
 
     if (!file) {
       return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
-    }
-
-    const key = process.env.OPENROUTER_API_KEY;
-    if (!key) {
-      return NextResponse.json({ error: 'API key not configured' }, { status: 500 });
     }
 
     // Extract text content from file
@@ -53,20 +49,11 @@ export async function POST(request: NextRequest) {
     const truncated = textContent.slice(0, 4000);
 
     // Send to AI for structured extraction
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${key}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://edgealpha.ai',
-        'X-Title': 'Edge Alpha Document Parser',
-      },
-      body: JSON.stringify({
-        model: 'anthropic/claude-3.5-haiku',
-        messages: [
-          {
-            role: 'system',
-            content: `You are a document parser for a startup assessment platform. Extract structured data from the provided document text.
+    const rawContent = await callOpenRouter(
+      [
+        {
+          role: 'system',
+          content: `You are a document parser for a startup assessment platform. Extract structured data from the provided document text.
 
 Return ONLY valid JSON with this structure:
 {
@@ -83,24 +70,14 @@ Return ONLY valid JSON with this structure:
   },
   "summary": "Brief 1-2 sentence summary of what was found"
 }`,
-          },
-          {
-            role: 'user',
-            content: `Extract structured startup data from this document:\n\n---\nFile: ${file.name}\n---\n${truncated}`,
-          },
-        ],
-        temperature: 0.2,
-        max_tokens: 800,
-        response_format: { type: 'json_object' },
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`AI parsing failed: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    const rawContent = data.choices[0]?.message?.content;
+        },
+        {
+          role: 'user',
+          content: `Extract structured startup data from this document:\n\n---\nFile: ${file.name}\n---\n${truncated}`,
+        },
+      ],
+      { maxTokens: 800, temperature: 0.2 },
+    );
 
     let parsed;
     try {

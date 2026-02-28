@@ -1,10 +1,11 @@
 "use client";
 
-import { motion } from "framer-motion";
+import React, { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   TrendingUp, TrendingDown, DollarSign, Users,
   BarChart3, CheckCircle, AlertCircle, RefreshCw,
-  ArrowRight, Minus, Activity,
+  ArrowRight, Minus, Activity, Edit3, X, Save,
 } from "lucide-react";
 import { useMetrics } from "@/features/founder/hooks/useFounderData";
 import Link from "next/link";
@@ -18,6 +19,7 @@ const muted = "#8A867C";
 const green = "#16A34A";
 const amber = "#D97706";
 const red   = "#DC2626";
+const blue  = "#2563EB";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 function trendColor(v: number) { return v > 0 ? green : v < 0 ? red : muted; }
@@ -161,9 +163,130 @@ function MetricRow({
   );
 }
 
+// ─── Number input helper ───────────────────────────────────────────────────────
+function NumInput({
+  label, value, onChange, prefix = "", suffix = "", placeholder = "0",
+}: {
+  label: string; value: string; onChange: (v: string) => void;
+  prefix?: string; suffix?: string; placeholder?: string;
+}) {
+  return (
+    <div>
+      <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: muted, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 6 }}>
+        {label}
+      </label>
+      <div style={{ display: "flex", alignItems: "center", border: `1px solid ${bdr}`, borderRadius: 9, background: bg, overflow: "hidden" }}>
+        {prefix && (
+          <span style={{ padding: "0 10px", fontSize: 13, color: muted, borderRight: `1px solid ${bdr}`, height: 38, display: "flex", alignItems: "center" }}>
+            {prefix}
+          </span>
+        )}
+        <input
+          type="number"
+          min="0"
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder={placeholder}
+          style={{
+            flex: 1, border: "none", outline: "none", background: "transparent",
+            padding: "0 12px", height: 38, fontSize: 14, color: ink,
+            fontFamily: "inherit",
+          }}
+        />
+        {suffix && (
+          <span style={{ padding: "0 10px", fontSize: 13, color: muted, borderLeft: `1px solid ${bdr}`, height: 38, display: "flex", alignItems: "center" }}>
+            {suffix}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Default form state ────────────────────────────────────────────────────────
+const EMPTY_FORM = {
+  mrr: "", monthlyBurn: "", customers: "",
+  ltv: "", cac: "", grossMargin: "",
+  tam: "", runway: "", mrrGrowth: "", conversionRate: "",
+};
+
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function MetricsTracker() {
-  const { metrics, healthStatus, loading } = useMetrics();
+  const [refreshKey, setRefreshKey] = useState(0);
+  const { metrics, healthStatus, loading } = useMetrics(refreshKey);
+
+  const [editing, setEditing]  = useState(false);
+  const [saving,  setSaving]   = useState(false);
+  const [saveErr, setSaveErr]  = useState<string | null>(null);
+  const [form,    setForm]     = useState<typeof EMPTY_FORM>(EMPTY_FORM);
+
+  function openEditor() {
+    // Pre-fill from existing metrics if available
+    setForm({
+      mrr:           metrics ? String(metrics.mrr)            : "",
+      monthlyBurn:   metrics ? String(metrics.burn)           : "",
+      customers:     metrics ? String(metrics.customers)      : "",
+      ltv:           metrics ? String(metrics.ltv)            : "",
+      cac:           metrics ? String(metrics.cac)            : "",
+      grossMargin:   metrics ? String(metrics.grossMargin)    : "",
+      tam:           metrics ? String(metrics.tam / 1_000_000): "",
+      runway:        metrics ? String(metrics.runway)         : "",
+      mrrGrowth:     metrics ? String(metrics.mrrGrowth)      : "",
+      conversionRate:metrics ? String(metrics.conversionRate) : "",
+    });
+    setSaveErr(null);
+    setEditing(true);
+  }
+
+  async function handleSave() {
+    const mrr = Number(form.mrr) || 0;
+    if (mrr === 0 && !form.monthlyBurn) {
+      setSaveErr("Enter at least MRR to save metrics.");
+      return;
+    }
+    setSaving(true);
+    setSaveErr(null);
+    try {
+      const { createClient } = await import("@/lib/supabase/client");
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not signed in");
+
+      const tamVal = (Number(form.tam) || 0) * 1_000_000;
+      const content = {
+        mrr,
+        arr:          mrr * 12,
+        monthlyBurn:  Number(form.monthlyBurn)   || 0,
+        customers:    Number(form.customers)     || 0,
+        ltv:          Number(form.ltv)           || 0,
+        cac:          Number(form.cac)           || 0,
+        grossMargin:  Number(form.grossMargin)   || 0,
+        tam:          tamVal,
+        sam:          tamVal * 0.3,
+        runway:       Number(form.runway)        || 0,
+        mrrGrowth:    Number(form.mrrGrowth)     || 0,
+        conversionRate: Number(form.conversionRate) || 0,
+        source:       "manual",
+      };
+
+      const { error } = await supabase.from("agent_artifacts").insert({
+        user_id:       user.id,
+        agent_id:      "felix",
+        artifact_type: "financial_summary",
+        title:         `Manual metrics update — ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`,
+        content,
+        version:       1,
+      });
+      if (error) throw error;
+
+      setEditing(false);
+      setRefreshKey(k => k + 1);
+    } catch (e: unknown) {
+      setSaveErr(e instanceof Error ? e.message : "Failed to save — try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -176,7 +299,7 @@ export default function MetricsTracker() {
     );
   }
 
-  if (!metrics) {
+  if (!metrics && !editing) {
     return (
       <div style={{ background: bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
         <motion.div
@@ -196,28 +319,48 @@ export default function MetricsTracker() {
           </div>
           <h2 style={{ fontSize: 22, fontWeight: 300, color: ink, marginBottom: 10 }}>No metrics yet</h2>
           <p style={{ fontSize: 14, fontWeight: 300, color: muted, marginBottom: 28, lineHeight: 1.6 }}>
-            Complete your assessment to unlock your startup&apos;s key performance indicators.
+            Complete your assessment or enter your numbers manually to unlock your KPI dashboard.
           </p>
-          <Link href="/founder/assessment" style={{ textDecoration: "none" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "center" }}>
             <button
+              onClick={openEditor}
               onMouseEnter={e => (e.currentTarget.style.opacity = "0.85")}
               onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
               style={{
                 padding: "12px 28px", borderRadius: 10, border: "none",
-                background: ink, color: bg, fontSize: 14, fontWeight: 500,
+                background: blue, color: "#fff", fontSize: 14, fontWeight: 500,
                 cursor: "pointer", transition: "opacity 0.15s",
-                display: "inline-flex", alignItems: "center", gap: 8,
+                display: "inline-flex", alignItems: "center", gap: 8, width: "100%", justifyContent: "center",
               }}
             >
-              Start assessment <ArrowRight style={{ width: 15, height: 15 }} />
+              <Edit3 style={{ width: 15, height: 15 }} /> Enter metrics manually
             </button>
-          </Link>
+            <Link href="/founder/assessment" style={{ textDecoration: "none", width: "100%" }}>
+              <button
+                onMouseEnter={e => (e.currentTarget.style.opacity = "0.85")}
+                onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
+                style={{
+                  padding: "12px 28px", borderRadius: 10, border: `1px solid ${bdr}`,
+                  background: surf, color: ink, fontSize: 14, fontWeight: 500,
+                  cursor: "pointer", transition: "opacity 0.15s",
+                  display: "inline-flex", alignItems: "center", gap: 8, width: "100%", justifyContent: "center",
+                }}
+              >
+                Start assessment <ArrowRight style={{ width: 15, height: 15 }} />
+              </button>
+            </Link>
+          </div>
         </motion.div>
+
+        {/* manual entry form shown inline below the empty state */}
+        <AnimatePresence>
+          {editing && <ManualEntryForm form={form} setForm={setForm} saving={saving} saveErr={saveErr} onSave={handleSave} onClose={() => setEditing(false)} />}
+        </AnimatePresence>
       </div>
     );
   }
 
-  const healthOk = healthStatus?.overall === "healthy";
+  const healthOk   = healthStatus?.overall === "healthy";
   const healthWarn = healthStatus?.overall === "warning";
 
   return (
@@ -236,14 +379,43 @@ export default function MetricsTracker() {
           </p>
           <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
             <h1 style={{ fontSize: 30, fontWeight: 300, color: ink }}>KPI Dashboard</h1>
-            <p style={{ fontSize: 12, fontWeight: 300, color: muted }}>
-              Updated {new Date(metrics.calculatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-            </p>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              {metrics && (
+                <p style={{ fontSize: 12, fontWeight: 300, color: muted }}>
+                  Updated {new Date(metrics.calculatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                </p>
+              )}
+              <button
+                onClick={openEditor}
+                onMouseEnter={e => (e.currentTarget.style.opacity = "0.8")}
+                onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "8px 14px", borderRadius: 9,
+                  border: `1px solid ${bdr}`, background: surf,
+                  color: ink, fontSize: 12, fontWeight: 500,
+                  cursor: "pointer", transition: "opacity 0.15s",
+                }}
+              >
+                <Edit3 style={{ width: 13, height: 13, color: muted }} /> Update metrics
+              </button>
+            </div>
           </div>
         </motion.div>
 
+        {/* ── Manual entry form ──────────────────────────────────────── */}
+        <AnimatePresence>
+          {editing && (
+            <ManualEntryForm
+              form={form} setForm={setForm}
+              saving={saving} saveErr={saveErr}
+              onSave={handleSave} onClose={() => setEditing(false)}
+            />
+          )}
+        </AnimatePresence>
+
         {/* ── Health banner ──────────────────────────────────────────── */}
-        {healthStatus && (
+        {healthStatus && metrics && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -289,86 +461,90 @@ export default function MetricsTracker() {
           </motion.div>
         )}
 
-        {/* ── KPI row ───────────────────────────────────────────────── */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
-          <KpiCard label="MRR"      value={`$${metrics.mrr.toLocaleString()}`}      change={metrics.mrrGrowth}    icon={DollarSign} delay={0}    />
-          <KpiCard label="ARR"      value={`$${metrics.arr.toLocaleString()}`}      sub="Annual recurring"         icon={TrendingUp} delay={0.06} />
-          <KpiCard label="Customers" value={metrics.customers.toString()}             icon={Users}    delay={0.12} />
-          <KpiCard label="Runway"   value={`${metrics.runway} mo`}                  icon={BarChart3} delay={0.18}
-            sub={metrics.runway >= 18 ? "Strong runway" : metrics.runway >= 12 ? "Adequate" : "Extend soon"} />
-        </div>
+        {metrics && (
+          <>
+            {/* ── KPI row ───────────────────────────────────────────────── */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
+              <KpiCard label="MRR"      value={`$${metrics.mrr.toLocaleString()}`}      change={metrics.mrrGrowth}    icon={DollarSign} delay={0}    />
+              <KpiCard label="ARR"      value={`$${metrics.arr.toLocaleString()}`}      sub="Annual recurring"         icon={TrendingUp} delay={0.06} />
+              <KpiCard label="Customers" value={metrics.customers.toString()}             icon={Users}    delay={0.12} />
+              <KpiCard label="Runway"   value={`${metrics.runway} mo`}                  icon={BarChart3} delay={0.18}
+                sub={metrics.runway >= 18 ? "Strong runway" : metrics.runway >= 12 ? "Adequate" : "Extend soon"} />
+            </div>
 
-        {/* ── Unit Economics ────────────────────────────────────────── */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          style={{ marginBottom: 20 }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-            <Activity style={{ width: 14, height: 14, color: muted }} />
-            <h2 style={{ fontSize: 13, fontWeight: 500, color: ink }}>Unit economics</h2>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
-            <UnitBlock
-              label="LTV"
-              value={`$${metrics.ltv.toLocaleString()}`}
-              desc="Customer lifetime value"
-              delay={0.22}
-            />
-            <UnitBlock
-              label="CAC"
-              value={`$${metrics.cac.toLocaleString()}`}
-              desc="Customer acquisition cost"
-              delay={0.28}
-            />
-            <UnitBlock
-              label="LTV:CAC"
-              value={`${metrics.ltvCacRatio}:1`}
-              desc={metrics.ltvCacRatio >= 3 ? "Healthy — above 3:1 target ✓" : `Below 3:1 target — ${(3 - metrics.ltvCacRatio).toFixed(1)}x gap`}
-              good={metrics.ltvCacRatio >= 3}
-              delay={0.34}
-            />
-          </div>
-        </motion.div>
+            {/* ── Unit Economics ────────────────────────────────────────── */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              style={{ marginBottom: 20 }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+                <Activity style={{ width: 14, height: 14, color: muted }} />
+                <h2 style={{ fontSize: 13, fontWeight: 500, color: ink }}>Unit economics</h2>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+                <UnitBlock
+                  label="LTV"
+                  value={`$${metrics.ltv.toLocaleString()}`}
+                  desc="Customer lifetime value"
+                  delay={0.22}
+                />
+                <UnitBlock
+                  label="CAC"
+                  value={`$${metrics.cac.toLocaleString()}`}
+                  desc="Customer acquisition cost"
+                  delay={0.28}
+                />
+                <UnitBlock
+                  label="LTV:CAC"
+                  value={`${metrics.ltvCacRatio}:1`}
+                  desc={metrics.ltvCacRatio >= 3 ? "Healthy — above 3:1 target ✓" : `Below 3:1 target — ${(3 - metrics.ltvCacRatio).toFixed(1)}x gap`}
+                  good={metrics.ltvCacRatio >= 3}
+                  delay={0.34}
+                />
+              </div>
+            </motion.div>
 
-        {/* ── Two-col detail ────────────────────────────────────────── */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 28 }}>
-          {/* Financial */}
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 16, overflow: "hidden" }}
-          >
-            <div style={{ padding: "16px 20px", borderBottom: `1px solid ${bdr}`, background: surf }}>
-              <h3 style={{ fontSize: 13, fontWeight: 500, color: ink }}>Financial metrics</h3>
-            </div>
-            <div style={{ padding: "16px 20px" }}>
-              <MetricRow label="Monthly burn rate" value={`$${metrics.burn.toLocaleString()}`}             delay={0.32} />
-              <MetricRow label="Gross margin"       value={`${metrics.grossMargin}%`}  progress={metrics.grossMargin}              delay={0.35} />
-              <MetricRow label="MRR growth"         value={`${metrics.mrrGrowth > 0 ? "+" : ""}${metrics.mrrGrowth}%`}
-                trend={metrics.mrrGrowth > 0 ? "up" : metrics.mrrGrowth < 0 ? "down" : "neutral"} delay={0.38} />
-            </div>
-          </motion.div>
+            {/* ── Two-col detail ────────────────────────────────────────── */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 28 }}>
+              {/* Financial */}
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 16, overflow: "hidden" }}
+              >
+                <div style={{ padding: "16px 20px", borderBottom: `1px solid ${bdr}`, background: surf }}>
+                  <h3 style={{ fontSize: 13, fontWeight: 500, color: ink }}>Financial metrics</h3>
+                </div>
+                <div style={{ padding: "16px 20px" }}>
+                  <MetricRow label="Monthly burn rate" value={`$${metrics.burn.toLocaleString()}`}             delay={0.32} />
+                  <MetricRow label="Gross margin"       value={`${metrics.grossMargin}%`}  progress={metrics.grossMargin}              delay={0.35} />
+                  <MetricRow label="MRR growth"         value={`${metrics.mrrGrowth > 0 ? "+" : ""}${metrics.mrrGrowth}%`}
+                    trend={metrics.mrrGrowth > 0 ? "up" : metrics.mrrGrowth < 0 ? "down" : "neutral"} delay={0.38} />
+                </div>
+              </motion.div>
 
-          {/* Market */}
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.34 }}
-            style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 16, overflow: "hidden" }}
-          >
-            <div style={{ padding: "16px 20px", borderBottom: `1px solid ${bdr}`, background: surf }}>
-              <h3 style={{ fontSize: 13, fontWeight: 500, color: ink }}>Market opportunity</h3>
+              {/* Market */}
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.34 }}
+                style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 16, overflow: "hidden" }}
+              >
+                <div style={{ padding: "16px 20px", borderBottom: `1px solid ${bdr}`, background: surf }}>
+                  <h3 style={{ fontSize: 13, fontWeight: 500, color: ink }}>Market opportunity</h3>
+                </div>
+                <div style={{ padding: "16px 20px" }}>
+                  <MetricRow label="Total addressable market" value={`$${(metrics.tam / 1_000_000).toFixed(1)}M`}  delay={0.36} />
+                  <MetricRow label="Serviceable market (30%)" value={`$${(metrics.sam / 1_000_000).toFixed(1)}M`}  delay={0.39} />
+                  <MetricRow label="Conversion rate"          value={`${metrics.conversionRate}%`} progress={metrics.conversionRate}  delay={0.42} />
+                </div>
+              </motion.div>
             </div>
-            <div style={{ padding: "16px 20px" }}>
-              <MetricRow label="Total addressable market" value={`$${(metrics.tam / 1_000_000).toFixed(1)}M`}  delay={0.36} />
-              <MetricRow label="Serviceable market (30%)" value={`$${(metrics.sam / 1_000_000).toFixed(1)}M`}  delay={0.39} />
-              <MetricRow label="Conversion rate"          value={`${metrics.conversionRate}%`} progress={metrics.conversionRate}  delay={0.42} />
-            </div>
-          </motion.div>
-        </div>
+          </>
+        )}
 
         {/* ── Footer cta ────────────────────────────────────────────── */}
         <motion.div
@@ -378,25 +554,148 @@ export default function MetricsTracker() {
           style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", background: surf, borderRadius: 12, border: `1px solid ${bdr}` }}
         >
           <p style={{ fontSize: 13, fontWeight: 300, color: muted }}>
-            Metrics update when you retake your assessment.
+            Metrics update automatically when Felix generates a financial summary, or you can enter them manually above.
           </p>
-          <Link href="/founder/assessment" style={{ textDecoration: "none" }}>
+          <div style={{ display: "flex", gap: 8 }}>
             <button
+              onClick={openEditor}
               onMouseEnter={e => (e.currentTarget.style.opacity = "0.8")}
               onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
               style={{
                 display: "flex", alignItems: "center", gap: 7,
-                padding: "9px 16px", borderRadius: 9, border: "none",
-                background: ink, color: bg, fontSize: 13, fontWeight: 500,
+                padding: "9px 16px", borderRadius: 9, border: `1px solid ${bdr}`,
+                background: surf, color: ink, fontSize: 13, fontWeight: 500,
                 cursor: "pointer", transition: "opacity 0.15s",
               }}
             >
-              Refresh metrics <ArrowRight style={{ width: 13, height: 13 }} />
+              <Edit3 style={{ width: 13, height: 13 }} /> Update manually
             </button>
-          </Link>
+            <Link href="/founder/agents/felix" style={{ textDecoration: "none" }}>
+              <button
+                onMouseEnter={e => (e.currentTarget.style.opacity = "0.8")}
+                onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
+                style={{
+                  display: "flex", alignItems: "center", gap: 7,
+                  padding: "9px 16px", borderRadius: 9, border: "none",
+                  background: ink, color: bg, fontSize: 13, fontWeight: 500,
+                  cursor: "pointer", transition: "opacity 0.15s",
+                }}
+              >
+                Open Felix <ArrowRight style={{ width: 13, height: 13 }} />
+              </button>
+            </Link>
+          </div>
         </motion.div>
 
       </div>
     </div>
+  );
+}
+
+type FormState = typeof EMPTY_FORM;
+
+// ─── ManualEntryForm ─────────────────────────────────────────────────────────
+function ManualEntryForm({
+  form, setForm, saving, saveErr, onSave, onClose,
+}: {
+  form: FormState;
+  setForm: React.Dispatch<React.SetStateAction<FormState>>;
+  saving: boolean;
+  saveErr: string | null;
+  onSave: () => void;
+  onClose: () => void;
+}) {
+  function set(k: keyof FormState, v: string) { setForm(prev => ({ ...prev, [k]: v })); }
+
+  return (
+    <motion.div
+      key="manual-form"
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      transition={{ duration: 0.25 }}
+      style={{
+        border: `1px solid ${blue}33`, background: "#EFF6FF",
+        borderRadius: 16, padding: "24px 24px 20px",
+        marginBottom: 24,
+      }}
+    >
+      {/* form header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+        <div>
+          <p style={{ fontSize: 14, fontWeight: 500, color: ink }}>Update metrics manually</p>
+          <p style={{ fontSize: 12, fontWeight: 300, color: muted, marginTop: 2 }}>
+            Changes are saved as a snapshot — previous data is preserved.
+          </p>
+        </div>
+        <button
+          onClick={onClose}
+          style={{ padding: 6, border: "none", background: "transparent", cursor: "pointer", color: muted }}
+        >
+          <X style={{ width: 16, height: 16 }} />
+        </button>
+      </div>
+
+      {/* Revenue & burn */}
+      <p style={{ fontSize: 11, fontWeight: 600, color: muted, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 12 }}>Revenue &amp; burn</p>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
+        <NumInput label="MRR" prefix="$" value={form.mrr} onChange={v => set("mrr", v)} placeholder="12400" />
+        <NumInput label="Monthly Burn" prefix="$" value={form.monthlyBurn} onChange={v => set("monthlyBurn", v)} placeholder="8000" />
+        <NumInput label="Runway" suffix="mo" value={form.runway} onChange={v => set("runway", v)} placeholder="18" />
+      </div>
+
+      {/* Unit economics */}
+      <p style={{ fontSize: 11, fontWeight: 600, color: muted, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 12 }}>Unit economics</p>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
+        <NumInput label="LTV" prefix="$" value={form.ltv} onChange={v => set("ltv", v)} placeholder="2400" />
+        <NumInput label="CAC" prefix="$" value={form.cac} onChange={v => set("cac", v)} placeholder="800" />
+        <NumInput label="Gross Margin" suffix="%" value={form.grossMargin} onChange={v => set("grossMargin", v)} placeholder="72" />
+      </div>
+
+      {/* Growth & market */}
+      <p style={{ fontSize: 11, fontWeight: 600, color: muted, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 12 }}>Growth &amp; market</p>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 24 }}>
+        <NumInput label="Customers" value={form.customers} onChange={v => set("customers", v)} placeholder="42" />
+        <NumInput label="MRR Growth" suffix="%" value={form.mrrGrowth} onChange={v => set("mrrGrowth", v)} placeholder="12" />
+        <NumInput label="TAM" prefix="$" suffix="M" value={form.tam} onChange={v => set("tam", v)} placeholder="500" />
+        <NumInput label="Conversion Rate" suffix="%" value={form.conversionRate} onChange={v => set("conversionRate", v)} placeholder="2.4" />
+      </div>
+
+      {/* Error */}
+      {saveErr && (
+        <p style={{ fontSize: 12, color: red, marginBottom: 14 }}>{saveErr}</p>
+      )}
+
+      {/* Actions */}
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+        <button
+          onClick={onClose}
+          disabled={saving}
+          style={{
+            padding: "10px 18px", borderRadius: 9, border: `1px solid ${bdr}`,
+            background: "transparent", color: muted, fontSize: 13,
+            cursor: "pointer", fontFamily: "inherit",
+          }}
+        >
+          Cancel
+        </button>
+        <button
+          onClick={onSave}
+          disabled={saving}
+          onMouseEnter={e => !saving && (e.currentTarget.style.opacity = "0.85")}
+          onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
+          style={{
+            display: "flex", alignItems: "center", gap: 7,
+            padding: "10px 20px", borderRadius: 9, border: "none",
+            background: blue, color: "#fff", fontSize: 13, fontWeight: 500,
+            cursor: saving ? "not-allowed" : "pointer", transition: "opacity 0.15s",
+            opacity: saving ? 0.6 : 1, fontFamily: "inherit",
+          }}
+        >
+          {saving ? <RefreshCw style={{ width: 13, height: 13 }} className="animate-spin" /> : <Save style={{ width: 13, height: 13 }} />}
+          {saving ? "Saving…" : "Save metrics"}
+        </button>
+      </div>
+    </motion.div>
   );
 }

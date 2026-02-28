@@ -26,7 +26,7 @@ interface Deal {
   sector: string;
   location: string;
   fundingGoal: string;
-  valuation: string;
+  teamSize: number | null;
   matchScore: number;
   addedDate: string;
   founder: { name: string; title: string };
@@ -58,7 +58,8 @@ export default function DealFlowPage() {
         if (data.founders && data.founders.length > 0) {
           setDeals(data.founders.map((f: {
             id: string; name: string; tagline: string; qScore: number; stage: string;
-            sector: string; location: string; fundingGoal: string; lastActive: string;
+            sector: string; location: string; fundingGoal: string; teamSize: number | null;
+            matchScore: number; highlights: string[]; lastActive: string;
             founder: { name: string }; hasScore: boolean;
           }) => ({
             id: f.id,
@@ -69,11 +70,12 @@ export default function DealFlowPage() {
             sector: f.sector || "Other",
             location: f.location || "",
             fundingGoal: f.fundingGoal || "",
-            valuation: "",
-            matchScore: Math.min(99, f.qScore + 10),
+            teamSize: f.teamSize ?? null,
+            matchScore: f.matchScore,
             addedDate: new Date(f.lastActive).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
             founder: { name: f.founder?.name || "Founder", title: "Founder" },
-            highlights: [f.sector, f.stage].filter(Boolean) as string[],
+            // Use API-provided highlights (TAM, business model, why now) with stage/sector as fallback
+            highlights: f.highlights?.length ? f.highlights : [f.sector, f.stage].filter(Boolean) as string[],
             momentum: (f.qScore >= 80 ? "hot" : f.qScore >= 65 ? "trending" : "steady") as Deal["momentum"],
             viewed: false,
           })));
@@ -238,11 +240,18 @@ export default function DealFlowPage() {
                 </div>
 
                 {/* highlights */}
-                <div style={{ display: "flex", gap: 6, padding: "0 16px 14px 76px", flexWrap: "wrap" }}>
-                  {deal.highlights.map((h, hi) => (
-                    <span key={hi} style={{ fontSize: 11, color: muted, padding: "2px 9px", background: surf, border: `1px solid ${bdr}`, borderRadius: 999 }}>{h}</span>
-                  ))}
-                </div>
+                {(deal.highlights.length > 0 || deal.teamSize) && (
+                  <div style={{ display: "flex", gap: 6, padding: "0 16px 14px 76px", flexWrap: "wrap" }}>
+                    {deal.highlights.map((h, hi) => (
+                      <span key={hi} style={{ fontSize: 11, color: muted, padding: "2px 9px", background: surf, border: `1px solid ${bdr}`, borderRadius: 999 }}>{h}</span>
+                    ))}
+                    {deal.teamSize && (
+                      <span style={{ fontSize: 11, color: muted, padding: "2px 9px", background: surf, border: `1px solid ${bdr}`, borderRadius: 999 }}>
+                        {deal.teamSize} person team
+                      </span>
+                    )}
+                  </div>
+                )}
               </motion.div>
             );
           })}

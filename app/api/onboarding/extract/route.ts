@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { callOpenRouter } from '@/lib/openrouter';
 
 /**
  * Onboarding Data Extraction API
@@ -42,11 +43,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Conversation history is required' }, { status: 400 });
     }
 
-    const key = process.env.OPENROUTER_API_KEY;
-    if (!key) {
-      return NextResponse.json({ error: 'API key not configured' }, { status: 500 });
-    }
-
     // Format conversation for extraction
     const conversationText = conversationHistory
       .map((m: { role: string; content: string }) =>
@@ -54,34 +50,13 @@ export async function POST(request: NextRequest) {
       )
       .join('\n\n');
 
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${key}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://edgealpha.ai',
-        'X-Title': 'Edge Alpha Onboarding Extract',
-      },
-      body: JSON.stringify({
-        model: 'anthropic/claude-3.5-haiku',
-        messages: [
-          { role: 'system', content: EXTRACTION_PROMPT },
-          { role: 'user', content: `Extract structured data from this conversation:\n\n${conversationText}` },
-        ],
-        temperature: 0.2,
-        max_tokens: 1000,
-        response_format: { type: 'json_object' },
-      }),
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error('OpenRouter extraction error:', errText);
-      throw new Error('Extraction API error');
-    }
-
-    const data = await response.json();
-    const rawContent = data.choices?.[0]?.message?.content;
+    const rawContent = await callOpenRouter(
+      [
+        { role: 'system', content: EXTRACTION_PROMPT },
+        { role: 'user', content: `Extract structured data from this conversation:\n\n${conversationText}` },
+      ],
+      { maxTokens: 1000, temperature: 0.2 },
+    );
 
     if (!rawContent) {
       throw new Error('No extraction response');

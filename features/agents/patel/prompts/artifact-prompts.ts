@@ -200,6 +200,330 @@ RULES:
 - Include 3-5 channels, 1-3 messaging segments, 5-8 metrics.
 - Tailor everything to their specific product, market, and stage. No generic advice.
 - Return ONLY valid JSON. No markdown, no explanation.`,
+
+    // ── Sales Script (Susi) ──────────────────────────────────────────────────
+    sales_script: `You are generating a structured sales script for an early-stage startup founder.
+
+Context gathered from the conversation:
+${ctx}
+
+Return a JSON object with this EXACT structure (no markdown fences, no extra text):
+{
+  "title": "Sales Script: [product/market description]",
+  "targetPersona": "Brief description of who this script is for",
+  "discoveryQuestions": [
+    { "question": "Open-ended discovery question", "purpose": "What this uncovers", "probe": "Follow-up if they give a vague answer" }
+  ],
+  "pitchFramework": {
+    "opener": "How to open the call — build rapport, confirm agenda",
+    "problemStatement": "How to articulate the problem they likely have",
+    "solutionBridge": "Transition from problem to solution",
+    "valueProposition": "Core value prop in 2 sentences max",
+    "socialProof": "Quick proof point — customer, metric, or story",
+    "cta": "Specific call to action — what you're asking them to do next"
+  },
+  "objections": [
+    { "objection": "Exact words a prospect might say", "response": "Your response", "pivot": "How to turn this into forward motion" }
+  ],
+  "closingLines": ["Direct closing line", "Alternative closing line", "Soft close option"],
+  "nextSteps": ["What to do immediately after the call", "What to send within 24 hours", "When and how to follow up if no reply"]
+}
+
+RULES:
+- Include 5-7 discovery questions tailored to their specific market.
+- Include 5-7 realistic objections with specific responses — not generic ones.
+- Closing lines should be direct but non-pushy.
+- Everything must be specific to THEIR product and market — no generic placeholders.
+- Return ONLY valid JSON. No markdown, no explanation.`,
+
+    // ── Brand Messaging Framework (Maya) ─────────────────────────────────────
+    brand_messaging: `You are generating a brand messaging framework for an early-stage startup.
+
+Context gathered from the conversation:
+${ctx}
+
+Return a JSON object with this EXACT structure (no markdown fences, no extra text):
+{
+  "title": "Brand Messaging: [company/product name]",
+  "positioningStatement": "For [target customer] who [unmet need], [product name] is a [category] that [key benefit]. Unlike [main alternative], we [primary differentiator].",
+  "taglines": [
+    { "tagline": "Short punchy tagline", "reasoning": "Why this works and when to use it" },
+    { "tagline": "Second option", "reasoning": "Reasoning" },
+    { "tagline": "Third option", "reasoning": "Reasoning" },
+    { "tagline": "Fourth option", "reasoning": "Reasoning" },
+    { "tagline": "Fifth option", "reasoning": "Reasoning" }
+  ],
+  "elevatorPitch": {
+    "oneLiner": "One sentence — what you do for whom",
+    "thirtySecond": "2-3 sentences, conversational — for when someone asks what you do",
+    "twoMinute": "4-6 sentences — problem, solution, traction, ask"
+  },
+  "valueProps": [
+    { "headline": "Short value prop headline", "description": "1-2 sentence expansion", "proof": "Specific proof point or example" }
+  ],
+  "voiceGuide": {
+    "personality": ["Personality trait 1", "Personality trait 2", "Personality trait 3"],
+    "doSay": ["Phrase or style we actively use", "Another example"],
+    "dontSay": ["What we avoid saying", "Another thing to avoid"],
+    "examplePhrases": ["Example of our voice in action", "Another example"]
+  },
+  "investorNarrative": "2-3 sentence story arc for investor conversations — problem, why now, why us"
+}
+
+RULES:
+- Positioning statement must follow the exact For/who/is a/that/Unlike/we template.
+- Exactly 5 tagline options, genuinely different in tone and angle.
+- Value props: 3-5 props with real proof points, not vague claims.
+- Return ONLY valid JSON. No markdown, no explanation.`,
+
+    // ── Financial Summary (Felix) ────────────────────────────────────────────
+    financial_summary: `You are generating an investor-ready financial summary for an early-stage startup.
+
+Context gathered from the conversation:
+${ctx}
+
+Return a JSON object with this EXACT structure (no markdown fences, no extra text):
+{
+  "title": "Financial Summary: [company name]",
+  "snapshot": {
+    "mrr": "Value or 'Pre-revenue'",
+    "arr": "Value or 'Pre-revenue'",
+    "monthlyBurn": "Value",
+    "runway": "X months",
+    "grossMargin": "X%",
+    "cac": "Value or 'Untracked'",
+    "ltv": "Value or 'Untracked'",
+    "ltvCacRatio": "X:1 or 'N/A'"
+  },
+  "unitEconomicsVerdict": "healthy",
+  "keyInsights": ["Strongest financial signal", "Risk or gap to address", "What the numbers imply about the model"],
+  "fundraisingRecommendation": {
+    "amount": "$X",
+    "rationale": "Why this amount based on burn and milestones",
+    "timeline": "When to raise and target runway"
+  },
+  "useOfFunds": [
+    { "category": "Engineering / Product", "percentage": 40, "rationale": "What this buys" },
+    { "category": "Sales & Marketing", "percentage": 30, "rationale": "What this buys" },
+    { "category": "Operations", "percentage": 20, "rationale": "What this buys" },
+    { "category": "Buffer / G&A", "percentage": 10, "rationale": "Why" }
+  ],
+  "risks": [
+    { "risk": "Financial risk description", "severity": "high", "mitigation": "What to do about it" }
+  ]
+}
+
+RULES:
+- unitEconomicsVerdict must be "healthy", "needs-work", or "critical".
+- Use actual numbers from context; use "Not provided" where unavailable.
+- useOfFunds percentages must add up to 100.
+- 3-5 keyInsights, 2-4 risks. severity must be "high", "medium", or "low".
+- Return ONLY valid JSON. No markdown, no explanation.`,
+
+    // ── Legal Checklist (Leo) ────────────────────────────────────────────────
+    legal_checklist: `You are generating a legal checklist for an early-stage startup founder.
+
+Context gathered from the conversation:
+${ctx}
+
+Return a JSON object with this EXACT structure (no markdown fences, no extra text):
+{
+  "title": "Legal Checklist: [company name]",
+  "companyStage": "pre-launch",
+  "priorityActions": ["Most urgent action 1", "Most urgent action 2", "Most urgent action 3"],
+  "incorporationItems": [
+    { "item": "Incorporate as Delaware C-Corp", "status": "required", "description": "Why this matters and how", "urgency": "now" },
+    { "item": "83(b) election", "status": "required", "description": "Must file within 30 days of stock grant", "urgency": "now" }
+  ],
+  "ipItems": [
+    { "item": "IP assignment agreements", "status": "required", "description": "All founders assign IP to the company" },
+    { "item": "Trademark search + filing", "status": "recommended", "description": "Protect the brand name" }
+  ],
+  "fundraisingDocs": [
+    { "document": "SAFE (YC Standard)", "description": "Preferred for pre-seed", "recommendation": "Use with MFN clause if raising under $500K" }
+  ],
+  "contractTemplates": ["Customer MSA template", "NDA template", "Contractor agreement"],
+  "redFlags": ["Specific red flag based on their situation"]
+}
+
+RULES:
+- companyStage must be one of: "pre-launch", "incorporated", "fundraising", "scaling".
+- status values: "required", "recommended", or "optional". urgency: "now", "soon", or "later".
+- 5-8 incorporation items, 3-5 IP items, 2-3 fundraising docs.
+- Return ONLY valid JSON. No markdown, no explanation.`,
+
+    // ── Hiring Plan (Harper) ─────────────────────────────────────────────────
+    hiring_plan: `You are generating a hiring plan for an early-stage startup founder.
+
+Context gathered from the conversation:
+${ctx}
+
+Return a JSON object with this EXACT structure (no markdown fences, no extra text):
+{
+  "title": "Hiring Plan: [company name]",
+  "currentGaps": ["Skill or function currently missing", "Another gap"],
+  "nextHires": [
+    {
+      "role": "Full role title",
+      "priority": "critical",
+      "timing": "e.g. Next 30 days",
+      "whyNow": "Specific reason this hire unlocks growth",
+      "responsibilities": ["Core responsibility 1", "Core responsibility 2"],
+      "requirements": ["Must-have 1", "Must-have 2"],
+      "niceToHave": ["Bonus skill or experience"],
+      "salaryRange": "$X - $Y",
+      "equity": "0.X - 0.X%"
+    }
+  ],
+  "orgRoadmap": [
+    { "milestone": "Today", "teamSize": 2, "newRoles": ["Founder 1", "Founder 2"] },
+    { "milestone": "$500K ARR", "teamSize": 5, "newRoles": ["Engineer", "Sales"] },
+    { "milestone": "$2M ARR", "teamSize": 12, "newRoles": ["Head of Sales", "2x Engineers"] }
+  ],
+  "compensationBands": [
+    { "role": "Early Engineer", "salary": "$120K-$160K", "equity": "0.5-1.5%", "stage": "Pre-seed" },
+    { "role": "Head of Sales", "salary": "$150K-$180K + commission", "equity": "0.5-1.0%", "stage": "Seed" }
+  ],
+  "interviewProcess": ["30-min intro call", "Take-home challenge or work sample", "Panel interview", "Reference checks"],
+  "cultureValues": ["Value to hire for", "Another culture value", "A third value"]
+}
+
+RULES:
+- priority must be "critical", "high", or "nice-to-have".
+- 2-4 next hires in priority order.
+- Org roadmap: 3-4 milestones from today to Series A.
+- Tailor to their stage, industry, and specific team gaps.
+- Return ONLY valid JSON. No markdown, no explanation.`,
+
+    // ── PMF Research Kit (Nova) ──────────────────────────────────────────────
+    pmf_survey: `You are generating a PMF (Product-Market Fit) research kit for an early-stage startup founder.
+
+Context gathered from the conversation:
+${ctx}
+
+Return a JSON object with this EXACT structure (no markdown fences, no extra text):
+{
+  "title": "PMF Research Kit: [product name]",
+  "targetSegment": "Who to interview — specific description",
+  "interviewScript": [
+    { "phase": "Opening (5 min)", "duration": "5 min", "questions": ["Question to build rapport", "Question about their background and role"] },
+    { "phase": "Problem Discovery (15 min)", "duration": "15 min", "questions": ["Tell me about the last time you dealt with [problem]...", "How do you currently handle this? Walk me through it."] },
+    { "phase": "Current Solutions (10 min)", "duration": "10 min", "questions": ["What tools or processes do you use today?", "What's missing or frustrating about those?"] },
+    { "phase": "Product Fit (10 min)", "duration": "10 min", "questions": ["[Describe product] — does this resonate with the problem you described?", "What would need to be true for you to switch to this?"] },
+    { "phase": "Willingness to Pay (5 min)", "duration": "5 min", "questions": ["If this solved your problem completely, what would it be worth per month?", "What would make you commit to this today?"] }
+  ],
+  "ellisTest": {
+    "primaryQuestion": "How would you feel if you could no longer use [product]?",
+    "options": ["Very disappointed", "Somewhat disappointed", "Not disappointed"],
+    "benchmark": "40%+ 'Very disappointed' = strong PMF signal",
+    "followUps": ["What is the main benefit you get from [product]?", "Who do you think would benefit most?", "How can we improve [product] for you?"]
+  },
+  "experiments": [
+    { "hypothesis": "If we [action], [segment] will [measurable behavior]", "test": "How to run the experiment", "metric": "What to measure", "successCriteria": "What result proves it", "timeframe": "e.g. 2 weeks" }
+  ],
+  "segmentAnalysis": [
+    { "segment": "Customer segment description", "painLevel": "high", "willingness": "High — actively seeking solutions", "priority": 1 },
+    { "segment": "Secondary segment", "painLevel": "medium", "willingness": "Medium — would consider switching", "priority": 2 }
+  ]
+}
+
+RULES:
+- Interview script: exactly 5 phases with 2-4 open-ended questions each.
+- Experiments: 3-5, specific to their PMF gaps.
+- segmentAnalysis: 2-4 segments; painLevel must be "high", "medium", or "low".
+- Return ONLY valid JSON. No markdown, no explanation.`,
+
+    // ── Competitive Matrix (Atlas) ───────────────────────────────────────────
+    competitive_matrix: `You are generating a competitive analysis for an early-stage startup.
+
+Context gathered from the conversation:
+${ctx}
+
+Return a JSON object with this EXACT structure (no markdown fences, no extra text):
+{
+  "title": "Competitive Analysis: [product name]",
+  "ourProduct": "Brief description of our product and positioning",
+  "marketOverview": "2-3 sentence competitive landscape overview",
+  "competitors": [
+    {
+      "name": "Competitor name",
+      "positioning": "How they position themselves",
+      "pricing": "Their pricing model and range",
+      "targetCustomer": "Who they primarily serve",
+      "strengths": ["Genuine strength 1", "Genuine strength 2"],
+      "weaknesses": ["Real weakness we can exploit", "Another weakness"]
+    }
+  ],
+  "featureComparison": {
+    "features": ["Feature A", "Feature B", "Feature C", "Feature D", "Feature E"],
+    "rows": [
+      { "name": "Us", "scores": { "Feature A": "yes", "Feature B": "partial", "Feature C": "no", "Feature D": "yes", "Feature E": "yes" } },
+      { "name": "Competitor 1", "scores": { "Feature A": "yes", "Feature B": "yes", "Feature C": "yes", "Feature D": "partial", "Feature E": "no" } }
+    ]
+  },
+  "swot": {
+    "strengths": ["Our genuine strength vs the market", "Another strength"],
+    "weaknesses": ["Our honest weakness", "Another to address"],
+    "opportunities": ["Market opportunity we can capture", "Another opportunity"],
+    "threats": ["Competitive threat", "Another threat"]
+  },
+  "positioningStatement": "Our clear differentiator and why we win in our specific wedge",
+  "whiteSpace": ["Gap the market isn't addressing well", "Another untapped opportunity"]
+}
+
+RULES:
+- Include 3-5 real competitors (not invented).
+- featureComparison: exactly 5 features; rows include "Us" + each competitor.
+- Feature scores must be "yes", "no", or "partial".
+- SWOT: 2-4 points per quadrant; be honest about weaknesses.
+- Return ONLY valid JSON. No markdown, no explanation.`,
+
+    // ── Strategic Plan (Sage) ────────────────────────────────────────────────
+    strategic_plan: `You are generating a 1-page strategic plan for an early-stage startup founder.
+
+Context gathered from the conversation:
+${ctx}
+
+Return a JSON object with this EXACT structure (no markdown fences, no extra text):
+{
+  "title": "Strategic Plan: [company name]",
+  "vision": "Where this company is in 3-5 years — specific and ambitious",
+  "currentPosition": "Honest 1-2 sentence snapshot of where the company is today",
+  "coreBets": ["The primary strategic bet the company is making", "Second key bet", "Third bet if applicable"],
+  "okrs": [
+    {
+      "objective": "Qualitative objective for this quarter",
+      "keyResults": [
+        { "kr": "Specific measurable result", "target": "Specific number or milestone", "metric": "How to measure" },
+        { "kr": "Second key result", "target": "Target", "metric": "Metric" },
+        { "kr": "Third key result", "target": "Target", "metric": "Metric" }
+      ]
+    },
+    {
+      "objective": "Second objective",
+      "keyResults": [
+        { "kr": "Key result", "target": "Target", "metric": "Metric" },
+        { "kr": "Second key result", "target": "Target", "metric": "Metric" }
+      ]
+    }
+  ],
+  "roadmap": {
+    "now": [{ "initiative": "What to build or do right now", "rationale": "Why this is the priority" }],
+    "next": [{ "initiative": "Next quarter initiative", "rationale": "Why this follows" }],
+    "later": [{ "initiative": "Longer-term initiative", "rationale": "Why this is later" }]
+  },
+  "risks": [
+    { "risk": "Specific risk description", "probability": "high", "impact": "high", "mitigation": "How to reduce it" }
+  ],
+  "fundraisingMilestones": ["Milestone that justifies seed round", "Milestone for Series A"]
+}
+
+RULES:
+- Exactly 2-3 OKR objectives, each with 2-4 measurable key results.
+- Roadmap: 2-4 initiatives in now/next/later.
+- Risks: 3-5; probability/impact must be "high", "medium", or "low".
+- Core bets: 2-3 specific strategic choices, not platitudes.
+- Return ONLY valid JSON. No markdown, no explanation.`,
   };
 
   return prompts[type] || prompts["icp_document"];

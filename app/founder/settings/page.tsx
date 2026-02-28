@@ -2,31 +2,18 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import {
-  User,
-  Building2,
-  Bell,
-  Lock,
-  Download,
-  Trash2,
-  RefreshCw,
-  Save,
-  AlertTriangle,
-} from 'lucide-react';
-import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
+import { User, Building2, Bell, Lock, Download, Trash2, RefreshCw, Save, AlertTriangle } from 'lucide-react';
 import { useFounderData } from '@/features/founder/hooks/useFounderData';
-import { storageService } from '@/features/founder/services/founder.service';
-import { toast } from 'sonner';
-import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
 
 // ─── palette ──────────────────────────────────────────────────────────────────
-const bg    = "#F9F7F2";
-const surf  = "#F0EDE6";
-const bdr   = "#E2DDD5";
-const ink   = "#18160F";
-const muted = "#8A867C";
-const red   = "#DC2626";
+const bg    = '#F9F7F2';
+const surf  = '#F0EDE6';
+const bdr   = '#E2DDD5';
+const ink   = '#18160F';
+const muted = '#8A867C';
+const red   = '#DC2626';
+const green = '#16A34A';
 
 type TabId = 'account' | 'company' | 'notifications' | 'data';
 
@@ -39,17 +26,18 @@ const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
 
 export default function SettingsPage() {
   const { profile, loading } = useFounderData();
-  const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabId>('account');
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
   // Account
-  const [fullName, setFullName]   = useState('');
-  const [email, setEmail]         = useState('');
+  const [fullName, setFullName] = useState('');
+  const [email,    setEmail]    = useState('');
 
   // Company
-  const [startupName, setStartupName]   = useState('');
-  const [industry, setIndustry]         = useState('');
-  const [description, setDescription]   = useState('');
+  const [startupName,  setStartupName]  = useState('');
+  const [industry,     setIndustry]     = useState('');
+  const [description,  setDescription]  = useState('');
 
   // Notifications
   const [emailNotifications, setEmailNotifications] = useState(true);
@@ -57,43 +45,126 @@ export default function SettingsPage() {
   const [investorMessages,    setInvestorMessages]    = useState(true);
   const [weeklyDigest,        setWeeklyDigest]        = useState(false);
 
+  // Load all settings from Supabase on mount (auth email + founder_profiles row)
   useEffect(() => {
-    if (profile) {
-      setFullName(profile.fullName || '');
-      setEmail(profile.email || '');
-      setStartupName(profile.startupName || '');
-      setIndustry(profile.industry || '');
-      setDescription(profile.description || '');
+    async function loadPrefs() {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        // Email comes from auth, not founder_profiles
+        setEmail(user.email ?? '');
+        const { data } = await supabase
+          .from('founder_profiles')
+          .select('full_name, startup_name, industry, description, notification_preferences')
+          .eq('user_id', user.id)
+          .single();
+        if (data) {
+          setFullName(data.full_name ?? '');
+          setStartupName(data.startup_name ?? '');
+          setIndustry(data.industry ?? '');
+          setDescription(data.description ?? '');
+          const prefs = (data.notification_preferences ?? {}) as Record<string, boolean>;
+          if (prefs.emailNotifications === false) setEmailNotifications(false);
+          if (prefs.qScoreUpdates      === false) setQScoreUpdates(false);
+          if (prefs.investorMessages   === false) setInvestorMessages(false);
+          if (prefs.weeklyDigest       === true)  setWeeklyDigest(true);
+        }
+      } catch { /* non-fatal */ }
     }
-  }, [profile]);
+    loadPrefs();
+  }, []);
 
-  const handleSaveAccount = () => {
-    const ok = storageService.updateFounderProfile({ fullName, email });
-    if (ok) { toast.success('Account settings saved'); } else { toast.error('Failed to save settings'); }
+  function showToast(msg: string, type: 'success' | 'error' = 'success') {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  }
+
+  const handleSaveAccount = async () => {
+    setSaving(true);
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+      const { error } = await supabase
+        .from('founder_profiles')
+        .update({ full_name: fullName })
+        .eq('user_id', user.id);
+      if (error) throw error;
+      showToast('Account settings saved');
+    } catch {
+      showToast('Failed to save settings', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleSaveCompany = () => {
-    const ok = storageService.updateFounderProfile({ startupName, industry, description });
-    if (ok) { toast.success('Company settings saved'); } else { toast.error('Failed to save settings'); }
+  const handleSaveCompany = async () => {
+    setSaving(true);
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+      const { error } = await supabase
+        .from('founder_profiles')
+        .update({ startup_name: startupName, industry, description })
+        .eq('user_id', user.id);
+      if (error) throw error;
+      showToast('Company settings saved');
+    } catch {
+      showToast('Failed to save settings', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleExportData = () => {
-    const allData = storageService.getAllFounderData();
-    const blob    = new Blob([JSON.stringify(allData, null, 2)], { type: 'application/json' });
-    const url     = URL.createObjectURL(blob);
-    const a       = document.createElement('a');
-    a.href        = url;
-    a.download    = `edge-alpha-data-${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success('Data exported successfully');
+  const handleExportData = async () => {
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const [{ data: fp }, { data: qs }, { data: aa }] = await Promise.all([
+        supabase.from('founder_profiles').select('*').eq('user_id', user.id).single(),
+        supabase.from('qscore_history').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(10),
+        supabase.from('agent_artifacts').select('id, agent_id, artifact_type, title, created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(20),
+      ]);
+      const blob = new Blob([JSON.stringify({ profile: fp, qscoreHistory: qs, agentArtifacts: aa }, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `edge-alpha-data-${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('Data exported successfully');
+    } catch {
+      showToast('Failed to export data', 'error');
+    }
   };
 
-  const handleClearData = () => {
-    if (confirm('Are you sure you want to clear all your data? This cannot be undone.')) {
-      storageService.clearAll();
-      toast.success('All data cleared');
-      router.push('/founder/onboarding');
+  const handleSaveNotifications = async () => {
+    setSaving(true);
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+      const { error } = await supabase
+        .from('founder_profiles')
+        .update({
+          notification_preferences: { emailNotifications, qScoreUpdates, investorMessages, weeklyDigest },
+        })
+        .eq('user_id', user.id);
+      if (error) throw error;
+      showToast('Preferences saved');
+    } catch {
+      showToast('Failed to save preferences', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteAccount = () => {
+    if (confirm('Are you sure? This will permanently delete your account. This cannot be undone.')) {
+      showToast('Please contact support@edgealpha.ai to delete your account.');
     }
   };
 
@@ -110,6 +181,21 @@ export default function SettingsPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: bg, color: ink, padding: '36px 28px 72px' }}>
+
+      {/* ── Toast ── */}
+      {toast && (
+        <div style={{
+          position: 'fixed', top: 20, right: 20, zIndex: 9999,
+          padding: '10px 18px', borderRadius: 10,
+          background: toast.type === 'success' ? green : red,
+          color: '#fff', fontSize: 13, fontWeight: 600,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.18)',
+          pointerEvents: 'none',
+        }}>
+          {toast.msg}
+        </div>
+      )}
+
       <div style={{ maxWidth: 860, margin: '0 auto' }}>
 
         {/* ── header ── */}
@@ -133,34 +219,24 @@ export default function SettingsPage() {
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, delay: 0.08 }}
-          style={{
-            display: 'flex', gap: 4,
-            borderBottom: `1px solid ${bdr}`,
-            marginBottom: 28,
-          }}
+          style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${bdr}`, marginBottom: 28 }}
         >
           {TABS.map((tab) => {
-            const Icon    = tab.icon;
-            const active  = activeTab === tab.id;
+            const Icon   = tab.icon;
+            const active = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 style={{
-                  display:        'inline-flex',
-                  alignItems:     'center',
-                  gap:            6,
-                  padding:        '10px 18px',
-                  fontSize:       12,
-                  fontWeight:     active ? 600 : 400,
-                  color:          active ? ink : muted,
-                  background:     'none',
-                  border:         'none',
-                  borderBottom:   active ? `2px solid ${ink}` : '2px solid transparent',
-                  marginBottom:   -1,
-                  cursor:         'pointer',
-                  transition:     'color 0.15s, border-color 0.15s',
-                  whiteSpace:     'nowrap',
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '10px 18px', fontSize: 12,
+                  fontWeight: active ? 600 : 400,
+                  color: active ? ink : muted,
+                  background: 'none', border: 'none',
+                  borderBottom: active ? `2px solid ${ink}` : '2px solid transparent',
+                  marginBottom: -1, cursor: 'pointer',
+                  transition: 'color 0.15s, border-color 0.15s', whiteSpace: 'nowrap',
                 }}
               >
                 <Icon style={{ height: 13, width: 13 }} />
@@ -183,30 +259,29 @@ export default function SettingsPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               <SettingsCard title="Account Information" description="Update your personal information">
                 <FieldRow label="Full Name">
-                  <Input
+                  <input
                     value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
+                    onChange={e => setFullName(e.target.value)}
                     placeholder="Your full name"
                     style={inputStyle}
                   />
                 </FieldRow>
-                <FieldRow label="Email">
-                  <Input
+                <FieldRow label="Email" hint="Email is managed through your auth provider">
+                  <input
                     type="email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="your@email.com"
-                    style={inputStyle}
+                    disabled
+                    style={{ ...inputStyle, opacity: 0.5, cursor: 'not-allowed' }}
                   />
                 </FieldRow>
                 <FieldRow label="Stage" hint="Update this in your assessment">
-                  <Input
+                  <input
                     value={profile?.stage || ''}
                     disabled
                     style={{ ...inputStyle, opacity: 0.5, cursor: 'not-allowed' }}
                   />
                 </FieldRow>
-                <SaveButton onClick={handleSaveAccount} />
+                <SaveButton onClick={handleSaveAccount} loading={saving} />
               </SettingsCard>
             </div>
           )}
@@ -216,17 +291,17 @@ export default function SettingsPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               <SettingsCard title="Company Details" description="Manage your startup information">
                 <FieldRow label="Company Name">
-                  <Input
+                  <input
                     value={startupName}
-                    onChange={(e) => setStartupName(e.target.value)}
+                    onChange={e => setStartupName(e.target.value)}
                     placeholder="Your startup name"
                     style={inputStyle}
                   />
                 </FieldRow>
                 <FieldRow label="Industry">
-                  <Input
+                  <input
                     value={industry}
-                    onChange={(e) => setIndustry(e.target.value)}
+                    onChange={e => setIndustry(e.target.value)}
                     placeholder="e.g., B2B SaaS, FinTech"
                     style={inputStyle}
                   />
@@ -234,18 +309,12 @@ export default function SettingsPage() {
                 <FieldRow label="Description">
                   <textarea
                     value={description}
-                    onChange={(e) => setDescription(e.target.value)}
+                    onChange={e => setDescription(e.target.value)}
                     placeholder="Brief description of your startup"
-                    style={{
-                      ...inputStyle,
-                      minHeight: 96,
-                      resize: 'vertical',
-                      fontFamily: 'inherit',
-                      lineHeight: 1.5,
-                    }}
+                    style={{ ...inputStyle, minHeight: 96, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
                   />
                 </FieldRow>
-                <SaveButton onClick={handleSaveCompany} />
+                <SaveButton onClick={handleSaveCompany} loading={saving} />
               </SettingsCard>
             </div>
           )}
@@ -282,7 +351,7 @@ export default function SettingsPage() {
                   onChange={setWeeklyDigest}
                 />
                 <div style={{ marginTop: 8 }}>
-                  <SaveButton label="Save Preferences" onClick={() => toast.success('Preferences saved')} />
+                  <SaveButton label="Save Preferences" onClick={handleSaveNotifications} />
                 </div>
               </SettingsCard>
             </div>
@@ -291,7 +360,7 @@ export default function SettingsPage() {
           {/* Data & Privacy */}
           {activeTab === 'data' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <SettingsCard title="Data Management" description="Export or delete your data">
+              <SettingsCard title="Data Management" description="Export or manage your data">
                 {/* Export */}
                 <div style={{ marginBottom: 24 }}>
                   <p style={{ fontSize: 13, fontWeight: 500, color: ink, marginBottom: 4 }}>Export Your Data</p>
@@ -308,26 +377,18 @@ export default function SettingsPage() {
                     Danger Zone
                   </p>
                   <p style={{ fontSize: 12, color: muted, marginBottom: 14 }}>
-                    Permanently delete all your data from Edge Alpha
+                    Permanently delete your account and all associated data
                   </p>
                   <button
-                    onClick={handleClearData}
+                    onClick={handleDeleteAccount}
                     style={{
-                      display:     'inline-flex',
-                      alignItems:  'center',
-                      gap:         7,
-                      padding:     '9px 20px',
-                      background:  red,
-                      color:       '#fff',
-                      border:      'none',
-                      borderRadius: 999,
-                      fontSize:    12,
-                      fontWeight:  500,
-                      cursor:      'pointer',
+                      display: 'inline-flex', alignItems: 'center', gap: 7,
+                      padding: '9px 20px', background: red, color: '#fff',
+                      border: 'none', borderRadius: 999, fontSize: 12, fontWeight: 500, cursor: 'pointer',
                     }}
                   >
                     <Trash2 style={{ height: 13, width: 13 }} />
-                    Clear All Data
+                    Delete Account
                   </button>
                 </div>
               </SettingsCard>
@@ -336,10 +397,9 @@ export default function SettingsPage() {
               <div style={{ display: 'flex', gap: 12, padding: '16px 20px', background: surf, border: `1px solid ${bdr}`, borderRadius: 14 }}>
                 <AlertTriangle style={{ height: 15, width: 15, color: '#D97706', flexShrink: 0, marginTop: 1 }} />
                 <div>
-                  <p style={{ fontSize: 12, fontWeight: 500, color: ink, marginBottom: 3 }}>Data Storage</p>
+                  <p style={{ fontSize: 12, fontWeight: 500, color: ink, marginBottom: 3 }}>Your Data Is Secure</p>
                   <p style={{ fontSize: 12, color: muted, lineHeight: 1.5 }}>
-                    Your data is currently stored locally in your browser. For production use,
-                    connect to a database to sync across devices and enable team collaboration.
+                    Your data is stored securely in Supabase with row-level security. Only you and investors you connect with can access your information.
                   </p>
                 </div>
               </div>
@@ -380,6 +440,27 @@ function FieldRow({ label, hint, children }: { label: string; hint?: string; chi
   );
 }
 
+function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      onClick={() => onChange(!checked)}
+      style={{
+        width: 40, height: 22, borderRadius: 11, border: 'none', cursor: 'pointer',
+        background: checked ? ink : bdr,
+        position: 'relative', transition: 'background 0.2s', flexShrink: 0, padding: 0,
+      }}
+    >
+      <div style={{
+        width: 16, height: 16, borderRadius: 8, background: '#fff',
+        position: 'absolute', top: 3,
+        left: checked ? 21 : 3,
+        transition: 'left 0.2s',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+      }} />
+    </button>
+  );
+}
+
 function NotifRow({ label, sub, checked, onChange }: { label: string; sub: string; checked: boolean; onChange: (v: boolean) => void }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
@@ -387,7 +468,7 @@ function NotifRow({ label, sub, checked, onChange }: { label: string; sub: strin
         <p style={{ fontSize: 13, fontWeight: 500, color: ink }}>{label}</p>
         <p style={{ fontSize: 11, color: muted, marginTop: 2 }}>{sub}</p>
       </div>
-      <Switch checked={checked} onCheckedChange={onChange} />
+      <Toggle checked={checked} onChange={onChange} />
     </div>
   );
 }
@@ -396,30 +477,23 @@ function Divider() {
   return <div style={{ height: 1, background: bdr }} />;
 }
 
-function SaveButton({ label = 'Save Changes', onClick }: { label?: string; onClick: () => void }) {
+function SaveButton({ label = 'Save Changes', onClick, loading }: { label?: string; onClick: () => void; loading?: boolean }) {
   return (
     <button
       onClick={onClick}
+      disabled={loading}
       style={{
-        display:      'inline-flex',
-        alignItems:   'center',
-        gap:          7,
-        padding:      '9px 22px',
-        background:   ink,
-        color:        bg,
-        border:       'none',
-        borderRadius: 999,
-        fontSize:     12,
-        fontWeight:   500,
-        cursor:       'pointer',
-        alignSelf:    'flex-start',
-        transition:   'opacity 0.15s',
+        display: 'inline-flex', alignItems: 'center', gap: 7,
+        padding: '9px 22px',
+        background: loading ? bdr : ink,
+        color: loading ? muted : bg,
+        border: 'none', borderRadius: 999, fontSize: 12, fontWeight: 500,
+        cursor: loading ? 'not-allowed' : 'pointer',
+        alignSelf: 'flex-start', transition: 'opacity 0.15s',
       }}
-      onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.opacity = '0.82')}
-      onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.opacity = '1')}
     >
       <Save style={{ height: 13, width: 13 }} />
-      {label}
+      {loading ? 'Saving…' : label}
     </button>
   );
 }
@@ -429,21 +503,12 @@ function OutlineButton({ onClick, children }: { onClick: () => void; children: R
     <button
       onClick={onClick}
       style={{
-        display:      'inline-flex',
-        alignItems:   'center',
-        gap:          7,
-        padding:      '9px 20px',
-        background:   'transparent',
-        color:        ink,
-        border:       `1px solid ${bdr}`,
-        borderRadius: 999,
-        fontSize:     12,
-        fontWeight:   500,
-        cursor:       'pointer',
-        transition:   'border-color 0.15s',
+        display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 20px',
+        background: 'transparent', color: ink, border: `1px solid ${bdr}`, borderRadius: 999,
+        fontSize: 12, fontWeight: 500, cursor: 'pointer', transition: 'border-color 0.15s',
       }}
-      onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.borderColor = ink)}
-      onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.borderColor = bdr)}
+      onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.borderColor = ink)}
+      onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.borderColor = bdr)}
     >
       {children}
     </button>
@@ -451,13 +516,14 @@ function OutlineButton({ onClick, children }: { onClick: () => void; children: R
 }
 
 const inputStyle: React.CSSProperties = {
-  width:        '100%',
-  padding:      '9px 12px',
-  fontSize:     13,
-  color:        ink,
-  background:   bg,
-  border:       `1px solid ${bdr}`,
+  width: '100%',
+  padding: '9px 12px',
+  fontSize: 13,
+  color: ink,
+  background: bg,
+  border: `1px solid ${bdr}`,
   borderRadius: 8,
-  outline:      'none',
-  fontFamily:   'inherit',
+  outline: 'none',
+  fontFamily: 'inherit',
+  boxSizing: 'border-box',
 };

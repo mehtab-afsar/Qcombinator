@@ -1,571 +1,576 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Brain,
-  FileText,
-  Zap,
-  CheckCircle,
-  AlertCircle,
-  ArrowRight,
-  Download,
-  Edit,
-  Play,
-  BarChart3,
-  Target,
-  Lightbulb,
-  RefreshCw
-} from "lucide-react";
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { Brain, FileText, Play, Lightbulb, RefreshCw, BarChart3, ArrowRight, CheckCircle, AlertCircle } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
 
-interface AIAnalysis {
+// ─── palette ──────────────────────────────────────────────────────────────────
+const bg    = '#F9F7F2';
+const surf  = '#F0EDE6';
+const bdr   = '#E2DDD5';
+const ink   = '#18160F';
+const muted = '#8A867C';
+const blue  = '#2563EB';
+const green = '#16A34A';
+const amber = '#D97706';
+const red   = '#DC2626';
+
+type TabId = 'analysis' | 'materials' | 'practice' | 'recommendations';
+
+interface QScoreData {
   overallScore: number;
-  categoryScores: {
-    market: number;
-    team: number;
-    product: number;
-    traction: number;
-    financials: number;
-  };
-  strengths: string[];
-  weaknesses: string[];
-  recommendations: string[];
-  confidence: 'high' | 'medium' | 'low';
+  teamScore: number;
+  marketScore: number;
+  tractionScore: number;
+  gtmScore: number;
+  productScore: number;
+  startupName: string;
 }
 
-export default function AIEnhancementStation() {
-  const [currentTab, setCurrentTab] = useState('analysis');
-  const [isAnalyzing, setIsAnalyzing] = useState(true);
+const PRACTICE_QUESTIONS_BY_DIM: Record<string, { question: string; difficulty: 'easy' | 'medium' | 'hard' }[]> = {
+  market: [
+    { question: 'How do you plan to compete with established players in this space?', difficulty: 'hard' },
+    { question: 'What is your total addressable market and how did you size it?', difficulty: 'medium' },
+    { question: 'Why is now the right time for this market?', difficulty: 'medium' },
+  ],
+  traction: [
+    { question: 'What metrics prove that customers will pay for this solution?', difficulty: 'hard' },
+    { question: 'What is your current revenue run rate and month-over-month growth?', difficulty: 'medium' },
+    { question: 'How did you acquire your first 10 customers?', difficulty: 'easy' },
+  ],
+  team: [
+    { question: 'Why is your team uniquely positioned to win this market?', difficulty: 'easy' },
+    { question: 'What do you do better than anyone else on the planet?', difficulty: 'medium' },
+    { question: 'How will you attract top talent with limited capital?', difficulty: 'hard' },
+  ],
+  gtm: [
+    { question: 'Walk me through your go-to-market motion step by step.', difficulty: 'medium' },
+    { question: 'What is your customer acquisition cost and payback period?', difficulty: 'hard' },
+    { question: 'What channel drives your most efficient growth?', difficulty: 'medium' },
+  ],
+  product: [
+    { question: 'What is your core defensible insight that competitors cannot copy?', difficulty: 'hard' },
+    { question: 'Describe your product roadmap for the next 18 months.', difficulty: 'medium' },
+    { question: 'How do you know users actually want this feature?', difficulty: 'easy' },
+  ],
+};
 
-  const [aiAnalysis] = useState<AIAnalysis>({
-    overallScore: 742,
-    categoryScores: {
-      market: 85,
-      team: 78,
-      product: 82,
-      traction: 65,
-      financials: 58
-    },
-    strengths: [
-      "Strong technical team with proven experience",
-      "Large and growing market opportunity ($50B TAM)",
-      "Unique AI-powered approach to problem",
-      "Early traction with pilot customers",
-      "Clear monetization strategy"
-    ],
-    weaknesses: [
-      "Limited financial data and projections",
-      "Small customer base needs expansion",
-      "Competitive market with established players",
-      "Fundraising timeline is ambitious"
-    ],
-    recommendations: [
-      "Strengthen financial projections with detailed unit economics",
-      "Expand pilot program to demonstrate scalability",
-      "Develop more detailed go-to-market strategy",
-      "Build strategic advisor network for credibility"
-    ],
-    confidence: 'high'
-  });
+const DIMENSION_LABELS: Record<string, string> = {
+  market: 'Market', traction: 'Traction', team: 'Team', gtm: 'GTM', product: 'Product',
+};
+
+const DIMENSION_COLORS: Record<string, string> = {
+  market: blue, traction: green, team: '#7C3AED', gtm: amber, product: '#0891B2',
+};
+
+const MATERIALS = [
+  { id: 'pitch-deck',   icon: FileText,  label: 'Pitch Deck',       sub: '10-slide AI deck',       href: '/founder/pitch-deck',            color: '#7C3AED' },
+  { id: 'financial',    icon: BarChart3, label: 'Financial Model',   sub: 'Felix AI financials',    href: '/founder/agents/felix',          color: green },
+  { id: 'gtm-playbook', icon: Lightbulb, label: 'GTM Playbook',      sub: 'Patel AI strategy',      href: '/founder/agents/patel',          color: blue },
+];
+
+export default function AIEnhancementStation() {
+  const router = useRouter();
+  const [activeTab,  setActiveTab]  = useState<TabId>('analysis');
+  const [loading,    setLoading]    = useState(true);
+  const [qScore,     setQScore]     = useState<QScoreData | null>(null);
+  const [practiceQ,  setPracticeQ]  = useState<{ category: string; question: string; difficulty: 'easy' | 'medium' | 'hard' }[]>([]);
+  const [activeQ,    setActiveQ]    = useState<number | null>(null);
+  const [answer,     setAnswer]     = useState('');
+  const [gettingFeedback, setGettingFeedback] = useState(false);
+  const [feedback, setFeedback] = useState<{
+    rating: string; score: number; headline: string;
+    strengths: string[]; gaps: string[];
+    suggestion: string; rewrittenOpener?: string;
+  } | null>(null);
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Simulate AI analysis
-    const timer = setTimeout(() => {
-      setIsAnalyzing(false);
-    }, 3000);
+    async function load() {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) { setLoading(false); return; }
 
-    return () => clearTimeout(timer);
+        // Fetch latest Q-Score row
+        const { data: qs } = await supabase
+          .from('qscore_history')
+          .select('overall_score, team_score, market_score, traction_score, gtm_score, product_score')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        // Fetch startup name
+        const { data: fp } = await supabase
+          .from('founder_profiles')
+          .select('startup_name')
+          .eq('user_id', user.id)
+          .single();
+
+        if (qs) {
+          const data: QScoreData = {
+            overallScore: qs.overall_score ?? 0,
+            teamScore:    qs.team_score    ?? 0,
+            marketScore:  qs.market_score  ?? 0,
+            tractionScore: qs.traction_score ?? 0,
+            gtmScore:     qs.gtm_score     ?? 0,
+            productScore: qs.product_score ?? 0,
+            startupName:  fp?.startup_name || 'Your Startup',
+          };
+          setQScore(data);
+
+          // Build practice questions from the 2 lowest-scoring dimensions
+          const dims = [
+            { key: 'market',   score: data.marketScore },
+            { key: 'traction', score: data.tractionScore },
+            { key: 'team',     score: data.teamScore },
+            { key: 'gtm',      score: data.gtmScore },
+            { key: 'product',  score: data.productScore },
+          ].sort((a, b) => a.score - b.score);
+
+          const questions = [
+            ...((PRACTICE_QUESTIONS_BY_DIM[dims[0].key] ?? []).slice(0, 2).map(q => ({ ...q, category: DIMENSION_LABELS[dims[0].key] }))),
+            ...((PRACTICE_QUESTIONS_BY_DIM[dims[1].key] ?? []).slice(0, 1).map(q => ({ ...q, category: DIMENSION_LABELS[dims[1].key] }))),
+          ];
+          setPracticeQ(questions);
+        }
+      } catch {
+        // silently fail — show empty state
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
   }, []);
 
+  const dims = qScore ? [
+    { key: 'market',   label: 'Market',   score: qScore.marketScore },
+    { key: 'traction', label: 'Traction', score: qScore.tractionScore },
+    { key: 'team',     label: 'Team',     score: qScore.teamScore },
+    { key: 'gtm',      label: 'GTM',      score: qScore.gtmScore },
+    { key: 'product',  label: 'Product',  score: qScore.productScore },
+  ] : [];
 
-  const practiceQuestions = [
-    {
-      category: "Market",
-      question: "How do you plan to compete with established accounting software companies?",
-      difficulty: "hard"
-    },
-    {
-      category: "Traction",
-      question: "What metrics prove that customers will pay for this solution?",
-      difficulty: "medium"
-    },
-    {
-      category: "Team",
-      question: "Why is your team uniquely positioned to succeed in this space?",
-      difficulty: "easy"
-    }
-  ];
+  const strengths       = dims.filter(d => d.score >= 60).sort((a, b) => b.score - a.score);
+  const improvements    = dims.filter(d => d.score < 60).sort((a, b) => a.score - b.score);
+  const recommendations = improvements.map(d => ({
+    dim:  d.label,
+    text: d.key === 'market'   ? `Deepen market sizing with bottom-up TAM analysis and customer segmentation data` :
+          d.key === 'traction' ? `Add quantified traction metrics — MRR, growth rate, NPS, or pilot results` :
+          d.key === 'team'     ? `Highlight team credentials, domain expertise, and any relevant exits or builds` :
+          d.key === 'gtm'      ? `Document CAC, payback period, and primary acquisition channel with real numbers` :
+                                 `Articulate product defensibility — moat, switching costs, or proprietary data`,
+    impact: Math.max(5, Math.round((70 - d.score) / 3)),
+  }));
 
-  if (isAnalyzing) {
+  async function handleGetFeedback(question: string, category: string) {
+    if (!answer.trim() || gettingFeedback) return;
+    const answerAtRequest = answer;
+    setGettingFeedback(true); setFeedback(null); setFeedbackError(null);
+    try {
+      const dimScore = qScore ? {
+        'Market': qScore.marketScore, 'Traction': qScore.tractionScore,
+        'Team': qScore.teamScore, 'GTM': qScore.gtmScore, 'Product': qScore.productScore,
+      }[category] : undefined;
+      const res = await fetch('/api/ai-enhancement/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question, category, answer: answerAtRequest, dimensionScore: dimScore }),
+      });
+      const data = await res.json();
+      if (res.ok) setFeedback(data);
+      else setFeedbackError(data.error ?? 'Feedback failed');
+    } catch { setFeedbackError('Network error'); }
+    finally { setGettingFeedback(false); }
+  }
+
+  if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50 flex items-center justify-center p-6">
-        <Card className="w-full max-w-2xl">
-          <CardContent className="p-8 text-center space-y-6">
-            <div className="h-16 w-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-2xl flex items-center justify-center mx-auto animate-pulse">
-              <Brain className="h-8 w-8 text-white" />
-            </div>
-
-            <div className="space-y-3">
-              <h1 className="text-3xl font-bold text-gray-900">AI Analysis in Progress</h1>
-              <p className="text-lg text-gray-600">
-                Our AI is analyzing your startup across multiple dimensions
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-600">Processing startup data...</span>
-                <CheckCircle className="h-4 w-4 text-green-500" />
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-600">Market analysis...</span>
-                <CheckCircle className="h-4 w-4 text-green-500" />
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-600">Team assessment...</span>
-                <div className="h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-              </div>
-              <div className="flex items-center justify-between text-sm text-gray-400">
-                <span>Generating recommendations...</span>
-                <div className="h-4 w-4 border-2 border-gray-300 border-t-transparent rounded-full" />
-              </div>
-            </div>
-
-            <Progress value={75} className="h-3" />
-
-            <p className="text-sm text-gray-500">
-              This usually takes 2-3 minutes • Analyzing 50+ data points
-            </p>
-          </CardContent>
-        </Card>
+      <div style={{ minHeight: '100vh', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ width: 52, height: 52, borderRadius: 14, background: ink, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+            <Brain style={{ height: 24, width: 24, color: bg }} />
+          </div>
+          <p style={{ fontSize: 15, fontWeight: 700, color: ink, marginBottom: 6 }}>Loading your AI analysis…</p>
+          <p style={{ fontSize: 12, color: muted }}>Analysing your Q-Score across 5 dimensions</p>
+          <RefreshCw style={{ height: 16, width: 16, color: muted, margin: '16px auto 0', animation: 'spin 1s linear infinite' }} />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50">
-      {/* Header */}
-      <div className="border-b border-gray-200 bg-white/80 backdrop-blur-sm sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="h-8 w-8 bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">Q</span>
-              </div>
-              <div>
-                <div className="font-semibold text-gray-900">AI Enhancement Station</div>
-                <div className="text-xs text-gray-600">Optimize your pitch and materials</div>
-              </div>
-            </div>
+    <div style={{ minHeight: '100vh', background: bg, color: ink, padding: '36px 28px 72px' }}>
+      <div style={{ maxWidth: 960, margin: '0 auto' }}>
 
-            <div className="flex items-center space-x-4">
-              <div className="text-sm text-gray-600">Analysis Complete</div>
-              <CheckCircle className="h-5 w-5 text-green-500" />
-            </div>
-          </div>
+        {/* ── header ── */}
+        <div style={{ marginBottom: 32 }}>
+          <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.14em', color: muted, marginBottom: 6 }}>
+            AI Enhancement Station
+          </p>
+          <h1 style={{ fontSize: 28, fontWeight: 800, color: ink, marginBottom: 6 }}>
+            {qScore ? `${qScore.startupName} — AI Analysis` : 'AI Enhancement Station'}
+          </h1>
+          <p style={{ fontSize: 14, color: muted }}>
+            Deep analysis across 5 dimensions · Practice mode · Curated resources
+          </p>
         </div>
-      </div>
 
-      {/* Main Content */}
-      <div className="max-w-6xl mx-auto p-6 space-y-6">
-
-        {/* Q Score Header */}
-        <Card className="bg-gradient-to-br from-purple-600 to-blue-600 text-white">
-          <CardContent className="p-8">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-4xl font-bold mb-2">{aiAnalysis.overallScore}/1000</div>
-                <div className="text-lg font-medium opacity-90">Your Q Score</div>
-                <div className="text-sm opacity-75">Top 15% of startups</div>
-              </div>
-
-              <div className="text-right space-y-2">
-                <div className="flex items-center space-x-2">
-                  <span className="text-sm opacity-75">Confidence Level</span>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    aiAnalysis.confidence === 'high' ? 'bg-green-500/20 text-green-100' :
-                    aiAnalysis.confidence === 'medium' ? 'bg-yellow-500/20 text-yellow-100' :
-                    'bg-red-500/20 text-red-100'
-                  }`}>
-                    {aiAnalysis.confidence.toUpperCase()}
-                  </span>
-                </div>
-                <div className="text-sm opacity-75">Analysis based on 50+ factors</div>
-              </div>
+        {/* ── Q-Score hero ── */}
+        {qScore ? (
+          <div style={{ background: ink, borderRadius: 18, padding: '28px 32px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 32 }}>
+            <div style={{ textAlign: 'center', flexShrink: 0 }}>
+              <p style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(249,247,242,0.5)', marginBottom: 4 }}>Q-Score</p>
+              <p style={{ fontSize: 56, fontWeight: 900, color: '#F9F7F2', lineHeight: 1 }}>{qScore.overallScore}</p>
+              <p style={{ fontSize: 11, color: 'rgba(249,247,242,0.4)', marginTop: 4 }}>out of 100</p>
             </div>
-
-            <div className="grid grid-cols-5 gap-4 mt-6">
-              {Object.entries(aiAnalysis.categoryScores).map(([category, score]) => (
-                <div key={category} className="text-center">
-                  <div className="text-2xl font-bold">{score}</div>
-                  <div className="text-xs opacity-75 capitalize">{category}</div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Tabs */}
-        <Tabs value={currentTab} onValueChange={setCurrentTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 bg-white border">
-            <TabsTrigger value="analysis" className="flex items-center space-x-2">
-              <Brain className="h-4 w-4" />
-              <span>AI Analysis</span>
-            </TabsTrigger>
-            <TabsTrigger value="materials" className="flex items-center space-x-2">
-              <FileText className="h-4 w-4" />
-              <span>Generated Materials</span>
-            </TabsTrigger>
-            <TabsTrigger value="practice" className="flex items-center space-x-2">
-              <Play className="h-4 w-4" />
-              <span>Practice Mode</span>
-            </TabsTrigger>
-            <TabsTrigger value="recommendations" className="flex items-center space-x-2">
-              <Lightbulb className="h-4 w-4" />
-              <span>Recommendations</span>
-            </TabsTrigger>
-          </TabsList>
-
-          {/* AI Analysis Tab */}
-          <TabsContent value="analysis" className="space-y-6">
-            <div className="grid md:grid-cols-2 gap-6">
-
-              {/* Strengths */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2 text-green-700">
-                    <CheckCircle className="h-5 w-5" />
-                    <span>Key Strengths</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {aiAnalysis.strengths.map((strength, index) => (
-                    <div key={index} className="flex items-start space-x-3">
-                      <div className="h-2 w-2 bg-green-500 rounded-full mt-2 flex-shrink-0" />
-                      <p className="text-gray-700 text-sm">{strength}</p>
+            <div style={{ flex: 1, borderLeft: '1px solid rgba(255,255,255,0.12)', paddingLeft: 32 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
+                {dims.map(d => (
+                  <div key={d.key} style={{ textAlign: 'center' }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: `${DIMENSION_COLORS[d.key]}22`, border: `1px solid ${DIMENSION_COLORS[d.key]}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 6px' }}>
+                      <p style={{ fontSize: 13, fontWeight: 800, color: DIMENSION_COLORS[d.key] }}>{d.score}</p>
                     </div>
-                  ))}
-                </CardContent>
-              </Card>
-
-              {/* Areas for Improvement */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2 text-orange-700">
-                    <AlertCircle className="h-5 w-5" />
-                    <span>Areas for Improvement</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {aiAnalysis.weaknesses.map((weakness, index) => (
-                    <div key={index} className="flex items-start space-x-3">
-                      <div className="h-2 w-2 bg-orange-500 rounded-full mt-2 flex-shrink-0" />
-                      <p className="text-gray-700 text-sm">{weakness}</p>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Category Breakdown */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Score Breakdown</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {Object.entries(aiAnalysis.categoryScores).map(([category, score]) => (
-                    <div key={category} className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-2">
-                          <div className={`h-4 w-4 rounded ${
-                            category === 'market' ? 'bg-blue-500' :
-                            category === 'team' ? 'bg-green-500' :
-                            category === 'product' ? 'bg-purple-500' :
-                            category === 'traction' ? 'bg-orange-500' :
-                            'bg-red-500'
-                          }`} />
-                          <span className="capitalize font-medium">{category}</span>
-                        </div>
-                        <span className="font-bold">{score}/100</span>
-                      </div>
-                      <Progress value={score} className="h-2" />
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Generated Materials Tab */}
-          <TabsContent value="materials" className="space-y-6">
-            <div className="grid md:grid-cols-3 gap-6">
-
-              {/* One-Pager */}
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <FileText className="h-5 w-5 text-blue-600" />
-                    <span>One-Pager</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="bg-gray-100 rounded-lg h-32 flex items-center justify-center">
-                    <div className="text-center space-y-2">
-                      <FileText className="h-8 w-8 text-gray-400 mx-auto" />
-                      <div className="text-sm font-medium">TechCorp AI</div>
-                      <div className="text-xs text-gray-500">Investment Summary</div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">Status</span>
-                      <span className="text-green-600 font-medium">Generated</span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">Quality</span>
-                      <span className="text-blue-600 font-medium">Excellent</span>
-                    </div>
-                  </div>
-
-                  <div className="flex space-x-2">
-                    <Button size="sm" className="flex-1">
-                      <Download className="h-4 w-4 mr-1" />
-                      Download
-                    </Button>
-                    <Button size="sm" variant="outline">
-                      <Edit className="h-4 w-4 mr-1" />
-                      Edit
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Pitch Deck */}
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <FileText className="h-5 w-5 text-purple-600" />
-                    <span>Pitch Deck</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="bg-gradient-to-br from-purple-100 to-blue-100 rounded-lg h-32 flex items-center justify-center">
-                    <div className="text-center space-y-2">
-                      <FileText className="h-8 w-8 text-purple-600 mx-auto" />
-                      <div className="text-sm font-medium">12 Slides</div>
-                      <div className="text-xs text-gray-600">Series A Ready</div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">Slides</span>
-                      <span className="font-medium">12 slides</span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">Template</span>
-                      <span className="font-medium">Series A</span>
-                    </div>
-                  </div>
-
-                  <div className="flex space-x-2">
-                    <Button size="sm" className="flex-1">
-                      <Download className="h-4 w-4 mr-1" />
-                      Download
-                    </Button>
-                    <Button size="sm" variant="outline">
-                      <Edit className="h-4 w-4 mr-1" />
-                      Customize
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Financial Model */}
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <BarChart3 className="h-5 w-5 text-green-600" />
-                    <span>Financial Model</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="bg-gradient-to-br from-green-100 to-blue-100 rounded-lg h-32 flex items-center justify-center">
-                    <div className="text-center space-y-2">
-                      <BarChart3 className="h-8 w-8 text-green-600 mx-auto" />
-                      <div className="text-sm font-medium">5-Year Model</div>
-                      <div className="text-xs text-gray-600">Revenue & Costs</div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">Projections</span>
-                      <span className="font-medium">5 years</span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">Scenarios</span>
-                      <span className="font-medium">3 cases</span>
-                    </div>
-                  </div>
-
-                  <div className="flex space-x-2">
-                    <Button size="sm" className="flex-1">
-                      <Download className="h-4 w-4 mr-1" />
-                      Download
-                    </Button>
-                    <Button size="sm" variant="outline">
-                      <Edit className="h-4 w-4 mr-1" />
-                      Adjust
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Material Quality Assessment */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Material Quality Assessment</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid md:grid-cols-3 gap-6">
-                  <div className="text-center">
-                    <div className="h-16 w-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                      <CheckCircle className="h-8 w-8 text-green-600" />
-                    </div>
-                    <h4 className="font-medium text-gray-900">Content Quality</h4>
-                    <p className="text-sm text-gray-600">All materials meet VC standards</p>
-                  </div>
-                  <div className="text-center">
-                    <div className="h-16 w-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                      <Target className="h-8 w-8 text-blue-600" />
-                    </div>
-                    <h4 className="font-medium text-gray-900">Investor-Ready</h4>
-                    <p className="text-sm text-gray-600">Optimized for Series A pitch</p>
-                  </div>
-                  <div className="text-center">
-                    <div className="h-16 w-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                      <Zap className="h-8 w-8 text-purple-600" />
-                    </div>
-                    <h4 className="font-medium text-gray-900">AI Enhanced</h4>
-                    <p className="text-sm text-gray-600">Powered by successful pitch data</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Practice Mode Tab */}
-          <TabsContent value="practice" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Play className="h-5 w-5 text-green-600" />
-                  <span>Mock Investor Q&A</span>
-                </CardTitle>
-                <p className="text-gray-600">Practice with AI-generated questions based on your profile</p>
-              </CardHeader>
-              <CardContent className="space-y-6">
-
-                {practiceQuestions.map((q, index) => (
-                  <div key={index} className="border rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center space-x-2">
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                          q.category === 'Market' ? 'bg-blue-100 text-blue-700' :
-                          q.category === 'Traction' ? 'bg-green-100 text-green-700' :
-                          'bg-purple-100 text-purple-700'
-                        }`}>
-                          {q.category}
-                        </span>
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                          q.difficulty === 'easy' ? 'bg-green-100 text-green-700' :
-                          q.difficulty === 'medium' ? 'bg-yellow-100 text-yellow-700' :
-                          'bg-red-100 text-red-700'
-                        }`}>
-                          {q.difficulty}
-                        </span>
-                      </div>
-                    </div>
-
-                    <p className="text-gray-900 mb-4">{q.question}</p>
-
-                    <div className="flex space-x-2">
-                      <Button size="sm">
-                        <Play className="h-4 w-4 mr-1" />
-                        Practice Answer
-                      </Button>
-                      <Button size="sm" variant="outline">
-                        Get AI Tips
-                      </Button>
-                    </div>
+                    <p style={{ fontSize: 10, color: 'rgba(249,247,242,0.5)', fontWeight: 500 }}>{d.label}</p>
                   </div>
                 ))}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div style={{ background: surf, borderRadius: 18, padding: '24px 28px', marginBottom: 24, border: `1px solid ${bdr}`, textAlign: 'center' }}>
+            <Brain style={{ height: 32, width: 32, color: muted, margin: '0 auto 12px' }} />
+            <p style={{ fontSize: 14, fontWeight: 600, color: ink, marginBottom: 6 }}>No Q-Score yet</p>
+            <p style={{ fontSize: 13, color: muted, marginBottom: 16 }}>Complete your assessment to unlock AI analysis</p>
+            <button
+              onClick={() => router.push('/founder/assessment')}
+              style={{ padding: '10px 22px', borderRadius: 10, border: 'none', background: ink, color: bg, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+            >
+              Start Assessment
+            </button>
+          </div>
+        )}
 
-                <div className="text-center">
-                  <Button>
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    Generate More Questions
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
+        {/* ── Tab nav ── */}
+        <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${bdr}`, marginBottom: 24 }}>
+          {([
+            { id: 'analysis' as TabId,        label: 'AI Analysis',          icon: Brain },
+            { id: 'materials' as TabId,        label: 'Materials',            icon: FileText },
+            { id: 'practice' as TabId,         label: 'Practice Mode',        icon: Play },
+            { id: 'recommendations' as TabId,  label: 'Recommendations',      icon: Lightbulb },
+          ]).map(tab => {
+            const Icon   = tab.icon;
+            const active = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '10px 18px', fontSize: 12,
+                  fontWeight: active ? 600 : 400,
+                  color: active ? ink : muted,
+                  background: 'none', border: 'none',
+                  borderBottom: active ? `2px solid ${ink}` : '2px solid transparent',
+                  marginBottom: -1, cursor: 'pointer', whiteSpace: 'nowrap',
+                }}
+              >
+                <Icon style={{ height: 13, width: 13 }} />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
 
-          {/* Recommendations Tab */}
-          <TabsContent value="recommendations" className="space-y-6">
-            <div className="grid gap-6">
-              {aiAnalysis.recommendations.map((recommendation, index) => (
-                <Card key={index}>
-                  <CardContent className="p-6">
-                    <div className="flex items-start space-x-4">
-                      <div className="h-8 w-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                        <span className="text-sm font-medium text-blue-600">{index + 1}</span>
+        {/* ── AI Analysis tab ── */}
+        {activeTab === 'analysis' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+
+            {/* Dimension bars */}
+            {qScore && (
+              <div style={{ background: '#fff', borderRadius: 14, border: `1px solid ${bdr}`, padding: '20px 24px' }}>
+                <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: muted, marginBottom: 16 }}>Score Breakdown</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  {dims.map(d => (
+                    <div key={d.key}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: ink }}>{d.label}</p>
+                        <p style={{ fontSize: 13, fontWeight: 700, color: DIMENSION_COLORS[d.key] }}>
+                          {d.score}<span style={{ fontSize: 11, color: muted }}>/100</span>
+                        </p>
                       </div>
-                      <div className="flex-1">
-                        <p className="text-gray-900 mb-3">{recommendation}</p>
-                        <div className="flex items-center space-x-2">
-                          <span className="text-sm text-gray-500">Priority:</span>
-                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                            index < 2 ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
-                          }`}>
-                            {index < 2 ? 'High' : 'Medium'}
-                          </span>
-                          <span className="text-sm text-gray-500">Impact:</span>
-                          <span className="text-sm font-medium text-green-600">+{10 + index * 5} Q points</span>
-                        </div>
+                      <div style={{ height: 6, background: bdr, borderRadius: 99, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${d.score}%`, background: DIMENSION_COLORS[d.key], borderRadius: 99, transition: 'width 0.6s ease' }} />
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </TabsContent>
-        </Tabs>
+                  ))}
+                </div>
+              </div>
+            )}
 
-        {/* Next Steps */}
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Ready for Your Dashboard?</h3>
-                <p className="text-gray-600">
-                  Your Q Score analysis is complete. Start connecting with investors and tracking your progress.
+            {/* Strengths + Areas */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div style={{ background: '#F0FDF4', borderRadius: 14, border: '1px solid #BBF7D0', padding: '18px 20px' }}>
+                <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: green, marginBottom: 12 }}>Strong Dimensions</p>
+                {strengths.length > 0 ? strengths.map(d => (
+                  <div key={d.key} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+                    <CheckCircle style={{ height: 13, width: 13, color: green, flexShrink: 0 }} />
+                    <p style={{ fontSize: 13, color: ink }}>{d.label} — <strong>{d.score}</strong>/100</p>
+                  </div>
+                )) : (
+                  <p style={{ fontSize: 13, color: muted }}>Complete your assessment to see strengths</p>
+                )}
+              </div>
+              <div style={{ background: '#FFFBEB', borderRadius: 14, border: '1px solid #FDE68A', padding: '18px 20px' }}>
+                <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: amber, marginBottom: 12 }}>Areas to Improve</p>
+                {improvements.length > 0 ? improvements.map(d => (
+                  <div key={d.key} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+                    <AlertCircle style={{ height: 13, width: 13, color: amber, flexShrink: 0 }} />
+                    <p style={{ fontSize: 13, color: ink }}>{d.label} — <strong>{d.score}</strong>/100</p>
+                  </div>
+                )) : (
+                  qScore ? <p style={{ fontSize: 13, color: green, fontWeight: 600 }}>All dimensions scoring well!</p>
+                         : <p style={{ fontSize: 13, color: muted }}>Complete your assessment to see areas to improve</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Materials tab ── */}
+        {activeTab === 'materials' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <p style={{ fontSize: 13, color: muted, marginBottom: 4 }}>
+              Access AI-generated materials built by your agent advisors. Each links to the live agent so you can generate and refine.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16 }}>
+              {MATERIALS.map(m => {
+                const Icon = m.icon;
+                return (
+                  <div
+                    key={m.id}
+                    onClick={() => router.push(m.href)}
+                    style={{
+                      background: '#fff', borderRadius: 14, border: `1px solid ${bdr}`,
+                      padding: '20px 22px', cursor: 'pointer', transition: 'box-shadow 0.15s',
+                    }}
+                    onMouseEnter={e => ((e.currentTarget as HTMLDivElement).style.boxShadow = '0 4px 20px rgba(0,0,0,0.08)')}
+                    onMouseLeave={e => ((e.currentTarget as HTMLDivElement).style.boxShadow = 'none')}
+                  >
+                    <div style={{ width: 40, height: 40, borderRadius: 10, background: `${m.color}15`, border: `1px solid ${m.color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
+                      <Icon style={{ height: 18, width: 18, color: m.color }} />
+                    </div>
+                    <p style={{ fontSize: 14, fontWeight: 700, color: ink, marginBottom: 4 }}>{m.label}</p>
+                    <p style={{ fontSize: 12, color: muted, marginBottom: 16 }}>{m.sub}</p>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: m.color }}>
+                      Open agent <ArrowRight style={{ height: 12, width: 12 }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Quality strip */}
+            <div style={{ background: surf, borderRadius: 14, border: `1px solid ${bdr}`, padding: '18px 22px', display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, marginTop: 4 }}>
+              {[
+                { icon: CheckCircle, color: green, label: 'VC-Grade Content', sub: 'Prompts tuned by real YC partners' },
+                { icon: Brain,       color: blue,  label: 'AI-Enhanced',      sub: 'Claude 3.5 Haiku under the hood' },
+                { icon: BarChart3,   color: amber, label: 'Data-Driven',      sub: 'Scores inform every artifact' },
+              ].map((item, i) => {
+                const Icon = item.icon;
+                return (
+                  <div key={i} style={{ textAlign: 'center' }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: `${item.color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 8px' }}>
+                      <Icon style={{ height: 16, width: 16, color: item.color }} />
+                    </div>
+                    <p style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 2 }}>{item.label}</p>
+                    <p style={{ fontSize: 11, color: muted }}>{item.sub}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ── Practice Mode tab ── */}
+        {activeTab === 'practice' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ background: '#fff', borderRadius: 14, border: `1px solid ${bdr}`, padding: '20px 24px' }}>
+              <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: muted, marginBottom: 4 }}>Mock Investor Q&A</p>
+              <p style={{ fontSize: 13, color: muted, marginBottom: 20 }}>
+                Questions are generated from your {improvements.length > 0 ? `lowest-scoring dimensions (${improvements.map(d => d.label).join(', ')})` : 'profile'} — the areas investors will probe hardest.
+              </p>
+
+              {(practiceQ.length > 0 ? practiceQ : [
+                { category: 'Market',   question: 'What is your total addressable market and how did you size it?',            difficulty: 'medium' as const },
+                { category: 'Traction', question: 'What metrics prove that customers will pay for this solution?',              difficulty: 'hard'   as const },
+                { category: 'Team',     question: 'Why is your team uniquely positioned to succeed in this space?',             difficulty: 'easy'   as const },
+              ]).map((q, i) => {
+                const diffColor = q.difficulty === 'easy' ? green : q.difficulty === 'medium' ? amber : red;
+                const isOpen    = activeQ === i;
+                return (
+                  <div key={i} style={{ border: `1px solid ${bdr}`, borderRadius: 12, padding: '16px 18px', marginBottom: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: isOpen ? 14 : 0 }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', gap: 7, marginBottom: 8 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: `${blue}15`, color: blue }}>{q.category}</span>
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: `${diffColor}15`, color: diffColor, textTransform: 'capitalize' }}>{q.difficulty}</span>
+                        </div>
+                        <p style={{ fontSize: 13, color: ink, lineHeight: 1.6 }}>{q.question}</p>
+                      </div>
+                      <button
+                        onClick={() => { setActiveQ(isOpen ? null : i); setAnswer(''); setFeedback(null); setFeedbackError(null); }}
+                        style={{ padding: '5px 12px', borderRadius: 7, border: `1px solid ${bdr}`, background: 'transparent', color: ink, fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+                      >
+                        {isOpen ? 'Close' : 'Practice'}
+                      </button>
+                    </div>
+                    {isOpen && (
+                      <div>
+                        <textarea
+                          value={answer}
+                          onChange={e => { setAnswer(e.target.value); setFeedback(null); }}
+                          placeholder="Type your answer here — practice responding concisely in under 90 seconds…"
+                          rows={5}
+                          style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: `1px solid ${bdr}`, background: bg, fontSize: 13, color: ink, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6, outline: 'none', boxSizing: 'border-box' }}
+                        />
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+                          <p style={{ fontSize: 11, color: muted }}>
+                            {answer.trim().split(/\s+/).filter(Boolean).length} words · ~{Math.ceil(answer.trim().split(/\s+/).filter(Boolean).length / 140)}min spoken
+                          </p>
+                          <button
+                            onClick={() => handleGetFeedback(q.question, q.category)}
+                            disabled={!answer.trim() || gettingFeedback}
+                            style={{ padding: '6px 14px', borderRadius: 8, border: 'none', background: !answer.trim() ? bdr : blue, color: !answer.trim() ? muted : '#fff', fontSize: 12, fontWeight: 600, cursor: !answer.trim() ? 'not-allowed' : 'pointer', opacity: gettingFeedback ? 0.7 : 1 }}
+                          >
+                            {gettingFeedback ? 'Analysing…' : 'Get AI Feedback'}
+                          </button>
+                        </div>
+                        {feedbackError && <p style={{ fontSize: 12, color: red, marginTop: 8 }}>{feedbackError}</p>}
+
+                        {feedback && (
+                          <div style={{ marginTop: 16, border: `1px solid ${bdr}`, borderRadius: 12, overflow: 'hidden' }}>
+                            {/* Rating header */}
+                            <div style={{
+                              padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10,
+                              background: feedback.rating === 'strong' ? '#F0FDF4' : feedback.rating === 'good' ? '#EFF6FF' : '#FFFBEB',
+                              borderBottom: `1px solid ${bdr}`,
+                            }}>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                                  <span style={{
+                                    fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em',
+                                    padding: '2px 8px', borderRadius: 999,
+                                    background: feedback.rating === 'strong' ? '#16A34A' : feedback.rating === 'good' ? '#2563EB' : feedback.rating === 'weak' ? '#DC2626' : '#D97706',
+                                    color: '#fff',
+                                  }}>{feedback.rating} · {feedback.score}/10</span>
+                                </div>
+                                <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>{feedback.headline}</p>
+                              </div>
+                            </div>
+                            <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                              {/* Strengths */}
+                              {feedback.strengths.length > 0 && (
+                                <div>
+                                  <p style={{ fontSize: 10, fontWeight: 700, color: green, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>What Worked</p>
+                                  {feedback.strengths.map((s, si) => (
+                                    <div key={si} style={{ display: 'flex', gap: 7, marginBottom: 5 }}>
+                                      <span style={{ color: green, fontSize: 13, flexShrink: 0 }}>✓</span>
+                                      <p style={{ fontSize: 12, color: ink, lineHeight: 1.5 }}>{s}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              {/* Gaps */}
+                              {feedback.gaps.length > 0 && (
+                                <div>
+                                  <p style={{ fontSize: 10, fontWeight: 700, color: red, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>What Was Missing</p>
+                                  {feedback.gaps.map((g, gi) => (
+                                    <div key={gi} style={{ display: 'flex', gap: 7, marginBottom: 5 }}>
+                                      <span style={{ color: red, fontSize: 13, flexShrink: 0 }}>✗</span>
+                                      <p style={{ fontSize: 12, color: ink, lineHeight: 1.5 }}>{g}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              {/* Suggestion */}
+                              <div style={{ background: '#EFF6FF', borderRadius: 8, padding: '10px 14px' }}>
+                                <p style={{ fontSize: 10, fontWeight: 700, color: blue, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 5 }}>Do This Instead</p>
+                                <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{feedback.suggestion}</p>
+                              </div>
+                              {/* Rewritten opener */}
+                              {feedback.rewrittenOpener && (
+                                <div style={{ background: surf, borderRadius: 8, padding: '10px 14px', borderLeft: `3px solid ${blue}` }}>
+                                  <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 5 }}>Strong Opening Example</p>
+                                  <p style={{ fontSize: 12, color: ink, lineHeight: 1.6, fontStyle: 'italic' }}>&quot;{feedback.rewrittenOpener}&quot;</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ── Recommendations tab ── */}
+        {activeTab === 'recommendations' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {recommendations.length > 0 ? recommendations.map((r, i) => (
+              <div key={i} style={{ background: '#fff', borderRadius: 14, border: `1px solid ${bdr}`, padding: '18px 22px', display: 'flex', gap: 16 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: `${blue}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <p style={{ fontSize: 13, fontWeight: 800, color: blue }}>{i + 1}</p>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontSize: 13, color: ink, lineHeight: 1.6, marginBottom: 10 }}>{r.text}</p>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: `${blue}15`, color: blue }}>{r.dim}</span>
+                    <span style={{ fontSize: 11, color: muted }}>Priority: {i === 0 ? 'High' : 'Medium'}</span>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: green }}>+{r.impact} Q points</span>
+                  </div>
+                </div>
+              </div>
+            )) : (
+              <div style={{ background: surf, borderRadius: 14, border: `1px solid ${bdr}`, padding: '28px', textAlign: 'center' }}>
+                <CheckCircle style={{ height: 28, width: 28, color: green, margin: '0 auto 12px' }} />
+                <p style={{ fontSize: 14, fontWeight: 700, color: ink, marginBottom: 6 }}>All dimensions scoring well</p>
+                <p style={{ fontSize: 13, color: muted }}>
+                  {qScore ? 'Focus on adding evidence to your score to maintain investor confidence.'
+                           : 'Complete your assessment to get personalized recommendations.'}
                 </p>
               </div>
-              <Button size="lg" onClick={() => window.location.href = '/founder/dashboard'}>
-                Go to Dashboard
-                <ArrowRight className="h-4 w-4 ml-2" />
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+            )}
+          </div>
+        )}
+
+        {/* ── CTA strip ── */}
+        <div style={{ background: surf, borderRadius: 14, border: `1px solid ${bdr}`, padding: '20px 24px', marginTop: 28, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+          <div>
+            <p style={{ fontSize: 14, fontWeight: 700, color: ink, marginBottom: 4 }}>Ready to improve your score?</p>
+            <p style={{ fontSize: 12, color: muted }}>Work with your AI agents or take the detailed assessment</p>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={() => router.push('/founder/improve-qscore')}
+              style={{ padding: '10px 18px', borderRadius: 10, border: `1px solid ${bdr}`, background: 'transparent', color: ink, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+            >
+              Improve Q-Score
+            </button>
+            <button
+              onClick={() => router.push('/founder/dashboard')}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '10px 18px', borderRadius: 10, border: 'none', background: ink, color: bg, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+            >
+              Dashboard <ArrowRight style={{ height: 13, width: 13 }} />
+            </button>
+          </div>
+        </div>
+
       </div>
     </div>
   );

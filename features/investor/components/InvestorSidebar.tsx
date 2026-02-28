@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import {
   Home, Search, Brain, PieChart, MessageSquare,
-  ChevronsUpDown, LogOut, Settings, UserCircle,
+  ChevronsUpDown, LogOut, Settings, UserCircle, Kanban,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -19,18 +19,23 @@ const muted = "#8A867C";
 const blue  = "#2563EB";
 
 // ─── nav items ────────────────────────────────────────────────────────────────
-const nav = [
+const BASE_NAV = [
   { name: "Dashboard",   href: "/investor/dashboard",   icon: Home,          badge: null   },
   { name: "Deal Flow",   href: "/investor/deal-flow",   icon: Search,        badge: "Live" },
+  { name: "Pipeline",    href: "/investor/pipeline",    icon: Kanban,        badge: null   },
   { name: "AI Analysis", href: "/investor/ai-analysis", icon: Brain,         badge: null   },
   { name: "Portfolio",   href: "/investor/portfolio",   icon: PieChart,      badge: null   },
-  { name: "Messages",    href: "/investor/messages",      icon: MessageSquare, badge: "3"    },
+  { name: "Messages",    href: "/investor/messages",    icon: MessageSquare, badge: null   },
 ];
 
 const BADGE: Record<string, { bg: string; color: string }> = {
   "Live": { bg: "#F0FDF4", color: "#166534" },
-  "3":    { bg: surf,      color: muted     },
 };
+
+function msgBadgeStyle(count: number): { bg: string; color: string } {
+  if (count === 0) return { bg: surf, color: muted };
+  return { bg: "#FEF2F2", color: "#DC2626" };
+}
 
 // ─── dropdown ─────────────────────────────────────────────────────────────────
 function Dropdown({
@@ -133,10 +138,29 @@ function DropSep() {
 
 // ─── component ────────────────────────────────────────────────────────────────
 export default function InvestorSidebar() {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded,  setExpanded]  = useState(false);
+  const [msgCount,  setMsgCount]  = useState<number | null>(null);
   const pathname = usePathname();
   const router   = useRouter();
   const { user, signOut } = useAuth();
+
+  // Fetch pending connection request count for Messages badge
+  useEffect(() => {
+    fetch("/api/investor/connections")
+      .then(r => r.json())
+      .then(d => {
+        const count = Array.isArray(d.requests) ? d.requests.length : 0;
+        setMsgCount(count);
+      })
+      .catch(() => setMsgCount(null));
+  }, []);
+
+  // Build nav with dynamic message badge
+  const nav = BASE_NAV.map(item =>
+    item.name === "Messages" && msgCount !== null && msgCount > 0
+      ? { ...item, badge: String(msgCount) }
+      : item
+  );
 
   const displayName = (user?.user_metadata?.full_name as string) || user?.email?.split("@")[0] || "Investor";
   const fundName    = (user?.user_metadata?.fund_name as string) || "Edge Alpha";
@@ -199,7 +223,12 @@ export default function InvestorSidebar() {
         {nav.map(item => {
           const active = pathname === item.href || pathname.startsWith(item.href + "/");
           const Icon   = item.icon;
-          const bs     = item.badge ? BADGE[item.badge] : null;
+          const isMessages = item.name === "Messages";
+          const bs = isMessages && item.badge
+            ? msgBadgeStyle(Number(item.badge))
+            : item.badge
+              ? BADGE[item.badge] ?? null
+              : null;
 
           return (
             <Link

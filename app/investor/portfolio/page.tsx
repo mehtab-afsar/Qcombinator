@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { TrendingUp, ArrowUpRight, ArrowDownRight, ChevronRight, AlertCircle, CheckCircle } from "lucide-react";
+import { TrendingUp, ArrowUpRight, ChevronRight, AlertCircle, CheckCircle, RefreshCw, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 // ─── palette ──────────────────────────────────────────────────────────────────
@@ -17,133 +17,105 @@ const amber = "#D97706";
 const red   = "#DC2626";
 
 // ─── types ────────────────────────────────────────────────────────────────────
-interface PortfolioCompany {
+interface Company {
   id: string;
   name: string;
   sector: string;
   stage: string;
-  investedAmount: string;
-  currentValuation: string;
-  investmentDate: string;
-  ownership: string;
-  lastRound: string;
+  founderName: string;
+  description: string;
+  qScore: number;
+  qScoreBreakdown: { team: number; market: number; traction: number; gtm: number; product: number };
   health: "excellent" | "good" | "concern" | "critical";
+  connectedAt: string;
   metrics: { revenue: string; growth: string; burnRate: string; runway: string };
-  performance: { multiple: number; change: number };
-  nextMilestone: string;
-  lastUpdate: string;
 }
 
-// ─── mock data ────────────────────────────────────────────────────────────────
-const mockPortfolio: PortfolioCompany[] = [
-  {
-    id: "1", name: "TechFlow AI", sector: "AI/ML", stage: "Series A",
-    investedAmount: "$2M", currentValuation: "$50M",
-    investmentDate: "Jan 2023", ownership: "8.5%", lastRound: "Series B ($15M)",
-    health: "excellent",
-    metrics: { revenue: "$2.1M ARR", growth: "+180% YoY", burnRate: "$150K/mo", runway: "24 months" },
-    performance: { multiple: 3.2, change: 15 },
-    nextMilestone: "Series B closing Q1 2024", lastUpdate: "2d ago"
-  },
-  {
-    id: "2", name: "HealthTech Pro", sector: "Healthcare", stage: "Seed",
-    investedAmount: "$500K", currentValuation: "$12M",
-    investmentDate: "Jun 2023", ownership: "5.2%", lastRound: "Seed ($2M)",
-    health: "good",
-    metrics: { revenue: "$450K ARR", growth: "+240% YoY", burnRate: "$80K/mo", runway: "18 months" },
-    performance: { multiple: 1.8, change: 8 },
-    nextMilestone: "FDA approval process", lastUpdate: "5d ago"
-  },
-  {
-    id: "3", name: "FinanceOS", sector: "Fintech", stage: "Series A",
-    investedAmount: "$3M", currentValuation: "$65M",
-    investmentDate: "Mar 2022", ownership: "12%", lastRound: "Series A ($8M)",
-    health: "excellent",
-    metrics: { revenue: "$3.5M ARR", growth: "+150% YoY", burnRate: "$200K/mo", runway: "30 months" },
-    performance: { multiple: 4.1, change: 22 },
-    nextMilestone: "Profitability Q2 2024", lastUpdate: "1d ago"
-  },
-  {
-    id: "4", name: "DataHub Analytics", sector: "SaaS", stage: "Seed",
-    investedAmount: "$750K", currentValuation: "$15M",
-    investmentDate: "Aug 2023", ownership: "6.8%", lastRound: "Seed ($3M)",
-    health: "concern",
-    metrics: { revenue: "$890K ARR", growth: "+210% YoY", burnRate: "$180K/mo", runway: "12 months" },
-    performance: { multiple: 1.4, change: -5 },
-    nextMilestone: "Series A fundraise", lastUpdate: "1w ago"
-  },
-  {
-    id: "5", name: "SecureCloud", sector: "Cybersecurity", stage: "Series A",
-    investedAmount: "$2.5M", currentValuation: "$55M",
-    investmentDate: "Nov 2022", ownership: "9.2%", lastRound: "Series A ($6M)",
-    health: "good",
-    metrics: { revenue: "$2.8M ARR", growth: "+190% YoY", burnRate: "$170K/mo", runway: "22 months" },
-    performance: { multiple: 2.7, change: 12 },
-    nextMilestone: "Enterprise expansion", lastUpdate: "3d ago"
-  }
-];
-
-function healthStyle(h: PortfolioCompany["health"]) {
-  if (h === "excellent") return { color: green, bg: "#F0FDF4", label: "Excellent", Icon: CheckCircle }
-  if (h === "good")      return { color: blue,  bg: "#EFF6FF", label: "Good",      Icon: CheckCircle }
-  if (h === "concern")   return { color: amber, bg: "#FFFBEB", label: "Concern",   Icon: AlertCircle }
-  return                        { color: red,   bg: "#FEF2F2", label: "Critical",  Icon: AlertCircle }
+function healthStyle(h: Company["health"]) {
+  if (h === "excellent") return { color: green, bg: "#F0FDF4", label: "Strong",   Icon: CheckCircle }
+  if (h === "good")      return { color: blue,  bg: "#EFF6FF", label: "Good",     Icon: CheckCircle }
+  if (h === "concern")   return { color: amber, bg: "#FFFBEB", label: "Watch",    Icon: AlertCircle }
+  return                        { color: red,   bg: "#FEF2F2", label: "Critical", Icon: AlertCircle }
 }
 
-function parseMoney(s: string) {
-  const n = parseFloat(s.replace(/[$MK]/g, ""));
-  return s.includes("M") ? n * 1_000_000 : n * 1_000;
+function relativeDate(iso: string) {
+  const diff  = Date.now() - new Date(iso).getTime();
+  const days  = Math.floor(diff / 86400000);
+  if (days === 0) return "Today";
+  if (days === 1) return "Yesterday";
+  if (days < 30)  return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  return months === 1 ? "1 month ago" : `${months} months ago`;
 }
 
 // ─── component ────────────────────────────────────────────────────────────────
 export default function PortfolioPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"all" | "excellent" | "attention">("all");
+  const [companies, setCompanies]  = useState<Company[]>([]);
+  const [loading,   setLoading]    = useState(true);
+  const [expanded,  setExpanded]   = useState<string | null>(null);
 
-  const totalInvested = mockPortfolio.reduce((s, c) => s + parseMoney(c.investedAmount), 0);
-  const totalValue    = mockPortfolio.reduce((s, c) => {
-    const own = parseFloat(c.ownership) / 100;
-    return s + parseMoney(c.currentValuation) * own;
-  }, 0);
-  const totalROI  = ((totalValue - totalInvested) / totalInvested) * 100;
-  const avgMultiple = mockPortfolio.reduce((s, c) => s + c.performance.multiple, 0) / mockPortfolio.length;
+  useEffect(() => {
+    fetch("/api/investor/portfolio")
+      .then(r => r.json())
+      .then(d => { if (d.companies) setCompanies(d.companies); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
-  const filtered = mockPortfolio.filter(c => {
-    if (activeTab === "excellent") return c.health === "excellent";
+  const filtered = companies.filter(c => {
+    if (activeTab === "excellent") return c.health === "excellent" || c.health === "good";
     if (activeTab === "attention") return c.health === "concern" || c.health === "critical";
     return true;
   });
 
   const tabs = [
-    { key: "all"       as const, label: `All (${mockPortfolio.length})` },
-    { key: "excellent" as const, label: `Top Performers (${mockPortfolio.filter(c => c.health === "excellent").length})` },
-    { key: "attention" as const, label: `Needs Attention (${mockPortfolio.filter(c => c.health === "concern" || c.health === "critical").length})` },
+    { key: "all"       as const, label: `All (${companies.length})` },
+    { key: "excellent" as const, label: `Strong (${companies.filter(c => c.health === "excellent" || c.health === "good").length})` },
+    { key: "attention" as const, label: `Watch (${companies.filter(c => c.health === "concern" || c.health === "critical").length})` },
   ];
+
+  // Derived stats
+  const avgQScore   = companies.length ? Math.round(companies.reduce((s, c) => s + c.qScore, 0) / companies.length) : 0;
+  const strongCount = companies.filter(c => c.qScore >= 60).length;
+  const watchCount  = companies.filter(c => c.health === "concern" || c.health === "critical").length;
+
+  if (loading) {
+    return (
+      <div style={{ minHeight: "100vh", background: bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ textAlign: "center" }}>
+          <RefreshCw style={{ height: 20, width: 20, color: muted, margin: "0 auto 12px", animation: "spin 1s linear infinite" }} />
+          <p style={{ fontSize: 13, color: muted }}>Loading portfolio…</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: "100vh", background: bg, color: ink, padding: "40px 24px" }}>
-      <div style={{ maxWidth: 860, margin: "0 auto" }}>
+      <div style={{ maxWidth: 900, margin: "0 auto" }}>
 
-        {/* header */}
+        {/* ── header ── */}
         <div style={{ marginBottom: 32 }}>
           <p style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.18em", color: muted, fontWeight: 600, marginBottom: 8 }}>
-            Portfolio
+            Investor · Portfolio
           </p>
           <h1 style={{ fontSize: "clamp(1.8rem,4vw,2.4rem)", fontWeight: 300, letterSpacing: "-0.03em", color: ink, marginBottom: 6 }}>
-            Your investments.
+            Your connections.
           </h1>
-          <p style={{ fontSize: 14, color: muted }}>Track performance and manage your portfolio companies.</p>
+          <p style={{ fontSize: 14, color: muted }}>Founders you&apos;ve connected with on Edge Alpha.</p>
         </div>
 
-        {/* stats row */}
+        {/* ── stats strip ── */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 1, background: bdr, border: `1px solid ${bdr}`, borderRadius: 12, overflow: "hidden", marginBottom: 32 }}>
           {[
-            { label: "Total Invested",  value: `$${(totalInvested / 1_000_000).toFixed(1)}M`,   accent: ink,   sub: `${mockPortfolio.length} companies` },
-            { label: "Current Value",   value: `$${(totalValue    / 1_000_000).toFixed(1)}M`,   accent: green, sub: `+${totalROI.toFixed(0)}% ROI` },
-            { label: "Avg Multiple",    value: `${avgMultiple.toFixed(1)}x`,                     accent: blue,  sub: "Across portfolio" },
-            { label: "Active Deals",    value: `${mockPortfolio.length}`,                        accent: amber, sub: `${mockPortfolio.filter(c => c.health === "excellent" || c.health === "good").length} performing well` },
+            { label: "Connections",  value: companies.length.toString(), accent: ink,   sub: "Total connected" },
+            { label: "Avg Q-Score",  value: avgQScore ? `${avgQScore}` : "—",           accent: blue,  sub: "Portfolio average" },
+            { label: "High Q-Score", value: strongCount.toString(),                     accent: green, sub: "Scoring 60+" },
+            { label: "Watching",     value: watchCount.toString(),                      accent: amber, sub: "Need attention" },
           ].map((s, i) => (
-            <div key={i} style={{ background: bg, padding: "20px 20px" }}>
+            <div key={i} style={{ background: bg, padding: "20px" }}>
               <p style={{ fontSize: 11, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>{s.label}</p>
               <p style={{ fontSize: 22, fontWeight: 700, color: s.accent, marginBottom: 2 }}>{s.value}</p>
               <p style={{ fontSize: 11, color: muted }}>{s.sub}</p>
@@ -151,107 +123,162 @@ export default function PortfolioPage() {
           ))}
         </div>
 
-        {/* tabs */}
-        <div style={{ display: "flex", borderBottom: `1px solid ${bdr}`, marginBottom: 0 }}>
-          {tabs.map(tab => (
-            <button key={tab.key} onClick={() => setActiveTab(tab.key)} style={{ padding: "10px 16px", fontSize: 12, fontWeight: 500, color: activeTab === tab.key ? ink : muted, background: "transparent", border: "none", cursor: "pointer", borderBottom: activeTab === tab.key ? `2px solid ${ink}` : "2px solid transparent", transition: "color .15s", fontFamily: "inherit" }}>
-              {tab.label}
+        {/* ── empty state ── */}
+        {companies.length === 0 && (
+          <div style={{ textAlign: "center", padding: "60px 24px", border: `1px dashed ${bdr}`, borderRadius: 16 }}>
+            <Users style={{ height: 36, width: 36, color: muted, margin: "0 auto 16px" }} />
+            <p style={{ fontSize: 15, fontWeight: 600, color: ink, marginBottom: 6 }}>No connections yet</p>
+            <p style={{ fontSize: 13, color: muted, marginBottom: 20 }}>
+              Accept connection requests from founders in your deal flow to build your portfolio here.
+            </p>
+            <button
+              onClick={() => router.push("/investor/dashboard")}
+              style={{ padding: "10px 22px", borderRadius: 999, border: "none", background: ink, color: bg, fontSize: 13, fontWeight: 500, cursor: "pointer" }}
+            >
+              Go to Deal Flow
             </button>
-          ))}
-        </div>
+          </div>
+        )}
 
-        {/* table header */}
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 100px 100px 100px 90px 80px 44px", gap: 8, padding: "10px 16px", borderBottom: `1px solid ${bdr}` }}>
-          {["Company", "Invested", "Valuation", "Revenue", "Runway", "Multiple", ""].map((h, i) => (
-            <p key={i} style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.1em", color: muted, fontWeight: 600 }}>{h}</p>
-          ))}
-        </div>
+        {companies.length > 0 && (
+          <>
+            {/* ── tabs ── */}
+            <div style={{ display: "flex", borderBottom: `1px solid ${bdr}`, marginBottom: 0 }}>
+              {tabs.map(tab => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  style={{ padding: "10px 16px", fontSize: 12, fontWeight: 500, color: activeTab === tab.key ? ink : muted, background: "transparent", border: "none", cursor: "pointer", borderBottom: activeTab === tab.key ? `2px solid ${ink}` : "2px solid transparent", transition: "color .15s", fontFamily: "inherit" }}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
 
-        {/* rows */}
-        <div style={{ border: `1px solid ${bdr}`, borderTop: "none", borderRadius: "0 0 12px 12px", overflow: "hidden" }}>
-          {filtered.map((company, i) => {
-            const hs = healthStyle(company.health);
-            const HIcon = hs.Icon;
-            const initials = company.name.split(" ").map(n => n[0]).join("").slice(0, 2);
-            return (
-              <motion.div
-                key={company.id}
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.05 }}
-                style={{ borderBottom: i < filtered.length - 1 ? `1px solid ${bdr}` : "none", background: bg }}
-                onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = surf}
-                onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = bg}
-              >
-                <div style={{ display: "grid", gridTemplateColumns: "2fr 100px 100px 100px 90px 80px 44px", gap: 8, padding: "14px 16px", alignItems: "center" }}>
+            {/* ── table header ── */}
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 80px 90px 90px 44px", gap: 8, padding: "10px 16px", borderBottom: `1px solid ${bdr}` }}>
+              {["Company", "Q-Score", "Stage", "Connected", ""].map((h, i) => (
+                <p key={i} style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.1em", color: muted, fontWeight: 600 }}>{h}</p>
+              ))}
+            </div>
 
-                  {/* company */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-                    <div style={{ height: 38, width: 38, borderRadius: 9, background: surf, border: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: ink, flexShrink: 0 }}>
-                      {initials}
-                    </div>
-                    <div style={{ minWidth: 0 }}>
-                      <p style={{ fontSize: 14, fontWeight: 600, color: ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{company.name}</p>
-                      <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 2 }}>
-                        <HIcon style={{ height: 10, width: 10, color: hs.color }} />
-                        <span style={{ fontSize: 11, color: hs.color }}>{hs.label}</span>
-                        <span style={{ fontSize: 11, color: muted }}>· {company.sector} · Since {company.investmentDate}</span>
+            {/* ── rows ── */}
+            <div style={{ border: `1px solid ${bdr}`, borderTop: "none", borderRadius: "0 0 12px 12px", overflow: "hidden" }}>
+              {filtered.length === 0 && (
+                <p style={{ padding: "24px", fontSize: 13, color: muted, textAlign: "center" }}>No companies in this filter.</p>
+              )}
+              {filtered.map((company, i) => {
+                const hs       = healthStyle(company.health);
+                const HIcon    = hs.Icon;
+                const initials = company.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
+                const isOpen   = expanded === company.id;
+
+                return (
+                  <motion.div
+                    key={company.id}
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.04 }}
+                    style={{ borderBottom: i < filtered.length - 1 ? `1px solid ${bdr}` : "none", background: isOpen ? surf : bg }}
+                    onMouseEnter={e => { if (!isOpen) (e.currentTarget as HTMLElement).style.background = surf; }}
+                    onMouseLeave={e => { if (!isOpen) (e.currentTarget as HTMLElement).style.background = bg; }}
+                  >
+                    {/* main row */}
+                    <div
+                      style={{ display: "grid", gridTemplateColumns: "2fr 80px 90px 90px 44px", gap: 8, padding: "14px 16px", alignItems: "center", cursor: "pointer" }}
+                      onClick={() => setExpanded(isOpen ? null : company.id)}
+                    >
+                      {/* company */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                        <div style={{ height: 38, width: 38, borderRadius: 9, background: surf, border: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: ink, flexShrink: 0 }}>
+                          {initials}
+                        </div>
+                        <div style={{ minWidth: 0 }}>
+                          <p style={{ fontSize: 14, fontWeight: 600, color: ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{company.name}</p>
+                          <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 2 }}>
+                            <HIcon style={{ height: 10, width: 10, color: hs.color }} />
+                            <span style={{ fontSize: 11, color: hs.color }}>{hs.label}</span>
+                            <span style={{ fontSize: 11, color: muted }}>· {company.sector} · {company.founderName}</span>
+                          </div>
+                        </div>
                       </div>
+
+                      {/* Q-Score */}
+                      <div>
+                        <p style={{ fontSize: 15, fontWeight: 700, color: company.qScore >= 60 ? green : company.qScore >= 40 ? amber : red }}>{company.qScore || "—"}</p>
+                        <p style={{ fontSize: 10, color: muted }}>/ 100</p>
+                      </div>
+
+                      {/* stage */}
+                      <p style={{ fontSize: 12, color: ink }}>{company.stage}</p>
+
+                      {/* connected */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                        <TrendingUp style={{ height: 11, width: 11, color: muted }} />
+                        <p style={{ fontSize: 11, color: muted }}>{relativeDate(company.connectedAt)}</p>
+                      </div>
+
+                      {/* arrow */}
+                      <button
+                        onClick={e => { e.stopPropagation(); router.push(`/investor/startup/${company.id}`); }}
+                        style={{ height: 32, width: 32, display: "flex", alignItems: "center", justifyContent: "center", background: surf, border: `1px solid ${bdr}`, borderRadius: 8, cursor: "pointer" }}
+                      >
+                        <ChevronRight style={{ height: 13, width: 13, color: muted }} />
+                      </button>
                     </div>
-                  </div>
 
-                  {/* invested */}
-                  <div>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>{company.investedAmount}</p>
-                    <p style={{ fontSize: 11, color: muted }}>{company.ownership} stake</p>
-                  </div>
+                    {/* expanded details */}
+                    {isOpen && (
+                      <div style={{ padding: "0 16px 16px 68px", borderTop: `1px solid ${bdr}` }}>
+                        {company.description && (
+                          <p style={{ fontSize: 12, color: muted, lineHeight: 1.6, marginTop: 12, marginBottom: 14 }}>
+                            {company.description}
+                          </p>
+                        )}
 
-                  {/* valuation */}
-                  <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>{company.currentValuation}</p>
+                        {/* Metrics row */}
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginBottom: 14 }}>
+                          {[
+                            { label: "Revenue",   value: company.metrics.revenue },
+                            { label: "Growth",    value: company.metrics.growth },
+                            { label: "Burn Rate", value: company.metrics.burnRate },
+                            { label: "Runway",    value: company.metrics.runway },
+                          ].map((m, mi) => (
+                            <div key={mi} style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 8, padding: "10px 12px" }}>
+                              <p style={{ fontSize: 10, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>{m.label}</p>
+                              <p style={{ fontSize: 14, fontWeight: 600, color: m.value === "—" ? muted : ink }}>{m.value}</p>
+                            </div>
+                          ))}
+                        </div>
 
-                  {/* revenue */}
-                  <div>
-                    <p style={{ fontSize: 13, fontWeight: 500, color: ink }}>{company.metrics.revenue}</p>
-                    <p style={{ fontSize: 11, color: green }}>{company.metrics.growth}</p>
-                  </div>
+                        {/* Q-Score breakdown pills */}
+                        <p style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em", color: muted, marginBottom: 8 }}>Q-Score Breakdown</p>
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+                          {Object.entries(company.qScoreBreakdown).map(([dim, score]) => (
+                            <div key={dim} style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 999, background: bg, border: `1px solid ${bdr}` }}>
+                              <p style={{ fontSize: 11, color: muted, textTransform: "capitalize" }}>{dim}</p>
+                              <p style={{ fontSize: 12, fontWeight: 700, color: score >= 60 ? green : score >= 40 ? amber : red }}>{score}</p>
+                            </div>
+                          ))}
+                        </div>
 
-                  {/* runway */}
-                  <p style={{ fontSize: 12, color: parseFloat(company.metrics.runway) <= 12 ? amber : muted }}>{company.metrics.runway}</p>
-
-                  {/* multiple */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    <p style={{ fontSize: 14, fontWeight: 700, color: company.performance.multiple >= 3 ? green : ink }}>{company.performance.multiple}x</p>
-                    <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
-                      {company.performance.change > 0 ? (
-                        <ArrowUpRight style={{ height: 11, width: 11, color: green }} />
-                      ) : (
-                        <ArrowDownRight style={{ height: 11, width: 11, color: red }} />
-                      )}
-                      <span style={{ fontSize: 10, color: company.performance.change > 0 ? green : red }}>
-                        {Math.abs(company.performance.change)}%
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* arrow */}
-                  <button onClick={() => router.push(`/investor/startup/${company.id}`)} style={{ height: 32, width: 32, display: "flex", alignItems: "center", justifyContent: "center", background: surf, border: `1px solid ${bdr}`, borderRadius: 8, cursor: "pointer" }}>
-                    <ChevronRight style={{ height: 13, width: 13, color: muted }} />
-                  </button>
-                </div>
-
-                {/* milestone row */}
-                <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 16px 12px 76px" }}>
-                  <TrendingUp style={{ height: 11, width: 11, color: muted }} />
-                  <p style={{ fontSize: 12, color: muted }}>Next: {company.nextMilestone}</p>
-                  <span style={{ fontSize: 12, color: muted, opacity: 0.5 }}>· Updated {company.lastUpdate}</span>
-                </div>
-              </motion.div>
-            );
-          })}
-        </div>
+                        <button
+                          onClick={() => router.push(`/investor/startup/${company.id}`)}
+                          style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "7px 16px", borderRadius: 8, border: `1px solid ${bdr}`, background: "transparent", color: ink, fontSize: 12, fontWeight: 500, cursor: "pointer" }}
+                        >
+                          Full profile <ArrowUpRight style={{ height: 12, width: 12 }} />
+                        </button>
+                      </div>
+                    )}
+                  </motion.div>
+                );
+              })}
+            </div>
+          </>
+        )}
 
         <p style={{ marginTop: 48, fontSize: 11, color: muted, opacity: 0.5, textAlign: "center" }}>
-          {filtered.length} companies · Portfolio analytics v1.0
+          {companies.length} founder{companies.length !== 1 ? "s" : ""} · Edge Alpha Portfolio
         </p>
       </div>
     </div>
