@@ -993,6 +993,181 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
   } | null>(null);
   const [icpValidationError, setIcpValidationError]     = useState<string | null>(null);
   const [showIcpValidation, setShowIcpValidation]       = useState(false);
+
+  // Outreach sequence state
+  const [showSequencePanel, setShowSequencePanel]     = useState(false);
+  const [seqTargetRole, setSeqTargetRole]             = useState("");
+  const [seqTargetIndustry, setSeqTargetIndustry]     = useState("");
+  const [seqPainPoint, setSeqPainPoint]               = useState("");
+  const [seqValueProp, setSeqValueProp]               = useState("");
+  const [generatingSequence, setGeneratingSequence]   = useState(false);
+  const [sequenceResult, setSequenceResult]           = useState<{
+    sequenceStrategy?: string;
+    sequence?: { step: number; day: number; subject: string; body: string; cta: string; toneNote: string }[];
+  } | null>(null);
+  const [sequenceError, setSequenceError]             = useState<string | null>(null);
+  const [copiedSeqStep, setCopiedSeqStep]             = useState<number | null>(null);
+
+  async function handleGenerateSequence() {
+    if (generatingSequence || !seqTargetRole.trim() || !seqPainPoint.trim()) return;
+    setGeneratingSequence(true); setSequenceError(null);
+    try {
+      const res = await fetch('/api/agents/patel/sequence', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetRole: seqTargetRole, targetIndustry: seqTargetIndustry, painPoint: seqPainPoint, valueProposition: seqValueProp }),
+      });
+      const r = await res.json();
+      if (res.ok && r.sequence) setSequenceResult(r);
+      else setSequenceError(r.error ?? 'Failed to generate sequence');
+    } catch { setSequenceError('Network error'); }
+    finally { setGeneratingSequence(false); }
+  }
+
+  function copySeqStep(step: number, text: string) {
+    navigator.clipboard.writeText(text).then(() => { setCopiedSeqStep(step); setTimeout(() => setCopiedSeqStep(null), 1500); }).catch(() => {});
+  }
+
+  // Launch plan state
+  const [generatingLaunchPlan, setGeneratingLaunchPlan] = useState(false);
+  const [launchPlanError, setLaunchPlanError]           = useState<string | null>(null);
+
+  async function handleGenerateLaunchPlan() {
+    if (generatingLaunchPlan) return;
+    setGeneratingLaunchPlan(true); setLaunchPlanError(null);
+    try {
+      const res = await fetch('/api/agents/patel/launch-plan', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.html) {
+        const blob = new Blob([r.html], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = 'launch-plan.html'; a.click();
+        URL.revokeObjectURL(url);
+      } else { setLaunchPlanError(r.error ?? 'Failed to generate launch plan'); }
+    } catch { setLaunchPlanError('Network error'); }
+    finally { setGeneratingLaunchPlan(false); }
+  }
+
+  // Landing copy state
+  const [generatingLandingCopy, setGeneratingLandingCopy] = useState(false);
+  const [landingCopyResult, setLandingCopyResult] = useState<{ heroHeadline?: string; heroSubheadline?: string; heroCTA?: string; valueProps?: { icon?: string; headline?: string; body?: string }[]; socialProof?: string; howItWorks?: { step?: number; action?: string; description?: string }[]; faq?: { question?: string; answer?: string }[]; closingCTA?: { headline?: string; body?: string; button?: string }; metaTitle?: string; metaDescription?: string } | null>(null);
+  const [landingCopyError, setLandingCopyError] = useState<string | null>(null);
+  const [landingCopyTab, setLandingCopyTab] = useState<'hero' | 'features' | 'faq'>('hero');
+
+  async function handleGenerateLandingCopy() {
+    if (generatingLandingCopy) return;
+    setGeneratingLandingCopy(true); setLandingCopyError(null);
+    try {
+      const res = await fetch('/api/agents/patel/landing-copy', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.copy) { setLandingCopyResult(r.copy); }
+      else { setLandingCopyError(r.error ?? 'Failed to generate landing copy'); }
+    } catch { setLandingCopyError('Network error'); }
+    finally { setGeneratingLandingCopy(false); }
+  }
+
+  // ABM Strategy state
+  const [abmAccounts, setAbmAccounts]                     = useState('');
+  const [generatingABM, setGeneratingABM]                 = useState(false);
+  const [abmResult, setAbmResult]                         = useState<Record<string, unknown> | null>(null);
+  const [abmError, setAbmError]                           = useState<string | null>(null);
+  const [abmTab, setAbmTab]                               = useState<'targets' | 'playbook' | 'content' | 'metrics'>('targets');
+
+  async function handleGenerateABMStrategy() {
+    if (generatingABM) return;
+    setGeneratingABM(true); setAbmError(null); setAbmResult(null);
+    const targetAccounts = abmAccounts ? abmAccounts.split(',').map(a => a.trim()).filter(Boolean) : undefined;
+    try {
+      const res = await fetch('/api/agents/patel/account-based-marketing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetAccounts }),
+      });
+      const r = await res.json();
+      if (res.ok && r.strategy) setAbmResult(r.strategy);
+      else setAbmError(r.error ?? 'Generation failed');
+    } catch { setAbmError('Network error'); }
+    finally { setGeneratingABM(false); }
+  }
+
+  // Referral Program state
+  const [generatingReferral, setGeneratingReferral]       = useState(false);
+  const [referralResult, setReferralResult]               = useState<Record<string, unknown> | null>(null);
+  const [referralError, setReferralError]                 = useState<string | null>(null);
+  const [referralTab, setReferralTab]                     = useState<'mechanics' | 'viral' | 'launch' | 'templates'>('mechanics');
+
+  async function handleGenerateReferralProgram() {
+    if (generatingReferral) return;
+    setGeneratingReferral(true); setReferralError(null); setReferralResult(null);
+    try {
+      const res = await fetch('/api/agents/patel/referral-program', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.program) setReferralResult(r.program);
+      else setReferralError(r.error ?? 'Generation failed');
+    } catch { setReferralError('Network error'); }
+    finally { setGeneratingReferral(false); }
+  }
+
+  // Partnership Strategy state
+  const [generatingPartnership, setGeneratingPartnership] = useState(false);
+  const [partnershipResult, setPartnershipResult]         = useState<Record<string, unknown> | null>(null);
+  const [partnershipError, setPartnershipError]           = useState<string | null>(null);
+  const [partnershipTab, setPartnershipTab]               = useState<'types' | 'targets' | 'outreach' | 'integrations'>('types');
+
+  async function handleGeneratePartnership() {
+    if (generatingPartnership) return;
+    setGeneratingPartnership(true); setPartnershipError(null); setPartnershipResult(null);
+    try {
+      const res = await fetch('/api/agents/patel/partnership-strategy', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.strategy) setPartnershipResult(r.strategy);
+      else setPartnershipError(r.error ?? 'Generation failed');
+    } catch { setPartnershipError('Network error'); }
+    finally { setGeneratingPartnership(false); }
+  }
+
+  // Customer Journey state
+  const [generatingJourney, setGeneratingJourney] = useState(false);
+  const [journeyResult, setJourneyResult]         = useState<Record<string, unknown> | null>(null);
+  const [journeyError, setJourneyError]           = useState<string | null>(null);
+  const [journeyStageIdx, setJourneyStageIdx]     = useState(0);
+
+  async function handleGenerateJourney() {
+    if (generatingJourney) return;
+    setGeneratingJourney(true); setJourneyError(null); setJourneyResult(null);
+    try {
+      const res = await fetch('/api/agents/patel/customer-journey', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.journey) setJourneyResult(r.journey);
+      else setJourneyError(r.error ?? 'Generation failed');
+    } catch { setJourneyError('Network error'); }
+    finally { setGeneratingJourney(false); }
+  }
+
+  // A/B Test Designer state
+  const [abtElement, setAbtElement]             = useState('');
+  const [abtCurrent, setAbtCurrent]             = useState('');
+  const [abtGoal, setAbtGoal]                   = useState('');
+  const [generatingABT, setGeneratingABT]       = useState(false);
+  const [abtResult, setAbtResult]               = useState<Record<string, unknown> | null>(null);
+  const [abtError, setAbtError]                 = useState<string | null>(null);
+  const [activeVariant, setActiveVariant]       = useState(0);
+
+  async function handleDesignABTest() {
+    if (!abtElement.trim() || !abtCurrent.trim() || generatingABT) return;
+    setGeneratingABT(true); setAbtError(null); setAbtResult(null);
+    try {
+      const res = await fetch('/api/agents/patel/ab-test', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ element: abtElement, currentVersion: abtCurrent, goal: abtGoal || undefined }),
+      });
+      const r = await res.json();
+      if (res.ok && r.test) { setAbtResult(r.test); setActiveVariant(0); }
+      else setAbtError(r.error ?? 'Failed to design A/B test');
+    } catch { setAbtError('Network error'); }
+    finally { setGeneratingABT(false); }
+  }
+
   const [calendarWeek, setCalendarWeek] = useState(1);
   const [copiedPost, setCopiedPost] = useState<string | null>(null);
 
@@ -1576,6 +1751,596 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
           </div>
         )}
       </div>
+
+      {/* ── Launch Plan CTA ── */}
+      <div style={{ background: "#FFF7ED", border: "1px solid #FED7AA", borderRadius: 12, padding: "14px 18px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: amber, marginBottom: 2 }}>30-Day Launch Plan</p>
+            <p style={{ fontSize: 11, color: muted }}>Patel generates a printable 3-phase launch checklist — Pre-Launch (14 days), Launch Day (by time block), and Post-Launch Weeks 1–2 — in HTML you can print.</p>
+            {launchPlanError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{launchPlanError}</p>}
+          </div>
+          <button
+            onClick={handleGenerateLaunchPlan}
+            disabled={generatingLaunchPlan}
+            style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingLaunchPlan ? bdr : amber, color: generatingLaunchPlan ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingLaunchPlan ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}
+          >
+            {generatingLaunchPlan ? "Generating…" : "Download Launch Plan"}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Landing Page Copy ── */}
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "16px 20px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: landingCopyResult ? 14 : 0 }}>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>Landing Page Copy</p>
+            <p style={{ fontSize: 11, color: muted }}>Patel generates conversion-optimised copy — hero headline, value props, how-it-works, FAQ, meta title, and closing CTA — based on your ICP and brand.</p>
+            {landingCopyError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{landingCopyError}</p>}
+          </div>
+          <button onClick={handleGenerateLandingCopy} disabled={generatingLandingCopy}
+            style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingLandingCopy ? bdr : blue, color: generatingLandingCopy ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingLandingCopy ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
+            {generatingLandingCopy ? "Generating…" : "Generate Copy"}
+          </button>
+        </div>
+        {landingCopyResult && (
+          <div>
+            <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+              {(['hero', 'features', 'faq'] as const).map(t => (
+                <button key={t} onClick={() => setLandingCopyTab(t)}
+                  style={{ padding: "4px 12px", borderRadius: 6, border: `1px solid ${landingCopyTab === t ? blue : bdr}`, background: landingCopyTab === t ? blue : "transparent", color: landingCopyTab === t ? "#fff" : muted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                  {t === 'hero' ? 'Hero & Value Props' : t === 'features' ? 'How It Works' : 'FAQ & Meta'}
+                </button>
+              ))}
+            </div>
+            {landingCopyTab === 'hero' && (
+              <div>
+                <div style={{ background: "#18160F", borderRadius: 8, padding: "16px 18px", marginBottom: 12 }}>
+                  <p style={{ fontSize: 20, fontWeight: 800, color: "#fff", marginBottom: 6 }}>{landingCopyResult.heroHeadline ?? ''}</p>
+                  <p style={{ fontSize: 13, color: "#8A867C", marginBottom: 10 }}>{landingCopyResult.heroSubheadline ?? ''}</p>
+                  <span style={{ background: blue, color: "#fff", padding: "6px 14px", borderRadius: 6, fontSize: 12, fontWeight: 700 }}>{landingCopyResult.heroCTA ?? ''}</span>
+                </div>
+                {landingCopyResult.socialProof && <p style={{ fontSize: 12, color: muted, marginBottom: 12, fontStyle: "italic" }}>{landingCopyResult.socialProof}</p>}
+                {(landingCopyResult.valueProps ?? []).map((vp, i) => (
+                  <div key={i} style={{ background: "#fff", border: `1px solid ${bdr}`, borderRadius: 8, padding: "10px 14px", marginBottom: 8 }}>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 4 }}>{vp.icon} {vp.headline}</p>
+                    <p style={{ fontSize: 11, color: muted }}>{vp.body}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {landingCopyTab === 'features' && (
+              <div>
+                {(landingCopyResult.howItWorks ?? []).map((step, i) => (
+                  <div key={i} style={{ display: "flex", gap: 12, marginBottom: 10 }}>
+                    <div style={{ width: 24, height: 24, borderRadius: "50%", background: blue, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, flexShrink: 0 }}>{step.step ?? i + 1}</div>
+                    <div>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: ink }}>{step.action}</p>
+                      <p style={{ fontSize: 11, color: muted }}>{step.description}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {landingCopyTab === 'faq' && (
+              <div>
+                {(landingCopyResult.faq ?? []).map((q, i) => (
+                  <div key={i} style={{ borderBottom: `1px solid ${bdr}`, paddingBottom: 10, marginBottom: 10 }}>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 4 }}>{q.question}</p>
+                    <p style={{ fontSize: 11, color: muted }}>{q.answer}</p>
+                  </div>
+                ))}
+                {landingCopyResult.metaTitle && (
+                  <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 8, padding: "10px 14px", marginTop: 8 }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: "#16A34A", marginBottom: 4 }}>SEO Meta</p>
+                    <p style={{ fontSize: 12, fontWeight: 600, color: ink }}>{landingCopyResult.metaTitle}</p>
+                    <p style={{ fontSize: 11, color: muted, marginTop: 4 }}>{landingCopyResult.metaDescription}</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── A/B Test Designer ── */}
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "16px 20px" }}>
+        <p style={{ fontSize: 11, fontWeight: 700, color: amber, marginBottom: 2 }}>A/B Test Designer</p>
+        <p style={{ fontSize: 11, color: muted, marginBottom: 12 }}>Paste any element (headline, CTA, email subject, etc.) and Patel designs 3 challenger variants — each grounded in a different conversion psychology principle — with sample size, success criteria, and win conditions.</p>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 8, marginBottom: 8 }}>
+          <input value={abtElement} onChange={e => setAbtElement(e.target.value)} placeholder="Element to test (e.g. Hero headline) *"
+            style={{ padding: "7px 10px", borderRadius: 6, border: `1px solid ${abtElement ? bdr : '#DC2626'}`, fontSize: 12, color: ink, background: "#fff", outline: "none" }} />
+          <input value={abtCurrent} onChange={e => setAbtCurrent(e.target.value)} placeholder="Current version / Control A (paste exact text) *"
+            style={{ padding: "7px 10px", borderRadius: 6, border: `1px solid ${abtCurrent ? bdr : '#DC2626'}`, fontSize: 12, color: ink, background: "#fff", outline: "none" }} />
+        </div>
+        <input value={abtGoal} onChange={e => setAbtGoal(e.target.value)} placeholder="Conversion goal (optional — e.g. increase sign-up rate)"
+          style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: `1px solid ${bdr}`, fontSize: 12, color: ink, background: "#fff", outline: "none", marginBottom: 10, boxSizing: "border-box" }} />
+        {abtError && <p style={{ fontSize: 11, color: '#DC2626', marginBottom: 8 }}>{abtError}</p>}
+        <button onClick={handleDesignABTest} disabled={!abtElement.trim() || !abtCurrent.trim() || generatingABT}
+          style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: (!abtElement.trim() || !abtCurrent.trim() || generatingABT) ? bdr : amber, color: (!abtElement.trim() || !abtCurrent.trim() || generatingABT) ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: (!abtElement.trim() || !abtCurrent.trim() || generatingABT) ? "not-allowed" : "pointer" }}>
+          {generatingABT ? "Designing…" : "Design A/B Test"}
+        </button>
+        {abtResult && (
+          <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 11 }}>
+              {!!abtResult.successMetric && <span style={{ color: muted }}>Metric: <strong style={{ color: ink }}>{abtResult.successMetric as string}</strong></span>}
+              {!!abtResult.sampleSizeEstimate && <span style={{ color: muted }}>Sample/variant: <strong style={{ color: ink }}>{abtResult.sampleSizeEstimate as string}</strong></span>}
+              {!!abtResult.testDuration && <span style={{ color: muted }}>Duration: <strong style={{ color: ink }}>{abtResult.testDuration as string}</strong></span>}
+            </div>
+            {!!abtResult.hypothesis && (
+              <div style={{ background: "#FFFBEB", borderRadius: 8, padding: "8px 12px", border: "1px solid #FDE68A" }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: amber, textTransform: "uppercase", marginBottom: 2 }}>Hypothesis</p>
+                <p style={{ fontSize: 11, color: ink }}>{abtResult.hypothesis as string}</p>
+              </div>
+            )}
+            {/* Variant tabs */}
+            <div style={{ display: "flex", gap: 6 }}>
+              {(abtResult.variants as { label: string; name: string }[] | undefined)?.map((v, i) => (
+                <button key={i} onClick={() => setActiveVariant(i)}
+                  style={{ padding: "4px 10px", borderRadius: 6, border: "none", background: activeVariant === i ? ink : "transparent", color: activeVariant === i ? "#fff" : muted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                  {v.label}: {v.name}
+                </button>
+              ))}
+            </div>
+            {!!(abtResult.variants as { label: string; name: string; content: string; principle: string; hypothesis: string; expectedLift: string }[] | undefined)?.[activeVariant] && (
+              (({ label, name, content, principle, hypothesis, expectedLift }) => (
+                <div style={{ background: label === 'A' ? bg : "#EFF6FF", borderRadius: 8, padding: "14px 16px", border: `1px solid ${label === 'A' ? bdr : "#BFDBFE"}` }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: ink, margin: 0 }}>{label === 'A' ? 'Control' : `Variant ${label}`}: {name}</p>
+                    {expectedLift !== 'baseline' && <span style={{ padding: "2px 8px", borderRadius: 10, background: green, color: "#fff", fontSize: 10, fontWeight: 700 }}>{expectedLift}</span>}
+                  </div>
+                  <div style={{ background: "#fff", borderRadius: 6, padding: "10px 12px", border: `1px solid ${bdr}`, marginBottom: 8 }}>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: ink, margin: 0 }}>&quot;{content}&quot;</p>
+                  </div>
+                  <p style={{ fontSize: 11, color: blue, marginBottom: 4 }}>Principle: {principle}</p>
+                  <p style={{ fontSize: 11, color: muted }}>{hypothesis}</p>
+                  <button onClick={() => navigator.clipboard.writeText(content)}
+                    style={{ marginTop: 8, padding: "4px 10px", borderRadius: 6, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer" }}>
+                    Copy
+                  </button>
+                </div>
+              ))((abtResult.variants as { label: string; name: string; content: string; principle: string; hypothesis: string; expectedLift: string }[])[activeVariant])
+            )}
+            {!!abtResult.winCriteria && (
+              <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "8px 12px", border: "1px solid #BBF7D0" }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: green, textTransform: "uppercase", marginBottom: 2 }}>Win Criteria</p>
+                <p style={{ fontSize: 11, color: ink }}>{abtResult.winCriteria as string}</p>
+              </div>
+            )}
+            <button onClick={() => { setAbtResult(null); setAbtElement(''); setAbtCurrent(''); }}
+              style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>
+              New Test
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Outreach Sequence Builder ── */}
+      <div style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 12, padding: "16px 20px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: showSequencePanel ? 14 : 0 }}>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>4-Step Outreach Sequence</p>
+            <p style={{ fontSize: 11, color: muted }}>Patel writes a full cold outreach sequence — Day 0 intro, Day 3 follow-up, Day 7 value-add, Day 14 breakup — with subjects and CTAs.</p>
+            {sequenceError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{sequenceError}</p>}
+          </div>
+          <button onClick={() => { setShowSequencePanel(!showSequencePanel); setSequenceResult(null); setSequenceError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: blue, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
+            {showSequencePanel ? "Close" : "Build Sequence"}
+          </button>
+        </div>
+        {showSequencePanel && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Target Role *</label>
+                <input value={seqTargetRole} onChange={e => setSeqTargetRole(e.target.value)} placeholder="e.g. Head of Marketing" style={{ width: "100%", border: `1px solid ${bdr}`, borderRadius: 8, padding: "9px 12px", fontSize: 13, color: ink, outline: "none", boxSizing: "border-box" }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Target Industry</label>
+                <input value={seqTargetIndustry} onChange={e => setSeqTargetIndustry(e.target.value)} placeholder="e.g. B2B SaaS startups" style={{ width: "100%", border: `1px solid ${bdr}`, borderRadius: 8, padding: "9px 12px", fontSize: 13, color: ink, outline: "none", boxSizing: "border-box" }} />
+              </div>
+            </div>
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Pain Point *</label>
+              <input value={seqPainPoint} onChange={e => setSeqPainPoint(e.target.value)} placeholder="e.g. manually tracking outreach in spreadsheets wastes 5 hours/week" style={{ width: "100%", border: `1px solid ${bdr}`, borderRadius: 8, padding: "9px 12px", fontSize: 13, color: ink, outline: "none", boxSizing: "border-box" }} />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Your Value Proposition</label>
+              <input value={seqValueProp} onChange={e => setSeqValueProp(e.target.value)} placeholder="e.g. automate follow-ups, cut outreach time by 80%" style={{ width: "100%", border: `1px solid ${bdr}`, borderRadius: 8, padding: "9px 12px", fontSize: 13, color: ink, outline: "none", boxSizing: "border-box" }} />
+            </div>
+            <button onClick={handleGenerateSequence} disabled={generatingSequence || !seqTargetRole.trim() || !seqPainPoint.trim()} style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: generatingSequence || !seqTargetRole.trim() || !seqPainPoint.trim() ? bdr : blue, color: generatingSequence || !seqTargetRole.trim() || !seqPainPoint.trim() ? muted : "#fff", fontSize: 13, fontWeight: 600, cursor: generatingSequence || !seqTargetRole.trim() || !seqPainPoint.trim() ? "not-allowed" : "pointer", alignSelf: "flex-start" }}>
+              {generatingSequence ? "Writing sequence…" : "Generate 4-Step Sequence"}
+            </button>
+            {sequenceResult && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {sequenceResult.sequenceStrategy && (
+                  <p style={{ fontSize: 11, color: muted, lineHeight: 1.6, fontStyle: "italic" }}>Strategy: {sequenceResult.sequenceStrategy}</p>
+                )}
+                {(sequenceResult.sequence ?? []).map((step, i) => (
+                  <div key={i} style={{ background: bg, borderRadius: 10, padding: "14px 16px", border: `1px solid ${bdr}` }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                      <div style={{ width: 32, height: 32, borderRadius: 8, background: blue, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <p style={{ fontSize: 13, fontWeight: 800, color: "#fff" }}>{step.step}</p>
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ fontSize: 11, fontWeight: 600, color: ink }}>Day {step.day} — {step.toneNote}</p>
+                        <p style={{ fontSize: 11, color: muted }}>CTA: {step.cta}</p>
+                      </div>
+                      <button onClick={() => copySeqStep(step.step, `Subject: ${step.subject}\n\n${step.body}`)} style={{ padding: "5px 12px", borderRadius: 8, border: `1px solid ${bdr}`, background: copiedSeqStep === step.step ? green : bg, color: copiedSeqStep === step.step ? "#fff" : muted, fontSize: 11, cursor: "pointer", flexShrink: 0 }}>
+                        {copiedSeqStep === step.step ? "✓" : "Copy"}
+                      </button>
+                    </div>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 4 }}>Subject: {step.subject}</p>
+                    <pre style={{ fontSize: 12, color: ink, lineHeight: 1.7, whiteSpace: "pre-wrap", fontFamily: "inherit", margin: 0 }}>{step.body}</pre>
+                  </div>
+                ))}
+                <button onClick={() => setSequenceResult(null)} style={{ padding: "7px 14px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>New Sequence</button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── ABM Strategy ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 20, marginTop: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <div>
+            <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>Account-Based Marketing</p>
+            <p style={{ fontSize: 11, color: muted }}>Build an ABM strategy with target list, engagement playbook, and channel mix for high-value accounts.</p>
+          </div>
+          <button onClick={handleGenerateABMStrategy} disabled={generatingABM} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingABM ? bdr : blue, color: generatingABM ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingABM ? "not-allowed" : "pointer", whiteSpace: "nowrap" as const, flexShrink: 0, marginLeft: 12 }}>
+            {generatingABM ? "Building…" : "Build ABM Strategy"}
+          </button>
+        </div>
+        <input value={abmAccounts} onChange={e => setAbmAccounts(e.target.value)} placeholder="Target accounts (optional, comma-separated — e.g. Stripe, Notion, Figma)" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 12, color: ink, background: bg, boxSizing: "border-box" as const, marginBottom: 10 }} />
+        {abmError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{abmError}</p>}
+        {abmResult && (
+          <div style={{ background: surf, borderRadius: 10, padding: 16 }}>
+            {!!abmResult.overview && <p style={{ fontSize: 12, color: muted, fontStyle: "italic", marginBottom: 10 }}>{String(abmResult.overview)}</p>}
+            {!!abmResult.abmTier && <span style={{ fontSize: 11, background: blue + "22", color: blue, borderRadius: 20, padding: "2px 10px", fontWeight: 700, marginBottom: 12, display: "inline-block" }}>{String(abmResult.abmTier)}</span>}
+            <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" as const }}>
+              {(["targets", "playbook", "content", "metrics"] as const).map(t => (
+                <button key={t} onClick={() => setAbmTab(t)} style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${abmTab === t ? blue : bdr}`, background: abmTab === t ? blue : bg, color: abmTab === t ? "#fff" : ink, fontSize: 11, fontWeight: abmTab === t ? 700 : 400, cursor: "pointer" }}>
+                  {t === "targets" ? "🎯 Target List" : t === "playbook" ? "📋 Playbook" : t === "content" ? "📝 Content" : "📊 Metrics"}
+                </button>
+              ))}
+            </div>
+            {abmTab === "targets" && !!abmResult.targetList && (() => {
+              const list = abmResult.targetList as Record<string, unknown>[];
+              return (
+                <div style={{ display: "flex", flexDirection: "column" as const, gap: 10 }}>
+                  {list.map((t, i) => (
+                    <div key={i} style={{ background: bg, borderRadius: 8, padding: 12, border: `1px solid ${bdr}` }}>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 4 }}>{String(t.accountType ?? '')}</p>
+                      <p style={{ fontSize: 11, color: muted, marginBottom: 6 }}>{String(t.why ?? '')}</p>
+                      <div style={{ display: "flex", gap: 16, marginBottom: 6 }}>
+                        {!!t.estimatedCount && <span style={{ fontSize: 11, color: blue }}><b>Size:</b> {String(t.estimatedCount)}</span>}
+                        {!!t.avgDealSize && <span style={{ fontSize: 11, color: green }}><b>Deal:</b> {String(t.avgDealSize)}</span>}
+                      </div>
+                      {!!t.criteria && (
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" as const }}>
+                          {(t.criteria as string[]).map((c, j) => <span key={j} style={{ fontSize: 10, background: surf, border: `1px solid ${bdr}`, borderRadius: 20, padding: "2px 8px", color: muted }}>{c}</span>)}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+            {abmTab === "playbook" && !!abmResult.engagementPlaybook && (() => {
+              const stages = abmResult.engagementPlaybook as Record<string, unknown>[];
+              return (
+                <div style={{ display: "flex", flexDirection: "column" as const, gap: 12 }}>
+                  {stages.map((s, i) => (
+                    <div key={i}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: blue, marginBottom: 6 }}>{String(s.stage ?? '').toUpperCase()}</p>
+                      {!!s.plays && (s.plays as Record<string, unknown>[]).map((p, j) => (
+                        <div key={j} style={{ background: bg, borderRadius: 8, padding: 10, marginBottom: 6, border: `1px solid ${bdr}` }}>
+                          <p style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 2 }}>{String(p.play ?? '')}</p>
+                          <div style={{ display: "flex", gap: 12 }}>
+                            {!!p.channel && <span style={{ fontSize: 11, color: muted }}><b>Channel:</b> {String(p.channel)}</span>}
+                            {!!p.trigger && <span style={{ fontSize: 11, color: muted }}><b>When:</b> {String(p.trigger)}</span>}
+                          </div>
+                          {!!p.content && <p style={{ fontSize: 11, color: muted, marginTop: 4 }}><b>Content:</b> {String(p.content)}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+            {abmTab === "content" && !!abmResult.contentByStage && (() => {
+              const items = abmResult.contentByStage as Record<string, unknown>[];
+              return (
+                <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+                  {items.map((c, i) => (
+                    <div key={i} style={{ background: bg, borderRadius: 8, padding: 12, border: `1px solid ${bdr}` }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
+                        <p style={{ fontSize: 12, fontWeight: 700, color: ink }}>{String(c.buyerStage ?? '')}</p>
+                        {!!c.contentType && <span style={{ fontSize: 11, background: surf, border: `1px solid ${bdr}`, borderRadius: 20, padding: "2px 8px", color: muted }}>{String(c.contentType)}</span>}
+                      </div>
+                      {!!c.personalization && <p style={{ fontSize: 11, color: muted, marginBottom: 4 }}><b>Personalize:</b> {String(c.personalization)}</p>}
+                      {!!c.cta && <p style={{ fontSize: 11, color: blue }}><b>CTA:</b> {String(c.cta)}</p>}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+            {abmTab === "metrics" && !!abmResult.metrics && (() => {
+              const items = abmResult.metrics as Record<string, unknown>[];
+              return (
+                <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+                  {items.map((m, i) => (
+                    <div key={i} style={{ background: bg, borderRadius: 8, padding: 12, border: `1px solid ${bdr}` }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 2 }}>{String(m.metric ?? '')}</p>
+                      {!!m.target && <p style={{ fontSize: 11, color: green }}><b>Target:</b> {String(m.target)}</p>}
+                      {!!m.how && <p style={{ fontSize: 11, color: muted }}><b>Measure:</b> {String(m.how)}</p>}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+            {!!abmResult.priorityAction && (
+              <div style={{ marginTop: 12, background: blue + "11", borderRadius: 8, padding: 10, borderLeft: `3px solid ${blue}` }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>Priority Action</p>
+                <p style={{ fontSize: 12, color: ink }}>{String(abmResult.priorityAction)}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Referral Program ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 20, marginTop: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>Referral Program</p>
+            <p style={{ fontSize: 11, color: muted }}>Design a viral loop with incentive structure, mechanics, email templates, and launch plan.</p>
+          </div>
+          <button onClick={handleGenerateReferralProgram} disabled={generatingReferral} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingReferral ? bdr : blue, color: generatingReferral ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingReferral ? "not-allowed" : "pointer", whiteSpace: "nowrap" as const, flexShrink: 0, marginLeft: 12 }}>
+            {generatingReferral ? "Designing…" : "Design Program"}
+          </button>
+        </div>
+        {referralError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{referralError}</p>}
+        {referralResult && (
+          <div style={{ background: surf, borderRadius: 10, padding: 16 }}>
+            {!!referralResult.programName && <p style={{ fontSize: 14, fontWeight: 700, color: ink, marginBottom: 4 }}>{String(referralResult.programName)}</p>}
+            {!!referralResult.overview && <p style={{ fontSize: 12, color: muted, fontStyle: "italic", marginBottom: 14 }}>{String(referralResult.overview)}</p>}
+            <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+              {(["mechanics", "viral", "launch", "templates"] as const).map(t => (
+                <button key={t} onClick={() => setReferralTab(t)} style={{ padding: "5px 12px", borderRadius: 6, border: `1px solid ${referralTab === t ? blue : bdr}`, background: referralTab === t ? "#EFF6FF" : "transparent", color: referralTab === t ? blue : muted, fontSize: 11, fontWeight: 600, cursor: "pointer", textTransform: "capitalize" }}>{t === "viral" ? "Viral Loops" : t}</button>
+              ))}
+            </div>
+            {referralTab === "mechanics" && !!referralResult.incentiveStructure && (() => {
+              const is = referralResult.incentiveStructure as { referrerIncentive?: string; referreeIncentive?: string; incentiveType?: string; minimumQualification?: string; payoutTiming?: string };
+              const mech = referralResult.mechanics as { howItWorks?: string; trackingMethod?: string; minimumViableVersion?: string } | undefined;
+              return (
+                <div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+                    {[["Referrer Gets", is.referrerIncentive], ["New Customer Gets", is.referreeIncentive], ["Type", is.incentiveType], ["Payout Timing", is.payoutTiming]].map(([l, v]) => (
+                      <div key={String(l)} style={{ background: bg, borderRadius: 8, padding: 10 }}>
+                        <p style={{ fontSize: 11, color: muted, margin: "0 0 2px" }}>{String(l)}</p>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: ink, margin: 0 }}>{String(v ?? "—")}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {mech?.howItWorks && <p style={{ fontSize: 12, color: muted }}><strong>How it works:</strong> {mech.howItWorks}</p>}
+                  {mech?.minimumViableVersion && (
+                    <div style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 8, padding: 10, marginTop: 8 }}>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>MVP This Week</p>
+                      <p style={{ fontSize: 12, color: ink }}>{mech.minimumViableVersion}</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+            {referralTab === "viral" && !!(referralResult.viralLoops as unknown[])?.length && (
+              <div>
+                {(referralResult.viralLoops as { loop: string; trigger: string; channel: string; estimatedViralCoefficient: string }[]).map((vl, i) => (
+                  <div key={i} style={{ padding: "10px 0", borderBottom: `1px solid ${bdr}` }}>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: ink, marginBottom: 4 }}>{vl.loop}</p>
+                    <p style={{ fontSize: 12, color: muted, marginBottom: 2 }}>Trigger: {vl.trigger}</p>
+                    <p style={{ fontSize: 12, color: muted, marginBottom: 2 }}>Channel: {vl.channel}</p>
+                    <p style={{ fontSize: 12, color: green }}>k-factor: {vl.estimatedViralCoefficient}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {referralTab === "launch" && !!(referralResult.launchPlan as unknown[])?.length && (
+              <div>
+                {(referralResult.launchPlan as { week: string; action: string; expected: string }[]).map((lp, i) => (
+                  <div key={i} style={{ padding: "8px 0", borderBottom: `1px solid ${bdr}` }}>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: blue, marginBottom: 2 }}>{lp.week}</p>
+                    <p style={{ fontSize: 12, color: ink, marginBottom: 2 }}>{lp.action}</p>
+                    <p style={{ fontSize: 11, color: muted }}>→ {lp.expected}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {referralTab === "templates" && !!(referralResult.templates as unknown[])?.length && (
+              <div>
+                {(referralResult.templates as { type: string; template: string }[]).map((t, i) => (
+                  <div key={i} style={{ padding: "10px 0", borderBottom: `1px solid ${bdr}` }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: muted, marginBottom: 6 }}>{t.type}</p>
+                    <div style={{ background: bg, borderRadius: 6, padding: 10, fontSize: 12, color: ink, whiteSpace: "pre-wrap" as const }}>{t.template}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Partnership Strategy ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 20, marginTop: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>Partnership Strategy</p>
+            <p style={{ fontSize: 11, color: muted }}>Identify partner types, target companies, outreach templates, and integration priorities to accelerate distribution.</p>
+          </div>
+          <button onClick={handleGeneratePartnership} disabled={generatingPartnership} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingPartnership ? bdr : blue, color: generatingPartnership ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingPartnership ? "not-allowed" : "pointer", whiteSpace: "nowrap" as const, flexShrink: 0, marginLeft: 12 }}>
+            {generatingPartnership ? "Building…" : "Build Strategy"}
+          </button>
+        </div>
+        {partnershipError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{partnershipError}</p>}
+        {partnershipResult && (
+          <div style={{ background: surf, borderRadius: 10, padding: 16 }}>
+            {!!partnershipResult.overview && <p style={{ fontSize: 12, color: muted, fontStyle: "italic", marginBottom: 14 }}>{String(partnershipResult.overview)}</p>}
+            <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+              {(["types", "targets", "outreach", "integrations"] as const).map(t => (
+                <button key={t} onClick={() => setPartnershipTab(t)} style={{ padding: "5px 12px", borderRadius: 6, border: `1px solid ${partnershipTab === t ? blue : bdr}`, background: partnershipTab === t ? "#EFF6FF" : "transparent", color: partnershipTab === t ? blue : muted, fontSize: 11, fontWeight: 600, cursor: "pointer", textTransform: "capitalize" }}>{t}</button>
+              ))}
+            </div>
+            {partnershipTab === "types" && !!(partnershipResult.partnerTypes as unknown[])?.length && (
+              <div>
+                {(partnershipResult.partnerTypes as { type: string; priority: string; rationale: string; examplePartners: string[]; valueExchange: string; timeToRevenue: string }[]).map((pt, i) => (
+                  <div key={i} style={{ padding: "10px 0", borderBottom: `1px solid ${bdr}` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: ink, margin: 0 }}>{pt.type}</p>
+                      <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, background: pt.priority === "high" ? "#DCFCE7" : pt.priority === "medium" ? "#FEF3C7" : "#F3F4F6", color: pt.priority === "high" ? "#16A34A" : pt.priority === "medium" ? amber : muted, fontWeight: 600 }}>{pt.priority}</span>
+                    </div>
+                    <p style={{ fontSize: 12, color: muted, marginBottom: 2 }}>{pt.rationale}</p>
+                    <p style={{ fontSize: 11, color: muted }}>e.g. {pt.examplePartners?.join(', ')} · Revenue in: {pt.timeToRevenue}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {partnershipTab === "targets" && !!(partnershipResult.targetPartners as unknown[])?.length && (
+              <div>
+                {(partnershipResult.targetPartners as { partner: string; category: string; audience: string; approachStrategy: string; dealStructure: string }[]).map((tp, i) => (
+                  <div key={i} style={{ padding: "10px 0", borderBottom: `1px solid ${bdr}` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: ink, margin: 0 }}>{tp.partner}</p>
+                      <span style={{ fontSize: 11, color: muted, background: surf, padding: "2px 8px", borderRadius: 999 }}>{tp.category}</span>
+                    </div>
+                    <p style={{ fontSize: 12, color: muted, marginBottom: 2 }}>{tp.audience}</p>
+                    <p style={{ fontSize: 11, color: blue }}>Deal: {tp.dealStructure}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {partnershipTab === "outreach" && !!(partnershipResult.outreachTemplates as unknown[])?.length && (
+              <div>
+                {(partnershipResult.outreachTemplates as { partnerType: string; subject: string; opening: string; valueHook: string; cta: string }[]).map((ot, i) => (
+                  <div key={i} style={{ padding: "12px 0", borderBottom: `1px solid ${bdr}` }}>
+                    <p style={{ fontSize: 11, color: muted, margin: "0 0 4px" }}>{ot.partnerType}</p>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: ink, margin: "0 0 6px" }}>Subject: {ot.subject}</p>
+                    <p style={{ fontSize: 12, color: muted, marginBottom: 4 }}>{ot.opening}</p>
+                    <p style={{ fontSize: 12, color: ink, fontStyle: "italic", marginBottom: 4 }}>&quot;{ot.valueHook}&quot;</p>
+                    <p style={{ fontSize: 11, color: blue }}>CTA: {ot.cta}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {partnershipTab === "integrations" && !!(partnershipResult.integrationPriorities as unknown[])?.length && (
+              <div>
+                {(partnershipResult.integrationPriorities as { integration: string; reason: string; effort: string; distributionPotential: string }[]).map((ip, i) => (
+                  <div key={i} style={{ padding: "10px 0", borderBottom: `1px solid ${bdr}` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: ink, margin: 0 }}>{ip.integration}</p>
+                      <span style={{ fontSize: 11, color: muted }}>{ip.effort} effort</span>
+                    </div>
+                    <p style={{ fontSize: 12, color: muted, marginBottom: 2 }}>{ip.reason}</p>
+                    <p style={{ fontSize: 11, color: green }}>Potential: {ip.distributionPotential}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {!!partnershipResult.priorityMove && (
+              <div style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 8, padding: "10px 12px", marginTop: 12 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: blue, margin: "0 0 2px" }}>Priority Move (Next 30 Days)</p>
+                <p style={{ fontSize: 12, color: ink, margin: 0 }}>{String(partnershipResult.priorityMove)}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Customer Journey Map ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 20, marginTop: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>Customer Journey Map</p>
+            <p style={{ fontSize: 11, color: muted }}>Map the full customer journey from first touch to advocacy — with touchpoints, emotions, friction, and optimizations at each stage.</p>
+          </div>
+          <button onClick={handleGenerateJourney} disabled={generatingJourney}
+            style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingJourney ? bdr : blue, color: generatingJourney ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingJourney ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
+            {generatingJourney ? "Mapping…" : "Map Customer Journey"}
+          </button>
+        </div>
+        {journeyError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{journeyError}</p>}
+        {journeyResult && (() => {
+          const stages = (journeyResult.stages as { stage: string; customerGoal: string; touchpoints: string[]; customerEmotion: string; companyAction: string; keyMetric: string; successLooksLike: string; frictionPoints: string[]; optimization: string }[] | undefined) ?? [];
+          const criticalMoments = (journeyResult.criticalMoments as { moment: string; stage: string; description: string; howToNail: string }[] | undefined) ?? [];
+          const stage = stages[journeyStageIdx];
+          const emotionColors: Record<string, string> = { confused: red, frustrated: red, curious: blue, excited: green, anxious: amber, satisfied: green, neutral: muted, happy: green };
+          return (
+            <div>
+              {!!journeyResult.journeyStatement && (
+                <p style={{ fontSize: 12, color: muted, fontStyle: "italic", marginBottom: 14 }}>{journeyResult.journeyStatement as string}</p>
+              )}
+              {stages.length > 0 && (
+                <div>
+                  <div style={{ display: "flex", gap: 4, marginBottom: 12, overflowX: "auto", paddingBottom: 4 }}>
+                    {stages.map((s, i) => (
+                      <button key={i} onClick={() => setJourneyStageIdx(i)}
+                        style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${journeyStageIdx === i ? blue : bdr}`, background: journeyStageIdx === i ? "#EFF6FF" : bg, color: journeyStageIdx === i ? blue : muted, fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
+                        {i + 1}. {s.stage}
+                      </button>
+                    ))}
+                  </div>
+                  {stage && (
+                    <div style={{ background: surf, borderRadius: 10, padding: 14, border: `1px solid ${bdr}`, marginBottom: 14 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                        <p style={{ fontSize: 13, fontWeight: 700, color: ink }}>{stage.stage}</p>
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6, background: (emotionColors[stage.customerEmotion?.toLowerCase()] ?? muted) + "15", color: emotionColors[stage.customerEmotion?.toLowerCase()] ?? muted, textTransform: "capitalize" }}>Feeling: {stage.customerEmotion}</span>
+                      </div>
+                      <p style={{ fontSize: 12, color: muted, marginBottom: 8, fontStyle: "italic" }}>Goal: {stage.customerGoal}</p>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+                        <div>
+                          <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Touchpoints</p>
+                          {stage.touchpoints?.map((tp, ti) => <p key={ti} style={{ fontSize: 11, color: ink, marginBottom: 2 }}>→ {tp}</p>)}
+                        </div>
+                        <div>
+                          <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Friction</p>
+                          {stage.frictionPoints?.map((fp, fi) => <p key={fi} style={{ fontSize: 11, color: red, marginBottom: 2 }}>⚠ {fp}</p>)}
+                        </div>
+                      </div>
+                      <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 6, padding: "8px 10px", marginBottom: 8 }}>
+                        <p style={{ fontSize: 10, fontWeight: 700, color: green, marginBottom: 2 }}>Optimization</p>
+                        <p style={{ fontSize: 11, color: ink }}>{stage.optimization}</p>
+                      </div>
+                      <div style={{ display: "flex", gap: 12 }}>
+                        <span style={{ fontSize: 10, color: muted }}>Key metric: <strong>{stage.keyMetric}</strong></span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              {criticalMoments.length > 0 && (
+                <div style={{ marginBottom: 14 }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Critical Moments</p>
+                  {criticalMoments.map((m, mi) => (
+                    <div key={mi} style={{ padding: "8px 12px", background: "#FFF7ED", border: "1px solid #FED7AA", borderRadius: 8, marginBottom: 6 }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: amber, marginBottom: 2 }}>{m.moment} <span style={{ fontSize: 10, color: muted, fontWeight: 400 }}>({m.stage})</span></p>
+                      <p style={{ fontSize: 11, color: ink, marginBottom: 4 }}>{m.description}</p>
+                      <p style={{ fontSize: 11, color: green, fontWeight: 600 }}>→ {m.howToNail}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {!!(journeyResult.quickWins as string[] | undefined)?.length && (
+                <div style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 8, padding: "10px 12px" }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 4 }}>Quick Wins</p>
+                  {(journeyResult.quickWins as string[]).map((w, wi) => (
+                    <p key={wi} style={{ fontSize: 11, color: ink, marginBottom: 2 }}>→ {w}</p>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+      </div>
+
     </div>
   );
 }
@@ -1659,6 +2424,234 @@ function SalesScriptRenderer({ data, artifactId }: { data: Record<string, unknow
     openingQuestion?: string; meetingGoal?: string; redFlags?: string[];
   } | null>(null);
   const [meetingPrepError, setMeetingPrepError] = useState<string | null>(null);
+
+  // Pipeline analytics state
+  const [pipelineAnalytics, setPipelineAnalytics] = useState<{
+    totalDeals?: number; activeDeals?: number; activePipelineValue?: number; wonValue?: number;
+    winRate?: number | null; avgDealSize?: number | null;
+    stages?: { stage: string; count: number; totalValue: number; avgDaysInStage: number | null; conversionToNext: number | null }[];
+    bottleneck?: string; velocityComment?: string; topRecommendation?: string; winRateComment?: string; quickWins?: string[];
+  } | null>(null);
+  const [loadingPipelineAnalytics, setLoadingPipelineAnalytics] = useState(false);
+  const [pipelineAnalyticsError, setPipelineAnalyticsError] = useState<string | null>(null);
+
+  // AI deal scoring state
+  const [aiDealScores, setAIDealScores] = useState<{
+    scores?: { dealId: string; company: string; stage: string; value?: string; score: number; grade: string; reasoning: string; nextAction: string; urgency: string; daysStale: number }[];
+    avgScore?: number; topDeal?: Record<string, unknown>; atRiskDeals?: Record<string, unknown>[];
+  } | null>(null);
+  const [loadingAIDealScores, setLoadingAIDealScores] = useState(false);
+  const [aiDealScoresError, setAIDealScoresError] = useState<string | null>(null);
+
+  // Pricing strategy state
+  const [generatingPricingStrategy, setGeneratingPricingStrategy] = useState(false);
+  const [pricingStrategy, setPricingStrategy] = useState<{
+    recommendedModel?: string; rationale?: string;
+    tiers?: { name: string; price: string; billingOptions?: string[]; seats?: string; keyFeatures?: string[]; targetCustomer?: string; positioningNote?: string }[];
+    freeTierAdvice?: string; enterpriseAdvice?: string; discountingPolicy?: string;
+    trialStrategy?: string; anchoringTactic?: string; pricingPageAdvice?: string;
+    competitorPositioning?: string; yourAdvantage?: string; keyInsight?: string;
+  } | null>(null);
+  const [pricingStrategyError, setPricingStrategyError] = useState<string | null>(null);
+
+  // Qualification scorecard state
+  const [runningQualification, setRunningQualification] = useState(false);
+  const [qualificationResult, setQualificationResult] = useState<{
+    scorecards?: {
+      dealId: string; company: string; framework: string; score: number; grade: string;
+      criteria?: { name: string; met: boolean; evidence: string; weight: number }[];
+      keyRisk?: string; recommendation?: string; nextQuestion?: string;
+    }[];
+    dealsScored?: number;
+  } | null>(null);
+  const [qualificationError, setQualificationError] = useState<string | null>(null);
+
+  async function handleRunQualification() {
+    if (runningQualification) return;
+    setRunningQualification(true); setQualificationError(null);
+    try {
+      const res = await fetch('/api/agents/susi/qualification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      const r = await res.json();
+      if (res.ok && r.scorecards) setQualificationResult(r);
+      else setQualificationError(r.error ?? 'Failed to run qualification');
+    } catch { setQualificationError('Network error'); }
+    finally { setRunningQualification(false); }
+  }
+
+  // Pipeline Health state
+  const [generatingPipeHealth, setGeneratingPipeHealth] = useState(false);
+  const [pipeHealthResult, setPipeHealthResult]         = useState<Record<string, unknown> | null>(null);
+  const [pipeHealthError, setPipeHealthError]           = useState<string | null>(null);
+  const [pipeHealthStageIdx, setPipeHealthStageIdx]     = useState(0);
+
+  async function handleGeneratePipelineHealth() {
+    if (generatingPipeHealth) return;
+    setGeneratingPipeHealth(true); setPipeHealthError(null); setPipeHealthResult(null);
+    try {
+      const res = await fetch('/api/agents/susi/pipeline-health', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.health) setPipeHealthResult(r.health);
+      else setPipeHealthError(r.error ?? 'Analysis failed');
+    } catch { setPipeHealthError('Network error'); }
+    finally { setGeneratingPipeHealth(false); }
+  }
+
+  // Deal Coaching state
+  const [dcDealName, setDcDealName]                   = useState('');
+  const [dcStage, setDcStage]                         = useState('Negotiation');
+  const [dcDealValue, setDcDealValue]                 = useState('');
+  const [dcLastActivity, setDcLastActivity]           = useState('');
+  const [dcNotes, setDcNotes]                         = useState('');
+  const [generatingDC, setGeneratingDC]               = useState(false);
+  const [dcResult, setDcResult]                       = useState<Record<string, unknown> | null>(null);
+  const [dcError, setDcError]                         = useState<string | null>(null);
+  const [dcTab, setDcTab]                             = useState<'diagnosis' | 'nextaction' | 'email' | 'close'>('diagnosis');
+
+  async function handleGenerateDealCoaching() {
+    if (generatingDC) return;
+    setGeneratingDC(true); setDcError(null); setDcResult(null);
+    try {
+      const res = await fetch('/api/agents/susi/deal-coaching', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dealName: dcDealName, stage: dcStage, dealValue: dcDealValue, lastActivity: dcLastActivity, notes: dcNotes }),
+      });
+      const r = await res.json();
+      if (res.ok && r.coaching) setDcResult(r.coaching);
+      else setDcError(r.error ?? 'Generation failed');
+    } catch { setDcError('Network error'); }
+    finally { setGeneratingDC(false); }
+  }
+
+  // Objection Bank state
+  const [generatingObjBank, setGeneratingObjBank]     = useState(false);
+  const [objBankResult, setObjBankResult]             = useState<Record<string, unknown> | null>(null);
+  const [objBankError, setObjBankError]               = useState<string | null>(null);
+  const [objBankIdx, setObjBankIdx]                   = useState(0);
+  const [objBankFilter, setObjBankFilter]             = useState<string>('all');
+
+  async function handleGenerateObjBank() {
+    if (generatingObjBank) return;
+    setGeneratingObjBank(true); setObjBankError(null); setObjBankResult(null);
+    try {
+      const res = await fetch('/api/agents/susi/objection-bank', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.bank) setObjBankResult(r.bank);
+      else setObjBankError(r.error ?? 'Generation failed');
+    } catch { setObjBankError('Network error'); }
+    finally { setGeneratingObjBank(false); }
+  }
+
+  // Deal Playbook state
+  const [generatingPlaybook, setGeneratingPlaybook]   = useState(false);
+  const [playbookResult, setPlaybookResult]           = useState<Record<string, unknown> | null>(null);
+  const [playbookError, setPlaybookError]             = useState<string | null>(null);
+  const [playbookDealId, setPlaybookDealId]           = useState('');
+  const [availableDeals, setAvailableDeals]           = useState<{ id: string; company: string; stage: string }[]>([]);
+  const [playbookSection, setPlaybookSection]         = useState<'actions' | 'stakeholders' | 'objections' | 'closing'>('actions');
+
+  async function handleGenerateDealPlaybook() {
+    if (generatingPlaybook) return;
+    setGeneratingPlaybook(true); setPlaybookError(null); setPlaybookResult(null);
+    try {
+      const res = await fetch('/api/agents/susi/deal-playbook', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dealId: playbookDealId || undefined }),
+      });
+      const r = await res.json();
+      if (res.ok && r.playbook) {
+        setPlaybookResult(r.playbook);
+        if (r.availableDeals) setAvailableDeals(r.availableDeals);
+      } else setPlaybookError(r.error ?? 'Generation failed');
+    } catch { setPlaybookError('Network error'); }
+    finally { setGeneratingPlaybook(false); }
+  }
+
+  // Proposal state
+  // Reply Draft state
+  const [replyMessage, setReplyMessage]             = useState('');
+  const [replyContext, setReplyContext]             = useState('');
+  const [generatingReply, setGeneratingReply]       = useState(false);
+  const [replyResult, setReplyResult]               = useState<Record<string, unknown> | null>(null);
+  const [replyError, setReplyError]                 = useState<string | null>(null);
+  const [activeDraft, setActiveDraft]               = useState(0);
+
+  async function handleGenerateReply() {
+    if (!replyMessage.trim() || generatingReply) return;
+    setGeneratingReply(true); setReplyError(null); setReplyResult(null);
+    try {
+      const res = await fetch('/api/agents/patel/reply-draft', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prospectMessage: replyMessage, context: replyContext || undefined }),
+      });
+      const r = await res.json();
+      if (res.ok && r.drafts) { setReplyResult(r); setActiveDraft(0); }
+      else setReplyError(r.error ?? 'Failed to generate reply drafts');
+    } catch { setReplyError('Network error'); }
+    finally { setGeneratingReply(false); }
+  }
+
+  const [proposalProspectName, setProposalProspectName] = useState('');
+  const [proposalCompany, setProposalCompany]           = useState('');
+  const [proposalValue, setProposalValue]               = useState('');
+  const [generatingProposal, setGeneratingProposal]     = useState(false);
+  const [proposalError, setProposalError]               = useState<string | null>(null);
+
+  async function handleGenerateProposal() {
+    if (generatingProposal) return;
+    setGeneratingProposal(true); setProposalError(null);
+    try {
+      const res = await fetch('/api/agents/susi/proposal', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prospectName: proposalProspectName || undefined, prospectCompany: proposalCompany || undefined, dealValue: proposalValue || undefined }),
+      });
+      const r = await res.json();
+      if (res.ok && r.html) {
+        const blob = new Blob([r.html], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url;
+        a.download = `proposal-${(proposalCompany || 'prospect').toLowerCase().replace(/\s+/g, '-')}.html`; a.click();
+        URL.revokeObjectURL(url);
+      } else { setProposalError(r.error ?? 'Failed to generate proposal'); }
+    } catch { setProposalError('Network error'); }
+    finally { setGeneratingProposal(false); }
+  }
+
+  async function handleGeneratePricingStrategy() {
+    if (generatingPricingStrategy) return;
+    setGeneratingPricingStrategy(true); setPricingStrategyError(null);
+    try {
+      const res = await fetch('/api/agents/susi/pricing', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.strategy) setPricingStrategy(r.strategy);
+      else setPricingStrategyError(r.error ?? 'Failed to generate pricing strategy');
+    } catch { setPricingStrategyError('Network error'); }
+    finally { setGeneratingPricingStrategy(false); }
+  }
+
+  async function handleRunPipelineAnalytics() {
+    if (loadingPipelineAnalytics) return;
+    setLoadingPipelineAnalytics(true); setPipelineAnalyticsError(null);
+    try {
+      const res = await fetch('/api/agents/susi/pipeline', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.analytics) setPipelineAnalytics(r.analytics);
+      else setPipelineAnalyticsError(r.error ?? 'Failed to run pipeline analytics');
+    } catch { setPipelineAnalyticsError('Network error'); }
+    finally { setLoadingPipelineAnalytics(false); }
+  }
+
+  async function handleRunAIScoring() {
+    if (loadingAIDealScores) return;
+    setLoadingAIDealScores(true); setAIDealScoresError(null);
+    try {
+      const res = await fetch('/api/agents/susi/score-deals', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.scores) setAIDealScores(r);
+      else setAIDealScoresError(r.error ?? 'Failed to score deals');
+    } catch { setAIDealScoresError('Network error'); }
+    finally { setLoadingAIDealScores(false); }
+  }
 
   useEffect(() => {
     import('@/lib/supabase/client').then(({ createClient }) => {
@@ -2657,6 +3650,325 @@ function SalesScriptRenderer({ data, artifactId }: { data: Record<string, unknow
               );
             })()}
 
+            {/* ── Pipeline Funnel Analytics ── */}
+            <div style={{ background: surf, borderRadius: 12, padding: "16px 20px", border: `1px solid ${bdr}` }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                <div>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: ink }}>Pipeline Funnel Analytics</p>
+                  <p style={{ fontSize: 11, color: muted }}>Stage-by-stage funnel with conversion rates, velocity, and strategic insights.</p>
+                  {pipelineAnalyticsError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{pipelineAnalyticsError}</p>}
+                </div>
+                <button onClick={handleRunPipelineAnalytics} disabled={loadingPipelineAnalytics} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: loadingPipelineAnalytics ? bdr : blue, color: loadingPipelineAnalytics ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: loadingPipelineAnalytics ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
+                  {loadingPipelineAnalytics ? "Analyzing…" : "Run Analysis"}
+                </button>
+              </div>
+              {pipelineAnalytics && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+                    {[
+                      { label: "Total Deals", value: pipelineAnalytics.totalDeals ?? 0 },
+                      { label: "Active Value", value: `$${((pipelineAnalytics.activePipelineValue ?? 0) / 1000).toFixed(1)}k` },
+                      { label: "Win Rate", value: pipelineAnalytics.winRate != null ? `${pipelineAnalytics.winRate}%` : "N/A" },
+                    ].map(({ label, value }) => (
+                      <div key={label} style={{ background: bg, borderRadius: 8, padding: "10px 12px", border: `1px solid ${bdr}`, textAlign: "center" }}>
+                        <p style={{ fontSize: 16, fontWeight: 800, color: ink }}>{value}</p>
+                        <p style={{ fontSize: 10, color: muted, marginTop: 2 }}>{label}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {pipelineAnalytics.stages && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {pipelineAnalytics.stages.filter(s => s.stage !== 'lost').map(s => (
+                        <div key={s.stage} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <span style={{ fontSize: 11, color: muted, width: 90, flexShrink: 0, textTransform: "capitalize" }}>{s.stage}</span>
+                          <div style={{ flex: 1, height: 6, background: bdr, borderRadius: 3, overflow: "hidden" }}>
+                            <div style={{ width: `${Math.min(100, (s.count / (pipelineAnalytics.totalDeals ?? 1)) * 100)}%`, height: "100%", background: s.stage === 'won' ? green : blue, borderRadius: 3 }} />
+                          </div>
+                          <span style={{ fontSize: 11, fontWeight: 600, color: ink, width: 22, textAlign: "right", flexShrink: 0 }}>{s.count}</span>
+                          {s.conversionToNext != null && <span style={{ fontSize: 10, color: muted, flexShrink: 0 }}>→{s.conversionToNext}%</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {pipelineAnalytics.bottleneck && (
+                    <div style={{ background: "#FFF7ED", borderRadius: 8, padding: "10px 12px", border: "1px solid #FED7AA" }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: amber, textTransform: "uppercase", marginBottom: 4 }}>Bottleneck</p>
+                      <p style={{ fontSize: 12, color: ink }}>{pipelineAnalytics.bottleneck} — {pipelineAnalytics.velocityComment}</p>
+                    </div>
+                  )}
+                  {pipelineAnalytics.topRecommendation && (
+                    <div style={{ background: "#EFF6FF", borderRadius: 8, padding: "10px 12px", border: "1px solid #BFDBFE" }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: blue, textTransform: "uppercase", marginBottom: 4 }}>Top Action</p>
+                      <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{pipelineAnalytics.topRecommendation}</p>
+                    </div>
+                  )}
+                  {pipelineAnalytics.quickWins && pipelineAnalytics.quickWins.length > 0 && (
+                    <div>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", marginBottom: 6 }}>Quick Wins</p>
+                      {pipelineAnalytics.quickWins.map((w, i) => <p key={i} style={{ fontSize: 12, color: ink, marginBottom: 4 }}>→ {w}</p>)}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* ── AI Deal Scoring ── */}
+            <div style={{ background: surf, borderRadius: 12, padding: "16px 20px", border: `1px solid ${bdr}` }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                <div>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: ink }}>AI Deal Scoring</p>
+                  <p style={{ fontSize: 11, color: muted }}>Susi scores each deal 0–100 with reasoning, urgency, and next-step advice.</p>
+                  {aiDealScoresError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{aiDealScoresError}</p>}
+                </div>
+                <button onClick={handleRunAIScoring} disabled={loadingAIDealScores} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: loadingAIDealScores ? bdr : "#7C3AED", color: loadingAIDealScores ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: loadingAIDealScores ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
+                  {loadingAIDealScores ? "Scoring…" : "Score Deals"}
+                </button>
+              </div>
+              {aiDealScores && aiDealScores.scores && aiDealScores.scores.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div style={{ display: "flex", gap: 8, marginBottom: 4 }}>
+                    <div style={{ flex: 1, background: bg, borderRadius: 8, padding: "10px 12px", border: `1px solid ${bdr}`, textAlign: "center" }}>
+                      <p style={{ fontSize: 18, fontWeight: 800, color: ink }}>{aiDealScores.avgScore}</p>
+                      <p style={{ fontSize: 10, color: muted }}>Avg Score</p>
+                    </div>
+                    {aiDealScores.topDeal && (
+                      <div style={{ flex: 2, background: "#F0FDF4", borderRadius: 8, padding: "10px 12px", border: "1px solid #BBF7D0" }}>
+                        <p style={{ fontSize: 10, fontWeight: 700, color: green, textTransform: "uppercase", marginBottom: 3 }}>Top Deal</p>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: ink }}>{String(aiDealScores.topDeal.company ?? '')}</p>
+                        <p style={{ fontSize: 11, color: muted }}>Score {String(aiDealScores.topDeal.score ?? '')} · {String(aiDealScores.topDeal.urgency ?? '')} urgency</p>
+                      </div>
+                    )}
+                  </div>
+                  {aiDealScores.scores.map((s, i) => (
+                    <div key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "12px 14px", background: bg, borderRadius: 10, border: `1px solid ${bdr}` }}>
+                      <div style={{ width: 42, height: 42, borderRadius: 10, background: s.score >= 70 ? "#F0FDF4" : s.score >= 50 ? "#FFFBEB" : "#FEF2F2", border: `2px solid ${s.score >= 70 ? green : s.score >= 50 ? amber : red}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <p style={{ fontSize: 13, fontWeight: 800, color: s.score >= 70 ? green : s.score >= 50 ? amber : red, lineHeight: 1 }}>{s.score}</p>
+                        <p style={{ fontSize: 9, fontWeight: 700, color: s.score >= 70 ? green : s.score >= 50 ? amber : red }}>{s.grade}</p>
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
+                          <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>{s.company}</p>
+                          <span style={{ fontSize: 9, padding: "2px 7px", borderRadius: 999, background: s.urgency === 'high' ? "#FEF2F2" : s.urgency === 'medium' ? "#FFFBEB" : surf, border: `1px solid ${s.urgency === 'high' ? red : s.urgency === 'medium' ? amber : bdr}`, color: s.urgency === 'high' ? red : s.urgency === 'medium' ? amber : muted, textTransform: "uppercase", fontWeight: 700 }}>{s.urgency}</span>
+                          {s.daysStale > 0 && <span style={{ fontSize: 10, color: muted }}>{s.daysStale}d idle</span>}
+                        </div>
+                        <p style={{ fontSize: 11, color: muted, marginBottom: 4, lineHeight: 1.5 }}>{s.reasoning}</p>
+                        <p style={{ fontSize: 11, color: blue, fontWeight: 600 }}>→ {s.nextAction}</p>
+                      </div>
+                    </div>
+                  ))}
+                  {aiDealScores.atRiskDeals && aiDealScores.atRiskDeals.length > 0 && (
+                    <div style={{ background: "#FEF2F2", borderRadius: 8, padding: "10px 12px", border: "1px solid #FECACA" }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: red, textTransform: "uppercase", marginBottom: 4 }}>At-Risk Deals ({aiDealScores.atRiskDeals.length})</p>
+                      {aiDealScores.atRiskDeals.map((d, i) => <p key={i} style={{ fontSize: 11, color: ink, marginBottom: 2 }}>⚠ {String(d.company ?? '')} — score {String(d.score ?? '')}</p>)}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* ── Pricing Strategy ── */}
+            <div style={{ background: surf, borderRadius: 12, padding: "16px 20px", border: `1px solid ${bdr}` }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: pricingStrategy ? 14 : 0 }}>
+                <div>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: ink }}>Pricing Strategy</p>
+                  <p style={{ fontSize: 11, color: muted }}>Susi designs a full pricing model — tiers, discounting policy, trial strategy, and anchoring tactic — based on your ICP and competitor benchmarks.</p>
+                  {pricingStrategyError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{pricingStrategyError}</p>}
+                </div>
+                <button onClick={handleGeneratePricingStrategy} disabled={generatingPricingStrategy} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingPricingStrategy ? bdr : "#7C3AED", color: generatingPricingStrategy ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingPricingStrategy ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
+                  {generatingPricingStrategy ? "Designing…" : "Design Pricing"}
+                </button>
+              </div>
+              {pricingStrategy && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {pricingStrategy.recommendedModel && <span style={{ fontSize: 11, fontWeight: 700, padding: "4px 12px", borderRadius: 999, background: "#EDE9FE", color: "#7C3AED", border: "1px solid #C4B5FD" }}>{pricingStrategy.recommendedModel}</span>}
+                    {pricingStrategy.rationale && <p style={{ fontSize: 12, color: muted, lineHeight: 1.5, flex: 1 }}>{pricingStrategy.rationale}</p>}
+                  </div>
+                  {pricingStrategy.tiers && pricingStrategy.tiers.length > 0 && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase" }}>Pricing Tiers</p>
+                      {pricingStrategy.tiers.map((tier, i) => (
+                        <div key={i} style={{ background: bg, borderRadius: 10, padding: "12px 14px", border: `1px solid ${bdr}` }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                            <p style={{ fontSize: 13, fontWeight: 700, color: ink }}>{tier.name}</p>
+                            <p style={{ fontSize: 14, fontWeight: 800, color: "#7C3AED" }}>{tier.price}</p>
+                          </div>
+                          {tier.targetCustomer && <p style={{ fontSize: 11, color: blue, marginBottom: 5 }}>{tier.targetCustomer}</p>}
+                          {tier.keyFeatures && tier.keyFeatures.length > 0 && (
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                              {tier.keyFeatures.map((f, j) => <span key={j} style={{ fontSize: 10, padding: "2px 8px", borderRadius: 999, background: surf, border: `1px solid ${bdr}`, color: ink }}>{f}</span>)}
+                            </div>
+                          )}
+                          {tier.positioningNote && <p style={{ fontSize: 10, color: muted, marginTop: 5, lineHeight: 1.5 }}>{tier.positioningNote}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    {pricingStrategy.trialStrategy && (
+                      <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "10px 12px", border: "1px solid #BBF7D0" }}>
+                        <p style={{ fontSize: 10, fontWeight: 700, color: green, textTransform: "uppercase", marginBottom: 4 }}>Trial Strategy</p>
+                        <p style={{ fontSize: 11, color: ink, lineHeight: 1.5 }}>{pricingStrategy.trialStrategy}</p>
+                      </div>
+                    )}
+                    {pricingStrategy.anchoringTactic && (
+                      <div style={{ background: "#EFF6FF", borderRadius: 8, padding: "10px 12px", border: "1px solid #BFDBFE" }}>
+                        <p style={{ fontSize: 10, fontWeight: 700, color: blue, textTransform: "uppercase", marginBottom: 4 }}>Anchoring Tactic</p>
+                        <p style={{ fontSize: 11, color: ink, lineHeight: 1.5 }}>{pricingStrategy.anchoringTactic}</p>
+                      </div>
+                    )}
+                    {pricingStrategy.discountingPolicy && (
+                      <div style={{ background: surf, borderRadius: 8, padding: "10px 12px", border: `1px solid ${bdr}` }}>
+                        <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", marginBottom: 4 }}>Discounting Policy</p>
+                        <p style={{ fontSize: 11, color: ink, lineHeight: 1.5 }}>{pricingStrategy.discountingPolicy}</p>
+                      </div>
+                    )}
+                    {pricingStrategy.yourAdvantage && (
+                      <div style={{ background: "#FFF7ED", borderRadius: 8, padding: "10px 12px", border: "1px solid #FED7AA" }}>
+                        <p style={{ fontSize: 10, fontWeight: 700, color: amber, textTransform: "uppercase", marginBottom: 4 }}>Your Advantage</p>
+                        <p style={{ fontSize: 11, color: ink, lineHeight: 1.5 }}>{pricingStrategy.yourAdvantage}</p>
+                      </div>
+                    )}
+                  </div>
+                  {pricingStrategy.keyInsight && (
+                    <div style={{ background: "#EDE9FE", borderRadius: 8, padding: "10px 14px", border: "1px solid #C4B5FD" }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: "#7C3AED", textTransform: "uppercase", marginBottom: 4 }}>Key Insight</p>
+                      <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{pricingStrategy.keyInsight}</p>
+                    </div>
+                  )}
+                  <button onClick={() => setPricingStrategy(null)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>Regenerate</button>
+                </div>
+              )}
+            </div>
+
+            {/* ── BANT/MEDDIC Qualification Scorecard ── */}
+            <div style={{ background: surf, borderRadius: 12, padding: "16px 20px", border: `1px solid ${bdr}` }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: qualificationResult ? 14 : 0 }}>
+                <div>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: ink }}>BANT + MEDDIC Qualification</p>
+                  <p style={{ fontSize: 11, color: muted }}>Susi evaluates each open deal against BANT and MEDDIC criteria — scores 0–100, flags key risks, and recommends the best next question to ask.</p>
+                  {qualificationError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{qualificationError}</p>}
+                </div>
+                <button onClick={handleRunQualification} disabled={runningQualification} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: runningQualification ? bdr : "#7C3AED", color: runningQualification ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: runningQualification ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
+                  {runningQualification ? "Qualifying…" : "Qualify Deals"}
+                </button>
+              </div>
+              {qualificationResult && qualificationResult.scorecards && qualificationResult.scorecards.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {qualificationResult.scorecards.map((sc, i) => (
+                    <div key={i} style={{ background: bg, borderRadius: 10, padding: "14px 16px", border: `1px solid ${bdr}` }}>
+                      <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 10 }}>
+                        <div style={{ width: 52, height: 52, borderRadius: 10, background: sc.score >= 70 ? "#F0FDF4" : sc.score >= 50 ? "#FFFBEB" : "#FEF2F2", border: `2px solid ${sc.score >= 70 ? green : sc.score >= 50 ? amber : red}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          <p style={{ fontSize: 16, fontWeight: 800, color: sc.score >= 70 ? green : sc.score >= 50 ? amber : red, lineHeight: 1 }}>{sc.score}</p>
+                          <p style={{ fontSize: 10, fontWeight: 700, color: sc.score >= 70 ? green : sc.score >= 50 ? amber : red }}>{sc.grade}</p>
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                            <p style={{ fontSize: 13, fontWeight: 700, color: ink }}>{sc.company}</p>
+                            <span style={{ fontSize: 9, padding: "2px 8px", borderRadius: 999, background: sc.recommendation === 'advance' ? "#F0FDF4" : sc.recommendation === 'disqualify' ? "#FEF2F2" : "#FFFBEB", border: `1px solid ${sc.recommendation === 'advance' ? green : sc.recommendation === 'disqualify' ? red : amber}`, color: sc.recommendation === 'advance' ? green : sc.recommendation === 'disqualify' ? red : amber, fontWeight: 700, textTransform: "uppercase" }}>{sc.recommendation?.replace(/_/g, ' ')}</span>
+                          </div>
+                          {sc.criteria && sc.criteria.length > 0 && (
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 6 }}>
+                              {sc.criteria.slice(0, 8).map((c, ci) => (
+                                <span key={ci} style={{ fontSize: 10, padding: "2px 7px", borderRadius: 999, background: c.met ? "#F0FDF4" : "#FEF2F2", border: `1px solid ${c.met ? "#BBF7D0" : "#FECACA"}`, color: c.met ? green : red }}>{c.met ? "✓" : "✗"} {c.name}</span>
+                              ))}
+                            </div>
+                          )}
+                          {sc.keyRisk && <p style={{ fontSize: 11, color: red, marginBottom: 4 }}>⚠ {sc.keyRisk}</p>}
+                        </div>
+                      </div>
+                      {sc.nextQuestion && (
+                        <div style={{ background: "#EFF6FF", borderRadius: 8, padding: "8px 12px", border: "1px solid #BFDBFE" }}>
+                          <p style={{ fontSize: 10, fontWeight: 700, color: blue, textTransform: "uppercase", marginBottom: 3 }}>Best Next Question</p>
+                          <p style={{ fontSize: 12, color: ink, fontStyle: "italic" }}>&quot;{sc.nextQuestion}&quot;</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  <button onClick={() => setQualificationResult(null)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>Re-qualify</button>
+                </div>
+              )}
+            </div>
+
+            {/* ── Reply Draft Generator ── */}
+            <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "16px 20px", marginTop: 4 }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: green, marginBottom: 2 }}>Reply Draft Generator</p>
+              <p style={{ fontSize: 11, color: muted, marginBottom: 12 }}>Paste a prospect message and Patel drafts 3 reply options — consultative, direct, and curiosity-led — each with a ready-to-send body and clear next step.</p>
+              <textarea value={replyMessage} onChange={e => setReplyMessage(e.target.value)} placeholder="Paste the prospect's message here…"
+                rows={3} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: `1px solid ${replyMessage ? bdr : '#D97706'}`, fontSize: 12, color: ink, background: "#fff", outline: "none", resize: "vertical", fontFamily: "inherit", boxSizing: "border-box", marginBottom: 8 }} />
+              <input value={replyContext} onChange={e => setReplyContext(e.target.value)} placeholder="Optional context (e.g. we met at SaaStr, they're mid-evaluation)"
+                style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: `1px solid ${bdr}`, fontSize: 12, color: ink, background: "#fff", outline: "none", boxSizing: "border-box", marginBottom: 8 }} />
+              {replyError && <p style={{ fontSize: 11, color: '#DC2626', marginBottom: 8 }}>{replyError}</p>}
+              <button onClick={handleGenerateReply} disabled={!replyMessage.trim() || generatingReply}
+                style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: (!replyMessage.trim() || generatingReply) ? '#E2DDD5' : green, color: (!replyMessage.trim() || generatingReply) ? '#8A867C' : "#fff", fontSize: 12, fontWeight: 600, cursor: (!replyMessage.trim() || generatingReply) ? "not-allowed" : "pointer" }}>
+                {generatingReply ? "Drafting…" : "Draft 3 Replies"}
+              </button>
+              {replyResult && (
+                <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+                  {!!replyResult.prospectSignal && (
+                    <div style={{ background: "#FFFBEB", borderRadius: 8, padding: "8px 12px", border: "1px solid #FDE68A" }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: '#D97706', textTransform: "uppercase", marginBottom: 2 }}>Prospect Signal</p>
+                      <p style={{ fontSize: 11, color: '#18160F' }}>{replyResult.prospectSignal as string}</p>
+                    </div>
+                  )}
+                  {/* Draft tabs */}
+                  <div style={{ display: "flex", gap: 6 }}>
+                    {(replyResult.drafts as { toneLabel: string }[] | undefined)?.map((d, i) => (
+                      <button key={i} onClick={() => setActiveDraft(i)}
+                        style={{ padding: "4px 10px", borderRadius: 6, border: "none", background: activeDraft === i ? '#18160F' : "transparent", color: activeDraft === i ? "#fff" : '#8A867C', fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                        {d.toneLabel}
+                      </button>
+                    ))}
+                  </div>
+                  {!!(replyResult.drafts as { body: string; callToAction: string; followUpLine: string; wordCount: number; why: string }[] | undefined)?.[activeDraft] && (
+                    <div style={{ background: "#fff", borderRadius: 8, padding: "14px 16px", border: `1px solid #E2DDD5` }}>
+                      {(({ body, callToAction, followUpLine, wordCount, why }) => (<>
+                        <p style={{ fontSize: 12, color: '#18160F', lineHeight: 1.7, whiteSpace: "pre-wrap", marginBottom: 10 }}>{body}</p>
+                        <div style={{ borderTop: `1px solid #E2DDD5`, paddingTop: 8, display: "flex", gap: 12, flexWrap: "wrap" }}>
+                          <p style={{ fontSize: 11, color: '#2563EB', fontWeight: 600, margin: 0 }}>CTA: {callToAction}</p>
+                          {followUpLine && <p style={{ fontSize: 11, color: '#8A867C', fontStyle: "italic", margin: 0 }}>{followUpLine}</p>}
+                        </div>
+                        <p style={{ fontSize: 10, color: '#8A867C', marginTop: 6, margin: 0 }}>{wordCount} words · {why}</p>
+                        <button onClick={() => { navigator.clipboard.writeText(body + (callToAction ? '\n\n' + callToAction : '') + (followUpLine ? '\n' + followUpLine : '')); }}
+                          style={{ marginTop: 8, padding: "4px 10px", borderRadius: 6, border: `1px solid #E2DDD5`, background: '#F9F7F2', color: '#8A867C', fontSize: 11, cursor: "pointer" }}>
+                          Copy Reply
+                        </button>
+                      </>))((replyResult.drafts as { body: string; callToAction: string; followUpLine: string; wordCount: number; why: string }[])[activeDraft])}
+                    </div>
+                  )}
+                  {!!replyResult.nextBestAction && (
+                    <div style={{ background: "#EFF6FF", borderRadius: 8, padding: "8px 12px", border: "1px solid #BFDBFE" }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: '#2563EB', textTransform: "uppercase", marginBottom: 2 }}>Next Best Action</p>
+                      <p style={{ fontSize: 11, color: '#18160F' }}>{replyResult.nextBestAction as string}</p>
+                    </div>
+                  )}
+                  <button onClick={() => { setReplyResult(null); setReplyMessage(''); }}
+                    style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid #E2DDD5`, background: '#F9F7F2', color: '#8A867C', fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>
+                    New Reply
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* ── Proposal Generator ── */}
+            <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "16px 20px", marginTop: 4 }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>Proposal Generator</p>
+              <p style={{ fontSize: 11, color: muted, marginBottom: 12 }}>Susi drafts a complete, polished sales proposal — exec summary, deliverables, timeline, pricing box, and signature block — ready to download and send.</p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 10 }}>
+                <input value={proposalProspectName} onChange={e => setProposalProspectName(e.target.value)} placeholder="Contact name"
+                  style={{ padding: "7px 10px", borderRadius: 6, border: `1px solid ${bdr}`, fontSize: 12, color: ink, background: "#fff", outline: "none" }} />
+                <input value={proposalCompany} onChange={e => setProposalCompany(e.target.value)} placeholder="Prospect company"
+                  style={{ padding: "7px 10px", borderRadius: 6, border: `1px solid ${bdr}`, fontSize: 12, color: ink, background: "#fff", outline: "none" }} />
+                <input value={proposalValue} onChange={e => setProposalValue(e.target.value)} placeholder="Deal value (e.g. $5,000/mo)"
+                  style={{ padding: "7px 10px", borderRadius: 6, border: `1px solid ${bdr}`, fontSize: 12, color: ink, background: "#fff", outline: "none" }} />
+              </div>
+              {proposalError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{proposalError}</p>}
+              <button onClick={handleGenerateProposal} disabled={generatingProposal}
+                style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingProposal ? bdr : blue, color: generatingProposal ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingProposal ? "not-allowed" : "pointer" }}>
+                {generatingProposal ? "Generating…" : "Download Proposal HTML"}
+              </button>
+            </div>
+
             {allDeals.length === 0 && (
               <div style={{ textAlign: "center", padding: "40px 20px", color: muted }}>
                 <p style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>No pipeline data yet</p>
@@ -2721,6 +4033,421 @@ function SalesScriptRenderer({ data, artifactId }: { data: Record<string, unknow
           </div>
         </div>
       )}
+
+      {/* ── Deal Coaching ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 24, marginTop: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <div>
+            <p style={{ fontWeight: 700, fontSize: 14, color: ink, margin: 0 }}>Deal Coaching</p>
+            <p style={{ fontSize: 12, color: muted, margin: "2px 0 0" }}>Get a personalized playbook to close any specific deal — diagnosis, email, close strategy.</p>
+          </div>
+          <button onClick={handleGenerateDealCoaching} disabled={generatingDC} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingDC ? bdr : blue, color: generatingDC ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingDC ? "not-allowed" : "pointer", whiteSpace: "nowrap" as const, flexShrink: 0, marginLeft: 12 }}>
+            {generatingDC ? "Coaching…" : "Coach This Deal"}
+          </button>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+          <input value={dcDealName} onChange={e => setDcDealName(e.target.value)} placeholder="Deal name (e.g. Acme Corp)" style={{ padding: "8px 12px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 12, color: ink, background: bg }} />
+          <select value={dcStage} onChange={e => setDcStage(e.target.value)} style={{ padding: "8px 12px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 12, color: ink, background: bg }}>
+            {["Discovery", "Qualification", "Demo", "Proposal", "Negotiation", "Closed Won", "Closed Lost"].map(s => <option key={s}>{s}</option>)}
+          </select>
+          <input value={dcDealValue} onChange={e => setDcDealValue(e.target.value)} placeholder="Deal value (e.g. $24,000 ACV)" style={{ padding: "8px 12px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 12, color: ink, background: bg }} />
+          <input value={dcLastActivity} onChange={e => setDcLastActivity(e.target.value)} placeholder="Last activity (e.g. demo 5 days ago)" style={{ padding: "8px 12px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 12, color: ink, background: bg }} />
+        </div>
+        <textarea value={dcNotes} onChange={e => setDcNotes(e.target.value)} placeholder="Deal notes — what you know about the prospect, blockers, key stakeholders…" rows={2} style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 12, color: ink, background: bg, resize: "none" as const, boxSizing: "border-box" as const, marginBottom: 8 }} />
+        {dcError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{dcError}</p>}
+        {dcResult && (
+          <div style={{ background: surf, borderRadius: 10, padding: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+              {!!dcResult.verdict && (
+                <span style={{ fontSize: 12, fontWeight: 700, padding: "4px 12px", borderRadius: 20, background: String(dcResult.verdict).includes('on track') ? green + "22" : String(dcResult.verdict).includes('dead') ? red + "22" : amber + "22", color: String(dcResult.verdict).includes('on track') ? green : String(dcResult.verdict).includes('dead') ? red : amber }}>
+                  {String(dcResult.verdict)}
+                </span>
+              )}
+              {!!dcResult.riskScore && <span style={{ fontSize: 13, fontWeight: 800, color: Number(dcResult.riskScore) >= 70 ? red : Number(dcResult.riskScore) >= 40 ? amber : green }}>Risk: {String(dcResult.riskScore)}/100</span>}
+            </div>
+            {!!dcResult.diagnosis && <p style={{ fontSize: 12, color: ink, marginBottom: 12, lineHeight: 1.5 }}>{String(dcResult.diagnosis)}</p>}
+            <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" as const }}>
+              {(["diagnosis", "nextaction", "email", "close"] as const).map(t => (
+                <button key={t} onClick={() => setDcTab(t)} style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${dcTab === t ? blue : bdr}`, background: dcTab === t ? blue : bg, color: dcTab === t ? "#fff" : ink, fontSize: 11, fontWeight: dcTab === t ? 700 : 400, cursor: "pointer" }}>
+                  {t === "diagnosis" ? "🔍 Risk Factors" : t === "nextaction" ? "⚡ Next Action" : t === "email" ? "✉️ Email" : "🏁 Close Strategy"}
+                </button>
+              ))}
+            </div>
+            {dcTab === "diagnosis" && (
+              <div>
+                {!!dcResult.riskFactors && (() => {
+                  const factors = dcResult.riskFactors as Record<string, unknown>[];
+                  return (
+                    <div style={{ display: "flex", flexDirection: "column" as const, gap: 8, marginBottom: 10 }}>
+                      {factors.map((f, i) => (
+                        <div key={i} style={{ background: bg, borderRadius: 8, padding: 10, border: `1px solid ${f.severity === 'high' ? red : f.severity === 'medium' ? amber : bdr}` }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                            <p style={{ fontSize: 12, fontWeight: 700, color: ink }}>{String(f.factor ?? '')}</p>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: f.severity === 'high' ? red : f.severity === 'medium' ? amber : green }}>{String(f.severity ?? '').toUpperCase()}</span>
+                          </div>
+                          {!!f.mitigation && <p style={{ fontSize: 11, color: blue }}><b>Fix:</b> {String(f.mitigation)}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+                {!!dcResult.dealStrengths && (
+                  <div style={{ background: green + "11", borderRadius: 8, padding: 10 }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: green, marginBottom: 6 }}>Deal Strengths</p>
+                    {(dcResult.dealStrengths as string[]).map((s, i) => <p key={i} style={{ fontSize: 11, color: ink }}>✓ {s}</p>)}
+                  </div>
+                )}
+              </div>
+            )}
+            {dcTab === "nextaction" && !!dcResult.nextAction && (() => {
+              const na = dcResult.nextAction as Record<string, unknown>;
+              return (
+                <div style={{ background: bg, borderRadius: 8, padding: 14, border: `1px solid ${blue}` }}>
+                  {!!na.action && <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 8 }}>{String(na.action)}</p>}
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap" as const, marginBottom: 8 }}>
+                    {!!na.timing && <span style={{ fontSize: 11, color: amber }}><b>⏱</b> {String(na.timing)}</span>}
+                    {!!na.owner && <span style={{ fontSize: 11, color: muted }}><b>Owner:</b> {String(na.owner)}</span>}
+                  </div>
+                  {!!na.successCriteria && <p style={{ fontSize: 11, color: green }}><b>Success:</b> {String(na.successCriteria)}</p>}
+                </div>
+              );
+            })()}
+            {dcTab === "email" && !!dcResult.emailTemplate && (() => {
+              const et = dcResult.emailTemplate as Record<string, unknown>;
+              return (
+                <div style={{ background: bg, borderRadius: 8, padding: 14, border: `1px solid ${bdr}` }}>
+                  {!!et.subject && <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 4 }}>Subject: {String(et.subject)}</p>}
+                  {!!et.sendTime && <p style={{ fontSize: 11, color: muted, marginBottom: 8 }}>Send: {String(et.sendTime)}</p>}
+                  {!!et.body && <p style={{ fontSize: 12, color: ink, lineHeight: 1.6, whiteSpace: "pre-wrap" as const }}>{String(et.body)}</p>}
+                </div>
+              );
+            })()}
+            {dcTab === "close" && (
+              <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+                {!!dcResult.closeStrategy && (() => {
+                  const cs = dcResult.closeStrategy as Record<string, unknown>;
+                  return (
+                    <div style={{ background: bg, borderRadius: 8, padding: 12, border: `1px solid ${bdr}` }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 6 }}>Close Strategy</p>
+                      {!!cs.closingMove && <p style={{ fontSize: 11, color: muted, marginBottom: 4 }}><b>Move:</b> {String(cs.closingMove)}</p>}
+                      {!!cs.urgencyCreator && <p style={{ fontSize: 11, color: amber, marginBottom: 4 }}><b>Urgency:</b> {String(cs.urgencyCreator)}</p>}
+                      {!!cs.concessionStrategy && <p style={{ fontSize: 11, color: muted }}><b>Concessions:</b> {String(cs.concessionStrategy)}</p>}
+                    </div>
+                  );
+                })()}
+                {!!dcResult.objectionResponse && (() => {
+                  const ob = dcResult.objectionResponse as Record<string, unknown>;
+                  return (
+                    <div style={{ background: bg, borderRadius: 8, padding: 12, border: `1px solid ${bdr}` }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 6 }}>Objection Response</p>
+                      {!!ob.likelyObjection && <p style={{ fontSize: 11, color: red, marginBottom: 4, fontStyle: "italic" }}>&quot;{String(ob.likelyObjection)}&quot;</p>}
+                      {!!ob.response && <p style={{ fontSize: 11, color: ink, marginBottom: 4 }}><b>Response:</b> {String(ob.response)}</p>}
+                      {!!ob.reframe && <p style={{ fontSize: 11, color: blue }}><b>Reframe:</b> {String(ob.reframe)}</p>}
+                    </div>
+                  );
+                })()}
+                {!!dcResult.timeline && (() => {
+                  const tl = dcResult.timeline as Record<string, unknown>;
+                  return (
+                    <div style={{ background: bg, borderRadius: 8, padding: 12, border: `1px solid ${bdr}` }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 6 }}>Timeline</p>
+                      {!!tl.expectedClose && <p style={{ fontSize: 11, color: green, marginBottom: 2 }}><b>Expected Close:</b> {String(tl.expectedClose)}</p>}
+                      {!!tl.criticalPath && <p style={{ fontSize: 11, color: muted, marginBottom: 2 }}><b>Critical Path:</b> {String(tl.criticalPath)}</p>}
+                      {!!tl.dropDeadDate && <p style={{ fontSize: 11, color: red }}><b>Drop Dead:</b> {String(tl.dropDeadDate)}</p>}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Pipeline Health ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 24, marginTop: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontWeight: 700, fontSize: 14, color: ink, margin: 0 }}>Pipeline Health</p>
+            <p style={{ fontSize: 12, color: muted, margin: "2px 0 0" }}>Stage-by-stage pipeline diagnostic, velocity analysis, and forecast accuracy</p>
+          </div>
+          <button onClick={handleGeneratePipelineHealth} disabled={generatingPipeHealth} style={{ padding: "8px 16px", borderRadius: 8, background: generatingPipeHealth ? surf : ink, color: generatingPipeHealth ? muted : bg, fontSize: 12, fontWeight: 600, border: "none", cursor: generatingPipeHealth ? "default" : "pointer" }}>
+            {generatingPipeHealth ? "Diagnosing…" : "Check Pipeline"}
+          </button>
+        </div>
+        {pipeHealthError && <p style={{ color: "#DC2626", fontSize: 12 }}>{pipeHealthError}</p>}
+        {pipeHealthResult && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {!!pipeHealthResult.verdict && <p style={{ fontSize: 13, color: ink, margin: 0, padding: "10px 14px", background: surf, borderRadius: 8 }}>{String(pipeHealthResult.verdict)}</p>}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {!!pipeHealthResult.pipelineCoverage && <div style={{ padding: "10px 12px", background: "#EFF6FF", borderRadius: 8 }}><p style={{ fontSize: 10, color: muted, margin: "0 0 2px" }}>Pipeline Coverage</p><p style={{ fontSize: 16, fontWeight: 700, color: "#2563EB", margin: 0 }}>{String(pipeHealthResult.pipelineCoverage)}</p></div>}
+              {!!pipeHealthResult.pipelineHealth && <div style={{ padding: "10px 12px", background: pipeHealthResult.pipelineHealth==="strong" ? "#F0FDF4" : pipeHealthResult.pipelineHealth==="on track" ? "#FFFBEB" : "#FEF2F2", borderRadius: 8 }}><p style={{ fontSize: 10, color: muted, margin: "0 0 2px" }}>Status</p><p style={{ fontSize: 16, fontWeight: 700, color: pipeHealthResult.pipelineHealth==="strong" ? "#16A34A" : pipeHealthResult.pipelineHealth==="on track" ? "#D97706" : "#DC2626", margin: 0, textTransform: "capitalize" }}>{String(pipeHealthResult.pipelineHealth)}</p></div>}
+            </div>
+            {!!(pipeHealthResult.stageBreakdown as unknown[])?.length && (
+              <div>
+                <p style={{ fontSize: 12, fontWeight: 700, color: ink, margin: "0 0 8px" }}>Stage Breakdown</p>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+                  {(pipeHealthResult.stageBreakdown as { stage: string }[]).map((s, i) => (
+                    <button key={i} onClick={() => setPipeHealthStageIdx(i)} style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${pipeHealthStageIdx===i ? ink : bdr}`, background: pipeHealthStageIdx===i ? ink : bg, color: pipeHealthStageIdx===i ? bg : ink, fontSize: 11, cursor: "pointer" }}>{s.stage}</button>
+                  ))}
+                </div>
+                {(() => {
+                  const s = (pipeHealthResult.stageBreakdown as Record<string, unknown>[])[pipeHealthStageIdx];
+                  if (!s) return null;
+                  return (
+                    <div style={{ padding: "12px 14px", background: surf, borderRadius: 8, border: `1px solid ${bdr}` }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                        <p style={{ fontSize: 14, fontWeight: 700, color: ink, margin: 0 }}>{String(s.stage)}</p>
+                        <span style={{ fontSize: 11, padding: "2px 10px", borderRadius: 12, background: s.stuckRisk==="high" ? "#FEE2E2" : s.stuckRisk==="medium" ? "#FEF3C7" : "#D1FAE5", color: s.stuckRisk==="high" ? "#DC2626" : s.stuckRisk==="medium" ? "#D97706" : "#16A34A", fontWeight: 700 }}>{String(s.stuckRisk ?? "low")} risk</span>
+                      </div>
+                      {!!s.dealCount && <p style={{ fontSize: 12, color: ink, margin: "0 0 4px" }}>Deals: <strong>{String(s.dealCount)}</strong></p>}
+                      {!!s.conversionRate && <p style={{ fontSize: 12, color: ink, margin: "0 0 4px" }}>Conversion: <strong>{String(s.conversionRate)}</strong></p>}
+                      {!!s.avgTimeInStage && <p style={{ fontSize: 12, color: muted, margin: "0 0 4px" }}>Avg time here: {String(s.avgTimeInStage)}</p>}
+                      {!!s.action && <p style={{ fontSize: 12, color: "#2563EB", margin: 0 }}>Action: {String(s.action)}</p>}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+            {!!pipeHealthResult.velocityAnalysis && (() => {
+              const v = pipeHealthResult.velocityAnalysis as Record<string, unknown>;
+              return (
+                <div style={{ padding: "12px 14px", background: "#EFF6FF", borderRadius: 8 }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: ink, margin: "0 0 8px" }}>Velocity Analysis</p>
+                  {!!v.currentVelocity && <p style={{ fontSize: 12, color: ink, margin: "0 0 4px" }}>Current: <strong>{String(v.currentVelocity)}</strong></p>}
+                  {!!v.targetVelocity && <p style={{ fontSize: 12, color: ink, margin: "0 0 4px" }}>Target: <strong>{String(v.targetVelocity)}</strong></p>}
+                  {!!v.bottleneck && <p style={{ fontSize: 12, color: "#DC2626", margin: "0 0 4px" }}>Bottleneck: {String(v.bottleneck)}</p>}
+                  {!!v.speedUpTactic && <p style={{ fontSize: 12, color: "#16A34A", margin: 0 }}>Speed-up: {String(v.speedUpTactic)}</p>}
+                </div>
+              );
+            })()}
+            {!!(pipeHealthResult.fixes as unknown[])?.length && (
+              <div>
+                <p style={{ fontSize: 12, fontWeight: 700, color: ink, margin: "0 0 8px" }}>Pipeline Fixes</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {(pipeHealthResult.fixes as { issue: string; impact: string; fix: string; timeframe: string }[]).map((f, i) => (
+                    <div key={i} style={{ padding: "10px 14px", background: surf, borderRadius: 8, border: `1px solid ${bdr}` }}>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: ink, margin: "0 0 4px" }}>{f.issue}</p>
+                      <p style={{ fontSize: 12, color: "#DC2626", margin: "0 0 4px" }}>At risk: {f.impact}</p>
+                      <p style={{ fontSize: 12, color: "#16A34A", margin: "0 0 2px" }}>Fix: {f.fix}</p>
+                      <p style={{ fontSize: 11, color: muted, margin: 0 }}>Timeframe: {f.timeframe}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {!!pipeHealthResult.priorityAction && <div style={{ padding: "10px 14px", background: "#F0FDF4", borderRadius: 8, borderLeft: "3px solid #16A34A" }}><p style={{ fontSize: 12, fontWeight: 700, color: "#16A34A", margin: "0 0 4px" }}>Priority Action</p><p style={{ fontSize: 12, color: ink, margin: 0 }}>{String(pipeHealthResult.priorityAction)}</p></div>}
+            <button onClick={() => setPipeHealthResult(null)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>Re-run</button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Objection Bank ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 20, marginTop: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>Objection Bank</p>
+            <p style={{ fontSize: 11, color: muted }}>Every objection your buyers use, with exact response scripts, the real meaning behind them, and follow-up questions.</p>
+          </div>
+          <button onClick={handleGenerateObjBank} disabled={generatingObjBank} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingObjBank ? bdr : blue, color: generatingObjBank ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingObjBank ? "not-allowed" : "pointer", whiteSpace: "nowrap" as const, flexShrink: 0, marginLeft: 12 }}>
+            {generatingObjBank ? "Building…" : "Build Objection Bank"}
+          </button>
+        </div>
+        {objBankError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{objBankError}</p>}
+        {objBankResult && (
+          <div style={{ background: surf, borderRadius: 10, padding: 16 }}>
+            {!!objBankResult.overview && <p style={{ fontSize: 12, color: muted, fontStyle: "italic", marginBottom: 14 }}>{String(objBankResult.overview)}</p>}
+            {/* Category filter */}
+            {!!(objBankResult.objections as unknown[])?.length && (
+              <div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" as const, marginBottom: 10 }}>
+                  {["all", ...Array.from(new Set((objBankResult.objections as { category: string }[]).map(o => o.category)))].map(cat => (
+                    <button key={cat} onClick={() => { setObjBankFilter(cat); setObjBankIdx(0); }} style={{ padding: "4px 10px", borderRadius: 6, border: `1px solid ${objBankFilter === cat ? blue : bdr}`, background: objBankFilter === cat ? "#EFF6FF" : "transparent", color: objBankFilter === cat ? blue : muted, fontSize: 11, fontWeight: 600, cursor: "pointer", textTransform: "capitalize" }}>{cat}</button>
+                  ))}
+                </div>
+                {(() => {
+                  const filtered = (objBankResult.objections as { objection: string; category: string; frequency: string; realMeaning: string; response: string; followUp: string; doNotSay: string }[]).filter(o => objBankFilter === "all" || o.category === objBankFilter);
+                  const obj = filtered[objBankIdx];
+                  return (
+                    <div>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" as const, marginBottom: 10 }}>
+                        {filtered.map((o, i) => (
+                          <button key={i} onClick={() => setObjBankIdx(i)} style={{ padding: "4px 10px", borderRadius: 6, border: `1px solid ${objBankIdx === i ? blue : bdr}`, background: objBankIdx === i ? "#EFF6FF" : bg, color: objBankIdx === i ? blue : muted, fontSize: 11, cursor: "pointer", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{o.objection}</button>
+                        ))}
+                      </div>
+                      {obj && (
+                        <div style={{ background: bg, borderRadius: 8, padding: 14 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+                            <p style={{ fontSize: 13, fontWeight: 700, color: ink, margin: 0, maxWidth: "70%" }}>{obj.objection}</p>
+                            <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, background: obj.frequency === "high" ? "#FEE2E2" : obj.frequency === "medium" ? "#FEF3C7" : "#F3F4F6", color: obj.frequency === "high" ? red : obj.frequency === "medium" ? amber : muted, fontWeight: 600 }}>{obj.frequency}</span>
+                          </div>
+                          <p style={{ fontSize: 12, color: muted, marginBottom: 10 }}><strong>Real meaning:</strong> {obj.realMeaning}</p>
+                          <div style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 8, padding: 12, marginBottom: 10 }}>
+                            <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 4 }}>Your Response</p>
+                            <p style={{ fontSize: 12, color: ink }}>{obj.response}</p>
+                          </div>
+                          <p style={{ fontSize: 12, color: ink, marginBottom: 6 }}><strong>Follow up with:</strong> {obj.followUp}</p>
+                          <p style={{ fontSize: 11, color: red }}>✗ Don&apos;t say: {obj.doNotSay}</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+            {!!objBankResult.priceAnchoringTactic && (
+              <div style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 8, padding: 10, marginTop: 14 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>Price Anchoring Tactic</p>
+                <p style={{ fontSize: 12, color: ink }}>{String(objBankResult.priceAnchoringTactic)}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Deal Playbook ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 20, marginTop: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>Deal Playbook</p>
+            <p style={{ fontSize: 11, color: muted }}>Generate a deal-specific playbook with next actions, stakeholder map, objection handlers, and closing strategy.</p>
+          </div>
+          <button onClick={handleGenerateDealPlaybook} disabled={generatingPlaybook}
+            style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingPlaybook ? bdr : blue, color: generatingPlaybook ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingPlaybook ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
+            {generatingPlaybook ? "Building…" : "Generate Playbook"}
+          </button>
+        </div>
+        {availableDeals.length > 0 && !playbookResult && (
+          <div style={{ marginBottom: 12 }}>
+            <p style={{ fontSize: 11, color: muted, marginBottom: 6 }}>Select deal (optional):</p>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              <button onClick={() => setPlaybookDealId('')}
+                style={{ padding: "4px 10px", borderRadius: 20, border: `1px solid ${!playbookDealId ? blue : bdr}`, background: !playbookDealId ? "#EFF6FF" : bg, color: !playbookDealId ? blue : muted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                Best deal
+              </button>
+              {availableDeals.map(d => (
+                <button key={d.id} onClick={() => setPlaybookDealId(d.id)}
+                  style={{ padding: "4px 10px", borderRadius: 20, border: `1px solid ${playbookDealId === d.id ? blue : bdr}`, background: playbookDealId === d.id ? "#EFF6FF" : bg, color: playbookDealId === d.id ? blue : muted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                  {d.company} ({d.stage})
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {playbookError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{playbookError}</p>}
+        {playbookResult && (() => {
+          const sectionTabs: { key: typeof playbookSection; label: string }[] = [
+            { key: 'actions', label: 'Next Actions' },
+            { key: 'stakeholders', label: 'Stakeholders' },
+            { key: 'objections', label: 'Objections' },
+            { key: 'closing', label: 'Closing' },
+          ];
+          return (
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+                <p style={{ fontSize: 13, fontWeight: 700, color: ink, margin: 0 }}>{playbookResult.dealName as string}</p>
+                {!!playbookResult.currentStage && <span style={{ fontSize: 10, fontWeight: 700, color: blue, background: "#EFF6FF", borderRadius: 6, padding: "3px 8px" }}>{playbookResult.currentStage as string}</span>}
+                {!!playbookResult.dealSize && <span style={{ fontSize: 10, fontWeight: 700, color: green, background: "#F0FDF4", borderRadius: 6, padding: "3px 8px" }}>{playbookResult.dealSize as string}</span>}
+                {!!playbookResult.estimatedCloseDate && <span style={{ fontSize: 10, color: muted }}>Close: {playbookResult.estimatedCloseDate as string}</span>}
+              </div>
+              {!!playbookResult.executiveSummary && (
+                <p style={{ fontSize: 11, color: muted, fontStyle: "italic", marginBottom: 12 }}>{playbookResult.executiveSummary as string}</p>
+              )}
+              <div style={{ display: "flex", gap: 4, marginBottom: 14, borderBottom: `1px solid ${bdr}`, paddingBottom: 8 }}>
+                {sectionTabs.map(t => (
+                  <button key={t.key} onClick={() => setPlaybookSection(t.key)}
+                    style={{ padding: "5px 12px", borderRadius: 6, border: "none", background: playbookSection === t.key ? ink : "transparent", color: playbookSection === t.key ? "#fff" : muted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+              {playbookSection === 'actions' && (
+                <div>
+                  {(playbookResult.nextActions as { priority: string; action: string; rationale: string; owner: string; deadline: string }[] | undefined)?.map((a, ai) => (
+                    <div key={ai} style={{ display: "flex", gap: 10, marginBottom: 10, padding: "10px 12px", background: surf, borderRadius: 8, border: `1px solid ${bdr}` }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: a.priority === 'critical' ? red : a.priority === 'high' ? amber : muted, flexShrink: 0, marginTop: 2, textTransform: "uppercase" }}>{a.priority}</span>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 2 }}>{a.action}</p>
+                        <p style={{ fontSize: 11, color: muted, marginBottom: 2 }}>{a.rationale}</p>
+                        <div style={{ display: "flex", gap: 12 }}>
+                          <span style={{ fontSize: 10, color: muted }}>Owner: {a.owner}</span>
+                          <span style={{ fontSize: 10, color: muted }}>By: {a.deadline}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {!!(playbookResult.talkingPoints as string[] | undefined)?.length && (
+                    <div style={{ marginTop: 10 }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Talking Points</p>
+                      {(playbookResult.talkingPoints as string[]).map((tp, ti) => (
+                        <p key={ti} style={{ fontSize: 11, color: ink, marginBottom: 4 }}>• {tp}</p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              {playbookSection === 'stakeholders' && (
+                <div>
+                  {(playbookResult.stakeholderMap as { name: string; role: string; influence: string; sentiment: string; concerns: string; engagementStrategy: string }[] | undefined)?.map((s, si) => (
+                    <div key={si} style={{ padding: "10px 12px", background: surf, borderRadius: 8, border: `1px solid ${bdr}`, marginBottom: 8 }}>
+                      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}>
+                        <p style={{ fontSize: 12, fontWeight: 700, color: ink, margin: 0 }}>{s.name}</p>
+                        <span style={{ fontSize: 10, color: muted }}>{s.role}</span>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: s.influence === 'high' ? red : s.influence === 'medium' ? amber : muted, textTransform: "uppercase" }}>{s.influence} influence</span>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: s.sentiment === 'champion' ? green : s.sentiment === 'skeptic' ? red : muted, textTransform: "capitalize" }}>{s.sentiment}</span>
+                      </div>
+                      <p style={{ fontSize: 11, color: muted, marginBottom: 2 }}>Concerns: {s.concerns}</p>
+                      <p style={{ fontSize: 11, color: ink }}>Strategy: {s.engagementStrategy}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {playbookSection === 'objections' && (
+                <div>
+                  {(playbookResult.objectionHandlers as { objection: string; reframe: string; response: string; proof: string }[] | undefined)?.map((o, oi) => (
+                    <div key={oi} style={{ padding: "10px 12px", background: surf, borderRadius: 8, border: `1px solid ${bdr}`, marginBottom: 8 }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: red, marginBottom: 4 }}>&quot;{o.objection}&quot;</p>
+                      <p style={{ fontSize: 11, color: amber, marginBottom: 4, fontWeight: 600 }}>Reframe: {o.reframe}</p>
+                      <p style={{ fontSize: 11, color: ink, marginBottom: 4 }}>{o.response}</p>
+                      {!!o.proof && <p style={{ fontSize: 11, color: muted }}>Proof: {o.proof}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {playbookSection === 'closing' && (
+                <div>
+                  {!!playbookResult.closingStrategy && (
+                    <div style={{ padding: "10px 12px", background: "#F0FDF4", borderRadius: 8, border: "1px solid #BBF7D0", marginBottom: 12 }}>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: green, marginBottom: 2 }}>Closing Strategy</p>
+                      <p style={{ fontSize: 11, color: ink }}>{playbookResult.closingStrategy as string}</p>
+                    </div>
+                  )}
+                  {!!playbookResult.negotiationGuide && (
+                    <div style={{ padding: "10px 12px", background: surf, borderRadius: 8, border: `1px solid ${bdr}`, marginBottom: 10 }}>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 2 }}>Negotiation Guide</p>
+                      <p style={{ fontSize: 11, color: muted }}>{playbookResult.negotiationGuide as string}</p>
+                    </div>
+                  )}
+                  {!!(playbookResult.dealRisks as string[] | undefined)?.length && (
+                    <div>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Deal Risks</p>
+                      {(playbookResult.dealRisks as string[]).map((r, ri) => (
+                        <p key={ri} style={{ fontSize: 11, color: red, marginBottom: 3 }}>⚠ {r}</p>
+                      ))}
+                    </div>
+                  )}
+                  {!!playbookResult.competitivePosition && (
+                    <div style={{ marginTop: 10, padding: "10px 12px", background: "#EFF6FF", borderRadius: 8, border: "1px solid #BFDBFE" }}>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>Competitive Position</p>
+                      <p style={{ fontSize: 11, color: ink }}>{playbookResult.competitivePosition as string}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+      </div>
+
     </div>
   );
 }
@@ -2812,6 +4539,217 @@ function BrandMessagingRenderer({ data, artifactId }: { data: Record<string, unk
   // Press kit state
   const [generatingPressKit, setGeneratingPressKit] = useState(false);
   const [pressKitError, setPressKitError]           = useState<string | null>(null);
+
+  // SEO optimizer state
+  const [showSEOPanel, setShowSEOPanel]   = useState(false);
+  const [seoBlogContent, setSeoBlogContent] = useState("");
+  const [seoKeyword, setSeoKeyword]       = useState("");
+  const [runningS, setRunningS]     = useState(false);
+  const [seoResult, setSeoResult]         = useState<{
+    primaryKeyword?: string; secondaryKeywords?: string[]; titleSuggestions?: string[];
+    metaDescription?: string; h1Suggestion?: string; h2Suggestions?: string[];
+    contentGaps?: string[]; readabilityTips?: string[]; estimatedIntent?: string;
+    wordCountAdvice?: string; internalLinkOpportunities?: string[]; tldrSummary?: string;
+  } | null>(null);
+  const [seoError, setSeoError]           = useState<string | null>(null);
+
+  // Investor narrative state
+  const [generatingNarrative, setGeneratingNarrative] = useState(false);
+  const [narrativeResult, setNarrativeResult] = useState<{
+    hook?: string;
+    problem?: { headline?: string; depth?: string; personalStory?: string };
+    solution?: { headline?: string; insight?: string; differentiation?: string };
+    traction?: { headline?: string; bullets?: string[] };
+    marketOpportunity?: { framing?: string; tailwind?: string };
+    businessModel?: string;
+    competitiveAdvantage?: { moat?: string; whyYouWin?: string };
+    team?: { credibility?: string; unfairAdvantage?: string };
+    theAsk?: { amount?: string; use?: string; milestone?: string };
+    closingVision?: string;
+    storyArc?: { beat: string; talkingPoint: string; transitionLine: string }[];
+    objectionHandlers?: { objection: string; response: string }[];
+  } | null>(null);
+  const [narrativeError, setNarrativeError] = useState<string | null>(null);
+  const [narrativeTab, setNarrativeTab] = useState<'story' | 'objections'>('story');
+
+  async function handleGenerateNarrative() {
+    if (generatingNarrative) return;
+    setGeneratingNarrative(true); setNarrativeError(null);
+    try {
+      const res = await fetch('/api/agents/maya/investor-narrative', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.narrative) setNarrativeResult(r.narrative);
+      else setNarrativeError(r.error ?? 'Failed to generate investor narrative');
+    } catch { setNarrativeError('Network error'); }
+    finally { setGeneratingNarrative(false); }
+  }
+
+  // Content playbook state
+  const [generatingContentPlaybook, setGeneratingContentPlaybook] = useState(false);
+  const [contentPlaybookResult, setContentPlaybookResult] = useState<{
+    contentPillars?: { pillar: string; why: string; examples: string[] }[];
+    contentMix?: { format: string; percentage: number; why: string }[];
+    channelStrategy?: { channel: string; contentType: string; frequency: string; goal: string }[];
+    cadence?: string;
+    topicIdeas?: string[];
+    repurposeFlow?: string;
+    toneGuide?: string;
+    kpis?: string[];
+    quickWins?: string[];
+  } | null>(null);
+  const [contentPlaybookError, setContentPlaybookError] = useState<string | null>(null);
+  const [contentPlaybookTab, setContentPlaybookTab] = useState<'pillars' | 'channels' | 'ideas'>('pillars');
+
+  async function handleGenerateContentPlaybook() {
+    if (generatingContentPlaybook) return;
+    setGeneratingContentPlaybook(true); setContentPlaybookError(null);
+    try {
+      const res = await fetch('/api/agents/maya/content-playbook', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.playbook) setContentPlaybookResult(r.playbook);
+      else setContentPlaybookError(r.error ?? 'Failed to generate content playbook');
+    } catch { setContentPlaybookError('Network error'); }
+    finally { setGeneratingContentPlaybook(false); }
+  }
+
+  // Social Strategy state
+  const [generatingSocial, setGeneratingSocial]       = useState(false);
+  const [socialResult, setSocialResult]               = useState<Record<string, unknown> | null>(null);
+  const [socialError, setSocialError]                 = useState<string | null>(null);
+  const [socialPlatformIdx, setSocialPlatformIdx]     = useState(0);
+  const [socialTab, setSocialTab]                     = useState<'platforms' | 'content' | 'tactics' | 'kpis'>('platforms');
+
+  async function handleGenerateSocialStrategy() {
+    if (generatingSocial) return;
+    setGeneratingSocial(true); setSocialError(null); setSocialResult(null);
+    try {
+      const res = await fetch('/api/agents/maya/social-strategy', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.strategy) setSocialResult(r.strategy);
+      else setSocialError(r.error ?? 'Generation failed');
+    } catch { setSocialError('Network error'); }
+    finally { setGeneratingSocial(false); }
+  }
+
+  // Product Launch state
+  const [plProductName, setPlProductName]             = useState('');
+  const [plLaunchDate, setPlLaunchDate]               = useState('');
+  const [plLaunchType, setPlLaunchType]               = useState('Product Hunt');
+  const [generatingPL, setGeneratingPL]               = useState(false);
+  const [plResult, setPlResult]                       = useState<Record<string, unknown> | null>(null);
+  const [plError, setPlError]                         = useState<string | null>(null);
+  const [plTab, setPlTab]                             = useState<'phases' | 'channels' | 'checklist' | 'metrics'>('phases');
+
+  async function handleGenerateProductLaunch() {
+    if (generatingPL) return;
+    setGeneratingPL(true); setPlError(null); setPlResult(null);
+    try {
+      const res = await fetch('/api/agents/maya/product-launch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productName: plProductName, launchDate: plLaunchDate, launchType: plLaunchType }),
+      });
+      const r = await res.json();
+      if (res.ok && r.plan) setPlResult(r.plan);
+      else setPlError(r.error ?? 'Generation failed');
+    } catch { setPlError('Network error'); }
+    finally { setGeneratingPL(false); }
+  }
+
+  // Content Calendar state
+  const [calWeeks, setCalWeeks]                       = useState('4');
+  const [generatingCal, setGeneratingCal]             = useState(false);
+  const [calResult, setCalResult]                     = useState<Record<string, unknown> | null>(null);
+  const [calError, setCalError]                       = useState<string | null>(null);
+  const [calWeekIdx, setCalWeekIdx]                   = useState(0);
+
+  async function handleGenerateContentCalendar() {
+    if (generatingCal) return;
+    setGeneratingCal(true); setCalError(null); setCalResult(null);
+    try {
+      const res = await fetch('/api/agents/maya/content-calendar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ weeks: Number(calWeeks) || 4 }),
+      });
+      const r = await res.json();
+      if (res.ok && r.calendar) setCalResult(r.calendar);
+      else setCalError(r.error ?? 'Generation failed');
+    } catch { setCalError('Network error'); }
+    finally { setGeneratingCal(false); }
+  }
+
+  // PR Strategy state
+  const [generatingPR_strat, setGeneratingPR_strat]   = useState(false);
+  const [prStratResult, setPrStratResult]             = useState<Record<string, unknown> | null>(null);
+  const [prStratError, setPrStratError]               = useState<string | null>(null);
+  const [prStratMediaIdx, setPrStratMediaIdx]         = useState(0);
+
+  async function handleGeneratePRStrategy() {
+    if (generatingPR_strat) return;
+    setGeneratingPR_strat(true); setPrStratError(null); setPrStratResult(null);
+    try {
+      const res = await fetch('/api/agents/maya/pr-strategy', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.strategy) setPrStratResult(r.strategy);
+      else setPrStratError(r.error ?? 'Generation failed');
+    } catch { setPrStratError('Network error'); }
+    finally { setGeneratingPR_strat(false); }
+  }
+
+  // Brand Audit state
+  const [generatingAudit, setGeneratingAudit]         = useState(false);
+  const [auditResult, setAuditResult]                 = useState<Record<string, unknown> | null>(null);
+  const [auditError, setAuditError]                   = useState<string | null>(null);
+  const [auditDimIdx, setAuditDimIdx]                 = useState(0);
+
+  async function handleRunBrandAudit() {
+    if (generatingAudit) return;
+    setGeneratingAudit(true); setAuditError(null); setAuditResult(null);
+    try {
+      const res = await fetch('/api/agents/maya/brand-audit', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.audit) setAuditResult(r.audit);
+      else setAuditError(r.error ?? 'Audit failed');
+    } catch { setAuditError('Network error'); }
+    finally { setGeneratingAudit(false); }
+  }
+
+  // One-pager state
+  const [generatingOnePager, setGeneratingOnePager] = useState(false);
+  const [onePagerError, setOnePagerError]           = useState<string | null>(null);
+
+  async function handleGenerateOnePager() {
+    if (generatingOnePager) return;
+    setGeneratingOnePager(true); setOnePagerError(null);
+    try {
+      const res = await fetch('/api/agents/maya/one-pager', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.html) {
+        const blob = new Blob([r.html], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = 'investor-one-pager.html'; a.click();
+        URL.revokeObjectURL(url);
+      } else { setOnePagerError(r.error ?? 'Failed to generate one-pager'); }
+    } catch { setOnePagerError('Network error'); }
+    finally { setGeneratingOnePager(false); }
+  }
+
+  async function handleRunSEO() {
+    if (runningS || !seoBlogContent.trim()) return;
+    setRunningS(true); setSeoError(null);
+    try {
+      const res = await fetch('/api/agents/maya/seo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ blogContent: seoBlogContent, targetKeyword: seoKeyword || undefined }),
+      });
+      const r = await res.json();
+      if (res.ok && r.seo) setSeoResult(r.seo);
+      else setSeoError(r.error ?? 'Failed to run SEO analysis');
+    } catch { setSeoError('Network error'); }
+    finally { setRunningS(false); }
+  }
 
   async function handleGeneratePressKit() {
     if (generatingPressKit) return;
@@ -3806,6 +5744,759 @@ function BrandMessagingRenderer({ data, artifactId }: { data: Record<string, unk
           {generatingPressKit ? "Generating…" : "Download Press Kit"}
         </button>
       </div>
+
+      {/* ── SEO Optimizer CTA ── */}
+      <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 12, padding: "14px 18px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: showSEOPanel ? 14 : 0 }}>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: green, marginBottom: 2 }}>SEO Content Optimizer</p>
+            <p style={{ fontSize: 11, color: muted }}>Paste a blog post or page copy — Maya researches the SERP landscape and generates title tags, meta, H2s, keyword strategy, and content gap analysis.</p>
+            {seoError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{seoError}</p>}
+          </div>
+          <button onClick={() => { setShowSEOPanel(!showSEOPanel); setSeoResult(null); setSeoError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: green, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
+            {showSEOPanel ? "Close" : "Optimize SEO"}
+          </button>
+        </div>
+        {showSEOPanel && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Blog / Page Content *</label>
+              <textarea value={seoBlogContent} onChange={e => setSeoBlogContent(e.target.value)} placeholder="Paste your blog post or page copy here (first 1200 chars used for analysis)…" rows={6} style={{ width: "100%", border: `1px solid ${bdr}`, borderRadius: 8, padding: "9px 12px", fontSize: 12, color: ink, outline: "none", resize: "vertical", boxSizing: "border-box" }} />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Target Keyword (optional)</label>
+              <input value={seoKeyword} onChange={e => setSeoKeyword(e.target.value)} placeholder="e.g. startup pitch deck template" style={{ width: "100%", border: `1px solid ${bdr}`, borderRadius: 8, padding: "9px 12px", fontSize: 13, color: ink, outline: "none", boxSizing: "border-box" }} />
+            </div>
+            <button onClick={handleRunSEO} disabled={runningS || !seoBlogContent.trim()} style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: runningS || !seoBlogContent.trim() ? bdr : green, color: runningS || !seoBlogContent.trim() ? muted : "#fff", fontSize: 13, fontWeight: 600, cursor: runningS || !seoBlogContent.trim() ? "not-allowed" : "pointer", alignSelf: "flex-start" }}>
+              {runningS ? "Analyzing…" : "Run SEO Analysis"}
+            </button>
+            {seoResult && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 4 }}>
+                {seoResult.tldrSummary && (
+                  <div style={{ background: "#EFF6FF", borderRadius: 8, padding: "10px 14px", border: "1px solid #BFDBFE" }}>
+                    <p style={{ fontSize: 12, fontStyle: "italic", color: ink, lineHeight: 1.6 }}>{seoResult.tldrSummary}</p>
+                  </div>
+                )}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  {seoResult.primaryKeyword && (
+                    <div style={{ background: bg, borderRadius: 8, padding: "10px 12px", border: `1px solid ${bdr}` }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", marginBottom: 4 }}>Primary Keyword</p>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: green }}>{seoResult.primaryKeyword}</p>
+                    </div>
+                  )}
+                  {seoResult.estimatedIntent && (
+                    <div style={{ background: bg, borderRadius: 8, padding: "10px 12px", border: `1px solid ${bdr}` }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", marginBottom: 4 }}>Search Intent</p>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: blue, textTransform: "capitalize" }}>{seoResult.estimatedIntent}</p>
+                    </div>
+                  )}
+                </div>
+                {seoResult.titleSuggestions && seoResult.titleSuggestions.length > 0 && (
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", marginBottom: 6 }}>Title Options</p>
+                    {seoResult.titleSuggestions.map((t, i) => (
+                      <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 10px", background: bg, borderRadius: 8, border: `1px solid ${bdr}`, marginBottom: 4 }}>
+                        <p style={{ fontSize: 12, color: ink, flex: 1 }}>{t}</p>
+                        <button onClick={() => navigator.clipboard.writeText(t).catch(() => {})} style={{ background: "none", border: "none", fontSize: 11, color: muted, cursor: "pointer", flexShrink: 0, marginLeft: 8 }}>Copy</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {seoResult.metaDescription && (
+                  <div style={{ background: bg, borderRadius: 8, padding: "10px 12px", border: `1px solid ${bdr}` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase" }}>Meta Description</p>
+                      <button onClick={() => navigator.clipboard.writeText(seoResult!.metaDescription!).catch(() => {})} style={{ background: "none", border: "none", fontSize: 11, color: muted, cursor: "pointer" }}>Copy</button>
+                    </div>
+                    <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{seoResult.metaDescription}</p>
+                    <p style={{ fontSize: 10, color: seoResult.metaDescription.length > 155 ? red : muted, marginTop: 4 }}>{seoResult.metaDescription.length} chars (target 150–155)</p>
+                  </div>
+                )}
+                {seoResult.h2Suggestions && seoResult.h2Suggestions.length > 0 && (
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", marginBottom: 6 }}>Suggested H2s</p>
+                    {seoResult.h2Suggestions.map((h, i) => <p key={i} style={{ fontSize: 12, color: ink, marginBottom: 4 }}>## {h}</p>)}
+                  </div>
+                )}
+                {seoResult.contentGaps && seoResult.contentGaps.length > 0 && (
+                  <div style={{ background: "#FFF7ED", borderRadius: 8, padding: "10px 12px", border: "1px solid #FED7AA" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: amber, textTransform: "uppercase", marginBottom: 6 }}>Content Gaps to Fill</p>
+                    {seoResult.contentGaps.map((g, i) => <p key={i} style={{ fontSize: 12, color: ink, marginBottom: 3 }}>→ {g}</p>)}
+                  </div>
+                )}
+                {seoResult.secondaryKeywords && seoResult.secondaryKeywords.length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {seoResult.secondaryKeywords.map((k, i) => (
+                      <span key={i} style={{ fontSize: 11, padding: "3px 10px", borderRadius: 999, background: surf, border: `1px solid ${bdr}`, color: ink }}>{k}</span>
+                    ))}
+                  </div>
+                )}
+                {seoResult.wordCountAdvice && (
+                  <p style={{ fontSize: 11, color: muted, lineHeight: 1.5 }}><strong>Word count:</strong> {seoResult.wordCountAdvice}</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Investor Narrative ── */}
+      <div style={{ background: "#EDE9FE", border: "1px solid #C4B5FD", borderRadius: 12, padding: "16px 20px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: narrativeResult ? 14 : 0 }}>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: "#7C3AED", marginBottom: 2 }}>Fundraising Story Arc</p>
+            <p style={{ fontSize: 11, color: muted }}>Maya builds your investor narrative — hook, problem, solution, traction arc, and objection handlers — ready for your first investor meeting.</p>
+            {narrativeError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{narrativeError}</p>}
+          </div>
+          <button onClick={handleGenerateNarrative} disabled={generatingNarrative} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingNarrative ? bdr : "#7C3AED", color: generatingNarrative ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingNarrative ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
+            {generatingNarrative ? "Crafting…" : "Build Narrative"}
+          </button>
+        </div>
+        {narrativeResult && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {/* Tab bar */}
+            <div style={{ display: "flex", gap: 6 }}>
+              {(["story", "objections"] as const).map(tab => (
+                <button key={tab} onClick={() => setNarrativeTab(tab)} style={{ padding: "5px 14px", borderRadius: 7, border: `1px solid ${narrativeTab === tab ? "#7C3AED" : bdr}`, background: narrativeTab === tab ? "#EDE9FE" : bg, color: narrativeTab === tab ? "#7C3AED" : muted, fontSize: 11, fontWeight: 600, cursor: "pointer", textTransform: "capitalize" }}>{tab === 'story' ? 'Story Arc' : 'Objection Handlers'}</button>
+              ))}
+            </div>
+            {narrativeTab === 'story' && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {/* Hook */}
+                {narrativeResult.hook && (
+                  <div style={{ background: "#F5F3FF", borderRadius: 8, padding: "12px 14px", border: "1px solid #DDD6FE" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: "#7C3AED", textTransform: "uppercase", marginBottom: 4 }}>The Hook</p>
+                    <p style={{ fontSize: 14, fontWeight: 700, color: ink, lineHeight: 1.5, fontStyle: "italic" }}>&quot;{narrativeResult.hook}&quot;</p>
+                  </div>
+                )}
+                {/* Problem → Solution → Traction */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                  {narrativeResult.problem && (
+                    <div style={{ background: "#FEF2F2", borderRadius: 8, padding: "10px 12px", border: "1px solid #FECACA" }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: red, textTransform: "uppercase", marginBottom: 4 }}>Problem</p>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 4 }}>{narrativeResult.problem.headline}</p>
+                      <p style={{ fontSize: 11, color: muted, lineHeight: 1.5 }}>{narrativeResult.problem.depth}</p>
+                    </div>
+                  )}
+                  {narrativeResult.solution && (
+                    <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "10px 12px", border: "1px solid #BBF7D0" }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: green, textTransform: "uppercase", marginBottom: 4 }}>Solution</p>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 4 }}>{narrativeResult.solution.headline}</p>
+                      <p style={{ fontSize: 11, color: muted, lineHeight: 1.5 }}>{narrativeResult.solution.insight}</p>
+                    </div>
+                  )}
+                  {narrativeResult.traction && (
+                    <div style={{ background: "#EFF6FF", borderRadius: 8, padding: "10px 12px", border: "1px solid #BFDBFE" }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: blue, textTransform: "uppercase", marginBottom: 4 }}>Traction</p>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 4 }}>{narrativeResult.traction.headline}</p>
+                      {narrativeResult.traction.bullets?.map((b, i) => <p key={i} style={{ fontSize: 11, color: muted, lineHeight: 1.4 }}>• {b}</p>)}
+                    </div>
+                  )}
+                </div>
+                {/* Story Arc beats */}
+                {narrativeResult.storyArc && narrativeResult.storyArc.length > 0 && (
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", marginBottom: 8 }}>Meeting Flow</p>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {narrativeResult.storyArc.map((beat, i) => (
+                        <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "10px 12px", background: bg, borderRadius: 8, border: `1px solid ${bdr}` }}>
+                          <div style={{ width: 22, height: 22, borderRadius: 999, background: "#EDE9FE", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            <p style={{ fontSize: 10, fontWeight: 800, color: "#7C3AED" }}>{i + 1}</p>
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <p style={{ fontSize: 11, fontWeight: 700, color: "#7C3AED", marginBottom: 3 }}>{beat.beat}</p>
+                            <p style={{ fontSize: 11, color: ink, lineHeight: 1.5, marginBottom: 3 }}>{beat.talkingPoint}</p>
+                            <p style={{ fontSize: 10, color: muted, fontStyle: "italic" }}>→ {beat.transitionLine}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {/* Closing vision */}
+                {narrativeResult.closingVision && (
+                  <div style={{ background: "#F5F3FF", borderRadius: 8, padding: "10px 14px", border: "1px solid #DDD6FE", textAlign: "center" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: "#7C3AED", textTransform: "uppercase", marginBottom: 4 }}>Vision Close</p>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: ink, lineHeight: 1.6, fontStyle: "italic" }}>&quot;{narrativeResult.closingVision}&quot;</p>
+                  </div>
+                )}
+              </div>
+            )}
+            {narrativeTab === 'objections' && narrativeResult.objectionHandlers && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {narrativeResult.objectionHandlers.map((oh, i) => (
+                  <div key={i} style={{ background: bg, borderRadius: 10, padding: "12px 14px", border: `1px solid ${bdr}` }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: red, marginBottom: 5 }}>❓ {oh.objection}</p>
+                    <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>→ {oh.response}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            <button onClick={() => setNarrativeResult(null)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>Regenerate</button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Content Playbook ── */}
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "16px 20px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: contentPlaybookResult ? 14 : 0 }}>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>Content Playbook</p>
+            <p style={{ fontSize: 11, color: muted }}>Maya builds a 90-day content system — pillars, channel strategy, cadence, repurpose flow, topic ideas, and KPIs — based on your ICP and brand.</p>
+            {contentPlaybookError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{contentPlaybookError}</p>}
+          </div>
+          <button onClick={handleGenerateContentPlaybook} disabled={generatingContentPlaybook}
+            style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingContentPlaybook ? bdr : blue, color: generatingContentPlaybook ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingContentPlaybook ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
+            {generatingContentPlaybook ? "Building…" : "Build Playbook"}
+          </button>
+        </div>
+        {contentPlaybookResult && (
+          <div>
+            <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+              {(['pillars', 'channels', 'ideas'] as const).map(t => (
+                <button key={t} onClick={() => setContentPlaybookTab(t)}
+                  style={{ padding: "4px 12px", borderRadius: 6, border: `1px solid ${contentPlaybookTab === t ? blue : bdr}`, background: contentPlaybookTab === t ? blue : "transparent", color: contentPlaybookTab === t ? "#fff" : muted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                  {t === 'pillars' ? 'Pillars & Mix' : t === 'channels' ? 'Channel Strategy' : 'Topics & KPIs'}
+                </button>
+              ))}
+            </div>
+            {contentPlaybookTab === 'pillars' && (
+              <div>
+                {contentPlaybookResult.toneGuide && <p style={{ fontSize: 12, color: muted, marginBottom: 12, fontStyle: "italic" }}>{contentPlaybookResult.toneGuide}</p>}
+                {(contentPlaybookResult.contentPillars ?? []).map((p, i) => (
+                  <div key={i} style={{ background: "#fff", border: `1px solid ${bdr}`, borderRadius: 8, padding: "10px 14px", marginBottom: 8 }}>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 4 }}>{p.pillar}</p>
+                    <p style={{ fontSize: 11, color: muted, marginBottom: 6 }}>{p.why}</p>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {(p.examples ?? []).map((e, j) => <span key={j} style={{ padding: "2px 8px", background: surf, border: `1px solid ${bdr}`, borderRadius: 999, fontSize: 10, color: muted }}>{e}</span>)}
+                    </div>
+                  </div>
+                ))}
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+                  {(contentPlaybookResult.contentMix ?? []).map((m, i) => (
+                    <div key={i} style={{ background: "#EFF6FF", borderRadius: 8, padding: "8px 12px", border: "1px solid #BFDBFE", fontSize: 11, color: blue }}>
+                      <strong>{m.percentage}%</strong> {m.format}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {contentPlaybookTab === 'channels' && (
+              <div>
+                {contentPlaybookResult.cadence && (
+                  <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "10px 14px", border: "1px solid #BBF7D0", marginBottom: 12 }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: "#16A34A", textTransform: "uppercase", marginBottom: 4 }}>Weekly Cadence</p>
+                    <p style={{ fontSize: 12, color: ink }}>{contentPlaybookResult.cadence}</p>
+                  </div>
+                )}
+                {(contentPlaybookResult.channelStrategy ?? []).map((c, i) => (
+                  <div key={i} style={{ background: "#fff", border: `1px solid ${bdr}`, borderRadius: 8, padding: "10px 14px", marginBottom: 8 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: ink }}>{c.channel}</p>
+                      <span style={{ fontSize: 11, color: muted }}>{c.frequency}</span>
+                    </div>
+                    <p style={{ fontSize: 11, color: muted, marginBottom: 4 }}>{c.contentType}</p>
+                    <p style={{ fontSize: 11, color: blue, fontWeight: 600 }}>→ Goal: {c.goal}</p>
+                  </div>
+                ))}
+                {contentPlaybookResult.repurposeFlow && (
+                  <div style={{ background: "#FFF7ED", borderRadius: 8, padding: "10px 14px", border: "1px solid #FED7AA", marginTop: 8 }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: amber, textTransform: "uppercase", marginBottom: 4 }}>Repurpose Flow</p>
+                    <p style={{ fontSize: 12, color: ink }}>{contentPlaybookResult.repurposeFlow}</p>
+                  </div>
+                )}
+              </div>
+            )}
+            {contentPlaybookTab === 'ideas' && (
+              <div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
+                  {(contentPlaybookResult.topicIdeas ?? []).map((idea, i) => (
+                    <p key={i} style={{ fontSize: 12, color: ink, padding: "6px 10px", background: "#fff", border: `1px solid ${bdr}`, borderRadius: 6 }}>📝 {idea}</p>
+                  ))}
+                </div>
+                {(contentPlaybookResult.kpis ?? []).length > 0 && (
+                  <div style={{ background: "#EFF6FF", borderRadius: 8, padding: "10px 14px", border: "1px solid #BFDBFE", marginBottom: 10 }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: blue, textTransform: "uppercase", marginBottom: 6 }}>KPIs to Track</p>
+                    {(contentPlaybookResult.kpis ?? []).map((k, i) => <p key={i} style={{ fontSize: 11, color: ink, marginBottom: 3 }}>→ {k}</p>)}
+                  </div>
+                )}
+                {(contentPlaybookResult.quickWins ?? []).length > 0 && (
+                  <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "10px 14px", border: "1px solid #BBF7D0" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: "#16A34A", textTransform: "uppercase", marginBottom: 6 }}>Quick Wins (This Week)</p>
+                    {(contentPlaybookResult.quickWins ?? []).map((w, i) => <p key={i} style={{ fontSize: 11, color: ink, marginBottom: 3 }}>→ {w}</p>)}
+                  </div>
+                )}
+              </div>
+            )}
+            <button onClick={() => setContentPlaybookResult(null)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", marginTop: 10 }}>Regenerate</button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Investor One-Pager CTA ── */}
+      <div style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 12, padding: "14px 18px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>Investor One-Pager</p>
+            <p style={{ fontSize: 11, color: muted }}>Maya synthesises your brand, financials, GTM strategy, and competitive position into a polished tear sheet — ready to email to cold investor leads.</p>
+            {onePagerError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{onePagerError}</p>}
+          </div>
+          <button
+            onClick={handleGenerateOnePager}
+            disabled={generatingOnePager}
+            style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingOnePager ? bdr : blue, color: generatingOnePager ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingOnePager ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}
+          >
+            {generatingOnePager ? "Generating…" : "Download One-Pager"}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Social Strategy ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 20, marginTop: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>Social Media Strategy</p>
+            <p style={{ fontSize: 11, color: muted }}>Get a platform-by-platform strategy, content pillars, posting calendar, and growth tactics designed for your ICP.</p>
+          </div>
+          <button onClick={handleGenerateSocialStrategy} disabled={generatingSocial} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingSocial ? bdr : amber, color: generatingSocial ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingSocial ? "not-allowed" : "pointer", whiteSpace: "nowrap" as const, flexShrink: 0, marginLeft: 12 }}>
+            {generatingSocial ? "Building…" : "Build Strategy"}
+          </button>
+        </div>
+        {socialError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{socialError}</p>}
+        {socialResult && (
+          <div style={{ background: surf, borderRadius: 10, padding: 16 }}>
+            {!!socialResult.overview && <p style={{ fontSize: 12, color: muted, fontStyle: "italic", marginBottom: 14 }}>{String(socialResult.overview)}</p>}
+            <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+              {(["platforms", "content", "tactics", "kpis"] as const).map(t => (
+                <button key={t} onClick={() => setSocialTab(t)} style={{ padding: "5px 12px", borderRadius: 6, border: `1px solid ${socialTab === t ? amber : bdr}`, background: socialTab === t ? "#FEF3C7" : "transparent", color: socialTab === t ? amber : muted, fontSize: 11, fontWeight: 600, cursor: "pointer", textTransform: "capitalize" }}>{t}</button>
+              ))}
+            </div>
+            {socialTab === "platforms" && !!(socialResult.platforms as unknown[])?.length && (
+              <div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" as const, marginBottom: 10 }}>
+                  {(socialResult.platforms as { platform: string }[]).map((p, i) => (
+                    <button key={i} onClick={() => setSocialPlatformIdx(i)} style={{ padding: "4px 10px", borderRadius: 6, border: `1px solid ${socialPlatformIdx === i ? amber : bdr}`, background: socialPlatformIdx === i ? "#FEF3C7" : "transparent", color: socialPlatformIdx === i ? amber : muted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{p.platform}</button>
+                  ))}
+                </div>
+                {(() => {
+                  const pl = (socialResult.platforms as { platform: string; priority: string; why: string; goal: string; postingFrequency: string; contentMix: string; bestTimes: string }[])[socialPlatformIdx];
+                  if (!pl) return null;
+                  return (
+                    <div style={{ background: bg, borderRadius: 8, padding: 12 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                        <p style={{ fontWeight: 700, color: ink, margin: 0 }}>{pl.platform}</p>
+                        <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, background: pl.priority === "primary" ? "#FEF3C7" : "#F3F4F6", color: pl.priority === "primary" ? amber : muted, fontWeight: 600 }}>{pl.priority}</span>
+                      </div>
+                      <p style={{ fontSize: 12, color: muted, marginBottom: 4 }}><strong>Goal:</strong> {pl.goal}</p>
+                      <p style={{ fontSize: 12, color: muted, marginBottom: 4 }}><strong>Frequency:</strong> {pl.postingFrequency}</p>
+                      <p style={{ fontSize: 12, color: muted, marginBottom: 4 }}><strong>Content Mix:</strong> {pl.contentMix}</p>
+                      <p style={{ fontSize: 12, color: muted }}><strong>Best Times:</strong> {pl.bestTimes}</p>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+            {socialTab === "content" && !!(socialResult.contentPillars as unknown[])?.length && (
+              <div>
+                {(socialResult.contentPillars as { pillar: string; description: string; formats: string[]; exampleTopics: string[] }[]).map((cp, i) => (
+                  <div key={i} style={{ padding: "10px 0", borderBottom: `1px solid ${bdr}` }}>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: ink, margin: "0 0 4px" }}>{cp.pillar}</p>
+                    <p style={{ fontSize: 12, color: muted, marginBottom: 6 }}>{cp.description}</p>
+                    <p style={{ fontSize: 11, color: muted, marginBottom: 4 }}>Formats: {cp.formats?.join(', ')}</p>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" as const }}>
+                      {cp.exampleTopics?.map((t, ti) => <span key={ti} style={{ fontSize: 11, padding: "2px 8px", background: surf, borderRadius: 999, color: ink }}>{t}</span>)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {socialTab === "tactics" && !!(socialResult.growthTactics as unknown[])?.length && (
+              <div>
+                {(socialResult.growthTactics as { tactic: string; platform: string; effort: string; expectedResult: string }[]).map((gt, i) => (
+                  <div key={i} style={{ padding: "8px 0", borderBottom: `1px solid ${bdr}` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                      <p style={{ fontSize: 12, fontWeight: 600, color: ink, margin: 0 }}>{gt.tactic}</p>
+                      <span style={{ fontSize: 11, color: muted }}>{gt.effort} effort</span>
+                    </div>
+                    <p style={{ fontSize: 11, color: muted }}>Platform: {gt.platform} · {gt.expectedResult}</p>
+                  </div>
+                ))}
+                {!!(socialResult.quickWins as string[] | undefined)?.length && (
+                  <div style={{ marginTop: 12 }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Quick Wins (Days 1-3)</p>
+                    {(socialResult.quickWins as string[]).map((w, i) => <p key={i} style={{ fontSize: 12, color: ink, marginBottom: 4 }}>Day {i + 1}: {w}</p>)}
+                  </div>
+                )}
+              </div>
+            )}
+            {socialTab === "kpis" && !!(socialResult.kpis as unknown[])?.length && (
+              <div>
+                {(socialResult.kpis as { metric: string; platform: string; target30d: string; target90d: string }[]).map((kpi, i) => (
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: `1px solid ${bdr}` }}>
+                    <div>
+                      <p style={{ fontSize: 12, fontWeight: 600, color: ink, margin: 0 }}>{kpi.metric}</p>
+                      <p style={{ fontSize: 11, color: muted }}>{kpi.platform}</p>
+                    </div>
+                    <div style={{ textAlign: "right" as const }}>
+                      <p style={{ fontSize: 12, color: ink, margin: 0 }}>30d: {kpi.target30d}</p>
+                      <p style={{ fontSize: 11, color: muted }}>90d: {kpi.target90d}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Product Launch ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 24, marginTop: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <div>
+            <p style={{ fontWeight: 700, fontSize: 14, color: ink, margin: 0 }}>Product Launch Plan</p>
+            <p style={{ fontSize: 12, color: muted, margin: "2px 0 0" }}>Full go-to-market launch plan: phases, channels, launch-day playbook, and metrics.</p>
+          </div>
+          <button onClick={handleGenerateProductLaunch} disabled={generatingPL} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingPL ? bdr : blue, color: generatingPL ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingPL ? "not-allowed" : "pointer", whiteSpace: "nowrap" as const, flexShrink: 0, marginLeft: 12 }}>
+            {generatingPL ? "Planning…" : "Plan Launch"}
+          </button>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
+          <input value={plProductName} onChange={e => setPlProductName(e.target.value)} placeholder="Product/feature name" style={{ padding: "8px 12px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 12, color: ink, background: bg }} />
+          <input value={plLaunchDate} onChange={e => setPlLaunchDate(e.target.value)} placeholder="Launch date (e.g. March 15)" style={{ padding: "8px 12px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 12, color: ink, background: bg }} />
+          <select value={plLaunchType} onChange={e => setPlLaunchType(e.target.value)} style={{ padding: "8px 12px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 12, color: ink, background: bg }}>
+            {["Product Hunt", "Press Release", "Community", "Influencer", "Email Campaign", "Cold Outreach", "Hybrid"].map(s => <option key={s}>{s}</option>)}
+          </select>
+        </div>
+        {plError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{plError}</p>}
+        {plResult && (
+          <div style={{ background: surf, borderRadius: 10, padding: 16 }}>
+            {!!plResult.verdict && <p style={{ fontSize: 12, color: muted, fontStyle: "italic", marginBottom: 8 }}>{String(plResult.verdict)}</p>}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const, marginBottom: 12 }}>
+              {!!plResult.launchType && <span style={{ fontSize: 11, background: blue + "22", color: blue, borderRadius: 20, padding: "2px 10px", fontWeight: 700 }}>{String(plResult.launchType)}</span>}
+              {!!plResult.launchGoal && <span style={{ fontSize: 11, background: green + "22", color: green, borderRadius: 20, padding: "2px 10px" }}>Goal: {String(plResult.launchGoal)}</span>}
+            </div>
+            <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" as const }}>
+              {(["phases", "channels", "checklist", "metrics"] as const).map(t => (
+                <button key={t} onClick={() => setPlTab(t)} style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${plTab === t ? blue : bdr}`, background: plTab === t ? blue : bg, color: plTab === t ? "#fff" : ink, fontSize: 11, fontWeight: plTab === t ? 700 : 400, cursor: "pointer" }}>
+                  {t === "phases" ? "📅 Phases" : t === "channels" ? "📡 Channels" : t === "checklist" ? "✅ Pre-Launch" : "📊 Metrics"}
+                </button>
+              ))}
+            </div>
+            {plTab === "phases" && !!plResult.phases && (() => {
+              const phases = plResult.phases as Record<string, unknown>[];
+              return (
+                <div style={{ display: "flex", flexDirection: "column" as const, gap: 10 }}>
+                  {phases.map((ph, i) => (
+                    <div key={i} style={{ background: bg, borderRadius: 8, padding: 12, border: `1px solid ${bdr}` }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                        <p style={{ fontSize: 12, fontWeight: 700, color: ink }}>{String(ph.phase ?? '')}</p>
+                        {!!ph.duration && <span style={{ fontSize: 11, color: muted }}>{String(ph.duration)}</span>}
+                      </div>
+                      {!!ph.focus && <p style={{ fontSize: 11, color: blue, marginBottom: 4 }}>{String(ph.focus)}</p>}
+                      {!!ph.keyActions && <div style={{ paddingLeft: 12 }}>{(ph.keyActions as string[]).map((a, j) => <p key={j} style={{ fontSize: 11, color: muted }}>• {a}</p>)}</div>}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+            {plTab === "channels" && !!plResult.channels && (() => {
+              const chs = plResult.channels as Record<string, unknown>[];
+              return (
+                <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+                  {chs.map((c, i) => (
+                    <div key={i} style={{ background: bg, borderRadius: 8, padding: 12, border: `1px solid ${bdr}` }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
+                        <p style={{ fontSize: 12, fontWeight: 700, color: ink }}>{String(c.channel ?? '')}</p>
+                        <div style={{ display: "flex", gap: 6, flexShrink: 0, marginLeft: 8 }}>
+                          {!!c.role && <span style={{ fontSize: 10, background: surf, border: `1px solid ${bdr}`, borderRadius: 20, padding: "2px 7px", color: muted }}>{String(c.role)}</span>}
+                          {!!c.effort && <span style={{ fontSize: 10, fontWeight: 700, color: c.effort === 'high' ? amber : green }}>{String(c.effort)}</span>}
+                        </div>
+                      </div>
+                      {!!c.launchTactic && <p style={{ fontSize: 11, color: muted }}>{String(c.launchTactic)}</p>}
+                      {!!c.expectedReach && <p style={{ fontSize: 11, color: blue }}>{String(c.expectedReach)}</p>}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+            {plTab === "checklist" && !!plResult.preLaunchChecklist && (() => {
+              const tasks = plResult.preLaunchChecklist as Record<string, unknown>[];
+              return (
+                <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+                  {tasks.map((t, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 12px", background: bg, borderRadius: 8, border: `1px solid ${bdr}` }}>
+                      <span style={{ fontSize: 14, marginTop: 1 }}>{t.critical ? '🔴' : '⚪'}</span>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ fontSize: 12, fontWeight: t.critical ? 700 : 400, color: ink }}>{String(t.task ?? '')}</p>
+                        <div style={{ display: "flex", gap: 12 }}>
+                          {!!t.dueBy && <span style={{ fontSize: 11, color: amber }}>{String(t.dueBy)}</span>}
+                          {!!t.owner && <span style={{ fontSize: 11, color: muted }}>{String(t.owner)}</span>}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+            {plTab === "metrics" && !!plResult.metrics && (() => {
+              const items = plResult.metrics as Record<string, unknown>[];
+              return (
+                <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+                  {items.map((m, i) => (
+                    <div key={i} style={{ background: bg, borderRadius: 8, padding: 12, border: `1px solid ${bdr}` }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 6 }}>{String(m.metric ?? '')}</p>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                        {[["target", "Day 1"], ["weekOneTarget", "Week 1"], ["monthOneTarget", "Month 1"]].map(([key, label]) => (
+                          !!m[key] && (
+                            <div key={key} style={{ textAlign: "center" as const, background: surf, borderRadius: 6, padding: 8 }}>
+                              <p style={{ fontSize: 10, color: muted, marginBottom: 2 }}>{label}</p>
+                              <p style={{ fontSize: 12, fontWeight: 700, color: blue }}>{String(m[key])}</p>
+                            </div>
+                          )
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+            {!!plResult.priorityAction && (
+              <div style={{ marginTop: 12, background: blue + "11", borderRadius: 8, padding: 10, borderLeft: `3px solid ${blue}` }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>Priority Action</p>
+                <p style={{ fontSize: 12, color: ink }}>{String(plResult.priorityAction)}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Content Calendar ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 24, marginTop: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontWeight: 700, fontSize: 14, color: ink, margin: 0 }}>Content Calendar</p>
+            <p style={{ fontSize: 12, color: muted, margin: "2px 0 0" }}>Week-by-week content plan with hooks, angles, and platform-specific posts</p>
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <select value={calWeeks} onChange={e => setCalWeeks(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: ink, fontSize: 12 }}>
+              {["2","4","6","8"].map(w => <option key={w} value={w}>{w} weeks</option>)}
+            </select>
+            <button onClick={handleGenerateContentCalendar} disabled={generatingCal} style={{ padding: "8px 16px", borderRadius: 8, background: generatingCal ? surf : ink, color: generatingCal ? muted : bg, fontSize: 12, fontWeight: 600, border: "none", cursor: generatingCal ? "default" : "pointer" }}>
+              {generatingCal ? "Planning…" : "Generate Calendar"}
+            </button>
+          </div>
+        </div>
+        {calError && <p style={{ color: "#DC2626", fontSize: 12 }}>{calError}</p>}
+        {calResult && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {!!calResult.overview && <p style={{ fontSize: 13, color: ink, margin: 0, padding: "10px 14px", background: surf, borderRadius: 8 }}>{String(calResult.overview)}</p>}
+            {!!(calResult.contentPillars as unknown[])?.length && (
+              <div>
+                <p style={{ fontSize: 12, fontWeight: 700, color: ink, margin: "0 0 8px" }}>Content Pillars</p>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {(calResult.contentPillars as { pillar: string; purpose: string; frequency: string }[]).map((p, i) => (
+                    <div key={i} style={{ padding: "8px 12px", background: surf, borderRadius: 8, border: `1px solid ${bdr}`, minWidth: 120 }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: ink, margin: "0 0 2px" }}>{p.pillar}</p>
+                      <p style={{ fontSize: 10, color: muted, margin: "0 0 2px" }}>{p.purpose}</p>
+                      <p style={{ fontSize: 10, color: "#2563EB", margin: 0 }}>{p.frequency}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {!!(calResult.weeks as unknown[])?.length && (
+              <div>
+                <p style={{ fontSize: 12, fontWeight: 700, color: ink, margin: "0 0 8px" }}>Weekly Posts</p>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+                  {(calResult.weeks as { week: number; theme: string }[]).map((w, i) => (
+                    <button key={i} onClick={() => setCalWeekIdx(i)} style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${calWeekIdx===i ? ink : bdr}`, background: calWeekIdx===i ? ink : bg, color: calWeekIdx===i ? bg : ink, fontSize: 11, cursor: "pointer" }}>Week {w.week}</button>
+                  ))}
+                </div>
+                {(() => {
+                  const week = (calResult.weeks as Record<string, unknown>[])[calWeekIdx];
+                  if (!week) return null;
+                  return (
+                    <div>
+                      {!!week.theme && <p style={{ fontSize: 12, color: muted, margin: "0 0 8px" }}>Theme: <strong>{String(week.theme)}</strong></p>}
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        {(week.posts as { day: string; platform: string; hook: string; angle: string; cta: string; effort: string }[] | undefined ?? []).map((post, i) => (
+                          <div key={i} style={{ padding: "10px 14px", background: surf, borderRadius: 8, border: `1px solid ${bdr}` }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                              <div style={{ display: "flex", gap: 8 }}>
+                                <span style={{ fontSize: 11, fontWeight: 700, color: ink }}>{post.day}</span>
+                                <span style={{ fontSize: 11, color: "#2563EB" }}>{post.platform}</span>
+                              </div>
+                              <span style={{ fontSize: 10, color: post.effort==="high" ? "#DC2626" : post.effort==="medium" ? "#D97706" : "#16A34A" }}>{post.effort} effort</span>
+                            </div>
+                            <p style={{ fontSize: 13, fontWeight: 700, color: ink, margin: "0 0 4px" }}>{post.hook}</p>
+                            <p style={{ fontSize: 12, color: muted, margin: "0 0 4px" }}>{post.angle}</p>
+                            <p style={{ fontSize: 11, color: "#16A34A", margin: 0 }}>CTA: {post.cta}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+            {!!calResult.batchingStrategy && <div style={{ padding: "10px 14px", background: "#EFF6FF", borderRadius: 8 }}><p style={{ fontSize: 12, fontWeight: 700, color: "#2563EB", margin: "0 0 4px" }}>Batching Strategy</p><p style={{ fontSize: 12, color: ink, margin: 0 }}>{String(calResult.batchingStrategy)}</p></div>}
+            <button onClick={() => setCalResult(null)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>Re-run</button>
+          </div>
+        )}
+      </div>
+
+      {/* ── PR Strategy ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 24, marginTop: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontWeight: 700, fontSize: 14, color: ink, margin: 0 }}>PR Strategy</p>
+            <p style={{ fontSize: 12, color: muted, margin: "2px 0 0" }}>Pitch angles, target media, press release template, and media outreach playbook</p>
+          </div>
+          <button onClick={handleGeneratePRStrategy} disabled={generatingPR_strat} style={{ padding: "8px 16px", borderRadius: 8, background: generatingPR_strat ? surf : ink, color: generatingPR_strat ? muted : bg, fontSize: 12, fontWeight: 600, border: "none", cursor: generatingPR_strat ? "default" : "pointer" }}>
+            {generatingPR_strat ? "Building…" : "Build PR Strategy"}
+          </button>
+        </div>
+        {prStratError && <p style={{ color: "#DC2626", fontSize: 12 }}>{prStratError}</p>}
+        {prStratResult && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {!!prStratResult.overview && <p style={{ fontSize: 13, color: ink, margin: 0, padding: "10px 14px", background: surf, borderRadius: 8 }}>{String(prStratResult.overview)}</p>}
+            {!!prStratResult.prGoal && <p style={{ fontSize: 12, color: muted, margin: 0 }}>Goal: <strong>{String(prStratResult.prGoal)}</strong></p>}
+            {!!(prStratResult.targetMedia as unknown[])?.length && (
+              <div>
+                <p style={{ fontSize: 12, fontWeight: 700, color: ink, margin: "0 0 8px" }}>Target Media</p>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+                  {(prStratResult.targetMedia as { outlet: string; type: string }[]).map((m, i) => (
+                    <button key={i} onClick={() => setPrStratMediaIdx(i)} style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${prStratMediaIdx===i ? ink : bdr}`, background: prStratMediaIdx===i ? ink : bg, color: prStratMediaIdx===i ? bg : ink, fontSize: 11, cursor: "pointer" }}>{m.outlet}</button>
+                  ))}
+                </div>
+                {(() => {
+                  const m = (prStratResult.targetMedia as Record<string, unknown>[])[prStratMediaIdx];
+                  if (!m) return null;
+                  return (
+                    <div style={{ padding: "10px 14px", background: surf, borderRadius: 8, border: `1px solid ${bdr}` }}>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: ink, margin: "0 0 4px" }}>{String(m.outlet)} <span style={{ fontSize: 11, color: muted, fontWeight: 400 }}>({String(m.type)})</span></p>
+                      {!!m.angle && <p style={{ fontSize: 12, color: ink, margin: "0 0 4px" }}>Angle: {String(m.angle)}</p>}
+                      {!!m.contactTip && <p style={{ fontSize: 11, color: muted, margin: 0 }}>Contact tip: {String(m.contactTip)}</p>}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+            {!!(prStratResult.pitchAngles as unknown[])?.length && (
+              <div>
+                <p style={{ fontSize: 12, fontWeight: 700, color: ink, margin: "0 0 8px" }}>Pitch Angles</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {(prStratResult.pitchAngles as { angle: string; hook: string }[]).map((a, i) => (
+                    <div key={i} style={{ padding: "8px 12px", background: surf, borderRadius: 8, borderLeft: "3px solid #2563EB" }}>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: ink, margin: "0 0 2px" }}>{a.angle}</p>
+                      <p style={{ fontSize: 11, color: muted, margin: 0 }}>{a.hook}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {!!prStratResult.pressRelease && (
+              <div>
+                <p style={{ fontSize: 12, fontWeight: 700, color: ink, margin: "0 0 6px" }}>Press Release Template</p>
+                <pre style={{ fontSize: 11, color: ink, background: surf, padding: "12px 14px", borderRadius: 8, whiteSpace: "pre-wrap", lineHeight: 1.6 }}>{String(prStratResult.pressRelease)}</pre>
+              </div>
+            )}
+            {!!prStratResult.emailTemplate && (
+              <div>
+                <p style={{ fontSize: 12, fontWeight: 700, color: ink, margin: "0 0 6px" }}>Journalist Outreach Email</p>
+                <pre style={{ fontSize: 11, color: ink, background: "#EFF6FF", padding: "12px 14px", borderRadius: 8, whiteSpace: "pre-wrap", lineHeight: 1.6 }}>{String(prStratResult.emailTemplate)}</pre>
+              </div>
+            )}
+            {!!prStratResult.quickWin && <div style={{ padding: "10px 14px", background: "#F0FDF4", borderRadius: 8, borderLeft: "3px solid #16A34A" }}><p style={{ fontSize: 12, fontWeight: 700, color: "#16A34A", margin: "0 0 4px" }}>Quick Win</p><p style={{ fontSize: 12, color: ink, margin: 0 }}>{String(prStratResult.quickWin)}</p></div>}
+            <button onClick={() => setPrStratResult(null)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>Re-run</button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Brand Audit ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 20, marginTop: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>Brand Audit</p>
+            <p style={{ fontSize: 11, color: muted }}>Assess brand health across clarity, consistency, differentiation, emotional resonance, and visual identity.</p>
+          </div>
+          <button onClick={handleRunBrandAudit} disabled={generatingAudit}
+            style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingAudit ? bdr : amber, color: generatingAudit ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingAudit ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
+            {generatingAudit ? "Auditing…" : "Run Brand Audit"}
+          </button>
+        </div>
+        {auditError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{auditError}</p>}
+        {auditResult && (() => {
+          const dims = (auditResult.dimensions as { dimension: string; score: number; rating: string; finding: string; gap: string; quickFix: string }[] | undefined) ?? [];
+          const ratingColor = (r: string) => r === 'strong' ? green : r === 'good' ? blue : r === 'needs work' ? amber : red;
+          const dim = dims[auditDimIdx];
+          return (
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+                <div style={{ textAlign: "center" }}>
+                  <p style={{ fontSize: 32, fontWeight: 800, color: (auditResult.overallScore as number) >= 70 ? green : (auditResult.overallScore as number) >= 50 ? amber : red, margin: 0, lineHeight: 1 }}>{auditResult.overallScore as number}</p>
+                  <p style={{ fontSize: 9, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: 1 }}>Brand Score</p>
+                </div>
+                {!!auditResult.overallVerdict && <p style={{ fontSize: 12, color: ink, flex: 1, fontStyle: "italic" }}>{auditResult.overallVerdict as string}</p>}
+              </div>
+              {dims.length > 0 && (
+                <div style={{ marginBottom: 18 }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Dimension Scores</p>
+                  <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
+                    {dims.map((d, i) => (
+                      <button key={i} onClick={() => setAuditDimIdx(i)}
+                        style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${auditDimIdx === i ? ratingColor(d.rating) : bdr}`, background: auditDimIdx === i ? ratingColor(d.rating) + "15" : bg, color: auditDimIdx === i ? ratingColor(d.rating) : muted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                        {d.dimension} ({d.score})
+                      </button>
+                    ))}
+                  </div>
+                  {dim && (
+                    <div style={{ background: surf, borderRadius: 10, padding: 14, border: `1px solid ${bdr}` }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                        <p style={{ fontSize: 13, fontWeight: 700, color: ink, margin: 0 }}>{dim.dimension}</p>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: ratingColor(dim.rating), background: ratingColor(dim.rating) + "15", borderRadius: 6, padding: "3px 8px", textTransform: "capitalize" }}>{dim.rating}</span>
+                        <span style={{ fontSize: 18, fontWeight: 800, color: ratingColor(dim.rating), marginLeft: "auto" }}>{dim.score}</span>
+                      </div>
+                      <p style={{ fontSize: 12, color: ink, marginBottom: 6 }}>{dim.finding}</p>
+                      {!!dim.gap && <p style={{ fontSize: 11, color: red, marginBottom: 6 }}>Gap: {dim.gap}</p>}
+                      {!!dim.quickFix && (
+                        <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 6, padding: "8px 10px", marginTop: 6 }}>
+                          <p style={{ fontSize: 11, fontWeight: 700, color: green, marginBottom: 2 }}>Quick Fix</p>
+                          <p style={{ fontSize: 11, color: ink }}>{dim.quickFix}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+              {!!(auditResult.quickFixes as { fix: string; effort: string; impact: string; why: string }[] | undefined)?.length && (
+                <div style={{ marginBottom: 14 }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Quick Fixes</p>
+                  {(auditResult.quickFixes as { fix: string; effort: string; impact: string; why: string }[]).map((qf, qi) => (
+                    <div key={qi} style={{ display: "flex", gap: 10, marginBottom: 8, padding: "8px 10px", background: bg, borderRadius: 8, border: `1px solid ${bdr}` }}>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 2 }}>{qf.fix}</p>
+                        <p style={{ fontSize: 11, color: muted }}>{qf.why}</p>
+                      </div>
+                      <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: qf.impact === 'high' ? green : amber }}>{qf.impact} impact</span>
+                        <span style={{ fontSize: 10, color: muted }}>{qf.effort}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {!!auditResult.priorityAction && (
+                <div style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 8, padding: "10px 12px" }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>Priority Action (Next 30 Days)</p>
+                  <p style={{ fontSize: 11, color: ink }}>{auditResult.priorityAction as string}</p>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+      </div>
+
     </div>
   );
 }
@@ -3918,6 +6609,40 @@ function FinancialSummaryRenderer({ data, artifactId }: { data: Record<string, u
   } | null>(null);
   const [actualsError, setActualsError]         = useState<string | null>(null);
 
+  // Financial model state
+  const [runningModel, setRunningModel]         = useState(false);
+  const [modelResult, setModelResult]           = useState<{
+    startingMetrics?: { mrr: number; burn: number; runway: number; customers: number; cashOnHand: number };
+    scenarios?: { name: string; monthlyGrowthRate: number; months: { month: number; revenue: number; expenses: number; netBurn: number; cumulativeCash: number; customers: number }[] }[];
+    assumptions?: string[];
+    keyMilestones?: { month: number; milestone: string; revenueTarget: number }[];
+    breakEvenMonth?: number | null;
+    recommendation?: string;
+    csvData?: string;
+  } | null>(null);
+  const [modelError, setModelError]             = useState<string | null>(null);
+  const [modelScenario, setModelScenario]       = useState("Base");
+
+  async function handleRunModel() {
+    if (runningModel) return;
+    setRunningModel(true); setModelError(null);
+    try {
+      const res = await fetch('/api/agents/felix/model', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.scenarios) setModelResult(r);
+      else setModelError(r.error ?? 'Failed to generate financial model');
+    } catch { setModelError('Network error'); }
+    finally { setRunningModel(false); }
+  }
+
+  function handleDownloadModelCSV() {
+    if (!modelResult?.csvData) return;
+    const blob = new Blob([modelResult.csvData], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = '24-month-financial-model.csv'; a.click();
+    URL.revokeObjectURL(url);
+  }
+
   // Fundraising modeler state
   const [showFundraisingModal, setShowFundraisingModal] = useState(false);
   const [calcRaiseAmount, setCalcRaiseAmount]           = useState("");
@@ -3986,6 +6711,148 @@ function FinancialSummaryRenderer({ data, artifactId }: { data: Record<string, u
       else setFundraisingCalcError(r.error ?? 'Modeling failed');
     } catch { setFundraisingCalcError('Network error'); }
     finally { setCalculatingFundraising(false); }
+  }
+
+  // Scenario Planning (Felix Bear/Base/Bull) state
+  const [generatingScenPlan, setGeneratingScenPlan]       = useState(false);
+  const [scenPlanResult, setScenPlanResult]               = useState<Record<string, unknown> | null>(null);
+  const [scenPlanError, setScenPlanError]                 = useState<string | null>(null);
+  const [scenPlanIdx, setScenPlanIdx]                     = useState(0);
+
+  async function handleGenerateScenarioPlanning() {
+    if (generatingScenPlan) return;
+    setGeneratingScenPlan(true); setScenPlanError(null); setScenPlanResult(null);
+    try {
+      const res = await fetch('/api/agents/felix/scenario-planning', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.scenarios) setScenPlanResult(r.scenarios);
+      else setScenPlanError(r.error ?? 'Generation failed');
+    } catch { setScenPlanError('Network error'); }
+    finally { setGeneratingScenPlan(false); }
+  }
+
+  // Unit Economics state
+  const [generatingUnitEcon, setGeneratingUnitEcon]       = useState(false);
+  const [unitEconResult, setUnitEconResult]               = useState<Record<string, unknown> | null>(null);
+  const [unitEconError, setUnitEconError]                 = useState<string | null>(null);
+
+  async function handleGenerateUnitEcon() {
+    if (generatingUnitEcon) return;
+    setGeneratingUnitEcon(true); setUnitEconError(null); setUnitEconResult(null);
+    try {
+      const res = await fetch('/api/agents/felix/unit-economics', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.analysis) setUnitEconResult(r.analysis);
+      else setUnitEconError(r.error ?? 'Analysis failed');
+    } catch { setUnitEconError('Network error'); }
+    finally { setGeneratingUnitEcon(false); }
+  }
+
+  // Cash Flow Forecast state
+  const [generatingCashFlow, setGeneratingCashFlow]       = useState(false);
+  const [cashFlowResult, setCashFlowResult]               = useState<Record<string, unknown> | null>(null);
+  const [cashFlowError, setCashFlowError]                 = useState<string | null>(null);
+  const [cashFlowScenario, setCashFlowScenario]           = useState<'base' | 'bull' | 'bear'>('base');
+
+  const [unitEconTab, setUnitEconTab]                     = useState<'overview' | 'cohorts' | 'levers' | 'projections'>('overview');
+
+  async function handleGenerateUnitEconomics() {
+    if (generatingUnitEcon) return;
+    setGeneratingUnitEcon(true); setUnitEconError(null); setUnitEconResult(null);
+    try {
+      const res = await fetch('/api/agents/felix/unit-economics', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.economics) setUnitEconResult(r.economics);
+      else if (res.ok && r.analysis) setUnitEconResult(r.analysis);
+      else setUnitEconError(r.error ?? 'Generation failed');
+    } catch { setUnitEconError('Network error'); }
+    finally { setGeneratingUnitEcon(false); }
+  }
+
+  // Cost Reduction state
+  const [generatingCostRed, setGeneratingCostRed]         = useState(false);
+  const [costRedResult, setCostRedResult]                 = useState<Record<string, unknown> | null>(null);
+  const [costRedError, setCostRedError]                   = useState<string | null>(null);
+  const [costRedTab, setCostRedTab]                       = useState<'categories' | 'quickwins' | 'renegotiation' | 'plan'>('categories');
+
+  async function handleGenerateCostReduction() {
+    if (generatingCostRed) return;
+    setGeneratingCostRed(true); setCostRedError(null); setCostRedResult(null);
+    try {
+      const res = await fetch('/api/agents/felix/cost-reduction', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.analysis) setCostRedResult(r.analysis);
+      else setCostRedError(r.error ?? 'Analysis failed');
+    } catch { setCostRedError('Network error'); }
+    finally { setGeneratingCostRed(false); }
+  }
+
+  // Revenue Forecast state
+  const [revForecastMonths, setRevForecastMonths]         = useState('18');
+  const [generatingRevForecast, setGeneratingRevForecast] = useState(false);
+  const [revForecastResult, setRevForecastResult]         = useState<Record<string, unknown> | null>(null);
+  const [revForecastError, setRevForecastError]           = useState<string | null>(null);
+  const [revForecastTab, setRevForecastTab]               = useState<'projections' | 'drivers' | 'milestones' | 'risks'>('projections');
+
+  async function handleGenerateRevForecast() {
+    if (generatingRevForecast) return;
+    setGeneratingRevForecast(true); setRevForecastError(null); setRevForecastResult(null);
+    try {
+      const res = await fetch('/api/agents/felix/revenue-forecast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ forecastMonths: parseInt(revForecastMonths) || 18 }),
+      });
+      const r = await res.json();
+      if (res.ok && r.forecast) setRevForecastResult(r.forecast);
+      else setRevForecastError(r.error ?? 'Generation failed');
+    } catch { setRevForecastError('Network error'); }
+    finally { setGeneratingRevForecast(false); }
+  }
+
+  async function handleGenerateCashFlow() {
+    if (generatingCashFlow) return;
+    setGeneratingCashFlow(true); setCashFlowError(null); setCashFlowResult(null);
+    try {
+      const res = await fetch('/api/agents/felix/cash-flow', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.forecast) setCashFlowResult(r.forecast);
+      else setCashFlowError(r.error ?? 'Generation failed');
+    } catch { setCashFlowError('Network error'); }
+    finally { setGeneratingCashFlow(false); }
+  }
+
+  // Board update state
+  const [boardUpdateRecipients, setBoardUpdateRecipients] = useState('');
+  const [generatingBoardUpdate, setGeneratingBoardUpdate] = useState(false);
+  const [boardUpdateHtml, setBoardUpdateHtml]             = useState<string | null>(null);
+  const [boardUpdateSent, setBoardUpdateSent]             = useState(false);
+  const [boardUpdateError, setBoardUpdateError]           = useState<string | null>(null);
+
+  async function handleGenerateBoardUpdate() {
+    if (generatingBoardUpdate) return;
+    setGeneratingBoardUpdate(true); setBoardUpdateError(null); setBoardUpdateHtml(null); setBoardUpdateSent(false);
+    try {
+      const recipients = boardUpdateRecipients.split(',').map(s => s.trim()).filter(Boolean);
+      const res = await fetch('/api/agents/felix/board-update', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recipients: recipients.length ? recipients : undefined }),
+      });
+      const r = await res.json();
+      if (res.ok && r.html) {
+        setBoardUpdateHtml(r.html);
+        if (r.sent) setBoardUpdateSent(true);
+      } else { setBoardUpdateError(r.error ?? 'Failed to generate board update'); }
+    } catch { setBoardUpdateError('Network error'); }
+    finally { setGeneratingBoardUpdate(false); }
+  }
+
+  function handleDownloadBoardUpdate() {
+    if (!boardUpdateHtml) return;
+    const blob = new Blob([boardUpdateHtml], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'board-update.html'; a.click();
+    URL.revokeObjectURL(url);
   }
 
   async function handleSendInvoice() {
@@ -5056,6 +7923,704 @@ function FinancialSummaryRenderer({ data, artifactId }: { data: Record<string, u
           </div>
         </div>
       )}
+
+      {/* ── 24-Month Financial Model ── */}
+      <div style={{ background: surf, borderRadius: 12, padding: "16px 20px", border: `1px solid ${bdr}` }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: modelResult ? 14 : 0 }}>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: ink }}>24-Month Financial Model</p>
+            <p style={{ fontSize: 11, color: muted }}>Felix builds a 3-scenario revenue model (Conservative / Base / Optimistic) from your current MRR and burn rate. Exports as CSV.</p>
+            {modelError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{modelError}</p>}
+          </div>
+          <button onClick={handleRunModel} disabled={runningModel} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: runningModel ? bdr : blue, color: runningModel ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: runningModel ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
+            {runningModel ? "Modeling…" : "Build Model"}
+          </button>
+        </div>
+        {modelResult && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {modelResult.startingMetrics && (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
+                {[
+                  { label: "MRR", value: `$${(modelResult.startingMetrics.mrr / 1000).toFixed(1)}k` },
+                  { label: "Burn", value: `$${(modelResult.startingMetrics.burn / 1000).toFixed(1)}k/mo` },
+                  { label: "Runway", value: `${modelResult.startingMetrics.runway}mo` },
+                  { label: "Cash", value: `$${(modelResult.startingMetrics.cashOnHand / 1000).toFixed(0)}k` },
+                ].map(({ label, value }) => (
+                  <div key={label} style={{ background: bg, borderRadius: 8, padding: "10px 12px", border: `1px solid ${bdr}`, textAlign: "center" }}>
+                    <p style={{ fontSize: 14, fontWeight: 800, color: ink }}>{value}</p>
+                    <p style={{ fontSize: 10, color: muted, marginTop: 2 }}>{label}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {/* Scenario selector */}
+            <div style={{ display: "flex", gap: 6 }}>
+              {(modelResult.scenarios ?? []).map(s => (
+                <button key={s.name} onClick={() => setModelScenario(s.name)} style={{ padding: "6px 14px", borderRadius: 8, border: `1px solid ${modelScenario === s.name ? blue : bdr}`, background: modelScenario === s.name ? "#EFF6FF" : bg, color: modelScenario === s.name ? blue : muted, fontSize: 12, fontWeight: modelScenario === s.name ? 700 : 400, cursor: "pointer" }}>
+                  {s.name}
+                </button>
+              ))}
+            </div>
+            {/* Chart for selected scenario */}
+            {(() => {
+              const sel = (modelResult.scenarios ?? []).find(s => s.name === modelScenario) ?? modelResult.scenarios?.[0];
+              if (!sel) return null;
+              const maxRev = Math.max(...sel.months.map(m => m.revenue), 1);
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", marginBottom: 4 }}>{sel.name} — {sel.monthlyGrowthRate}% monthly growth</p>
+                  <div style={{ display: "flex", gap: 3, alignItems: "flex-end", height: 60 }}>
+                    {sel.months.filter((_, i) => i % 3 === 0).map((m, i) => (
+                      <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                        <div style={{ width: "100%", height: `${Math.round((m.revenue / maxRev) * 50) + 2}px`, background: blue, borderRadius: 3, minHeight: 2 }} />
+                        <p style={{ fontSize: 9, color: muted }}>M{m.month}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <p style={{ fontSize: 11, color: muted }}>Month 1: ${sel.months[0]?.revenue.toLocaleString() ?? 0}</p>
+                    <p style={{ fontSize: 11, color: green, fontWeight: 600 }}>Month 24: ${sel.months[23]?.revenue.toLocaleString() ?? 0}</p>
+                  </div>
+                </div>
+              );
+            })()}
+            {modelResult.keyMilestones && modelResult.keyMilestones.length > 0 && (
+              <div>
+                <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", marginBottom: 6 }}>Key Milestones</p>
+                {modelResult.keyMilestones.map((m, i) => (
+                  <div key={i} style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 4 }}>
+                    <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 999, background: "#EFF6FF", border: "1px solid #BFDBFE", color: blue, fontWeight: 600, flexShrink: 0 }}>Mo {m.month}</span>
+                    <p style={{ fontSize: 12, color: ink }}>{m.milestone}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {modelResult.recommendation && (
+              <div style={{ background: "#EFF6FF", borderRadius: 8, padding: "10px 14px", border: "1px solid #BFDBFE" }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: blue, textTransform: "uppercase", marginBottom: 4 }}>Felix Recommends</p>
+                <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{modelResult.recommendation}</p>
+              </div>
+            )}
+            {modelResult.assumptions && modelResult.assumptions.length > 0 && (
+              <div>
+                <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", marginBottom: 4 }}>Assumptions</p>
+                {modelResult.assumptions.map((a, i) => <p key={i} style={{ fontSize: 11, color: muted, marginBottom: 2 }}>• {a}</p>)}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={handleDownloadModelCSV} disabled={!modelResult.csvData} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: green, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Export CSV</button>
+              <button onClick={() => setModelResult(null)} style={{ padding: "8px 14px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 12, cursor: "pointer" }}>Rebuild</button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Board Update ── */}
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "16px 20px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: boardUpdateHtml ? 14 : 0 }}>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: "#7C3AED", marginBottom: 2 }}>Monthly Board Update</p>
+            <p style={{ fontSize: 11, color: muted }}>Felix auto-compiles your metrics + team activity into a board-ready update — optionally send via email.</p>
+            {boardUpdateError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{boardUpdateError}</p>}
+          </div>
+          <button onClick={handleGenerateBoardUpdate} disabled={generatingBoardUpdate}
+            style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingBoardUpdate ? bdr : "#7C3AED", color: generatingBoardUpdate ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingBoardUpdate ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
+            {generatingBoardUpdate ? "Generating…" : "Generate Update"}
+          </button>
+        </div>
+        {boardUpdateHtml && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <input value={boardUpdateRecipients} onChange={e => setBoardUpdateRecipients(e.target.value)}
+              placeholder="Board emails to send (comma-separated, optional)"
+              style={{ padding: "7px 10px", borderRadius: 6, border: `1px solid ${bdr}`, fontSize: 12, color: ink, background: "#fff", outline: "none" }} />
+            {boardUpdateSent && <p style={{ fontSize: 11, color: "#16A34A", fontWeight: 600 }}>✓ Sent to board members</p>}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={handleDownloadBoardUpdate}
+                style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: "#7C3AED", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                Download HTML
+              </button>
+              {boardUpdateRecipients.trim() && (
+                <button onClick={handleGenerateBoardUpdate} disabled={generatingBoardUpdate}
+                  style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: blue, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                  Send to Board
+                </button>
+              )}
+              <button onClick={() => { setBoardUpdateHtml(null); setBoardUpdateSent(false); }}
+                style={{ padding: "7px 14px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 12, cursor: "pointer" }}>
+                Regenerate
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Cash Flow Forecast ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 20, marginTop: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>Cash Flow Forecast</p>
+            <p style={{ fontSize: 11, color: muted }}>12-month forecast with base, bull, and bear scenarios based on your current metrics.</p>
+          </div>
+          <button onClick={handleGenerateCashFlow} disabled={generatingCashFlow}
+            style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingCashFlow ? bdr : green, color: generatingCashFlow ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingCashFlow ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
+            {generatingCashFlow ? "Forecasting…" : "Generate Forecast"}
+          </button>
+        </div>
+        {cashFlowError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{cashFlowError}</p>}
+        {cashFlowResult && (() => {
+          const scenarios = cashFlowResult.scenarios as { base?: { months?: { month: string; revenue: number; burn: number; netCashFlow: number; cashBalance: number }[]; endBalance?: number; runway?: string; probability?: string }; bull?: { months?: { month: string; revenue: number; burn: number; netCashFlow: number; cashBalance: number }[]; endBalance?: number; runway?: string; probability?: string }; bear?: { months?: { month: string; revenue: number; burn: number; netCashFlow: number; cashBalance: number }[]; endBalance?: number; runway?: string; probability?: string } } | undefined;
+          const scene = scenarios?.[cashFlowScenario];
+          const months = scene?.months ?? [];
+          const scenarioColors: Record<string, string> = { base: blue, bull: green, bear: red };
+          return (
+            <div>
+              {!!cashFlowResult.fundraisingImplication && (
+                <div style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 8, padding: "10px 12px", marginBottom: 14 }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>Fundraising Implication</p>
+                  <p style={{ fontSize: 11, color: ink }}>{cashFlowResult.fundraisingImplication as string}</p>
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+                {(['base', 'bull', 'bear'] as const).map(s => (
+                  <button key={s} onClick={() => setCashFlowScenario(s)}
+                    style={{ padding: "5px 14px", borderRadius: 20, border: `1px solid ${cashFlowScenario === s ? scenarioColors[s] : bdr}`, background: cashFlowScenario === s ? scenarioColors[s] + "15" : bg, color: cashFlowScenario === s ? scenarioColors[s] : muted, fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "capitalize" }}>
+                    {s} case {scenarios?.[s]?.probability ? `(${scenarios[s]!.probability})` : ''}
+                  </button>
+                ))}
+              </div>
+              {scene && (
+                <div>
+                  <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+                    <div style={{ flex: 1, background: surf, borderRadius: 8, padding: "10px 12px", border: `1px solid ${bdr}`, textAlign: "center" }}>
+                      <p style={{ fontSize: 10, color: muted, marginBottom: 2, fontWeight: 700, textTransform: "uppercase" }}>End Balance</p>
+                      <p style={{ fontSize: 14, fontWeight: 700, color: (scene.endBalance ?? 0) >= 0 ? green : red }}>${((scene.endBalance ?? 0) / 1000).toFixed(0)}K</p>
+                    </div>
+                    <div style={{ flex: 1, background: surf, borderRadius: 8, padding: "10px 12px", border: `1px solid ${bdr}`, textAlign: "center" }}>
+                      <p style={{ fontSize: 10, color: muted, marginBottom: 2, fontWeight: 700, textTransform: "uppercase" }}>Runway</p>
+                      <p style={{ fontSize: 14, fontWeight: 700, color: ink }}>{scene.runway ?? 'N/A'}</p>
+                    </div>
+                  </div>
+                  {months.length > 0 && (
+                    <div style={{ overflowX: "auto" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                        <thead>
+                          <tr style={{ background: surf }}>
+                            {["Month", "Revenue", "Burn", "Net", "Balance"].map(h => (
+                              <th key={h} style={{ padding: "6px 8px", textAlign: "right", fontWeight: 700, color: muted, borderBottom: `1px solid ${bdr}`, whiteSpace: "nowrap" }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {months.map((m, mi) => (
+                            <tr key={mi} style={{ borderBottom: `1px solid ${bdr}` }}>
+                              <td style={{ padding: "5px 8px", color: muted, fontWeight: 600 }}>{m.month}</td>
+                              <td style={{ padding: "5px 8px", textAlign: "right", color: green }}>${(m.revenue / 1000).toFixed(1)}K</td>
+                              <td style={{ padding: "5px 8px", textAlign: "right", color: red }}>${(m.burn / 1000).toFixed(1)}K</td>
+                              <td style={{ padding: "5px 8px", textAlign: "right", color: m.netCashFlow >= 0 ? green : red, fontWeight: 600 }}>{m.netCashFlow >= 0 ? '+' : ''}{(m.netCashFlow / 1000).toFixed(1)}K</td>
+                              <td style={{ padding: "5px 8px", textAlign: "right", color: m.cashBalance >= 0 ? ink : red, fontWeight: 700 }}>${(m.cashBalance / 1000).toFixed(1)}K</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+              {!!(cashFlowResult.recommendations as string[] | undefined)?.length && (
+                <div style={{ marginTop: 14 }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Recommendations</p>
+                  {(cashFlowResult.recommendations as string[]).map((r, ri) => (
+                    <p key={ri} style={{ fontSize: 11, color: ink, marginBottom: 4 }}>→ {r}</p>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+      </div>
+
+      {/* ── Unit Economics Deep-Dive ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 20, marginTop: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>Unit Economics Deep-Dive</p>
+            <p style={{ fontSize: 11, color: muted }}>Analyze LTV/CAC ratio, payback period, burn multiple, and magic number with benchmarks and improvement levers.</p>
+          </div>
+          <button onClick={handleGenerateUnitEcon} disabled={generatingUnitEcon}
+            style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingUnitEcon ? bdr : blue, color: generatingUnitEcon ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingUnitEcon ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
+            {generatingUnitEcon ? "Analyzing…" : "Analyze Unit Economics"}
+          </button>
+        </div>
+        {unitEconError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{unitEconError}</p>}
+        {unitEconResult && (() => {
+          const improvements = (unitEconResult.improvements as { lever: string; action: string; expectedImpact: string; effort: string; priority: string }[] | undefined) ?? [];
+          const benchmarks = (unitEconResult.benchmarks as { metric: string; yourValue: string; benchmark: string; status: string; insight: string }[] | undefined) ?? [];
+          const scenario = unitEconResult.scenarioModeling as { current?: Record<string, unknown>; improved?: { assumption: string; ltvCac: number; payback: number; burnMultiple: number }; target?: { benchmark: string; ltvCac: number; payback: number; burnMultiple: number } } | undefined;
+          return (
+            <div>
+              {!!unitEconResult.verdict && (
+                <p style={{ fontSize: 12, color: muted, fontStyle: "italic", marginBottom: 14 }}>{unitEconResult.verdict as string}</p>
+              )}
+              {/* Key metrics grid */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 8, marginBottom: 18 }}>
+                {[
+                  { label: "LTV/CAC", val: unitEconResult.ltvCacRatio as number, format: (v: number) => `${v.toFixed(1)}x`, threshold: 3 },
+                  { label: "Payback", val: unitEconResult.paybackMonths as number, format: (v: number) => `${v}mo`, threshold: 18, reverse: true },
+                  { label: "Burn Multiple", val: unitEconResult.burnMultiple as number, format: (v: number) => `${v.toFixed(1)}x`, threshold: 2, reverse: true },
+                  { label: "Magic Number", val: unitEconResult.magicNumber as number, format: (v: number) => v.toFixed(2), threshold: 0.75 },
+                ].map(m => (
+                  <div key={m.label} style={{ background: surf, borderRadius: 8, padding: "10px 12px", border: `1px solid ${bdr}`, textAlign: "center" }}>
+                    <p style={{ fontSize: 9, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>{m.label}</p>
+                    <p style={{ fontSize: 18, fontWeight: 800, color: typeof m.val === 'number' ? ((m.reverse ? m.val <= m.threshold : m.val >= m.threshold) ? green : red) : ink }}>
+                      {typeof m.val === 'number' ? m.format(m.val) : '—'}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              {/* Additional metrics */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 8, marginBottom: 18 }}>
+                {[
+                  { label: "Gross Margin", val: unitEconResult.grossMargin },
+                  { label: "NRR Estimate", val: unitEconResult.nrrEstimate },
+                  { label: "CAC", val: unitEconResult.cac },
+                  { label: "LTV", val: unitEconResult.ltv },
+                ].map(m => (
+                  <div key={m.label} style={{ background: bg, borderRadius: 8, padding: "8px 10px", border: `1px solid ${bdr}` }}>
+                    <p style={{ fontSize: 9, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 2 }}>{m.label}</p>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: ink }}>{m.val as string ?? '—'}</p>
+                  </div>
+                ))}
+              </div>
+              {/* Benchmarks */}
+              {benchmarks.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Benchmarks</p>
+                  {benchmarks.map((b, bi) => (
+                    <div key={bi} style={{ display: "flex", gap: 10, alignItems: "center", padding: "8px 10px", background: surf, borderRadius: 8, border: `1px solid ${bdr}`, marginBottom: 6 }}>
+                      <p style={{ fontSize: 12, fontWeight: 600, color: ink, flex: 1 }}>{b.metric}</p>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: ink }}>{b.yourValue}</span>
+                      <span style={{ fontSize: 10, color: muted }}>vs {b.benchmark}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: b.status === 'above' ? green : b.status === 'at' ? blue : red, textTransform: "capitalize" }}>{b.status}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {/* Improvement levers */}
+              {improvements.length > 0 && (
+                <div style={{ marginBottom: 14 }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Improvement Levers</p>
+                  {improvements.slice(0, 3).map((imp, ii) => (
+                    <div key={ii} style={{ padding: "10px 12px", background: bg, borderRadius: 8, border: `1px solid ${bdr}`, marginBottom: 8 }}>
+                      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}>
+                        <p style={{ fontSize: 12, fontWeight: 700, color: ink }}>{imp.lever}</p>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: imp.effort === 'low' ? green : imp.effort === 'medium' ? amber : red }}>{imp.effort} effort</span>
+                        <span style={{ fontSize: 10, color: muted, marginLeft: "auto" }}>{imp.priority}</span>
+                      </div>
+                      <p style={{ fontSize: 11, color: muted }}>{imp.action}</p>
+                      {!!imp.expectedImpact && <p style={{ fontSize: 11, color: green, marginTop: 4, fontWeight: 600 }}>↑ {imp.expectedImpact}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {/* Scenario */}
+              {scenario?.improved && (
+                <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 8, padding: "10px 12px", marginBottom: 10 }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: green, marginBottom: 4 }}>Improved Scenario: {scenario.improved.assumption}</p>
+                  <div style={{ display: "flex", gap: 16 }}>
+                    <span style={{ fontSize: 11, color: ink }}>LTV/CAC: <strong>{scenario.improved.ltvCac}x</strong></span>
+                    <span style={{ fontSize: 11, color: ink }}>Payback: <strong>{scenario.improved.payback}mo</strong></span>
+                    <span style={{ fontSize: 11, color: ink }}>Burn Multiple: <strong>{scenario.improved.burnMultiple}x</strong></span>
+                  </div>
+                </div>
+              )}
+              {!!unitEconResult.quickWin && (
+                <div style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 8, padding: "10px 12px" }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>Quick Win This Week</p>
+                  <p style={{ fontSize: 11, color: ink }}>{unitEconResult.quickWin as string}</p>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+      </div>
+
+      {/* ── Scenario Planning ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 24, marginTop: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontWeight: 700, fontSize: 14, color: ink, margin: 0 }}>Scenario Planning</p>
+            <p style={{ fontSize: 12, color: muted, margin: "2px 0 0" }}>Bear / Base / Bull 18-month financial models with trigger points and contingency plans.</p>
+          </div>
+          <button onClick={handleGenerateScenarioPlanning} disabled={generatingScenPlan} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingScenPlan ? bdr : blue, color: generatingScenPlan ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingScenPlan ? "not-allowed" : "pointer", whiteSpace: "nowrap" as const, flexShrink: 0, marginLeft: 12 }}>
+            {generatingScenPlan ? "Modeling…" : "Model Scenarios"}
+          </button>
+        </div>
+        {scenPlanError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{scenPlanError}</p>}
+        {scenPlanResult && (
+          <div style={{ background: surf, borderRadius: 10, padding: 16 }}>
+            {!!scenPlanResult.verdict && <p style={{ fontSize: 12, color: muted, fontStyle: "italic", marginBottom: 12 }}>{String(scenPlanResult.verdict)}</p>}
+            {!!scenPlanResult.scenarios && (() => {
+              const scenes = scenPlanResult.scenarios as Record<string, unknown>[];
+              const colors = [red, amber, green];
+              return (
+                <div>
+                  <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+                    {scenes.map((s, i) => (
+                      <button key={i} onClick={() => setScenPlanIdx(i)} style={{ flex: 1, padding: "8px 4px", borderRadius: 8, border: `2px solid ${scenPlanIdx === i ? colors[i] : bdr}`, background: scenPlanIdx === i ? colors[i] + "22" : bg, color: scenPlanIdx === i ? colors[i] : ink, fontSize: 12, fontWeight: scenPlanIdx === i ? 700 : 400, cursor: "pointer" }}>
+                        {String(s.name ?? '')}
+                      </button>
+                    ))}
+                  </div>
+                  {(() => {
+                    const s = scenes[scenPlanIdx];
+                    if (!s) return null;
+                    const c = colors[scenPlanIdx];
+                    return (
+                      <div style={{ background: bg, borderRadius: 8, padding: 12, border: `1px solid ${c}` }}>
+                        {!!s.probability && <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                          <span style={{ fontSize: 11, color: muted }}>Probability</span>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: c }}>{String(s.probability)}</span>
+                        </div>}
+                        {!!s.trigger && <p style={{ fontSize: 11, color: muted, marginBottom: 10 }}><b>Trigger:</b> {String(s.trigger)}</p>}
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 10 }}>
+                          {[["mrrIn6Months", "MRR (6mo)"], ["mrrIn12Months", "MRR (12mo)"], ["mrrIn18Months", "MRR (18mo)"]].map(([k, label]) => (
+                            !!s[k] && (
+                              <div key={k} style={{ textAlign: "center" as const, background: surf, borderRadius: 6, padding: 8 }}>
+                                <p style={{ fontSize: 10, color: muted, marginBottom: 2 }}>{label}</p>
+                                <p style={{ fontSize: 13, fontWeight: 700, color: c }}>{String(s[k])}</p>
+                              </div>
+                            )
+                          ))}
+                        </div>
+                        {!!s.fundingImplication && <p style={{ fontSize: 11, color: muted, marginBottom: 4 }}><b>Funding:</b> {String(s.fundingImplication)}</p>}
+                        {!!s.keyMilestone && <p style={{ fontSize: 11, color: blue }}><b>Key Milestone:</b> {String(s.keyMilestone)}</p>}
+                      </div>
+                    );
+                  })()}
+                </div>
+              );
+            })()}
+            {!!scenPlanResult.triggerPoints && (() => {
+              const triggers = scenPlanResult.triggerPoints as Record<string, unknown>[];
+              return (
+                <div style={{ marginTop: 12 }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 8 }}>Trigger Points</p>
+                  <div style={{ display: "flex", flexDirection: "column" as const, gap: 6 }}>
+                    {triggers.map((t, i) => (
+                      <div key={i} style={{ background: bg, borderRadius: 8, padding: 10, border: `1px solid ${bdr}` }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+                          <p style={{ fontSize: 11, fontWeight: 700, color: ink }}>{String(t.trigger ?? '')}</p>
+                          {!!t.scenario && <span style={{ fontSize: 10, background: surf, border: `1px solid ${bdr}`, borderRadius: 20, padding: "2px 7px", color: muted }}>{String(t.scenario)}</span>}
+                        </div>
+                        {!!t.action && <p style={{ fontSize: 11, color: blue }}><b>Action:</b> {String(t.action)}</p>}
+                        {!!t.leadTime && <p style={{ fontSize: 10, color: muted }}>Lead time: {String(t.leadTime)}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+            {!!scenPlanResult.priorityAction && (
+              <div style={{ marginTop: 12, background: blue + "11", borderRadius: 8, padding: 10, borderLeft: `3px solid ${blue}` }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>Priority Action</p>
+                <p style={{ fontSize: 12, color: ink }}>{String(scenPlanResult.priorityAction)}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Unit Economics ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 24, marginTop: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontWeight: 700, fontSize: 14, color: ink, margin: 0 }}>Unit Economics</p>
+            <p style={{ fontSize: 12, color: muted, margin: "2px 0 0" }}>Deep dive into LTV:CAC, payback period, cohort retention, and improvement levers</p>
+          </div>
+          <button onClick={handleGenerateUnitEconomics} disabled={generatingUnitEcon} style={{ padding: "8px 16px", borderRadius: 8, background: generatingUnitEcon ? surf : ink, color: generatingUnitEcon ? muted : bg, fontSize: 12, fontWeight: 600, border: "none", cursor: generatingUnitEcon ? "default" : "pointer" }}>
+            {generatingUnitEcon ? "Calculating…" : "Calculate Unit Econ"}
+          </button>
+        </div>
+        {unitEconError && <p style={{ color: "#DC2626", fontSize: 12 }}>{unitEconError}</p>}
+        {unitEconResult && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {!!unitEconResult.verdict && <p style={{ fontSize: 13, color: ink, margin: 0, padding: "10px 14px", background: surf, borderRadius: 8 }}>{String(unitEconResult.verdict)}</p>}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+              {!!unitEconResult.ltvCacRatio && <div style={{ padding: "10px 12px", background: surf, borderRadius: 8, textAlign: "center" }}><p style={{ fontSize: 10, color: muted, margin: "0 0 2px" }}>LTV:CAC</p><p style={{ fontSize: 18, fontWeight: 700, color: ink, margin: 0 }}>{String(unitEconResult.ltvCacRatio)}</p>{!!unitEconResult.ltvCacHealth && <p style={{ fontSize: 10, color: muted, margin: "2px 0 0" }}>{String(unitEconResult.ltvCacHealth)}</p>}</div>}
+              {!!unitEconResult.paybackMonths && <div style={{ padding: "10px 12px", background: surf, borderRadius: 8, textAlign: "center" }}><p style={{ fontSize: 10, color: muted, margin: "0 0 2px" }}>Payback</p><p style={{ fontSize: 18, fontWeight: 700, color: ink, margin: 0 }}>{String(unitEconResult.paybackMonths)}</p><p style={{ fontSize: 10, color: muted, margin: "2px 0 0" }}>months</p></div>}
+              {!!unitEconResult.grossMarginPct && <div style={{ padding: "10px 12px", background: surf, borderRadius: 8, textAlign: "center" }}><p style={{ fontSize: 10, color: muted, margin: "0 0 2px" }}>Gross Margin</p><p style={{ fontSize: 18, fontWeight: 700, color: ink, margin: 0 }}>{String(unitEconResult.grossMarginPct)}</p></div>}
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {(["overview","cohorts","levers","projections"] as const).map(t => (
+                <button key={t} onClick={() => setUnitEconTab(t)} style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${unitEconTab===t ? ink : bdr}`, background: unitEconTab===t ? ink : bg, color: unitEconTab===t ? bg : ink, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                  {t==="overview" ? "📊 Overview" : t==="cohorts" ? "📈 Cohorts" : t==="levers" ? "🔧 Levers" : "🔮 Projections"}
+                </button>
+              ))}
+            </div>
+            {unitEconTab === "overview" && !!unitEconResult.unitBreakdown && (() => {
+              const b = unitEconResult.unitBreakdown as Record<string, unknown>;
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {[["Revenue/Customer", b.revenuePerCustomer], ["Cost to Serve", b.costToServe], ["Contribution Margin", b.contributionMargin], ["Break-even Time", b.timeToBreakEven]].map(([label, val]) => (
+                    <div key={String(label)} style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: surf, borderRadius: 8 }}>
+                      <p style={{ fontSize: 12, color: muted, margin: 0 }}>{String(label)}</p>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: ink, margin: 0 }}>{val ? String(val) : "—"}</p>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+            {unitEconTab === "cohorts" && !!(unitEconResult.cohortAnalysis as unknown[])?.length && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {(unitEconResult.cohortAnalysis as { cohort: string; retention: string; cumulativeRevenue: string; ltv: string }[]).map((c, i) => (
+                  <div key={i} style={{ display: "grid", gridTemplateColumns: "80px 1fr 1fr 1fr", gap: 8, padding: "8px 12px", background: surf, borderRadius: 8 }}>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: ink, margin: 0 }}>{c.cohort}</p>
+                    <p style={{ fontSize: 11, color: muted, margin: 0 }}>Retention: {c.retention}</p>
+                    <p style={{ fontSize: 11, color: muted, margin: 0 }}>Revenue: {c.cumulativeRevenue}</p>
+                    <p style={{ fontSize: 11, color: "#16A34A", margin: 0 }}>LTV: {c.ltv}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {unitEconTab === "levers" && !!(unitEconResult.improvementLevers as unknown[])?.length && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {(unitEconResult.improvementLevers as { lever: string; currentState: string; target: string; impact: string; howTo: string }[]).map((l, i) => (
+                  <div key={i} style={{ padding: "10px 14px", background: surf, borderRadius: 8, border: `1px solid ${bdr}` }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: ink, margin: "0 0 4px" }}>{l.lever}</p>
+                    <div style={{ display: "flex", gap: 12, marginBottom: 6 }}>
+                      <span style={{ fontSize: 11, color: muted }}>Now: {l.currentState}</span>
+                      <span style={{ fontSize: 11, color: "#16A34A" }}>Target: {l.target}</span>
+                    </div>
+                    <p style={{ fontSize: 12, color: "#2563EB", margin: "0 0 4px" }}>Impact: {l.impact}</p>
+                    <p style={{ fontSize: 11, color: muted, margin: 0 }}>How: {l.howTo}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {unitEconTab === "projections" && !!(unitEconResult.projections as unknown[])?.length && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {(unitEconResult.projections as { scenario: string; ltvCacIn12Months: string; paybackIn12Months: string; keyAssumption: string }[]).map((p, i) => (
+                  <div key={i} style={{ padding: "10px 14px", background: surf, borderRadius: 8, border: `1px solid ${bdr}` }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: ink, margin: "0 0 6px", textTransform: "capitalize" }}>{p.scenario}</p>
+                    <div style={{ display: "flex", gap: 16, marginBottom: 4 }}>
+                      <p style={{ fontSize: 12, color: ink, margin: 0 }}>LTV:CAC: <strong>{p.ltvCacIn12Months}</strong></p>
+                      <p style={{ fontSize: 12, color: ink, margin: 0 }}>Payback: <strong>{p.paybackIn12Months}</strong></p>
+                    </div>
+                    <p style={{ fontSize: 11, color: muted, margin: 0 }}>Assumes: {p.keyAssumption}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {!!unitEconResult.priorityAction && <div style={{ padding: "10px 14px", background: "#F0FDF4", borderRadius: 8, borderLeft: "3px solid #16A34A" }}><p style={{ fontSize: 12, fontWeight: 700, color: "#16A34A", margin: "0 0 4px" }}>Priority Action</p><p style={{ fontSize: 12, color: ink, margin: 0 }}>{String(unitEconResult.priorityAction)}</p></div>}
+            <button onClick={() => setUnitEconResult(null)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>Re-run</button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Cost Reduction ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 24, marginTop: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontWeight: 700, fontSize: 15, color: ink, margin: 0 }}>Cost Reduction Analysis</p>
+            <p style={{ fontSize: 12, color: muted, margin: "2px 0 0" }}>Find savings across every cost category with quick wins, renegotiation targets, and a 4-week implementation plan</p>
+          </div>
+          <button onClick={handleGenerateCostReduction} disabled={generatingCostRed} style={{ padding: "8px 16px", borderRadius: 8, background: generatingCostRed ? muted : red, color: "#fff", fontSize: 12, fontWeight: 600, border: "none", cursor: generatingCostRed ? "not-allowed" : "pointer" }}>
+            {generatingCostRed ? "Analyzing…" : "Find Savings"}
+          </button>
+        </div>
+        {costRedError && <p style={{ fontSize: 12, color: red }}>{costRedError}</p>}
+        {costRedResult && (
+          <div style={{ background: surf, borderRadius: 10, padding: 16 }}>
+            {/* Summary */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 14 }}>
+              {[["Potential Savings", costRedResult.totalPotentialSavings], ["Target Multiple", costRedResult.burnMultipleTarget], ["Verdict", null]].map(([l, v]) => (
+                l === "Verdict"
+                  ? <div key="verdict" style={{ gridColumn: "1 / -1", background: "#EFF6FF", borderRadius: 8, padding: 10 }}><p style={{ fontSize: 12, color: ink, margin: 0, fontStyle: "italic" }}>{String(costRedResult.verdict ?? "")}</p></div>
+                  : <div key={String(l)} style={{ background: bg, borderRadius: 8, padding: 10, textAlign: "center" as const }}>
+                      <p style={{ fontSize: 18, fontWeight: 700, color: green, margin: 0 }}>{String(v ?? "—")}</p>
+                      <p style={{ fontSize: 11, color: muted }}>{String(l)}</p>
+                    </div>
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+              {(["categories", "quickwins", "renegotiation", "plan"] as const).map(t => (
+                <button key={t} onClick={() => setCostRedTab(t)} style={{ padding: "5px 12px", borderRadius: 6, border: `1px solid ${costRedTab === t ? red : bdr}`, background: costRedTab === t ? "#FEE2E2" : "transparent", color: costRedTab === t ? red : muted, fontSize: 11, fontWeight: 600, cursor: "pointer", textTransform: "capitalize" }}>
+                  {t === "quickwins" ? "Quick Wins" : t === "renegotiation" ? "Renegotiate" : t}
+                </button>
+              ))}
+            </div>
+            {costRedTab === "categories" && !!(costRedResult.categories as unknown[])?.length && (
+              <div>
+                {(costRedResult.categories as { category: string; estimatedMonthlyCost: string; potentialSaving: string; savingPct: number; difficulty: string; riskToGrowth: string }[]).map((c, i) => (
+                  <div key={i} style={{ padding: "10px 0", borderBottom: `1px solid ${bdr}` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: ink, margin: 0 }}>{c.category}</p>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <span style={{ fontSize: 12, color: green, fontWeight: 700 }}>Save {c.potentialSaving}</span>
+                        <span style={{ fontSize: 11, color: muted }}>(-{c.savingPct}%)</span>
+                      </div>
+                    </div>
+                    <p style={{ fontSize: 11, color: muted }}>Current: {c.estimatedMonthlyCost} · Difficulty: {c.difficulty} · Growth risk: {c.riskToGrowth}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {costRedTab === "quickwins" && !!(costRedResult.quickWins as unknown[])?.length && (
+              <div>
+                {(costRedResult.quickWins as { win: string; saving: string; howTo: string; timeToImplement: string }[]).map((w, i) => (
+                  <div key={i} style={{ padding: "10px 0", borderBottom: `1px solid ${bdr}` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: ink, margin: 0 }}>{w.win}</p>
+                      <span style={{ fontSize: 12, color: green, fontWeight: 700 }}>{w.saving}/mo</span>
+                    </div>
+                    <p style={{ fontSize: 12, color: muted, marginBottom: 2 }}>{w.howTo}</p>
+                    <p style={{ fontSize: 11, color: blue }}>Time: {w.timeToImplement}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {costRedTab === "renegotiation" && !!(costRedResult.renegotiationTargets as unknown[])?.length && (
+              <div>
+                {(costRedResult.renegotiationTargets as { vendor: string; leverage: string; targetOutcome: string; script: string }[]).map((r, i) => (
+                  <div key={i} style={{ padding: "10px 0", borderBottom: `1px solid ${bdr}` }}>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: ink, marginBottom: 4 }}>{r.vendor}</p>
+                    <p style={{ fontSize: 12, color: muted, marginBottom: 4 }}>Leverage: {r.leverage}</p>
+                    <p style={{ fontSize: 12, color: green, marginBottom: 6 }}>Target: {r.targetOutcome}</p>
+                    <div style={{ background: bg, borderRadius: 6, padding: 10, fontSize: 12, color: ink, fontStyle: "italic" }}>{r.script}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {costRedTab === "plan" && !!(costRedResult.implementationPlan as unknown[])?.length && (
+              <div>
+                {(costRedResult.implementationPlan as { week: string; actions: string[]; targetSaving: string }[]).map((w, i) => (
+                  <div key={i} style={{ padding: "10px 0", borderBottom: `1px solid ${bdr}` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: red, margin: 0 }}>{w.week}</p>
+                      <span style={{ fontSize: 12, color: green, fontWeight: 600 }}>Target: {w.targetSaving}</span>
+                    </div>
+                    {w.actions?.map((a, ai) => <p key={ai} style={{ fontSize: 12, color: ink, marginBottom: 3 }}>→ {a}</p>)}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Revenue Forecast ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 24, marginTop: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontWeight: 700, fontSize: 15, color: ink, margin: 0 }}>Revenue Forecast</p>
+            <p style={{ fontSize: 12, color: muted, margin: "2px 0 0" }}>Monthly projections, growth drivers, milestones, and sensitivity analysis</p>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <select value={revForecastMonths} onChange={e => setRevForecastMonths(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 12, color: ink, background: bg }}>
+              {["6","12","18","24"].map(m => <option key={m} value={m}>{m}M</option>)}
+            </select>
+            <button onClick={handleGenerateRevForecast} disabled={generatingRevForecast} style={{ padding: "8px 16px", borderRadius: 8, background: generatingRevForecast ? muted : green, color: "#fff", fontSize: 12, fontWeight: 600, border: "none", cursor: generatingRevForecast ? "not-allowed" : "pointer" }}>
+              {generatingRevForecast ? "Forecasting…" : "Build Forecast"}
+            </button>
+          </div>
+        </div>
+        {revForecastError && <p style={{ fontSize: 12, color: red }}>{revForecastError}</p>}
+        {revForecastResult && (
+          <div style={{ background: surf, borderRadius: 10, padding: 16 }}>
+            {!!revForecastResult.summary && <p style={{ fontSize: 13, color: muted, fontStyle: "italic", marginBottom: 14 }}>{String(revForecastResult.summary)}</p>}
+            {/* Annual Summary */}
+            {!!revForecastResult.annualSummary && (() => {
+              const s = revForecastResult.annualSummary as { year1ARR?: number | string; year1Growth?: string; year1CustomerCount?: number | string; forecastEndMRR?: number | string };
+              return (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 14 }}>
+                  {[["Year 1 ARR", s.year1ARR], ["Growth", s.year1Growth], ["Customers", s.year1CustomerCount], ["End MRR", s.forecastEndMRR]].map(([l, v]) => (
+                    <div key={String(l)} style={{ background: bg, borderRadius: 8, padding: 10, textAlign: "center" as const }}>
+                      <p style={{ fontSize: 16, fontWeight: 700, color: ink, margin: 0 }}>{typeof v === 'number' ? `$${v.toLocaleString()}` : String(v ?? "—")}</p>
+                      <p style={{ fontSize: 11, color: muted }}>{String(l)}</p>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+            {/* Tabs */}
+            <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+              {(["projections", "drivers", "milestones", "risks"] as const).map(t => (
+                <button key={t} onClick={() => setRevForecastTab(t)} style={{ padding: "5px 12px", borderRadius: 6, border: `1px solid ${revForecastTab === t ? green : bdr}`, background: revForecastTab === t ? "#DCFCE7" : "transparent", color: revForecastTab === t ? "#16A34A" : muted, fontSize: 11, fontWeight: 600, cursor: "pointer", textTransform: "capitalize" }}>{t}</button>
+              ))}
+            </div>
+            {revForecastTab === "projections" && !!(revForecastResult.monthlyProjections as unknown[])?.length && (
+              <div style={{ overflowX: "auto" as const }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                  <thead>
+                    <tr>{["Month","New MRR","Churned","Expansion","Total MRR","Customers"].map(h => (
+                      <th key={h} style={{ padding: "6px 8px", borderBottom: `1px solid ${bdr}`, color: muted, fontWeight: 600, textAlign: "left" as const }}>{h}</th>
+                    ))}</tr>
+                  </thead>
+                  <tbody>
+                    {(revForecastResult.monthlyProjections as { month: string; newMRR: number; churnedMRR: number; expansionMRR: number; totalMRR: number; customers: number }[]).slice(0, 12).map((row, i) => (
+                      <tr key={i} style={{ background: i % 2 === 0 ? "transparent" : bg }}>
+                        <td style={{ padding: "5px 8px", color: ink }}>{row.month}</td>
+                        <td style={{ padding: "5px 8px", color: "#16A34A" }}>+${(row.newMRR ?? 0).toLocaleString()}</td>
+                        <td style={{ padding: "5px 8px", color: red }}>-${(row.churnedMRR ?? 0).toLocaleString()}</td>
+                        <td style={{ padding: "5px 8px", color: blue }}>+${(row.expansionMRR ?? 0).toLocaleString()}</td>
+                        <td style={{ padding: "5px 8px", color: ink, fontWeight: 700 }}>${(row.totalMRR ?? 0).toLocaleString()}</td>
+                        <td style={{ padding: "5px 8px", color: muted }}>{row.customers}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {revForecastTab === "drivers" && !!(revForecastResult.growthDrivers as unknown[])?.length && (
+              <div>
+                {(revForecastResult.growthDrivers as { driver: string; impact: string; implementation: string; timeline: string }[]).map((d, i) => (
+                  <div key={i} style={{ padding: "10px 0", borderBottom: `1px solid ${bdr}` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: ink, margin: 0 }}>{d.driver}</p>
+                      <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, background: d.impact === "high" ? "#DCFCE7" : d.impact === "medium" ? "#FEF3C7" : "#F3F4F6", color: d.impact === "high" ? "#16A34A" : d.impact === "medium" ? amber : muted, fontWeight: 600 }}>{d.impact}</span>
+                    </div>
+                    <p style={{ fontSize: 12, color: muted, margin: "0 0 2px" }}>{d.implementation}</p>
+                    <p style={{ fontSize: 11, color: muted, fontStyle: "italic" }}>Contributes: {d.timeline}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {revForecastTab === "milestones" && !!(revForecastResult.milestones as unknown[])?.length && (
+              <div>
+                {(revForecastResult.milestones as { milestone: string; estimatedMonth: string; significance: string }[]).map((m, i) => (
+                  <div key={i} style={{ padding: "10px 0", borderBottom: `1px solid ${bdr}`, display: "flex", gap: 12, alignItems: "flex-start" }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: green, background: "#DCFCE7", borderRadius: 6, padding: "3px 8px", whiteSpace: "nowrap" as const }}>{m.estimatedMonth}</span>
+                    <div>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: ink, margin: 0 }}>{m.milestone}</p>
+                      <p style={{ fontSize: 12, color: muted, margin: "2px 0 0" }}>{m.significance}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {revForecastTab === "risks" && !!(revForecastResult.risks as unknown[])?.length && (
+              <div>
+                {(revForecastResult.risks as { risk: string; probability: string; mitigation: string }[]).map((r, i) => (
+                  <div key={i} style={{ padding: "10px 0", borderBottom: `1px solid ${bdr}` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: ink, margin: 0 }}>{r.risk}</p>
+                      <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, background: r.probability === "high" ? "#FEE2E2" : r.probability === "medium" ? "#FEF3C7" : "#F3F4F6", color: r.probability === "high" ? red : r.probability === "medium" ? amber : muted, fontWeight: 600 }}>{r.probability}</span>
+                    </div>
+                    <p style={{ fontSize: 12, color: muted }}>{r.mitigation}</p>
+                  </div>
+                ))}
+                {!!revForecastResult.fundraisingSignal && (
+                  <div style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 8, padding: "10px 12px", marginTop: 10 }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>Fundraising Signal</p>
+                    <p style={{ fontSize: 12, color: ink }}>{String(revForecastResult.fundraisingSignal)}</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
     </div>
   );
 }
@@ -5118,6 +8683,93 @@ function LegalChecklistRenderer({ data, artifactId: _artifactId }: { data: Recor
   const [generatingSafe, setGeneratingSafe]   = useState(false);
   const [safeError, setSafeError]             = useState<string | null>(null);
 
+  // IP Strategy state
+  const [generatingIPStrat, setGeneratingIPStrat]       = useState(false);
+  const [ipStratResult, setIpStratResult]               = useState<Record<string, unknown> | null>(null);
+  const [ipStratError, setIpStratError]                 = useState<string | null>(null);
+  const [ipStratTab, setIpStratTab]                     = useState<'portfolio' | 'trademarks' | 'patents' | 'redflags'>('portfolio');
+
+  async function handleGenerateIPStrategy() {
+    if (generatingIPStrat) return;
+    setGeneratingIPStrat(true); setIpStratError(null); setIpStratResult(null);
+    try {
+      const res = await fetch('/api/agents/leo/ip-strategy', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.strategy) setIpStratResult(r.strategy);
+      else setIpStratError(r.error ?? 'Generation failed');
+    } catch { setIpStratError('Network error'); }
+    finally { setGeneratingIPStrat(false); }
+  }
+
+  // Fundraising Checklist state
+  const [generatingFRChecklist, setGeneratingFRChecklist] = useState(false);
+  const [frChecklistResult, setFrChecklistResult]         = useState<Record<string, unknown> | null>(null);
+  const [frChecklistError, setFrChecklistError]           = useState<string | null>(null);
+  const [frChecklistPhaseIdx, setFrChecklistPhaseIdx]     = useState(0);
+  const [frChecklistTab, setFrChecklistTab]               = useState<'phases' | 'redflags' | 'dataroom' | 'faq'>('phases');
+
+  async function handleGenerateFRChecklist() {
+    if (generatingFRChecklist) return;
+    setGeneratingFRChecklist(true); setFrChecklistError(null); setFrChecklistResult(null);
+    try {
+      const res = await fetch('/api/agents/leo/fundraising-checklist', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.checklist) setFrChecklistResult(r.checklist);
+      else setFrChecklistError(r.error ?? 'Generation failed');
+    } catch { setFrChecklistError('Network error'); }
+    finally { setGeneratingFRChecklist(false); }
+  }
+
+  // Term Sheet Analyzer state
+  const [tsInstrument, setTsInstrument]               = useState('SAFE');
+  const [tsRaiseAmount, setTsRaiseAmount]             = useState('');
+  const [tsValuation, setTsValuation]                 = useState('');
+  const [tsLeadInvestor, setTsLeadInvestor]           = useState('');
+  const [generatingTS, setGeneratingTS]               = useState(false);
+  const [tsResult, setTsResult]                       = useState<Record<string, unknown> | null>(null);
+  const [tsError, setTsError]                         = useState<string | null>(null);
+  const [tsTab, setTsTab]                             = useState<'flags' | 'friendly' | 'negotiation' | 'glossary'>('flags');
+
+  async function handleAnalyzeTermSheet() {
+    if (generatingTS) return;
+    setGeneratingTS(true); setTsError(null); setTsResult(null);
+    try {
+      const res = await fetch('/api/agents/leo/term-sheet-analyzer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instrument: tsInstrument, raiseAmount: tsRaiseAmount || undefined, valuation: tsValuation || undefined, leadInvestor: tsLeadInvestor || undefined }),
+      });
+      const r = await res.json();
+      if (res.ok && r.analysis) setTsResult(r.analysis);
+      else setTsError(r.error ?? 'Analysis failed');
+    } catch { setTsError('Network error'); }
+    finally { setGeneratingTS(false); }
+  }
+
+  // Equity Plan state
+  const [epPoolPct, setEpPoolPct]                     = useState('10');
+  const [epVesting, setEpVesting]                     = useState('4');
+  const [epCliff, setEpCliff]                         = useState('12');
+  const [generatingEP, setGeneratingEP]               = useState(false);
+  const [epResult, setEpResult]                       = useState<Record<string, unknown> | null>(null);
+  const [epError, setEpError]                         = useState<string | null>(null);
+  const [epTab, setEpTab]                             = useState<'grants' | 'vesting' | 'dilution' | 'legal'>('grants');
+
+  async function handleGenerateEquityPlan() {
+    if (generatingEP) return;
+    setGeneratingEP(true); setEpError(null); setEpResult(null);
+    try {
+      const res = await fetch('/api/agents/leo/equity-plan', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ optionPoolPercent: parseFloat(epPoolPct) || 10, vestingYears: parseInt(epVesting) || 4, cliffMonths: parseInt(epCliff) || 12 }),
+      });
+      const r = await res.json();
+      if (res.ok && r.plan) setEpResult(r.plan);
+      else setEpError(r.error ?? 'Generation failed');
+    } catch { setEpError('Network error'); }
+    finally { setGeneratingEP(false); }
+  }
+
   // Co-founder agreement state
   const [showCoFounderModal, setShowCoFounderModal]   = useState(false);
   const [coFounderName, setCoFounderName]             = useState("");
@@ -5128,6 +8780,66 @@ function LegalChecklistRenderer({ data, artifactId: _artifactId }: { data: Recor
   const [coFounderCliff, setCoFounderCliff]           = useState("12");
   const [generatingCoFounder, setGeneratingCoFounder] = useState(false);
   const [coFounderError, setCoFounderError]           = useState<string | null>(null);
+
+  // Contractor agreement state
+  const [showContractorPanel, setShowContractorPanel] = useState(false);
+  const [ctxName, setCtxName]           = useState("");
+  const [ctxRole, setCtxRole]           = useState("");
+  const [ctxCompType, setCtxCompType]   = useState<"hourly" | "project">("hourly");
+  const [ctxRate, setCtxRate]           = useState("");
+  const [ctxStartDate, setCtxStartDate] = useState("");
+  const [ctxScope, setCtxScope]         = useState("");
+  const [generatingCtx, setGeneratingCtx]   = useState(false);
+  const [ctxError, setCtxError]         = useState<string | null>(null);
+
+  async function handleGenerateContractor() {
+    if (generatingCtx || !ctxName.trim() || !ctxRole.trim() || !ctxScope.trim()) return;
+    setGeneratingCtx(true); setCtxError(null);
+    try {
+      const res = await fetch('/api/agents/leo/contractor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contractorName: ctxName, contractorRole: ctxRole, compensationType: ctxCompType, rate: ctxRate, startDate: ctxStartDate || undefined, scope: ctxScope }),
+      });
+      const r = await res.json();
+      if (res.ok && r.html) {
+        const blob = new Blob([r.html], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = `contractor-agreement-${ctxName.toLowerCase().replace(/\s+/g, '-')}.html`; a.click();
+        URL.revokeObjectURL(url);
+        setShowContractorPanel(false);
+      } else {
+        setCtxError(r.error ?? 'Failed to generate contractor agreement');
+      }
+    } catch { setCtxError('Network error'); }
+    finally { setGeneratingCtx(false); }
+  }
+
+  // Compliance audit state
+  const [runningCompliance, setRunningCompliance] = useState(false);
+  const [complianceReport, setComplianceReport] = useState<{
+    overallRisk?: string;
+    riskSummary?: string;
+    items?: { area: string; status: string; finding: string; action: string; effort: string; priority: number }[];
+    priorityActions?: string[];
+    upcomingDeadlines?: { item: string; deadline: string; consequence: string }[];
+    safeHarbors?: string[];
+    disclaimer?: string;
+  } | null>(null);
+  const [complianceError, setComplianceError] = useState<string | null>(null);
+
+  async function handleRunCompliance() {
+    if (runningCompliance) return;
+    setRunningCompliance(true); setComplianceError(null);
+    try {
+      const res = await fetch('/api/agents/leo/compliance', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.report) setComplianceReport(r.report);
+      else setComplianceError(r.error ?? 'Failed to run compliance audit');
+    } catch { setComplianceError('Network error'); }
+    finally { setRunningCompliance(false); }
+  }
 
   async function handleGenerateSafe() {
     if (!safeInvestor || !safeAmount || !safeCap || generatingSafe) return;
@@ -6603,6 +10315,548 @@ function LegalChecklistRenderer({ data, artifactId: _artifactId }: { data: Recor
           </div>
         </div>
       )}
+
+      {/* ── Contractor Agreement Generator ── */}
+      <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 12, padding: "16px 20px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: showContractorPanel ? 14 : 0 }}>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: green, marginBottom: 2 }}>Contractor Agreement Generator</p>
+            <p style={{ fontSize: 11, color: muted }}>Leo drafts a ready-to-sign Independent Contractor Agreement (IC) — IP assignment, confidentiality, non-solicitation, and payment terms included.</p>
+            {ctxError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{ctxError}</p>}
+          </div>
+          <button onClick={() => { setShowContractorPanel(!showContractorPanel); setCtxError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: green, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
+            {showContractorPanel ? "Close" : "Draft Agreement"}
+          </button>
+        </div>
+        {showContractorPanel && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Contractor Name *</label>
+                <input value={ctxName} onChange={e => setCtxName(e.target.value)} placeholder="Alex Johnson" style={{ width: "100%", border: `1px solid ${bdr}`, borderRadius: 8, padding: "9px 12px", fontSize: 13, color: ink, outline: "none", boxSizing: "border-box" }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Role / Service *</label>
+                <input value={ctxRole} onChange={e => setCtxRole(e.target.value)} placeholder="Full-stack Developer" style={{ width: "100%", border: `1px solid ${bdr}`, borderRadius: 8, padding: "9px 12px", fontSize: 13, color: ink, outline: "none", boxSizing: "border-box" }} />
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Compensation Type</label>
+                <select value={ctxCompType} onChange={e => setCtxCompType(e.target.value as "hourly" | "project")} style={{ width: "100%", border: `1px solid ${bdr}`, borderRadius: 8, padding: "9px 12px", fontSize: 13, color: ink, outline: "none", background: "#fff" }}>
+                  <option value="hourly">Hourly Rate</option>
+                  <option value="project">Project Fee</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Rate / Fee ($)</label>
+                <input value={ctxRate} onChange={e => setCtxRate(e.target.value)} placeholder={ctxCompType === "hourly" ? "150" : "5000"} style={{ width: "100%", border: `1px solid ${bdr}`, borderRadius: 8, padding: "9px 12px", fontSize: 13, color: ink, outline: "none", boxSizing: "border-box" }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Start Date</label>
+                <input value={ctxStartDate} onChange={e => setCtxStartDate(e.target.value)} placeholder="e.g. April 1, 2026" style={{ width: "100%", border: `1px solid ${bdr}`, borderRadius: 8, padding: "9px 12px", fontSize: 13, color: ink, outline: "none", boxSizing: "border-box" }} />
+              </div>
+            </div>
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Scope of Work *</label>
+              <textarea value={ctxScope} onChange={e => setCtxScope(e.target.value)} placeholder="e.g. Design and develop a Next.js web application including authentication, dashboard, and API integrations. Deliver working code in 6 weeks." rows={3} style={{ width: "100%", border: `1px solid ${bdr}`, borderRadius: 8, padding: "9px 12px", fontSize: 12, color: ink, outline: "none", resize: "vertical", boxSizing: "border-box" }} />
+            </div>
+            <button onClick={handleGenerateContractor} disabled={generatingCtx || !ctxName.trim() || !ctxRole.trim() || !ctxScope.trim()} style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: generatingCtx || !ctxName.trim() || !ctxRole.trim() || !ctxScope.trim() ? bdr : green, color: generatingCtx || !ctxName.trim() || !ctxRole.trim() || !ctxScope.trim() ? muted : "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", alignSelf: "flex-start" }}>
+              {generatingCtx ? "Drafting…" : "Download Contractor Agreement"}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Compliance Audit ── */}
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "16px 20px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: complianceReport ? 14 : 0 }}>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: red, marginBottom: 2 }}>Compliance Audit</p>
+            <p style={{ fontSize: 11, color: muted }}>Leo reviews your legal checklist against your stage and industry, flags risk items, and prioritizes the actions that matter most right now.</p>
+            {complianceError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{complianceError}</p>}
+          </div>
+          <button onClick={handleRunCompliance} disabled={runningCompliance}
+            style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: runningCompliance ? bdr : red, color: runningCompliance ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: runningCompliance ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
+            {runningCompliance ? "Auditing…" : "Run Audit"}
+          </button>
+        </div>
+        {complianceReport && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ padding: "3px 10px", borderRadius: 999, fontSize: 11, fontWeight: 700, background: complianceReport.overallRisk === 'high' ? "#FEE2E2" : complianceReport.overallRisk === 'medium' ? "#FEF3C7" : "#DCFCE7", color: complianceReport.overallRisk === 'high' ? red : complianceReport.overallRisk === 'medium' ? amber : "#16A34A" }}>
+                {complianceReport.overallRisk?.toUpperCase()} RISK
+              </span>
+              <p style={{ fontSize: 12, color: muted }}>{complianceReport.riskSummary}</p>
+            </div>
+            {(complianceReport.priorityActions ?? []).length > 0 && (
+              <div style={{ background: "#FEF2F2", borderRadius: 8, padding: "10px 14px", border: "1px solid #FECACA" }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: red, textTransform: "uppercase", marginBottom: 6 }}>Priority Actions</p>
+                {(complianceReport.priorityActions ?? []).map((a, i) => (
+                  <p key={i} style={{ fontSize: 12, color: ink, marginBottom: 3 }}>→ {a}</p>
+                ))}
+              </div>
+            )}
+            {(complianceReport.items ?? []).map((item, i) => (
+              <div key={i} style={{ background: "#fff", border: `1px solid ${bdr}`, borderRadius: 8, padding: "10px 14px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: ink }}>{item.area}</span>
+                  <span style={{ padding: "2px 8px", borderRadius: 999, fontSize: 10, fontWeight: 700, background: item.status === 'critical' ? "#FEE2E2" : item.status === 'needs attention' ? "#FEF3C7" : "#DCFCE7", color: item.status === 'critical' ? red : item.status === 'needs attention' ? amber : "#16A34A" }}>
+                    {item.status}
+                  </span>
+                  <span style={{ fontSize: 10, color: muted }}>effort: {item.effort}</span>
+                </div>
+                <p style={{ fontSize: 11, color: muted, marginBottom: 4 }}>{item.finding}</p>
+                <p style={{ fontSize: 11, color: blue, fontWeight: 600 }}>→ {item.action}</p>
+              </div>
+            ))}
+            {complianceReport.upcomingDeadlines && complianceReport.upcomingDeadlines.length > 0 && (
+              <div style={{ background: "#FFFBEB", borderRadius: 8, padding: "10px 14px", border: "1px solid #FDE68A" }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: amber, textTransform: "uppercase", marginBottom: 6 }}>Upcoming Deadlines</p>
+                {complianceReport.upcomingDeadlines.map((d, i) => (
+                  <p key={i} style={{ fontSize: 11, color: ink, marginBottom: 3 }}><strong>{d.item}</strong> — {d.deadline} <span style={{ color: red }}>({d.consequence})</span></p>
+                ))}
+              </div>
+            )}
+            {complianceReport.disclaimer && <p style={{ fontSize: 10, color: muted, fontStyle: "italic" }}>{complianceReport.disclaimer}</p>}
+            <button onClick={() => setComplianceReport(null)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>Re-run</button>
+          </div>
+        )}
+      </div>
+
+      {/* ── IP Strategy ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 24, marginTop: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontWeight: 700, fontSize: 14, color: ink, margin: 0 }}>IP Strategy</p>
+            <p style={{ fontSize: 12, color: muted, margin: "2px 0 0" }}>Patents, trademarks, trade secrets, and licensing opportunities — your full IP moat.</p>
+          </div>
+          <button onClick={handleGenerateIPStrategy} disabled={generatingIPStrat} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingIPStrat ? bdr : blue, color: generatingIPStrat ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingIPStrat ? "not-allowed" : "pointer", whiteSpace: "nowrap" as const, flexShrink: 0, marginLeft: 12 }}>
+            {generatingIPStrat ? "Analyzing…" : "Build IP Strategy"}
+          </button>
+        </div>
+        {ipStratError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{ipStratError}</p>}
+        {ipStratResult && (
+          <div style={{ background: surf, borderRadius: 10, padding: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+              {!!ipStratResult.ipScore && (
+                <div style={{ width: 52, height: 52, borderRadius: "50%", background: blue + "22", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <span style={{ fontSize: 20, fontWeight: 800, color: blue }}>{String(ipStratResult.ipScore)}</span>
+                </div>
+              )}
+              {!!ipStratResult.verdict && <p style={{ fontSize: 12, color: muted, fontStyle: "italic" }}>{String(ipStratResult.verdict)}</p>}
+            </div>
+            <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" as const }}>
+              {(["portfolio", "trademarks", "patents", "redflags"] as const).map(t => (
+                <button key={t} onClick={() => setIpStratTab(t)} style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${ipStratTab === t ? blue : bdr}`, background: ipStratTab === t ? blue : bg, color: ipStratTab === t ? "#fff" : ink, fontSize: 11, fontWeight: ipStratTab === t ? 700 : 400, cursor: "pointer" }}>
+                  {t === "portfolio" ? "📁 Portfolio" : t === "trademarks" ? "™ Trademarks" : t === "patents" ? "⚙️ Patents" : "🚩 Red Flags"}
+                </button>
+              ))}
+            </div>
+            {ipStratTab === "portfolio" && !!ipStratResult.portfolio && (() => {
+              const items = ipStratResult.portfolio as Record<string, unknown>[];
+              return (
+                <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+                  {items.map((ip, i) => (
+                    <div key={i} style={{ background: bg, borderRadius: 8, padding: 12, border: `1px solid ${bdr}` }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
+                        <p style={{ fontSize: 12, fontWeight: 700, color: ink }}>{String(ip.asset ?? '')}</p>
+                        <div style={{ display: "flex", gap: 6, flexShrink: 0, marginLeft: 8 }}>
+                          {!!ip.ipType && <span style={{ fontSize: 10, background: surf, border: `1px solid ${bdr}`, borderRadius: 20, padding: "2px 7px", color: muted }}>{String(ip.ipType)}</span>}
+                          {!!ip.protectionLevel && <span style={{ fontSize: 10, fontWeight: 700, color: ip.protectionLevel === 'strong' ? green : ip.protectionLevel === 'weak' ? red : amber }}>{String(ip.protectionLevel)}</span>}
+                        </div>
+                      </div>
+                      {!!ip.status && <p style={{ fontSize: 11, color: blue, marginBottom: 2 }}><b>Status:</b> {String(ip.status)}</p>}
+                      {!!ip.value && <p style={{ fontSize: 11, color: muted }}>{String(ip.value)}</p>}
+                    </div>
+                  ))}
+                  {!!ipStratResult.defensiveMoat && (
+                    <div style={{ background: blue + "11", borderRadius: 8, padding: 10, borderLeft: `3px solid ${blue}` }}>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>Defensive Moat</p>
+                      <p style={{ fontSize: 11, color: ink }}>{String(ipStratResult.defensiveMoat)}</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+            {ipStratTab === "trademarks" && !!ipStratResult.trademarks && (() => {
+              const items = ipStratResult.trademarks as Record<string, unknown>[];
+              return (
+                <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+                  {items.map((tm, i) => (
+                    <div key={i} style={{ background: bg, borderRadius: 8, padding: 12, border: `1px solid ${bdr}` }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
+                        <p style={{ fontSize: 12, fontWeight: 700, color: ink }}>{String(tm.mark ?? '')}</p>
+                        {!!tm.urgency && <span style={{ fontSize: 10, fontWeight: 700, color: String(tm.urgency).includes('now') ? red : amber }}>{String(tm.urgency)}</span>}
+                      </div>
+                      {!!tm.class && <p style={{ fontSize: 11, color: muted, marginBottom: 2 }}>{String(tm.class)}</p>}
+                      {!!tm.cost && <p style={{ fontSize: 11, color: green }}>{String(tm.cost)}</p>}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+            {ipStratTab === "patents" && !!ipStratResult.patentCandidates && (() => {
+              const items = ipStratResult.patentCandidates as Record<string, unknown>[];
+              return (
+                <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+                  {items.map((p, i) => (
+                    <div key={i} style={{ background: bg, borderRadius: 8, padding: 12, border: `1px solid ${bdr}` }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
+                        <p style={{ fontSize: 12, fontWeight: 700, color: ink }}>{String(p.invention ?? '')}</p>
+                        <div style={{ display: "flex", gap: 6, flexShrink: 0, marginLeft: 8 }}>
+                          {!!p.type && <span style={{ fontSize: 10, background: surf, border: `1px solid ${bdr}`, borderRadius: 20, padding: "2px 7px", color: muted }}>{String(p.type)}</span>}
+                          {!!p.viability && <span style={{ fontSize: 10, fontWeight: 700, color: p.viability === 'high' ? green : p.viability === 'low' ? red : amber }}>{String(p.viability)}</span>}
+                        </div>
+                      </div>
+                      {!!p.reasoning && <p style={{ fontSize: 11, color: muted }}>{String(p.reasoning)}</p>}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+            {ipStratTab === "redflags" && !!ipStratResult.redFlags && (() => {
+              const items = ipStratResult.redFlags as Record<string, unknown>[];
+              return (
+                <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+                  {items.map((rf, i) => (
+                    <div key={i} style={{ background: bg, borderRadius: 8, padding: 12, border: `1px solid ${rf.severity === 'high' ? red : rf.severity === 'medium' ? amber : bdr}` }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                        <p style={{ fontSize: 12, fontWeight: 700, color: ink }}>{String(rf.risk ?? '')}</p>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: rf.severity === 'high' ? red : rf.severity === 'medium' ? amber : green }}>{String(rf.severity ?? '').toUpperCase()}</span>
+                      </div>
+                      {!!rf.fix && <p style={{ fontSize: 11, color: blue }}><b>Fix:</b> {String(rf.fix)}</p>}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+            {!!ipStratResult.priorityAction && (
+              <div style={{ marginTop: 12, background: blue + "11", borderRadius: 8, padding: 10, borderLeft: `3px solid ${blue}` }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>Priority Action</p>
+                <p style={{ fontSize: 12, color: ink }}>{String(ipStratResult.priorityAction)}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Fundraising Checklist ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 24, marginTop: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontWeight: 700, fontSize: 14, color: ink, margin: 0 }}>Fundraising Readiness</p>
+            <p style={{ fontSize: 12, color: muted, margin: "2px 0 0" }}>Complete fundraising checklist — phases, data room, due diligence prep, and investor FAQ</p>
+          </div>
+          <button onClick={handleGenerateFRChecklist} disabled={generatingFRChecklist} style={{ padding: "8px 16px", borderRadius: 8, background: generatingFRChecklist ? surf : ink, color: generatingFRChecklist ? muted : bg, fontSize: 12, fontWeight: 600, border: "none", cursor: generatingFRChecklist ? "default" : "pointer" }}>
+            {generatingFRChecklist ? "Assessing…" : "Check Readiness"}
+          </button>
+        </div>
+        {frChecklistError && <p style={{ color: "#DC2626", fontSize: 12 }}>{frChecklistError}</p>}
+        {frChecklistResult && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", background: surf, borderRadius: 8 }}>
+              <div style={{ width: 56, height: 56, borderRadius: "50%", background: ink, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <p style={{ fontSize: 18, fontWeight: 700, color: bg, margin: 0 }}>{String(frChecklistResult.readinessScore ?? 0)}</p>
+              </div>
+              <div>
+                {!!frChecklistResult.verdict && <p style={{ fontSize: 13, fontWeight: 700, color: ink, margin: "0 0 2px" }}>{String(frChecklistResult.verdict)}</p>}
+                {!!frChecklistResult.readinessLevel && <span style={{ fontSize: 11, padding: "2px 10px", borderRadius: 12, background: frChecklistResult.readinessLevel==="ready" ? "#D1FAE5" : frChecklistResult.readinessLevel==="overdue" ? "#FEE2E2" : "#FEF3C7", color: frChecklistResult.readinessLevel==="ready" ? "#16A34A" : frChecklistResult.readinessLevel==="overdue" ? "#DC2626" : "#D97706", fontWeight: 600 }}>{String(frChecklistResult.readinessLevel)}</span>}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {(["phases","redflags","dataroom","faq"] as const).map(t => (
+                <button key={t} onClick={() => setFrChecklistTab(t)} style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${frChecklistTab===t ? ink : bdr}`, background: frChecklistTab===t ? ink : bg, color: frChecklistTab===t ? bg : ink, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                  {t==="phases" ? "📋 Phases" : t==="redflags" ? "🚩 Red Flags" : t==="dataroom" ? "📁 Data Room" : "❓ Investor FAQ"}
+                </button>
+              ))}
+            </div>
+            {frChecklistTab === "phases" && !!(frChecklistResult.phases as unknown[])?.length && (
+              <div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+                  {(frChecklistResult.phases as { phase: string }[]).map((p, i) => (
+                    <button key={i} onClick={() => setFrChecklistPhaseIdx(i)} style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${frChecklistPhaseIdx===i ? ink : bdr}`, background: frChecklistPhaseIdx===i ? ink : bg, color: frChecklistPhaseIdx===i ? bg : ink, fontSize: 11, cursor: "pointer" }}>{p.phase}</button>
+                  ))}
+                </div>
+                {(() => {
+                  const ph = (frChecklistResult.phases as Record<string, unknown>[])[frChecklistPhaseIdx];
+                  if (!ph) return null;
+                  return (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {(ph.tasks as { task: string; done: boolean; critical: boolean; effort: string; timeToComplete: string }[] | undefined ?? []).map((t, i) => (
+                        <div key={i} style={{ padding: "8px 12px", background: t.done ? "#F0FDF4" : surf, borderRadius: 8, border: `1px solid ${t.critical ? "#DC2626" : bdr}`, display: "flex", gap: 10, alignItems: "flex-start" }}>
+                          <span style={{ fontSize: 14, marginTop: 1 }}>{t.done ? "✅" : "⬜"}</span>
+                          <div style={{ flex: 1 }}>
+                            <p style={{ fontSize: 12, color: ink, margin: "0 0 2px" }}>{t.task}</p>
+                            <div style={{ display: "flex", gap: 8 }}>
+                              {t.critical && <span style={{ fontSize: 10, color: "#DC2626", fontWeight: 600 }}>CRITICAL</span>}
+                              <span style={{ fontSize: 10, color: muted }}>Effort: {t.effort}</span>
+                              <span style={{ fontSize: 10, color: muted }}>{t.timeToComplete}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+            {frChecklistTab === "redflags" && !!(frChecklistResult.redFlags as unknown[])?.length && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {(frChecklistResult.redFlags as { flag: string; severity: string; fix: string }[]).map((f, i) => (
+                  <div key={i} style={{ padding: "10px 14px", background: "#FEF2F2", borderRadius: 8, borderLeft: "3px solid #DC2626" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: ink, margin: 0 }}>{f.flag}</p>
+                      <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 12, background: f.severity==="high" ? "#DC2626" : "#D97706", color: "#fff", fontWeight: 700 }}>{f.severity}</span>
+                    </div>
+                    <p style={{ fontSize: 12, color: "#16A34A", margin: 0 }}>Fix: {f.fix}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {frChecklistTab === "dataroom" && !!(frChecklistResult.dataRoomItems as unknown[])?.length && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {(frChecklistResult.dataRoomItems as { item: string; priority: string; status: string }[]).map((d, i) => (
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: surf, borderRadius: 8 }}>
+                    <p style={{ fontSize: 12, color: ink, margin: 0 }}>{d.item}</p>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
+                      <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 12, background: d.priority==="must-have" ? ink : surf, color: d.priority==="must-have" ? bg : muted, fontWeight: 600 }}>{d.priority}</span>
+                      <span style={{ fontSize: 10, color: d.status==="ready" ? "#16A34A" : d.status==="needs creation" ? "#DC2626" : muted }}>{d.status}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {frChecklistTab === "faq" && !!(frChecklistResult.investorFAQ as unknown[])?.length && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {(frChecklistResult.investorFAQ as { question: string; strongAnswer: string }[]).map((f, i) => (
+                  <div key={i} style={{ padding: "10px 14px", background: surf, borderRadius: 8, border: `1px solid ${bdr}` }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: ink, margin: "0 0 6px" }}>Q: {f.question}</p>
+                    <p style={{ fontSize: 12, color: muted, margin: 0 }}>{f.strongAnswer}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {!!frChecklistResult.priorityAction && <div style={{ padding: "10px 14px", background: "#F0FDF4", borderRadius: 8, borderLeft: "3px solid #16A34A" }}><p style={{ fontSize: 12, fontWeight: 700, color: "#16A34A", margin: "0 0 4px" }}>Priority Action</p><p style={{ fontSize: 12, color: ink, margin: 0 }}>{String(frChecklistResult.priorityAction)}</p></div>}
+            <button onClick={() => setFrChecklistResult(null)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>Re-run</button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Term Sheet Analyzer ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 24, marginTop: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontWeight: 700, fontSize: 14, color: ink, margin: 0 }}>Term Sheet Analyzer</p>
+            <p style={{ fontSize: 12, color: muted, margin: "2px 0 0" }}>Decode any term sheet — red flags, founder-friendly terms, and negotiation leverage</p>
+          </div>
+          <button onClick={handleAnalyzeTermSheet} disabled={generatingTS} style={{ padding: "8px 16px", borderRadius: 8, background: generatingTS ? surf : ink, color: generatingTS ? muted : bg, fontSize: 12, fontWeight: 600, border: "none", cursor: generatingTS ? "default" : "pointer" }}>
+            {generatingTS ? "Analyzing…" : "Analyze Term Sheet"}
+          </button>
+        </div>
+        <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+          <select value={tsInstrument} onChange={e => setTsInstrument(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: ink, fontSize: 12 }}>
+            {["SAFE","Convertible Note","Priced Equity","KISS"].map(i => <option key={i}>{i}</option>)}
+          </select>
+          <input value={tsRaiseAmount} onChange={e => setTsRaiseAmount(e.target.value)} placeholder="Raise amount (e.g. $2M)" style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: ink, fontSize: 12, width: 160 }} />
+          <input value={tsValuation} onChange={e => setTsValuation(e.target.value)} placeholder="Valuation cap (e.g. $10M)" style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: ink, fontSize: 12, width: 180 }} />
+          <input value={tsLeadInvestor} onChange={e => setTsLeadInvestor(e.target.value)} placeholder="Lead investor (optional)" style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: ink, fontSize: 12, width: 180 }} />
+        </div>
+        {tsError && <p style={{ color: "#DC2626", fontSize: 12, marginBottom: 10 }}>{tsError}</p>}
+        {tsResult && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {!!tsResult.summary && <p style={{ fontSize: 13, color: ink, margin: 0, padding: "10px 14px", background: surf, borderRadius: 8 }}>{String(tsResult.summary)}</p>}
+            {!!tsResult.verdict && <p style={{ fontSize: 12, color: "#16A34A", fontWeight: 600, margin: 0 }}>Verdict: {String(tsResult.verdict)}</p>}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {(["flags","friendly","negotiation","glossary"] as const).map(t => (
+                <button key={t} onClick={() => setTsTab(t)} style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${tsTab===t ? ink : bdr}`, background: tsTab===t ? ink : bg, color: tsTab===t ? bg : ink, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                  {t==="flags" ? "🚩 Red Flags" : t==="friendly" ? "✅ Founder-Friendly" : t==="negotiation" ? "🤝 Negotiate" : "📖 Glossary"}
+                </button>
+              ))}
+            </div>
+            {tsTab === "flags" && !!(tsResult.redFlags as unknown[])?.length && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {(tsResult.redFlags as { flag: string; risk: string; suggestion: string }[]).map((f, i) => (
+                  <div key={i} style={{ padding: "10px 14px", background: "#FEF2F2", borderRadius: 8, borderLeft: "3px solid #DC2626" }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: "#DC2626", margin: "0 0 4px" }}>{f.flag}</p>
+                    <p style={{ fontSize: 12, color: ink, margin: "0 0 4px" }}>{f.risk}</p>
+                    <p style={{ fontSize: 11, color: "#16A34A", margin: 0 }}>Suggestion: {f.suggestion}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {tsTab === "friendly" && !!(tsResult.founderFriendly as unknown[])?.length && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {(tsResult.founderFriendly as { term: string; why: string }[]).map((f, i) => (
+                  <div key={i} style={{ padding: "10px 14px", background: "#F0FDF4", borderRadius: 8, borderLeft: "3px solid #16A34A" }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: "#16A34A", margin: "0 0 4px" }}>{f.term}</p>
+                    <p style={{ fontSize: 12, color: ink, margin: 0 }}>{f.why}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {tsTab === "negotiation" && !!(tsResult.negotiationPoints as unknown[])?.length && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {(tsResult.negotiationPoints as { point: string; ask: string; rationale: string; priority: string }[]).map((n, i) => (
+                  <div key={i} style={{ padding: "10px 14px", background: surf, borderRadius: 8, border: `1px solid ${bdr}` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: ink, margin: 0 }}>{n.point}</p>
+                      <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 12, background: n.priority==="high" ? "#DC2626" : n.priority==="medium" ? "#D97706" : "#8A867C", color: "#fff", fontWeight: 700 }}>{n.priority}</span>
+                    </div>
+                    <p style={{ fontSize: 12, color: ink, margin: "0 0 4px" }}>Ask: <strong>{n.ask}</strong></p>
+                    <p style={{ fontSize: 11, color: muted, margin: 0 }}>{n.rationale}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {tsTab === "glossary" && !!(tsResult.glossary as unknown[])?.length && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {(tsResult.glossary as { term: string; plain: string }[]).map((g, i) => (
+                  <div key={i} style={{ padding: "8px 12px", background: surf, borderRadius: 8, display: "flex", gap: 12 }}>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: ink, margin: 0, minWidth: 140 }}>{g.term}</p>
+                    <p style={{ fontSize: 12, color: muted, margin: 0 }}>{g.plain}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {!!tsResult.lawyerBrief && <div style={{ padding: "10px 14px", background: "#EFF6FF", borderRadius: 8, borderLeft: "3px solid #2563EB" }}><p style={{ fontSize: 11, fontWeight: 700, color: "#2563EB", margin: "0 0 4px" }}>For your lawyer:</p><p style={{ fontSize: 12, color: ink, margin: 0 }}>{String(tsResult.lawyerBrief)}</p></div>}
+            <button onClick={() => setTsResult(null)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>Re-analyze</button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Equity Plan ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 24, marginTop: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontWeight: 700, fontSize: 15, color: ink, margin: 0 }}>Equity Plan Builder</p>
+            <p style={{ fontSize: 12, color: muted, margin: "2px 0 0" }}>Model your option pool, grant strategy, and dilution scenarios</p>
+          </div>
+          <button onClick={handleGenerateEquityPlan} disabled={generatingEP} style={{ padding: "8px 16px", borderRadius: 8, background: generatingEP ? muted : ink, color: "#fff", fontSize: 12, fontWeight: 600, border: "none", cursor: generatingEP ? "not-allowed" : "pointer" }}>
+            {generatingEP ? "Building…" : "Build Equity Plan"}
+          </button>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 14 }}>
+          {[
+            { label: "Option Pool %", value: epPoolPct, set: setEpPoolPct, placeholder: "10" },
+            { label: "Vesting Years", value: epVesting, set: setEpVesting, placeholder: "4" },
+            { label: "Cliff (months)", value: epCliff, set: setEpCliff, placeholder: "12" },
+          ].map(({ label, value, set, placeholder }) => (
+            <div key={label}>
+              <p style={{ fontSize: 11, color: muted, marginBottom: 4 }}>{label}</p>
+              <input value={value} onChange={e => set(e.target.value)} placeholder={placeholder} style={{ width: "100%", padding: "7px 10px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 13, color: ink, background: bg, boxSizing: "border-box" }} />
+            </div>
+          ))}
+        </div>
+        {epError && <p style={{ fontSize: 12, color: red, marginBottom: 10 }}>{epError}</p>}
+        {epResult && (
+          <div style={{ background: surf, borderRadius: 10, padding: 16 }}>
+            <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+              {(["grants", "vesting", "dilution", "legal"] as const).map(t => (
+                <button key={t} onClick={() => setEpTab(t)} style={{ padding: "5px 12px", borderRadius: 6, border: `1px solid ${epTab === t ? ink : bdr}`, background: epTab === t ? ink : "transparent", color: epTab === t ? "#fff" : muted, fontSize: 11, fontWeight: 600, cursor: "pointer", textTransform: "capitalize" }}>{t}</button>
+              ))}
+            </div>
+            {epTab === "grants" && (
+              <div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+                  {[
+                    { label: "Option Pool", val: (epResult.optionPool as Record<string,unknown>)?.totalShares },
+                    { label: "Pool %", val: (epResult.optionPool as Record<string,unknown>)?.percentOfCompany },
+                  ].map(({ label, val }) => (
+                    <div key={label} style={{ background: bg, borderRadius: 8, padding: 12, textAlign: "center" as const }}>
+                      <p style={{ fontSize: 18, fontWeight: 700, color: ink, margin: 0 }}>{String(val ?? "—")}</p>
+                      <p style={{ fontSize: 11, color: muted, margin: "2px 0 0" }}>{label}</p>
+                    </div>
+                  ))}
+                </div>
+                {!!(epResult.grantSuggestions as unknown[])?.length && (
+                  <div>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 8 }}>Grant Suggestions</p>
+                    {(epResult.grantSuggestions as { role: string; shares: string; percentEquity: string; rationale: string }[]).map((g, i) => (
+                      <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: `1px solid ${bdr}` }}>
+                        <div>
+                          <p style={{ fontSize: 13, fontWeight: 600, color: ink, margin: 0 }}>{g.role}</p>
+                          <p style={{ fontSize: 11, color: muted, margin: "2px 0 0" }}>{g.rationale}</p>
+                        </div>
+                        <div style={{ textAlign: "right" as const }}>
+                          <p style={{ fontSize: 13, fontWeight: 700, color: ink, margin: 0 }}>{g.percentEquity}</p>
+                          <p style={{ fontSize: 11, color: muted }}>{g.shares} shares</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {!!epResult.keyInsight && <p style={{ fontSize: 12, color: muted, fontStyle: "italic", marginTop: 10 }}>{String(epResult.keyInsight)}</p>}
+              </div>
+            )}
+            {epTab === "vesting" && (
+              <div>
+                {!!epResult.vestingSchedule && (() => {
+                  const vs = epResult.vestingSchedule as Record<string, unknown>;
+                  return (
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}>
+                        {[["Cliff", vs.cliff], ["Total Period", vs.totalPeriod], ["Post-Cliff", vs.postCliffSchedule]].map(([l, v]) => (
+                          <div key={String(l)} style={{ background: bg, borderRadius: 8, padding: 10, textAlign: "center" as const }}>
+                            <p style={{ fontSize: 12, fontWeight: 600, color: ink, margin: 0 }}>{String(v ?? "—")}</p>
+                            <p style={{ fontSize: 11, color: muted }}>{String(l)}</p>
+                          </div>
+                        ))}
+                      </div>
+                      {!!vs.earlyExercise && <p style={{ fontSize: 12, color: muted }}><strong>Early Exercise:</strong> {String(vs.earlyExercise)}</p>}
+                      {!!vs.acceleration && <p style={{ fontSize: 12, color: muted }}><strong>Acceleration:</strong> {String(vs.acceleration)}</p>}
+                    </div>
+                  );
+                })()}
+                {!!epResult.refreshStrategy && <p style={{ fontSize: 12, color: muted, fontStyle: "italic" }}><strong>Refresh Strategy:</strong> {String(epResult.refreshStrategy)}</p>}
+              </div>
+            )}
+            {epTab === "dilution" && (
+              <div>
+                {!!(epResult.dilutionModel as unknown[])?.length && (
+                  <div>
+                    {(epResult.dilutionModel as { round: string; newShares: string; postRoundPool: string; founderDilution: string; note: string }[]).map((r, i) => (
+                      <div key={i} style={{ padding: "10px 0", borderBottom: `1px solid ${bdr}` }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                          <p style={{ fontSize: 13, fontWeight: 600, color: ink, margin: 0 }}>{r.round}</p>
+                          <p style={{ fontSize: 12, color: red, fontWeight: 600, margin: 0 }}>-{r.founderDilution}</p>
+                        </div>
+                        <p style={{ fontSize: 11, color: muted, margin: 0 }}>{r.note}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {epTab === "legal" && (
+              <div>
+                {!!(epResult.a409Guidance as unknown[])?.length && (
+                  <div style={{ marginBottom: 14 }}>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 8 }}>409A Guidance</p>
+                    {(epResult.a409Guidance as { topic: string; guidance: string }[]).map((g, i) => (
+                      <div key={i} style={{ padding: "8px 0", borderBottom: `1px solid ${bdr}` }}>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: ink, margin: 0 }}>{g.topic}</p>
+                        <p style={{ fontSize: 12, color: muted, margin: "2px 0 0" }}>{g.guidance}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {!!(epResult.legalChecklist as unknown[])?.length && (
+                  <div>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 8 }}>Legal Checklist</p>
+                    {(epResult.legalChecklist as { item: string; status: string; priority: string }[]).map((c, i) => (
+                      <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: `1px solid ${bdr}` }}>
+                        <p style={{ fontSize: 12, color: ink, margin: 0 }}>{c.item}</p>
+                        <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, background: c.priority === "critical" ? "#FEE2E2" : "#FEF3C7", color: c.priority === "critical" ? red : amber, fontWeight: 600 }}>{c.priority}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -6736,6 +10990,186 @@ function HiringPlanRenderer({ data, artifactId, userId }: { data: Record<string,
   } | null>(null);
   const [refKitError, setRefKitError]             = useState<string | null>(null);
   const [refActiveSection, setRefActiveSection]   = useState<"questions" | "redflags" | "signals">("questions");
+
+  // Compensation framework state
+  const [generatingComp, setGeneratingComp] = useState(false);
+  const [compResult, setCompResult] = useState<{
+    philosophyStatement?: string;
+    salaryBands?: { level: string; title: string; department: string; baseSalaryRange?: { low: string; mid: string; high: string }; targetTotalComp?: string; benchmarkPercentile?: string; notes?: string }[];
+    equityBands?: { level: string; title: string; equityRange: string; vestingSchedule?: string; refreshPolicy?: string; dilutionNote?: string }[];
+    benefitsStack?: { mustHave?: string[]; competitive?: string[]; earlyStageAlternatives?: string[] };
+    negotiationPlaybook?: { scenario: string; response: string }[];
+    offerStructure?: string;
+    refreshGrantPolicy?: string;
+    benchmarkSources?: string[];
+    keyInsight?: string;
+  } | null>(null);
+  const [compError, setCompError] = useState<string | null>(null);
+  const [compTab, setCompTab] = useState<'salary' | 'equity' | 'negotiation'>('salary');
+
+  async function handleGenerateComp() {
+    if (generatingComp) return;
+    setGeneratingComp(true); setCompError(null);
+    try {
+      const res = await fetch('/api/agents/harper/compensation', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.framework) setCompResult(r.framework);
+      else setCompError(r.error ?? 'Failed to generate compensation framework');
+    } catch { setCompError('Network error'); }
+    finally { setGeneratingComp(false); }
+  }
+
+  // Job description state
+  const [jdRole, setJdRole]             = useState('');
+  const [jdLevel, setJdLevel]           = useState('');
+  const [jdDepartment, setJdDepartment] = useState('');
+  const [generatingJD, setGeneratingJD] = useState(false);
+  const [jdError, setJdError]           = useState<string | null>(null);
+
+  async function handleGenerateJD() {
+    if (!jdRole.trim() || generatingJD) return;
+    setGeneratingJD(true); setJdError(null);
+    try {
+      const res = await fetch('/api/agents/harper/job-descriptions', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: jdRole, level: jdLevel || undefined, department: jdDepartment || undefined }),
+      });
+      const r = await res.json();
+      if (res.ok && r.html) {
+        const blob = new Blob([r.html], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url;
+        a.download = `jd-${jdRole.toLowerCase().replace(/\s+/g, '-')}.html`; a.click();
+        URL.revokeObjectURL(url);
+      } else { setJdError(r.error ?? 'Failed to generate job description'); }
+    } catch { setJdError('Network error'); }
+    finally { setGeneratingJD(false); }
+  }
+
+  // Culture Assessment (Harper) state
+  const [generatingCultAssess, setGeneratingCultAssess] = useState(false);
+  const [cultAssessResult, setCultAssessResult]         = useState<Record<string, unknown> | null>(null);
+  const [cultAssessError, setCultAssessError]           = useState<string | null>(null);
+  const [cultAssessDimIdx, setCultAssessDimIdx]         = useState(0);
+  const [cultAssessTab, setCultAssessTab]               = useState<'dimensions' | 'rituals' | 'hiring' | 'remote'>('dimensions');
+
+  async function handleGenerateCultureAssessment() {
+    if (generatingCultAssess) return;
+    setGeneratingCultAssess(true); setCultAssessError(null); setCultAssessResult(null);
+    try {
+      const res = await fetch('/api/agents/harper/culture-assessment', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.assessment) setCultAssessResult(r.assessment);
+      else setCultAssessError(r.error ?? 'Generation failed');
+    } catch { setCultAssessError('Network error'); }
+    finally { setGeneratingCultAssess(false); }
+  }
+
+  // Salary Benchmarking state
+  const [salaryRolesInput, setSalaryRolesInput]     = useState('');
+  const [salaryLocation, setSalaryLocation]         = useState('US (remote-friendly)');
+  const [generatingSalary, setGeneratingSalary]     = useState(false);
+  const [salaryResult, setSalaryResult]             = useState<Record<string, unknown> | null>(null);
+  const [salaryError, setSalaryError]               = useState<string | null>(null);
+  const [salaryRoleIdx, setSalaryRoleIdx]           = useState(0);
+
+  async function handleGenerateSalaryBenchmarks() {
+    if (generatingSalary) return;
+    setGeneratingSalary(true); setSalaryError(null); setSalaryResult(null);
+    const roles = salaryRolesInput ? salaryRolesInput.split(',').map(r => r.trim()).filter(Boolean) : undefined;
+    try {
+      const res = await fetch('/api/agents/harper/salary-benchmarking', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roles, location: salaryLocation || undefined }),
+      });
+      const r = await res.json();
+      if (res.ok && r.benchmarks) setSalaryResult(r.benchmarks);
+      else setSalaryError(r.error ?? 'Generation failed');
+    } catch { setSalaryError('Network error'); }
+    finally { setGeneratingSalary(false); }
+  }
+
+  // Performance Review state
+  const [prName, setPrName]                         = useState('');
+  const [prRole, setPrRole]                         = useState('');
+  const [prPeriod, setPrPeriod]                     = useState('Q1 2026');
+  const [generatingPR, setGeneratingPR]             = useState(false);
+  const [prResult, setPrResult]                     = useState<{ framework: Record<string, unknown>; html: string } | null>(null);
+  const [prError, setPrError]                       = useState<string | null>(null);
+
+  async function handleGeneratePerformanceReview() {
+    if (generatingPR) return;
+    setGeneratingPR(true); setPrError(null); setPrResult(null);
+    try {
+      const res = await fetch('/api/agents/harper/performance-review', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ employeeName: prName || undefined, role: prRole || undefined, reviewPeriod: prPeriod || undefined }),
+      });
+      const r = await res.json();
+      if (res.ok && r.review) setPrResult(r.review as { framework: Record<string, unknown>; html: string });
+      else setPrError(r.error ?? 'Generation failed');
+    } catch { setPrError('Network error'); }
+    finally { setGeneratingPR(false); }
+  }
+
+  function handleDownloadPR() {
+    if (!prResult?.html) return;
+    const blob = new Blob([prResult.html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `performance-review-${(prName || 'employee').replace(/\s+/g, '-').toLowerCase()}.html`;
+    a.click(); URL.revokeObjectURL(url);
+  }
+
+  // Culture Deck state
+  const [generatingCulture, setGeneratingCulture]   = useState(false);
+  const [cultureResult, setCultureResult]           = useState<{ deck: Record<string, unknown>; html: string } | null>(null);
+  const [cultureError, setCultureError]             = useState<string | null>(null);
+
+  async function handleGenerateCultureDeck() {
+    if (generatingCulture) return;
+    setGeneratingCulture(true); setCultureError(null); setCultureResult(null);
+    try {
+      const res = await fetch('/api/agents/harper/culture-deck', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.deck && r.html) setCultureResult({ deck: r.deck, html: r.html });
+      else setCultureError(r.error ?? 'Generation failed');
+    } catch { setCultureError('Network error'); }
+    finally { setGeneratingCulture(false); }
+  }
+
+  function handleDownloadCultureDeck() {
+    if (!cultureResult?.html) return;
+    const blob = new Blob([cultureResult.html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'culture-deck.html'; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // Interview Kit state
+  const [ikRole, setIkRole]                       = useState('');
+  const [ikLevel, setIkLevel]                     = useState('');
+  const [generatingIK, setGeneratingIK]           = useState(false);
+  const [ikResult, setIkResult]                   = useState<Record<string, unknown> | null>(null);
+  const [ikError, setIkError]                     = useState<string | null>(null);
+  const [ikSection, setIkSection]                 = useState<'behavioral' | 'technical' | 'rubric'>('behavioral');
+
+  async function handleGenerateInterviewKit() {
+    if (!ikRole.trim() || generatingIK) return;
+    setGeneratingIK(true); setIkError(null); setIkResult(null);
+    try {
+      const res = await fetch('/api/agents/harper/interview-kit', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: ikRole, level: ikLevel || undefined }),
+      });
+      const r = await res.json();
+      if (res.ok && r.kit) setIkResult(r.kit);
+      else setIkError(r.error ?? 'Failed to generate interview kit');
+    } catch { setIkError('Network error'); }
+    finally { setGeneratingIK(false); }
+  }
 
   async function handleGenerateRefKit() {
     if (!refCandidateName.trim() || !refRole.trim() || generatingRefKit) return;
@@ -7911,6 +12345,551 @@ function HiringPlanRenderer({ data, artifactId, userId }: { data: Record<string,
           </div>
         )}
       </div>
+
+      {/* ── Compensation Framework ── */}
+      <div style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 12, padding: "16px 20px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: compResult ? 14 : 0 }}>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>Compensation Framework</p>
+            <p style={{ fontSize: 11, color: muted }}>Harper builds salary bands, equity ranges, benefits stack, and a negotiation playbook based on your stage, industry, and open roles.</p>
+            {compError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{compError}</p>}
+          </div>
+          <button onClick={handleGenerateComp} disabled={generatingComp} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingComp ? bdr : blue, color: generatingComp ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingComp ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
+            {generatingComp ? "Building…" : "Build Framework"}
+          </button>
+        </div>
+        {compResult && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {compResult.philosophyStatement && (
+              <div style={{ background: "#EFF6FF", borderRadius: 8, padding: "10px 14px", border: "1px solid #BFDBFE" }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: blue, textTransform: "uppercase", marginBottom: 4 }}>Philosophy</p>
+                <p style={{ fontSize: 12, color: ink, lineHeight: 1.6, fontStyle: "italic" }}>&quot;{compResult.philosophyStatement}&quot;</p>
+              </div>
+            )}
+            {/* Tab bar */}
+            <div style={{ display: "flex", gap: 6 }}>
+              {(["salary", "equity", "negotiation"] as const).map(tab => (
+                <button key={tab} onClick={() => setCompTab(tab)} style={{ padding: "5px 14px", borderRadius: 7, border: `1px solid ${compTab === tab ? blue : bdr}`, background: compTab === tab ? "#EFF6FF" : bg, color: compTab === tab ? blue : muted, fontSize: 11, fontWeight: 600, cursor: "pointer", textTransform: "capitalize" }}>{tab === 'salary' ? 'Salary Bands' : tab === 'equity' ? 'Equity Bands' : 'Negotiation'}</button>
+              ))}
+            </div>
+            {compTab === 'salary' && compResult.salaryBands && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {compResult.salaryBands.map((band, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: bg, borderRadius: 8, border: `1px solid ${bdr}` }}>
+                    <div>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: ink }}>{band.title}</p>
+                      <p style={{ fontSize: 10, color: muted }}>{band.level} · {band.department}</p>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: blue }}>{band.baseSalaryRange?.low ?? ''} – {band.baseSalaryRange?.high ?? band.targetTotalComp ?? ''}</p>
+                      <p style={{ fontSize: 10, color: muted }}>{band.benchmarkPercentile ?? ''}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {compTab === 'equity' && compResult.equityBands && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {compResult.equityBands.map((band, i) => (
+                  <div key={i} style={{ padding: "10px 14px", background: bg, borderRadius: 8, border: `1px solid ${bdr}` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: ink }}>{band.title}</p>
+                      <p style={{ fontSize: 12, fontWeight: 800, color: green }}>{band.equityRange}</p>
+                    </div>
+                    {band.vestingSchedule && <p style={{ fontSize: 11, color: muted }}>Vesting: {band.vestingSchedule}</p>}
+                    {band.dilutionNote && <p style={{ fontSize: 10, color: muted, marginTop: 2, fontStyle: "italic" }}>{band.dilutionNote}</p>}
+                  </div>
+                ))}
+              </div>
+            )}
+            {compTab === 'negotiation' && compResult.negotiationPlaybook && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {compResult.negotiationPlaybook.map((item, i) => (
+                  <div key={i} style={{ background: bg, borderRadius: 8, padding: "10px 14px", border: `1px solid ${bdr}` }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: amber, marginBottom: 4 }}>Scenario: {item.scenario}</p>
+                    <p style={{ fontSize: 11, color: ink, lineHeight: 1.6 }}>→ {item.response}</p>
+                  </div>
+                ))}
+                {compResult.offerStructure && (
+                  <div style={{ background: "#EFF6FF", borderRadius: 8, padding: "10px 12px", border: "1px solid #BFDBFE" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: blue, textTransform: "uppercase", marginBottom: 3 }}>Offer Structure</p>
+                    <p style={{ fontSize: 11, color: ink, lineHeight: 1.5 }}>{compResult.offerStructure}</p>
+                  </div>
+                )}
+              </div>
+            )}
+            {compResult.keyInsight && (
+              <div style={{ background: "#EFF6FF", borderRadius: 8, padding: "10px 14px", border: "1px solid #BFDBFE" }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: blue, textTransform: "uppercase", marginBottom: 4 }}>Key Insight</p>
+                <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{compResult.keyInsight}</p>
+              </div>
+            )}
+            <button onClick={() => setCompResult(null)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>Regenerate</button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Job Description Generator ── */}
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "16px 20px" }}>
+        <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>Job Description Generator</p>
+        <p style={{ fontSize: 11, color: muted, marginBottom: 12 }}>Harper drafts a complete, polished JD — responsibilities, requirements, nice-to-have, what we offer, HN Who&apos;s Hiring post, and LinkedIn intro — as a styled HTML download.</p>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 10 }}>
+          <input value={jdRole} onChange={e => setJdRole(e.target.value)} placeholder="Role (e.g. Senior Engineer) *"
+            style={{ padding: "7px 10px", borderRadius: 6, border: `1px solid ${jdRole ? bdr : red}`, fontSize: 12, color: ink, background: "#fff", outline: "none" }} />
+          <input value={jdLevel} onChange={e => setJdLevel(e.target.value)} placeholder="Level (e.g. Senior, IC4)"
+            style={{ padding: "7px 10px", borderRadius: 6, border: `1px solid ${bdr}`, fontSize: 12, color: ink, background: "#fff", outline: "none" }} />
+          <input value={jdDepartment} onChange={e => setJdDepartment(e.target.value)} placeholder="Department (e.g. Engineering)"
+            style={{ padding: "7px 10px", borderRadius: 6, border: `1px solid ${bdr}`, fontSize: 12, color: ink, background: "#fff", outline: "none" }} />
+        </div>
+        {jdError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{jdError}</p>}
+        <button onClick={handleGenerateJD} disabled={!jdRole.trim() || generatingJD}
+          style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: (!jdRole.trim() || generatingJD) ? bdr : blue, color: (!jdRole.trim() || generatingJD) ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: (!jdRole.trim() || generatingJD) ? "not-allowed" : "pointer" }}>
+          {generatingJD ? "Generating…" : "Download JD HTML"}
+        </button>
+      </div>
+
+      {/* ── Interview Kit ── */}
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "16px 20px" }}>
+        <p style={{ fontSize: 11, fontWeight: 700, color: green, marginBottom: 2 }}>Interview Kit Generator</p>
+        <p style={{ fontSize: 11, color: muted, marginBottom: 12 }}>Harper builds a complete structured interview kit — scoring rubric, behavioral & technical questions, red/green flags, and a decision framework — for any role.</p>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
+          <input value={ikRole} onChange={e => setIkRole(e.target.value)} placeholder="Role (e.g. Product Manager) *"
+            style={{ padding: "7px 10px", borderRadius: 6, border: `1px solid ${ikRole ? bdr : red}`, fontSize: 12, color: ink, background: "#fff", outline: "none" }} />
+          <input value={ikLevel} onChange={e => setIkLevel(e.target.value)} placeholder="Level (e.g. Senior, L4)"
+            style={{ padding: "7px 10px", borderRadius: 6, border: `1px solid ${bdr}`, fontSize: 12, color: ink, background: "#fff", outline: "none" }} />
+        </div>
+        {ikError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{ikError}</p>}
+        <button onClick={handleGenerateInterviewKit} disabled={!ikRole.trim() || generatingIK}
+          style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: (!ikRole.trim() || generatingIK) ? bdr : green, color: (!ikRole.trim() || generatingIK) ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: (!ikRole.trim() || generatingIK) ? "not-allowed" : "pointer" }}>
+          {generatingIK ? "Building Kit…" : "Build Interview Kit"}
+        </button>
+        {ikResult && (
+          <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <p style={{ fontSize: 12, fontWeight: 700, color: ink, margin: 0 }}>{ikResult.role as string} Interview Kit</p>
+              <span style={{ padding: "2px 8px", borderRadius: 10, background: "#DCFCE7", color: green, fontSize: 10, fontWeight: 700 }}>{ikResult.level as string ?? 'Mid'}</span>
+            </div>
+            {/* Interview Structure */}
+            {(ikResult.interviewStructure as { stage: string; duration: string; interviewer: string; focus: string }[] | undefined)?.length && (
+              <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "10px 14px", border: "1px solid #BBF7D0" }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: green, textTransform: "uppercase", marginBottom: 8 }}>Interview Structure</p>
+                {(ikResult.interviewStructure as { stage: string; duration: string; interviewer: string; focus: string }[]).map((s, i) => (
+                  <div key={i} style={{ display: "flex", gap: 8, marginBottom: 6, fontSize: 11 }}>
+                    <span style={{ fontWeight: 700, color: ink, flexShrink: 0 }}>{s.stage}</span>
+                    <span style={{ color: muted }}>{s.duration} · {s.interviewer} · {s.focus}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {/* Section tabs */}
+            <div style={{ display: "flex", gap: 6, borderBottom: `1px solid ${bdr}`, paddingBottom: 8 }}>
+              {(['behavioral', 'technical', 'rubric'] as const).map(tab => (
+                <button key={tab} onClick={() => setIkSection(tab)}
+                  style={{ padding: "4px 10px", borderRadius: 6, border: "none", background: ikSection === tab ? ink : "transparent", color: ikSection === tab ? "#fff" : muted, fontSize: 11, fontWeight: 600, cursor: "pointer", textTransform: "capitalize" }}>
+                  {tab}
+                </button>
+              ))}
+            </div>
+            {ikSection === 'behavioral' && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {(ikResult.behavioralQuestions as { question: string; whatYoureTesting: string; strongAnswer: string; probes?: string[] }[] | undefined)?.map((q, i) => (
+                  <div key={i} style={{ background: "#fff", borderRadius: 8, padding: "10px 14px", border: `1px solid ${bdr}` }}>
+                    <p style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 4 }}>{q.question}</p>
+                    <p style={{ fontSize: 11, color: muted, marginBottom: 4 }}>Testing: {q.whatYoureTesting}</p>
+                    <p style={{ fontSize: 11, color: green }}>Strong answer includes: {q.strongAnswer}</p>
+                    {q.probes && q.probes.length > 0 && <p style={{ fontSize: 10, color: muted, marginTop: 4 }}>Probes: {q.probes.join(' · ')}</p>}
+                  </div>
+                ))}
+              </div>
+            )}
+            {ikSection === 'technical' && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {(ikResult.technicalQuestions as { question: string; whatYoureTesting: string; evaluationCriteria: string }[] | undefined)?.map((q, i) => (
+                  <div key={i} style={{ background: "#fff", borderRadius: 8, padding: "10px 14px", border: `1px solid ${bdr}` }}>
+                    <p style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 4 }}>{q.question}</p>
+                    <p style={{ fontSize: 11, color: muted, marginBottom: 4 }}>Testing: {q.whatYoureTesting}</p>
+                    <p style={{ fontSize: 11, color: blue }}>Evaluate for: {q.evaluationCriteria}</p>
+                  </div>
+                ))}
+                {(ikResult.situationalQuestions as { scenario: string; whatYoureTesting: string }[] | undefined)?.map((q, i) => (
+                  <div key={i} style={{ background: "#EFF6FF", borderRadius: 8, padding: "10px 14px", border: "1px solid #BFDBFE" }}>
+                    <p style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 4 }}>Scenario: {q.scenario}</p>
+                    <p style={{ fontSize: 11, color: blue }}>Testing: {q.whatYoureTesting}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {ikSection === 'rubric' && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {(ikResult.scoringRubric as { dimension: string; weight: number; description: string; redFlag: string }[] | undefined)?.map((r, i) => (
+                  <div key={i} style={{ background: "#fff", borderRadius: 8, padding: "10px 14px", border: `1px solid ${bdr}` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: ink, margin: 0 }}>{r.dimension}</p>
+                      <span style={{ fontSize: 11, color: muted }}>Weight: {r.weight}%</span>
+                    </div>
+                    <p style={{ fontSize: 11, color: ink, marginBottom: 4 }}>{r.description}</p>
+                    <p style={{ fontSize: 11, color: red }}>Red flag: {r.redFlag}</p>
+                  </div>
+                ))}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  <div style={{ background: "#FEF2F2", borderRadius: 8, padding: "10px 14px", border: "1px solid #FECACA" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: red, textTransform: "uppercase", marginBottom: 6 }}>Red Flags</p>
+                    {(ikResult.redFlags as string[] | undefined)?.map((f, i) => <p key={i} style={{ fontSize: 11, color: ink, marginBottom: 3 }}>✗ {f}</p>)}
+                  </div>
+                  <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "10px 14px", border: "1px solid #BBF7D0" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: green, textTransform: "uppercase", marginBottom: 6 }}>Green Flags</p>
+                    {(ikResult.greenFlags as string[] | undefined)?.map((f, i) => <p key={i} style={{ fontSize: 11, color: ink, marginBottom: 3 }}>✓ {f}</p>)}
+                  </div>
+                </div>
+                {!!ikResult.decisionFramework && (
+                  <div style={{ background: "#EFF6FF", borderRadius: 8, padding: "10px 14px", border: "1px solid #BFDBFE" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: blue, textTransform: "uppercase", marginBottom: 4 }}>Decision Framework</p>
+                    <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{ikResult.decisionFramework as string}</p>
+                  </div>
+                )}
+              </div>
+            )}
+            <button onClick={() => setIkResult(null)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>Rebuild Kit</button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Culture Assessment ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 24, marginTop: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontWeight: 700, fontSize: 14, color: ink, margin: 0 }}>Culture Assessment</p>
+            <p style={{ fontSize: 12, color: muted, margin: "2px 0 0" }}>Score your culture health across key dimensions and get a tailored improvement framework.</p>
+          </div>
+          <button onClick={handleGenerateCultureAssessment} disabled={generatingCultAssess} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingCultAssess ? bdr : blue, color: generatingCultAssess ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingCultAssess ? "not-allowed" : "pointer", whiteSpace: "nowrap" as const, flexShrink: 0, marginLeft: 12 }}>
+            {generatingCultAssess ? "Assessing…" : "Assess Culture"}
+          </button>
+        </div>
+        {cultAssessError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{cultAssessError}</p>}
+        {cultAssessResult && (
+          <div style={{ background: surf, borderRadius: 10, padding: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 12 }}>
+              <div style={{ width: 56, height: 56, borderRadius: "50%", background: blue + "22", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <span style={{ fontSize: 22, fontWeight: 800, color: blue }}>{String(cultAssessResult.overallScore ?? '–')}</span>
+              </div>
+              <div>
+                {!!cultAssessResult.verdict && <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>{String(cultAssessResult.verdict)}</p>}
+                {!!cultAssessResult.cultureArchetype && <span style={{ fontSize: 11, background: green + "22", color: green, borderRadius: 20, padding: "2px 10px", fontWeight: 700 }}>{String(cultAssessResult.cultureArchetype)}</span>}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" as const }}>
+              {(["dimensions", "rituals", "hiring", "remote"] as const).map(t => (
+                <button key={t} onClick={() => setCultAssessTab(t)} style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${cultAssessTab === t ? blue : bdr}`, background: cultAssessTab === t ? blue : bg, color: cultAssessTab === t ? "#fff" : ink, fontSize: 11, fontWeight: cultAssessTab === t ? 700 : 400, cursor: "pointer" }}>
+                  {t === "dimensions" ? "📊 Dimensions" : t === "rituals" ? "🔁 Rituals" : t === "hiring" ? "🎯 Hiring Filter" : "🌐 Remote Playbook"}
+                </button>
+              ))}
+            </div>
+            {cultAssessTab === "dimensions" && !!cultAssessResult.dimensions && (() => {
+              const dims = cultAssessResult.dimensions as Record<string, unknown>[];
+              return (
+                <div style={{ display: "flex", flexDirection: "column" as const, gap: 10 }}>
+                  {dims.map((d, i) => (
+                    <div key={i} style={{ background: bg, borderRadius: 8, padding: 12, border: `1px solid ${bdr}`, cursor: "pointer" }} onClick={() => setCultAssessDimIdx(i === cultAssessDimIdx ? -1 : i)}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                        <p style={{ fontSize: 12, fontWeight: 700, color: ink }}>{String(d.dimension ?? '')}</p>
+                        <span style={{ fontSize: 13, fontWeight: 800, color: Number(d.score ?? 0) >= 70 ? green : Number(d.score ?? 0) >= 50 ? amber : red }}>{String(d.score ?? '–')}</span>
+                      </div>
+                      <div style={{ height: 4, borderRadius: 4, background: bdr, marginBottom: 6 }}>
+                        <div style={{ height: 4, borderRadius: 4, background: Number(d.score ?? 0) >= 70 ? green : Number(d.score ?? 0) >= 50 ? amber : red, width: `${Math.min(100, Number(d.score ?? 0))}%` }} />
+                      </div>
+                      {i === cultAssessDimIdx && (
+                        <div>
+                          {!!d.currentState && <p style={{ fontSize: 11, color: muted, marginBottom: 4 }}><b>Now:</b> {String(d.currentState)}</p>}
+                          {!!d.improvement && <p style={{ fontSize: 11, color: blue }}><b>Improve:</b> {String(d.improvement)}</p>}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+            {cultAssessTab === "rituals" && !!cultAssessResult.rituals && (() => {
+              const items = cultAssessResult.rituals as Record<string, unknown>[];
+              return (
+                <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+                  {items.map((r, i) => (
+                    <div key={i} style={{ background: bg, borderRadius: 8, padding: 12, border: `1px solid ${bdr}` }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
+                        <p style={{ fontSize: 12, fontWeight: 700, color: ink }}>{String(r.ritual ?? '')}</p>
+                        <div style={{ display: "flex", gap: 6, flexShrink: 0, marginLeft: 8 }}>
+                          {!!r.frequency && <span style={{ fontSize: 10, background: surf, border: `1px solid ${bdr}`, borderRadius: 20, padding: "2px 7px", color: muted }}>{String(r.frequency)}</span>}
+                          {!!r.effort && <span style={{ fontSize: 10, background: r.effort === 'low' ? green + "22" : r.effort === 'high' ? red + "22" : amber + "22", borderRadius: 20, padding: "2px 7px", color: r.effort === 'low' ? green : r.effort === 'high' ? red : amber, fontWeight: 700 }}>{String(r.effort)}</span>}
+                        </div>
+                      </div>
+                      {!!r.purpose && <p style={{ fontSize: 11, color: muted }}>{String(r.purpose)}</p>}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+            {cultAssessTab === "hiring" && !!cultAssessResult.hiringFilter && (() => {
+              const items = cultAssessResult.hiringFilter as Record<string, unknown>[];
+              return (
+                <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+                  {items.map((h, i) => (
+                    <div key={i} style={{ background: bg, borderRadius: 8, padding: 12, border: `1px solid ${bdr}` }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 6 }}>{String(h.value ?? '')}</p>
+                      {!!h.interviewQuestion && <p style={{ fontSize: 11, color: blue, marginBottom: 6, fontStyle: "italic" }}>Q: {String(h.interviewQuestion)}</p>}
+                      <div style={{ display: "flex", gap: 10 }}>
+                        {!!h.greenFlag && <p style={{ fontSize: 11, color: green }}>✓ {String(h.greenFlag)}</p>}
+                        {!!h.redFlag && <p style={{ fontSize: 11, color: red }}>✗ {String(h.redFlag)}</p>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+            {cultAssessTab === "remote" && !!cultAssessResult.remotePlaybook && (() => {
+              const rp = cultAssessResult.remotePlaybook as Record<string, unknown>;
+              return (
+                <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+                  {[["asyncNorm", "Async Norm"], ["syncCadence", "Sync Cadence"], ["documentationStandard", "Documentation"], ["connectionRitual", "Connection Ritual"]].map(([key, label]) => (
+                    !!rp[key] && (
+                      <div key={key} style={{ background: bg, borderRadius: 8, padding: 12, border: `1px solid ${bdr}` }}>
+                        <p style={{ fontSize: 11, fontWeight: 700, color: muted, marginBottom: 2 }}>{label}</p>
+                        <p style={{ fontSize: 12, color: ink }}>{String(rp[key])}</p>
+                      </div>
+                    )
+                  ))}
+                </div>
+              );
+            })()}
+            {!!cultAssessResult.priorityAction && (
+              <div style={{ marginTop: 12, background: blue + "11", borderRadius: 8, padding: 10, borderLeft: `3px solid ${blue}` }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>Priority Action</p>
+                <p style={{ fontSize: 12, color: ink }}>{String(cultAssessResult.priorityAction)}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Salary Benchmarking ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 24, marginTop: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontWeight: 700, fontSize: 14, color: ink, margin: 0 }}>Salary Benchmarking</p>
+            <p style={{ fontSize: 12, color: muted, margin: "2px 0 0" }}>Competitive comp ranges, equity guidance, and budget impact for every role you&apos;re hiring</p>
+          </div>
+          <button onClick={handleGenerateSalaryBenchmarks} disabled={generatingSalary} style={{ padding: "8px 16px", borderRadius: 8, background: generatingSalary ? surf : ink, color: generatingSalary ? muted : bg, fontSize: 12, fontWeight: 600, border: "none", cursor: generatingSalary ? "default" : "pointer" }}>
+            {generatingSalary ? "Benchmarking…" : "Run Benchmarks"}
+          </button>
+        </div>
+        <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+          <input value={salaryRolesInput} onChange={e => setSalaryRolesInput(e.target.value)} placeholder="Roles (comma-separated, or leave blank for hiring plan)" style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: ink, fontSize: 12, flex: 1, minWidth: 200 }} />
+          <input value={salaryLocation} onChange={e => setSalaryLocation(e.target.value)} placeholder="Location (e.g. US remote)" style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: ink, fontSize: 12, width: 180 }} />
+        </div>
+        {salaryError && <p style={{ color: "#DC2626", fontSize: 12 }}>{salaryError}</p>}
+        {salaryResult && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {!!salaryResult.overview && <p style={{ fontSize: 13, color: ink, margin: 0, padding: "10px 14px", background: surf, borderRadius: 8 }}>{String(salaryResult.overview)}</p>}
+            {!!salaryResult.compensationPhilosophy && <p style={{ fontSize: 12, color: muted, margin: 0 }}>Philosophy: <strong>{String(salaryResult.compensationPhilosophy)}</strong></p>}
+            {!!(salaryResult.roles as unknown[])?.length && (
+              <div>
+                <p style={{ fontSize: 12, fontWeight: 700, color: ink, margin: "0 0 8px" }}>Role Benchmarks</p>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+                  {(salaryResult.roles as { role: string }[]).map((r, i) => (
+                    <button key={i} onClick={() => setSalaryRoleIdx(i)} style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${salaryRoleIdx===i ? ink : bdr}`, background: salaryRoleIdx===i ? ink : bg, color: salaryRoleIdx===i ? bg : ink, fontSize: 11, cursor: "pointer" }}>{r.role}</button>
+                  ))}
+                </div>
+                {(() => {
+                  const r = (salaryResult.roles as Record<string, unknown>[])[salaryRoleIdx];
+                  if (!r) return null;
+                  const base = r.baseSalaryRange as { low?: number; mid?: number; high?: number } | undefined;
+                  return (
+                    <div style={{ padding: "12px 14px", background: surf, borderRadius: 8, border: `1px solid ${bdr}` }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                        <div>
+                          <p style={{ fontSize: 14, fontWeight: 700, color: ink, margin: "0 0 2px" }}>{String(r.role)}</p>
+                          <p style={{ fontSize: 11, color: muted, margin: 0 }}>{String(r.level ?? '')}</p>
+                        </div>
+                        <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 12, background: r.hiringDifficulty==="hard" ? "#FEE2E2" : r.hiringDifficulty==="medium" ? "#FEF3C7" : "#D1FAE5", color: r.hiringDifficulty==="hard" ? "#DC2626" : r.hiringDifficulty==="medium" ? "#D97706" : "#16A34A", fontWeight: 600 }}>{String(r.hiringDifficulty ?? "medium")} to hire</span>
+                      </div>
+                      {base && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
+                        {[["Low", base.low], ["Mid", base.mid], ["High", base.high]].map(([label, val]) => (
+                          <div key={String(label)} style={{ textAlign: "center", padding: "8px 4px", background: bg, borderRadius: 6, border: `1px solid ${bdr}` }}>
+                            <p style={{ fontSize: 10, color: muted, margin: "0 0 2px" }}>{String(label)}</p>
+                            <p style={{ fontSize: 13, fontWeight: 700, color: ink, margin: 0 }}>${Number(val ?? 0).toLocaleString()}</p>
+                          </div>
+                        ))}
+                      </div>}
+                      {!!r.equityPercent && <p style={{ fontSize: 12, color: ink, margin: "0 0 4px" }}>Equity: <strong>{String(r.equityPercent)}</strong></p>}
+                      {!!r.topCandidateMotivator && <p style={{ fontSize: 12, color: muted, margin: "0 0 4px" }}>Motivator: {String(r.topCandidateMotivator)}</p>}
+                      {!!r.negotiationTip && <p style={{ fontSize: 11, color: "#2563EB", margin: 0 }}>Tip: {String(r.negotiationTip)}</p>}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+            {!!salaryResult.budgetImpact && (
+              <div style={{ padding: "10px 14px", background: "#EFF6FF", borderRadius: 8 }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: ink, margin: "0 0 6px" }}>Budget Impact</p>
+                {!!(salaryResult.budgetImpact as Record<string, unknown>).estimatedAnnualBurn && <p style={{ fontSize: 12, color: ink, margin: "0 0 4px" }}>Annual burn: <strong>{String((salaryResult.budgetImpact as Record<string, unknown>).estimatedAnnualBurn)}</strong></p>}
+                {!!(salaryResult.budgetImpact as Record<string, unknown>).runwayImpact && <p style={{ fontSize: 12, color: ink, margin: "0 0 4px" }}>Runway impact: {String((salaryResult.budgetImpact as Record<string, unknown>).runwayImpact)}</p>}
+                {!!(salaryResult.budgetImpact as Record<string, unknown>).hiringRecommendation && <p style={{ fontSize: 12, color: muted, margin: 0 }}>{String((salaryResult.budgetImpact as Record<string, unknown>).hiringRecommendation)}</p>}
+              </div>
+            )}
+            {!!(salaryResult.benefitsToOffer as unknown[])?.length && (
+              <div>
+                <p style={{ fontSize: 12, fontWeight: 700, color: ink, margin: "0 0 6px" }}>Benefits to Offer</p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {(salaryResult.benefitsToOffer as string[]).map((b, i) => <span key={i} style={{ fontSize: 11, padding: "3px 10px", borderRadius: 12, background: surf, border: `1px solid ${bdr}`, color: ink }}>{b}</span>)}
+                </div>
+              </div>
+            )}
+            <button onClick={() => setSalaryResult(null)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>Re-run</button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Performance Review ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 20, marginTop: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>Performance Review Framework</p>
+            <p style={{ fontSize: 11, color: muted }}>Generate a structured review template with categories, rating descriptors, self-assessment questions, and development plan.</p>
+          </div>
+          <button onClick={handleGeneratePerformanceReview} disabled={generatingPR} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingPR ? bdr : "#7C3AED", color: generatingPR ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingPR ? "not-allowed" : "pointer", whiteSpace: "nowrap" as const, flexShrink: 0, marginLeft: 12 }}>
+            {generatingPR ? "Generating…" : "Generate Review"}
+          </button>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 14 }}>
+          {[
+            { label: "Employee Name", value: prName, set: setPrName, placeholder: "e.g. Alex Chen" },
+            { label: "Role", value: prRole, set: setPrRole, placeholder: "e.g. Lead Engineer" },
+            { label: "Review Period", value: prPeriod, set: setPrPeriod, placeholder: "e.g. Q1 2026" },
+          ].map(({ label, value, set, placeholder }) => (
+            <div key={label}>
+              <p style={{ fontSize: 11, color: muted, marginBottom: 4 }}>{label}</p>
+              <input value={value} onChange={e => set(e.target.value)} placeholder={placeholder} style={{ width: "100%", padding: "7px 10px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 13, color: ink, background: bg, boxSizing: "border-box" as const }} />
+            </div>
+          ))}
+        </div>
+        {prError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{prError}</p>}
+        {prResult && (
+          <div style={{ background: surf, borderRadius: 10, padding: 16 }}>
+            {/* Categories */}
+            {!!(prResult.framework as Record<string,unknown> | undefined)?.categories && !!((prResult.framework as Record<string,unknown>).categories as unknown[])?.length && (
+              <div style={{ marginBottom: 14 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Review Categories</p>
+                {(prResult.framework.categories as { category: string; weight: number; criteria: string[] }[]).map((c, i) => (
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "8px 0", borderBottom: `1px solid ${bdr}` }}>
+                    <div>
+                      <p style={{ fontSize: 12, fontWeight: 600, color: ink, margin: 0 }}>{c.category}</p>
+                      <p style={{ fontSize: 11, color: muted, margin: "2px 0 0" }}>{c.criteria?.slice(0, 2).join(' · ')}</p>
+                    </div>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: blue }}>{c.weight}%</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {/* Dev plan */}
+            {!!prResult.framework.developmentPlan && (() => {
+              const dp = prResult.framework.developmentPlan as { strengthToLeverage?: string; growthArea?: string; successMetric?: string };
+              return (
+                <div style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 8, padding: 12, marginBottom: 12 }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 6 }}>Development Plan</p>
+                  {dp.strengthToLeverage && <p style={{ fontSize: 12, color: ink, marginBottom: 4 }}>✦ <strong>Leverage:</strong> {dp.strengthToLeverage}</p>}
+                  {dp.growthArea && <p style={{ fontSize: 12, color: ink, marginBottom: 4 }}>↑ <strong>Grow:</strong> {dp.growthArea}</p>}
+                  {dp.successMetric && <p style={{ fontSize: 12, color: muted, margin: 0 }}>✓ <strong>Success in 90d:</strong> {dp.successMetric}</p>}
+                </div>
+              );
+            })()}
+            <button onClick={handleDownloadPR} style={{ padding: "8px 16px", borderRadius: 8, background: "#7C3AED", color: "#fff", fontSize: 12, fontWeight: 600, border: "none", cursor: "pointer" }}>
+              Download Review HTML
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Culture Deck ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 20, marginTop: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>Culture Deck</p>
+            <p style={{ fontSize: 11, color: muted }}>Generate a Stripe/Netflix-style culture deck with values, behaviors, hiring filters, rituals, and honest expectations.</p>
+          </div>
+          <button onClick={handleGenerateCultureDeck} disabled={generatingCulture}
+            style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingCulture ? bdr : "#7C3AED", color: generatingCulture ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingCulture ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
+            {generatingCulture ? "Generating…" : "Generate Culture Deck"}
+          </button>
+        </div>
+        {cultureError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{cultureError}</p>}
+        {cultureResult && (() => {
+          const deck = cultureResult.deck;
+          const values = (deck.values as { value: string; description: string; looksLike: string; doesntLookLike: string }[] | undefined) ?? [];
+          const hiringFilters = (deck.hiringFilters as string[] | undefined) ?? [];
+          const antiPatterns = (deck.antiPatterns as string[] | undefined) ?? [];
+          const rituals = (deck.rituals as { ritual: string; frequency: string; purpose: string }[] | undefined) ?? [];
+          return (
+            <div>
+              {!!deck.cultureHeadline && (
+                <p style={{ fontSize: 15, fontWeight: 800, color: ink, marginBottom: 4 }}>{deck.cultureHeadline as string}</p>
+              )}
+              {!!deck.mission && (
+                <p style={{ fontSize: 12, color: muted, fontStyle: "italic", marginBottom: 14 }}>{deck.mission as string}</p>
+              )}
+              {values.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Values</p>
+                  {values.map((v, vi) => (
+                    <div key={vi} style={{ padding: "10px 12px", background: surf, borderRadius: 8, border: `1px solid ${bdr}`, marginBottom: 8 }}>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 4 }}>{v.value}</p>
+                      <p style={{ fontSize: 11, color: muted, marginBottom: 6 }}>{v.description}</p>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <div style={{ flex: 1, background: "#F0FDF4", borderRadius: 6, padding: "5px 8px", fontSize: 11, color: green }}>✓ {v.looksLike}</div>
+                        <div style={{ flex: 1, background: "#FFF1F2", borderRadius: 6, padding: "5px 8px", fontSize: 11, color: red }}>✗ {v.doesntLookLike}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+                {hiringFilters.length > 0 && (
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: green, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>We Always Hire For</p>
+                    {hiringFilters.map((f, fi) => (
+                      <p key={fi} style={{ fontSize: 11, color: ink, marginBottom: 4 }}>✓ {f}</p>
+                    ))}
+                  </div>
+                )}
+                {antiPatterns.length > 0 && (
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: red, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Doesn&apos;t Work Here</p>
+                    {antiPatterns.map((a, ai) => (
+                      <p key={ai} style={{ fontSize: 11, color: red, marginBottom: 4 }}>✗ {a}</p>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {rituals.length > 0 && (
+                <div style={{ marginBottom: 14 }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Our Rituals</p>
+                  {rituals.map((r, ri) => (
+                    <div key={ri} style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 6 }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: amber, background: "#FFF7ED", borderRadius: 6, padding: "3px 8px", whiteSpace: "nowrap", border: "1px solid #FED7AA" }}>{r.frequency}</span>
+                      <div>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: ink }}>{r.ritual}</p>
+                        <p style={{ fontSize: 11, color: muted }}>{r.purpose}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <button onClick={handleDownloadCultureDeck}
+                style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#7C3AED", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", width: "100%" }}>
+                Download Culture Deck HTML
+              </button>
+            </div>
+          );
+        })()}
+      </div>
+
     </div>
   );
 }
@@ -8076,6 +13055,27 @@ function PMFSurveyRenderer({ data, artifactId, userId }: { data: Record<string, 
   const [distributeResult, setDistributeResult]       = useState<{ sent: number; failed: number; surveyUrl?: string; simulated?: boolean } | null>(null);
   const [distributeError, setDistributeError]         = useState<string | null>(null);
 
+  // PMF Score state
+  const [runningPMFScore, setRunningPMFScore]     = useState(false);
+  const [pmfScoreResult, setPmfScoreResult]       = useState<{
+    pmfScore?: number; grade?: string;
+    dimensions?: { name: string; weight: number; score: number; status: string; insight: string }[];
+    verdict?: string; topSignals?: string[]; risks?: string[]; nextStep?: string; trend?: string;
+  } | null>(null);
+  const [pmfScoreError, setPmfScoreError]         = useState<string | null>(null);
+
+  async function handleRunPMFScore() {
+    if (runningPMFScore) return;
+    setRunningPMFScore(true); setPmfScoreError(null);
+    try {
+      const res = await fetch('/api/agents/nova/pmf-score', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.pmfScore != null) setPmfScoreResult(r);
+      else setPmfScoreError(r.error ?? 'Failed to calculate PMF score');
+    } catch { setPmfScoreError('Network error'); }
+    finally { setRunningPMFScore(false); }
+  }
+
   async function handleDistributeSurvey() {
     if (distributing) return;
     const emails = distributeEmails.split(/[\n,;]+/).map(e => e.trim()).filter(e => e.includes('@') && e.includes('.'));
@@ -8126,6 +13126,229 @@ function PMFSurveyRenderer({ data, artifactId, userId }: { data: Record<string, 
       else setValidateError(r.error ?? 'Failed to validate');
     } catch { setValidateError('Network error'); }
     finally { setValidating(false); }
+  }
+
+  // Customer insight state
+  const [runningInsight, setRunningInsight] = useState(false);
+  const [insightReport, setInsightReport] = useState<{
+    topThemes?: { theme: string; frequency: string; summary: string }[];
+    painPoints?: { pain: string; severity: string; quote: string }[];
+    delightMoments?: string[];
+    churnRisks?: string[];
+    retentionDrivers?: string[];
+    productGaps?: string[];
+    verbatims?: string[];
+    segmentInsights?: { segment: string; insight: string; implication: string }[];
+    recommendations?: { action: string; impact: string; effort: string; rationale: string }[];
+    synthesisNote?: string;
+  } | null>(null);
+  const [insightError, setInsightError] = useState<string | null>(null);
+  const [insightTab, setInsightTab] = useState<'themes' | 'pain' | 'recs'>('themes');
+
+  async function handleRunInsight() {
+    if (runningInsight) return;
+    setRunningInsight(true); setInsightError(null);
+    try {
+      const res = await fetch('/api/agents/nova/customer-insight', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.report) setInsightReport(r.report);
+      else setInsightError(r.error ?? 'Failed to generate customer insight report');
+    } catch { setInsightError('Network error'); }
+    finally { setRunningInsight(false); }
+  }
+
+  // User personas state
+  const [generatingPersonas, setGeneratingPersonas] = useState(false);
+  const [personasResult, setPersonasResult] = useState<{
+    name?: string; avatar?: string; role?: string; demographics?: string;
+    goals?: string[]; frustrations?: string[]; buyingTriggers?: string[];
+    objections?: string[]; dayInLife?: string; quotableQuote?: string;
+    channelsTheyUse?: string[]; willingness?: string; decisionProcess?: string;
+  }[] | null>(null);
+  const [personasError, setPersonasError] = useState<string | null>(null);
+  const [activePersona, setActivePersona] = useState(0);
+
+  async function handleGeneratePersonas() {
+    if (generatingPersonas) return;
+    setGeneratingPersonas(true); setPersonasError(null);
+    try {
+      const res = await fetch('/api/agents/nova/user-personas', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.personas) setPersonasResult(r.personas);
+      else setPersonasError(r.error ?? 'Failed to generate user personas');
+    } catch { setPersonasError('Network error'); }
+    finally { setGeneratingPersonas(false); }
+  }
+
+  // Experiment Tracker state
+  const [etHypothesis, setEtHypothesis]           = useState('');
+  const [etMetric, setEtMetric]                   = useState('');
+  const [generatingET, setGeneratingET]           = useState(false);
+  const [etResult, setEtResult]                   = useState<Record<string, unknown> | null>(null);
+  const [etError, setEtError]                     = useState<string | null>(null);
+
+  async function handleRunExperiment() {
+    if (!etHypothesis.trim() || generatingET) return;
+    setGeneratingET(true); setEtError(null); setEtResult(null);
+    try {
+      const res = await fetch('/api/agents/nova/experiment-tracker', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hypothesis: etHypothesis, metric: etMetric || 'conversion rate' }),
+      });
+      const r = await res.json();
+      if (res.ok && r.experiment) setEtResult(r.experiment);
+      else setEtError(r.error ?? 'Failed to design experiment');
+    } catch { setEtError('Network error'); }
+    finally { setGeneratingET(false); }
+  }
+
+  // User Segmentation state
+  const [generatingUserSeg, setGeneratingUserSeg]     = useState(false);
+  const [userSegResult, setUserSegResult]             = useState<Record<string, unknown> | null>(null);
+  const [userSegError, setUserSegError]               = useState<string | null>(null);
+  const [userSegTab, setUserSegTab]                   = useState<'segments' | 'signals' | 'strategy' | 'monetization'>('segments');
+
+  async function handleGenerateUserSegmentation() {
+    if (generatingUserSeg) return;
+    setGeneratingUserSeg(true); setUserSegError(null); setUserSegResult(null);
+    try {
+      const res = await fetch('/api/agents/nova/user-segmentation', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.segmentation) setUserSegResult(r.segmentation);
+      else setUserSegError(r.error ?? 'Generation failed');
+    } catch { setUserSegError('Network error'); }
+    finally { setGeneratingUserSeg(false); }
+  }
+
+  // Feature Matrix state
+  // Retention Analysis state
+  // Engagement Loops state
+  const [generatingEngLoops, setGeneratingEngLoops]   = useState(false);
+  const [engLoopsResult, setEngLoopsResult]           = useState<Record<string, unknown> | null>(null);
+  const [engLoopsError, setEngLoopsError]             = useState<string | null>(null);
+  const [engLoopsTab, setEngLoopsTab]                 = useState<'coreloop' | 'loops' | 'triggers' | 'experiments'>('coreloop');
+
+  async function handleGenerateEngagementLoops() {
+    if (generatingEngLoops) return;
+    setGeneratingEngLoops(true); setEngLoopsError(null); setEngLoopsResult(null);
+    try {
+      const res = await fetch('/api/agents/nova/engagement-loops', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.loops) setEngLoopsResult(r.loops);
+      else setEngLoopsError(r.error ?? 'Generation failed');
+    } catch { setEngLoopsError('Network error'); }
+    finally { setGeneratingEngLoops(false); }
+  }
+
+  // Churn Analysis (deep) state
+  const [generatingChurnAnalysis, setGeneratingChurnAnalysis] = useState(false);
+  const [churnAnalysisResult, setChurnAnalysisResult]         = useState<Record<string, unknown> | null>(null);
+  const [churnAnalysisError, setChurnAnalysisError]           = useState<string | null>(null);
+  const [churnAnalysisTab, setChurnAnalysisTab]               = useState<'causes' | 'warnings' | 'playbook' | 'winback'>('causes');
+
+  async function handleGenerateChurnAnalysis() {
+    if (generatingChurnAnalysis) return;
+    setGeneratingChurnAnalysis(true); setChurnAnalysisError(null); setChurnAnalysisResult(null);
+    try {
+      const res = await fetch('/api/agents/nova/churn-analysis', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.analysis) setChurnAnalysisResult(r.analysis);
+      else setChurnAnalysisError(r.error ?? 'Generation failed');
+    } catch { setChurnAnalysisError('Network error'); }
+    finally { setGeneratingChurnAnalysis(false); }
+  }
+
+  // Onboarding Flow state
+  const [generatingOnbFlow, setGeneratingOnbFlow]     = useState(false);
+  const [onbFlowResult, setOnbFlowResult]             = useState<Record<string, unknown> | null>(null);
+  const [onbFlowError, setOnbFlowError]               = useState<string | null>(null);
+  const [onbFlowTab, setOnbFlowTab]                   = useState<'steps' | 'emails' | 'inapp' | 'failures'>('steps');
+
+  async function handleGenerateOnboardingFlow() {
+    if (generatingOnbFlow) return;
+    setGeneratingOnbFlow(true); setOnbFlowError(null); setOnbFlowResult(null);
+    try {
+      const res = await fetch('/api/agents/nova/onboarding-flow', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.flow) setOnbFlowResult(r.flow);
+      else setOnbFlowError(r.error ?? 'Generation failed');
+    } catch { setOnbFlowError('Network error'); }
+    finally { setGeneratingOnbFlow(false); }
+  }
+
+  // Growth Experiment state
+  const [growthFocus, setGrowthFocus]                 = useState('acquisition');
+  const [generatingGrowth, setGeneratingGrowth]       = useState(false);
+  const [growthResult, setGrowthResult]               = useState<Record<string, unknown> | null>(null);
+  const [growthError, setGrowthError]                 = useState<string | null>(null);
+  const [growthExpIdx, setGrowthExpIdx]               = useState(0);
+
+  async function handleGenerateGrowthExperiments() {
+    if (generatingGrowth) return;
+    setGeneratingGrowth(true); setGrowthError(null); setGrowthResult(null);
+    try {
+      const res = await fetch('/api/agents/nova/growth-experiment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ focus: growthFocus }),
+      });
+      const r = await res.json();
+      if (res.ok && r.experiments) setGrowthResult(r.experiments);
+      else setGrowthError(r.error ?? 'Generation failed');
+    } catch { setGrowthError('Network error'); }
+    finally { setGeneratingGrowth(false); }
+  }
+
+  // Activation Funnel state
+  const [generatingFunnel, setGeneratingFunnel]       = useState(false);
+  const [funnelResult, setFunnelResult]               = useState<Record<string, unknown> | null>(null);
+  const [funnelError, setFunnelError]                 = useState<string | null>(null);
+  const [funnelStageIdx, setFunnelStageIdx]           = useState(0);
+
+  async function handleGenerateFunnel() {
+    if (generatingFunnel) return;
+    setGeneratingFunnel(true); setFunnelError(null); setFunnelResult(null);
+    try {
+      const res = await fetch('/api/agents/nova/activation-funnel', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.funnel) setFunnelResult(r.funnel);
+      else setFunnelError(r.error ?? 'Analysis failed');
+    } catch { setFunnelError('Network error'); }
+    finally { setGeneratingFunnel(false); }
+  }
+
+  const [generatingRetention, setGeneratingRetention] = useState(false);
+  const [retentionResult, setRetentionResult]         = useState<Record<string, unknown> | null>(null);
+  const [retentionError, setRetentionError]           = useState<string | null>(null);
+  const [retentionTab, setRetentionTab]               = useState<'cohorts' | 'churn' | 'actions' | 'experiments'>('cohorts');
+
+  async function handleGenerateRetention() {
+    if (generatingRetention) return;
+    setGeneratingRetention(true); setRetentionError(null); setRetentionResult(null);
+    try {
+      const res = await fetch('/api/agents/nova/retention-analysis', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.retention) setRetentionResult(r.retention);
+      else setRetentionError(r.error ?? 'Analysis failed');
+    } catch { setRetentionError('Network error'); }
+    finally { setGeneratingRetention(false); }
+  }
+
+  const [generatingFM, setGeneratingFM]           = useState(false);
+  const [fmResult, setFmResult]                   = useState<Record<string, unknown> | null>(null);
+  const [fmError, setFmError]                     = useState<string | null>(null);
+  const [fmSort, setFmSort]                       = useState<'rice' | 'impact' | 'effort'>('rice');
+
+  async function handleGenerateFeatureMatrix() {
+    if (generatingFM) return;
+    setGeneratingFM(true); setFmError(null); setFmResult(null);
+    try {
+      const res = await fetch('/api/agents/nova/feature-matrix', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.matrix) setFmResult(r.matrix);
+      else setFmError(r.error ?? 'Failed to generate feature matrix');
+    } catch { setFmError('Network error'); }
+    finally { setGeneratingFM(false); }
   }
 
   // Interview scheduler state
@@ -9155,8 +14378,1001 @@ function PMFSurveyRenderer({ data, artifactId, userId }: { data: Record<string, 
         )}
       </div>
 
+      {/* ── PMF Composite Score ─────────────────────────────────────────────── */}
+      <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 12, padding: "16px 20px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: pmfScoreResult ? 14 : 0 }}>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: green, marginBottom: 2 }}>PMF Composite Score</p>
+            <p style={{ fontSize: 11, color: muted }}>Nova synthesizes survey NPS, churn signals, feature requests, and cohort data into a single PMF score across 5 dimensions.</p>
+            {pmfScoreError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{pmfScoreError}</p>}
+          </div>
+          <button onClick={handleRunPMFScore} disabled={runningPMFScore} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: runningPMFScore ? bdr : green, color: runningPMFScore ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: runningPMFScore ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
+            {runningPMFScore ? "Calculating…" : "Calculate PMF Score"}
+          </button>
+        </div>
+        {pmfScoreResult && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+              <div style={{ width: 72, height: 72, borderRadius: 14, background: (pmfScoreResult.pmfScore ?? 0) >= 70 ? "#F0FDF4" : (pmfScoreResult.pmfScore ?? 0) >= 45 ? "#FFFBEB" : "#FEF2F2", border: `3px solid ${(pmfScoreResult.pmfScore ?? 0) >= 70 ? green : (pmfScoreResult.pmfScore ?? 0) >= 45 ? amber : red}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <p style={{ fontSize: 22, fontWeight: 900, color: (pmfScoreResult.pmfScore ?? 0) >= 70 ? green : (pmfScoreResult.pmfScore ?? 0) >= 45 ? amber : red, lineHeight: 1 }}>{pmfScoreResult.pmfScore}</p>
+                <p style={{ fontSize: 9, color: muted, textTransform: "uppercase", marginTop: 2 }}>PMF Score</p>
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: ink }}>{pmfScoreResult.grade}</span>
+                  {pmfScoreResult.trend && (
+                    <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 999, background: pmfScoreResult.trend === 'improving' ? "#F0FDF4" : pmfScoreResult.trend === 'declining' ? "#FEF2F2" : surf, border: `1px solid ${pmfScoreResult.trend === 'improving' ? "#BBF7D0" : pmfScoreResult.trend === 'declining' ? "#FECACA" : bdr}`, color: pmfScoreResult.trend === 'improving' ? green : pmfScoreResult.trend === 'declining' ? red : muted, fontWeight: 600, textTransform: "capitalize" }}>{pmfScoreResult.trend}</span>
+                  )}
+                </div>
+                {pmfScoreResult.verdict && <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{pmfScoreResult.verdict}</p>}
+              </div>
+            </div>
+            {pmfScoreResult.dimensions && pmfScoreResult.dimensions.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {pmfScoreResult.dimensions.map((dim, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: 11, color: muted, width: 130, flexShrink: 0 }}>{dim.name} ({dim.weight}%)</span>
+                    <div style={{ flex: 1, height: 6, background: bdr, borderRadius: 3, overflow: "hidden" }}>
+                      <div style={{ width: `${dim.score}%`, height: "100%", background: dim.score >= 70 ? green : dim.score >= 45 ? amber : red, borderRadius: 3 }} />
+                    </div>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: dim.score >= 70 ? green : dim.score >= 45 ? amber : red, width: 28, textAlign: "right", flexShrink: 0 }}>{dim.score}</span>
+                    <span style={{ fontSize: 10, color: muted, flexShrink: 0, width: 60, textTransform: "capitalize" }}>{dim.status}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              {pmfScoreResult.topSignals && pmfScoreResult.topSignals.length > 0 && (
+                <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "10px 12px", border: "1px solid #BBF7D0" }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, color: green, textTransform: "uppercase", marginBottom: 6 }}>Top Signals</p>
+                  {pmfScoreResult.topSignals.map((s, i) => <p key={i} style={{ fontSize: 11, color: ink, marginBottom: 2 }}>✓ {s}</p>)}
+                </div>
+              )}
+              {pmfScoreResult.risks && pmfScoreResult.risks.length > 0 && (
+                <div style={{ background: "#FEF2F2", borderRadius: 8, padding: "10px 12px", border: "1px solid #FECACA" }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, color: red, textTransform: "uppercase", marginBottom: 6 }}>Risks</p>
+                  {pmfScoreResult.risks.map((r, i) => <p key={i} style={{ fontSize: 11, color: ink, marginBottom: 2 }}>⚠ {r}</p>)}
+                </div>
+              )}
+            </div>
+            {pmfScoreResult.nextStep && (
+              <div style={{ background: "#EFF6FF", borderRadius: 8, padding: "10px 12px", border: "1px solid #BFDBFE" }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: blue, textTransform: "uppercase", marginBottom: 4 }}>Next Step</p>
+                <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{pmfScoreResult.nextStep}</p>
+              </div>
+            )}
+            <button onClick={() => setPmfScoreResult(null)} style={{ padding: "7px 14px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>Recalculate</button>
+          </div>
+        )}
+      </div>
+
+      {/* ── User Segmentation ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 24, marginTop: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontWeight: 700, fontSize: 14, color: ink, margin: 0 }}>User Segmentation</p>
+            <p style={{ fontSize: 12, color: muted, margin: "2px 0 0" }}>Behavioral user segments with tailored strategies, monetization plays, and in-product signals.</p>
+          </div>
+          <button onClick={handleGenerateUserSegmentation} disabled={generatingUserSeg} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingUserSeg ? bdr : blue, color: generatingUserSeg ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingUserSeg ? "not-allowed" : "pointer", whiteSpace: "nowrap" as const, flexShrink: 0, marginLeft: 12 }}>
+            {generatingUserSeg ? "Segmenting…" : "Segment Users"}
+          </button>
+        </div>
+        {userSegError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{userSegError}</p>}
+        {userSegResult && (
+          <div style={{ background: surf, borderRadius: 10, padding: 16 }}>
+            {!!userSegResult.verdict && <p style={{ fontSize: 12, color: muted, fontStyle: "italic", marginBottom: 8 }}>{String(userSegResult.verdict)}</p>}
+            {!!userSegResult.segmentationModel && <span style={{ fontSize: 11, background: blue + "22", color: blue, borderRadius: 20, padding: "2px 10px", fontWeight: 700, display: "inline-block", marginBottom: 12 }}>Model: {String(userSegResult.segmentationModel)}</span>}
+            <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" as const }}>
+              {(["segments", "signals", "strategy", "monetization"] as const).map(t => (
+                <button key={t} onClick={() => setUserSegTab(t)} style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${userSegTab === t ? blue : bdr}`, background: userSegTab === t ? blue : bg, color: userSegTab === t ? "#fff" : ink, fontSize: 11, fontWeight: userSegTab === t ? 700 : 400, cursor: "pointer" }}>
+                  {t === "segments" ? "👥 Segments" : t === "signals" ? "📡 Signals" : t === "strategy" ? "🎯 Strategy" : "💰 Monetization"}
+                </button>
+              ))}
+            </div>
+            {userSegTab === "segments" && !!userSegResult.segments && (() => {
+              const segs = userSegResult.segments as Record<string, unknown>[];
+              return (
+                <div style={{ display: "flex", flexDirection: "column" as const, gap: 10 }}>
+                  {segs.map((s, i) => (
+                    <div key={i} style={{ background: bg, borderRadius: 8, padding: 12, border: `1px solid ${bdr}` }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+                        <p style={{ fontSize: 12, fontWeight: 700, color: ink }}>{String(s.name ?? '')}</p>
+                        <div style={{ display: "flex", gap: 6, flexShrink: 0, marginLeft: 8 }}>
+                          {!!s.size && <span style={{ fontSize: 10, background: surf, border: `1px solid ${bdr}`, borderRadius: 20, padding: "2px 7px", color: muted }}>{String(s.size)}</span>}
+                          {!!s.retentionRisk && <span style={{ fontSize: 10, fontWeight: 700, color: s.retentionRisk === 'high' ? red : s.retentionRisk === 'low' ? green : amber }}>{String(s.retentionRisk)} risk</span>}
+                        </div>
+                      </div>
+                      {!!s.jobToBeDone && <p style={{ fontSize: 11, color: muted, marginBottom: 4 }}>{String(s.jobToBeDone)}</p>}
+                      {!!s.keyTrigger && <p style={{ fontSize: 11, color: blue }}><b>Trigger:</b> {String(s.keyTrigger)}</p>}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+            {userSegTab === "signals" && !!userSegResult.behavioralSignals && (() => {
+              const sigs = userSegResult.behavioralSignals as Record<string, unknown>[];
+              return (
+                <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+                  {sigs.map((s, i) => (
+                    <div key={i} style={{ background: bg, borderRadius: 8, padding: 12, border: `1px solid ${bdr}` }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 4 }}>{String(s.signal ?? '')}</p>
+                      {!!s.meaning && <p style={{ fontSize: 11, color: muted, marginBottom: 4 }}><b>Means:</b> {String(s.meaning)}</p>}
+                      {!!s.action && <p style={{ fontSize: 11, color: blue }}><b>Action:</b> {String(s.action)}</p>}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+            {userSegTab === "strategy" && !!userSegResult.segmentStrategy && (() => {
+              const strats = userSegResult.segmentStrategy as Record<string, unknown>[];
+              return (
+                <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+                  {strats.map((s, i) => (
+                    <div key={i} style={{ background: bg, borderRadius: 8, padding: 12, border: `1px solid ${bdr}` }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                        <p style={{ fontSize: 12, fontWeight: 700, color: ink }}>{String(s.segment ?? '')}</p>
+                        {!!s.goal && <span style={{ fontSize: 10, background: surf, border: `1px solid ${bdr}`, borderRadius: 20, padding: "2px 7px", color: blue, fontWeight: 700 }}>{String(s.goal)}</span>}
+                      </div>
+                      {!!s.messaging && <p style={{ fontSize: 11, color: muted, marginBottom: 4, fontStyle: "italic" }}>{String(s.messaging)}</p>}
+                      {!!s.tactics && <div>{(s.tactics as string[]).map((t, j) => <p key={j} style={{ fontSize: 11, color: ink }}>• {t}</p>)}</div>}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+            {userSegTab === "monetization" && !!userSegResult.monetizationBySegment && (() => {
+              const items = userSegResult.monetizationBySegment as Record<string, unknown>[];
+              return (
+                <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+                  {items.map((m, i) => (
+                    <div key={i} style={{ background: bg, borderRadius: 8, padding: 12, border: `1px solid ${bdr}` }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 4 }}>{String(m.segment ?? '')}</p>
+                      {!!m.expansionPlay && <p style={{ fontSize: 11, color: blue, marginBottom: 4 }}><b>Play:</b> {String(m.expansionPlay)}</p>}
+                      {!!m.revenueOpportunity && <p style={{ fontSize: 11, color: green }}><b>Opportunity:</b> {String(m.revenueOpportunity)}</p>}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+            {!!userSegResult.priorityAction && (
+              <div style={{ marginTop: 12, background: blue + "11", borderRadius: 8, padding: 10, borderLeft: `3px solid ${blue}` }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>Priority Action</p>
+                <p style={{ fontSize: 12, color: ink }}>{String(userSegResult.priorityAction)}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Engagement Loops ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 24, marginTop: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontWeight: 700, fontSize: 14, color: ink, margin: 0 }}>Engagement Loops</p>
+            <p style={{ fontSize: 12, color: muted, margin: "2px 0 0" }}>Design habit-forming product loops using the Hooked model to drive retention and virality</p>
+          </div>
+          <button onClick={handleGenerateEngagementLoops} disabled={generatingEngLoops} style={{ padding: "8px 16px", borderRadius: 8, background: generatingEngLoops ? surf : ink, color: generatingEngLoops ? muted : bg, fontSize: 12, fontWeight: 600, border: "none", cursor: generatingEngLoops ? "default" : "pointer" }}>
+            {generatingEngLoops ? "Designing…" : "Design Loops"}
+          </button>
+        </div>
+        {engLoopsError && <p style={{ color: "#DC2626", fontSize: 12 }}>{engLoopsError}</p>}
+        {engLoopsResult && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {!!engLoopsResult.verdict && <p style={{ fontSize: 13, color: ink, margin: 0, padding: "10px 14px", background: surf, borderRadius: 8 }}>{String(engLoopsResult.verdict)}</p>}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {(["coreloop","loops","triggers","experiments"] as const).map(t => (
+                <button key={t} onClick={() => setEngLoopsTab(t)} style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${engLoopsTab===t ? ink : bdr}`, background: engLoopsTab===t ? ink : bg, color: engLoopsTab===t ? bg : ink, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                  {t==="coreloop" ? "🔄 Core Loop" : t==="loops" ? "♾️ All Loops" : t==="triggers" ? "🔔 Triggers" : "🧪 Experiments"}
+                </button>
+              ))}
+            </div>
+            {engLoopsTab === "coreloop" && !!engLoopsResult.coreLoop && (() => {
+              const cl = engLoopsResult.coreLoop as Record<string, unknown>;
+              return (
+                <div style={{ padding: "14px 16px", background: surf, borderRadius: 8, border: `1px solid ${bdr}` }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: ink, margin: "0 0 12px" }}>The Hooked Model</p>
+                  {[["🎯 Trigger", cl.trigger], ["⚡ Action", cl.action], ["🎁 Variable Reward", cl.variableReward], ["💰 Investment", cl.investment]].map(([label, val]) => (
+                    <div key={String(label)} style={{ display: "flex", gap: 12, marginBottom: 8, alignItems: "flex-start" }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: ink, minWidth: 130, flexShrink: 0 }}>{String(label)}</span>
+                      <p style={{ fontSize: 12, color: muted, margin: 0 }}>{val ? String(val) : "—"}</p>
+                    </div>
+                  ))}
+                  {!!cl.loopDuration && <p style={{ fontSize: 11, color: "#2563EB", margin: "8px 0 0" }}>Loop duration: {String(cl.loopDuration)}</p>}
+                </div>
+              );
+            })()}
+            {engLoopsTab === "loops" && !!(engLoopsResult.loops as unknown[])?.length && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {(engLoopsResult.loops as { loopName: string; type: string; description: string; buildDifficulty: string; impact: string }[]).map((l, i) => (
+                  <div key={i} style={{ padding: "10px 14px", background: surf, borderRadius: 8, border: `1px solid ${bdr}` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: ink, margin: 0 }}>{l.loopName}</p>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 12, background: "#EFF6FF", color: "#2563EB" }}>{l.type}</span>
+                        <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 12, background: surf, color: muted }}>{l.buildDifficulty}</span>
+                      </div>
+                    </div>
+                    <p style={{ fontSize: 12, color: muted, margin: "0 0 4px" }}>{l.description}</p>
+                    <p style={{ fontSize: 11, color: "#16A34A", margin: 0 }}>Impact: {l.impact}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {engLoopsTab === "triggers" && !!(engLoopsResult.triggers as unknown[])?.length && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {(engLoopsResult.triggers as { trigger: string; channel: string; timing: string; copy: string }[]).map((t, i) => (
+                  <div key={i} style={{ padding: "10px 14px", background: "#FFFBEB", borderRadius: 8, borderLeft: "3px solid #D97706" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: ink, margin: 0 }}>{t.trigger}</p>
+                      <span style={{ fontSize: 11, color: "#2563EB" }}>{t.channel}</span>
+                    </div>
+                    <p style={{ fontSize: 12, color: muted, margin: "0 0 4px" }}>When: {t.timing}</p>
+                    <p style={{ fontSize: 12, color: ink, margin: 0, fontStyle: "italic" }}>&quot;{t.copy}&quot;</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {engLoopsTab === "experiments" && !!(engLoopsResult.experiments as unknown[])?.length && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {(engLoopsResult.experiments as { experiment: string; hypothesis: string; duration: string; successCriteria: string }[]).map((e, i) => (
+                  <div key={i} style={{ padding: "10px 14px", background: "#EFF6FF", borderRadius: 8, borderLeft: "3px solid #2563EB" }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: ink, margin: "0 0 4px" }}>{e.experiment}</p>
+                    <p style={{ fontSize: 12, color: muted, margin: "0 0 4px" }}>{e.hypothesis}</p>
+                    <div style={{ display: "flex", gap: 12 }}>
+                      <span style={{ fontSize: 11, color: "#2563EB" }}>Duration: {e.duration}</span>
+                      <span style={{ fontSize: 11, color: "#16A34A" }}>Success: {e.successCriteria}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {!!engLoopsResult.priorityBuild && <div style={{ padding: "10px 14px", background: "#F0FDF4", borderRadius: 8, borderLeft: "3px solid #16A34A" }}><p style={{ fontSize: 12, fontWeight: 700, color: "#16A34A", margin: "0 0 4px" }}>Priority Build</p><p style={{ fontSize: 12, color: ink, margin: 0 }}>{String(engLoopsResult.priorityBuild)}</p></div>}
+            <button onClick={() => setEngLoopsResult(null)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>Re-run</button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Churn Analysis ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 24, marginTop: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontWeight: 700, fontSize: 14, color: ink, margin: 0 }}>Churn Analysis</p>
+            <p style={{ fontSize: 12, color: muted, margin: "2px 0 0" }}>Root causes, early warning signals, and retention playbook to stop churn before it happens</p>
+          </div>
+          <button onClick={handleGenerateChurnAnalysis} disabled={generatingChurnAnalysis} style={{ padding: "8px 16px", borderRadius: 8, background: generatingChurnAnalysis ? surf : ink, color: generatingChurnAnalysis ? muted : bg, fontSize: 12, fontWeight: 600, border: "none", cursor: generatingChurnAnalysis ? "default" : "pointer" }}>
+            {generatingChurnAnalysis ? "Analyzing…" : "Analyze Churn"}
+          </button>
+        </div>
+        {churnAnalysisError && <p style={{ color: "#DC2626", fontSize: 12 }}>{churnAnalysisError}</p>}
+        {churnAnalysisResult && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {!!churnAnalysisResult.verdict && <p style={{ fontSize: 13, color: ink, margin: 0, padding: "10px 14px", background: surf, borderRadius: 8 }}>{String(churnAnalysisResult.verdict)}</p>}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {!!churnAnalysisResult.churnRate && <div style={{ padding: "10px 12px", background: "#FEF2F2", borderRadius: 8 }}><p style={{ fontSize: 10, color: muted, margin: "0 0 2px" }}>Est. Monthly Churn</p><p style={{ fontSize: 16, fontWeight: 700, color: "#DC2626", margin: 0 }}>{String(churnAnalysisResult.churnRate)}</p></div>}
+              {!!churnAnalysisResult.benchmarkChurn && <div style={{ padding: "10px 12px", background: surf, borderRadius: 8 }}><p style={{ fontSize: 10, color: muted, margin: "0 0 2px" }}>Benchmark</p><p style={{ fontSize: 16, fontWeight: 700, color: ink, margin: 0 }}>{String(churnAnalysisResult.benchmarkChurn)}</p></div>}
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {(["causes","warnings","playbook","winback"] as const).map(t => (
+                <button key={t} onClick={() => setChurnAnalysisTab(t)} style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${churnAnalysisTab===t ? ink : bdr}`, background: churnAnalysisTab===t ? ink : bg, color: churnAnalysisTab===t ? bg : ink, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                  {t==="causes" ? "🔍 Root Causes" : t==="warnings" ? "⚠️ Warnings" : t==="playbook" ? "📋 Playbook" : "↩️ Win-back"}
+                </button>
+              ))}
+            </div>
+            {churnAnalysisTab === "causes" && !!(churnAnalysisResult.rootCauses as unknown[])?.length && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {(churnAnalysisResult.rootCauses as { cause: string; frequency: string; impact: string; fix: string }[]).map((c, i) => (
+                  <div key={i} style={{ padding: "10px 14px", background: surf, borderRadius: 8, border: `1px solid ${bdr}` }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: ink, margin: "0 0 4px" }}>{c.cause}</p>
+                    <div style={{ display: "flex", gap: 12, marginBottom: 4 }}>
+                      <span style={{ fontSize: 11, color: muted }}>Frequency: {c.frequency}</span>
+                      <span style={{ fontSize: 11, color: "#DC2626" }}>Impact: {c.impact}</span>
+                    </div>
+                    <p style={{ fontSize: 12, color: "#16A34A", margin: 0 }}>Fix: {c.fix}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {churnAnalysisTab === "warnings" && !!(churnAnalysisResult.earlyWarnings as unknown[])?.length && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {(churnAnalysisResult.earlyWarnings as { signal: string; threshold: string; action: string; owner: string }[]).map((w, i) => (
+                  <div key={i} style={{ padding: "10px 14px", background: "#FFFBEB", borderRadius: 8, borderLeft: "3px solid #D97706" }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: ink, margin: "0 0 4px" }}>Signal: {w.signal}</p>
+                    <p style={{ fontSize: 12, color: ink, margin: "0 0 4px" }}>Threshold: {w.threshold}</p>
+                    <p style={{ fontSize: 12, color: "#16A34A", margin: "0 0 2px" }}>Action: {w.action}</p>
+                    <p style={{ fontSize: 11, color: muted, margin: 0 }}>Owner: {w.owner}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {churnAnalysisTab === "playbook" && !!(churnAnalysisResult.retentionPlaybook as unknown[])?.length && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {(churnAnalysisResult.retentionPlaybook as { stage: string; tactic: string; timing: string; expectedLift: string }[]).map((p, i) => (
+                  <div key={i} style={{ padding: "10px 14px", background: "#F0FDF4", borderRadius: 8, borderLeft: "3px solid #16A34A" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: "#16A34A", textTransform: "uppercase" }}>{p.stage}</span>
+                      <span style={{ fontSize: 11, color: muted }}>{p.timing}</span>
+                    </div>
+                    <p style={{ fontSize: 13, color: ink, margin: "0 0 4px" }}>{p.tactic}</p>
+                    <p style={{ fontSize: 11, color: "#16A34A", margin: 0 }}>Expected lift: {p.expectedLift}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {churnAnalysisTab === "winback" && !!churnAnalysisResult.winbackCampaign && (() => {
+              const wb = churnAnalysisResult.winbackCampaign as Record<string, unknown>;
+              return (
+                <div style={{ padding: "12px 14px", background: "#EFF6FF", borderRadius: 8, border: `1px solid #BFDBFE` }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: ink, margin: "0 0 8px" }}>Win-back Campaign</p>
+                  {!!wb.targetSegment && <p style={{ fontSize: 12, color: ink, margin: "0 0 4px" }}>Target: <strong>{String(wb.targetSegment)}</strong></p>}
+                  {!!wb.message && <p style={{ fontSize: 12, color: ink, margin: "0 0 4px" }}>Message: {String(wb.message)}</p>}
+                  {!!wb.offer && <p style={{ fontSize: 12, color: "#2563EB", margin: "0 0 4px" }}>Offer: {String(wb.offer)}</p>}
+                  {!!wb.timing && <p style={{ fontSize: 11, color: muted, margin: 0 }}>Timing: {String(wb.timing)}</p>}
+                </div>
+              );
+            })()}
+            {!!churnAnalysisResult.priority && <div style={{ padding: "10px 14px", background: "#F0FDF4", borderRadius: 8, borderLeft: "3px solid #16A34A" }}><p style={{ fontSize: 12, fontWeight: 700, color: "#16A34A", margin: "0 0 4px" }}>Priority Action</p><p style={{ fontSize: 12, color: ink, margin: 0 }}>{String(churnAnalysisResult.priority)}</p></div>}
+            <button onClick={() => setChurnAnalysisResult(null)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>Re-run</button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Onboarding Flow ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 20, marginTop: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>Onboarding Flow</p>
+            <p style={{ fontSize: 11, color: muted }}>Design the full user onboarding journey — steps, email sequence, in-app messages, and drop-off recovery.</p>
+          </div>
+          <button onClick={handleGenerateOnboardingFlow} disabled={generatingOnbFlow} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingOnbFlow ? bdr : green, color: generatingOnbFlow ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingOnbFlow ? "not-allowed" : "pointer", whiteSpace: "nowrap" as const, flexShrink: 0, marginLeft: 12 }}>
+            {generatingOnbFlow ? "Designing…" : "Design Onboarding"}
+          </button>
+        </div>
+        {onbFlowError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{onbFlowError}</p>}
+        {onbFlowResult && (
+          <div style={{ background: surf, borderRadius: 10, padding: 16 }}>
+            {/* Aha summary */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+              {[["Aha Moment Goal", onbFlowResult.ahaGoal], ["Target Time to Aha", onbFlowResult.targetTimeToAha]].map(([l, v]) => (
+                <div key={String(l)} style={{ background: bg, borderRadius: 8, padding: 10 }}>
+                  <p style={{ fontSize: 11, color: muted, margin: "0 0 2px" }}>{String(l)}</p>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: ink, margin: 0 }}>{String(v ?? "—")}</p>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+              {(["steps", "emails", "inapp", "failures"] as const).map(t => (
+                <button key={t} onClick={() => setOnbFlowTab(t)} style={{ padding: "5px 12px", borderRadius: 6, border: `1px solid ${onbFlowTab === t ? green : bdr}`, background: onbFlowTab === t ? "#DCFCE7" : "transparent", color: onbFlowTab === t ? "#16A34A" : muted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                  {t === "steps" ? "Steps" : t === "emails" ? "Email Sequence" : t === "inapp" ? "In-App" : "Fail Points"}
+                </button>
+              ))}
+            </div>
+            {onbFlowTab === "steps" && !!(onbFlowResult.steps as unknown[])?.length && (
+              <div>
+                {(onbFlowResult.steps as { step: string; type: string; purpose: string; copy: string; successSignal: string; skipAllowed: boolean }[]).map((s, i) => (
+                  <div key={i} style={{ padding: "10px 0", borderBottom: `1px solid ${bdr}`, display: "flex", gap: 12 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "#16A34A", background: "#DCFCE7", borderRadius: 6, padding: "3px 8px", whiteSpace: "nowrap" as const, height: "fit-content" }}>{s.type}</span>
+                    <div>
+                      <p style={{ fontSize: 12, fontWeight: 600, color: ink, margin: 0 }}>{s.step}</p>
+                      <p style={{ fontSize: 11, color: muted, margin: "2px 0" }}>{s.purpose}</p>
+                      <p style={{ fontSize: 12, color: blue, fontStyle: "italic" }}>&quot;{s.copy}&quot;</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {onbFlowTab === "emails" && !!(onbFlowResult.emailSequence as unknown[])?.length && (
+              <div>
+                {(onbFlowResult.emailSequence as { email: string; sendTiming: string; subject: string; bodyOutline: string; cta: string }[]).map((e, i) => (
+                  <div key={i} style={{ padding: "10px 0", borderBottom: `1px solid ${bdr}` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                      <p style={{ fontSize: 12, fontWeight: 600, color: ink, margin: 0 }}>{e.email}</p>
+                      <span style={{ fontSize: 11, color: muted }}>{e.sendTiming}</span>
+                    </div>
+                    <p style={{ fontSize: 12, color: ink, marginBottom: 4 }}>Subject: <em>{e.subject}</em></p>
+                    <p style={{ fontSize: 11, color: muted, marginBottom: 4 }}>{e.bodyOutline}</p>
+                    <p style={{ fontSize: 11, color: blue }}>CTA: {e.cta}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {onbFlowTab === "inapp" && !!(onbFlowResult.inAppMessages as unknown[])?.length && (
+              <div>
+                {(onbFlowResult.inAppMessages as { trigger: string; message: string; cta: string }[]).map((m, i) => (
+                  <div key={i} style={{ padding: "8px 0", borderBottom: `1px solid ${bdr}` }}>
+                    <p style={{ fontSize: 11, color: muted, marginBottom: 2 }}>Trigger: {m.trigger}</p>
+                    <p style={{ fontSize: 12, color: ink, marginBottom: 2 }}>&quot;{m.message}&quot;</p>
+                    <p style={{ fontSize: 11, color: blue }}>Button: {m.cta}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {onbFlowTab === "failures" && !!(onbFlowResult.commonFailPoints as unknown[])?.length && (
+              <div>
+                {(onbFlowResult.commonFailPoints as { failPoint: string; percentage: number; cause: string; fix: string }[]).map((fp, i) => (
+                  <div key={i} style={{ padding: "10px 0", borderBottom: `1px solid ${bdr}` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                      <p style={{ fontSize: 12, fontWeight: 600, color: ink, margin: 0 }}>{fp.failPoint}</p>
+                      <span style={{ fontSize: 12, color: red, fontWeight: 700 }}>{fp.percentage}% drop</span>
+                    </div>
+                    <p style={{ fontSize: 12, color: muted, marginBottom: 4 }}>Cause: {fp.cause}</p>
+                    <p style={{ fontSize: 12, color: green }}>Fix: {fp.fix}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Growth Experiments ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 20, marginTop: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>Growth Experiment Program</p>
+            <p style={{ fontSize: 11, color: muted }}>Design a prioritized backlog of growth experiments with hypotheses, metrics, and a running playbook.</p>
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <select value={growthFocus} onChange={e => setGrowthFocus(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 12, color: ink, background: bg }}>
+              {["acquisition", "activation", "retention", "revenue", "referral", "all stages"].map(f => <option key={f} value={f}>{f}</option>)}
+            </select>
+            <button onClick={handleGenerateGrowthExperiments} disabled={generatingGrowth} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingGrowth ? bdr : green, color: generatingGrowth ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingGrowth ? "not-allowed" : "pointer", whiteSpace: "nowrap" as const, flexShrink: 0 }}>
+              {generatingGrowth ? "Designing…" : "Design Experiments"}
+            </button>
+          </div>
+        </div>
+        {growthError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{growthError}</p>}
+        {growthResult && (
+          <div style={{ background: surf, borderRadius: 10, padding: 16 }}>
+            {!!growthResult.overview && <p style={{ fontSize: 12, color: muted, fontStyle: "italic", marginBottom: 14 }}>{String(growthResult.overview)}</p>}
+            {/* Priority matrix */}
+            {!!growthResult.priorityMatrix && (() => {
+              const pm = growthResult.priorityMatrix as { runNow?: string[]; runNext?: string[]; parkForLater?: string[] };
+              return (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 14 }}>
+                  {[["Run Now", pm.runNow, red], ["Run Next", pm.runNext, amber], ["Park", pm.parkForLater, muted]].map(([l, items, c]) => (
+                    <div key={String(l)} style={{ background: bg, borderRadius: 8, padding: 10 }}>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: String(c), marginBottom: 6 }}>{String(l)}</p>
+                      {(items as string[] | undefined)?.map((exp, ei) => <p key={ei} style={{ fontSize: 11, color: ink, marginBottom: 2 }}>· {exp}</p>)}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+            {/* Experiments */}
+            {!!(growthResult.experiments as unknown[])?.length && (
+              <div>
+                <p style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Experiment Details</p>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" as const, marginBottom: 10 }}>
+                  {(growthResult.experiments as { name: string }[]).map((e, i) => (
+                    <button key={i} onClick={() => setGrowthExpIdx(i)} style={{ padding: "4px 10px", borderRadius: 6, border: `1px solid ${growthExpIdx === i ? green : bdr}`, background: growthExpIdx === i ? "#DCFCE7" : "transparent", color: growthExpIdx === i ? "#16A34A" : muted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{e.name}</button>
+                  ))}
+                </div>
+                {(() => {
+                  const exp = (growthResult.experiments as { name: string; hypothesis: string; category: string; priority: string; effort: string; expectedImpact: string; duration: string; primaryMetric: string; minimumSuccessThreshold: string; failureSignal: string }[])[growthExpIdx];
+                  if (!exp) return null;
+                  return (
+                    <div style={{ background: bg, borderRadius: 8, padding: 12 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                        <p style={{ fontWeight: 700, color: ink, margin: 0 }}>{exp.name}</p>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, background: exp.priority === "P0" ? "#FEE2E2" : exp.priority === "P1" ? "#FEF3C7" : "#F3F4F6", color: exp.priority === "P0" ? red : exp.priority === "P1" ? amber : muted, fontWeight: 700 }}>{exp.priority}</span>
+                          <span style={{ fontSize: 11, color: muted, padding: "2px 8px" }}>{exp.category}</span>
+                        </div>
+                      </div>
+                      <p style={{ fontSize: 12, color: muted, fontStyle: "italic", marginBottom: 8 }}>{exp.hypothesis}</p>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+                        <p style={{ fontSize: 12, color: ink, margin: 0 }}><strong>Metric:</strong> {exp.primaryMetric}</p>
+                        <p style={{ fontSize: 12, color: ink, margin: 0 }}><strong>Duration:</strong> {exp.duration}</p>
+                        <p style={{ fontSize: 12, color: green, margin: 0 }}>✓ Win: {exp.minimumSuccessThreshold}</p>
+                        <p style={{ fontSize: 12, color: red, margin: 0 }}>✗ Fail: {exp.failureSignal}</p>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Activation Funnel ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 20, marginTop: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>Activation Funnel</p>
+            <p style={{ fontSize: 11, color: muted }}>Map your user activation journey, find the aha moment, and reduce time-to-value.</p>
+          </div>
+          <button onClick={handleGenerateFunnel} disabled={generatingFunnel} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingFunnel ? bdr : green, color: generatingFunnel ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingFunnel ? "not-allowed" : "pointer", whiteSpace: "nowrap" as const, flexShrink: 0, marginLeft: 12 }}>
+            {generatingFunnel ? "Analyzing…" : "Analyze Funnel"}
+          </button>
+        </div>
+        {funnelError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{funnelError}</p>}
+        {funnelResult && (
+          <div style={{ background: surf, borderRadius: 10, padding: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 14 }}>
+              <div style={{ textAlign: "center" as const }}>
+                <p style={{ fontSize: 28, fontWeight: 800, color: (funnelResult.activationRate as number) >= 50 ? green : (funnelResult.activationRate as number) >= 30 ? amber : red, margin: 0 }}>{funnelResult.activationRate as number}%</p>
+                <p style={{ fontSize: 11, color: muted }}>Activation Rate</p>
+              </div>
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: 12, color: muted, fontStyle: "italic", margin: "0 0 4px" }}>{String(funnelResult.overview ?? "")}</p>
+                {!!funnelResult.activationMoment && <p style={{ fontSize: 12, color: ink }}><strong>Aha Moment:</strong> {String(funnelResult.activationMoment)}</p>}
+                {!!funnelResult.ahaMetric && <p style={{ fontSize: 11, color: muted }}>Signal: {String(funnelResult.ahaMetric)}</p>}
+              </div>
+            </div>
+            {/* Stage selector */}
+            {!!(funnelResult.stages as unknown[])?.length && (
+              <div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" as const, marginBottom: 10 }}>
+                  {(funnelResult.stages as { stage: string }[]).map((s, i) => (
+                    <button key={i} onClick={() => setFunnelStageIdx(i)} style={{ padding: "4px 10px", borderRadius: 6, border: `1px solid ${funnelStageIdx === i ? green : bdr}`, background: funnelStageIdx === i ? "#DCFCE7" : "transparent", color: funnelStageIdx === i ? "#16A34A" : muted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{s.stage}</button>
+                  ))}
+                </div>
+                {(() => {
+                  const stg = (funnelResult.stages as { stage: string; conversionRate: number; benchmark: number; dropOff: number; timeToComplete: string; topFriction: string; fix: string }[])[funnelStageIdx];
+                  if (!stg) return null;
+                  return (
+                    <div style={{ background: bg, borderRadius: 8, padding: 12, marginBottom: 12 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                        <p style={{ fontWeight: 700, color: ink, margin: 0 }}>{stg.stage}</p>
+                        <div style={{ display: "flex", gap: 12 }}>
+                          <span style={{ fontSize: 12, color: green, fontWeight: 700 }}>{stg.conversionRate}% converts</span>
+                          <span style={{ fontSize: 12, color: muted }}>Benchmark: {stg.benchmark}%</span>
+                        </div>
+                      </div>
+                      <p style={{ fontSize: 12, color: muted, marginBottom: 4 }}><strong>Time:</strong> {stg.timeToComplete} &nbsp;·&nbsp; <strong>Drop-off:</strong> {stg.dropOff}%</p>
+                      <p style={{ fontSize: 12, color: muted, marginBottom: 4 }}><strong>Top Friction:</strong> {stg.topFriction}</p>
+                      <p style={{ fontSize: 12, color: blue }}><strong>Fix:</strong> {stg.fix}</p>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+            {!!funnelResult.quickWin && (
+              <div style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 8, padding: "10px 12px" }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: blue, margin: "0 0 2px" }}>Quick Win This Week</p>
+                <p style={{ fontSize: 11, color: ink, margin: 0 }}>{String(funnelResult.quickWin)}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Retention Analysis ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 20, marginTop: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>Retention Analysis</p>
+            <p style={{ fontSize: 11, color: muted }}>Model cohort retention, identify churn drivers, and get a prioritized action plan to improve retention.</p>
+          </div>
+          <button onClick={handleGenerateRetention} disabled={generatingRetention}
+            style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingRetention ? bdr : green, color: generatingRetention ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingRetention ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
+            {generatingRetention ? "Analyzing…" : "Run Retention Analysis"}
+          </button>
+        </div>
+        {retentionError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{retentionError}</p>}
+        {retentionResult && (() => {
+          const cohorts = (retentionResult.cohortAnalysis as { cohort: string; retentionRate: number; benchmark: number; trend: string; keyDriver: string }[] | undefined) ?? [];
+          const churnReasons = (retentionResult.churnReasons as { reason: string; frequency: string; segment: string; fix: string }[] | undefined) ?? [];
+          const actions = (retentionResult.actionPlan as { action: string; timeline: string; impact: string; effort: string; metric: string }[] | undefined) ?? [];
+          const experiments = (retentionResult.retentionExperiments as { experiment: string; hypothesis: string; metric: string; duration: string }[] | undefined) ?? [];
+          const trendClr = (t: string) => t === 'improving' ? green : t === 'declining' ? red : amber;
+          return (
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+                <div style={{ textAlign: "center" }}>
+                  <p style={{ fontSize: 32, fontWeight: 800, color: (retentionResult.overallRetentionScore as number) >= 70 ? green : (retentionResult.overallRetentionScore as number) >= 50 ? amber : red, margin: 0, lineHeight: 1 }}>{retentionResult.overallRetentionScore as number}</p>
+                  <p style={{ fontSize: 9, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: 1 }}>Retention Score</p>
+                </div>
+                {!!retentionResult.verdict && <p style={{ fontSize: 12, color: ink, flex: 1, fontStyle: "italic" }}>{retentionResult.verdict as string}</p>}
+              </div>
+              <div style={{ display: "flex", gap: 4, marginBottom: 14, borderBottom: `1px solid ${bdr}`, paddingBottom: 8 }}>
+                {([{ key: 'cohorts' as const, label: 'Cohorts' }, { key: 'churn' as const, label: 'Churn' }, { key: 'actions' as const, label: 'Actions' }, { key: 'experiments' as const, label: 'Experiments' }]).map(t => (
+                  <button key={t.key} onClick={() => setRetentionTab(t.key)}
+                    style={{ padding: "5px 12px", borderRadius: 6, border: "none", background: retentionTab === t.key ? ink : "transparent", color: retentionTab === t.key ? "#fff" : muted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+              {retentionTab === 'cohorts' && cohorts.length > 0 && (
+                <div>
+                  {cohorts.map((c, ci) => (
+                    <div key={ci} style={{ display: "flex", gap: 10, alignItems: "center", padding: "8px 10px", background: surf, borderRadius: 8, border: `1px solid ${bdr}`, marginBottom: 6 }}>
+                      <p style={{ fontSize: 12, fontWeight: 600, color: ink, width: 80, flexShrink: 0 }}>{c.cohort}</p>
+                      <div style={{ flex: 1, background: bdr, borderRadius: 4, height: 8, overflow: "hidden" }}>
+                        <div style={{ width: `${c.retentionRate}%`, height: "100%", background: c.retentionRate >= c.benchmark ? green : amber, borderRadius: 4 }} />
+                      </div>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: c.retentionRate >= c.benchmark ? green : amber, width: 40 }}>{c.retentionRate}%</span>
+                      <span style={{ fontSize: 10, color: trendClr(c.trend), fontWeight: 700, textTransform: "capitalize", width: 70 }}>{c.trend}</span>
+                      <span style={{ fontSize: 10, color: muted, flex: 1 }}>{c.keyDriver}</span>
+                    </div>
+                  ))}
+                  {!!(retentionResult.earlyWarningSignals as string[] | undefined)?.length && (
+                    <div style={{ marginTop: 12, padding: "10px 12px", background: "#FFF7ED", border: "1px solid #FED7AA", borderRadius: 8 }}>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: amber, marginBottom: 6 }}>Early Warning Signals</p>
+                      {(retentionResult.earlyWarningSignals as string[]).map((s, si) => (
+                        <p key={si} style={{ fontSize: 11, color: ink, marginBottom: 2 }}>⚠ {s}</p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              {retentionTab === 'churn' && churnReasons.length > 0 && (
+                <div>
+                  {churnReasons.map((cr, ci) => (
+                    <div key={ci} style={{ padding: "10px 12px", background: surf, borderRadius: 8, border: `1px solid ${bdr}`, marginBottom: 8 }}>
+                      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}>
+                        <p style={{ fontSize: 12, fontWeight: 700, color: red }}>{cr.reason}</p>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: cr.frequency === 'high' ? red : cr.frequency === 'medium' ? amber : muted, textTransform: "uppercase" }}>{cr.frequency}</span>
+                        <span style={{ fontSize: 10, color: muted }}>{cr.segment}</span>
+                      </div>
+                      <p style={{ fontSize: 11, color: green }}>Fix: {cr.fix}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {retentionTab === 'actions' && actions.length > 0 && (
+                <div>
+                  {actions.map((a, ai) => (
+                    <div key={ai} style={{ display: "flex", gap: 10, marginBottom: 8, padding: "10px 12px", background: surf, borderRadius: 8, border: `1px solid ${bdr}` }}>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 2 }}>{a.action}</p>
+                        <p style={{ fontSize: 11, color: muted }}>Metric: {a.metric}</p>
+                      </div>
+                      <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: a.impact === 'high' ? green : amber }}>{a.impact} impact</span>
+                        <span style={{ fontSize: 10, color: muted }}>{a.timeline}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {retentionTab === 'experiments' && experiments.length > 0 && (
+                <div>
+                  {experiments.map((e, ei) => (
+                    <div key={ei} style={{ padding: "10px 12px", background: surf, borderRadius: 8, border: `1px solid ${bdr}`, marginBottom: 8 }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 4 }}>{e.experiment}</p>
+                      <p style={{ fontSize: 11, color: muted, marginBottom: 2 }}>Hypothesis: {e.hypothesis}</p>
+                      <div style={{ display: "flex", gap: 16 }}>
+                        <span style={{ fontSize: 10, color: muted }}>Metric: {e.metric}</span>
+                        <span style={{ fontSize: 10, color: muted }}>Duration: {e.duration}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {!!retentionResult.quickWin && (
+                <div style={{ marginTop: 12, background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 8, padding: "10px 12px" }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>Quick Win This Week</p>
+                  <p style={{ fontSize: 11, color: ink }}>{retentionResult.quickWin as string}</p>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+      </div>
+
       {/* ── Fake Door Test ──────────────────────────────────────────────────── */}
       <FakeDoorSection artifactId={artifactId} userId={userId} data={data} />
+
+      {/* ── Customer Insight Report ── */}
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "16px 20px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: insightReport ? 14 : 0 }}>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>Customer Insight Report</p>
+            <p style={{ fontSize: 11, color: muted }}>Nova synthesizes your PMF survey and interview data into themes, pain points, product gaps, and actionable recommendations.</p>
+            {insightError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{insightError}</p>}
+          </div>
+          <button onClick={handleRunInsight} disabled={runningInsight}
+            style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: runningInsight ? bdr : blue, color: runningInsight ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: runningInsight ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
+            {runningInsight ? "Analyzing…" : "Run Analysis"}
+          </button>
+        </div>
+        {insightReport && (
+          <div>
+            {insightReport.synthesisNote && (
+              <div style={{ background: "#EFF6FF", borderRadius: 8, padding: "10px 14px", border: "1px solid #BFDBFE", marginBottom: 12 }}>
+                <p style={{ fontSize: 12, color: blue, fontWeight: 600 }}>💡 {insightReport.synthesisNote}</p>
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+              {(['themes', 'pain', 'recs'] as const).map(t => (
+                <button key={t} onClick={() => setInsightTab(t)}
+                  style={{ padding: "4px 12px", borderRadius: 6, border: `1px solid ${insightTab === t ? blue : bdr}`, background: insightTab === t ? blue : "transparent", color: insightTab === t ? "#fff" : muted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                  {t === 'themes' ? 'Themes' : t === 'pain' ? 'Pain Points' : 'Recommendations'}
+                </button>
+              ))}
+            </div>
+            {insightTab === 'themes' && (
+              <div>
+                {(insightReport.topThemes ?? []).map((t, i) => (
+                  <div key={i} style={{ background: "#fff", border: `1px solid ${bdr}`, borderRadius: 8, padding: "10px 14px", marginBottom: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: ink }}>{t.theme}</p>
+                      <span style={{ padding: "2px 8px", borderRadius: 999, fontSize: 10, fontWeight: 700, background: t.frequency === 'high' ? "#DCFCE7" : "#FEF3C7", color: t.frequency === 'high' ? "#16A34A" : amber }}>{t.frequency}</span>
+                    </div>
+                    <p style={{ fontSize: 11, color: muted }}>{t.summary}</p>
+                  </div>
+                ))}
+                {(insightReport.verbatims ?? []).length > 0 && (
+                  <div style={{ marginTop: 8 }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", marginBottom: 6 }}>Verbatims</p>
+                    {(insightReport.verbatims ?? []).map((v, i) => (
+                      <p key={i} style={{ fontSize: 12, color: ink, fontStyle: "italic", marginBottom: 4 }}>&quot;{v}&quot;</p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {insightTab === 'pain' && (
+              <div>
+                {(insightReport.painPoints ?? []).map((p, i) => (
+                  <div key={i} style={{ background: "#fff", border: `1px solid ${bdr}`, borderRadius: 8, padding: "10px 14px", marginBottom: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: ink }}>{p.pain}</p>
+                      <span style={{ padding: "2px 8px", borderRadius: 999, fontSize: 10, fontWeight: 700, background: p.severity === 'critical' ? "#FEE2E2" : "#FEF3C7", color: p.severity === 'critical' ? red : amber }}>{p.severity}</span>
+                    </div>
+                    {p.quote && <p style={{ fontSize: 11, color: muted, fontStyle: "italic" }}>&quot;{p.quote}&quot;</p>}
+                  </div>
+                ))}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 8 }}>
+                  {insightReport.churnRisks && insightReport.churnRisks.length > 0 && (
+                    <div style={{ background: "#FEF2F2", borderRadius: 8, padding: "10px 14px", border: "1px solid #FECACA" }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: red, textTransform: "uppercase", marginBottom: 6 }}>Churn Risks</p>
+                      {insightReport.churnRisks.map((r, i) => <p key={i} style={{ fontSize: 11, color: ink, marginBottom: 3 }}>→ {r}</p>)}
+                    </div>
+                  )}
+                  {insightReport.productGaps && insightReport.productGaps.length > 0 && (
+                    <div style={{ background: "#FFFBEB", borderRadius: 8, padding: "10px 14px", border: "1px solid #FDE68A" }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: amber, textTransform: "uppercase", marginBottom: 6 }}>Product Gaps</p>
+                      {insightReport.productGaps.map((g, i) => <p key={i} style={{ fontSize: 11, color: ink, marginBottom: 3 }}>→ {g}</p>)}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            {insightTab === 'recs' && (
+              <div>
+                {(insightReport.recommendations ?? []).map((r, i) => (
+                  <div key={i} style={{ background: "#fff", border: `1px solid ${bdr}`, borderRadius: 8, padding: "10px 14px", marginBottom: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: ink }}>{r.action}</p>
+                      <span style={{ padding: "2px 8px", borderRadius: 999, fontSize: 10, fontWeight: 700, background: r.impact === 'high' ? "#DCFCE7" : "#FEF3C7", color: r.impact === 'high' ? "#16A34A" : amber }}>impact: {r.impact}</span>
+                      <span style={{ padding: "2px 8px", borderRadius: 999, fontSize: 10, fontWeight: 700, background: r.effort === 'low' ? "#DCFCE7" : "#FEF3C7", color: r.effort === 'low' ? "#16A34A" : amber }}>effort: {r.effort}</span>
+                    </div>
+                    <p style={{ fontSize: 11, color: muted }}>{r.rationale}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            <button onClick={() => setInsightReport(null)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", marginTop: 8 }}>Re-analyze</button>
+          </div>
+        )}
+      </div>
+
+      {/* ── User Personas ── */}
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "16px 20px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: personasResult ? 14 : 0 }}>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: "#7C3AED", marginBottom: 2 }}>User Personas</p>
+            <p style={{ fontSize: 11, color: muted }}>Nova builds 3 detailed personas from your ICP and research data — goals, frustrations, buying triggers, and a day-in-the-life for each.</p>
+            {personasError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{personasError}</p>}
+          </div>
+          <button onClick={handleGeneratePersonas} disabled={generatingPersonas}
+            style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingPersonas ? bdr : "#7C3AED", color: generatingPersonas ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingPersonas ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
+            {generatingPersonas ? "Building…" : "Build Personas"}
+          </button>
+        </div>
+        {personasResult && personasResult.length > 0 && (
+          <div>
+            <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+              {personasResult.map((p, i) => (
+                <button key={i} onClick={() => setActivePersona(i)}
+                  style={{ padding: "6px 14px", borderRadius: 8, border: `1px solid ${activePersona === i ? "#7C3AED" : bdr}`, background: activePersona === i ? "#7C3AED" : "transparent", color: activePersona === i ? "#fff" : muted, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                  {p.avatar} {p.name}
+                </button>
+              ))}
+            </div>
+            {(() => {
+              const p = personasResult[activePersona];
+              if (!p) return null;
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div style={{ background: "#F5F3FF", borderRadius: 10, padding: "14px 16px", border: "1px solid #DDD6FE" }}>
+                    <p style={{ fontSize: 16, fontWeight: 800, color: "#7C3AED", marginBottom: 4 }}>{p.avatar} {p.name} — {p.role}</p>
+                    <p style={{ fontSize: 12, color: muted, marginBottom: 8 }}>{p.demographics}</p>
+                    {p.quotableQuote && <p style={{ fontSize: 13, color: ink, fontStyle: "italic" }}>&quot;{p.quotableQuote}&quot;</p>}
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                    <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "10px 14px", border: "1px solid #BBF7D0" }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: "#16A34A", textTransform: "uppercase", marginBottom: 6 }}>Goals</p>
+                      {(p.goals ?? []).map((g, i) => <p key={i} style={{ fontSize: 11, color: ink, marginBottom: 3 }}>→ {g}</p>)}
+                    </div>
+                    <div style={{ background: "#FEF2F2", borderRadius: 8, padding: "10px 14px", border: "1px solid #FECACA" }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: red, textTransform: "uppercase", marginBottom: 6 }}>Frustrations</p>
+                      {(p.frustrations ?? []).map((f, i) => <p key={i} style={{ fontSize: 11, color: ink, marginBottom: 3 }}>→ {f}</p>)}
+                    </div>
+                    <div style={{ background: "#FFF7ED", borderRadius: 8, padding: "10px 14px", border: "1px solid #FED7AA" }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: amber, textTransform: "uppercase", marginBottom: 6 }}>Buying Triggers</p>
+                      {(p.buyingTriggers ?? []).map((t, i) => <p key={i} style={{ fontSize: 11, color: ink, marginBottom: 3 }}>→ {t}</p>)}
+                    </div>
+                    <div style={{ background: "#EFF6FF", borderRadius: 8, padding: "10px 14px", border: "1px solid #BFDBFE" }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: blue, textTransform: "uppercase", marginBottom: 6 }}>Objections</p>
+                      {(p.objections ?? []).map((o, i) => <p key={i} style={{ fontSize: 11, color: ink, marginBottom: 3 }}>→ {o}</p>)}
+                    </div>
+                  </div>
+                  {p.dayInLife && (
+                    <div style={{ background: "#fff", border: `1px solid ${bdr}`, borderRadius: 8, padding: "10px 14px" }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", marginBottom: 4 }}>Day in the Life</p>
+                      <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{p.dayInLife}</p>
+                    </div>
+                  )}
+                  <div style={{ display: "flex", gap: 12, fontSize: 12, color: muted }}>
+                    {p.willingness && <span>Willingness to pay: <strong style={{ color: ink }}>{p.willingness}</strong></span>}
+                    {p.decisionProcess && <span>Decision: <strong style={{ color: ink }}>{p.decisionProcess}</strong></span>}
+                  </div>
+                </div>
+              );
+            })()}
+            <button onClick={() => setPersonasResult(null)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", marginTop: 10 }}>Rebuild</button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Experiment Tracker ── */}
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "16px 20px" }}>
+        <p style={{ fontSize: 11, fontWeight: 700, color: "#0891B2", marginBottom: 2 }}>Experiment Designer</p>
+        <p style={{ fontSize: 11, color: muted, marginBottom: 12 }}>Nova designs a rigorous A/B or hypothesis-driven experiment — sample size, success criteria, tracking plan, risk mitigations, and a readout template.</p>
+        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 8, marginBottom: 10 }}>
+          <input value={etHypothesis} onChange={e => setEtHypothesis(e.target.value)} placeholder="Hypothesis (e.g. Adding social proof to pricing page increases sign-ups) *"
+            style={{ padding: "7px 10px", borderRadius: 6, border: `1px solid ${etHypothesis ? bdr : red}`, fontSize: 12, color: ink, background: "#fff", outline: "none" }} />
+          <input value={etMetric} onChange={e => setEtMetric(e.target.value)} placeholder="Primary metric (e.g. sign-up rate)"
+            style={{ padding: "7px 10px", borderRadius: 6, border: `1px solid ${bdr}`, fontSize: 12, color: ink, background: "#fff", outline: "none" }} />
+        </div>
+        {etError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{etError}</p>}
+        <button onClick={handleRunExperiment} disabled={!etHypothesis.trim() || generatingET}
+          style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: (!etHypothesis.trim() || generatingET) ? bdr : "#0891B2", color: (!etHypothesis.trim() || generatingET) ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: (!etHypothesis.trim() || generatingET) ? "not-allowed" : "pointer" }}>
+          {generatingET ? "Designing…" : "Design Experiment"}
+        </button>
+        {etResult && (
+          <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: ink, margin: 0 }}>{etResult.experimentTitle as string}</p>
+            <div style={{ background: "#ECFEFF", borderRadius: 8, padding: "10px 14px", border: "1px solid #A5F3FC" }}>
+              <p style={{ fontSize: 10, fontWeight: 700, color: "#0891B2", textTransform: "uppercase", marginBottom: 4 }}>Refined Hypothesis</p>
+              <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{etResult.hypothesis as string}</p>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+              <div style={{ background: "#fff", borderRadius: 8, padding: "10px 14px", border: `1px solid ${bdr}`, textAlign: "center" }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", marginBottom: 4 }}>Sample Size Needed</p>
+                <p style={{ fontSize: 13, fontWeight: 700, color: ink }}>{etResult.sampleSizeNeeded as string}</p>
+              </div>
+              <div style={{ background: "#fff", borderRadius: 8, padding: "10px 14px", border: `1px solid ${bdr}`, textAlign: "center" }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", marginBottom: 4 }}>Statistical Power</p>
+                <p style={{ fontSize: 13, fontWeight: 700, color: ink }}>{etResult.statisticalPower as string}</p>
+              </div>
+              <div style={{ background: "#fff", borderRadius: 8, padding: "10px 14px", border: `1px solid ${bdr}`, textAlign: "center" }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", marginBottom: 4 }}>Runtime</p>
+                <p style={{ fontSize: 13, fontWeight: 700, color: ink }}>{(etResult.timeline as { runtime?: string } | undefined)?.runtime ?? 'TBD'}</p>
+              </div>
+            </div>
+            {!!etResult.successCriteria && (
+              <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "10px 14px", border: "1px solid #BBF7D0" }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: green, textTransform: "uppercase", marginBottom: 4 }}>Success Criteria</p>
+                <p style={{ fontSize: 12, color: ink }}>{etResult.successCriteria as string}</p>
+              </div>
+            )}
+            {(etResult.variants as { name: string; description: string }[] | undefined)?.length && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                {(etResult.variants as { name: string; description: string }[]).map((v, i) => (
+                  <div key={i} style={{ background: i === 0 ? "#F9F7F2" : "#EFF6FF", borderRadius: 8, padding: "10px 14px", border: `1px solid ${i === 0 ? bdr : "#BFDBFE"}` }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: i === 0 ? muted : blue, textTransform: "uppercase", marginBottom: 4 }}>{v.name}</p>
+                    <p style={{ fontSize: 11, color: ink }}>{v.description}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {(etResult.risksAndMitigations as { risk: string; mitigation: string }[] | undefined)?.length && (
+              <div>
+                <p style={{ fontSize: 10, fontWeight: 700, color: amber, textTransform: "uppercase", marginBottom: 6 }}>Risks & Mitigations</p>
+                {(etResult.risksAndMitigations as { risk: string; mitigation: string }[]).map((r, i) => (
+                  <div key={i} style={{ display: "flex", gap: 8, marginBottom: 4, fontSize: 11 }}>
+                    <span style={{ color: red, flexShrink: 0 }}>⚠</span>
+                    <span style={{ color: ink }}>{r.risk} <span style={{ color: green }}>→ {r.mitigation}</span></span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {!!etResult.readoutTemplate && (
+              <div style={{ background: "#FFFBEB", borderRadius: 8, padding: "10px 14px", border: "1px solid #FDE68A" }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: amber, textTransform: "uppercase", marginBottom: 4 }}>Readout Template</p>
+                <p style={{ fontSize: 12, color: ink, fontStyle: "italic" }}>{etResult.readoutTemplate as string}</p>
+              </div>
+            )}
+            <button onClick={() => setEtResult(null)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>New Experiment</button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Feature Priority Matrix ── */}
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "16px 20px" }}>
+        <p style={{ fontSize: 11, fontWeight: 700, color: "#7C3AED", marginBottom: 2 }}>Feature Priority Matrix (RICE)</p>
+        <p style={{ fontSize: 11, color: muted, marginBottom: 12 }}>Nova scores your roadmap using RICE (Reach × Impact × Confidence ÷ Effort) + MoSCoW + Kano categories. Generates 12 prioritized features with customer evidence and risk notes.</p>
+        {fmError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{fmError}</p>}
+        <button onClick={handleGenerateFeatureMatrix} disabled={generatingFM}
+          style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingFM ? bdr : "#7C3AED", color: generatingFM ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingFM ? "not-allowed" : "pointer" }}>
+          {generatingFM ? "Scoring features…" : "Generate Feature Matrix"}
+        </button>
+        {fmResult && (
+          <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+            {!!fmResult.recommendation && (
+              <div style={{ background: "#F5F3FF", borderRadius: 8, padding: "10px 14px", border: "1px solid #DDD6FE" }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: "#7C3AED", textTransform: "uppercase", marginBottom: 4 }}>Strategic Recommendation</p>
+                <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{fmResult.recommendation as string}</p>
+              </div>
+            )}
+            {(fmResult.topPriorities as string[] | undefined)?.length && (
+              <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "10px 14px", border: "1px solid #BBF7D0" }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: green, textTransform: "uppercase", marginBottom: 6 }}>Top Priorities</p>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {(fmResult.topPriorities as string[]).map((p, i) => (
+                    <span key={i} style={{ padding: "3px 8px", borderRadius: 10, background: green, color: "#fff", fontSize: 11, fontWeight: 600 }}>{p}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* Sort controls */}
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <span style={{ fontSize: 11, color: muted }}>Sort by:</span>
+              {(['rice', 'impact', 'effort'] as const).map(s => (
+                <button key={s} onClick={() => setFmSort(s)}
+                  style={{ padding: "3px 8px", borderRadius: 6, border: "none", background: fmSort === s ? ink : "transparent", color: fmSort === s ? "#fff" : muted, fontSize: 10, fontWeight: 600, cursor: "pointer", textTransform: "uppercase" }}>
+                  {s}
+                </button>
+              ))}
+            </div>
+            {/* Feature table */}
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                <thead>
+                  <tr style={{ borderBottom: `2px solid ${bdr}` }}>
+                    <th style={{ padding: "6px 8px", textAlign: "left", color: muted, fontWeight: 700, fontSize: 10, textTransform: "uppercase" }}>Feature</th>
+                    <th style={{ padding: "6px 8px", textAlign: "center", color: muted, fontWeight: 700, fontSize: 10, textTransform: "uppercase" }}>RICE</th>
+                    <th style={{ padding: "6px 8px", textAlign: "center", color: muted, fontWeight: 700, fontSize: 10, textTransform: "uppercase" }}>Tag</th>
+                    <th style={{ padding: "6px 8px", textAlign: "center", color: muted, fontWeight: 700, fontSize: 10, textTransform: "uppercase" }}>MoSCoW</th>
+                    <th style={{ padding: "6px 8px", textAlign: "center", color: muted, fontWeight: 700, fontSize: 10, textTransform: "uppercase" }}>Kano</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...(fmResult.features as { feature: string; riceScore: number; impact: number; effort: number; tag: string; moscoWCategory: string; kanoCategory: string; description: string }[] | undefined ?? [])]
+                    .sort((a, b) => fmSort === 'rice' ? b.riceScore - a.riceScore : fmSort === 'impact' ? b.impact - a.impact : a.effort - b.effort)
+                    .map((f, i) => {
+                      const tagColor: Record<string, string> = { 'quick win': green, 'big bet': blue, 'table stakes': amber, 'nice to have': muted };
+                      const kanoColor: Record<string, string> = { 'basic': red, 'performance': amber, 'delight': green };
+                      return (
+                        <tr key={i} style={{ borderBottom: `1px solid ${bdr}`, background: i % 2 === 0 ? "#fff" : bg }}>
+                          <td style={{ padding: "7px 8px" }}>
+                            <p style={{ fontSize: 11, fontWeight: 600, color: ink, margin: 0 }}>{f.feature}</p>
+                            <p style={{ fontSize: 10, color: muted, margin: 0 }}>{f.description}</p>
+                          </td>
+                          <td style={{ padding: "7px 8px", textAlign: "center", fontWeight: 700, color: f.riceScore > 500 ? green : f.riceScore > 200 ? amber : muted }}>{f.riceScore}</td>
+                          <td style={{ padding: "7px 8px", textAlign: "center" }}>
+                            <span style={{ padding: "2px 6px", borderRadius: 10, background: tagColor[f.tag] ?? muted, color: "#fff", fontSize: 10, fontWeight: 600 }}>{f.tag}</span>
+                          </td>
+                          <td style={{ padding: "7px 8px", textAlign: "center", fontSize: 10, color: ink }}>{f.moscoWCategory}</td>
+                          <td style={{ padding: "7px 8px", textAlign: "center" }}>
+                            <span style={{ color: kanoColor[f.kanoCategory] ?? muted, fontWeight: 600, fontSize: 10 }}>{f.kanoCategory}</span>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  }
+                </tbody>
+              </table>
+            </div>
+            <button onClick={() => setFmResult(null)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>Regenerate</button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -9498,6 +15714,7 @@ function FakeDoorSection({ artifactId, userId: _userId, data }: { artifactId?: s
           </div>
         </div>
       )}
+
     </div>
   );
 }
@@ -9562,6 +15779,77 @@ function CompetitiveMatrixRenderer({ data, artifactId: _artifactId }: { data: Re
     summary?: string; mostUrgent?: string; recommendedResponse?: string;
   } | null>(null);
   const [monitorError, setMonitorError] = useState<string | null>(null);
+
+  // Pricing monitor state
+  const [runningPricing, setRunningPricing] = useState(false);
+  const [pricingResult, setPricingResult]   = useState<{
+    pricing?: { competitor: string; pricingModel: string; tiers?: { name: string; price: string; keyFeature: string }[]; startingPrice: string; hasFree: boolean; hasEnterprise: boolean; signals?: string[]; lastScraped: string }[];
+    insights?: { cheapest?: string; mostExpensive?: string; averageStartingPrice?: string; yourPositioning?: string; pricingGap?: string; opportunity?: string; recommendation?: string };
+    competitorsAnalyzed?: number;
+  } | null>(null);
+  const [pricingError, setPricingError]     = useState<string | null>(null);
+
+  // Market size state
+  const [runningMarketSize, setRunningMarketSize] = useState(false);
+  const [marketSizeResult, setMarketSizeResult] = useState<{
+    tam?: string; sam?: string; som?: string;
+    tamRationale?: string; samRationale?: string; somRationale?: string;
+    methodology?: string;
+    competitorRevenues?: { name: string; estimatedARR: string; funding: string; signal: string }[];
+    combinedCompetitorRevenue?: string; marketGrowthRate?: string; marketMaturity?: string;
+    keyInsight?: string; yourTargetShare?: string; confidence?: string;
+  } | null>(null);
+  const [marketSizeError, setMarketSizeError] = useState<string | null>(null);
+
+  // Battle cards state
+  const [runningBattleCards, setRunningBattleCards] = useState(false);
+  const [battleCardsResult, setBattleCardsResult] = useState<{
+    battleCards?: {
+      competitor: string; positioning?: string; theirStrengths?: string[]; theirWeaknesses?: string[];
+      whereYouWin?: string[]; whereYouLose?: string[];
+      objectionHandlers?: { objection: string; response: string }[];
+      talkTrack?: string; disqualifiers?: string[]; winSignals?: string[]; landmine?: string;
+    }[];
+    competitorCount?: number;
+  } | null>(null);
+  const [battleCardsError, setBattleCardsError] = useState<string | null>(null);
+  const [activeBattleCard, setActiveBattleCard] = useState<number>(0);
+
+  async function handleRunBattleCards() {
+    if (runningBattleCards) return;
+    setRunningBattleCards(true); setBattleCardsError(null);
+    try {
+      const res = await fetch('/api/agents/atlas/battle-cards', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.battleCards) setBattleCardsResult(r);
+      else setBattleCardsError(r.error ?? 'Failed to generate battle cards');
+    } catch { setBattleCardsError('Network error'); }
+    finally { setRunningBattleCards(false); }
+  }
+
+  async function handleRunMarketSize() {
+    if (runningMarketSize) return;
+    setRunningMarketSize(true); setMarketSizeError(null);
+    try {
+      const res = await fetch('/api/agents/atlas/market-size', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.tam) setMarketSizeResult(r);
+      else setMarketSizeError(r.error ?? 'Failed to estimate market size');
+    } catch { setMarketSizeError('Network error'); }
+    finally { setRunningMarketSize(false); }
+  }
+
+  async function handleRunPricingMonitor() {
+    if (runningPricing) return;
+    setRunningPricing(true); setPricingError(null);
+    try {
+      const res = await fetch('/api/agents/atlas/pricing', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.pricing) setPricingResult(r);
+      else setPricingError(r.error ?? 'Pricing monitor failed');
+    } catch { setPricingError('Network error'); }
+    finally { setRunningPricing(false); }
+  }
 
   async function handleRunMonitor() {
     if (runningMonitor) return;
@@ -9731,6 +16019,108 @@ function CompetitiveMatrixRenderer({ data, artifactId: _artifactId }: { data: Re
       else setTechStackError(r.error ?? 'Detection failed');
     } catch { setTechStackError('Network error'); }
     finally { setDetectingStack(false); }
+  }
+
+  // Market Map state
+  const [winLossTab, setWinLossTab]                 = useState<'wins' | 'losses' | 'competitors' | 'coaching'>('wins');
+
+  async function handleRunWinLossAnalysis() {
+    if (runningWinLoss) return;
+    setRunningWinLoss(true); setWinLossError(null); setWinLossResult(null);
+    try {
+      const res = await fetch('/api/agents/atlas/win-loss-analysis', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.analysis) setWinLossResult(r.analysis);
+      else setWinLossError(r.error ?? 'Analysis failed');
+    } catch { setWinLossError('Network error'); }
+    finally { setRunningWinLoss(false); }
+  }
+
+  // Feature Comparison state
+  const [runningFeatComp, setRunningFeatComp]       = useState(false);
+  const [featCompResult, setFeatCompResult]         = useState<Record<string, unknown> | null>(null);
+  const [featCompError, setFeatCompError]           = useState<string | null>(null);
+  const [featCompCatIdx, setFeatCompCatIdx]         = useState(0);
+
+  async function handleRunFeatureComparison() {
+    if (runningFeatComp) return;
+    setRunningFeatComp(true); setFeatCompError(null); setFeatCompResult(null);
+    try {
+      const res = await fetch('/api/agents/atlas/feature-comparison', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.comparison) setFeatCompResult(r.comparison);
+      else setFeatCompError(r.error ?? 'Generation failed');
+    } catch { setFeatCompError('Network error'); }
+    finally { setRunningFeatComp(false); }
+  }
+
+  // Positioning Map state
+  const [runningPosMap, setRunningPosMap]           = useState(false);
+  const [posMapResult, setPosMapResult]             = useState<Record<string, unknown> | null>(null);
+  const [posMapError, setPosMapError]               = useState<string | null>(null);
+  const [posMapPlayerIdx, setPosMapPlayerIdx]       = useState(0);
+
+  async function handleRunPositioningMap() {
+    if (runningPosMap) return;
+    setRunningPosMap(true); setPosMapError(null); setPosMapResult(null);
+    try {
+      const res = await fetch('/api/agents/atlas/positioning-map', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.map) setPosMapResult(r.map);
+      else setPosMapError(r.error ?? 'Map generation failed');
+    } catch { setPosMapError('Network error'); }
+    finally { setRunningPosMap(false); }
+  }
+
+  // Trend Radar state
+  const [runningTrend, setRunningTrend]             = useState(false);
+  const [trendResult, setTrendResult]               = useState<Record<string, unknown> | null>(null);
+  const [trendError, setTrendError]                 = useState<string | null>(null);
+  const [trendTab, setTrendTab]                     = useState<'tailwinds' | 'headwinds' | 'threats' | 'opportunities'>('tailwinds');
+
+  async function handleRunTrendRadar() {
+    if (runningTrend) return;
+    setRunningTrend(true); setTrendError(null); setTrendResult(null);
+    try {
+      const res = await fetch('/api/agents/atlas/trend-radar', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.radar) setTrendResult(r.radar);
+      else setTrendError(r.error ?? 'Radar scan failed');
+    } catch { setTrendError('Network error'); }
+    finally { setRunningTrend(false); }
+  }
+
+  const [runningMM, setRunningMM]                   = useState(false);
+  const [mmResult, setMmResult]                     = useState<Record<string, unknown> | null>(null);
+  const [mmError, setMmError]                       = useState<string | null>(null);
+
+  async function handleRunMarketMap() {
+    if (runningMM) return;
+    setRunningMM(true); setMmError(null); setMmResult(null);
+    try {
+      const res = await fetch('/api/agents/atlas/market-map', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.map) setMmResult(r.map);
+      else setMmError(r.error ?? 'Market map generation failed');
+    } catch { setMmError('Network error'); }
+    finally { setRunningMM(false); }
+  }
+
+  // Win/Loss Analysis state
+  const [runningWinLoss, setRunningWinLoss]         = useState(false);
+  const [winLossResult, setWinLossResult]           = useState<Record<string, unknown> | null>(null);
+  const [winLossError, setWinLossError]             = useState<string | null>(null);
+
+  async function handleRunWinLoss() {
+    if (runningWinLoss) return;
+    setRunningWinLoss(true); setWinLossError(null); setWinLossResult(null);
+    try {
+      const res = await fetch('/api/agents/atlas/win-loss', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.analysis) setWinLossResult(r.analysis);
+      else setWinLossError(r.error ?? 'Win/loss analysis failed');
+    } catch { setWinLossError('Network error'); }
+    finally { setRunningWinLoss(false); }
   }
 
   const sectionHead: React.CSSProperties = { fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.14em", color: muted, marginBottom: 10 };
@@ -10526,6 +16916,796 @@ function CompetitiveMatrixRenderer({ data, artifactId: _artifactId }: { data: Re
           </div>
         )}
       </div>
+
+      {/* ── Market Size CTA ── */}
+      <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 12, padding: "16px 20px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: marketSizeResult ? 16 : 0 }}>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: green, marginBottom: 2 }}>TAM / SAM / SOM Estimator</p>
+            <p style={{ fontSize: 11, color: muted }}>Atlas researches competitor funding and ARR signals to estimate your total addressable, serviceable, and obtainable market size.</p>
+            {marketSizeError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{marketSizeError}</p>}
+          </div>
+          <button
+            onClick={handleRunMarketSize}
+            disabled={runningMarketSize}
+            style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: runningMarketSize ? bdr : green, color: runningMarketSize ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: runningMarketSize ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}
+          >
+            {runningMarketSize ? "Researching…" : "Estimate Market"}
+          </button>
+        </div>
+        {marketSizeResult && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+              {[
+                { label: "TAM", value: marketSizeResult.tam, rationale: marketSizeResult.tamRationale, color: green },
+                { label: "SAM", value: marketSizeResult.sam, rationale: marketSizeResult.samRationale, color: blue },
+                { label: "SOM", value: marketSizeResult.som, rationale: marketSizeResult.somRationale, color: amber },
+              ].map(({ label, value, rationale, color }) => (
+                <div key={label} style={{ background: bg, borderRadius: 10, padding: "12px 14px", border: `1px solid ${bdr}`, textAlign: "center" }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, color, textTransform: "uppercase", marginBottom: 4 }}>{label}</p>
+                  <p style={{ fontSize: 18, fontWeight: 800, color: ink, marginBottom: 4 }}>{value ?? '—'}</p>
+                  {rationale && <p style={{ fontSize: 10, color: muted, lineHeight: 1.4 }}>{rationale}</p>}
+                </div>
+              ))}
+            </div>
+            {marketSizeResult.competitorRevenues && marketSizeResult.competitorRevenues.length > 0 && (
+              <div>
+                <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", marginBottom: 6 }}>Competitor Revenue Estimates</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {marketSizeResult.competitorRevenues.map((c, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 12px", background: surf, borderRadius: 8, border: `1px solid ${bdr}` }}>
+                      <div>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: ink }}>{c.name}</p>
+                        <p style={{ fontSize: 10, color: muted }}>{c.signal}</p>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <p style={{ fontSize: 12, fontWeight: 700, color: green }}>{c.estimatedARR}</p>
+                        <p style={{ fontSize: 10, color: muted }}>{c.funding} raised</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {marketSizeResult.marketGrowthRate && (
+                <div style={{ background: "#EFF6FF", borderRadius: 8, padding: "10px 12px", border: "1px solid #BFDBFE" }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, color: blue, textTransform: "uppercase", marginBottom: 3 }}>Growth Rate</p>
+                  <p style={{ fontSize: 14, fontWeight: 800, color: ink }}>{marketSizeResult.marketGrowthRate}</p>
+                  {marketSizeResult.marketMaturity && <p style={{ fontSize: 10, color: muted, marginTop: 2 }}>{marketSizeResult.marketMaturity} market</p>}
+                </div>
+              )}
+              {marketSizeResult.yourTargetShare && (
+                <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "10px 12px", border: "1px solid #BBF7D0" }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, color: green, textTransform: "uppercase", marginBottom: 3 }}>Your 3-Year Target</p>
+                  <p style={{ fontSize: 14, fontWeight: 800, color: ink }}>{marketSizeResult.yourTargetShare}</p>
+                  <p style={{ fontSize: 10, color: muted, marginTop: 2 }}>of SAM · {marketSizeResult.confidence ?? ''} confidence</p>
+                </div>
+              )}
+            </div>
+            {marketSizeResult.keyInsight && (
+              <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "10px 14px", border: "1px solid #BBF7D0" }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: green, textTransform: "uppercase", marginBottom: 4 }}>Key Insight</p>
+                <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{marketSizeResult.keyInsight}</p>
+              </div>
+            )}
+            <button onClick={() => setMarketSizeResult(null)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>Refresh</button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Pricing Monitor CTA ── */}
+      <div style={{ background: "#FFF7ED", border: "1px solid #FED7AA", borderRadius: 12, padding: "16px 20px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: pricingResult ? 16 : 0 }}>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: "#EA580C", marginBottom: 2 }}>Competitor Pricing Monitor</p>
+            <p style={{ fontSize: 11, color: muted }}>Pulls live pricing for your tracked competitors via web search — extracts tiers, models, and pricing strategy gaps for your startup.</p>
+            {pricingError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{pricingError}</p>}
+          </div>
+          <button onClick={handleRunPricingMonitor} disabled={runningPricing} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: runningPricing ? bdr : "#EA580C", color: runningPricing ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: runningPricing ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
+            {runningPricing ? "Scanning…" : "Scan Pricing"}
+          </button>
+        </div>
+        {pricingResult && pricingResult.pricing && pricingResult.pricing.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {pricingResult.insights && (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+                {[
+                  { label: "Cheapest", value: pricingResult.insights.cheapest ?? "—" },
+                  { label: "Most Expensive", value: pricingResult.insights.mostExpensive ?? "—" },
+                  { label: "Avg Starting", value: pricingResult.insights.averageStartingPrice ?? "—" },
+                ].map(({ label, value }) => (
+                  <div key={label} style={{ background: bg, borderRadius: 8, padding: "10px 12px", border: `1px solid ${bdr}`, textAlign: "center" }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: ink }}>{value}</p>
+                    <p style={{ fontSize: 10, color: muted, marginTop: 2 }}>{label}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {pricingResult.pricing.map((p, i) => (
+                <div key={i} style={{ background: bg, borderRadius: 10, padding: "12px 14px", border: `1px solid ${bdr}` }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: ink }}>{p.competitor}</p>
+                    <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 999, background: surf, border: `1px solid ${bdr}`, color: muted }}>{p.pricingModel}</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: green, marginLeft: "auto" }}>{p.startingPrice}</span>
+                  </div>
+                  <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+                    {p.hasFree && <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 999, background: "#F0FDF4", border: "1px solid #BBF7D0", color: green, fontWeight: 600 }}>Free tier</span>}
+                    {p.hasEnterprise && <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 999, background: "#EFF6FF", border: "1px solid #BFDBFE", color: blue, fontWeight: 600 }}>Enterprise</span>}
+                  </div>
+                  {p.tiers && p.tiers.length > 0 && (
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+                      {p.tiers.map((t, ti) => (
+                        <div key={ti} style={{ background: surf, borderRadius: 6, padding: "5px 10px", border: `1px solid ${bdr}` }}>
+                          <p style={{ fontSize: 11, fontWeight: 600, color: ink }}>{t.name}</p>
+                          <p style={{ fontSize: 10, color: muted }}>{t.price}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {p.signals && p.signals.length > 0 && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                      {p.signals.map((s, si) => <p key={si} style={{ fontSize: 11, color: muted }}>• {s}</p>)}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            {pricingResult.insights && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {pricingResult.insights.pricingGap && (
+                  <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "10px 14px", border: "1px solid #BBF7D0" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: green, textTransform: "uppercase", marginBottom: 4 }}>Pricing Gap</p>
+                    <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{pricingResult.insights.pricingGap}</p>
+                  </div>
+                )}
+                {pricingResult.insights.recommendation && (
+                  <div style={{ background: "#EFF6FF", borderRadius: 8, padding: "10px 14px", border: "1px solid #BFDBFE" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: blue, textTransform: "uppercase", marginBottom: 4 }}>Recommendation</p>
+                    <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{pricingResult.insights.recommendation}</p>
+                  </div>
+                )}
+                {pricingResult.insights.yourPositioning && (
+                  <p style={{ fontSize: 11, color: muted, lineHeight: 1.5 }}><strong>Your positioning:</strong> {pricingResult.insights.yourPositioning}</p>
+                )}
+              </div>
+            )}
+            <button onClick={() => setPricingResult(null)} style={{ padding: "7px 14px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>
+              Refresh Pricing
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Battle Cards ── */}
+      <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 12, padding: "16px 20px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: battleCardsResult ? 14 : 0 }}>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: red, marginBottom: 2 }}>Sales Battle Cards</p>
+            <p style={{ fontSize: 11, color: muted }}>Atlas researches each competitor and generates per-deal battle cards — where you win, objection handlers, and the one landmine question to use against them.</p>
+            {battleCardsError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{battleCardsError}</p>}
+          </div>
+          <button onClick={handleRunBattleCards} disabled={runningBattleCards} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: runningBattleCards ? bdr : red, color: runningBattleCards ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: runningBattleCards ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
+            {runningBattleCards ? "Researching…" : "Generate Cards"}
+          </button>
+        </div>
+        {battleCardsResult && battleCardsResult.battleCards && battleCardsResult.battleCards.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {/* Competitor tab strip */}
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {battleCardsResult.battleCards.map((bc, i) => (
+                <button key={i} onClick={() => setActiveBattleCard(i)} style={{ padding: "5px 14px", borderRadius: 7, border: `1px solid ${activeBattleCard === i ? red : bdr}`, background: activeBattleCard === i ? "#FEF2F2" : bg, color: activeBattleCard === i ? red : muted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{bc.competitor}</button>
+              ))}
+            </div>
+            {(() => {
+              const bc = battleCardsResult.battleCards![activeBattleCard];
+              if (!bc) return null;
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {bc.positioning && <p style={{ fontSize: 12, color: muted, lineHeight: 1.5 }}><strong>Their positioning:</strong> {bc.positioning}</p>}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    {bc.whereYouWin && bc.whereYouWin.length > 0 && (
+                      <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "10px 12px", border: "1px solid #BBF7D0" }}>
+                        <p style={{ fontSize: 10, fontWeight: 700, color: green, textTransform: "uppercase", marginBottom: 5 }}>Where You Win</p>
+                        {bc.whereYouWin.map((w, wi) => <p key={wi} style={{ fontSize: 11, color: ink, lineHeight: 1.5, marginBottom: 3 }}>✓ {w}</p>)}
+                      </div>
+                    )}
+                    {bc.theirWeaknesses && bc.theirWeaknesses.length > 0 && (
+                      <div style={{ background: "#FEF2F2", borderRadius: 8, padding: "10px 12px", border: "1px solid #FECACA" }}>
+                        <p style={{ fontSize: 10, fontWeight: 700, color: red, textTransform: "uppercase", marginBottom: 5 }}>Their Weaknesses</p>
+                        {bc.theirWeaknesses.map((w, wi) => <p key={wi} style={{ fontSize: 11, color: ink, lineHeight: 1.5, marginBottom: 3 }}>⚠ {w}</p>)}
+                      </div>
+                    )}
+                  </div>
+                  {bc.talkTrack && (
+                    <div style={{ background: "#FFFBEB", borderRadius: 8, padding: "10px 14px", border: "1px solid #FDE68A" }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: amber, textTransform: "uppercase", marginBottom: 4 }}>Talk Track</p>
+                      <p style={{ fontSize: 12, color: ink, lineHeight: 1.6, fontStyle: "italic" }}>&quot;{bc.talkTrack}&quot;</p>
+                    </div>
+                  )}
+                  {bc.objectionHandlers && bc.objectionHandlers.length > 0 && (
+                    <div>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", marginBottom: 6 }}>Objection Handlers</p>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        {bc.objectionHandlers.map((oh, oi) => (
+                          <div key={oi} style={{ background: bg, borderRadius: 8, padding: "10px 12px", border: `1px solid ${bdr}` }}>
+                            <p style={{ fontSize: 11, fontWeight: 700, color: red, marginBottom: 3 }}>&quot;{oh.objection}&quot;</p>
+                            <p style={{ fontSize: 11, color: ink, lineHeight: 1.5 }}>→ {oh.response}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {bc.landmine && (
+                    <div style={{ background: "#FEF2F2", borderRadius: 8, padding: "10px 14px", border: "1px solid #FECACA" }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, color: red, textTransform: "uppercase", marginBottom: 4 }}>The Landmine Question</p>
+                      <p style={{ fontSize: 12, color: ink, fontStyle: "italic", fontWeight: 600 }}>&quot;{bc.landmine}&quot;</p>
+                    </div>
+                  )}
+                  <div style={{ display: "flex", gap: 12 }}>
+                    {bc.winSignals && bc.winSignals.length > 0 && (
+                      <div style={{ flex: 1, background: "#F0FDF4", borderRadius: 8, padding: "8px 12px", border: "1px solid #BBF7D0" }}>
+                        <p style={{ fontSize: 10, fontWeight: 700, color: green, textTransform: "uppercase", marginBottom: 4 }}>Win Signals</p>
+                        {bc.winSignals.map((s, si) => <p key={si} style={{ fontSize: 10, color: ink, lineHeight: 1.4 }}>• {s}</p>)}
+                      </div>
+                    )}
+                    {bc.disqualifiers && bc.disqualifiers.length > 0 && (
+                      <div style={{ flex: 1, background: "#FEF2F2", borderRadius: 8, padding: "8px 12px", border: "1px solid #FECACA" }}>
+                        <p style={{ fontSize: 10, fontWeight: 700, color: red, textTransform: "uppercase", marginBottom: 4 }}>Walk Away If</p>
+                        {bc.disqualifiers.map((d, di) => <p key={di} style={{ fontSize: 10, color: ink, lineHeight: 1.4 }}>• {d}</p>)}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+            <button onClick={() => setBattleCardsResult(null)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>Refresh Cards</button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Market Map ── */}
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "16px 20px" }}>
+        <p style={{ fontSize: 11, fontWeight: 700, color: "#059669", marginBottom: 2 }}>Market Map</p>
+        <p style={{ fontSize: 11, color: muted, marginBottom: 12 }}>Atlas maps your total addressable market — TAM/SAM/SOM sizing, market segments, key players by category, whitespace opportunities, entry points, and competitive intensity.</p>
+        {mmError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{mmError}</p>}
+        <button onClick={handleRunMarketMap} disabled={runningMM}
+          style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: runningMM ? bdr : "#059669", color: runningMM ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: runningMM ? "not-allowed" : "pointer" }}>
+          {runningMM ? "Mapping market…" : "Generate Market Map"}
+        </button>
+        {mmResult && (
+          <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+            {!!mmResult.marketOverview && (
+              <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{mmResult.marketOverview as string}</p>
+            )}
+            {/* TAM/SAM/SOM grid */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+              {[
+                { label: "TAM", data: mmResult.totalAddressableMarket as { size?: string; growth?: string } | undefined },
+                { label: "SAM", data: mmResult.serviceableAddressableMarket as { size?: string; segment?: string } | undefined },
+                { label: "SOM", data: mmResult.serviceableObtainableMarket as { size?: string; horizon?: string } | undefined },
+              ].map(({ label, data }) => (
+                <div key={label} style={{ background: "#F0FDF4", borderRadius: 8, padding: "10px 14px", border: "1px solid #BBF7D0", textAlign: "center" }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, color: "#059669", textTransform: "uppercase", marginBottom: 4 }}>{label}</p>
+                  <p style={{ fontSize: 14, fontWeight: 800, color: ink, margin: 0 }}>{data?.size ?? '—'}</p>
+                  <p style={{ fontSize: 10, color: muted, margin: 0 }}>{(data as Record<string, string> | undefined)?.growth ?? (data as Record<string, string> | undefined)?.horizon ?? (data as Record<string, string> | undefined)?.segment ?? ''}</p>
+                </div>
+              ))}
+            </div>
+            {/* Segments */}
+            {(mmResult.marketSegments as { segment: string; size: string; growth: string; competition: string; ourFit: string }[] | undefined)?.length && (
+              <div>
+                <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", marginBottom: 6 }}>Market Segments</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  {(mmResult.marketSegments as { segment: string; size: string; growth: string; competition: string; ourFit: string }[]).map((s, i) => {
+                    const fitColor = s.ourFit === 'strong' ? green : s.ourFit === 'moderate' ? amber : muted;
+                    return (
+                      <div key={i} style={{ display: "flex", gap: 8, alignItems: "center", background: "#fff", borderRadius: 6, padding: "6px 10px", border: `1px solid ${bdr}` }}>
+                        <span style={{ flex: 1, fontSize: 11, fontWeight: 600, color: ink }}>{s.segment}</span>
+                        <span style={{ fontSize: 10, color: muted }}>{s.size}</span>
+                        <span style={{ padding: "2px 6px", borderRadius: 10, background: fitColor, color: "#fff", fontSize: 9, fontWeight: 700 }}>{s.ourFit}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {/* Whitespace + Entry Points */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {!!(mmResult.whitespaceOpportunities as { gap: string; difficulty: string }[] | undefined)?.length && (
+                <div style={{ background: "#EFF6FF", borderRadius: 8, padding: "10px 14px", border: "1px solid #BFDBFE" }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, color: blue, textTransform: "uppercase", marginBottom: 6 }}>Whitespace</p>
+                  {(mmResult.whitespaceOpportunities as { gap: string; difficulty: string }[]).slice(0, 3).map((w, i) => (
+                    <p key={i} style={{ fontSize: 11, color: ink, marginBottom: 3 }}>→ {w.gap} <span style={{ color: muted }}>({w.difficulty})</span></p>
+                  ))}
+                </div>
+              )}
+              {!!(mmResult.entryPoints as { vertical: string; rationale: string }[] | undefined)?.length && (
+                <div style={{ background: "#F5F3FF", borderRadius: 8, padding: "10px 14px", border: "1px solid #DDD6FE" }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, color: "#7C3AED", textTransform: "uppercase", marginBottom: 6 }}>Entry Points</p>
+                  {(mmResult.entryPoints as { vertical: string; rationale: string }[]).slice(0, 3).map((e, i) => (
+                    <p key={i} style={{ fontSize: 11, color: ink, marginBottom: 3 }}>→ {e.vertical}</p>
+                  ))}
+                </div>
+              )}
+            </div>
+            {/* Market dynamics */}
+            {!!(mmResult.marketDynamics as { tailwinds?: string[]; headwinds?: string[] } | undefined) && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                {!!(mmResult.marketDynamics as { tailwinds?: string[] }).tailwinds?.length && (
+                  <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "8px 12px", border: "1px solid #BBF7D0" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: green, textTransform: "uppercase", marginBottom: 4 }}>Tailwinds</p>
+                    {(mmResult.marketDynamics as { tailwinds: string[] }).tailwinds.map((t, i) => <p key={i} style={{ fontSize: 10, color: ink, marginBottom: 2 }}>↑ {t}</p>)}
+                  </div>
+                )}
+                {!!(mmResult.marketDynamics as { headwinds?: string[] }).headwinds?.length && (
+                  <div style={{ background: "#FEF2F2", borderRadius: 8, padding: "8px 12px", border: "1px solid #FECACA" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: red, textTransform: "uppercase", marginBottom: 4 }}>Headwinds</p>
+                    {(mmResult.marketDynamics as { headwinds: string[] }).headwinds.map((h, i) => <p key={i} style={{ fontSize: 10, color: ink, marginBottom: 2 }}>↓ {h}</p>)}
+                  </div>
+                )}
+              </div>
+            )}
+            {!!mmResult.bottomLine && (
+              <div style={{ background: "#FFFBEB", borderRadius: 8, padding: "10px 14px", border: "1px solid #FDE68A" }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: amber, textTransform: "uppercase", marginBottom: 4 }}>Bottom Line</p>
+                <p style={{ fontSize: 12, color: ink, fontWeight: 600 }}>{mmResult.bottomLine as string}</p>
+              </div>
+            )}
+            <button onClick={() => setMmResult(null)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>Regenerate</button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Win / Loss Analysis ── */}
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "16px 20px" }}>
+        <p style={{ fontSize: 11, fontWeight: 700, color: red, marginBottom: 2 }}>Win / Loss Analysis</p>
+        <p style={{ fontSize: 11, color: muted, marginBottom: 12 }}>Atlas analyzes your competitive positioning to surface why you win, why you lose, competitor head-to-head breakdowns, and messaging adjustments to improve win rates.</p>
+        {winLossError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{winLossError}</p>}
+        <button onClick={handleRunWinLoss} disabled={runningWinLoss}
+          style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: runningWinLoss ? bdr : red, color: runningWinLoss ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: runningWinLoss ? "not-allowed" : "pointer" }}>
+          {runningWinLoss ? "Analyzing…" : "Run Win/Loss Analysis"}
+        </button>
+        {winLossResult && (
+          <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ background: "#FEF2F2", borderRadius: 8, padding: "10px 14px", border: "1px solid #FECACA", flex: 1, textAlign: "center" }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", marginBottom: 4 }}>Estimated Win Rate</p>
+                <p style={{ fontSize: 14, fontWeight: 800, color: ink }}>{winLossResult.winRateEstimate as string}</p>
+              </div>
+            </div>
+            {!!winLossResult.keyInsight && (
+              <div style={{ background: "#FFF7ED", borderRadius: 8, padding: "10px 14px", border: "1px solid #FED7AA" }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: amber, textTransform: "uppercase", marginBottom: 4 }}>Key Insight</p>
+                <p style={{ fontSize: 12, color: ink, lineHeight: 1.6 }}>{winLossResult.keyInsight as string}</p>
+              </div>
+            )}
+            {/* Win / Loss reasons */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "10px 14px", border: "1px solid #BBF7D0" }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: green, textTransform: "uppercase", marginBottom: 6 }}>Why We Win</p>
+                {(winLossResult.winReasons as { reason: string; frequency: string; competitorYouBeat: string }[] | undefined)?.map((w, i) => (
+                  <div key={i} style={{ marginBottom: 6 }}>
+                    <p style={{ fontSize: 11, fontWeight: 600, color: ink, margin: 0 }}>{w.reason}</p>
+                    <p style={{ fontSize: 10, color: muted }}>vs. {w.competitorYouBeat} · {w.frequency}</p>
+                  </div>
+                ))}
+              </div>
+              <div style={{ background: "#FEF2F2", borderRadius: 8, padding: "10px 14px", border: "1px solid #FECACA" }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: red, textTransform: "uppercase", marginBottom: 6 }}>Why We Lose</p>
+                {(winLossResult.lossReasons as { reason: string; frequency: string; competitorYouLoseTo: string; rootCause: string }[] | undefined)?.map((l, i) => (
+                  <div key={i} style={{ marginBottom: 6 }}>
+                    <p style={{ fontSize: 11, fontWeight: 600, color: ink, margin: 0 }}>{l.reason}</p>
+                    <p style={{ fontSize: 10, color: muted }}>vs. {l.competitorYouLoseTo} · Root: {l.rootCause}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* Competitor breakdown */}
+            {(winLossResult.competitorBreakdown as { competitor: string; headToHeadVerdict: string; theirBestScenario: string; yourBestScenario: string; dealBreaker: string }[] | undefined)?.length && (
+              <div>
+                <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", marginBottom: 8 }}>Head-to-Head Breakdown</p>
+                {(winLossResult.competitorBreakdown as { competitor: string; headToHeadVerdict: string; theirBestScenario: string; yourBestScenario: string; dealBreaker: string }[]).map((c, i) => {
+                  const verdictColor = c.headToHeadVerdict === 'win' ? green : c.headToHeadVerdict === 'lose' ? red : amber;
+                  return (
+                    <div key={i} style={{ background: "#fff", borderRadius: 8, padding: "10px 14px", border: `1px solid ${bdr}`, marginBottom: 6 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                        <p style={{ fontSize: 12, fontWeight: 700, color: ink, margin: 0 }}>{c.competitor}</p>
+                        <span style={{ padding: "2px 8px", borderRadius: 10, background: verdictColor, color: "#fff", fontSize: 10, fontWeight: 700, textTransform: "uppercase" }}>{c.headToHeadVerdict}</span>
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, fontSize: 10 }}>
+                        <p style={{ color: ink, margin: 0 }}><span style={{ color: green, fontWeight: 700 }}>We win when:</span> {c.yourBestScenario}</p>
+                        <p style={{ color: ink, margin: 0 }}><span style={{ color: red, fontWeight: 700 }}>They win when:</span> {c.theirBestScenario}</p>
+                      </div>
+                      <p style={{ fontSize: 10, color: muted, marginTop: 4, margin: 0 }}>Deal breaker: <span style={{ color: ink }}>{c.dealBreaker}</span></p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {/* Messaging adjustments */}
+            {(winLossResult.messagingAdjustments as string[] | undefined)?.length && (
+              <div style={{ background: "#EFF6FF", borderRadius: 8, padding: "10px 14px", border: "1px solid #BFDBFE" }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: blue, textTransform: "uppercase", marginBottom: 6 }}>Messaging Adjustments</p>
+                {(winLossResult.messagingAdjustments as string[]).map((m, i) => (
+                  <p key={i} style={{ fontSize: 11, color: ink, marginBottom: 4 }}>→ {m}</p>
+                ))}
+              </div>
+            )}
+            {/* Action plan */}
+            {(winLossResult.actionPlan as { action: string; owner: string; impact: string; timeline: string }[] | undefined)?.length && (
+              <div>
+                <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", marginBottom: 6 }}>Action Plan</p>
+                {(winLossResult.actionPlan as { action: string; owner: string; impact: string; timeline: string }[]).map((a, i) => (
+                  <div key={i} style={{ display: "flex", gap: 8, marginBottom: 6, fontSize: 11 }}>
+                    <span style={{ padding: "2px 6px", borderRadius: 6, background: a.impact === 'high' ? green : a.impact === 'medium' ? amber : muted, color: "#fff", fontSize: 9, fontWeight: 700, flexShrink: 0, height: "fit-content", marginTop: 2 }}>{a.impact}</span>
+                    <div>
+                      <p style={{ fontSize: 11, fontWeight: 600, color: ink, margin: 0 }}>{a.action}</p>
+                      <p style={{ fontSize: 10, color: muted, margin: 0 }}>{a.owner} · {a.timeline}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <button onClick={() => setWinLossResult(null)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>Re-analyze</button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Win/Loss Analysis ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 24, marginTop: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontWeight: 700, fontSize: 14, color: ink, margin: 0 }}>Win/Loss Analysis</p>
+            <p style={{ fontSize: 12, color: muted, margin: "2px 0 0" }}>Understand why deals are won or lost and what to fix in your sales motion</p>
+          </div>
+          <button onClick={handleRunWinLossAnalysis} disabled={runningWinLoss} style={{ padding: "8px 16px", borderRadius: 8, background: runningWinLoss ? surf : ink, color: runningWinLoss ? muted : bg, fontSize: 12, fontWeight: 600, border: "none", cursor: runningWinLoss ? "default" : "pointer" }}>
+            {runningWinLoss ? "Analyzing…" : "Run Analysis"}
+          </button>
+        </div>
+        {winLossError && <p style={{ color: "#DC2626", fontSize: 12 }}>{winLossError}</p>}
+        {winLossResult && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {!!winLossResult.verdict && <p style={{ fontSize: 13, color: ink, margin: 0, padding: "10px 14px", background: surf, borderRadius: 8 }}>{String(winLossResult.verdict)}</p>}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {!!winLossResult.estimatedWinRate && <div style={{ padding: "10px 12px", background: "#F0FDF4", borderRadius: 8 }}><p style={{ fontSize: 10, color: muted, margin: "0 0 2px" }}>Est. Win Rate</p><p style={{ fontSize: 18, fontWeight: 700, color: "#16A34A", margin: 0 }}>{String(winLossResult.estimatedWinRate)}</p></div>}
+              {!!winLossResult.priorityFix && <div style={{ padding: "10px 12px", background: "#FEF2F2", borderRadius: 8 }}><p style={{ fontSize: 10, color: muted, margin: "0 0 4px" }}>Priority Fix</p><p style={{ fontSize: 11, color: "#DC2626", margin: 0 }}>{String(winLossResult.priorityFix)}</p></div>}
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {(["wins","losses","competitors","coaching"] as const).map(t => (
+                <button key={t} onClick={() => setWinLossTab(t)} style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${winLossTab===t ? ink : bdr}`, background: winLossTab===t ? ink : bg, color: winLossTab===t ? bg : ink, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                  {t==="wins" ? "✅ Win Themes" : t==="losses" ? "❌ Loss Themes" : t==="competitors" ? "⚔️ vs Competitors" : "🎯 Coaching"}
+                </button>
+              ))}
+            </div>
+            {winLossTab === "wins" && !!(winLossResult.winThemes as unknown[])?.length && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {(winLossResult.winThemes as { theme: string; frequency: string; reinforce: string }[]).map((w, i) => (
+                  <div key={i} style={{ padding: "10px 14px", background: "#F0FDF4", borderRadius: 8, borderLeft: "3px solid #16A34A" }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: ink, margin: "0 0 4px" }}>{w.theme}</p>
+                    <p style={{ fontSize: 11, color: muted, margin: "0 0 4px" }}>Frequency: {w.frequency}</p>
+                    <p style={{ fontSize: 12, color: "#16A34A", margin: 0 }}>Reinforce: {w.reinforce}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {winLossTab === "losses" && !!(winLossResult.lossThemes as unknown[])?.length && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {(winLossResult.lossThemes as { theme: string; frequency: string; fix: string; urgency: string }[]).map((l, i) => (
+                  <div key={i} style={{ padding: "10px 14px", background: "#FEF2F2", borderRadius: 8, borderLeft: "3px solid #DC2626" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: ink, margin: 0 }}>{l.theme}</p>
+                      <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 12, background: l.urgency==="high" ? "#DC2626" : "#D97706", color: "#fff", fontWeight: 700 }}>{l.urgency}</span>
+                    </div>
+                    <p style={{ fontSize: 11, color: muted, margin: "0 0 4px" }}>Frequency: {l.frequency}</p>
+                    <p style={{ fontSize: 12, color: "#16A34A", margin: 0 }}>Fix: {l.fix}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {winLossTab === "competitors" && !!(winLossResult.competitorWinRate as unknown[])?.length && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {(winLossResult.competitorWinRate as { competitor: string; winRateAgainst: string; theirAdvantage: string; yourCounter: string }[]).map((c, i) => (
+                  <div key={i} style={{ padding: "10px 14px", background: surf, borderRadius: 8, border: `1px solid ${bdr}` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: ink, margin: 0 }}>{c.competitor}</p>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: "#16A34A" }}>{c.winRateAgainst} win rate</span>
+                    </div>
+                    <p style={{ fontSize: 12, color: "#DC2626", margin: "0 0 4px" }}>Their edge: {c.theirAdvantage}</p>
+                    <p style={{ fontSize: 12, color: "#2563EB", margin: 0 }}>Counter: {c.yourCounter}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {winLossTab === "coaching" && !!(winLossResult.coachingInsights as unknown[])?.length && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {(winLossResult.coachingInsights as { insight: string; drill: string; metric: string }[]).map((c, i) => (
+                  <div key={i} style={{ padding: "10px 14px", background: "#EFF6FF", borderRadius: 8, borderLeft: "3px solid #2563EB" }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: ink, margin: "0 0 4px" }}>{c.insight}</p>
+                    <p style={{ fontSize: 12, color: ink, margin: "0 0 4px" }}>Drill: {c.drill}</p>
+                    <p style={{ fontSize: 11, color: "#2563EB", margin: 0 }}>Metric: {c.metric}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            <button onClick={() => setWinLossResult(null)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>Re-run</button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Feature Comparison ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 20, marginTop: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>Feature Comparison</p>
+            <p style={{ fontSize: 11, color: muted }}>Deep feature-by-feature analysis vs competitors — where you win, where they win, and what to build next.</p>
+          </div>
+          <button onClick={handleRunFeatureComparison} disabled={runningFeatComp} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: runningFeatComp ? bdr : blue, color: runningFeatComp ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: runningFeatComp ? "not-allowed" : "pointer", whiteSpace: "nowrap" as const, flexShrink: 0, marginLeft: 12 }}>
+            {runningFeatComp ? "Comparing…" : "Run Feature Comparison"}
+          </button>
+        </div>
+        {featCompError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{featCompError}</p>}
+        {featCompResult && (
+          <div style={{ background: surf, borderRadius: 10, padding: 16 }}>
+            {!!featCompResult.verdict && <p style={{ fontSize: 12, color: muted, fontStyle: "italic", marginBottom: 14 }}>{String(featCompResult.verdict)}</p>}
+            {/* Where we win / where they win */}
+            {!!(featCompResult.youWin as unknown[])?.length && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+                <div style={{ background: "#DCFCE7", borderRadius: 8, padding: 12 }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: "#16A34A", marginBottom: 8 }}>Where You Win</p>
+                  {(featCompResult.youWin as { area: string; advantage: string }[]).map((w, i) => (
+                    <div key={i} style={{ marginBottom: 6 }}>
+                      <p style={{ fontSize: 12, fontWeight: 600, color: ink, margin: 0 }}>{w.area}</p>
+                      <p style={{ fontSize: 11, color: muted, margin: 0 }}>{w.advantage}</p>
+                    </div>
+                  ))}
+                </div>
+                {!!(featCompResult.theyWin as unknown[])?.length && (
+                  <div style={{ background: "#FEE2E2", borderRadius: 8, padding: 12 }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: red, marginBottom: 8 }}>Where They Win</p>
+                    {(featCompResult.theyWin as { competitor: string; area: string; response: string }[]).map((w, i) => (
+                      <div key={i} style={{ marginBottom: 6 }}>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: ink, margin: 0 }}>{w.area}</p>
+                        <p style={{ fontSize: 11, color: muted, margin: 0 }}>{w.competitor} · {w.response}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {/* Feature categories */}
+            {!!(featCompResult.featureCategories as unknown[])?.length && (
+              <div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" as const, marginBottom: 10 }}>
+                  {(featCompResult.featureCategories as { category: string }[]).map((c, i) => (
+                    <button key={i} onClick={() => setFeatCompCatIdx(i)} style={{ padding: "4px 10px", borderRadius: 6, border: `1px solid ${featCompCatIdx === i ? blue : bdr}`, background: featCompCatIdx === i ? "#EFF6FF" : "transparent", color: featCompCatIdx === i ? blue : muted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{c.category}</button>
+                  ))}
+                </div>
+                {(() => {
+                  const cat = (featCompResult.featureCategories as { category: string; features: { feature: string; us: string; competitor1: string; importance: string; buyerNote: string }[] }[])[featCompCatIdx];
+                  if (!cat) return null;
+                  const statusColor = (s: string) => s === "full" ? "#16A34A" : s === "partial" ? amber : s === "roadmap" ? blue : red;
+                  return (
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                      <thead>
+                        <tr>
+                          {["Feature", "You", "Competitor", "Importance"].map(h => (
+                            <th key={h} style={{ padding: "6px 8px", borderBottom: `1px solid ${bdr}`, color: muted, fontWeight: 600, textAlign: "left" as const }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {cat.features?.map((f, fi) => (
+                          <tr key={fi} style={{ background: fi % 2 === 0 ? "transparent" : bg }}>
+                            <td style={{ padding: "6px 8px", color: ink }}>{f.feature}</td>
+                            <td style={{ padding: "6px 8px", color: statusColor(f.us), fontWeight: 700 }}>{f.us}</td>
+                            <td style={{ padding: "6px 8px", color: statusColor(f.competitor1) }}>{f.competitor1}</td>
+                            <td style={{ padding: "6px 8px" }}><span style={{ fontSize: 11, padding: "2px 6px", borderRadius: 999, background: f.importance === "critical" ? "#FEE2E2" : f.importance === "high" ? "#FEF3C7" : "#F3F4F6", color: f.importance === "critical" ? red : f.importance === "high" ? amber : muted }}>{f.importance}</span></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  );
+                })()}
+              </div>
+            )}
+            {/* Gap analysis */}
+            {!!(featCompResult.gapAnalysis as unknown[])?.length && (
+              <div style={{ marginTop: 14 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Gap Analysis — Build Priority</p>
+                {(featCompResult.gapAnalysis as { gap: string; reason: string; urgency: string }[]).map((g, i) => (
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: `1px solid ${bdr}` }}>
+                    <div>
+                      <p style={{ fontSize: 12, fontWeight: 600, color: ink, margin: 0 }}>{g.gap}</p>
+                      <p style={{ fontSize: 11, color: muted, margin: "2px 0 0" }}>{g.reason}</p>
+                    </div>
+                    <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, background: g.urgency === "immediate" ? "#FEE2E2" : "#FEF3C7", color: g.urgency === "immediate" ? red : amber, fontWeight: 600, height: "fit-content" }}>{g.urgency}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {!!featCompResult.salesNarrative && (
+              <div style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 8, padding: 12, marginTop: 12 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 4 }}>Sales Narrative</p>
+                <p style={{ fontSize: 12, color: ink }}>{String(featCompResult.salesNarrative)}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Positioning Map ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 20, marginTop: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>Competitive Positioning Map</p>
+            <p style={{ fontSize: 11, color: muted }}>Find white space, craft your positioning statement, and identify strategic moves.</p>
+          </div>
+          <button onClick={handleRunPositioningMap} disabled={runningPosMap} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: runningPosMap ? bdr : blue, color: runningPosMap ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: runningPosMap ? "not-allowed" : "pointer", whiteSpace: "nowrap" as const, flexShrink: 0, marginLeft: 12 }}>
+            {runningPosMap ? "Mapping…" : "Build Positioning Map"}
+          </button>
+        </div>
+        {posMapError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{posMapError}</p>}
+        {posMapResult && (
+          <div style={{ background: surf, borderRadius: 10, padding: 16 }}>
+            {/* Axes */}
+            {!!posMapResult.xAxis && !!posMapResult.yAxis && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+                {[posMapResult.xAxis, posMapResult.yAxis].map((axis, i) => {
+                  const a = axis as { label: string; low: string; high: string };
+                  return (
+                    <div key={i} style={{ background: bg, borderRadius: 8, padding: 10 }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: ink, margin: "0 0 4px" }}>{a.label}</p>
+                      <p style={{ fontSize: 11, color: muted, margin: 0 }}>← {a.low} · {a.high} →</p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {/* Positioning statement */}
+            {!!posMapResult.positioningStatement && (
+              <div style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 8, padding: "10px 12px", marginBottom: 14 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: blue, margin: "0 0 4px" }}>Positioning Statement</p>
+                <p style={{ fontSize: 12, color: ink, margin: 0, fontStyle: "italic" }}>{String(posMapResult.positioningStatement)}</p>
+              </div>
+            )}
+            {/* Players */}
+            {!!(posMapResult.players as unknown[])?.length && (
+              <div style={{ marginBottom: 14 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Competitors</p>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" as const, marginBottom: 8 }}>
+                  {(posMapResult.players as { name: string }[]).map((p, i) => (
+                    <button key={i} onClick={() => setPosMapPlayerIdx(i)} style={{ padding: "4px 10px", borderRadius: 6, border: `1px solid ${posMapPlayerIdx === i ? blue : bdr}`, background: posMapPlayerIdx === i ? "#EFF6FF" : "transparent", color: posMapPlayerIdx === i ? blue : muted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{p.name}</button>
+                  ))}
+                </div>
+                {(() => {
+                  const pl = (posMapResult.players as { name: string; type: string; strength: string; weakness: string; x: number; y: number }[])[posMapPlayerIdx];
+                  if (!pl) return null;
+                  return (
+                    <div style={{ background: bg, borderRadius: 8, padding: 12 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                        <p style={{ fontWeight: 700, color: ink, margin: 0 }}>{pl.name}</p>
+                        <span style={{ fontSize: 11, color: muted, background: surf, padding: "2px 8px", borderRadius: 999 }}>{pl.type}</span>
+                      </div>
+                      <p style={{ fontSize: 12, color: green, marginBottom: 4 }}>✓ {pl.strength}</p>
+                      <p style={{ fontSize: 12, color: red }}>✗ {pl.weakness}</p>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+            {/* White Space */}
+            {!!(posMapResult.whiteSpace as unknown[])?.length && (
+              <div>
+                <p style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>White Space Opportunities</p>
+                {(posMapResult.whiteSpace as { area: string; opportunity: string; customerSegment: string }[]).map((w, i) => (
+                  <div key={i} style={{ padding: "8px 0", borderBottom: `1px solid ${bdr}` }}>
+                    <p style={{ fontSize: 12, fontWeight: 600, color: ink, margin: 0 }}>{w.area}</p>
+                    <p style={{ fontSize: 11, color: muted, margin: "2px 0" }}>{w.opportunity}</p>
+                    <p style={{ fontSize: 11, color: blue }}>For: {w.customerSegment}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {!!posMapResult.verdict && <p style={{ fontSize: 12, color: muted, fontStyle: "italic", marginTop: 10 }}>{String(posMapResult.verdict)}</p>}
+          </div>
+        )}
+      </div>
+
+      {/* ── Trend Radar ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 20, marginTop: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>Market Trend Radar</p>
+            <p style={{ fontSize: 11, color: muted }}>Scan tailwinds, headwinds, emerging threats, and opportunity windows in your market.</p>
+          </div>
+          <button onClick={handleRunTrendRadar} disabled={runningTrend}
+            style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: runningTrend ? bdr : blue, color: runningTrend ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: runningTrend ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
+            {runningTrend ? "Scanning…" : "Run Trend Radar"}
+          </button>
+        </div>
+        {trendError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{trendError}</p>}
+        {trendResult && (() => {
+          const tailwinds = (trendResult.tailwinds as { trend: string; description: string; timeHorizon: string; magnitude: string; howToRide: string }[] | undefined) ?? [];
+          const headwinds = (trendResult.headwinds as { trend: string; description: string; timeHorizon: string; severity: string; mitigation: string }[] | undefined) ?? [];
+          const threats = (trendResult.emergingThreats as { threat: string; source: string; probability: string; impactIfMaterializes: string; earlyWarningSign: string }[] | undefined) ?? [];
+          const opportunities = (trendResult.opportunityWindows as { opportunity: string; description: string; timeLimit: string; requiredAction: string }[] | undefined) ?? [];
+          const magColor = (m: string) => m === 'high' ? red : m === 'medium' ? amber : green;
+          return (
+            <div>
+              {!!trendResult.verdict && (
+                <p style={{ fontSize: 12, color: muted, fontStyle: "italic", marginBottom: 14 }}>{trendResult.verdict as string}</p>
+              )}
+              <div style={{ display: "flex", gap: 4, marginBottom: 14, borderBottom: `1px solid ${bdr}`, paddingBottom: 8 }}>
+                {([
+                  { key: 'tailwinds' as const, label: `↑ Tailwinds (${tailwinds.length})`, color: green },
+                  { key: 'headwinds' as const, label: `↓ Headwinds (${headwinds.length})`, color: red },
+                  { key: 'threats' as const, label: `⚠ Threats (${threats.length})`, color: amber },
+                  { key: 'opportunities' as const, label: `✦ Opportunities (${opportunities.length})`, color: blue },
+                ]).map(t => (
+                  <button key={t.key} onClick={() => setTrendTab(t.key)}
+                    style={{ padding: "5px 10px", borderRadius: 6, border: `1px solid ${trendTab === t.key ? t.color : bdr}`, background: trendTab === t.key ? t.color + "15" : bg, color: trendTab === t.key ? t.color : muted, fontSize: 10, fontWeight: 700, cursor: "pointer" }}>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+              {trendTab === 'tailwinds' && tailwinds.map((t, ti) => (
+                <div key={ti} style={{ padding: "10px 12px", background: "#F0FDF4", borderRadius: 8, border: "1px solid #BBF7D0", marginBottom: 8 }}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: green }}>{t.trend}</p>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: magColor(t.magnitude), textTransform: "uppercase" }}>{t.magnitude}</span>
+                    <span style={{ fontSize: 10, color: muted, marginLeft: "auto" }}>{t.timeHorizon}</span>
+                  </div>
+                  <p style={{ fontSize: 11, color: ink, marginBottom: 4 }}>{t.description}</p>
+                  <p style={{ fontSize: 11, color: green, fontWeight: 600 }}>→ {t.howToRide}</p>
+                </div>
+              ))}
+              {trendTab === 'headwinds' && headwinds.map((h, hi) => (
+                <div key={hi} style={{ padding: "10px 12px", background: "#FFF1F2", borderRadius: 8, border: "1px solid #FECDD3", marginBottom: 8 }}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: red }}>{h.trend}</p>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: magColor(h.severity), textTransform: "uppercase" }}>{h.severity}</span>
+                    <span style={{ fontSize: 10, color: muted, marginLeft: "auto" }}>{h.timeHorizon}</span>
+                  </div>
+                  <p style={{ fontSize: 11, color: ink, marginBottom: 4 }}>{h.description}</p>
+                  <p style={{ fontSize: 11, color: amber, fontWeight: 600 }}>Mitigation: {h.mitigation}</p>
+                </div>
+              ))}
+              {trendTab === 'threats' && threats.map((t, ti) => (
+                <div key={ti} style={{ padding: "10px 12px", background: "#FFF7ED", borderRadius: 8, border: "1px solid #FED7AA", marginBottom: 8 }}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: amber }}>{t.threat}</p>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: magColor(t.probability), textTransform: "uppercase" }}>{t.probability} prob</span>
+                  </div>
+                  <p style={{ fontSize: 11, color: muted, marginBottom: 2 }}>Source: {t.source}</p>
+                  <p style={{ fontSize: 11, color: red, marginBottom: 2 }}>If materializes: {t.impactIfMaterializes}</p>
+                  <p style={{ fontSize: 11, color: amber }}>Watch for: {t.earlyWarningSign}</p>
+                </div>
+              ))}
+              {trendTab === 'opportunities' && opportunities.map((o, oi) => (
+                <div key={oi} style={{ padding: "10px 12px", background: "#EFF6FF", borderRadius: 8, border: "1px solid #BFDBFE", marginBottom: 8 }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: blue, marginBottom: 4 }}>{o.opportunity}</p>
+                  <p style={{ fontSize: 11, color: ink, marginBottom: 4 }}>{o.description}</p>
+                  <div style={{ display: "flex", gap: 12 }}>
+                    <span style={{ fontSize: 10, color: muted }}>Window: {o.timeLimit}</span>
+                  </div>
+                  <p style={{ fontSize: 11, color: blue, fontWeight: 600, marginTop: 4 }}>Action: {o.requiredAction}</p>
+                </div>
+              ))}
+              {!!(trendResult.strategicImplications as string[] | undefined)?.length && (
+                <div style={{ marginTop: 12, padding: "10px 12px", background: surf, borderRadius: 8, border: `1px solid ${bdr}` }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Strategic Implications</p>
+                  {(trendResult.strategicImplications as string[]).map((imp, ii) => (
+                    <p key={ii} style={{ fontSize: 11, color: ink, marginBottom: 4 }}>→ {imp}</p>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+      </div>
+
     </div>
   );
 }
@@ -10678,6 +17858,119 @@ function StrategicPlanRenderer({ data, artifactId }: { data: Record<string, unkn
   } | null>(null);
   const [boardPrepError, setBoardPrepError]           = useState<string | null>(null);
   const [boardPrepSection, setBoardPrepSection]       = useState<"summary" | "financials" | "sales" | "product" | "team" | "competitive" | "strategy" | "risks">("summary");
+
+  // Exit Strategy state
+  const [generatingExitStrat, setGeneratingExitStrat] = useState(false);
+  const [exitStratResult, setExitStratResult]         = useState<Record<string, unknown> | null>(null);
+  const [exitStratError, setExitStratError]           = useState<string | null>(null);
+  const [exitStratTab, setExitStratTab]               = useState<'paths' | 'acquirers' | 'readiness' | 'milestones'>('paths');
+
+  async function handleGenerateExitStrategy() {
+    if (generatingExitStrat) return;
+    setGeneratingExitStrat(true); setExitStratError(null); setExitStratResult(null);
+    try {
+      const res = await fetch('/api/agents/sage/exit-strategy', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.strategy) setExitStratResult(r.strategy);
+      else setExitStratError(r.error ?? 'Generation failed');
+    } catch { setExitStratError('Network error'); }
+    finally { setGeneratingExitStrat(false); }
+  }
+
+  // Board Communication state
+  const [generatingBoardComm, setGeneratingBoardComm] = useState(false);
+  const [boardCommResult, setBoardCommResult]         = useState<Record<string, unknown> | null>(null);
+  const [boardCommError, setBoardCommError]           = useState<string | null>(null);
+  const [boardCommTab, setBoardCommTab]               = useState<'update' | 'calendar' | 'asks' | 'redlines'>('update');
+
+  async function handleGenerateBoardCommunication() {
+    if (generatingBoardComm) return;
+    setGeneratingBoardComm(true); setBoardCommError(null); setBoardCommResult(null);
+    try {
+      const res = await fetch('/api/agents/sage/board-communication', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.framework) setBoardCommResult(r.framework);
+      else setBoardCommError(r.error ?? 'Generation failed');
+    } catch { setBoardCommError('Network error'); }
+    finally { setGeneratingBoardComm(false); }
+  }
+
+  // Investor Q&A Prep state
+  const [generatingInvQA, setGeneratingInvQA]         = useState(false);
+  const [invQAResult, setInvQAResult]                 = useState<Record<string, unknown> | null>(null);
+  const [invQAError, setInvQAError]                   = useState<string | null>(null);
+  const [invQASection, setInvQASection]               = useState<'tough' | 'financial' | 'vision' | 'founder'>('tough');
+
+  async function handleGenerateInvestorQA() {
+    if (generatingInvQA) return;
+    setGeneratingInvQA(true); setInvQAError(null); setInvQAResult(null);
+    try {
+      const res = await fetch('/api/agents/sage/investor-qa-prep', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.prep) setInvQAResult(r.prep);
+      else setInvQAError(r.error ?? 'Generation failed');
+    } catch { setInvQAError('Network error'); }
+    finally { setGeneratingInvQA(false); }
+  }
+
+  // Crisis Playbook state
+  const [crisisType, setCrisisType]                   = useState('funding / cash crisis');
+  const [generatingCrisis, setGeneratingCrisis]       = useState(false);
+  const [crisisResult, setCrisisResult]               = useState<Record<string, unknown> | null>(null);
+  const [crisisError, setCrisisError]                 = useState<string | null>(null);
+  const [crisisSection, setCrisisSection]             = useState<'immediate' | 'stabilization' | 'comms' | 'recovery'>('immediate');
+
+  async function handleGenerateCrisisPlaybook() {
+    if (generatingCrisis) return;
+    setGeneratingCrisis(true); setCrisisError(null); setCrisisResult(null);
+    try {
+      const res = await fetch('/api/agents/sage/crisis-playbook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ crisisType }),
+      });
+      const r = await res.json();
+      if (res.ok && r.playbook) setCrisisResult(r.playbook);
+      else setCrisisError(r.error ?? 'Generation failed');
+    } catch { setCrisisError('Network error'); }
+    finally { setGeneratingCrisis(false); }
+  }
+
+  // Team Alignment state
+  const [generatingTA, setGeneratingTA]               = useState(false);
+  const [taResult, setTaResult]                       = useState<Record<string, unknown> | null>(null);
+  const [taError, setTaError]                         = useState<string | null>(null);
+  const [taDimIdx, setTaDimIdx]                       = useState(0);
+
+  async function handleGenerateTeamAlignment() {
+    if (generatingTA) return;
+    setGeneratingTA(true); setTaError(null); setTaResult(null);
+    try {
+      const res = await fetch('/api/agents/sage/team-alignment', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.assessment) setTaResult(r.assessment);
+      else setTaError(r.error ?? 'Generation failed');
+    } catch { setTaError('Network error'); }
+    finally { setGeneratingTA(false); }
+  }
+
+  // OKR Tracker state
+  const [generatingOKR, setGeneratingOKR]             = useState(false);
+  const [okrResult, setOkrResult]                     = useState<Record<string, unknown> | null>(null);
+  const [okrError, setOkrError]                       = useState<string | null>(null);
+  const [okrObjIdx, setOkrObjIdx]                     = useState(0);
+
+  async function handleGenerateOKRs() {
+    if (generatingOKR) return;
+    setGeneratingOKR(true); setOkrError(null); setOkrResult(null);
+    try {
+      const res = await fetch('/api/agents/sage/okr-tracker', { method: 'POST' });
+      const r = await res.json();
+      if (res.ok && r.okrs) setOkrResult(r.okrs);
+      else setOkrError(r.error ?? 'Generation failed');
+    } catch { setOkrError('Network error'); }
+    finally { setGeneratingOKR(false); }
+  }
 
   async function handleGenerateBoardPrep() {
     if (generatingBoardPrep) return;
@@ -12123,6 +19416,569 @@ document.addEventListener('keydown', e => {
           </div>
         );
       })()}
+
+      {/* ── OKR Tracker ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 20, marginTop: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>OKR Framework</p>
+            <p style={{ fontSize: 11, color: muted }}>Generate a full OKR framework aligned to your strategic plan for the current quarter.</p>
+          </div>
+          <button onClick={handleGenerateOKRs} disabled={generatingOKR}
+            style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingOKR ? bdr : blue, color: generatingOKR ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingOKR ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
+            {generatingOKR ? "Building…" : "Build OKR Framework"}
+          </button>
+        </div>
+        {okrError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{okrError}</p>}
+        {okrResult && (() => {
+          const objectives = (okrResult.companyObjectives as { objective: string; theme: string; keyResults: { kr: string; target: string; owner: string; confidence: number }[]; initiatives: string[] }[] | undefined) ?? [];
+          const teamOKRs = (okrResult.teamOKRs as { team: string; objective: string; keyResults: { kr: string; target: string; owner: string }[] }[] | undefined) ?? [];
+          const obj = objectives[okrObjIdx];
+          return (
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: blue, background: "#EFF6FF", borderRadius: 6, padding: "3px 8px" }}>{okrResult.quarter as string}</span>
+                {!!okrResult.successDefinition && <p style={{ fontSize: 11, color: muted, fontStyle: "italic", margin: 0 }}>{okrResult.successDefinition as string}</p>}
+              </div>
+              {objectives.length > 0 && (
+                <div style={{ marginBottom: 18 }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Company Objectives</p>
+                  <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
+                    {objectives.map((o, i) => (
+                      <button key={i} onClick={() => setOkrObjIdx(i)}
+                        style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${okrObjIdx === i ? blue : bdr}`, background: okrObjIdx === i ? "#EFF6FF" : bg, color: okrObjIdx === i ? blue : muted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                        O{i + 1}: {o.theme}
+                      </button>
+                    ))}
+                  </div>
+                  {obj && (
+                    <div style={{ background: surf, borderRadius: 10, padding: 14, border: `1px solid ${bdr}` }}>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 10 }}>{obj.objective}</p>
+                      {obj.keyResults?.map((kr, ki) => (
+                        <div key={ki} style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 8, padding: "8px 10px", background: bg, borderRadius: 8, border: `1px solid ${bdr}` }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: blue, flexShrink: 0, marginTop: 1 }}>KR{ki + 1}</span>
+                          <div style={{ flex: 1 }}>
+                            <p style={{ fontSize: 12, color: ink, marginBottom: 2 }}>{kr.kr}</p>
+                            <div style={{ display: "flex", gap: 12 }}>
+                              <span style={{ fontSize: 10, color: muted }}>Target: <strong style={{ color: green }}>{kr.target}</strong></span>
+                              <span style={{ fontSize: 10, color: muted }}>Owner: {kr.owner}</span>
+                              <span style={{ fontSize: 10, color: muted }}>Confidence: <strong style={{ color: kr.confidence >= 70 ? green : amber }}>{kr.confidence}%</strong></span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      {!!(obj.initiatives as string[] | undefined)?.length && (
+                        <div style={{ marginTop: 8 }}>
+                          <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Initiatives</p>
+                          {(obj.initiatives as string[]).map((init, ii) => (
+                            <p key={ii} style={{ fontSize: 11, color: ink, marginBottom: 2 }}>→ {init}</p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+              {teamOKRs.length > 0 && (
+                <div style={{ marginBottom: 14 }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Team OKRs</p>
+                  {teamOKRs.map((t, ti) => (
+                    <div key={ti} style={{ background: surf, borderRadius: 8, padding: "10px 12px", border: `1px solid ${bdr}`, marginBottom: 8 }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 4 }}>{t.team}: {t.objective}</p>
+                      {t.keyResults?.map((kr, ki) => (
+                        <p key={ki} style={{ fontSize: 11, color: muted, marginBottom: 2 }}>• {kr.kr} → <strong>{kr.target}</strong></p>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {!!okrResult.scoringGuide && (
+                <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 8, padding: "10px 12px", marginBottom: 10 }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: green, marginBottom: 2 }}>Scoring Guide</p>
+                  <p style={{ fontSize: 11, color: ink }}>{okrResult.scoringGuide as string}</p>
+                </div>
+              )}
+              {!!(okrResult.commonPitfalls as string[] | undefined)?.length && (
+                <div>
+                  <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Common Pitfalls to Avoid</p>
+                  {(okrResult.commonPitfalls as string[]).map((p, pi) => (
+                    <p key={pi} style={{ fontSize: 11, color: muted, marginBottom: 2 }}>⚠ {p}</p>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+      </div>
+
+      {/* ── Exit Strategy ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 24, marginTop: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontWeight: 700, fontSize: 14, color: ink, margin: 0 }}>Exit Strategy</p>
+            <p style={{ fontSize: 12, color: muted, margin: "2px 0 0" }}>Map your exit paths, target acquirers, valuation range, and readiness milestones.</p>
+          </div>
+          <button onClick={handleGenerateExitStrategy} disabled={generatingExitStrat} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingExitStrat ? bdr : blue, color: generatingExitStrat ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingExitStrat ? "not-allowed" : "pointer", whiteSpace: "nowrap" as const, flexShrink: 0, marginLeft: 12 }}>
+            {generatingExitStrat ? "Planning…" : "Plan Exit"}
+          </button>
+        </div>
+        {exitStratError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{exitStratError}</p>}
+        {exitStratResult && (
+          <div style={{ background: surf, borderRadius: 10, padding: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+              {!!exitStratResult.exitScore && (
+                <div style={{ width: 52, height: 52, borderRadius: "50%", background: blue + "22", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <span style={{ fontSize: 20, fontWeight: 800, color: blue }}>{String(exitStratResult.exitScore)}</span>
+                </div>
+              )}
+              {!!exitStratResult.verdict && <p style={{ fontSize: 12, color: muted, fontStyle: "italic" }}>{String(exitStratResult.verdict)}</p>}
+            </div>
+            {!!exitStratResult.valuationRange && (() => {
+              const vr = exitStratResult.valuationRange as Record<string, unknown>;
+              return (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 14 }}>
+                  {[["conservative", "Conservative", red], ["realistic", "Realistic", amber], ["optimistic", "Optimistic", green]].map(([key, label, color]) => (
+                    !!vr[key] && (
+                      <div key={key} style={{ textAlign: "center" as const, background: bg, borderRadius: 8, padding: 10, border: `1px solid ${bdr}` }}>
+                        <p style={{ fontSize: 10, color: muted, marginBottom: 2 }}>{label}</p>
+                        <p style={{ fontSize: 13, fontWeight: 800, color: color as string }}>{String(vr[key])}</p>
+                      </div>
+                    )
+                  ))}
+                </div>
+              );
+            })()}
+            <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" as const }}>
+              {(["paths", "acquirers", "readiness", "milestones"] as const).map(t => (
+                <button key={t} onClick={() => setExitStratTab(t)} style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${exitStratTab === t ? blue : bdr}`, background: exitStratTab === t ? blue : bg, color: exitStratTab === t ? "#fff" : ink, fontSize: 11, fontWeight: exitStratTab === t ? 700 : 400, cursor: "pointer" }}>
+                  {t === "paths" ? "🛤 Exit Paths" : t === "acquirers" ? "🏢 Acquirers" : t === "readiness" ? "⚠️ Readiness Gaps" : "🎯 Milestones"}
+                </button>
+              ))}
+            </div>
+            {exitStratTab === "paths" && !!exitStratResult.exitPaths && (() => {
+              const paths = exitStratResult.exitPaths as Record<string, unknown>[];
+              return (
+                <div style={{ display: "flex", flexDirection: "column" as const, gap: 10 }}>
+                  {paths.map((p, i) => (
+                    <div key={i} style={{ background: bg, borderRadius: 8, padding: 12, border: `1px solid ${bdr}` }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+                        <p style={{ fontSize: 12, fontWeight: 700, color: ink }}>{String(p.path ?? '')}</p>
+                        <div style={{ display: "flex", gap: 6, flexShrink: 0, marginLeft: 8 }}>
+                          {!!p.probability && <span style={{ fontSize: 10, background: green + "22", color: green, borderRadius: 20, padding: "2px 7px", fontWeight: 700 }}>{String(p.probability)}</span>}
+                          {!!p.timeHorizon && <span style={{ fontSize: 10, color: muted }}>{String(p.timeHorizon)}</span>}
+                        </div>
+                      </div>
+                      {!!p.targetValuation && <p style={{ fontSize: 11, color: blue, marginBottom: 4 }}><b>Valuation:</b> {String(p.targetValuation)}</p>}
+                      {!!p.bestFor && <p style={{ fontSize: 11, color: muted }}>{String(p.bestFor)}</p>}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+            {exitStratTab === "acquirers" && !!exitStratResult.acquirerProfiles && (() => {
+              const acqs = exitStratResult.acquirerProfiles as Record<string, unknown>[];
+              return (
+                <div style={{ display: "flex", flexDirection: "column" as const, gap: 10 }}>
+                  {acqs.map((a, i) => (
+                    <div key={i} style={{ background: bg, borderRadius: 8, padding: 12, border: `1px solid ${bdr}` }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 4 }}>{String(a.acquirerType ?? '')}</p>
+                      {!!a.examples && <div style={{ display: "flex", gap: 6, flexWrap: "wrap" as const, marginBottom: 6 }}>{(a.examples as string[]).map((e, j) => <span key={j} style={{ fontSize: 10, background: surf, border: `1px solid ${bdr}`, borderRadius: 20, padding: "2px 8px", color: muted }}>{e}</span>)}</div>}
+                      {!!a.acquisitionThesis && <p style={{ fontSize: 11, color: muted, marginBottom: 4 }}>{String(a.acquisitionThesis)}</p>}
+                      {!!a.outreachTiming && <p style={{ fontSize: 11, color: amber }}><b>Reach out:</b> {String(a.outreachTiming)}</p>}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+            {exitStratTab === "readiness" && !!exitStratResult.readinessGaps && (() => {
+              const gaps = exitStratResult.readinessGaps as Record<string, unknown>[];
+              return (
+                <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+                  {gaps.map((g, i) => (
+                    <div key={i} style={{ background: bg, borderRadius: 8, padding: 12, border: `1px solid ${bdr}` }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 4 }}>{String(g.gap ?? '')}</p>
+                      {!!g.impact && <p style={{ fontSize: 11, color: red, marginBottom: 4 }}><b>Impact:</b> {String(g.impact)}</p>}
+                      {!!g.fix && <p style={{ fontSize: 11, color: blue, marginBottom: 2 }}><b>Fix:</b> {String(g.fix)}</p>}
+                      {!!g.timeToFix && <p style={{ fontSize: 10, color: muted }}>{String(g.timeToFix)}</p>}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+            {exitStratTab === "milestones" && !!exitStratResult.milestones && (() => {
+              const mils = exitStratResult.milestones as Record<string, unknown>[];
+              return (
+                <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+                  {mils.map((m, i) => (
+                    <div key={i} style={{ background: bg, borderRadius: 8, padding: 12, border: `1px solid ${bdr}` }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 4 }}>{String(m.milestone ?? '')}</p>
+                      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" as const }}>
+                        {!!m.metric && <span style={{ fontSize: 11, color: blue }}>{String(m.metric)}</span>}
+                        {!!m.deadline && <span style={{ fontSize: 11, color: amber }}>{String(m.deadline)}</span>}
+                      </div>
+                      {!!m.impact && <p style={{ fontSize: 11, color: green, marginTop: 4 }}>{String(m.impact)}</p>}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+            {!!exitStratResult.priorityAction && (
+              <div style={{ marginTop: 12, background: blue + "11", borderRadius: 8, padding: 10, borderLeft: `3px solid ${blue}` }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>Priority Action</p>
+                <p style={{ fontSize: 12, color: ink }}>{String(exitStratResult.priorityAction)}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Board Communication ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 24, marginTop: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontWeight: 700, fontSize: 14, color: ink, margin: 0 }}>Board Communication</p>
+            <p style={{ fontSize: 12, color: muted, margin: "2px 0 0" }}>Update templates, communication calendar, ask formulas, and board relationship best practices</p>
+          </div>
+          <button onClick={handleGenerateBoardCommunication} disabled={generatingBoardComm} style={{ padding: "8px 16px", borderRadius: 8, background: generatingBoardComm ? surf : ink, color: generatingBoardComm ? muted : bg, fontSize: 12, fontWeight: 600, border: "none", cursor: generatingBoardComm ? "default" : "pointer" }}>
+            {generatingBoardComm ? "Building…" : "Build Framework"}
+          </button>
+        </div>
+        {boardCommError && <p style={{ color: "#DC2626", fontSize: 12 }}>{boardCommError}</p>}
+        {boardCommResult && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {!!boardCommResult.verdict && <p style={{ fontSize: 13, color: ink, margin: 0, padding: "10px 14px", background: surf, borderRadius: 8 }}>{String(boardCommResult.verdict)}</p>}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {(["update","calendar","asks","redlines"] as const).map(t => (
+                <button key={t} onClick={() => setBoardCommTab(t)} style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${boardCommTab===t ? ink : bdr}`, background: boardCommTab===t ? ink : bg, color: boardCommTab===t ? bg : ink, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                  {t==="update" ? "📝 Update Template" : t==="calendar" ? "📅 Calendar" : t==="asks" ? "🤝 Ask Formulas" : "🚫 Red Lines"}
+                </button>
+              ))}
+            </div>
+            {boardCommTab === "update" && !!boardCommResult.updateTemplate && (() => {
+              const tmpl = boardCommResult.updateTemplate as Record<string, unknown>;
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {!!tmpl.frequency && <p style={{ fontSize: 12, color: muted, margin: 0 }}>Send: <strong>{String(tmpl.frequency)}</strong></p>}
+                  {!!tmpl.sampleOpening && <div style={{ padding: "10px 14px", background: "#EFF6FF", borderRadius: 8 }}><p style={{ fontSize: 11, fontWeight: 700, color: "#2563EB", margin: "0 0 4px" }}>Sample opening</p><p style={{ fontSize: 12, color: ink, margin: 0, fontStyle: "italic" }}>{String(tmpl.sampleOpening)}</p></div>}
+                  {!!(tmpl.sections as unknown[])?.length && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {(tmpl.sections as { section: string; content: string; length: string; priority: string }[]).map((s, i) => (
+                        <div key={i} style={{ padding: "8px 12px", background: surf, borderRadius: 8, borderLeft: `3px solid ${s.priority==="always" ? ink : bdr}` }}>
+                          <div style={{ display: "flex", justifyContent: "space-between" }}>
+                            <p style={{ fontSize: 12, fontWeight: 700, color: ink, margin: 0 }}>{s.section}</p>
+                            <span style={{ fontSize: 10, color: muted }}>{s.length}</span>
+                          </div>
+                          <p style={{ fontSize: 11, color: muted, margin: "2px 0 0" }}>{s.content}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+            {boardCommTab === "calendar" && !!(boardCommResult.communicationCalendar as unknown[])?.length && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {(boardCommResult.communicationCalendar as { touchpoint: string; frequency: string; format: string; purpose: string; preparationTime: string }[]).map((c, i) => (
+                  <div key={i} style={{ padding: "10px 14px", background: surf, borderRadius: 8, border: `1px solid ${bdr}` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: ink, margin: 0 }}>{c.touchpoint}</p>
+                      <span style={{ fontSize: 11, color: "#2563EB" }}>{c.frequency}</span>
+                    </div>
+                    <p style={{ fontSize: 12, color: muted, margin: "0 0 2px" }}>{c.format} · {c.preparationTime} prep</p>
+                    <p style={{ fontSize: 11, color: muted, margin: 0 }}>{c.purpose}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {boardCommTab === "asks" && !!(boardCommResult.askFormulas as unknown[])?.length && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {(boardCommResult.askFormulas as { askType: string; timing: string; howToFrame: string; followUp: string }[]).map((a, i) => (
+                  <div key={i} style={{ padding: "10px 14px", background: "#F0FDF4", borderRadius: 8, borderLeft: "3px solid #16A34A" }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: ink, margin: "0 0 4px" }}>{a.askType}</p>
+                    <p style={{ fontSize: 12, color: muted, margin: "0 0 4px" }}>Timing: {a.timing}</p>
+                    <p style={{ fontSize: 12, color: ink, margin: "0 0 4px" }}>{a.howToFrame}</p>
+                    <p style={{ fontSize: 11, color: "#16A34A", margin: 0 }}>Follow-up: {a.followUp}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {boardCommTab === "redlines" && !!(boardCommResult.redLines as unknown[])?.length && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {(boardCommResult.redLines as string[]).map((r, i) => (
+                  <div key={i} style={{ padding: "8px 12px", background: "#FEF2F2", borderRadius: 8, borderLeft: "3px solid #DC2626", display: "flex", gap: 10 }}>
+                    <span style={{ fontSize: 14 }}>🚫</span>
+                    <p style={{ fontSize: 12, color: ink, margin: 0 }}>{r}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {!!boardCommResult.priorityAction && <div style={{ padding: "10px 14px", background: "#F0FDF4", borderRadius: 8, borderLeft: "3px solid #16A34A" }}><p style={{ fontSize: 12, fontWeight: 700, color: "#16A34A", margin: "0 0 4px" }}>Priority Action</p><p style={{ fontSize: 12, color: ink, margin: 0 }}>{String(boardCommResult.priorityAction)}</p></div>}
+            <button onClick={() => setBoardCommResult(null)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>Re-run</button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Investor Q&A Prep ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 24, marginTop: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontWeight: 700, fontSize: 14, color: ink, margin: 0 }}>Investor Q&A Prep</p>
+            <p style={{ fontSize: 12, color: muted, margin: "2px 0 0" }}>Master the toughest investor questions with rehearsed, confident answers</p>
+          </div>
+          <button onClick={handleGenerateInvestorQA} disabled={generatingInvQA} style={{ padding: "8px 16px", borderRadius: 8, background: generatingInvQA ? surf : ink, color: generatingInvQA ? muted : bg, fontSize: 12, fontWeight: 600, border: "none", cursor: generatingInvQA ? "default" : "pointer" }}>
+            {generatingInvQA ? "Preparing…" : "Prep Q&A"}
+          </button>
+        </div>
+        {invQAError && <p style={{ color: "#DC2626", fontSize: 12 }}>{invQAError}</p>}
+        {invQAResult && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {(["tough","financial","vision","founder"] as const).map(s => (
+                <button key={s} onClick={() => setInvQASection(s)} style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${invQASection===s ? ink : bdr}`, background: invQASection===s ? ink : bg, color: invQASection===s ? bg : ink, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                  {s==="tough" ? "🔥 Toughest" : s==="financial" ? "📊 Financials" : s==="vision" ? "🚀 Vision" : "🧑 Founder Test"}
+                </button>
+              ))}
+            </div>
+            {invQASection === "tough" && !!(invQAResult.toughestQuestions as unknown[])?.length && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {(invQAResult.toughestQuestions as { question: string; why: string; answer: string; avoid: string }[]).map((q, i) => (
+                  <div key={i} style={{ padding: "12px 14px", background: "#FEF2F2", borderRadius: 8, borderLeft: "3px solid #DC2626" }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: ink, margin: "0 0 4px" }}>Q: {q.question}</p>
+                    <p style={{ fontSize: 11, color: muted, margin: "0 0 6px" }}>Why they ask: {q.why}</p>
+                    <p style={{ fontSize: 12, color: ink, margin: "0 0 6px" }}><strong>Answer:</strong> {q.answer}</p>
+                    {q.avoid && <p style={{ fontSize: 11, color: "#DC2626", margin: 0 }}>Avoid: {q.avoid}</p>}
+                  </div>
+                ))}
+              </div>
+            )}
+            {invQASection === "financial" && !!(invQAResult.financialQuestions as unknown[])?.length && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {(invQAResult.financialQuestions as { question: string; answer: string; dataPoint: string }[]).map((q, i) => (
+                  <div key={i} style={{ padding: "12px 14px", background: surf, borderRadius: 8, border: `1px solid ${bdr}` }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: ink, margin: "0 0 4px" }}>Q: {q.question}</p>
+                    <p style={{ fontSize: 12, color: ink, margin: "0 0 4px" }}>{q.answer}</p>
+                    {q.dataPoint && <p style={{ fontSize: 11, color: "#2563EB", margin: 0 }}>Key data point: {q.dataPoint}</p>}
+                  </div>
+                ))}
+              </div>
+            )}
+            {invQASection === "vision" && !!(invQAResult.visionQuestions as unknown[])?.length && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {(invQAResult.visionQuestions as { question: string; answer: string }[]).map((q, i) => (
+                  <div key={i} style={{ padding: "12px 14px", background: "#F0FDF4", borderRadius: 8, borderLeft: "3px solid #16A34A" }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: ink, margin: "0 0 4px" }}>Q: {q.question}</p>
+                    <p style={{ fontSize: 12, color: ink, margin: 0 }}>{q.answer}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {invQASection === "founder" && !!(invQAResult.founderTestQuestions as unknown[])?.length && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {(invQAResult.founderTestQuestions as { question: string; answer: string; signal: string }[]).map((q, i) => (
+                  <div key={i} style={{ padding: "12px 14px", background: "#EFF6FF", borderRadius: 8, borderLeft: "3px solid #2563EB" }}>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: ink, margin: "0 0 4px" }}>Q: {q.question}</p>
+                    <p style={{ fontSize: 12, color: ink, margin: "0 0 4px" }}>{q.answer}</p>
+                    {q.signal && <p style={{ fontSize: 11, color: "#2563EB", margin: 0 }}>Signal: {q.signal}</p>}
+                  </div>
+                ))}
+              </div>
+            )}
+            {!!(invQAResult.doNotSay as unknown[])?.length && (
+              <div style={{ padding: "10px 14px", background: "#FEF2F2", borderRadius: 8 }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: "#DC2626", margin: "0 0 6px" }}>Never say these:</p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {(invQAResult.doNotSay as string[]).map((s, i) => <span key={i} style={{ fontSize: 11, padding: "3px 10px", borderRadius: 12, background: "#FEE2E2", color: "#DC2626" }}>{s}</span>)}
+                </div>
+              </div>
+            )}
+            {!!invQAResult.warmingTactic && <div style={{ padding: "10px 14px", background: surf, borderRadius: 8 }}><p style={{ fontSize: 12, fontWeight: 700, color: ink, margin: "0 0 4px" }}>Warming tactic</p><p style={{ fontSize: 12, color: muted, margin: 0 }}>{String(invQAResult.warmingTactic)}</p></div>}
+            <button onClick={() => setInvQAResult(null)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>Re-run</button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Crisis Playbook ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 24, marginTop: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontWeight: 700, fontSize: 15, color: ink, margin: 0 }}>Crisis Playbook</p>
+            <p style={{ fontSize: 12, color: muted, margin: "2px 0 0" }}>Immediate actions, communication templates, and recovery plan for your biggest risks</p>
+          </div>
+          <button onClick={handleGenerateCrisisPlaybook} disabled={generatingCrisis} style={{ padding: "8px 16px", borderRadius: 8, background: generatingCrisis ? muted : red, color: "#fff", fontSize: 12, fontWeight: 600, border: "none", cursor: generatingCrisis ? "not-allowed" : "pointer" }}>
+            {generatingCrisis ? "Building…" : "Build Playbook"}
+          </button>
+        </div>
+        <div style={{ marginBottom: 14 }}>
+          <p style={{ fontSize: 11, color: muted, marginBottom: 6 }}>Crisis Type</p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" as const }}>
+            {["funding / cash crisis", "major churn event", "PR / reputation", "co-founder conflict", "technical outage", "legal threat"].map(ct => (
+              <button key={ct} onClick={() => setCrisisType(ct)} style={{ padding: "5px 12px", borderRadius: 6, border: `1px solid ${crisisType === ct ? red : bdr}`, background: crisisType === ct ? "#FEE2E2" : "transparent", color: crisisType === ct ? red : muted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{ct}</button>
+            ))}
+          </div>
+        </div>
+        {crisisError && <p style={{ fontSize: 12, color: red }}>{crisisError}</p>}
+        {crisisResult && (
+          <div style={{ background: surf, borderRadius: 10, padding: 16 }}>
+            {/* Severity */}
+            {!!crisisResult.severityAssessment && (() => {
+              const sv = crisisResult.severityAssessment as { level?: string; timeToAct?: string; primaryRisk?: string };
+              const svColor = sv.level === "critical" ? red : sv.level === "high" ? amber : "#16A34A";
+              return (
+                <div style={{ background: "#FEE2E2", borderRadius: 8, padding: 12, marginBottom: 14 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: svColor, background: "#fff", padding: "2px 10px", borderRadius: 999 }}>{(sv.level ?? "").toUpperCase()}</span>
+                    <p style={{ fontSize: 12, color: red, margin: 0 }}>Act within: {sv.timeToAct}</p>
+                  </div>
+                  <p style={{ fontSize: 12, color: ink, margin: 0 }}>{sv.primaryRisk}</p>
+                </div>
+              );
+            })()}
+            {/* Section tabs */}
+            <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+              {(["immediate", "stabilization", "comms", "recovery"] as const).map(s => (
+                <button key={s} onClick={() => setCrisisSection(s)} style={{ padding: "5px 12px", borderRadius: 6, border: `1px solid ${crisisSection === s ? red : bdr}`, background: crisisSection === s ? "#FEE2E2" : "transparent", color: crisisSection === s ? red : muted, fontSize: 11, fontWeight: 600, cursor: "pointer", textTransform: "capitalize" }}>
+                  {s === "comms" ? "Comms" : s}
+                </button>
+              ))}
+            </div>
+            {crisisSection === "immediate" && !!(crisisResult.immediateActions as unknown[])?.length && (
+              <div>
+                {(crisisResult.immediateActions as { action: string; when: string; owner: string; why: string }[]).map((a, i) => (
+                  <div key={i} style={{ padding: "10px 0", borderBottom: `1px solid ${bdr}` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: ink, margin: 0 }}>{a.action}</p>
+                      <span style={{ fontSize: 11, color: red, fontWeight: 700 }}>{a.when}</span>
+                    </div>
+                    <p style={{ fontSize: 11, color: muted }}>Owner: {a.owner} · {a.why}</p>
+                  </div>
+                ))}
+                {!!crisisResult.decisionFramework && <p style={{ fontSize: 12, color: muted, fontStyle: "italic", marginTop: 10 }}><strong>Decision Framework:</strong> {String(crisisResult.decisionFramework)}</p>}
+              </div>
+            )}
+            {crisisSection === "stabilization" && !!(crisisResult.stabilizationPlan as unknown[])?.length && (
+              <div>
+                {(crisisResult.stabilizationPlan as { phase: string; objective: string; actions: string[]; successSignal: string }[]).map((p, i) => (
+                  <div key={i} style={{ padding: "10px 0", borderBottom: `1px solid ${bdr}` }}>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: red, marginBottom: 4 }}>{p.phase}</p>
+                    <p style={{ fontSize: 12, color: ink, marginBottom: 6 }}>{p.objective}</p>
+                    {p.actions?.map((a, ai) => <p key={ai} style={{ fontSize: 11, color: muted, marginBottom: 2 }}>→ {a}</p>)}
+                    <p style={{ fontSize: 11, color: green, marginTop: 4 }}>✓ {p.successSignal}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {crisisSection === "comms" && !!(crisisResult.communicationTemplates as unknown[])?.length && (
+              <div>
+                {(crisisResult.communicationTemplates as { audience: string; when: string; tone: string; template: string }[]).map((ct, i) => (
+                  <div key={i} style={{ padding: "10px 0", borderBottom: `1px solid ${bdr}` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: ink, margin: 0 }}>To: {ct.audience}</p>
+                      <span style={{ fontSize: 11, color: muted }}>{ct.when}</span>
+                    </div>
+                    <p style={{ fontSize: 11, color: muted, marginBottom: 6 }}>Tone: {ct.tone}</p>
+                    <div style={{ background: bg, borderRadius: 6, padding: 10, fontSize: 12, color: ink, whiteSpace: "pre-wrap" as const, fontFamily: "monospace" }}>{ct.template}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {crisisSection === "recovery" && !!(crisisResult.recoveryMilestones as unknown[])?.length && (
+              <div>
+                {(crisisResult.recoveryMilestones as { milestone: string; timeframe: string; indicator: string }[]).map((m, i) => (
+                  <div key={i} style={{ padding: "8px 0", borderBottom: `1px solid ${bdr}` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                      <p style={{ fontSize: 12, fontWeight: 600, color: ink, margin: 0 }}>{m.milestone}</p>
+                      <span style={{ fontSize: 11, color: muted }}>{m.timeframe}</span>
+                    </div>
+                    <p style={{ fontSize: 11, color: green, margin: "2px 0 0" }}>Signal: {m.indicator}</p>
+                  </div>
+                ))}
+                {!!crisisResult.worstCaseContingency && (
+                  <div style={{ background: "#FEE2E2", borderRadius: 8, padding: 12, marginTop: 12 }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: red, marginBottom: 4 }}>Worst Case Contingency</p>
+                    <p style={{ fontSize: 12, color: ink, margin: 0 }}>{String(crisisResult.worstCaseContingency)}</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Team Alignment ── */}
+      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 24, marginTop: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontWeight: 700, fontSize: 15, color: ink, margin: 0 }}>Team Alignment Assessment</p>
+            <p style={{ fontSize: 12, color: muted, margin: "2px 0 0" }}>Diagnose cross-functional gaps, communication breakdowns, and decision-making clarity</p>
+          </div>
+          <button onClick={handleGenerateTeamAlignment} disabled={generatingTA} style={{ padding: "8px 16px", borderRadius: 8, background: generatingTA ? muted : blue, color: "#fff", fontSize: 12, fontWeight: 600, border: "none", cursor: generatingTA ? "not-allowed" : "pointer" }}>
+            {generatingTA ? "Assessing…" : "Run Assessment"}
+          </button>
+        </div>
+        {taError && <p style={{ fontSize: 12, color: red }}>{taError}</p>}
+        {taResult && (
+          <div style={{ background: surf, borderRadius: 10, padding: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+              <div>
+                <p style={{ fontSize: 28, fontWeight: 800, color: ink, margin: 0 }}>{String(taResult.alignmentScore ?? "—")}<span style={{ fontSize: 14, color: muted }}>/100</span></p>
+                <p style={{ fontSize: 12, color: muted, margin: "2px 0 0" }}>{String(taResult.verdict ?? "")}</p>
+              </div>
+              {!!taResult.priorityAction && (
+                <div style={{ background: "#FEF3C7", borderRadius: 8, padding: "8px 12px", maxWidth: 240 }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: amber, margin: "0 0 2px" }}>Priority Action</p>
+                  <p style={{ fontSize: 12, color: ink, margin: 0 }}>{String(taResult.priorityAction)}</p>
+                </div>
+              )}
+            </div>
+            {/* Dimensions */}
+            {!!(taResult.dimensions as unknown[])?.length && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" as const }}>
+                  {(taResult.dimensions as { dimension: string }[]).map((d, i) => (
+                    <button key={i} onClick={() => setTaDimIdx(i)} style={{ padding: "4px 10px", borderRadius: 6, border: `1px solid ${taDimIdx === i ? blue : bdr}`, background: taDimIdx === i ? "#EFF6FF" : "transparent", color: taDimIdx === i ? blue : muted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{d.dimension}</button>
+                  ))}
+                </div>
+                {(() => {
+                  const dim = (taResult.dimensions as { dimension: string; score: number; status: string; finding: string; gap: string; recommendation: string }[])[taDimIdx];
+                  if (!dim) return null;
+                  const dimColor = dim.status === "strong" ? "#16A34A" : dim.status === "good" ? blue : dim.status === "needs work" ? amber : red;
+                  return (
+                    <div style={{ background: bg, borderRadius: 8, padding: 12 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                        <p style={{ fontWeight: 700, color: ink, margin: 0 }}>{dim.dimension}</p>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: dimColor }}>{dim.score}/100 · {dim.status}</span>
+                      </div>
+                      <p style={{ fontSize: 12, color: muted, marginBottom: 6 }}><strong>Finding:</strong> {dim.finding}</p>
+                      <p style={{ fontSize: 12, color: muted, marginBottom: 6 }}><strong>Gap:</strong> {dim.gap}</p>
+                      <p style={{ fontSize: 12, color: ink }}><strong>Recommendation:</strong> {dim.recommendation}</p>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+            {/* Action Plan */}
+            {!!(taResult.actionPlan as unknown[])?.length && (
+              <div style={{ marginBottom: 12 }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 8 }}>Action Plan</p>
+                {(taResult.actionPlan as { action: string; owner: string; timeline: string; successMetric: string }[]).map((a, i) => (
+                  <div key={i} style={{ padding: "8px 0", borderBottom: `1px solid ${bdr}`, display: "flex", justifyContent: "space-between" }}>
+                    <div>
+                      <p style={{ fontSize: 12, fontWeight: 600, color: ink, margin: 0 }}>{a.action}</p>
+                      <p style={{ fontSize: 11, color: muted, margin: "2px 0 0" }}>Owner: {a.owner} · {a.timeline}</p>
+                    </div>
+                    <p style={{ fontSize: 11, color: muted, margin: 0, maxWidth: 160, textAlign: "right" as const }}>{a.successMetric}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {/* Meeting Cadence */}
+            {!!taResult.meetingCadence && (
+              <p style={{ fontSize: 12, color: muted, fontStyle: "italic" }}><strong>Meeting Cadence:</strong> {String(taResult.meetingCadence)}</p>
+            )}
+          </div>
+        )}
+      </div>
+
     </div>
   );
 }

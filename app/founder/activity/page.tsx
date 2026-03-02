@@ -200,6 +200,31 @@ export default function ActivityPage() {
   const [sendingDigest,   setSendingDigest]   = useState(false);
   const [digestToast,     setDigestToast]     = useState<{ ok: boolean; msg: string } | null>(null);
   const [sendingBriefing, setSendingBriefing] = useState(false);
+  const [claimingBoost,   setClaimingBoost]   = useState(false);
+  const [boostResult,     setBoostResult]     = useState<{ boosted: boolean; boostAmount: number; currentScore: number; reason: string } | null>(null);
+
+  async function handleClaimBoost() {
+    setClaimingBoost(true);
+    setBoostResult(null);
+    setDigestToast(null);
+    try {
+      const res = await fetch("/api/qscore/activity-boost", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed");
+      setBoostResult(data);
+      setDigestToast({
+        ok: data.boosted,
+        msg: data.boosted
+          ? `+${data.boostAmount} Q-Score boost! ${data.reason}`
+          : data.reason,
+      });
+    } catch (err) {
+      setDigestToast({ ok: false, msg: err instanceof Error ? err.message : "Boost failed" });
+    } finally {
+      setClaimingBoost(false);
+      setTimeout(() => setDigestToast(null), 6000);
+    }
+  }
 
   async function handleSendBriefing() {
     setSendingBriefing(true);
@@ -394,6 +419,24 @@ export default function ActivityPage() {
             }}
           >
             {sendingBriefing ? "Sending…" : "☀️ Morning Briefing"}
+          </button>
+
+          {/* Claim daily Q-Score boost */}
+          <button
+            onClick={handleClaimBoost}
+            disabled={claimingBoost || (boostResult !== null && !boostResult.boosted)}
+            style={{
+              background: claimingBoost ? surf : green,
+              border: `1.5px solid ${claimingBoost ? bdr : green}`,
+              borderRadius: 8, padding: "6px 14px", cursor: (claimingBoost || (boostResult !== null && !boostResult.boosted)) ? "default" : "pointer",
+              display: "flex", alignItems: "center", gap: 6,
+              fontFamily: "system-ui, -apple-system, sans-serif",
+              fontSize: 12, fontWeight: 600,
+              color: claimingBoost ? muted : "#fff",
+              transition: "all 0.15s",
+            }}
+          >
+            {claimingBoost ? "Checking…" : boostResult?.boosted ? `+${boostResult.boostAmount} claimed ✓` : "⚡ Daily Boost"}
           </button>
 
           {/* Send weekly digest */}

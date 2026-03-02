@@ -30,7 +30,7 @@ Right now agents share context via artifact reads. That's passive. They need to 
 ### Missing actions
 - [x] **Outreach reply tracking** — `app/api/webhook/resend/route.ts` — Resend webhook listener for opens, clicks, replies. Inline stats: "Batch #3: 47 sent, 12 opened, 3 replied"
 - [ ] **Outreach reply drafting** — when a reply comes in, Patel should auto-draft a response based on the reply content and the original context
-- [ ] **Outreach sequence automation** — multi-step: Day 0 intro → Day 3 follow-up → Day 7 value add → Day 14 breakup
+- [x] **Outreach sequence automation** — multi-step: Day 0 intro → Day 3 follow-up → Day 7 value add → Day 14 breakup
 - [ ] **A/B test outreach** — split contacts into groups, send variant A to half, variant B to other half, track which performs better
 - [ ] **Landing page analytics** — surface visits in chat: "Your landing page got 83 visits this week, 12 from LinkedIn"
 - [ ] **Landing page iteration** — founder says "change the headline" → Patel regenerates just that section, re-deploys, preserves URL
@@ -40,7 +40,7 @@ Right now agents share context via artifact reads. That's passive. They need to 
 
 ### Missing artifacts
 - [x] **Content Calendar** — 4-week social media plan with actual written posts
-- [ ] **Launch Plan** — pre-launch checklist, launch day schedule, post-launch week plan
+- [x] **Launch Plan** — `app/api/agents/patel/launch-plan/route.ts` — 3-phase HTML checklist (pre, day, post-launch)
 - [ ] **Landing Page Copy** — standalone copy artifact separate from the deployed page
 
 ---
@@ -51,18 +51,18 @@ Right now agents share context via artifact reads. That's passive. They need to 
 
 ### Missing actions
 - [ ] **Auto-enrich new deals** — when a deal enters pipeline, auto-run Hunter.io to get contact details, company info, LinkedIn URL
-- [ ] **Deal scoring** — score each deal by likelihood to close based on: stage, days in stage, engagement signals, company size vs ICP
+- [x] **Deal scoring** — score each deal by likelihood to close based on: stage, days in stage, engagement signals, company size vs ICP
 - [x] **Follow-up drafting** — `app/api/agents/susi/followup/route.ts` — auto-draft follow-up email based on last interaction and deal context
 - [ ] **Auto-move stale deals** — deals stuck >14 days auto-flag as at-risk, >30 days auto-suggest moving to lost
 - [x] **Revenue forecasting** — `app/api/agents/susi/forecast/route.ts` — stage-weighted pipeline forecast: "You have $45K in qualified pipeline. Expected revenue: $9K in 60 days"
 - [x] **Win/loss logging** — win/loss modal in SalesScriptRenderer; win_reason + loss_reason columns in `deals` table
 - [ ] **Proposal tracking** — track if proposal was opened (trackable link). Alert founder when prospect opens it
 - [x] **Meeting prep** — `app/api/agents/susi/meeting-prep/route.ts` — company background, contact's role, deal history, talking points, objections
-- [ ] **Pipeline analytics dashboard** — conversion rates per stage, average time in each stage, velocity trends
+- [x] **Pipeline analytics dashboard** — conversion rates per stage, average time in each stage, velocity trends
 
 ### Missing artifacts
-- [ ] **Pricing Strategy** — recommended pricing model, price points, tier structure, discounting policy
-- [ ] **Qualification Scorecard** — BANT/MEDDIC framework customized to the founder's product
+- [x] **Pricing Strategy** — `app/api/agents/susi/pricing/route.ts` — tiers, trial strategy, anchoring, discounting policy
+- [x] **Qualification Scorecard** — `app/api/agents/susi/qualification/route.ts` — BANT+MEDDIC score 0-100 per deal, grade, key risk, best next question
 - [ ] **Proposal Template** — reusable proposal structure pre-filled with company info
 
 ---
@@ -82,7 +82,7 @@ Right now agents share context via artifact reads. That's passive. They need to 
 - [x] **Board deck financials** — `app/api/agents/felix/board-deck/route.ts` — auto-generates financial slides from Stripe + expense data, downloadable HTML
 
 ### Missing artifacts
-- [ ] **Financial Model** — 24-month projection with assumptions, 3 scenarios, exportable CSV
+- [x] **Financial Model** — 24-month projection with assumptions, 3 scenarios, exportable CSV
 - [x] **Fundraising Calculator** — `app/api/agents/felix/fundraising/route.ts` — dilution calc, post-money valuation, use-of-funds breakdown, AI recommendation
 - [x] **Cap Table** — `app/api/agents/leo/cap-table/route.ts` — health score, dilution analysis, issues panel (built under Leo)
 - [ ] **Board Update** — monthly metrics email (internal board-facing, different from investor update)
@@ -94,7 +94,7 @@ Right now agents share context via artifact reads. That's passive. They need to 
 ### Current state: Has brand messaging artifact, blog post generation, landing page deploy, social templates. Good content generation.
 
 ### Missing actions
-- [ ] **Blog post SEO optimization** — keyword research via Tavily, optimize title/meta/headers, suggest internal/external links
+- [x] **Blog post SEO optimization** — keyword research via Tavily, optimize title/meta/headers, suggest internal/external links
 - [x] **Content repurposing engine** — `app/api/agents/maya/repurpose/route.ts` — Twitter thread, LinkedIn post, newsletter excerpt, social graphic from one blog post
 - [ ] **Social media post scheduling** — Buffer/Typefully integration to actually schedule posts
 - [x] **Email newsletter builder** — `app/api/agents/maya/newsletter/route.ts` — subject line, body, CTA, send via Resend, downloads as HTML
@@ -103,9 +103,9 @@ Right now agents share context via artifact reads. That's passive. They need to 
 - [x] **Press kit generation** — `app/api/agents/maya/press-kit/route.ts` — company boilerplate, founder bio, key stats, logo guidelines, media contact — HTML download
 
 ### Missing artifacts
-- [ ] **Investor Narrative** — the story arc specifically for fundraising conversations
+- [x] **Investor Narrative** — `app/api/agents/maya/investor-narrative/route.ts` — story arc: hook, problem/solution/traction, meeting beats, objection handlers
 - [ ] **Content Playbook** — content pillars, content types, distribution strategy, founder personal brand plan
-- [ ] **One-Pager / Tear Sheet** — formatted single-page company summary for cold investor outreach
+- [x] **One-Pager / Tear Sheet** — `app/api/agents/maya/one-pager/route.ts` — polished HTML investor tear sheet synthesising all agent data
 
 ---
 
@@ -126,7 +126,7 @@ Right now agents share context via artifact reads. That's passive. They need to 
 ### Missing artifacts
 - [ ] **Job Descriptions** — individual JDs per role (currently only hiring_plan which lists roles)
 - [ ] **Interview Kit** — per-role structured interview plan with questions and scoring rubric
-- [ ] **Compensation Framework** — salary bands, equity ranges, negotiation playbook
+- [x] **Compensation Framework** — `app/api/agents/harper/compensation/route.ts` — salary bands, equity ranges, benefits stack, negotiation playbook
 - [x] **Onboarding Checklist** — `app/api/agents/harper/onboarding/route.ts` — week-1 plan, tools, people to meet, 30-day goals; downloads as print-ready HTML
 
 ---
@@ -142,11 +142,11 @@ Right now agents share context via artifact reads. That's passive. They need to 
 - [x] **App store review monitoring** — `app/api/agents/atlas/review-analysis/route.ts` — scrapes reviews weekly, summarizes sentiment trends, surfaces exploitable complaints
 - [x] **Social listening** — `app/api/agents/atlas/social/route.ts` — searches Twitter/Reddit/HN for competitor mentions, sentiment analysis, trending complaints
 - [ ] **Pricing change detection** — snapshot competitor pricing pages weekly, alert on any change with a diff
-- [ ] **Market sizing from competitive data** — estimate combined market revenue from headcount, funding, and pricing
+- [x] **Market sizing from competitive data** — `app/api/agents/atlas/market-size/route.ts` — TAM/SAM/SOM from competitor ARR/funding signals
 - [ ] **Competitive deal alert** — when Susi logs a lost deal to a specific competitor, Atlas auto-updates that competitor's battle card
 
 ### Missing artifacts
-- [ ] **Battle Cards** — individual per-competitor cards (currently bundled in competitive_matrix)
+- [x] **Battle Cards** — `app/api/agents/atlas/battle-cards/route.ts` — per-competitor sales battle cards with talk track, objection handlers, landmine question
 - [ ] **Market Map** — visual categorization of the landscape
 - [ ] **Win/Loss Framework** — template + pattern detection after enough data
 
@@ -185,7 +185,7 @@ Right now agents share context via artifact reads. That's passive. They need to 
 - [x] **Feature request aggregation** — `app/api/agents/nova/features/route.ts` — clusters feedback into themes, ranks by frequency, maps to product roadmap
 - [x] **User interview scheduling** — `app/api/agents/nova/interview-schedule/route.ts` + `app/api/agents/nova/interview-notes/route.ts` — identifies power users, drafts interview request, structures notes
 - [x] **Cohort analysis** — `app/api/agents/nova/cohort/route.ts` — segments respondents by signup date/plan/usage, NPS by cohort, trend analysis
-- [ ] **PMF score calculation** — composite score from: retention, NPS, organic referrals, usage frequency, expansion revenue. Track over time
+- [x] **PMF score calculation** — composite score from: retention, NPS, organic referrals, usage frequency, expansion revenue. Track over time
 
 ### Missing artifacts
 - [ ] **Customer Insight Report** — synthesis of all customer data into themes, personas, opportunities
@@ -210,7 +210,7 @@ Right now agents share context via artifact reads. That's passive. They need to 
 ### Missing artifacts
 - [x] **SAFE Agreement Draft** — `app/api/agents/leo/safe/route.ts` — pre-filled SAFE (post-money or pre-money), downloads as print-ready HTML
 - [x] **Privacy Policy + ToS** — `app/api/agents/leo/privacy-policy/route.ts` — actual drafted documents, downloads as HTML
-- [ ] **Contractor Agreement** — ready-to-sign IC agreement
+- [x] **Contractor Agreement** — ready-to-sign IC agreement
 - [x] **Co-Founder Agreement** — `app/api/agents/leo/cofounder/route.ts` — equity split, vesting, IP assignment, dispute resolution, exit provisions; print-ready HTML
 
 ---
