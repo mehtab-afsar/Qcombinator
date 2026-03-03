@@ -372,13 +372,13 @@ function ICPRenderer({ data }: { data: Record<string, unknown> }) {
       )}
 
       {/* ── Hunter.io Lead Enrichment ───────────────────────────────────────── */}
-      <div style={{ background: "#EFF6FF", borderRadius: 12, padding: "14px 16px", border: `1px solid #BFDBFE` }}>
+      <div style={{ background: surf, borderRadius: 12, padding: "14px 16px", border: `1px solid ${bdr}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: showEnrich || enrichLeads ? 14 : 0 }}>
           <div>
-            <p style={{ fontSize: 12, fontWeight: 700, color: blue, marginBottom: 2 }}>Suggested Leads (Hunter.io)</p>
+            <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 2 }}>Suggested Leads (Hunter.io)</p>
             <p style={{ fontSize: 11, color: muted }}>Enter a company domain — Patel finds decision-maker emails matching your ICP.</p>
           </div>
-          <button onClick={() => { setShowEnrich(p => !p); setEnrichLeads(null); setEnrichError(null); }} style={{ padding: "6px 12px", borderRadius: 7, border: "none", background: blue, color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+          <button onClick={() => { setShowEnrich(p => !p); setEnrichLeads(null); setEnrichError(null); }} style={{ padding: "6px 12px", borderRadius: 7, border: "none", background: ink, color: bg, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
             {showEnrich ? "Close" : "Find Leads"}
           </button>
         </div>
@@ -391,9 +391,9 @@ function ICPRenderer({ data }: { data: Record<string, unknown> }) {
                 onChange={e => setEnrichDomain(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') handleEnrich(); }}
                 placeholder="acme.com"
-                style={{ flex: 1, padding: "8px 10px", borderRadius: 8, border: `1px solid ${bdr}`, background: "#fff", fontSize: 13, color: ink, outline: "none" }}
+                style={{ flex: 1, padding: "8px 10px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, fontSize: 13, color: ink, outline: "none" }}
               />
-              <button onClick={handleEnrich} disabled={!enrichDomain.trim() || enriching} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: blue, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>
+              <button onClick={handleEnrich} disabled={!enrichDomain.trim() || enriching} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: ink, color: bg, fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>
                 {enriching ? "Searching…" : "Search"}
               </button>
             </div>
@@ -421,7 +421,7 @@ function ICPRenderer({ data }: { data: Record<string, unknown> }) {
                     setAddedToSeq(true);
                     setTimeout(() => setAddedToSeq(false), 3000);
                   }}
-                  style={{ padding: "5px 12px", borderRadius: 6, border: "none", background: addedToSeq ? green : blue, color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
+                  style={{ padding: "5px 12px", borderRadius: 6, border: "none", background: addedToSeq ? green : ink, color: bg, fontSize: 11, fontWeight: 600, cursor: "pointer" }}
                 >
                   {addedToSeq ? "✓ Added to Outreach!" : "Add to Outreach Sequence ↓"}
                 </button>
@@ -598,9 +598,9 @@ function OutreachRenderer({ data, artifactId, sequenceName }: { data: Record<str
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
       {/* ── Send Emails CTA bar ─────────────────────────────────────── */}
-      <div style={{ background: sending ? '#F0FDF4' : (sendResult?.sent ? '#F0FDF4' : '#EFF6FF'), border: `1px solid ${sendResult?.sent ? '#86EFAC' : '#BFDBFE'}`, borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ height: 36, width: 36, borderRadius: 9, background: sendResult?.sent ? '#DCFCE7' : '#DBEAFE', display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ height: 36, width: 36, borderRadius: 9, background: surf, border: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
             {sendResult?.sent
               ? <CheckCircle2 size={16} color={green} />
               : <PlayCircle size={16} color={blue} />
@@ -797,7 +797,7 @@ function OutreachRenderer({ data, artifactId, sequenceName }: { data: Record<str
                 <a
                   href={`https://mail.google.com/mail/?view=cm&fs=1${step.subject ? `&su=${encodeURIComponent(step.subject)}` : ""}&body=${encodeURIComponent(step.body)}`}
                   target="_blank" rel="noopener noreferrer"
-                  style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: "#EFF6FF", color: blue, textDecoration: "none", border: `1px solid #BFDBFE` }}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: surf, color: ink, textDecoration: "none", border: `1px solid ${bdr}` }}
                 >
                   <Mail size={11} /> Send one in Gmail
                 </a>
@@ -1298,13 +1298,13 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
         )}
       </div>
       {/* ── Launch Copy CTA ── */}
-      <div style={{ background: "#FFFBEB", border: `1px solid #FDE68A`, borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
         <div style={{ flex: 1 }}>
-          <p style={{ fontSize: 12, fontWeight: 700, color: amber, marginBottom: 2 }}>Get Launch Copy</p>
+          <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 2 }}>Get Launch Copy</p>
           <p style={{ fontSize: 11, color: muted }}>Product Hunt tagline, HN post, BetaList pitch, Twitter announcement — all generated from your GTM strategy.</p>
           {launchCopyError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{launchCopyError}</p>}
         </div>
-        <button onClick={() => { setShowLaunchCopy(p => !p); if (!launchCopyResult) handleGenerateLaunchCopy(); }} disabled={launchCopyLoading} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: launchCopyLoading ? bdr : amber, color: launchCopyLoading ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: launchCopyLoading ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}>
+        <button onClick={() => { setShowLaunchCopy(p => !p); if (!launchCopyResult) handleGenerateLaunchCopy(); }} disabled={launchCopyLoading} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: launchCopyLoading ? bdr : ink, color: launchCopyLoading ? muted : bg, fontSize: 12, fontWeight: 600, cursor: launchCopyLoading ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}>
           {launchCopyLoading ? "Generating…" : launchCopyResult ? (showLaunchCopy ? "Hide" : "Show Copy") : "Generate Copy"}
         </button>
       </div>
@@ -1351,14 +1351,14 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
       {/* ── Content Calendar CTA ── */}
       <div
         style={{ background: bg, borderRadius: 14, border: `1px solid ${bdr}`, overflow: "hidden", transition: "border-color .18s, box-shadow .18s" }}
-        onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#C7D2FE"; e.currentTarget.style.boxShadow = "0 2px 12px rgba(37,99,235,0.07)"; }}
+        onMouseEnter={(e) => { e.currentTarget.style.borderColor = ink + "40"; e.currentTarget.style.boxShadow = "0 2px 12px rgba(0,0,0,0.06)"; }}
         onMouseLeave={(e) => { e.currentTarget.style.borderColor = bdr; e.currentTarget.style.boxShadow = "none"; }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px" }}>
-          <div style={{ height: 36, width: 36, borderRadius: 10, flexShrink: 0, background: `${green}12`, border: `1px solid ${green}25`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ height: 36, width: 36, borderRadius: 10, flexShrink: 0, background: surf, border: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
             {calendarLoading
-              ? <motion.div style={{ height: 13, width: 13, borderRadius: "50%", border: `2px solid ${bdr}`, borderTopColor: green }} animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.75, ease: "linear" }} />
-              : <Calendar size={15} style={{ color: green }} />
+              ? <motion.div style={{ height: 13, width: 13, borderRadius: "50%", border: `2px solid ${bdr}`, borderTopColor: ink }} animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.75, ease: "linear" }} />
+              : <Calendar size={15} style={{ color: muted }} />
             }
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -1366,9 +1366,9 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
             <p style={{ fontSize: 11, color: muted, lineHeight: 1.35, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>4-week LinkedIn + Twitter posts — awareness → solution → social proof → CTA.</p>
           </div>
           <button onClick={() => { if (!calendarResult) handleGenerateCalendar(); else setShowCalendar(p => !p); }} disabled={calendarLoading}
-            style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 11px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: "none", color: calendarLoading ? muted : green, border: `1.5px solid ${calendarLoading ? bdr : green}40`, cursor: calendarLoading ? "wait" : "pointer", transition: "all .15s", flexShrink: 0, fontFamily: "inherit" }}
-            onMouseEnter={(e) => { if (!calendarLoading) { e.currentTarget.style.background = `${green}10`; e.currentTarget.style.borderColor = green; } }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "none"; e.currentTarget.style.borderColor = `${green}40`; }}
+            style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 11px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: "none", color: calendarLoading ? muted : ink, border: `1.5px solid ${bdr}`, cursor: calendarLoading ? "wait" : "pointer", transition: "all .15s", flexShrink: 0, fontFamily: "inherit" }}
+            onMouseEnter={(e) => { if (!calendarLoading) { e.currentTarget.style.background = surf; e.currentTarget.style.borderColor = ink; } }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "none"; e.currentTarget.style.borderColor = bdr; }}
           >
             {calendarLoading ? "Running…" : calendarResult ? (showCalendar ? "Hide" : "Show") : "Run"}{!calendarLoading && !showCalendar && <ChevronRight size={11} />}
           </button>
@@ -1456,15 +1456,15 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
 
       {/* Positioning */}
       {d.positioning?.statement && (
-        <div style={{ background: "#EFF6FF", border: `1px solid #BFDBFE`, borderRadius: 10, padding: "14px 16px" }}>
-          <p style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.12em", color: blue, marginBottom: 6 }}>Positioning</p>
+        <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 10, padding: "14px 16px" }}>
+          <p style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.12em", color: muted, marginBottom: 6 }}>Positioning</p>
           <p style={{ fontSize: 13, color: ink, lineHeight: 1.6, fontStyle: "italic" }}>{d.positioning.statement}</p>
           {d.positioning.differentiators && (
             <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 6 }}>
               {d.positioning.differentiators.map((diff, i) => (
                 <span key={i} style={{
                   padding: "3px 10px", borderRadius: 999, fontSize: 11,
-                  background: "#DBEAFE", color: blue,
+                  background: bg, color: ink, border: `1px solid ${bdr}`,
                 }}>{diff}</span>
               ))}
             </div>
@@ -1573,7 +1573,7 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
       )}
 
       {/* ── Directory Submissions ─────────────────────────────────────────────── */}
-      <div style={{ background: showDirectories && directoriesResult ? "#EFF6FF" : surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${showDirectories && directoriesResult ? "#BFDBFE" : bdr}` }}>
+      <div style={{ background: surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${bdr}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
             <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>Directory Submissions</p>
@@ -1800,17 +1800,17 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
       </div>
 
       {/* ── Launch Plan CTA ── */}
-      <div style={{ background: "#FFF7ED", border: "1px solid #FED7AA", borderRadius: 12, padding: "14px 18px" }}>
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "14px 18px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: amber, marginBottom: 2 }}>30-Day Launch Plan</p>
+            <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 2 }}>30-Day Launch Plan</p>
             <p style={{ fontSize: 11, color: muted }}>Patel generates a printable 3-phase launch checklist — Pre-Launch (14 days), Launch Day (by time block), and Post-Launch Weeks 1–2 — in HTML you can print.</p>
             {launchPlanError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{launchPlanError}</p>}
           </div>
           <button
             onClick={handleGenerateLaunchPlan}
             disabled={generatingLaunchPlan}
-            style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingLaunchPlan ? bdr : amber, color: generatingLaunchPlan ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingLaunchPlan ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}
+            style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingLaunchPlan ? bdr : ink, color: generatingLaunchPlan ? muted : bg, fontSize: 12, fontWeight: 600, cursor: generatingLaunchPlan ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}
           >
             {generatingLaunchPlan ? "Generating…" : "Download Launch Plan"}
           </button>
@@ -1892,7 +1892,7 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
 
       {/* ── A/B Test Designer ── */}
       <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "16px 20px" }}>
-        <p style={{ fontSize: 11, fontWeight: 700, color: amber, marginBottom: 2 }}>A/B Test Designer</p>
+        <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 2 }}>A/B Test Designer</p>
         <p style={{ fontSize: 11, color: muted, marginBottom: 12 }}>Paste any element (headline, CTA, email subject, etc.) and Patel designs 3 challenger variants — each grounded in a different conversion psychology principle — with sample size, success criteria, and win conditions.</p>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 8, marginBottom: 8 }}>
           <input value={abtElement} onChange={e => setAbtElement(e.target.value)} placeholder="Element to test (e.g. Hero headline) *"
@@ -2923,26 +2923,26 @@ function SalesScriptRenderer({ data, artifactId }: { data: Record<string, unknow
 
       {/* ── Patel cross-agent context banner ── */}
       {patelUpdate && (
-        <div style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+        <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
           <span style={{ fontSize: 16 }}>📬</span>
           <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 12, fontWeight: 600, color: blue, margin: 0 }}>Patel sent outreach — add contacts to your pipeline?</p>
+            <p style={{ fontSize: 12, fontWeight: 600, color: ink, margin: 0 }}>Patel sent outreach — add contacts to your pipeline?</p>
             <p style={{ fontSize: 11, color: muted, margin: "2px 0 0" }}>{patelUpdate.description}</p>
           </div>
-          <button onClick={() => setActiveTab("pipeline")} style={{ padding: "5px 12px", borderRadius: 7, border: "none", background: blue, color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>Open Pipeline</button>
+          <button onClick={() => setActiveTab("pipeline")} style={{ padding: "5px 12px", borderRadius: 7, border: "none", background: ink, color: bg, fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>Open Pipeline</button>
           <button onClick={() => setPatelUpdate(null)} style={{ padding: "5px 8px", borderRadius: 7, border: "none", background: "transparent", color: muted, fontSize: 14, cursor: "pointer", lineHeight: 1 }}>✕</button>
         </div>
       )}
 
       {/* ── Send Proposal CTA bar ── */}
-      <div style={{ background: "#ECFDF5", border: `1px solid #A7F3D0`, borderRadius: 10, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 10, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
         <div style={{ flex: 1 }}>
-          <p style={{ fontSize: 12, fontWeight: 700, color: green, marginBottom: 2 }}>Ready to close a deal?</p>
+          <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 2 }}>Ready to close a deal?</p>
           <p style={{ fontSize: 11, color: muted }}>Send a branded proposal to a prospect — tracked automatically in your pipeline.</p>
         </div>
         <button
           onClick={() => { setShowModal(true); setSendResult(null); }}
-          style={{ padding: "8px 18px", borderRadius: 8, border: "none", background: green, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
+          style={{ padding: "8px 18px", borderRadius: 8, border: "none", background: ink, color: bg, fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
         >
           Send Proposal
         </button>
@@ -3514,14 +3514,14 @@ function SalesScriptRenderer({ data, artifactId }: { data: Record<string, unknow
 
             {/* Stale deals alert */}
             {staleDeals.length > 0 && (
-              <div style={{ background: "#FFFBEB", border: `1px solid #FDE68A`, borderRadius: 12, padding: "16px 20px" }}>
-                <p style={{ fontSize: 13, fontWeight: 700, color: amber, marginBottom: 8 }}>⚠ {staleDeals.length} Stale Deal{staleDeals.length !== 1 ? "s" : ""} (14+ days inactive)</p>
+              <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "16px 20px" }}>
+                <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 8 }}>⚠ {staleDeals.length} Stale Deal{staleDeals.length !== 1 ? "s" : ""} (14+ days inactive)</p>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                   {staleDeals.map(d => {
                     const ts = new Date(d.updated_at ?? d.created_at ?? "").getTime();
                     const days = Math.floor((now - ts) / 86400000);
                     return (
-                      <span key={d.id} style={{ fontSize: 11, fontWeight: 600, background: "#FEF3C7", borderRadius: 6, padding: "3px 10px", color: "#92400E" }}>
+                      <span key={d.id} style={{ fontSize: 11, fontWeight: 600, background: bdr, borderRadius: 6, padding: "3px 10px", color: ink }}>
                         {d.company} · {days}d
                       </span>
                     );
@@ -3593,8 +3593,8 @@ function SalesScriptRenderer({ data, artifactId }: { data: Record<string, unknow
               // Estimated close window (rough: most startups close in 30-90 days)
               const closeWindow = avgAge < 30 ? "30–60 days" : avgAge < 60 ? "60–90 days" : "90+ days";
               return (
-                <div style={{ background: "#EFF6FF", border: `1px solid #BFDBFE`, borderRadius: 12, padding: "20px 22px" }}>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: blue, marginBottom: 4 }}>Revenue Forecast</p>
+                <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "20px 22px" }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 4 }}>Revenue Forecast</p>
                   <p style={{ fontSize: 11, color: muted, marginBottom: 16 }}>Based on {activeDeals.length} active deal{activeDeals.length !== 1 ? "s" : ""} and stage close probabilities.</p>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
                     {[
@@ -3639,10 +3639,10 @@ function SalesScriptRenderer({ data, artifactId }: { data: Record<string, unknow
             })()}
 
             {/* ── AI Revenue Forecast ── */}
-            <div style={{ background: showForecastPanel && forecastResult ? "#EFF6FF" : surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${showForecastPanel && forecastResult ? "#BFDBFE" : bdr}` }}>
+            <div style={{ background: surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${bdr}` }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
-                  <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 2 }}>
                     AI Revenue Forecast
                     {forecastResult?.pipelineHealth && <span style={{ marginLeft: 8, fontSize: 10, padding: "2px 8px", borderRadius: 999, background: forecastResult.pipelineHealth === 'strong' ? "#DCFCE7" : forecastResult.pipelineHealth === 'at_risk' ? "#FEE2E2" : "#FEF3C7", color: forecastResult.pipelineHealth === 'strong' ? green : forecastResult.pipelineHealth === 'at_risk' ? red : amber, fontWeight: 700, textTransform: "capitalize" }}>{forecastResult.pipelineHealth.replace('_', ' ')}</span>}
                   </p>
@@ -4024,7 +4024,7 @@ function SalesScriptRenderer({ data, artifactId }: { data: Record<string, unknow
 
             {/* ── Reply Draft Generator ── */}
             <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "16px 20px", marginTop: 4 }}>
-              <p style={{ fontSize: 11, fontWeight: 700, color: green, marginBottom: 2 }}>Reply Draft Generator</p>
+              <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 2 }}>Reply Draft Generator</p>
               <p style={{ fontSize: 11, color: muted, marginBottom: 12 }}>Paste a prospect message and Patel drafts 3 reply options — consultative, direct, and curiosity-led — each with a ready-to-send body and clear next step.</p>
               <textarea value={replyMessage} onChange={e => setReplyMessage(e.target.value)} placeholder="Paste the prospect's message here…"
                 rows={3} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: `1px solid ${replyMessage ? bdr : '#D97706'}`, fontSize: 12, color: ink, background: "#fff", outline: "none", resize: "vertical", fontFamily: "inherit", boxSizing: "border-box", marginBottom: 8 }} />
@@ -4084,7 +4084,7 @@ function SalesScriptRenderer({ data, artifactId }: { data: Record<string, unknow
 
             {/* ── Proposal Generator ── */}
             <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "16px 20px", marginTop: 4 }}>
-              <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>Proposal Generator</p>
+              <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 2 }}>Proposal Generator</p>
               <p style={{ fontSize: 11, color: muted, marginBottom: 12 }}>Susi drafts a complete, polished sales proposal — exec summary, deliverables, timeline, pricing box, and signature block — ready to download and send.</p>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 10 }}>
                 <input value={proposalProspectName} onChange={e => setProposalProspectName(e.target.value)} placeholder="Contact name"
@@ -4114,8 +4114,8 @@ function SalesScriptRenderer({ data, artifactId }: { data: Record<string, unknow
       {/* ── Webhook tab ── */}
       {activeTab === "webhook" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div style={{ background: "#EFF6FF", borderRadius: 12, padding: "20px 22px", border: `1px solid #BFDBFE` }}>
-            <p style={{ fontSize: 13, fontWeight: 700, color: blue, marginBottom: 6 }}>Inbound Lead Webhook</p>
+          <div style={{ background: surf, borderRadius: 12, padding: "20px 22px", border: `1px solid ${bdr}` }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 6 }}>Inbound Lead Webhook</p>
             <p style={{ fontSize: 12, color: muted, lineHeight: 1.6, marginBottom: 16 }}>
               Add this URL to any form tool (Typeform, Tally, Webflow, etc.). When a lead submits, <strong>Susi auto-responds within 60 seconds</strong> with a personalized email and adds the lead to your pipeline.
             </p>
@@ -5100,27 +5100,27 @@ function BrandMessagingRenderer({ data, artifactId }: { data: Record<string, unk
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       {/* ── Deploy Website CTA (Maya P0) ── */}
-      <div style={{ background: deployedUrl ? "#F5F3FF" : "#F5F3FF", border: `1px solid ${deployedUrl ? "#A78BFA" : "#DDD6FE"}`, borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
         <div style={{ flex: 1 }}>
           {deployedUrl ? (
-            <><p style={{ fontSize: 12, fontWeight: 700, color: purple, marginBottom: 2 }}>Your website is live!</p>
-              <a href={deployedUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: purple, textDecoration: "underline", wordBreak: "break-all" }}>{deployedUrl}</a></>
+            <><p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 2 }}>Your website is live!</p>
+              <a href={deployedUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: muted, textDecoration: "underline", wordBreak: "break-all" }}>{deployedUrl}</a></>
           ) : (
-            <><p style={{ fontSize: 12, fontWeight: 700, color: purple, marginBottom: 2 }}>Deploy your brand website</p>
+            <><p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 2 }}>Deploy your brand website</p>
               <p style={{ fontSize: 11, color: muted }}>Turn this brand messaging into a full website — hero, value props, waitlist CTA. Live in seconds.</p></>
           )}
           {deployError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{deployError}</p>}
         </div>
         <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-          {deployedUrl && <a href={deployedUrl} target="_blank" rel="noopener noreferrer" style={{ padding: "7px 14px", borderRadius: 8, border: `1px solid ${purple}`, background: "transparent", color: purple, fontSize: 12, fontWeight: 600, textDecoration: "none" }}>View Site</a>}
-          <button onClick={handleDeploy} disabled={deploying} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: deploying ? bdr : purple, color: deploying ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: deploying ? "not-allowed" : "pointer" }}>
+          {deployedUrl && <a href={deployedUrl} target="_blank" rel="noopener noreferrer" style={{ padding: "7px 14px", borderRadius: 8, border: `1px solid ${bdr}`, background: "transparent", color: ink, fontSize: 12, fontWeight: 600, textDecoration: "none" }}>View Site</a>}
+          <button onClick={handleDeploy} disabled={deploying} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: deploying ? bdr : ink, color: deploying ? muted : bg, fontSize: 12, fontWeight: 600, cursor: deploying ? "not-allowed" : "pointer" }}>
             {deploying ? "Deploying…" : deployedUrl ? "Redeploy" : "Deploy Website"}
           </button>
         </div>
       </div>
       {d.positioningStatement && (
-        <div style={{ background: "#F5F3FF", border: `1px solid #DDD6FE`, borderRadius: 10, padding: "14px 16px" }}>
-          <p style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.12em", color: purple, marginBottom: 6 }}>Positioning Statement</p>
+        <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 10, padding: "14px 16px" }}>
+          <p style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.12em", color: muted, marginBottom: 6 }}>Positioning Statement</p>
           <p style={{ fontSize: 13, color: ink, lineHeight: 1.7, fontStyle: "italic" }}>{d.positioningStatement}</p>
         </div>
       )}
@@ -5182,7 +5182,7 @@ function BrandMessagingRenderer({ data, artifactId }: { data: Record<string, unk
               <p style={{ fontSize: 10, color: muted, fontWeight: 600, textTransform: "uppercase", marginBottom: 6 }}>Personality</p>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                 {d.voiceGuide.personality.map((p, i) => (
-                  <span key={i} style={{ padding: "4px 10px", borderRadius: 999, fontSize: 12, background: "#F5F3FF", color: purple, border: `1px solid #DDD6FE` }}>{p}</span>
+                  <span key={i} style={{ padding: "4px 10px", borderRadius: 999, fontSize: 12, background: surf, color: ink, border: `1px solid ${bdr}` }}>{p}</span>
                 ))}
               </div>
             </div>
@@ -5205,16 +5205,16 @@ function BrandMessagingRenderer({ data, artifactId }: { data: Record<string, unk
       )}
 
       {d.investorNarrative && (
-        <div style={{ background: "#EFF6FF", borderRadius: 10, padding: "14px 16px", border: `1px solid #BFDBFE` }}>
-          <p style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.12em", color: blue, marginBottom: 6 }}>Investor Narrative</p>
+        <div style={{ background: surf, borderRadius: 10, padding: "14px 16px", border: `1px solid ${bdr}` }}>
+          <p style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.12em", color: muted, marginBottom: 6 }}>Investor Narrative</p>
           <p style={{ fontSize: 13, color: ink, lineHeight: 1.6 }}>{d.investorNarrative}</p>
         </div>
       )}
 
       {/* ── Figma-ready social media templates ──────────────────────────────── */}
-      <div style={{ background: "#F5F3FF", borderRadius: 12, padding: "16px 18px", border: `1px solid #DDD6FE` }}>
+      <div style={{ background: surf, borderRadius: 12, padding: "16px 18px", border: `1px solid ${bdr}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-          <p style={{ fontSize: 11, fontWeight: 700, color: purple, textTransform: "uppercase", letterSpacing: "0.1em" }}>Figma-Ready Social Templates</p>
+          <p style={{ fontSize: 11, fontWeight: 700, color: ink, textTransform: "uppercase", letterSpacing: "0.1em" }}>Figma-Ready Social Templates</p>
           <button
             onClick={() => {
               const tagline = d.taglines?.[0]?.tagline || "Your tagline here";
@@ -5298,7 +5298,7 @@ function BrandMessagingRenderer({ data, artifactId }: { data: Record<string, unk
               a.click();
               URL.revokeObjectURL(url);
             }}
-            style={{ padding: "7px 14px", borderRadius: 8, background: purple, border: "none", fontSize: 12, fontWeight: 600, color: "white", cursor: "pointer" }}
+            style={{ padding: "7px 14px", borderRadius: 8, background: ink, border: "none", fontSize: 12, fontWeight: 600, color: bg, cursor: "pointer" }}
           >
             Download Templates
           </button>
@@ -5308,19 +5308,19 @@ function BrandMessagingRenderer({ data, artifactId }: { data: Record<string, unk
         </p>
         <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
           {["Instagram 1:1", "Twitter Card", "LinkedIn Banner"].map((label, i) => (
-            <span key={i} style={{ padding: "4px 10px", borderRadius: 999, fontSize: 11, background: "white", color: purple, border: `1px solid #DDD6FE`, fontWeight: 600 }}>{label}</span>
+            <span key={i} style={{ padding: "4px 10px", borderRadius: 999, fontSize: 11, background: bg, color: muted, border: `1px solid ${bdr}`, fontWeight: 600 }}>{label}</span>
           ))}
         </div>
       </div>
 
       {/* ── Buffer Social Scheduler ───────────────────────────────────────────── */}
-      <div style={{ background: "#FFF7ED", borderRadius: 12, padding: "16px 18px", border: `1px solid #FED7AA` }}>
+      <div style={{ background: surf, borderRadius: 12, padding: "16px 18px", border: `1px solid ${bdr}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
-            <p style={{ fontSize: 11, fontWeight: 700, color: "#EA580C", marginBottom: 2 }}>Schedule 30 Days of Posts</p>
+            <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 2 }}>Schedule 30 Days of Posts</p>
             <p style={{ fontSize: 11, color: muted }}>Maya generates 30 LinkedIn + Twitter posts from your brand voice and schedules them to Buffer.</p>
           </div>
-          <button onClick={() => { setShowBufferModal(true); setBufferResult(null); setBufferError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: "#EA580C", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>
+          <button onClick={() => { setShowBufferModal(true); setBufferResult(null); setBufferError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: ink, color: bg, fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>
             Schedule Posts
           </button>
         </div>
@@ -5367,13 +5367,13 @@ function BrandMessagingRenderer({ data, artifactId }: { data: Record<string, unk
       )}
 
       {/* ── Blog Post Writer ─────────────────────────────────────────────────── */}
-      <div style={{ background: "#FAFAFA", borderRadius: 12, padding: "16px 18px", border: `1px solid ${bdr}` }}>
+      <div style={{ background: surf, borderRadius: 12, padding: "16px 18px", border: `1px solid ${bdr}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
           <div>
             <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 2 }}>Write a Blog Post</p>
             <p style={{ fontSize: 11, color: muted }}>Generate a brand-voice article and download as HTML.</p>
           </div>
-          <button onClick={() => { setShowBlogModal(true); setBlogHtml(null); setBlogError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: purple, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>
+          <button onClick={() => { setShowBlogModal(true); setBlogHtml(null); setBlogError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: ink, color: bg, fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>
             Write Post
           </button>
         </div>
@@ -5858,12 +5858,12 @@ function BrandMessagingRenderer({ data, artifactId }: { data: Record<string, unk
       </div>
 
       {/* ── Newsletter Builder CTA ── */}
-      <div style={{ background: "#EFF6FF", border: `1px solid #BFDBFE`, borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", gap: 12 }}>
         <div style={{ flex: 1 }}>
-          <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>Send Product Newsletter</p>
+          <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 2 }}>Send Product Newsletter</p>
           <p style={{ fontSize: 11, color: muted }}>AI writes a product newsletter in your brand voice — then optionally sends it to your subscriber list via email.</p>
         </div>
-        <button onClick={() => setShowNewsletterModal(true)} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: blue, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
+        <button onClick={() => setShowNewsletterModal(true)} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: ink, color: bg, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
           Write Newsletter
         </button>
       </div>
@@ -5929,30 +5929,30 @@ function BrandMessagingRenderer({ data, artifactId }: { data: Record<string, unk
       )}
 
       {/* ── Press Kit CTA ── */}
-      <div style={{ background: "#FFF7ED", border: "1px solid #FED7AA", borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", gap: 12 }}>
         <div style={{ flex: 1 }}>
-          <p style={{ fontSize: 11, fontWeight: 700, color: "#EA580C", marginBottom: 2 }}>Generate Press Kit</p>
+          <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 2 }}>Generate Press Kit</p>
           <p style={{ fontSize: 11, color: muted }}>Downloads a ready-to-share HTML press kit — company boilerplate, founder bio, key stats, logo guidelines, and media contact.</p>
           {pressKitError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{pressKitError}</p>}
         </div>
         <button
           onClick={handleGeneratePressKit}
           disabled={generatingPressKit}
-          style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingPressKit ? bdr : "#EA580C", color: generatingPressKit ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingPressKit ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0 }}
+          style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingPressKit ? bdr : ink, color: generatingPressKit ? muted : bg, fontSize: 12, fontWeight: 600, cursor: generatingPressKit ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0 }}
         >
           {generatingPressKit ? "Generating…" : "Download Press Kit"}
         </button>
       </div>
 
       {/* ── SEO Optimizer CTA ── */}
-      <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 12, padding: "14px 18px" }}>
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "14px 18px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: showSEOPanel ? 14 : 0 }}>
           <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: green, marginBottom: 2 }}>SEO Content Optimizer</p>
+            <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 2 }}>SEO Content Optimizer</p>
             <p style={{ fontSize: 11, color: muted }}>Paste a blog post or page copy — Maya researches the SERP landscape and generates title tags, meta, H2s, keyword strategy, and content gap analysis.</p>
             {seoError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{seoError}</p>}
           </div>
-          <button onClick={() => { setShowSEOPanel(!showSEOPanel); setSeoResult(null); setSeoError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: green, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
+          <button onClick={() => { setShowSEOPanel(!showSEOPanel); setSeoResult(null); setSeoError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: ink, color: bg, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
             {showSEOPanel ? "Close" : "Optimize SEO"}
           </button>
         </div>
@@ -5966,7 +5966,7 @@ function BrandMessagingRenderer({ data, artifactId }: { data: Record<string, unk
               <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Target Keyword (optional)</label>
               <input value={seoKeyword} onChange={e => setSeoKeyword(e.target.value)} placeholder="e.g. startup pitch deck template" style={{ width: "100%", border: `1px solid ${bdr}`, borderRadius: 8, padding: "9px 12px", fontSize: 13, color: ink, outline: "none", boxSizing: "border-box" }} />
             </div>
-            <button onClick={handleRunSEO} disabled={runningS || !seoBlogContent.trim()} style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: runningS || !seoBlogContent.trim() ? bdr : green, color: runningS || !seoBlogContent.trim() ? muted : "#fff", fontSize: 13, fontWeight: 600, cursor: runningS || !seoBlogContent.trim() ? "not-allowed" : "pointer", alignSelf: "flex-start" }}>
+            <button onClick={handleRunSEO} disabled={runningS || !seoBlogContent.trim()} style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: runningS || !seoBlogContent.trim() ? bdr : ink, color: runningS || !seoBlogContent.trim() ? muted : bg, fontSize: 13, fontWeight: 600, cursor: runningS || !seoBlogContent.trim() ? "not-allowed" : "pointer", alignSelf: "flex-start" }}>
               {runningS ? "Analyzing…" : "Run SEO Analysis"}
             </button>
             {seoResult && (
@@ -6040,14 +6040,14 @@ function BrandMessagingRenderer({ data, artifactId }: { data: Record<string, unk
       </div>
 
       {/* ── Investor Narrative ── */}
-      <div style={{ background: "#EDE9FE", border: "1px solid #C4B5FD", borderRadius: 12, padding: "16px 20px" }}>
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "16px 20px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: narrativeResult ? 14 : 0 }}>
           <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: "#7C3AED", marginBottom: 2 }}>Fundraising Story Arc</p>
+            <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 2 }}>Fundraising Story Arc</p>
             <p style={{ fontSize: 11, color: muted }}>Maya builds your investor narrative — hook, problem, solution, traction arc, and objection handlers — ready for your first investor meeting.</p>
             {narrativeError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{narrativeError}</p>}
           </div>
-          <button onClick={handleGenerateNarrative} disabled={generatingNarrative} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingNarrative ? bdr : "#7C3AED", color: generatingNarrative ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingNarrative ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
+          <button onClick={handleGenerateNarrative} disabled={generatingNarrative} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingNarrative ? bdr : ink, color: generatingNarrative ? muted : bg, fontSize: 12, fontWeight: 600, cursor: generatingNarrative ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
             {generatingNarrative ? "Crafting…" : "Build Narrative"}
           </button>
         </div>
@@ -6056,7 +6056,7 @@ function BrandMessagingRenderer({ data, artifactId }: { data: Record<string, unk
             {/* Tab bar */}
             <div style={{ display: "flex", gap: 6 }}>
               {(["story", "objections"] as const).map(tab => (
-                <button key={tab} onClick={() => setNarrativeTab(tab)} style={{ padding: "5px 14px", borderRadius: 7, border: `1px solid ${narrativeTab === tab ? "#7C3AED" : bdr}`, background: narrativeTab === tab ? "#EDE9FE" : bg, color: narrativeTab === tab ? "#7C3AED" : muted, fontSize: 11, fontWeight: 600, cursor: "pointer", textTransform: "capitalize" }}>{tab === 'story' ? 'Story Arc' : 'Objection Handlers'}</button>
+                <button key={tab} onClick={() => setNarrativeTab(tab)} style={{ padding: "5px 14px", borderRadius: 7, border: `1px solid ${narrativeTab === tab ? ink : bdr}`, background: narrativeTab === tab ? ink : bg, color: narrativeTab === tab ? bg : muted, fontSize: 11, fontWeight: 600, cursor: "pointer", textTransform: "capitalize" }}>{tab === 'story' ? 'Story Arc' : 'Objection Handlers'}</button>
               ))}
             </div>
             {narrativeTab === 'story' && (
@@ -6140,12 +6140,12 @@ function BrandMessagingRenderer({ data, artifactId }: { data: Record<string, unk
       <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "16px 20px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: contentPlaybookResult ? 14 : 0 }}>
           <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>Content Playbook</p>
+            <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 2 }}>Content Playbook</p>
             <p style={{ fontSize: 11, color: muted }}>Maya builds a 90-day content system — pillars, channel strategy, cadence, repurpose flow, topic ideas, and KPIs — based on your ICP and brand.</p>
             {contentPlaybookError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{contentPlaybookError}</p>}
           </div>
           <button onClick={handleGenerateContentPlaybook} disabled={generatingContentPlaybook}
-            style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingContentPlaybook ? bdr : blue, color: generatingContentPlaybook ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingContentPlaybook ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
+            style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingContentPlaybook ? bdr : ink, color: generatingContentPlaybook ? muted : bg, fontSize: 12, fontWeight: 600, cursor: generatingContentPlaybook ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
             {generatingContentPlaybook ? "Building…" : "Build Playbook"}
           </button>
         </div>
@@ -6154,7 +6154,7 @@ function BrandMessagingRenderer({ data, artifactId }: { data: Record<string, unk
             <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
               {(['pillars', 'channels', 'ideas'] as const).map(t => (
                 <button key={t} onClick={() => setContentPlaybookTab(t)}
-                  style={{ padding: "4px 12px", borderRadius: 6, border: `1px solid ${contentPlaybookTab === t ? blue : bdr}`, background: contentPlaybookTab === t ? blue : "transparent", color: contentPlaybookTab === t ? "#fff" : muted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                  style={{ padding: "4px 12px", borderRadius: 6, border: `1px solid ${contentPlaybookTab === t ? ink : bdr}`, background: contentPlaybookTab === t ? ink : "transparent", color: contentPlaybookTab === t ? bg : muted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
                   {t === 'pillars' ? 'Pillars & Mix' : t === 'channels' ? 'Channel Strategy' : 'Topics & KPIs'}
                 </button>
               ))}
@@ -6233,17 +6233,17 @@ function BrandMessagingRenderer({ data, artifactId }: { data: Record<string, unk
       </div>
 
       {/* ── Investor One-Pager CTA ── */}
-      <div style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 12, padding: "14px 18px" }}>
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "14px 18px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>Investor One-Pager</p>
+            <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 2 }}>Investor One-Pager</p>
             <p style={{ fontSize: 11, color: muted }}>Maya synthesises your brand, financials, GTM strategy, and competitive position into a polished tear sheet — ready to email to cold investor leads.</p>
             {onePagerError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{onePagerError}</p>}
           </div>
           <button
             onClick={handleGenerateOnePager}
             disabled={generatingOnePager}
-            style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingOnePager ? bdr : blue, color: generatingOnePager ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingOnePager ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}
+            style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingOnePager ? bdr : ink, color: generatingOnePager ? muted : bg, fontSize: 12, fontWeight: 600, cursor: generatingOnePager ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}
           >
             {generatingOnePager ? "Generating…" : "Download One-Pager"}
           </button>
@@ -6257,7 +6257,7 @@ function BrandMessagingRenderer({ data, artifactId }: { data: Record<string, unk
             <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>Social Media Strategy</p>
             <p style={{ fontSize: 11, color: muted }}>Get a platform-by-platform strategy, content pillars, posting calendar, and growth tactics designed for your ICP.</p>
           </div>
-          <button onClick={handleGenerateSocialStrategy} disabled={generatingSocial} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingSocial ? bdr : amber, color: generatingSocial ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingSocial ? "not-allowed" : "pointer", whiteSpace: "nowrap" as const, flexShrink: 0, marginLeft: 12 }}>
+          <button onClick={handleGenerateSocialStrategy} disabled={generatingSocial} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingSocial ? bdr : ink, color: generatingSocial ? muted : bg, fontSize: 12, fontWeight: 600, cursor: generatingSocial ? "not-allowed" : "pointer", whiteSpace: "nowrap" as const, flexShrink: 0, marginLeft: 12 }}>
             {generatingSocial ? "Building…" : "Build Strategy"}
           </button>
         </div>
@@ -6267,14 +6267,14 @@ function BrandMessagingRenderer({ data, artifactId }: { data: Record<string, unk
             {!!socialResult.overview && <p style={{ fontSize: 12, color: muted, fontStyle: "italic", marginBottom: 14 }}>{String(socialResult.overview)}</p>}
             <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
               {(["platforms", "content", "tactics", "kpis"] as const).map(t => (
-                <button key={t} onClick={() => setSocialTab(t)} style={{ padding: "5px 12px", borderRadius: 6, border: `1px solid ${socialTab === t ? amber : bdr}`, background: socialTab === t ? "#FEF3C7" : "transparent", color: socialTab === t ? amber : muted, fontSize: 11, fontWeight: 600, cursor: "pointer", textTransform: "capitalize" }}>{t}</button>
+                <button key={t} onClick={() => setSocialTab(t)} style={{ padding: "5px 12px", borderRadius: 6, border: `1px solid ${socialTab === t ? ink : bdr}`, background: socialTab === t ? ink : "transparent", color: socialTab === t ? bg : muted, fontSize: 11, fontWeight: 600, cursor: "pointer", textTransform: "capitalize" }}>{t}</button>
               ))}
             </div>
             {socialTab === "platforms" && !!(socialResult.platforms as unknown[])?.length && (
               <div>
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" as const, marginBottom: 10 }}>
                   {(socialResult.platforms as { platform: string }[]).map((p, i) => (
-                    <button key={i} onClick={() => setSocialPlatformIdx(i)} style={{ padding: "4px 10px", borderRadius: 6, border: `1px solid ${socialPlatformIdx === i ? amber : bdr}`, background: socialPlatformIdx === i ? "#FEF3C7" : "transparent", color: socialPlatformIdx === i ? amber : muted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{p.platform}</button>
+                    <button key={i} onClick={() => setSocialPlatformIdx(i)} style={{ padding: "4px 10px", borderRadius: 6, border: `1px solid ${socialPlatformIdx === i ? ink : bdr}`, background: socialPlatformIdx === i ? ink : "transparent", color: socialPlatformIdx === i ? bg : muted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{p.platform}</button>
                   ))}
                 </div>
                 {(() => {
@@ -6351,14 +6351,14 @@ function BrandMessagingRenderer({ data, artifactId }: { data: Record<string, unk
       {/* ── Product Launch ── */}
       <div
         style={{ background: bg, borderRadius: 14, border: `1px solid ${bdr}`, overflow: "hidden", transition: "border-color .18s, box-shadow .18s" }}
-        onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#C7D2FE"; e.currentTarget.style.boxShadow = "0 2px 12px rgba(37,99,235,0.07)"; }}
+        onMouseEnter={(e) => { e.currentTarget.style.borderColor = ink + "40"; e.currentTarget.style.boxShadow = "0 2px 12px rgba(0,0,0,0.06)"; }}
         onMouseLeave={(e) => { e.currentTarget.style.borderColor = bdr; e.currentTarget.style.boxShadow = "none"; }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px" }}>
-          <div style={{ height: 36, width: 36, borderRadius: 10, flexShrink: 0, background: `${blue}12`, border: `1px solid ${blue}25`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ height: 36, width: 36, borderRadius: 10, flexShrink: 0, background: surf, border: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
             {generatingPL
-              ? <motion.div style={{ height: 13, width: 13, borderRadius: "50%", border: `2px solid ${bdr}`, borderTopColor: blue }} animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.75, ease: "linear" }} />
-              : <Rocket size={15} style={{ color: blue }} />
+              ? <motion.div style={{ height: 13, width: 13, borderRadius: "50%", border: `2px solid ${bdr}`, borderTopColor: ink }} animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.75, ease: "linear" }} />
+              : <Rocket size={15} style={{ color: muted }} />
             }
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -6366,9 +6366,9 @@ function BrandMessagingRenderer({ data, artifactId }: { data: Record<string, unk
             <p style={{ fontSize: 11, color: muted, lineHeight: 1.35, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Full go-to-market launch plan: phases, channels, launch-day playbook, and metrics.</p>
           </div>
           <button onClick={handleGenerateProductLaunch} disabled={generatingPL}
-            style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 11px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: "none", color: generatingPL ? muted : blue, border: `1.5px solid ${generatingPL ? bdr : blue + "40"}`, cursor: generatingPL ? "wait" : "pointer", transition: "all .15s", flexShrink: 0, fontFamily: "inherit" }}
-            onMouseEnter={(e) => { if (!generatingPL) { e.currentTarget.style.background = blue + "10"; e.currentTarget.style.borderColor = blue; } }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "none"; e.currentTarget.style.borderColor = blue + "40"; }}
+            style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 11px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: "none", color: generatingPL ? muted : ink, border: `1.5px solid ${generatingPL ? bdr : bdr}`, cursor: generatingPL ? "wait" : "pointer", transition: "all .15s", flexShrink: 0, fontFamily: "inherit" }}
+            onMouseEnter={(e) => { if (!generatingPL) { e.currentTarget.style.background = surf; e.currentTarget.style.borderColor = ink; } }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "none"; e.currentTarget.style.borderColor = bdr; }}
           >
             {generatingPL ? "Running…" : "Run"}{!generatingPL && <ChevronRight size={11} />}
           </button>
@@ -6488,14 +6488,14 @@ function BrandMessagingRenderer({ data, artifactId }: { data: Record<string, unk
       {/* ── Content Calendar ── */}
       <div
         style={{ background: bg, borderRadius: 14, border: `1px solid ${bdr}`, overflow: "hidden", transition: "border-color .18s, box-shadow .18s" }}
-        onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#C7D2FE"; e.currentTarget.style.boxShadow = "0 2px 12px rgba(37,99,235,0.07)"; }}
+        onMouseEnter={(e) => { e.currentTarget.style.borderColor = ink + "40"; e.currentTarget.style.boxShadow = "0 2px 12px rgba(0,0,0,0.06)"; }}
         onMouseLeave={(e) => { e.currentTarget.style.borderColor = bdr; e.currentTarget.style.boxShadow = "none"; }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px" }}>
-          <div style={{ height: 36, width: 36, borderRadius: 10, flexShrink: 0, background: `${green}12`, border: `1px solid ${green}25`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ height: 36, width: 36, borderRadius: 10, flexShrink: 0, background: surf, border: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
             {generatingCal
-              ? <motion.div style={{ height: 13, width: 13, borderRadius: "50%", border: `2px solid ${bdr}`, borderTopColor: green }} animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.75, ease: "linear" }} />
-              : <Calendar size={15} style={{ color: green }} />
+              ? <motion.div style={{ height: 13, width: 13, borderRadius: "50%", border: `2px solid ${bdr}`, borderTopColor: ink }} animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.75, ease: "linear" }} />
+              : <Calendar size={15} style={{ color: muted }} />
             }
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -6503,9 +6503,9 @@ function BrandMessagingRenderer({ data, artifactId }: { data: Record<string, unk
             <p style={{ fontSize: 11, color: muted, lineHeight: 1.35, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Week-by-week content plan with hooks, angles, and platform-specific posts.</p>
           </div>
           <button onClick={handleGenerateContentCalendar} disabled={generatingCal}
-            style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 11px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: "none", color: generatingCal ? muted : green, border: `1.5px solid ${generatingCal ? bdr : green + "40"}`, cursor: generatingCal ? "wait" : "pointer", transition: "all .15s", flexShrink: 0, fontFamily: "inherit" }}
-            onMouseEnter={(e) => { if (!generatingCal) { e.currentTarget.style.background = green + "10"; e.currentTarget.style.borderColor = green; } }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "none"; e.currentTarget.style.borderColor = green + "40"; }}
+            style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 11px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: "none", color: generatingCal ? muted : ink, border: `1.5px solid ${generatingCal ? bdr : bdr}`, cursor: generatingCal ? "wait" : "pointer", transition: "all .15s", flexShrink: 0, fontFamily: "inherit" }}
+            onMouseEnter={(e) => { if (!generatingCal) { e.currentTarget.style.background = surf; e.currentTarget.style.borderColor = ink; } }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "none"; e.currentTarget.style.borderColor = bdr; }}
           >
             {generatingCal ? "Running…" : "Run"}{!generatingCal && <ChevronRight size={11} />}
           </button>
@@ -7389,9 +7389,9 @@ function FinancialSummaryRenderer({ data, artifactId }: { data: Record<string, u
 
       {/* ── Fundraising Round Modeler ── */}
       {showFundraisingModal ? (
-        <div style={{ background: "#EFF6FF", borderRadius: 12, padding: "16px 18px", border: "1px solid #BFDBFE" }}>
+        <div style={{ background: surf, borderRadius: 12, padding: "16px 18px", border: `1px solid ${bdr}` }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: blue }}>Fundraising Round Modeler</p>
+            <p style={{ fontSize: 11, fontWeight: 700, color: ink }}>Fundraising Round Modeler</p>
             <button onClick={() => { setShowFundraisingModal(false); setFundraisingCalcResult(null); setFundraisingCalcError(null); }} style={{ background: "none", border: "none", cursor: "pointer", color: muted, fontSize: 13, lineHeight: 1 }}>✕</button>
           </div>
           {!fundraisingCalcResult ? (
@@ -7484,56 +7484,56 @@ function FinancialSummaryRenderer({ data, artifactId }: { data: Record<string, u
           )}
         </div>
       ) : (
-        <div style={{ background: "#EFF6FF", borderRadius: 12, padding: "14px 18px", border: "1px solid #BFDBFE", display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ background: surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${bdr}`, display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 12, fontWeight: 700, color: blue, marginBottom: 2 }}>Model a Fundraising Round</p>
+            <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 2 }}>Model a Fundraising Round</p>
             <p style={{ fontSize: 11, color: muted }}>Calculate dilution, post-money valuation, and get AI-powered use-of-funds recommendations.</p>
           </div>
-          <button onClick={() => setShowFundraisingModal(true)} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: blue, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+          <button onClick={() => setShowFundraisingModal(true)} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: ink, color: bg, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
             Model Round
           </button>
         </div>
       )}
 
       {/* ── Investor Update CTA ── */}
-      <div style={{ background: "#EFF6FF", borderRadius: 12, padding: "16px 18px", border: `1px solid #BFDBFE`, display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ background: surf, borderRadius: 12, padding: "16px 18px", border: `1px solid ${bdr}`, display: "flex", alignItems: "center", gap: 12 }}>
         <div style={{ flex: 1 }}>
-          <p style={{ fontSize: 12, fontWeight: 700, color: blue, marginBottom: 2 }}>Send Investor Update</p>
+          <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 2 }}>Send Investor Update</p>
           <p style={{ fontSize: 11, color: muted }}>Send a YC-style monthly update with your real metrics to investors.</p>
         </div>
-        <button onClick={() => { setShowUpdateModal(true); setUpdateResult(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: blue, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+        <button onClick={() => { setShowUpdateModal(true); setUpdateResult(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: ink, color: bg, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
           Send Update
         </button>
       </div>
 
       {/* ── Stripe Live Metrics ──────────────────────────────────────────────── */}
       {stripeMetrics ? (
-        <div style={{ background: "#F5F3FF", borderRadius: 12, padding: "16px 18px", border: `1px solid #A78BFA` }}>
+        <div style={{ background: surf, borderRadius: 12, padding: "16px 18px", border: `1px solid ${bdr}` }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: "#7C3AED", textTransform: "uppercase", letterSpacing: "0.1em" }}>Live Stripe Metrics</p>
+            <p style={{ fontSize: 11, fontWeight: 700, color: ink, textTransform: "uppercase", letterSpacing: "0.1em" }}>Live Stripe Metrics</p>
             <button onClick={() => setStripeMetrics(null)} style={{ fontSize: 10, color: muted, background: "none", border: "none", cursor: "pointer" }}>Disconnect</button>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1, background: "#DDD6FE", borderRadius: 8, overflow: "hidden" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1, background: bdr, borderRadius: 8, overflow: "hidden" }}>
             {[
               ["MRR", `$${stripeMetrics.mrr.toLocaleString()}`],
               ["ARR", `$${stripeMetrics.arr.toLocaleString()}`],
               ["Active Subs", stripeMetrics.activeSubscriptions.toString()],
               ["Last 30d Revenue", `$${stripeMetrics.last30DayRevenue.toLocaleString()}`],
             ].map(([label, value]) => (
-              <div key={label} style={{ background: "#FAF5FF", padding: "10px 12px" }}>
-                <p style={{ fontSize: 10, color: "#7C3AED", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>{label}</p>
+              <div key={label} style={{ background: bg, padding: "10px 12px" }}>
+                <p style={{ fontSize: 10, color: muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>{label}</p>
                 <p style={{ fontSize: 14, fontWeight: 700, color: ink }}>{value}</p>
               </div>
             ))}
           </div>
         </div>
       ) : (
-        <div style={{ background: "#F5F3FF", borderRadius: 12, padding: "16px 18px", border: `1px solid #DDD6FE`, display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ background: surf, borderRadius: 12, padding: "16px 18px", border: `1px solid ${bdr}`, display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 12, fontWeight: 700, color: "#7C3AED", marginBottom: 2 }}>Connect Stripe</p>
+            <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 2 }}>Connect Stripe</p>
             <p style={{ fontSize: 11, color: muted }}>Pull your real MRR, ARR, and revenue into this model. Enter a read-only restricted key — never stored.</p>
           </div>
-          <button onClick={() => setShowStripeModal(true)} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: "#7C3AED", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>
+          <button onClick={() => setShowStripeModal(true)} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: ink, color: bg, fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>
             Connect
           </button>
         </div>
@@ -7571,12 +7571,12 @@ function FinancialSummaryRenderer({ data, artifactId }: { data: Record<string, u
       )}
 
       {/* ── Create Invoice ───────────────────────────────────────────────────── */}
-      <div style={{ background: "#EFF6FF", borderRadius: 12, padding: "14px 18px", border: `1px solid #BFDBFE`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+      <div style={{ background: surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <div style={{ flex: 1 }}>
-          <p style={{ fontSize: 12, fontWeight: 700, color: blue, marginBottom: 2 }}>Create & Send Invoice</p>
+          <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 2 }}>Create & Send Invoice</p>
           <p style={{ fontSize: 11, color: muted }}>Felix generates and emails a professional invoice to your customer — via Stripe if connected, otherwise Resend.</p>
         </div>
-        <button onClick={() => { setShowInvoiceModal(true); setInvoiceResult(null); setInvoiceError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: blue, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+        <button onClick={() => { setShowInvoiceModal(true); setInvoiceResult(null); setInvoiceError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: ink, color: bg, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
           New Invoice
         </button>
       </div>
@@ -7645,9 +7645,9 @@ function FinancialSummaryRenderer({ data, artifactId }: { data: Record<string, u
       )}
 
       {/* ── Google Sheets export ─────────────────────────────────────────────── */}
-      <div style={{ background: "#F0FDF4", borderRadius: 12, padding: "16px 18px", border: `1px solid #BBF7D0` }}>
+      <div style={{ background: surf, borderRadius: 12, padding: "16px 18px", border: `1px solid ${bdr}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-          <p style={{ fontSize: 11, fontWeight: 700, color: green, textTransform: "uppercase", letterSpacing: "0.1em" }}>Export to Google Sheets</p>
+          <p style={{ fontSize: 11, fontWeight: 700, color: ink, textTransform: "uppercase", letterSpacing: "0.1em" }}>Export to Google Sheets</p>
           <button
             onClick={() => {
               // Build a CSV that Google Sheets reads as a financial model with formula rows
@@ -7691,7 +7691,7 @@ function FinancialSummaryRenderer({ data, artifactId }: { data: Record<string, u
               a.click();
               URL.revokeObjectURL(url);
             }}
-            style={{ padding: "7px 14px", borderRadius: 8, background: green, border: "none", fontSize: 12, fontWeight: 600, color: "white", cursor: "pointer" }}
+            style={{ padding: "7px 14px", borderRadius: 8, background: ink, border: "none", fontSize: 12, fontWeight: 600, color: bg, cursor: "pointer" }}
           >
             Download CSV
           </button>
@@ -7701,19 +7701,19 @@ function FinancialSummaryRenderer({ data, artifactId }: { data: Record<string, u
         </p>
         <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
           {["Snapshot", "12-month MRR model", "Use of funds"].map((label, i) => (
-            <span key={i} style={{ padding: "4px 10px", borderRadius: 999, fontSize: 11, background: "white", color: green, border: `1px solid #BBF7D0`, fontWeight: 600 }}>{label}</span>
+            <span key={i} style={{ padding: "4px 10px", borderRadius: 999, fontSize: 11, background: bg, color: muted, border: `1px solid ${bdr}`, fontWeight: 600 }}>{label}</span>
           ))}
         </div>
       </div>
 
       {/* ── Actuals vs Projections ── */}
-      <div style={{ background: "#FFFBEB", borderRadius: 12, padding: "14px 18px", border: "1px solid #FDE68A" }}>
+      <div style={{ background: surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${bdr}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
           <div>
-            <p style={{ fontSize: 11, fontWeight: 700, color: amber, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 2 }}>Actuals vs Projections</p>
+            <p style={{ fontSize: 11, fontWeight: 700, color: ink, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 2 }}>Actuals vs Projections</p>
             <p style={{ fontSize: 11, color: muted }}>Compare your real MRR against your financial model — get a variance analysis and action plan.</p>
           </div>
-          <button onClick={() => { setShowActualsPanel(v => !v); setActualsResult(null); setActualsError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: amber, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>
+          <button onClick={() => { setShowActualsPanel(v => !v); setActualsResult(null); setActualsError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: ink, color: bg, fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>
             {showActualsPanel ? "Close" : "Compare"}
           </button>
         </div>
@@ -7741,7 +7741,7 @@ function FinancialSummaryRenderer({ data, artifactId }: { data: Record<string, u
               )}
             </div>
             {actualsError && <p style={{ fontSize: 12, color: red, marginBottom: 8 }}>{actualsError}</p>}
-            <button onClick={handleRunActuals} disabled={runningActuals || !actualMRRInput} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: runningActuals ? bdr : amber, color: runningActuals ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: runningActuals ? "not-allowed" : "pointer" }}>
+            <button onClick={handleRunActuals} disabled={runningActuals || !actualMRRInput} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: runningActuals ? bdr : ink, color: runningActuals ? muted : bg, fontSize: 12, fontWeight: 600, cursor: runningActuals ? "not-allowed" : "pointer" }}>
               {runningActuals ? "Analyzing…" : "Run Analysis"}
             </button>
             {actualsResult && actualsResult.analysis && (
@@ -7801,13 +7801,13 @@ function FinancialSummaryRenderer({ data, artifactId }: { data: Record<string, u
       </div>
 
       {/* ── Expense Categorization ── */}
-      <div style={{ background: "#EFF6FF", borderRadius: 12, padding: "14px 18px", border: "1px solid #BFDBFE" }}>
+      <div style={{ background: surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${bdr}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: showExpensesPanel ? 12 : 0 }}>
           <div>
-            <p style={{ fontSize: 11, fontWeight: 700, color: blue, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 2 }}>Expense Categorization</p>
+            <p style={{ fontSize: 11, fontWeight: 700, color: ink, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 2 }}>Expense Categorization</p>
             <p style={{ fontSize: 11, color: muted }}>Paste your expense list — Felix categorizes into buckets, calculates burn, and finds savings opportunities.</p>
           </div>
-          <button onClick={() => { setShowExpensesPanel(v => !v); setExpensesResult(null); setExpensesError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: blue, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>
+          <button onClick={() => { setShowExpensesPanel(v => !v); setExpensesResult(null); setExpensesError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: ink, color: bg, fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>
             {showExpensesPanel ? "Close" : "Categorize"}
           </button>
         </div>
@@ -7900,12 +7900,12 @@ function FinancialSummaryRenderer({ data, artifactId }: { data: Record<string, u
       </div>
 
       {/* ── Scenario Modeling CTA ── */}
-      <div style={{ background: "#F5F3FF", borderRadius: 12, padding: "14px 18px", border: "1px solid #DDD6FE", display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ background: surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${bdr}`, display: "flex", alignItems: "center", gap: 12 }}>
         <div style={{ flex: 1 }}>
-          <p style={{ fontSize: 11, fontWeight: 700, color: "#7C3AED", marginBottom: 2 }}>Model a Financial Scenario</p>
+          <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 2 }}>Model a Financial Scenario</p>
           <p style={{ fontSize: 11, color: muted }}>Ask &ldquo;What if I hire 2 engineers?&rdquo; or &ldquo;What if churn doubles?&rdquo; — Felix models the impact on your runway and burn.</p>
         </div>
-        <button onClick={() => { setShowScenarioModal(true); setScenarioResult(null); setScenarioError(null); setScenarioInput(""); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: "#7C3AED", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>
+        <button onClick={() => { setShowScenarioModal(true); setScenarioResult(null); setScenarioError(null); setScenarioInput(""); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: ink, color: bg, fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>
           Run Scenario
         </button>
       </div>
@@ -9422,12 +9422,12 @@ function LegalChecklistRenderer({ data, artifactId: _artifactId }: { data: Recor
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       {/* ── Generate NDA CTA ── */}
-      <div style={{ background: "#FFFBEB", border: `1px solid #FED7AA`, borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
         <div style={{ flex: 1 }}>
-          <p style={{ fontSize: 12, fontWeight: 700, color: amber, marginBottom: 2 }}>Generate an NDA</p>
+          <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 2 }}>Generate an NDA</p>
           <p style={{ fontSize: 11, color: muted }}>Create a mutual or one-way NDA for investors, contractors, or partners. Download as HTML.</p>
         </div>
-        <button onClick={() => setShowNdaModal(true)} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: amber, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+        <button onClick={() => setShowNdaModal(true)} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: ink, color: bg, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
           Create NDA
         </button>
       </div>
@@ -9478,12 +9478,12 @@ function LegalChecklistRenderer({ data, artifactId: _artifactId }: { data: Recor
         </div>
       )}
       {/* ── SAFE Note Generator CTA ── */}
-      <div style={{ background: "#F0FDF4", border: `1px solid #BBF7D0`, borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
         <div style={{ flex: 1 }}>
-          <p style={{ fontSize: 12, fontWeight: 700, color: green, marginBottom: 2 }}>Generate a SAFE Note</p>
+          <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 2 }}>Generate a SAFE Note</p>
           <p style={{ fontSize: 11, color: muted }}>YC post-money or pre-money SAFE — fill in investor details and download as HTML (print to PDF).</p>
         </div>
-        <button onClick={() => setShowSafeModal(true)} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: green, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+        <button onClick={() => setShowSafeModal(true)} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: ink, color: bg, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
           Create SAFE
         </button>
       </div>
@@ -9610,9 +9610,9 @@ function LegalChecklistRenderer({ data, artifactId: _artifactId }: { data: Recor
 
       {/* ── Co-Founder Agreement ── */}
       {showCoFounderModal ? (
-        <div style={{ background: "#F5F3FF", borderRadius: 12, padding: "16px 18px", border: "1px solid #DDD6FE" }}>
+        <div style={{ background: surf, borderRadius: 12, padding: "16px 18px", border: `1px solid ${bdr}` }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: "#7C3AED" }}>Co-Founder Agreement Generator</p>
+            <p style={{ fontSize: 11, fontWeight: 700, color: ink }}>Co-Founder Agreement Generator</p>
             <button onClick={() => { setShowCoFounderModal(false); setCoFounderError(null); }} style={{ background: "none", border: "none", cursor: "pointer", color: muted, fontSize: 13, lineHeight: 1 }}>✕</button>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -9647,47 +9647,47 @@ function LegalChecklistRenderer({ data, artifactId: _artifactId }: { data: Recor
               </div>
             </div>
             {coFounderError && <p style={{ fontSize: 11, color: red }}>{coFounderError}</p>}
-            <button onClick={handleGenerateCoFounder} disabled={!coFounderName || !coFounderRole || generatingCoFounder} style={{ padding: "9px", borderRadius: 8, border: "none", background: !coFounderName || !coFounderRole ? bdr : "#7C3AED", color: !coFounderName || !coFounderRole ? muted : "#fff", fontSize: 13, fontWeight: 700, cursor: !coFounderName || !coFounderRole ? "not-allowed" : "pointer" }}>
+            <button onClick={handleGenerateCoFounder} disabled={!coFounderName || !coFounderRole || generatingCoFounder} style={{ padding: "9px", borderRadius: 8, border: "none", background: !coFounderName || !coFounderRole ? bdr : ink, color: !coFounderName || !coFounderRole ? muted : bg, fontSize: 13, fontWeight: 700, cursor: !coFounderName || !coFounderRole ? "not-allowed" : "pointer" }}>
               {generatingCoFounder ? "Generating…" : "Download Agreement HTML"}
             </button>
           </div>
         </div>
       ) : (
-        <div style={{ background: "#F5F3FF", borderRadius: 12, padding: "14px 18px", border: "1px solid #DDD6FE", display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ background: surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${bdr}`, display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 12, fontWeight: 700, color: "#7C3AED", marginBottom: 2 }}>Co-Founder Agreement</p>
+            <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 2 }}>Co-Founder Agreement</p>
             <p style={{ fontSize: 11, color: muted }}>Generate a co-founder agreement with equity split, vesting schedule, IP assignment, and dispute resolution — downloads as print-ready HTML.</p>
           </div>
-          <button onClick={() => setShowCoFounderModal(true)} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: "#7C3AED", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+          <button onClick={() => setShowCoFounderModal(true)} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: ink, color: bg, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
             Draft Agreement
           </button>
         </div>
       )}
 
       {/* ── Build Data Room ─────────────────────────────────────────────────── */}
-      <div style={{ background: "#F5F3FF", borderRadius: 12, padding: "14px 16px", border: `1px solid #DDD6FE` }}>
+      <div style={{ background: surf, borderRadius: 12, padding: "14px 16px", border: `1px solid ${bdr}` }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: dataRoomMeta ? 10 : 0 }}>
           <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 12, fontWeight: 700, color: "#7C3AED", marginBottom: 2 }}>Investor Data Room</p>
+            <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 2 }}>Investor Data Room</p>
             <p style={{ fontSize: 11, color: muted }}>Leo bundles all your agent deliverables into a clean, shareable HTML data room — financials, legal, GTM, team, and more.</p>
           </div>
           <button
             onClick={handleBuildDataRoom}
             disabled={buildingDataRoom}
-            style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: buildingDataRoom ? bdr : "#7C3AED", color: buildingDataRoom ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: buildingDataRoom ? "not-allowed" : "pointer", whiteSpace: "nowrap", marginLeft: 12 }}
+            style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: buildingDataRoom ? bdr : ink, color: buildingDataRoom ? muted : bg, fontSize: 12, fontWeight: 600, cursor: buildingDataRoom ? "not-allowed" : "pointer", whiteSpace: "nowrap", marginLeft: 12 }}
           >
             {buildingDataRoom ? "Building…" : "Build Data Room"}
           </button>
         </div>
         {dataRoomMeta && (
-          <div style={{ borderTop: `1px solid #DDD6FE`, paddingTop: 10 }}>
+          <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 10 }}>
             <div style={{ display: "flex", gap: 16, marginBottom: 6 }}>
               <div style={{ textAlign: "center" }}>
-                <p style={{ fontSize: 18, fontWeight: 800, color: "#7C3AED" }}>{dataRoomMeta.artifactCount}</p>
+                <p style={{ fontSize: 18, fontWeight: 800, color: ink }}>{dataRoomMeta.artifactCount}</p>
                 <p style={{ fontSize: 10, color: muted, textTransform: "uppercase" }}>documents</p>
               </div>
               <div style={{ textAlign: "center" }}>
-                <p style={{ fontSize: 18, fontWeight: 800, color: "#7C3AED" }}>{dataRoomMeta.folderCount}</p>
+                <p style={{ fontSize: 18, fontWeight: 800, color: ink }}>{dataRoomMeta.folderCount}</p>
                 <p style={{ fontSize: 10, color: muted, textTransform: "uppercase" }}>sections</p>
               </div>
               {dataRoomMeta.missing.length > 0 && (
@@ -9704,12 +9704,12 @@ function LegalChecklistRenderer({ data, artifactId: _artifactId }: { data: Recor
       </div>
 
       {/* ── Clerky / Stripe Atlas CTA ─────────────────────────────────────── */}
-      <div style={{ background: "#F0FDF4", borderRadius: 12, padding: "16px 18px", border: `1px solid #BBF7D0`, marginTop: 4 }}>
-        <p style={{ fontSize: 11, fontWeight: 700, color: green, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>Start Incorporation</p>
+      <div style={{ background: surf, borderRadius: 12, padding: "16px 18px", border: `1px solid ${bdr}`, marginTop: 4 }}>
+        <p style={{ fontSize: 11, fontWeight: 700, color: ink, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>Start Incorporation</p>
         <p style={{ fontSize: 12, color: muted, lineHeight: 1.5, marginBottom: 12 }}>
           Leo has collected enough data to pre-fill your incorporation. Choose a platform to get started — your details are already on your clipboard.
         </p>
-        <div style={{ background: "#ECFDF5", borderRadius: 8, padding: "10px 14px", border: `1px solid #A7F3D0`, marginBottom: 12, fontFamily: "monospace", fontSize: 11, color: ink, lineHeight: 1.7 }}>
+        <div style={{ background: bg, borderRadius: 8, padding: "10px 14px", border: `1px solid ${bdr}`, marginBottom: 12, fontFamily: "monospace", fontSize: 11, color: ink, lineHeight: 1.7 }}>
           <p><strong>Entity type:</strong> Delaware C-Corp</p>
           <p><strong>Stage:</strong> {d.companyStage ? d.companyStage.replace(/-/g, " ") : "Pre-seed"}</p>
           <p><strong>Suggested par value:</strong> $0.0001 / share</p>
@@ -9749,12 +9749,12 @@ function LegalChecklistRenderer({ data, artifactId: _artifactId }: { data: Recor
       </div>
 
       {/* ── Term Sheet Analyzer CTA ── */}
-      <div style={{ background: "#F5F3FF", border: "1px solid #DDD6FE", borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
         <div style={{ flex: 1 }}>
-          <p style={{ fontSize: 12, fontWeight: 700, color: "#7C3AED", marginBottom: 2 }}>Analyze a Term Sheet or SAFE</p>
+          <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 2 }}>Analyze a Term Sheet or SAFE</p>
           <p style={{ fontSize: 11, color: muted }}>Paste any term sheet — Leo flags red flags, unusual clauses, and what to negotiate.</p>
         </div>
-        <button onClick={() => { setShowTermModal(true); setTermAnalysis(null); setTermError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: "#7C3AED", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+        <button onClick={() => { setShowTermModal(true); setTermAnalysis(null); setTermError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: ink, color: bg, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
           Analyze Term Sheet
         </button>
       </div>
@@ -9849,12 +9849,12 @@ function LegalChecklistRenderer({ data, artifactId: _artifactId }: { data: Recor
       )}
 
       {/* ── Privacy Policy + ToS Generator ── */}
-      <div style={{ background: "#F0FDF4", border: `1px solid #BBF7D0`, borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", gap: 12 }}>
         <div style={{ flex: 1 }}>
-          <p style={{ fontSize: 12, fontWeight: 700, color: green, marginBottom: 2 }}>Generate Privacy Policy + Terms of Service</p>
+          <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 2 }}>Generate Privacy Policy + Terms of Service</p>
           <p style={{ fontSize: 11, color: muted }}>Leo generates complete, founder-friendly legal docs customized to your product — downloadable HTML, ready to publish.</p>
         </div>
-        <button onClick={() => { setShowLegalDocModal(true); setLegalError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: green, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
+        <button onClick={() => { setShowLegalDocModal(true); setLegalError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: ink, color: bg, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
           Generate Docs
         </button>
       </div>
@@ -9904,13 +9904,13 @@ function LegalChecklistRenderer({ data, artifactId: _artifactId }: { data: Recor
       )}
 
       {/* ── Contract Clause Library ── */}
-      <div style={{ background: "#F5F3FF", border: `1px solid #DDD6FE`, borderRadius: 12, padding: "14px 18px" }}>
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "14px 18px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: showClausePanel ? 14 : 0 }}>
           <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 12, fontWeight: 700, color: "#7C3AED", marginBottom: 2 }}>Contract Clause Library</p>
+            <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 2 }}>Contract Clause Library</p>
             <p style={{ fontSize: 11, color: muted }}>Get 3 variants of any standard clause — founder-friendly, balanced, and investor-friendly — ready to paste.</p>
           </div>
-          <button onClick={() => setShowClausePanel(p => !p)} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: "#7C3AED", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
+          <button onClick={() => setShowClausePanel(p => !p)} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: ink, color: bg, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
             {showClausePanel ? "Hide" : "Browse Clauses"}
           </button>
         </div>
@@ -9987,7 +9987,7 @@ function LegalChecklistRenderer({ data, artifactId: _artifactId }: { data: Recor
       </div>
 
       {/* ── IP Audit ─────────────────────────────────────────────────────────── */}
-      <div style={{ background: showIPAuditPanel && ipAuditResult ? "#FFFBEB" : surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${showIPAuditPanel && ipAuditResult ? "#FDE68A" : bdr}` }}>
+      <div style={{ background: surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${bdr}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
             <p style={{ fontSize: 11, fontWeight: 700, color: amber, marginBottom: 2 }}>
@@ -10120,7 +10120,7 @@ function LegalChecklistRenderer({ data, artifactId: _artifactId }: { data: Recor
       </div>
 
       {/* ── Regulatory Research ───────────────────────────────────────────────── */}
-      <div style={{ background: showRegulatoryPanel && regulatoryResult ? "#EFF6FF" : surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${showRegulatoryPanel && regulatoryResult ? "#BFDBFE" : bdr}` }}>
+      <div style={{ background: surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${bdr}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
             <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>
@@ -10258,7 +10258,7 @@ function LegalChecklistRenderer({ data, artifactId: _artifactId }: { data: Recor
       </div>
 
       {/* ── Cap Table Validation ──────────────────────────────────────────────── */}
-      <div style={{ background: showCapTablePanel && capTableResult ? "#FFFBEB" : surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${showCapTablePanel && capTableResult ? "#FDE68A" : bdr}` }}>
+      <div style={{ background: surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${bdr}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
             <p style={{ fontSize: 11, fontWeight: 700, color: amber, marginBottom: 2 }}>
@@ -10406,13 +10406,13 @@ function LegalChecklistRenderer({ data, artifactId: _artifactId }: { data: Recor
       </div>
 
       {/* ── Document Version Diff ── */}
-      <div style={{ background: "#FEF2F2", borderRadius: 12, padding: "14px 18px", border: "1px solid #FECACA" }}>
+      <div style={{ background: surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${bdr}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
           <div>
-            <p style={{ fontSize: 11, fontWeight: 700, color: red, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 2 }}>Document Version Diff</p>
+            <p style={{ fontSize: 11, fontWeight: 700, color: ink, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 2 }}>Document Version Diff</p>
             <p style={{ fontSize: 11, color: muted }}>Paste two versions of any legal document — Leo highlights every change, explains the impact, and flags what to negotiate.</p>
           </div>
-          <button onClick={() => { setShowDiffModal(true); setDiffResult(null); setDiffError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: red, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>
+          <button onClick={() => { setShowDiffModal(true); setDiffResult(null); setDiffError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: ink, color: bg, fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>
             Compare Versions
           </button>
         </div>
@@ -10548,14 +10548,14 @@ function LegalChecklistRenderer({ data, artifactId: _artifactId }: { data: Recor
       )}
 
       {/* ── Contractor Agreement Generator ── */}
-      <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 12, padding: "16px 20px" }}>
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "16px 20px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: showContractorPanel ? 14 : 0 }}>
           <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: green, marginBottom: 2 }}>Contractor Agreement Generator</p>
+            <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 2 }}>Contractor Agreement Generator</p>
             <p style={{ fontSize: 11, color: muted }}>Leo drafts a ready-to-sign Independent Contractor Agreement (IC) — IP assignment, confidentiality, non-solicitation, and payment terms included.</p>
             {ctxError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{ctxError}</p>}
           </div>
-          <button onClick={() => { setShowContractorPanel(!showContractorPanel); setCtxError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: green, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
+          <button onClick={() => { setShowContractorPanel(!showContractorPanel); setCtxError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: ink, color: bg, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
             {showContractorPanel ? "Close" : "Draft Agreement"}
           </button>
         </div>
@@ -10592,7 +10592,7 @@ function LegalChecklistRenderer({ data, artifactId: _artifactId }: { data: Recor
               <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: "block", marginBottom: 4 }}>Scope of Work *</label>
               <textarea value={ctxScope} onChange={e => setCtxScope(e.target.value)} placeholder="e.g. Design and develop a Next.js web application including authentication, dashboard, and API integrations. Deliver working code in 6 weeks." rows={3} style={{ width: "100%", border: `1px solid ${bdr}`, borderRadius: 8, padding: "9px 12px", fontSize: 12, color: ink, outline: "none", resize: "vertical", boxSizing: "border-box" }} />
             </div>
-            <button onClick={handleGenerateContractor} disabled={generatingCtx || !ctxName.trim() || !ctxRole.trim() || !ctxScope.trim()} style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: generatingCtx || !ctxName.trim() || !ctxRole.trim() || !ctxScope.trim() ? bdr : green, color: generatingCtx || !ctxName.trim() || !ctxRole.trim() || !ctxScope.trim() ? muted : "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", alignSelf: "flex-start" }}>
+            <button onClick={handleGenerateContractor} disabled={generatingCtx || !ctxName.trim() || !ctxRole.trim() || !ctxScope.trim()} style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: generatingCtx || !ctxName.trim() || !ctxRole.trim() || !ctxScope.trim() ? bdr : ink, color: generatingCtx || !ctxName.trim() || !ctxRole.trim() || !ctxScope.trim() ? muted : bg, fontSize: 13, fontWeight: 600, cursor: "pointer", alignSelf: "flex-start" }}>
               {generatingCtx ? "Drafting…" : "Download Contractor Agreement"}
             </button>
           </div>
@@ -11804,8 +11804,8 @@ function HiringPlanRenderer({ data, artifactId, userId }: { data: Record<string,
       )}
 
       {/* ── Onboarding Kit ── */}
-      <div style={{ background: "#F0FDF4", borderRadius: 12, padding: "14px 18px", border: "1px solid #BBF7D0" }}>
-        <p style={{ fontSize: 11, fontWeight: 700, color: green, marginBottom: 4 }}>Generate Onboarding Kit</p>
+      <div style={{ background: surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${bdr}` }}>
+        <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 4 }}>Generate Onboarding Kit</p>
         <p style={{ fontSize: 11, color: muted, marginBottom: 10 }}>Create a week-1 onboarding plan for a new hire — welcome note, daily schedule, tools, check-ins. Downloads as print-ready HTML.</p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
           <input value={onboardingNewHireName} onChange={e => setOnboardingNewHireName(e.target.value)} placeholder="New hire name (optional)" style={{ flex: 1, minWidth: 140, padding: "7px 10px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, fontSize: 12, color: ink, boxSizing: "border-box" }} />
@@ -11818,7 +11818,7 @@ function HiringPlanRenderer({ data, artifactId, userId }: { data: Record<string,
                 key={i}
                 onClick={() => handleGenerateOnboarding(hire.role)}
                 disabled={generatingOnboarding}
-                style={{ padding: "6px 14px", borderRadius: 8, border: `1px solid #BBF7D0`, background: generatingOnboarding && onboardingRole === hire.role ? bdr : "white", color: generatingOnboarding && onboardingRole === hire.role ? muted : green, fontSize: 12, fontWeight: 600, cursor: generatingOnboarding ? "not-allowed" : "pointer" }}
+                style={{ padding: "6px 14px", borderRadius: 8, border: `1px solid ${bdr}`, background: generatingOnboarding && onboardingRole === hire.role ? bdr : bg, color: generatingOnboarding && onboardingRole === hire.role ? muted : ink, fontSize: 12, fontWeight: 600, cursor: generatingOnboarding ? "not-allowed" : "pointer" }}
               >
                 {generatingOnboarding && onboardingRole === hire.role ? "Generating…" : `Kit for ${hire.role}`}
               </button>
@@ -11827,26 +11827,26 @@ function HiringPlanRenderer({ data, artifactId, userId }: { data: Record<string,
         ) : (
           <div style={{ display: "flex", gap: 8 }}>
             <input placeholder="Role name (e.g. Head of Sales)" onChange={e => setOnboardingRole(e.target.value)} style={{ flex: 1, padding: "7px 10px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, fontSize: 12, color: ink, boxSizing: "border-box" }} />
-            <button onClick={() => onboardingRole && handleGenerateOnboarding(onboardingRole)} disabled={!onboardingRole || generatingOnboarding} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: !onboardingRole ? bdr : green, color: !onboardingRole ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: !onboardingRole ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}>
+            <button onClick={() => onboardingRole && handleGenerateOnboarding(onboardingRole)} disabled={!onboardingRole || generatingOnboarding} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: !onboardingRole ? bdr : ink, color: !onboardingRole ? muted : bg, fontSize: 12, fontWeight: 600, cursor: !onboardingRole ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}>
               {generatingOnboarding ? "Generating…" : "Generate Kit"}
             </button>
           </div>
         )}
         {onboardingError && <p style={{ fontSize: 11, color: red, marginTop: 6 }}>{onboardingError}</p>}
         {showOnboardingFor && onboardingHtml && (
-          <div style={{ marginTop: 10, padding: "8px 12px", background: "#DCFCE7", borderRadius: 8, border: "1px solid #BBF7D0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <p style={{ fontSize: 12, color: green, fontWeight: 600 }}>✓ Onboarding kit downloaded for {showOnboardingFor}</p>
-            <button onClick={() => { if (onboardingHtml) { const blob = new Blob([onboardingHtml], { type: 'text/html;charset=utf-8' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `onboarding-kit.html`; a.click(); URL.revokeObjectURL(url); } }} style={{ padding: "4px 10px", borderRadius: 6, border: `1px solid ${green}`, background: "transparent", color: green, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Re-download</button>
+          <div style={{ marginTop: 10, padding: "8px 12px", background: surf, borderRadius: 8, border: `1px solid ${bdr}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <p style={{ fontSize: 12, color: ink, fontWeight: 600 }}>✓ Onboarding kit downloaded for {showOnboardingFor}</p>
+            <button onClick={() => { if (onboardingHtml) { const blob = new Blob([onboardingHtml], { type: 'text/html;charset=utf-8' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `onboarding-kit.html`; a.click(); URL.revokeObjectURL(url); } }} style={{ padding: "4px 10px", borderRadius: 6, border: `1px solid ${bdr}`, background: "transparent", color: muted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Re-download</button>
           </div>
         )}
       </div>
 
       {/* ── Applications Inbox ──────────────────────────────────────────────── */}
-      <div style={{ background: "#F0FDF4", borderRadius: 12, padding: "14px 16px", border: `1px solid #BBF7D0` }}>
+      <div style={{ background: surf, borderRadius: 12, padding: "14px 16px", border: `1px solid ${bdr}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
-            <p style={{ fontSize: 11, fontWeight: 700, color: green, marginBottom: 2 }}>
-              Applications Inbox {!loadingApps && applications.length > 0 && <span style={{ background: green, color: "#fff", borderRadius: 999, padding: "1px 7px", fontSize: 10, marginLeft: 4 }}>{applications.length}</span>}
+            <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 2 }}>
+              Applications Inbox {!loadingApps && applications.length > 0 && <span style={{ background: ink, color: bg, borderRadius: 999, padding: "1px 7px", fontSize: 10, marginLeft: 4 }}>{applications.length}</span>}
             </p>
             <p style={{ fontSize: 11, color: muted }}>
               {loadingApps ? "Loading…" : applications.length === 0 ? "No applications yet — share your apply link to start receiving candidates." : `${applications.length} candidate${applications.length !== 1 ? "s" : ""} applied`}
@@ -12002,12 +12002,12 @@ function HiringPlanRenderer({ data, artifactId, userId }: { data: Record<string,
       )}
 
       {/* ── Offer Letter CTA ── */}
-      <div style={{ background: "#EFF6FF", border: `1px solid #BFDBFE`, borderRadius: 12, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
         <div style={{ flex: 1 }}>
-          <p style={{ fontSize: 12, fontWeight: 700, color: blue, marginBottom: 2 }}>Send an Offer Letter</p>
+          <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 2 }}>Send an Offer Letter</p>
           <p style={{ fontSize: 11, color: muted }}>Harper generates a ready-to-sign offer letter with salary, equity, and vesting details — download HTML or email directly.</p>
         </div>
-        <button onClick={() => { setShowOfferModal(true); setOfferHtml(null); setOfferError(null); setOfferCandidate(""); setOfferEmail(""); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: blue, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+        <button onClick={() => { setShowOfferModal(true); setOfferHtml(null); setOfferError(null); setOfferCandidate(""); setOfferEmail(""); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: ink, color: bg, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
           Create Offer
         </button>
       </div>
@@ -12197,12 +12197,12 @@ function HiringPlanRenderer({ data, artifactId, userId }: { data: Record<string,
       </div>
 
       {/* ── Candidate Outreach CTA ── */}
-      <div style={{ background: "#EFF6FF", border: `1px solid #BFDBFE`, borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", gap: 12 }}>
         <div style={{ flex: 1 }}>
-          <p style={{ fontSize: 12, fontWeight: 700, color: blue, marginBottom: 2 }}>Draft Recruiting Message</p>
+          <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 2 }}>Draft Recruiting Message</p>
           <p style={{ fontSize: 11, color: muted }}>Found a great candidate on LinkedIn, GitHub, or AngelList? Harper drafts a personalized outreach for email, LinkedIn, or Twitter.</p>
         </div>
-        <button onClick={() => { setShowOutreachModal(true); setOutreachDraft(null); setOutreachError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: blue, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
+        <button onClick={() => { setShowOutreachModal(true); setOutreachDraft(null); setOutreachError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: ink, color: bg, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
           Draft Message
         </button>
       </div>
@@ -12435,7 +12435,7 @@ function HiringPlanRenderer({ data, artifactId, userId }: { data: Record<string,
       )}
 
       {/* ── Reference Check Kit ───────────────────────────────────────────────── */}
-      <div style={{ background: showRefKitPanel && refKitResult ? "#EFF6FF" : surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${showRefKitPanel && refKitResult ? "#BFDBFE" : bdr}` }}>
+      <div style={{ background: surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${bdr}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
             <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>Reference Check Kit</p>
@@ -12578,14 +12578,14 @@ function HiringPlanRenderer({ data, artifactId, userId }: { data: Record<string,
       </div>
 
       {/* ── Compensation Framework ── */}
-      <div style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 12, padding: "16px 20px" }}>
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "16px 20px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: compResult ? 14 : 0 }}>
           <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>Compensation Framework</p>
+            <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 2 }}>Compensation Framework</p>
             <p style={{ fontSize: 11, color: muted }}>Harper builds salary bands, equity ranges, benefits stack, and a negotiation playbook based on your stage, industry, and open roles.</p>
             {compError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{compError}</p>}
           </div>
-          <button onClick={handleGenerateComp} disabled={generatingComp} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingComp ? bdr : blue, color: generatingComp ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingComp ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
+          <button onClick={handleGenerateComp} disabled={generatingComp} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingComp ? bdr : ink, color: generatingComp ? muted : bg, fontSize: 12, fontWeight: 600, cursor: generatingComp ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
             {generatingComp ? "Building…" : "Build Framework"}
           </button>
         </div>
@@ -13647,20 +13647,20 @@ function PMFSurveyRenderer({ data, artifactId, userId }: { data: Record<string, 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       {/* ── Survey share bar ── */}
-      <div style={{ background: "#F5F3FF", border: `1px solid #DDD6FE`, borderRadius: 10, padding: "12px 16px" }}>
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 10, padding: "12px 16px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: surveyStats ? 10 : 0 }}>
           <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 12, fontWeight: 700, color: purple, marginBottom: 2 }}>Share this survey</p>
+            <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 2 }}>Share this survey</p>
             <p style={{ fontSize: 11, color: muted }}>Send to customers — responses tracked in real-time.</p>
           </div>
           <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
             {surveyLink && artifactId && (
-              <button onClick={() => setShowDistributePanel(p => !p)} style={{ padding: "7px 14px", borderRadius: 8, border: `1px solid ${purple}`, background: "transparent", color: purple, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+              <button onClick={() => setShowDistributePanel(p => !p)} style={{ padding: "7px 14px", borderRadius: 8, border: `1px solid ${bdr}`, background: "transparent", color: ink, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
                 📧 Send via Email
               </button>
             )}
             {surveyLink ? (
-              <button onClick={() => { navigator.clipboard.writeText(surveyLink).catch(() => {}); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: linkCopied ? green : purple, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+              <button onClick={() => { navigator.clipboard.writeText(surveyLink).catch(() => {}); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: linkCopied ? green : ink, color: bg, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
                 {linkCopied ? "Copied!" : "Copy Link"}
               </button>
             ) : (
@@ -13671,7 +13671,7 @@ function PMFSurveyRenderer({ data, artifactId, userId }: { data: Record<string, 
 
         {/* Distribution panel */}
         {showDistributePanel && (
-          <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid #DDD6FE`, display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${bdr}`, display: "flex", flexDirection: "column", gap: 8 }}>
             {distributeResult ? (
               <div style={{ background: "#F0FDF4", borderRadius: 8, padding: "10px 12px", border: "1px solid #BBF7D0" }}>
                 <p style={{ fontSize: 13, fontWeight: 700, color: green, marginBottom: 2 }}>✓ Survey sent to {distributeResult.sent} customer{distributeResult.sent !== 1 ? "s" : ""}!</p>
@@ -13767,14 +13767,14 @@ function PMFSurveyRenderer({ data, artifactId, userId }: { data: Record<string, 
       </div>
       {/* ── AI Response Analysis ── */}
       {artifactId && (
-        <div style={{ background: "#F5F3FF", border: `1px solid #DDD6FE`, borderRadius: 10, padding: "14px 16px" }}>
+        <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 10, padding: "14px 16px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: analysisResult ? 14 : 0 }}>
             <div style={{ flex: 1 }}>
-              <p style={{ fontSize: 12, fontWeight: 700, color: "#7C3AED", marginBottom: 2 }}>AI Response Analysis</p>
+              <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 2 }}>AI Response Analysis</p>
               <p style={{ fontSize: 11, color: muted }}>Nova analyzes all survey responses — themes, PMF signal, top quotes, and what to do next.</p>
               {analyzeError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{analyzeError}</p>}
             </div>
-            <button onClick={handleAnalyzeSurvey} disabled={analyzing} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: analyzing ? bdr : "#7C3AED", color: analyzing ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: analyzing ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
+            <button onClick={handleAnalyzeSurvey} disabled={analyzing} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: analyzing ? bdr : ink, color: analyzing ? muted : bg, fontSize: 12, fontWeight: 600, cursor: analyzing ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
               {analyzing ? "Analyzing…" : analysisResult ? "Re-analyze" : "Analyze Responses"}
             </button>
           </div>
@@ -13849,13 +13849,13 @@ function PMFSurveyRenderer({ data, artifactId, userId }: { data: Record<string, 
       )}
 
       {/* ── Feature Request Aggregation ── */}
-      <div style={{ background: "#F5F3FF", borderRadius: 12, padding: "14px 18px", border: "1px solid #DDD6FE" }}>
+      <div style={{ background: surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${bdr}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: showFeaturesPanel ? 12 : 0 }}>
           <div>
-            <p style={{ fontSize: 11, fontWeight: 700, color: "#7C3AED", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 2 }}>Feature Request Aggregation</p>
+            <p style={{ fontSize: 11, fontWeight: 700, color: ink, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 2 }}>Feature Request Aggregation</p>
             <p style={{ fontSize: 11, color: muted }}>{artifactId ? "Pull themes from your survey open-text responses — RICE scored and ranked." : "Paste customer feedback — Nova clusters into themes and ranks by impact."}</p>
           </div>
-          <button onClick={() => { setShowFeaturesPanel(v => !v); setFeaturesResult(null); setFeaturesError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: "#7C3AED", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>
+          <button onClick={() => { setShowFeaturesPanel(v => !v); setFeaturesResult(null); setFeaturesError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: ink, color: bg, fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>
             {showFeaturesPanel ? "Close" : "Aggregate"}
           </button>
         </div>
@@ -13875,7 +13875,7 @@ function PMFSurveyRenderer({ data, artifactId, userId }: { data: Record<string, 
             )}
             {artifactId && <p style={{ fontSize: 12, color: muted }}>Will analyze open-text responses from your live survey ({(surveyStats?.total ?? 0)} responses).</p>}
             {featuresError && <p style={{ fontSize: 12, color: red }}>{featuresError}</p>}
-            <button onClick={handleAggregateFeatures} disabled={aggregatingFeatures || (!artifactId && !featuresInput.trim())} style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: aggregatingFeatures ? bdr : "#7C3AED", color: aggregatingFeatures ? muted : "#fff", fontSize: 13, fontWeight: 600, cursor: aggregatingFeatures ? "not-allowed" : "pointer", alignSelf: "flex-start" }}>
+            <button onClick={handleAggregateFeatures} disabled={aggregatingFeatures || (!artifactId && !featuresInput.trim())} style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: aggregatingFeatures ? bdr : ink, color: aggregatingFeatures ? muted : bg, fontSize: 13, fontWeight: 600, cursor: aggregatingFeatures ? "not-allowed" : "pointer", alignSelf: "flex-start" }}>
               {aggregatingFeatures ? "Clustering…" : "Find Feature Themes"}
             </button>
           </div>
@@ -13953,23 +13953,23 @@ function PMFSurveyRenderer({ data, artifactId, userId }: { data: Record<string, 
       </div>
 
       {/* ── Customer Interview Scheduler ── */}
-      <div style={{ background: "#F0FDF4", border: `1px solid #BBF7D0`, borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <div style={{ flex: 1 }}>
           {scheduleResult ? (
-            <p style={{ fontSize: 12, fontWeight: 700, color: green }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: ink }}>
               Nova sent {scheduleResult.sent} interview invite{scheduleResult.sent !== 1 ? 's' : ''}
               {scheduleResult.failed > 0 ? ` · ${scheduleResult.failed} failed` : ' ✓'}
             </p>
           ) : (
             <>
-              <p style={{ fontSize: 12, fontWeight: 700, color: "#166534", marginBottom: 2 }}>Schedule Customer Interviews</p>
+              <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 2 }}>Schedule Customer Interviews</p>
               <p style={{ fontSize: 11, color: muted }}>Upload a contact list — Nova sends personalised 20-min interview invites with your Calendly link.</p>
             </>
           )}
         </div>
         <button
           onClick={() => { setShowScheduleModal(true); setScheduleResult(null); setScheduleError(null); }}
-          style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: green, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
+          style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: ink, color: bg, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
         >
           {scheduleResult ? "Send More" : "Schedule Interviews"}
         </button>
@@ -14108,9 +14108,9 @@ function PMFSurveyRenderer({ data, artifactId, userId }: { data: Record<string, 
 
       {/* ── Download survey HTML ────────────────────────────────────────── */}
       {(d.ellisTest || (d.interviewScript && d.interviewScript.length > 0)) && (
-        <div style={{ background: "#F5F3FF", borderRadius: 12, padding: "14px 16px", border: `1px solid #DDD6FE` }}>
-          <p style={{ fontSize: 12, fontWeight: 600, color: "#7C3AED", marginBottom: 4 }}>Deploy this survey to real customers</p>
-          <p style={{ fontSize: 11, color: "#6D28D9", marginBottom: 12 }}>Download a standalone HTML survey — host on Netlify Drop, Carrd, or email as a file.</p>
+        <div style={{ background: surf, borderRadius: 12, padding: "14px 16px", border: `1px solid ${bdr}` }}>
+          <p style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 4 }}>Deploy this survey to real customers</p>
+          <p style={{ fontSize: 11, color: muted, marginBottom: 12 }}>Download a standalone HTML survey — host on Netlify Drop, Carrd, or email as a file.</p>
           <button
             onClick={() => {
               const questions: string[] = [];
@@ -14211,14 +14211,14 @@ function PMFSurveyRenderer({ data, artifactId, userId }: { data: Record<string, 
       )}
 
       {/* ── Problem Validation CTA ────────────────────────────────────────────── */}
-      <div style={{ background: "#FFF7ED", border: `1px solid #FED7AA`, borderRadius: 10, padding: "12px 16px" }}>
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 10, padding: "12px 16px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: showValidatePanel ? 14 : 0 }}>
           <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 12, fontWeight: 700, color: amber, marginBottom: 2 }}>Validate Your Problem</p>
+            <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 2 }}>Validate Your Problem</p>
             <p style={{ fontSize: 11, color: muted }}>Scans Reddit, HN, Quora & IndieHackers for real complaints matching your problem — confirm demand before you build.</p>
             {validateError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{validateError}</p>}
           </div>
-          <button onClick={() => setShowValidatePanel(p => !p)} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: amber, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
+          <button onClick={() => setShowValidatePanel(p => !p)} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: ink, color: bg, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
             {showValidatePanel ? "Hide" : "Validate Problem"}
           </button>
         </div>
@@ -14298,10 +14298,10 @@ function PMFSurveyRenderer({ data, artifactId, userId }: { data: Record<string, 
       </div>
 
       {/* ── Churn Prediction ─────────────────────────────────────────────────── */}
-      <div style={{ background: showChurnPanel && churnResult ? "#FEF2F2" : surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${showChurnPanel && churnResult ? "#FECACA" : bdr}` }}>
+      <div style={{ background: surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${bdr}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
-            <p style={{ fontSize: 11, fontWeight: 700, color: churnResult?.riskLevel === "critical" || churnResult?.riskLevel === "high" ? red : ink, marginBottom: 2 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 2 }}>
               Churn Prediction Signals
               {churnResult?.riskLevel && <span style={{ marginLeft: 6, fontSize: 10, padding: "2px 8px", borderRadius: 999, background: churnResult.riskLevel === "critical" ? "#FEF2F2" : churnResult.riskLevel === "high" ? "#FFFBEB" : "#F0FDF4", color: churnResult.riskLevel === "critical" ? red : churnResult.riskLevel === "high" ? amber : green, fontWeight: 700 }}>{churnResult.riskLevel.toUpperCase()}</span>}
             </p>
@@ -14404,10 +14404,10 @@ function PMFSurveyRenderer({ data, artifactId, userId }: { data: Record<string, 
       </div>
 
       {/* ── Cohort Analysis ──────────────────────────────────────────────────── */}
-      <div style={{ background: showCohortPanel && cohortResult ? "#F5F3FF" : surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${showCohortPanel && cohortResult ? "#DDD6FE" : bdr}` }}>
+      <div style={{ background: surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${bdr}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
-            <p style={{ fontSize: 11, fontWeight: 700, color: showCohortPanel && cohortResult ? "#7C3AED" : ink, marginBottom: 2 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 2 }}>
               Cohort Analysis
               {cohortResult?.cohortTrend && (
                 <span style={{ marginLeft: 8, fontSize: 10, padding: "2px 8px", borderRadius: 999, background: cohortResult.cohortTrend === "improving" ? "#F0FDF4" : cohortResult.cohortTrend === "declining" ? "#FEF2F2" : "#EFF6FF", color: cohortResult.cohortTrend === "improving" ? green : cohortResult.cohortTrend === "declining" ? red : blue, fontWeight: 700 }}>
@@ -14417,7 +14417,7 @@ function PMFSurveyRenderer({ data, artifactId, userId }: { data: Record<string, 
             </p>
             <p style={{ fontSize: 11, color: muted }}>Segment survey respondents by signup cohort. Identify which customers are happiest and why.</p>
           </div>
-          <button onClick={() => { if (showCohortPanel && !runningCohort) setShowCohortPanel(false); else setShowCohortPanel(true); }} style={{ padding: "6px 14px", borderRadius: 8, border: "none", background: "#7C3AED", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+          <button onClick={() => { if (showCohortPanel && !runningCohort) setShowCohortPanel(false); else setShowCohortPanel(true); }} style={{ padding: "6px 14px", borderRadius: 8, border: "none", background: ink, color: bg, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
             {showCohortPanel ? "Close" : cohortResult ? "Refresh" : "Analyze Cohorts"}
           </button>
         </div>
@@ -14610,14 +14610,14 @@ function PMFSurveyRenderer({ data, artifactId, userId }: { data: Record<string, 
       </div>
 
       {/* ── PMF Composite Score ─────────────────────────────────────────────── */}
-      <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 12, padding: "16px 20px" }}>
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "16px 20px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: pmfScoreResult ? 14 : 0 }}>
           <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: green, marginBottom: 2 }}>PMF Composite Score</p>
+            <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 2 }}>PMF Composite Score</p>
             <p style={{ fontSize: 11, color: muted }}>Nova synthesizes survey NPS, churn signals, feature requests, and cohort data into a single PMF score across 5 dimensions.</p>
             {pmfScoreError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{pmfScoreError}</p>}
           </div>
-          <button onClick={handleRunPMFScore} disabled={runningPMFScore} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: runningPMFScore ? bdr : green, color: runningPMFScore ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: runningPMFScore ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
+          <button onClick={handleRunPMFScore} disabled={runningPMFScore} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: runningPMFScore ? bdr : ink, color: runningPMFScore ? muted : bg, fontSize: 12, fontWeight: 600, cursor: runningPMFScore ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
             {runningPMFScore ? "Calculating…" : "Calculate PMF Score"}
           </button>
         </div>
@@ -15452,7 +15452,7 @@ function PMFSurveyRenderer({ data, artifactId, userId }: { data: Record<string, 
 
       {/* ── Experiment Tracker ── */}
       <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "16px 20px" }}>
-        <p style={{ fontSize: 11, fontWeight: 700, color: "#0891B2", marginBottom: 2 }}>Experiment Designer</p>
+        <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 2 }}>Experiment Designer</p>
         <p style={{ fontSize: 11, color: muted, marginBottom: 12 }}>Nova designs a rigorous A/B or hypothesis-driven experiment — sample size, success criteria, tracking plan, risk mitigations, and a readout template.</p>
         <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 8, marginBottom: 10 }}>
           <input value={etHypothesis} onChange={e => setEtHypothesis(e.target.value)} placeholder="Hypothesis (e.g. Adding social proof to pricing page increases sign-ups) *"
@@ -15462,7 +15462,7 @@ function PMFSurveyRenderer({ data, artifactId, userId }: { data: Record<string, 
         </div>
         {etError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{etError}</p>}
         <button onClick={handleRunExperiment} disabled={!etHypothesis.trim() || generatingET}
-          style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: (!etHypothesis.trim() || generatingET) ? bdr : "#0891B2", color: (!etHypothesis.trim() || generatingET) ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: (!etHypothesis.trim() || generatingET) ? "not-allowed" : "pointer" }}>
+          style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: (!etHypothesis.trim() || generatingET) ? bdr : ink, color: (!etHypothesis.trim() || generatingET) ? muted : bg, fontSize: 12, fontWeight: 600, cursor: (!etHypothesis.trim() || generatingET) ? "not-allowed" : "pointer" }}>
           {generatingET ? "Designing…" : "Design Experiment"}
         </button>
         {etResult && (
@@ -15526,11 +15526,11 @@ function PMFSurveyRenderer({ data, artifactId, userId }: { data: Record<string, 
 
       {/* ── Feature Priority Matrix ── */}
       <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "16px 20px" }}>
-        <p style={{ fontSize: 11, fontWeight: 700, color: "#7C3AED", marginBottom: 2 }}>Feature Priority Matrix (RICE)</p>
+        <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 2 }}>Feature Priority Matrix (RICE)</p>
         <p style={{ fontSize: 11, color: muted, marginBottom: 12 }}>Nova scores your roadmap using RICE (Reach × Impact × Confidence ÷ Effort) + MoSCoW + Kano categories. Generates 12 prioritized features with customer evidence and risk notes.</p>
         {fmError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{fmError}</p>}
         <button onClick={handleGenerateFeatureMatrix} disabled={generatingFM}
-          style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingFM ? bdr : "#7C3AED", color: generatingFM ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingFM ? "not-allowed" : "pointer" }}>
+          style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingFM ? bdr : ink, color: generatingFM ? muted : bg, fontSize: 12, fontWeight: 600, cursor: generatingFM ? "not-allowed" : "pointer" }}>
           {generatingFM ? "Scoring features…" : "Generate Feature Matrix"}
         </button>
         {fmResult && (
@@ -15657,25 +15657,25 @@ function InterviewNotesAnalyzer({ artifactId }: { artifactId?: string }) {
   const priorityColor: Record<string, string> = { "must-have": red, "nice-to-have": blue, delight: green };
 
   return (
-    <div style={{ background: "#F0FDF4", border: `1px solid #BBF7D0`, borderRadius: 12, padding: "14px 16px" }}>
+    <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "14px 16px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: history.length > 0 ? 10 : 0 }}>
         <div style={{ flex: 1 }}>
-          <p style={{ fontSize: 12, fontWeight: 700, color: green, marginBottom: 2 }}>Interview Notes Analyzer</p>
+          <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 2 }}>Interview Notes Analyzer</p>
           <p style={{ fontSize: 11, color: muted }}>Paste notes or a transcript — Nova extracts themes, pain points, feature requests, and PMF signal.</p>
         </div>
         <button
           onClick={() => { setShowModal(true); setAnalysis(null); setAnalyzeError(null); }}
-          style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: green, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", marginLeft: 12, whiteSpace: "nowrap" }}
+          style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: ink, color: bg, fontSize: 12, fontWeight: 600, cursor: "pointer", marginLeft: 12, whiteSpace: "nowrap" }}
         >
           Analyze Interview
         </button>
       </div>
       {history.length > 0 && (
-        <div style={{ borderTop: `1px solid #BBF7D0`, paddingTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
+        <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
           {history.slice(0, 5).map((h, i) => {
             const signal = h.content?.pmfSignal as string | undefined;
             return (
-              <span key={i} style={{ fontSize: 10, padding: "2px 8px", borderRadius: 999, background: "#DCFCE7", color: "#166534", border: `1px solid #BBF7D0`, fontWeight: 600 }}>
+              <span key={i} style={{ fontSize: 10, padding: "2px 8px", borderRadius: 999, background: surf, color: muted, border: `1px solid ${bdr}`, fontWeight: 600 }}>
                 {pmfEmoji[signal ?? ''] ?? '⚪'} {h.title.replace('Interview: ', '')}
               </span>
             );
@@ -15889,13 +15889,13 @@ function FakeDoorSection({ artifactId, userId: _userId, data }: { artifactId?: s
   const teal = "#0D9488";
 
   return (
-    <div style={{ background: "#F0FDFA", borderRadius: 12, padding: "16px 18px", border: `1px solid #99F6E4` }}>
+    <div style={{ background: surf, borderRadius: 12, padding: "16px 18px", border: `1px solid ${bdr}` }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div style={{ flex: 1 }}>
-          <p style={{ fontSize: 11, fontWeight: 700, color: teal, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>Fake Door Test</p>
+          <p style={{ fontSize: 11, fontWeight: 700, color: ink, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>Fake Door Test</p>
           {liveUrl ? (
             <div>
-              <a href={liveUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: teal, textDecoration: "underline", wordBreak: "break-all" }}>{liveUrl}</a>
+              <a href={liveUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: muted, textDecoration: "underline", wordBreak: "break-all" }}>{liveUrl}</a>
               {signupCount !== null && (
                 <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginTop: 6 }}>
                   <span style={{ fontSize: 18 }}>{signupCount}</span> <span style={{ color: muted, fontWeight: 400 }}>waitlist signup{signupCount !== 1 ? "s" : ""}</span>
@@ -15907,8 +15907,8 @@ function FakeDoorSection({ artifactId, userId: _userId, data }: { artifactId?: s
           )}
         </div>
         <div style={{ display: "flex", gap: 8, flexShrink: 0, marginLeft: 12 }}>
-          {liveUrl && <a href={liveUrl} target="_blank" rel="noopener noreferrer" style={{ padding: "7px 14px", borderRadius: 8, border: `1px solid ${teal}`, background: "transparent", color: teal, fontSize: 12, fontWeight: 600, textDecoration: "none" }}>View</a>}
-          <button onClick={() => setShowModal(true)} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: teal, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+          {liveUrl && <a href={liveUrl} target="_blank" rel="noopener noreferrer" style={{ padding: "7px 14px", borderRadius: 8, border: `1px solid ${bdr}`, background: "transparent", color: muted, fontSize: 12, fontWeight: 600, textDecoration: "none" }}>View</a>}
+          <button onClick={() => setShowModal(true)} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: ink, color: bg, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
             {liveUrl ? "Redeploy" : "Create Test"}
           </button>
         </div>
@@ -16378,15 +16378,15 @@ function CompetitiveMatrixRenderer({ data, artifactId: _artifactId }: { data: Re
 
       {/* ── Price Change Alerts banner ── */}
       {priceAlerts.filter(a => !dismissedAlerts.has(a.id)).map(alert => (
-        <div key={alert.id} style={{ background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "flex-start", gap: 10 }}>
+        <div key={alert.id} style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "flex-start", gap: 10 }}>
           <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>🔔</span>
           <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 12, fontWeight: 700, color: "#92400E", margin: 0 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: ink, margin: 0 }}>
               Pricing change detected — {(alert.metadata?.competitor_name as string) ?? "competitor"}
             </p>
-            <p style={{ fontSize: 11, color: "#78350F", margin: "3px 0 0", lineHeight: 1.5 }}>{alert.description}</p>
+            <p style={{ fontSize: 11, color: muted, margin: "3px 0 0", lineHeight: 1.5 }}>{alert.description}</p>
             {(alert.metadata?.pricing_url as string) && (
-              <a href={alert.metadata.pricing_url as string} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: amber, fontWeight: 600, textDecoration: "none" }}>
+              <a href={alert.metadata.pricing_url as string} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: ink, fontWeight: 600, textDecoration: "none" }}>
                 View their pricing page →
               </a>
             )}
@@ -16400,15 +16400,15 @@ function CompetitiveMatrixRenderer({ data, artifactId: _artifactId }: { data: Re
 
       {/* ── Harper→Atlas cross-agent banner ── */}
       {harperUpdate && (
-        <div style={{ background: "#F5F3FF", border: "1px solid #DDD6FE", borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ fontSize: 16 }}>🧑‍💼</span>
           <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 12, fontWeight: 600, color: "#7C3AED", margin: 0 }}>Harper posted a job — check if competitors are hiring for similar roles?</p>
+            <p style={{ fontSize: 12, fontWeight: 600, color: ink, margin: 0 }}>Harper posted a job — check if competitors are hiring for similar roles?</p>
             <p style={{ fontSize: 11, color: muted, margin: "2px 0 0" }}>{harperUpdate.description}</p>
           </div>
           <button
             onClick={() => { setShowJobModal(true); setHarperUpdate(null); }}
-            style={{ padding: "5px 12px", borderRadius: 7, border: "none", background: "#7C3AED", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
+            style={{ padding: "5px 12px", borderRadius: 7, border: "none", background: ink, color: bg, fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
           >
             Analyze Competitor Hiring
           </button>
@@ -16417,12 +16417,12 @@ function CompetitiveMatrixRenderer({ data, artifactId: _artifactId }: { data: Re
       )}
 
       {/* ── Track Competitor ── */}
-      <div style={{ background: "#EFF6FF", border: `1px solid #BFDBFE`, borderRadius: 10, padding: "14px 16px" }}>
-        <p style={{ fontSize: 12, fontWeight: 700, color: blue, marginBottom: 8 }}>Track a Competitor</p>
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 10, padding: "14px 16px" }}>
+        <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 8 }}>Track a Competitor</p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <input value={trackName} onChange={e => setTrackName(e.target.value)} placeholder="Competitor name" style={{ flex: "1 1 140px", padding: "7px 10px", borderRadius: 7, border: `1px solid ${bdr}`, background: bg, fontSize: 12, color: ink }} />
           <input value={trackUrl} onChange={e => setTrackUrl(e.target.value)} placeholder="URL (optional)" style={{ flex: "1 1 160px", padding: "7px 10px", borderRadius: 7, border: `1px solid ${bdr}`, background: bg, fontSize: 12, color: ink }} />
-          <button onClick={handleTrack} disabled={!trackName || tracking} style={{ padding: "7px 14px", borderRadius: 7, border: "none", background: !trackName ? bdr : blue, color: !trackName ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: !trackName ? "not-allowed" : "pointer" }}>
+          <button onClick={handleTrack} disabled={!trackName || tracking} style={{ padding: "7px 14px", borderRadius: 7, border: "none", background: !trackName ? bdr : ink, color: !trackName ? muted : bg, fontSize: 12, fontWeight: 600, cursor: !trackName ? "not-allowed" : "pointer" }}>
             {tracking ? "Adding…" : trackDone ? "Added!" : "Track"}
           </button>
         </div>
@@ -16534,16 +16534,16 @@ function CompetitiveMatrixRenderer({ data, artifactId: _artifactId }: { data: Re
 
       {/* ── Google Alerts (PHASE2: one-click competitor monitoring) ────── */}
       {d.competitors && d.competitors.length > 0 && (
-        <div style={{ background: "#F0FDF4", borderRadius: 12, padding: "14px 16px", border: `1px solid #BBF7D0` }}>
+        <div style={{ background: surf, borderRadius: 12, padding: "14px 16px", border: `1px solid ${bdr}` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-            <div style={{ width: 22, height: 22, borderRadius: 6, background: "#DCFCE7", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={green} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <div style={{ width: 22, height: 22, borderRadius: 6, background: surf, border: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
               </svg>
             </div>
             <div>
-              <p style={{ fontSize: 12, fontWeight: 600, color: "#166534" }}>Monitor competitors — set up Google Alerts</p>
-              <p style={{ fontSize: 11, color: "#15803D" }}>Get notified when any competitor raises funding, launches, or makes news</p>
+              <p style={{ fontSize: 12, fontWeight: 600, color: ink }}>Monitor competitors — set up Google Alerts</p>
+              <p style={{ fontSize: 11, color: muted }}>Get notified when any competitor raises funding, launches, or makes news</p>
             </div>
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
@@ -16634,28 +16634,28 @@ function CompetitiveMatrixRenderer({ data, artifactId: _artifactId }: { data: Re
       </div>
 
       {/* ── Competitor Review Analysis ───────────────────────────────────────── */}
-      <div style={{ background: "#FEF3C7", borderRadius: 12, padding: "14px 16px", border: `1px solid #FDE68A` }}>
+      <div style={{ background: surf, borderRadius: 12, padding: "14px 16px", border: `1px solid ${bdr}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
-            <p style={{ fontSize: 11, fontWeight: 700, color: amber, marginBottom: 2 }}>Competitor Review Analysis</p>
+            <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 2 }}>Competitor Review Analysis</p>
             <p style={{ fontSize: 11, color: muted }}>Paste G2 / Capterra / TrustPilot reviews → get clustered complaints, gaps, and sales angles.</p>
           </div>
-          <button onClick={() => { setShowReviewModal(true); setReviewAnalysis(null); setReviewError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: amber, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0, marginLeft: 12 }}>
+          <button onClick={() => { setShowReviewModal(true); setReviewAnalysis(null); setReviewError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: ink, color: bg, fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0, marginLeft: 12 }}>
             Analyze Reviews
           </button>
         </div>
       </div>
 
       {/* ── Job Posting Tracker (Hiring Signals) ─────────────────────────────── */}
-      <div style={{ background: "#F5F3FF", borderRadius: 12, padding: "14px 16px", border: `1px solid #DDD6FE` }}>
+      <div style={{ background: surf, borderRadius: 12, padding: "14px 16px", border: `1px solid ${bdr}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
-            <p style={{ fontSize: 11, fontWeight: 700, color: "#7C3AED", marginBottom: 2 }}>Hiring Signal Tracker</p>
+            <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 2 }}>Hiring Signal Tracker</p>
             <p style={{ fontSize: 11, color: muted }}>Paste competitor job listings → Atlas extracts strategic signals like &quot;5 AI roles → building an AI product layer&quot;.</p>
           </div>
           <button
             onClick={() => { setShowJobModal(true); setJobAnalysis(null); setJobError(null); }}
-            style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: "#7C3AED", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0, marginLeft: 12 }}
+            style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: ink, color: bg, fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0, marginLeft: 12 }}
           >
             Analyze Jobs
           </button>
@@ -16675,11 +16675,11 @@ function CompetitiveMatrixRenderer({ data, artifactId: _artifactId }: { data: Re
                   style={{
                     display: "inline-flex", alignItems: "center", gap: 4,
                     padding: "4px 9px", borderRadius: 999, fontSize: 10, fontWeight: 600,
-                    background: "#EDE9FE", color: "#7C3AED", textDecoration: "none",
-                    border: `1px solid #DDD6FE`,
+                    background: surf, color: ink, textDecoration: "none",
+                    border: `1px solid ${bdr}`,
                   }}
-                  onMouseEnter={e => ((e.currentTarget as HTMLElement).style.background = "#DDD6FE")}
-                  onMouseLeave={e => ((e.currentTarget as HTMLElement).style.background = "#EDE9FE")}
+                  onMouseEnter={e => ((e.currentTarget as HTMLElement).style.background = bdr)}
+                  onMouseLeave={e => ((e.currentTarget as HTMLElement).style.background = surf)}
                 >
                   {name} jobs ↗
                 </a>
@@ -16882,7 +16882,7 @@ function CompetitiveMatrixRenderer({ data, artifactId: _artifactId }: { data: Re
       )}
 
       {/* ── Weekly Competitive Scan ─────────────────────────────────────────── */}
-      <div style={{ background: "#FAFAF5", borderRadius: 12, padding: "14px 18px", border: `1px solid ${bdr}` }}>
+      <div style={{ background: surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${bdr}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: weeklyScanResult ? 14 : 0 }}>
           <div>
             <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 2 }}>Run Weekly Competitive Scan</p>
@@ -16891,7 +16891,7 @@ function CompetitiveMatrixRenderer({ data, artifactId: _artifactId }: { data: Re
           <button
             onClick={handleWeeklyScan}
             disabled={runningWeeklyScan || tracked.length === 0}
-            style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: runningWeeklyScan || tracked.length === 0 ? bdr : blue, color: runningWeeklyScan || tracked.length === 0 ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: runningWeeklyScan || tracked.length === 0 ? "not-allowed" : "pointer", flexShrink: 0 }}
+            style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: runningWeeklyScan || tracked.length === 0 ? bdr : ink, color: runningWeeklyScan || tracked.length === 0 ? muted : bg, fontSize: 12, fontWeight: 600, cursor: runningWeeklyScan || tracked.length === 0 ? "not-allowed" : "pointer", flexShrink: 0 }}
           >
             {runningWeeklyScan ? "Scanning…" : tracked.length === 0 ? "Track competitors first" : "Run Scan"}
           </button>
@@ -16956,13 +16956,13 @@ function CompetitiveMatrixRenderer({ data, artifactId: _artifactId }: { data: Re
       </div>
 
       {/* ── Tech Stack Detection ── */}
-      <div style={{ background: "#F5F3FF", border: `1px solid #DDD6FE`, borderRadius: 12, padding: "14px 18px" }}>
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "14px 18px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: showTechStackPanel ? 14 : 0 }}>
           <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 12, fontWeight: 700, color: "#7C3AED", marginBottom: 2 }}>Tech Stack Detection</p>
+            <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 2 }}>Tech Stack Detection</p>
             <p style={{ fontSize: 11, color: muted }}>Identifies a competitor&apos;s frontend, backend, database, cloud, and marketing stack — reveals their scale and strategy.</p>
           </div>
-          <button onClick={() => setShowTechStackPanel(p => !p)} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: "#7C3AED", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
+          <button onClick={() => setShowTechStackPanel(p => !p)} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: ink, color: bg, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
             {showTechStackPanel ? "Hide" : "Detect Stack"}
           </button>
         </div>
@@ -16984,7 +16984,7 @@ function CompetitiveMatrixRenderer({ data, artifactId: _artifactId }: { data: Re
                   </div>
                 )}
                 {techStackError && <p style={{ fontSize: 11, color: red }}>{techStackError}</p>}
-                <button onClick={handleDetectTechStack} disabled={detectingStack || !techCompetitor.trim()} style={{ padding: "9px 14px", borderRadius: 8, border: "none", background: detectingStack ? bdr : "#7C3AED", color: detectingStack ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: detectingStack || !techCompetitor.trim() ? "not-allowed" : "pointer", alignSelf: "flex-start" }}>
+                <button onClick={handleDetectTechStack} disabled={detectingStack || !techCompetitor.trim()} style={{ padding: "9px 14px", borderRadius: 8, border: "none", background: detectingStack ? bdr : ink, color: detectingStack ? muted : bg, fontSize: 12, fontWeight: 600, cursor: detectingStack || !techCompetitor.trim() ? "not-allowed" : "pointer", alignSelf: "flex-start" }}>
                   {detectingStack ? "Detecting…" : "Analyze Stack"}
                 </button>
               </>
@@ -17037,13 +17037,13 @@ function CompetitiveMatrixRenderer({ data, artifactId: _artifactId }: { data: Re
       </div>
 
       {/* ── Social Listening ─────────────────────────────────────────────────── */}
-      <div style={{ background: showSocialPanel && socialResult ? "#F5F3FF" : surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${showSocialPanel && socialResult ? "#DDD6FE" : bdr}` }}>
+      <div style={{ background: surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${bdr}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
-            <p style={{ fontSize: 11, fontWeight: 700, color: "#7C3AED", marginBottom: 2 }}>Social Listening</p>
+            <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 2 }}>Social Listening</p>
             <p style={{ fontSize: 11, color: muted }}>Search Reddit, Twitter/X, and HN for competitor mentions. Surfaces complaints, praise, and battle card updates.</p>
           </div>
-          <button onClick={() => { if (showSocialPanel && !runningSocial) setShowSocialPanel(false); else setShowSocialPanel(true); }} style={{ padding: "6px 14px", borderRadius: 8, border: "none", background: "#7C3AED", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+          <button onClick={() => { if (showSocialPanel && !runningSocial) setShowSocialPanel(false); else setShowSocialPanel(true); }} style={{ padding: "6px 14px", borderRadius: 8, border: "none", background: ink, color: bg, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
             {showSocialPanel ? "Close" : "Listen"}
           </button>
         </div>
@@ -17149,17 +17149,17 @@ function CompetitiveMatrixRenderer({ data, artifactId: _artifactId }: { data: Re
       </div>
 
       {/* ── Market Size CTA ── */}
-      <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 12, padding: "16px 20px" }}>
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "16px 20px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: marketSizeResult ? 16 : 0 }}>
           <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: green, marginBottom: 2 }}>TAM / SAM / SOM Estimator</p>
+            <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 2 }}>TAM / SAM / SOM Estimator</p>
             <p style={{ fontSize: 11, color: muted }}>Atlas researches competitor funding and ARR signals to estimate your total addressable, serviceable, and obtainable market size.</p>
             {marketSizeError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{marketSizeError}</p>}
           </div>
           <button
             onClick={handleRunMarketSize}
             disabled={runningMarketSize}
-            style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: runningMarketSize ? bdr : green, color: runningMarketSize ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: runningMarketSize ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}
+            style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: runningMarketSize ? bdr : ink, color: runningMarketSize ? muted : bg, fontSize: 12, fontWeight: 600, cursor: runningMarketSize ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}
           >
             {runningMarketSize ? "Researching…" : "Estimate Market"}
           </button>
@@ -17226,14 +17226,14 @@ function CompetitiveMatrixRenderer({ data, artifactId: _artifactId }: { data: Re
       </div>
 
       {/* ── Pricing Monitor CTA ── */}
-      <div style={{ background: "#FFF7ED", border: "1px solid #FED7AA", borderRadius: 12, padding: "16px 20px" }}>
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "16px 20px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: pricingResult ? 16 : 0 }}>
           <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: "#EA580C", marginBottom: 2 }}>Competitor Pricing Monitor</p>
+            <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 2 }}>Competitor Pricing Monitor</p>
             <p style={{ fontSize: 11, color: muted }}>Pulls live pricing for your tracked competitors via web search — extracts tiers, models, and pricing strategy gaps for your startup.</p>
             {pricingError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{pricingError}</p>}
           </div>
-          <button onClick={handleRunPricingMonitor} disabled={runningPricing} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: runningPricing ? bdr : "#EA580C", color: runningPricing ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: runningPricing ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
+          <button onClick={handleRunPricingMonitor} disabled={runningPricing} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: runningPricing ? bdr : ink, color: runningPricing ? muted : bg, fontSize: 12, fontWeight: 600, cursor: runningPricing ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
             {runningPricing ? "Scanning…" : "Scan Pricing"}
           </button>
         </div>
@@ -17310,14 +17310,14 @@ function CompetitiveMatrixRenderer({ data, artifactId: _artifactId }: { data: Re
       </div>
 
       {/* ── Battle Cards ── */}
-      <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 12, padding: "16px 20px" }}>
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "16px 20px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: battleCardsResult ? 14 : 0 }}>
           <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: red, marginBottom: 2 }}>Sales Battle Cards</p>
+            <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 2 }}>Sales Battle Cards</p>
             <p style={{ fontSize: 11, color: muted }}>Atlas researches each competitor and generates per-deal battle cards — where you win, objection handlers, and the one landmine question to use against them.</p>
             {battleCardsError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{battleCardsError}</p>}
           </div>
-          <button onClick={handleRunBattleCards} disabled={runningBattleCards} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: runningBattleCards ? bdr : red, color: runningBattleCards ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: runningBattleCards ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
+          <button onClick={handleRunBattleCards} disabled={runningBattleCards} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: runningBattleCards ? bdr : ink, color: runningBattleCards ? muted : bg, fontSize: 12, fontWeight: 600, cursor: runningBattleCards ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
             {runningBattleCards ? "Researching…" : "Generate Cards"}
           </button>
         </div>
@@ -17398,11 +17398,11 @@ function CompetitiveMatrixRenderer({ data, artifactId: _artifactId }: { data: Re
 
       {/* ── Market Map ── */}
       <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "16px 20px" }}>
-        <p style={{ fontSize: 11, fontWeight: 700, color: "#059669", marginBottom: 2 }}>Market Map</p>
+        <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 2 }}>Market Map</p>
         <p style={{ fontSize: 11, color: muted, marginBottom: 12 }}>Atlas maps your total addressable market — TAM/SAM/SOM sizing, market segments, key players by category, whitespace opportunities, entry points, and competitive intensity.</p>
         {mmError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{mmError}</p>}
         <button onClick={handleRunMarketMap} disabled={runningMM}
-          style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: runningMM ? bdr : "#059669", color: runningMM ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: runningMM ? "not-allowed" : "pointer" }}>
+          style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: runningMM ? bdr : ink, color: runningMM ? muted : bg, fontSize: 12, fontWeight: 600, cursor: runningMM ? "not-allowed" : "pointer" }}>
           {runningMM ? "Mapping market…" : "Generate Market Map"}
         </button>
         {mmResult && (
@@ -17491,11 +17491,11 @@ function CompetitiveMatrixRenderer({ data, artifactId: _artifactId }: { data: Re
 
       {/* ── Win / Loss Analysis ── */}
       <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "16px 20px" }}>
-        <p style={{ fontSize: 11, fontWeight: 700, color: red, marginBottom: 2 }}>Win / Loss Analysis</p>
+        <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 2 }}>Win / Loss Analysis</p>
         <p style={{ fontSize: 11, color: muted, marginBottom: 12 }}>Atlas analyzes your competitive positioning to surface why you win, why you lose, competitor head-to-head breakdowns, and messaging adjustments to improve win rates.</p>
         {winLossError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{winLossError}</p>}
         <button onClick={handleRunWinLoss} disabled={runningWinLoss}
-          style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: runningWinLoss ? bdr : red, color: runningWinLoss ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: runningWinLoss ? "not-allowed" : "pointer" }}>
+          style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: runningWinLoss ? bdr : ink, color: runningWinLoss ? muted : bg, fontSize: 12, fontWeight: 600, cursor: runningWinLoss ? "not-allowed" : "pointer" }}>
           {runningWinLoss ? "Analyzing…" : "Run Win/Loss Analysis"}
         </button>
         {winLossResult && (
@@ -18497,7 +18497,7 @@ document.addEventListener('keydown', e => {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       {/* ── Focus Today ─────────────────────────────────────────────────────── */}
-      <div style={{ background: focusResult ? "#EFF6FF" : surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${focusResult ? "#BFDBFE" : bdr}` }}>
+      <div style={{ background: surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${bdr}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
             <p style={{ fontSize: 11, fontWeight: 700, color: focusResult ? blue : ink, marginBottom: 2 }}>What should I work on right now?</p>
@@ -18672,7 +18672,7 @@ document.addEventListener('keydown', e => {
       )}
 
       {/* ── Pivot Signal Monitoring ──────────────────────────────────────────── */}
-      <div style={{ background: showPivotPanel && pivotResult ? (pivotResult.recommendation === "pivot_now" ? "#FEF2F2" : pivotResult.recommendation === "explore" ? "#FFFBEB" : "#F0FDF4") : surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${showPivotPanel && pivotResult ? (pivotResult.recommendation === "pivot_now" ? "#FECACA" : pivotResult.recommendation === "explore" ? "#FDE68A" : "#BBF7D0") : bdr}` }}>
+      <div style={{ background: surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${bdr}` }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
             <p style={{ fontSize: 11, fontWeight: 700, color: pivotResult?.recommendation === "pivot_now" ? red : pivotResult?.recommendation === "explore" ? amber : ink, marginBottom: 2 }}>
@@ -19048,13 +19048,13 @@ document.addEventListener('keydown', e => {
 
       {/* ── Goal Check-in Panel ── */}
       {d.okrs && d.okrs.length > 0 && (
-        <div style={{ background: "#F0FDF4", borderRadius: 12, padding: "14px 18px", border: "1px solid #BBF7D0" }}>
+        <div style={{ background: surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${bdr}` }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
             <div>
-              <p style={{ fontSize: 11, fontWeight: 700, color: green, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 2 }}>Weekly Goal Check-in</p>
+              <p style={{ fontSize: 11, fontWeight: 700, color: ink, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 2 }}>Weekly Goal Check-in</p>
               <p style={{ fontSize: 11, color: muted }}>Update your OKR progress — Sage gives you accountability feedback and flags blockers.</p>
             </div>
-            <button onClick={() => { setShowCheckinPanel(v => !v); setCheckinResult(null); setCheckinError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: green, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>
+            <button onClick={() => { setShowCheckinPanel(v => !v); setCheckinResult(null); setCheckinError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: ink, color: bg, fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>
               {showCheckinPanel ? "Close" : "Check In"}
             </button>
           </div>
@@ -19064,7 +19064,7 @@ document.addEventListener('keydown', e => {
               {checkinHistory.slice(0, 3).map((c, ci) => {
                 const pct = (c.metadata as Record<string, unknown>)?.avgProgress as number | undefined;
                 return (
-                  <span key={ci} style={{ fontSize: 10, padding: "3px 8px", borderRadius: 999, background: "#fff", color: green, border: "1px solid #BBF7D0", fontWeight: 600 }}>
+                  <span key={ci} style={{ fontSize: 10, padding: "3px 8px", borderRadius: 999, background: bg, color: muted, border: `1px solid ${bdr}`, fontWeight: 600 }}>
                     {new Date(c.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}{pct !== undefined ? ` · ${pct}%` : ''}
                   </span>
                 );
@@ -19112,7 +19112,7 @@ document.addEventListener('keydown', e => {
                 />
               </div>
               {checkinError && <p style={{ fontSize: 12, color: red }}>{checkinError}</p>}
-              <button onClick={handleSubmitCheckin} disabled={submittingCheckin} style={{ padding: "10px 18px", borderRadius: 8, border: "none", background: submittingCheckin ? bdr : green, color: submittingCheckin ? muted : "#fff", fontSize: 13, fontWeight: 600, cursor: submittingCheckin ? "not-allowed" : "pointer" }}>
+              <button onClick={handleSubmitCheckin} disabled={submittingCheckin} style={{ padding: "10px 18px", borderRadius: 8, border: "none", background: submittingCheckin ? bdr : ink, color: submittingCheckin ? muted : bg, fontSize: 13, fontWeight: 600, cursor: submittingCheckin ? "not-allowed" : "pointer" }}>
                 {submittingCheckin ? "Getting feedback…" : "Submit Check-in"}
               </button>
             </div>
@@ -19165,16 +19165,16 @@ document.addEventListener('keydown', e => {
       )}
 
       {/* ── Weekly Standup CTA ── */}
-      <div style={{ background: "#F0FDF4", border: `1px solid #BBF7D0`, borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
         <div style={{ flex: 1 }}>
-          <p style={{ fontSize: 12, fontWeight: 700, color: green, marginBottom: 2 }}>Send Weekly OKR Check-in</p>
+          <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 2 }}>Send Weekly OKR Check-in</p>
           <p style={{ fontSize: 11, color: muted }}>Sage emails you a structured check-in with your OKRs — reply with progress %, blockers, and top wins.</p>
           {standupError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{standupError}</p>}
         </div>
         {standupSent ? (
           <span style={{ fontSize: 12, color: green, fontWeight: 600, flexShrink: 0 }}>✓ Check-in sent!</span>
         ) : (
-          <button onClick={handleSendStandup} disabled={sendingStandup} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: green, color: "#fff", fontSize: 12, fontWeight: 600, cursor: sendingStandup ? "not-allowed" : "pointer", whiteSpace: "nowrap", opacity: sendingStandup ? 0.7 : 1 }}>
+          <button onClick={handleSendStandup} disabled={sendingStandup} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: ink, color: bg, fontSize: 12, fontWeight: 600, cursor: sendingStandup ? "not-allowed" : "pointer", whiteSpace: "nowrap", opacity: sendingStandup ? 0.7 : 1 }}>
             {sendingStandup ? "Sending…" : "Send Check-in"}
           </button>
         )}
@@ -19182,59 +19182,59 @@ document.addEventListener('keydown', e => {
 
       {/* ── Felix cross-agent context banner ── */}
       {felixUpdate && (
-        <div style={{ background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+        <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
           <span style={{ fontSize: 16 }}>⚡</span>
           <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 12, fontWeight: 600, color: amber, margin: 0 }}>Felix updated your metrics — refresh investor update with real numbers?</p>
+            <p style={{ fontSize: 12, fontWeight: 600, color: ink, margin: 0 }}>Felix updated your metrics — refresh investor update with real numbers?</p>
             <p style={{ fontSize: 11, color: muted, margin: "2px 0 0" }}>{felixUpdate.description}</p>
           </div>
-          <button onClick={() => setShowSageModal(true)} style={{ padding: "5px 12px", borderRadius: 7, border: "none", background: amber, color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>Refresh Update</button>
+          <button onClick={() => setShowSageModal(true)} style={{ padding: "5px 12px", borderRadius: 7, border: "none", background: ink, color: bg, fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>Refresh Update</button>
           <button onClick={() => setFelixUpdate(null)} style={{ padding: "5px 8px", borderRadius: 7, border: "none", background: "transparent", color: muted, fontSize: 14, cursor: "pointer", lineHeight: 1 }}>✕</button>
         </div>
       )}
 
       {/* ── Investor Update CTA (Sage) ── */}
-      <div style={{ background: "#EFF6FF", border: `1px solid #BFDBFE`, borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
         <div style={{ flex: 1 }}>
-          <p style={{ fontSize: 12, fontWeight: 700, color: blue, marginBottom: 2 }}>Send Monthly Investor Update</p>
+          <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 2 }}>Send Monthly Investor Update</p>
           <p style={{ fontSize: 11, color: muted }}>Sage pulls your Q-Score, metrics + OKRs and sends a YC-style update to investors.</p>
         </div>
-        <button onClick={() => setShowSageModal(true)} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: blue, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+        <button onClick={() => setShowSageModal(true)} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: ink, color: bg, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
           Send Update
         </button>
       </div>
 
       {/* ── Linear OKR Sync CTA ── */}
-      <div style={{ background: "#F5F3FF", border: `1px solid #DDD6FE`, borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
         <div style={{ flex: 1 }}>
-          <p style={{ fontSize: 12, fontWeight: 700, color: "#7C3AED", marginBottom: 2 }}>Sync OKRs to Linear</p>
+          <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 2 }}>Sync OKRs to Linear</p>
           <p style={{ fontSize: 11, color: muted }}>Create Linear Issues from your OKRs — one issue per objective with sub-issues for each key result.</p>
         </div>
-        <button onClick={() => { setShowLinearModal(true); setLinearResult(null); setLinearError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: "#7C3AED", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+        <button onClick={() => { setShowLinearModal(true); setLinearResult(null); setLinearError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: ink, color: bg, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
           Sync to Linear
         </button>
       </div>
 
       {/* ── Board Deck CTA ── */}
-      <div style={{ background: "#F0F9FF", border: `1px solid #BAE6FD`, borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
         <div style={{ flex: 1 }}>
-          <p style={{ fontSize: 12, fontWeight: 700, color: "#0891B2", marginBottom: 2 }}>Build Board Deck</p>
+          <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 2 }}>Build Board Deck</p>
           <p style={{ fontSize: 11, color: muted }}>Generate a 6-slide HTML board deck from your vision, OKRs, risks, and milestones. Export to PDF for sharing.</p>
         </div>
-        <button onClick={handleBoardDeck} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: "#0891B2", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+        <button onClick={handleBoardDeck} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: ink, color: bg, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
           Download Deck
         </button>
       </div>
 
       {/* ── Weekly Briefing CTA ── */}
-      <div style={{ background: "#FDF4FF", border: "1px solid #E9D5FF", borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "flex-start", gap: 12, flexDirection: "column" }}>
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "flex-start", gap: 12, flexDirection: "column" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, width: "100%" }}>
           <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 12, fontWeight: 700, color: "#7C3AED", marginBottom: 2 }}>Generate Weekly Briefing</p>
+            <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 2 }}>Generate Weekly Briefing</p>
             <p style={{ fontSize: 11, color: muted }}>Sage pulls data from all 9 agents — pipeline, outreach, Q-Score, hiring — and synthesises your week into a strategic briefing.</p>
             {briefingError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{briefingError}</p>}
           </div>
-          <button onClick={handleGenerateBriefing} disabled={generatingBriefing} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingBriefing ? bdr : "#7C3AED", color: generatingBriefing ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingBriefing ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
+          <button onClick={handleGenerateBriefing} disabled={generatingBriefing} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingBriefing ? bdr : ink, color: generatingBriefing ? muted : bg, fontSize: 12, fontWeight: 600, cursor: generatingBriefing ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
             {generatingBriefing ? "Generating…" : "Generate Briefing"}
           </button>
         </div>
@@ -19278,17 +19278,17 @@ document.addEventListener('keydown', e => {
       </div>
 
       {/* ── Strategic Contradiction Detection CTA ── */}
-      <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 12, padding: "14px 18px", display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "14px 18px", display: "flex", flexDirection: "column", gap: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: red, marginBottom: 2 }}>Check for Strategic Contradictions</p>
+            <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 2 }}>Check for Strategic Contradictions</p>
             <p style={{ fontSize: 11, color: muted }}>Sage reads all your agent deliverables and flags misalignments — e.g. GTM targets SMBs but hiring plan has enterprise reps.</p>
             {contradictionError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{contradictionError}</p>}
           </div>
           <button
             onClick={handleDetectContradictions}
             disabled={detectingContradictions}
-            style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: detectingContradictions ? bdr : red, color: detectingContradictions ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: detectingContradictions ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0 }}
+            style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: detectingContradictions ? bdr : ink, color: detectingContradictions ? muted : bg, fontSize: 12, fontWeight: 600, cursor: detectingContradictions ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0 }}
           >
             {detectingContradictions ? "Analysing…" : "Run Check"}
           </button>
@@ -19574,13 +19574,13 @@ document.addEventListener('keydown', e => {
         const hasAnyDate = msItems.some(m => m.target !== null);
 
         return (
-          <div style={{ background: "#F0FDF4", borderRadius: 12, padding: "16px 18px", border: `1px solid #BBF7D0` }}>
+          <div style={{ background: surf, borderRadius: 12, padding: "16px 18px", border: `1px solid ${bdr}` }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-              <p style={{ fontSize: 10, fontWeight: 700, color: green, textTransform: "uppercase", letterSpacing: "0.1em" }}>
+              <p style={{ fontSize: 10, fontWeight: 700, color: ink, textTransform: "uppercase", letterSpacing: "0.1em" }}>
                 Fundraising Milestones{hasAnyDate ? " · Countdown" : ""}
               </p>
               {milestones.length > 0 && (
-                <span style={{ fontSize: 11, fontWeight: 700, color: green }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: muted }}>
                   {milestones.filter(m => m.completed).length}/{milestones.length} complete
                 </span>
               )}
@@ -21754,164 +21754,161 @@ export default function AgentChat() {
       )}
 
       {/* ── page header ─────────────────────────────────────────────────────── */}
-      <div style={{ flexShrink: 0, borderBottom: `1px solid ${bdr}`, padding: "20px 28px 16px", background: bg }}>
-        <div style={{ maxWidth: hasPanel ? "none" : 900, margin: "0 auto" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <Link
-                href="/founder/dashboard"
-                replace
-                style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: muted, textDecoration: "none", transition: "color .15s" }}
-                onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = ink)}
-                onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = muted)}
-              >
-                <ArrowLeft style={{ height: 13, width: 13 }} />
-                Dashboard
-              </Link>
-              <button
-                onClick={() => router.push("/founder/dashboard")}
-                style={{
-                  padding: "5px 12px", background: "transparent", color: muted,
-                  border: `1px solid ${bdr}`, borderRadius: 8, fontSize: 12, fontWeight: 500,
-                  cursor: "pointer", fontFamily: "inherit", transition: "border-color .15s, color .15s",
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.borderColor = ink; e.currentTarget.style.color = ink; }}
-                onMouseLeave={(e) => { e.currentTarget.style.borderColor = bdr; e.currentTarget.style.color = muted; }}
-              >
-                Continue Later
-              </button>
-            </div>
+      <div style={{ flexShrink: 0, borderBottom: `1px solid ${bdr}`, background: bg, padding: "0 28px", height: 60, display: "flex", alignItems: "center" }}>
+        <div style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
 
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              {isFelix && (
-                <div style={{ padding: "4px 12px", background: "#F0FDF4", border: `1px solid #86EFAC`, borderRadius: 999, fontSize: 11, color: green, fontWeight: 600 }}>
-                  Live Model Active
-                </div>
-              )}
-              {isPatel && (
-                <div style={{ padding: "4px 12px", background: "#EFF6FF", border: `1px solid #93C5FD`, borderRadius: 999, fontSize: 11, color: blue, fontWeight: 600 }}>
-                  Agentic GTM
-                </div>
-              )}
-              <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 12px", background: surf, border: `1px solid ${bdr}`, borderRadius: 999, fontSize: 11, color: muted }}>
-                <TrendingUp style={{ height: 11, width: 11, color: accent }} />
-                Improves {dimLabel}
-              </div>
-              {/* ── Deliverable dropdown ───────────────────────────────────── */}
-              <div style={{ position: "relative" }}>
-                <button
-                  onClick={() => setShowDelivDropdown(d => !d)}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 6,
-                    padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600,
-                    background: showDelivDropdown ? ink : surf,
-                    color: showDelivDropdown ? bg : ink,
-                    border: `1px solid ${showDelivDropdown ? ink : bdr}`,
-                    cursor: "pointer", transition: "all .15s", fontFamily: "inherit",
-                  }}
-                >
-                  <FileText style={{ height: 12, width: 12 }} />
-                  Deliverable
-                  <ChevronRight style={{ height: 10, width: 10, transform: showDelivDropdown ? "rotate(90deg)" : "none", transition: "transform .2s" }} />
-                </button>
-                {showDelivDropdown && (
-                  <>
-                    <div style={{ position: "fixed", inset: 0, zIndex: 99 }} onClick={() => setShowDelivDropdown(false)} />
-                    <div style={{
-                      position: "absolute", top: "calc(100% + 8px)", right: 0, zIndex: 100,
-                      width: 290, background: bg, border: `1px solid ${bdr}`,
-                      borderRadius: 12, boxShadow: "0 8px 32px rgba(0,0,0,0.13)", overflow: "hidden",
-                    }}>
-                      {(AGENT_TEMPLATES[agentId] ?? []).map((tmpl, i) => {
-                        const meta  = tmpl.artifactType ? ARTIFACT_META[tmpl.artifactType as keyof typeof ARTIFACT_META] : null;
-                        const TIcon = meta?.icon ?? FileText;
-                        return (
-                          <button
-                            key={i}
-                            onClick={() => { handleSend(tmpl.starterPrompt); setShowDelivDropdown(false); }}
-                            style={{
-                              display: "flex", alignItems: "flex-start", gap: 10,
-                              width: "100%", padding: "11px 14px", textAlign: "left",
-                              background: "none", border: "none",
-                              borderBottom: i < (AGENT_TEMPLATES[agentId] ?? []).length - 1 || apiMessages.length >= 4 ? `1px solid ${bdr}` : "none",
-                              cursor: "pointer", fontFamily: "inherit", transition: "background .12s",
-                            }}
-                            onMouseEnter={(e) => { e.currentTarget.style.background = surf; }}
-                            onMouseLeave={(e) => { e.currentTarget.style.background = "none"; }}
-                          >
-                            <TIcon size={13} style={{ color: meta?.color ?? accent, flexShrink: 0, marginTop: 2 }} />
-                            <div>
-                              <p style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 2 }}>{tmpl.title}</p>
-                              <p style={{ fontSize: 10, color: muted, lineHeight: 1.4 }}>{tmpl.description}</p>
-                            </div>
-                          </button>
-                        );
-                      })}
-                      {!isPatel && agent.artifactType && apiMessages.length >= 4 && (
-                        <button
-                          onClick={() => { handleGenerate(); setShowDelivDropdown(false); }}
-                          disabled={generatingArtifact}
-                          style={{
-                            display: "flex", alignItems: "center", gap: 10,
-                            width: "100%", padding: "11px 14px", textAlign: "left",
-                            background: generatingArtifact ? surf : "none", border: "none",
-                            cursor: generatingArtifact ? "wait" : "pointer",
-                            fontFamily: "inherit", transition: "background .12s",
-                            opacity: generatingArtifact ? 0.6 : 1,
-                          }}
-                          onMouseEnter={(e) => { if (!generatingArtifact) e.currentTarget.style.background = surf; }}
-                          onMouseLeave={(e) => { if (!generatingArtifact) e.currentTarget.style.background = "none"; }}
-                        >
-                          <Sparkles size={13} style={{ color: accent, flexShrink: 0 }} />
-                          <div>
-                            <p style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 2 }}>
-                              {generatingArtifact ? "Generating…" : "Generate from conversation"}
-                            </p>
-                            <p style={{ fontSize: 10, color: muted }}>Uses your chat history</p>
-                          </div>
-                        </button>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
+          {/* ── Left: back + divider + agent identity ── */}
+          <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
+            <Link
+              href="/founder/dashboard"
+              replace
+              style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: muted, textDecoration: "none", transition: "color .15s", flexShrink: 0 }}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = ink)}
+              onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = muted)}
+            >
+              <ArrowLeft style={{ height: 12, width: 12 }} />
+              Back
+            </Link>
 
-              {/* ── Actions button ─────────────────────────────────────────── */}
-              <button
-                onClick={() => setShowActionsPanel(p => !p)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600,
-                  background: showActionsPanel ? ink : surf,
-                  color: showActionsPanel ? bg : ink,
-                  border: `1px solid ${showActionsPanel ? ink : bdr}`,
-                  cursor: "pointer", transition: "all .15s", fontFamily: "inherit",
-                }}
-              >
-                <Zap style={{ height: 12, width: 12, color: showActionsPanel ? bg : accent }} />
-                Actions
-              </button>
+            <div style={{ width: 1, height: 18, background: bdr, flexShrink: 0 }} />
+
+            <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+              {/* avatar */}
+              <div style={{
+                height: 34, width: 34, borderRadius: 9, flexShrink: 0,
+                background: accent + "15",
+                border: `1.5px solid ${accent}40`,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 14, fontWeight: 700, color: accent,
+              }}>
+                {agent.name[0]}
+              </div>
+              {/* name + specialty */}
+              <div style={{ minWidth: 0 }}>
+                <p style={{ fontSize: 14, fontWeight: 600, color: ink, lineHeight: 1.2 }}>
+                  {agent.name}
+                  <span style={{ fontSize: 10, fontWeight: 500, color: accent, textTransform: "uppercase", letterSpacing: "0.12em", marginLeft: 8 }}>
+                    {pillar}
+                  </span>
+                </p>
+                <p style={{ fontSize: 11, color: muted, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {agent.specialty}
+                </p>
+              </div>
             </div>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <div style={{
-              height: 44, width: 44, borderRadius: 11, flexShrink: 0,
-              background: surf, border: `2px solid ${accent}`,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 18, fontWeight: 700, color: accent,
-            }}>
-              {agent.name[0]}
+          {/* ── Right: status pills + action buttons ── */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+            {isFelix && (
+              <div style={{ padding: "3px 10px", background: "#F0FDF4", border: `1px solid #86EFAC`, borderRadius: 999, fontSize: 11, color: green, fontWeight: 600 }}>
+                Live Model
+              </div>
+            )}
+            {isPatel && (
+              <div style={{ padding: "3px 10px", background: "#EFF6FF", border: `1px solid #93C5FD`, borderRadius: 999, fontSize: 11, color: blue, fontWeight: 600 }}>
+                Agentic GTM
+              </div>
+            )}
+            <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 10px", background: surf, border: `1px solid ${bdr}`, borderRadius: 999, fontSize: 11, color: muted }}>
+              <TrendingUp style={{ height: 10, width: 10, color: accent }} />
+              {dimLabel}
             </div>
-            <div>
-              <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", color: accent, fontWeight: 600, marginBottom: 2 }}>
-                {pillar}
-              </p>
-              <p style={{ fontSize: "clamp(1.1rem,2vw,1.4rem)", fontWeight: 300, letterSpacing: "-0.02em", color: ink, lineHeight: 1.1 }}>
-                {agent.name}
-              </p>
-              <p style={{ fontSize: 13, color: muted, marginTop: 1 }}>{agent.specialty}</p>
+
+            {/* Deliverable dropdown */}
+            <div style={{ position: "relative" }}>
+              <button
+                onClick={() => setShowDelivDropdown(d => !d)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 5,
+                  padding: "5px 12px", borderRadius: 7, fontSize: 12, fontWeight: 600,
+                  background: showDelivDropdown ? ink : surf,
+                  color: showDelivDropdown ? bg : ink,
+                  border: `1px solid ${showDelivDropdown ? ink : bdr}`,
+                  cursor: "pointer", transition: "all .15s", fontFamily: "inherit",
+                }}
+              >
+                <FileText style={{ height: 11, width: 11 }} />
+                Deliverable
+                <ChevronRight style={{ height: 9, width: 9, transform: showDelivDropdown ? "rotate(90deg)" : "none", transition: "transform .2s" }} />
+              </button>
+              {showDelivDropdown && (
+                <>
+                  <div style={{ position: "fixed", inset: 0, zIndex: 99 }} onClick={() => setShowDelivDropdown(false)} />
+                  <div style={{
+                    position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 100,
+                    width: 280, background: bg, border: `1px solid ${bdr}`,
+                    borderRadius: 12, boxShadow: "0 8px 32px rgba(0,0,0,0.13)", overflow: "hidden",
+                  }}>
+                    {(AGENT_TEMPLATES[agentId] ?? []).map((tmpl, i) => {
+                      const meta  = tmpl.artifactType ? ARTIFACT_META[tmpl.artifactType as keyof typeof ARTIFACT_META] : null;
+                      const TIcon = meta?.icon ?? FileText;
+                      return (
+                        <button
+                          key={i}
+                          onClick={() => { handleSend(tmpl.starterPrompt); setShowDelivDropdown(false); }}
+                          style={{
+                            display: "flex", alignItems: "flex-start", gap: 10,
+                            width: "100%", padding: "11px 14px", textAlign: "left",
+                            background: "none", border: "none",
+                            borderBottom: i < (AGENT_TEMPLATES[agentId] ?? []).length - 1 ? `1px solid ${bdr}` : "none",
+                            cursor: "pointer", fontFamily: "inherit", transition: "background .12s",
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = surf; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = "none"; }}
+                        >
+                          <TIcon size={13} style={{ color: meta?.color ?? accent, flexShrink: 0, marginTop: 2 }} />
+                          <div>
+                            <p style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 2 }}>{tmpl.title}</p>
+                            <p style={{ fontSize: 10, color: muted, lineHeight: 1.4 }}>{tmpl.description}</p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                    {!isPatel && agent.artifactType && apiMessages.length >= 4 && (
+                      <button
+                        onClick={() => { handleGenerate(); setShowDelivDropdown(false); }}
+                        disabled={generatingArtifact}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 10,
+                          width: "100%", padding: "11px 14px", textAlign: "left",
+                          background: generatingArtifact ? surf : "none", border: "none",
+                          cursor: generatingArtifact ? "wait" : "pointer",
+                          fontFamily: "inherit", transition: "background .12s",
+                          opacity: generatingArtifact ? 0.6 : 1,
+                        }}
+                        onMouseEnter={(e) => { if (!generatingArtifact) e.currentTarget.style.background = surf; }}
+                        onMouseLeave={(e) => { if (!generatingArtifact) e.currentTarget.style.background = "none"; }}
+                      >
+                        <Sparkles size={13} style={{ color: accent, flexShrink: 0 }} />
+                        <div>
+                          <p style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 2 }}>
+                            {generatingArtifact ? "Generating…" : "Generate from conversation"}
+                          </p>
+                          <p style={{ fontSize: 10, color: muted }}>Uses your chat history</p>
+                        </div>
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
+
+            {/* Actions button */}
+            <button
+              onClick={() => setShowActionsPanel(p => !p)}
+              style={{
+                display: "flex", alignItems: "center", gap: 5,
+                padding: "5px 12px", borderRadius: 7, fontSize: 12, fontWeight: 600,
+                background: showActionsPanel ? ink : surf,
+                color: showActionsPanel ? bg : ink,
+                border: `1px solid ${showActionsPanel ? ink : bdr}`,
+                cursor: "pointer", transition: "all .15s", fontFamily: "inherit",
+              }}
+            >
+              <Zap style={{ height: 11, width: 11, color: showActionsPanel ? bg : accent }} />
+              Actions
+            </button>
           </div>
         </div>
       </div>
@@ -21979,8 +21976,8 @@ export default function AgentChat() {
 
             {/* ── Susi: deal follow-up reminders ──────────────────────────── */}
             {agentId === 'susi' && susiReminders.length > 0 && (
-              <div style={{ background: "#FFFBEB", border: `1px solid #FDE68A`, borderRadius: 12, padding: "12px 14px", marginBottom: 4 }}>
-                <p style={{ fontSize: 11, fontWeight: 700, color: "#92400E", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+              <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "12px 14px", marginBottom: 4 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.08em" }}>
                   Follow-up Reminders
                 </p>
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
