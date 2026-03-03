@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Send, TrendingUp, ChevronRight, Copy, Check, X, RefreshCw, FileText, Mail, Swords, BookOpen, Sparkles, DollarSign, Scale, Users, Search, Compass, BarChart3, Zap, Highlighter, Share2, Download, Upload, Loader2, CheckCircle2, PlayCircle, Paperclip } from "lucide-react";
+import { ArrowLeft, Send, TrendingUp, ChevronRight, Copy, Check, X, RefreshCw, FileText, Mail, Swords, BookOpen, Sparkles, DollarSign, Scale, Users, Search, Compass, BarChart3, Zap, Highlighter, Share2, Download, Upload, Loader2, CheckCircle2, PlayCircle, Paperclip, MessageSquare, Shield, Rocket, Globe, Calendar, Crosshair } from "lucide-react";
 import Link from "next/link";
 import { getAgentById } from "@/features/agents/data/agents";
 
@@ -1266,23 +1266,36 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       {/* ── Deploy Landing Page CTA ── */}
-      <div style={{ background: deployedUrl ? "#F0FDF4" : "#EFF6FF", border: `1px solid ${deployedUrl ? "#BBF7D0" : "#BFDBFE"}`, borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{ flex: 1 }}>
-          {deployedUrl ? (
-            <><p style={{ fontSize: 12, fontWeight: 700, color: green, marginBottom: 2 }}>Landing page is live!</p>
-              <a href={deployedUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: green, textDecoration: "underline", wordBreak: "break-all" }}>{deployedUrl}</a></>
-          ) : (
-            <><p style={{ fontSize: 12, fontWeight: 700, color: blue, marginBottom: 2 }}>Deploy your landing page</p>
-              <p style={{ fontSize: 11, color: muted }}>Turn this GTM strategy into a live landing page — deployed to Netlify in seconds.</p></>
-          )}
-          {deployError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{deployError}</p>}
-        </div>
-        <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-          {deployedUrl && <a href={deployedUrl} target="_blank" rel="noopener noreferrer" style={{ padding: "7px 14px", borderRadius: 8, border: `1px solid ${green}`, background: "transparent", color: green, fontSize: 12, fontWeight: 600, textDecoration: "none" }}>View Live</a>}
-          <button onClick={handleDeploy} disabled={deploying} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: deploying ? bdr : blue, color: deploying ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: deploying ? "not-allowed" : "pointer" }}>
-            {deploying ? "Deploying…" : deployedUrl ? "Redeploy" : "Deploy Landing Page"}
+      <div
+        style={{ background: bg, borderRadius: 14, border: `1px solid ${bdr}`, overflow: "hidden", transition: "border-color .18s, box-shadow .18s" }}
+        onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#C7D2FE"; e.currentTarget.style.boxShadow = "0 2px 12px rgba(37,99,235,0.07)"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.borderColor = bdr; e.currentTarget.style.boxShadow = "none"; }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px" }}>
+          <div style={{ height: 36, width: 36, borderRadius: 10, flexShrink: 0, background: `${green}12`, border: `1px solid ${green}25`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {deploying
+              ? <motion.div style={{ height: 13, width: 13, borderRadius: "50%", border: `2px solid ${bdr}`, borderTopColor: green }} animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.75, ease: "linear" }} />
+              : <Globe size={15} style={{ color: green }} />
+            }
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>Deploy Landing Page</p>
+            <p style={{ fontSize: 11, color: muted, lineHeight: 1.35, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Turn this GTM strategy into a live Netlify landing page in seconds.</p>
+          </div>
+          <button onClick={handleDeploy} disabled={deploying}
+            style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 11px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: "none", color: deploying ? muted : green, border: `1.5px solid ${deploying ? bdr : green}40`, cursor: deploying ? "wait" : "pointer", transition: "all .15s", flexShrink: 0, fontFamily: "inherit" }}
+            onMouseEnter={(e) => { if (!deploying) { e.currentTarget.style.background = `${green}10`; e.currentTarget.style.borderColor = green; } }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "none"; e.currentTarget.style.borderColor = `${green}40`; }}
+          >
+            {deploying ? "Running…" : "Run"}{!deploying && <ChevronRight size={11} />}
           </button>
         </div>
+        {(deployedUrl || deployError) && (
+          <div style={{ borderTop: `1px solid ${bdr}`, padding: "13px 14px", display: "flex", alignItems: "center", gap: 8 }}>
+            {deployedUrl && <><p style={{ fontSize: 12, fontWeight: 600, color: green, marginBottom: 2 }}>Live:</p><a href={deployedUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: green, textDecoration: "underline", wordBreak: "break-all", flex: 1 }}>{deployedUrl}</a><a href={deployedUrl} target="_blank" rel="noopener noreferrer" style={{ padding: "5px 10px", borderRadius: 7, border: `1px solid ${green}`, background: "transparent", color: green, fontSize: 11, fontWeight: 600, textDecoration: "none", flexShrink: 0 }}>View Live</a></>}
+            {deployError && <p style={{ fontSize: 11, color: red }}>{deployError}</p>}
+          </div>
+        )}
       </div>
       {/* ── Launch Copy CTA ── */}
       <div style={{ background: "#FFFBEB", border: `1px solid #FDE68A`, borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
@@ -1336,15 +1349,31 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
       })()}
 
       {/* ── Content Calendar CTA ── */}
-      <div style={{ background: "#F0FDF4", border: `1px solid #BBF7D0`, borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{ flex: 1 }}>
-          <p style={{ fontSize: 12, fontWeight: 700, color: green, marginBottom: 2 }}>Generate 4-Week Content Calendar</p>
-          <p style={{ fontSize: 11, color: muted }}>Fully-written LinkedIn + Twitter posts for 4 weeks — problem awareness → solution → social proof → CTA.</p>
-          {calendarError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{calendarError}</p>}
+      <div
+        style={{ background: bg, borderRadius: 14, border: `1px solid ${bdr}`, overflow: "hidden", transition: "border-color .18s, box-shadow .18s" }}
+        onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#C7D2FE"; e.currentTarget.style.boxShadow = "0 2px 12px rgba(37,99,235,0.07)"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.borderColor = bdr; e.currentTarget.style.boxShadow = "none"; }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px" }}>
+          <div style={{ height: 36, width: 36, borderRadius: 10, flexShrink: 0, background: `${green}12`, border: `1px solid ${green}25`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {calendarLoading
+              ? <motion.div style={{ height: 13, width: 13, borderRadius: "50%", border: `2px solid ${bdr}`, borderTopColor: green }} animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.75, ease: "linear" }} />
+              : <Calendar size={15} style={{ color: green }} />
+            }
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>Content Calendar</p>
+            <p style={{ fontSize: 11, color: muted, lineHeight: 1.35, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>4-week LinkedIn + Twitter posts — awareness → solution → social proof → CTA.</p>
+          </div>
+          <button onClick={() => { if (!calendarResult) handleGenerateCalendar(); else setShowCalendar(p => !p); }} disabled={calendarLoading}
+            style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 11px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: "none", color: calendarLoading ? muted : green, border: `1.5px solid ${calendarLoading ? bdr : green}40`, cursor: calendarLoading ? "wait" : "pointer", transition: "all .15s", flexShrink: 0, fontFamily: "inherit" }}
+            onMouseEnter={(e) => { if (!calendarLoading) { e.currentTarget.style.background = `${green}10`; e.currentTarget.style.borderColor = green; } }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "none"; e.currentTarget.style.borderColor = `${green}40`; }}
+          >
+            {calendarLoading ? "Running…" : calendarResult ? (showCalendar ? "Hide" : "Show") : "Run"}{!calendarLoading && !showCalendar && <ChevronRight size={11} />}
+          </button>
         </div>
-        <button onClick={() => { if (!calendarResult) handleGenerateCalendar(); else setShowCalendar(p => !p); }} disabled={calendarLoading} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: calendarLoading ? bdr : green, color: calendarLoading ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: calendarLoading ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}>
-          {calendarLoading ? "Generating…" : calendarResult ? (showCalendar ? "Hide" : "Show Calendar") : "Generate Calendar"}
-        </button>
+        {calendarError && <div style={{ borderTop: `1px solid ${bdr}`, padding: "8px 14px" }}><p style={{ fontSize: 11, color: red }}>{calendarError}</p></div>}
       </div>
 
       {/* ── Content Calendar inline display ── */}
@@ -1691,17 +1720,33 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
       </div>
 
       {/* ── ICP Validation ── */}
-      <div style={{ background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: 12, padding: "14px 18px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 12, fontWeight: 700, color: amber, marginBottom: 2 }}>ICP Validation — Real Outreach Data</p>
-            <p style={{ fontSize: 11, color: muted }}>Analyze your sent outreach to identify which ICP segments actually respond — and refine your targeting.</p>
-            {icpValidationError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{icpValidationError}</p>}
+      <div
+        style={{ background: bg, borderRadius: 14, border: `1px solid ${bdr}`, overflow: "hidden", transition: "border-color .18s, box-shadow .18s" }}
+        onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#C7D2FE"; e.currentTarget.style.boxShadow = "0 2px 12px rgba(37,99,235,0.07)"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.borderColor = bdr; e.currentTarget.style.boxShadow = "none"; }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px" }}>
+          <div style={{ height: 36, width: 36, borderRadius: 10, flexShrink: 0, background: `${blue}12`, border: `1px solid ${blue}25`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {runningIcpValidation
+              ? <motion.div style={{ height: 13, width: 13, borderRadius: "50%", border: `2px solid ${bdr}`, borderTopColor: blue }} animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.75, ease: "linear" }} />
+              : <Users size={15} style={{ color: blue }} />
+            }
           </div>
-          <button onClick={handleRunIcpValidation} disabled={runningIcpValidation} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: runningIcpValidation ? bdr : amber, color: runningIcpValidation ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: runningIcpValidation ? "not-allowed" : "pointer", whiteSpace: "nowrap", marginLeft: 12 }}>
-            {runningIcpValidation ? "Analyzing…" : icpValidationResult ? (showIcpValidation ? "Refresh" : "Show Results") : "Analyze ICP"}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>ICP Validation</p>
+            <p style={{ fontSize: 11, color: muted, lineHeight: 1.35, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Analyze outreach to identify which ICP segments actually respond.</p>
+          </div>
+          <button onClick={handleRunIcpValidation} disabled={runningIcpValidation}
+            style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 11px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: "none", color: runningIcpValidation ? muted : blue, border: `1.5px solid ${runningIcpValidation ? bdr : blue}40`, cursor: runningIcpValidation ? "wait" : "pointer", transition: "all .15s", flexShrink: 0, fontFamily: "inherit" }}
+            onMouseEnter={(e) => { if (!runningIcpValidation) { e.currentTarget.style.background = `${blue}10`; e.currentTarget.style.borderColor = blue; } }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "none"; e.currentTarget.style.borderColor = `${blue}40`; }}
+          >
+            {runningIcpValidation ? "Running…" : icpValidationResult ? (showIcpValidation ? "Refresh" : "Show") : "Run"}{!runningIcpValidation && !showIcpValidation && <ChevronRight size={11} />}
           </button>
         </div>
+        {(icpValidationError || (showIcpValidation && icpValidationResult)) && (
+          <div style={{ borderTop: `1px solid ${bdr}`, padding: "13px 14px" }}>
+            {icpValidationError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{icpValidationError}</p>}
         {showIcpValidation && icpValidationResult && (
           <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
@@ -1748,6 +1793,8 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
             {icpValidationResult.nextTest && (
               <p style={{ fontSize: 11, color: muted, fontStyle: "italic" }}>Next test: {icpValidationResult.nextTest}</p>
             )}
+          </div>
+        )}
           </div>
         )}
       </div>
@@ -1916,18 +1963,32 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
       </div>
 
       {/* ── Outreach Sequence Builder ── */}
-      <div style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 12, padding: "16px 20px" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: showSequencePanel ? 14 : 0 }}>
-          <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>4-Step Outreach Sequence</p>
-            <p style={{ fontSize: 11, color: muted }}>Patel writes a full cold outreach sequence — Day 0 intro, Day 3 follow-up, Day 7 value-add, Day 14 breakup — with subjects and CTAs.</p>
-            {sequenceError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{sequenceError}</p>}
+      <div
+        style={{ background: bg, borderRadius: 14, border: `1px solid ${bdr}`, overflow: "hidden", transition: "border-color .18s, box-shadow .18s" }}
+        onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#C7D2FE"; e.currentTarget.style.boxShadow = "0 2px 12px rgba(37,99,235,0.07)"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.borderColor = bdr; e.currentTarget.style.boxShadow = "none"; }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px" }}>
+          <div style={{ height: 36, width: 36, borderRadius: 10, flexShrink: 0, background: `${blue}12`, border: `1px solid ${blue}25`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {generatingSequence
+              ? <motion.div style={{ height: 13, width: 13, borderRadius: "50%", border: `2px solid ${bdr}`, borderTopColor: blue }} animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.75, ease: "linear" }} />
+              : <Send size={15} style={{ color: blue }} />
+            }
           </div>
-          <button onClick={() => { setShowSequencePanel(!showSequencePanel); setSequenceResult(null); setSequenceError(null); }} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: blue, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
-            {showSequencePanel ? "Close" : "Build Sequence"}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>Outreach Sequence</p>
+            <p style={{ fontSize: 11, color: muted, lineHeight: 1.35, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>4-step cold sequence — Day 0 intro, Day 3 follow-up, Day 7 value-add, Day 14 breakup.</p>
+          </div>
+          <button onClick={() => { setShowSequencePanel(!showSequencePanel); setSequenceResult(null); setSequenceError(null); }}
+            style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 11px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: "none", color: blue, border: `1.5px solid ${blue}40`, cursor: "pointer", transition: "all .15s", flexShrink: 0, fontFamily: "inherit" }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = `${blue}10`; e.currentTarget.style.borderColor = blue; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "none"; e.currentTarget.style.borderColor = `${blue}40`; }}
+          >
+            {showSequencePanel ? "Close" : "Run"}{!showSequencePanel && <ChevronRight size={11} />}
           </button>
         </div>
         {showSequencePanel && (
+          <div style={{ borderTop: `1px solid ${bdr}`, padding: "13px 14px" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               <div>
@@ -1977,22 +2038,38 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
               </div>
             )}
           </div>
+          </div>
         )}
       </div>
 
       {/* ── ABM Strategy ── */}
-      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 20, marginTop: 4 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-          <div>
-            <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>Account-Based Marketing</p>
-            <p style={{ fontSize: 11, color: muted }}>Build an ABM strategy with target list, engagement playbook, and channel mix for high-value accounts.</p>
+      <div
+        style={{ background: bg, borderRadius: 14, border: `1px solid ${bdr}`, overflow: "hidden", transition: "border-color .18s, box-shadow .18s" }}
+        onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#C7D2FE"; e.currentTarget.style.boxShadow = "0 2px 12px rgba(37,99,235,0.07)"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.borderColor = bdr; e.currentTarget.style.boxShadow = "none"; }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px" }}>
+          <div style={{ height: 36, width: 36, borderRadius: 10, flexShrink: 0, background: "#7C3AED12", border: "1px solid #7C3AED25", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {generatingABM
+              ? <motion.div style={{ height: 13, width: 13, borderRadius: "50%", border: `2px solid ${bdr}`, borderTopColor: "#7C3AED" }} animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.75, ease: "linear" }} />
+              : <Crosshair size={15} style={{ color: "#7C3AED" }} />
+            }
           </div>
-          <button onClick={handleGenerateABMStrategy} disabled={generatingABM} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingABM ? bdr : blue, color: generatingABM ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingABM ? "not-allowed" : "pointer", whiteSpace: "nowrap" as const, flexShrink: 0, marginLeft: 12 }}>
-            {generatingABM ? "Building…" : "Build ABM Strategy"}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>ABM Strategy</p>
+            <p style={{ fontSize: 11, color: muted, lineHeight: 1.35, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Target list, engagement playbook, and channel mix for high-value accounts.</p>
+          </div>
+          <button onClick={handleGenerateABMStrategy} disabled={generatingABM}
+            style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 11px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: "none", color: generatingABM ? muted : "#7C3AED", border: `1.5px solid ${generatingABM ? bdr : "#7C3AED40"}`, cursor: generatingABM ? "wait" : "pointer", transition: "all .15s", flexShrink: 0, fontFamily: "inherit" }}
+            onMouseEnter={(e) => { if (!generatingABM) { e.currentTarget.style.background = "#7C3AED10"; e.currentTarget.style.borderColor = "#7C3AED"; } }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "none"; e.currentTarget.style.borderColor = "#7C3AED40"; }}
+          >
+            {generatingABM ? "Running…" : "Run"}{!generatingABM && <ChevronRight size={11} />}
           </button>
         </div>
-        <input value={abmAccounts} onChange={e => setAbmAccounts(e.target.value)} placeholder="Target accounts (optional, comma-separated — e.g. Stripe, Notion, Figma)" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 12, color: ink, background: bg, boxSizing: "border-box" as const, marginBottom: 10 }} />
-        {abmError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{abmError}</p>}
+        <div style={{ borderTop: `1px solid ${bdr}`, padding: "13px 14px" }}>
+          <input value={abmAccounts} onChange={e => setAbmAccounts(e.target.value)} placeholder="Target accounts (optional, e.g. Stripe, Notion, Figma)" style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 12, color: ink, background: bg, boxSizing: "border-box" as const, marginBottom: 10 }} />
+          {abmError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{abmError}</p>}
         {abmResult && (
           <div style={{ background: surf, borderRadius: 10, padding: 16 }}>
             {!!abmResult.overview && <p style={{ fontSize: 12, color: muted, fontStyle: "italic", marginBottom: 10 }}>{String(abmResult.overview)}</p>}
@@ -2087,19 +2164,36 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
             )}
           </div>
         )}
+        </div>
       </div>
 
       {/* ── Referral Program ── */}
-      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 20, marginTop: 4 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-          <div>
-            <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>Referral Program</p>
-            <p style={{ fontSize: 11, color: muted }}>Design a viral loop with incentive structure, mechanics, email templates, and launch plan.</p>
+      <div
+        style={{ background: bg, borderRadius: 14, border: `1px solid ${bdr}`, overflow: "hidden", transition: "border-color .18s, box-shadow .18s" }}
+        onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#C7D2FE"; e.currentTarget.style.boxShadow = "0 2px 12px rgba(37,99,235,0.07)"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.borderColor = bdr; e.currentTarget.style.boxShadow = "none"; }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px" }}>
+          <div style={{ height: 36, width: 36, borderRadius: 10, flexShrink: 0, background: `${amber}12`, border: `1px solid ${amber}25`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {generatingReferral
+              ? <motion.div style={{ height: 13, width: 13, borderRadius: "50%", border: `2px solid ${bdr}`, borderTopColor: amber }} animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.75, ease: "linear" }} />
+              : <Share2 size={15} style={{ color: amber }} />
+            }
           </div>
-          <button onClick={handleGenerateReferralProgram} disabled={generatingReferral} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingReferral ? bdr : blue, color: generatingReferral ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingReferral ? "not-allowed" : "pointer", whiteSpace: "nowrap" as const, flexShrink: 0, marginLeft: 12 }}>
-            {generatingReferral ? "Designing…" : "Design Program"}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>Referral Program</p>
+            <p style={{ fontSize: 11, color: muted, lineHeight: 1.35, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Design a viral loop with incentive structure, mechanics, email templates, and launch plan.</p>
+          </div>
+          <button onClick={handleGenerateReferralProgram} disabled={generatingReferral}
+            style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 11px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: "none", color: generatingReferral ? muted : amber, border: `1.5px solid ${generatingReferral ? bdr : amber + "40"}`, cursor: generatingReferral ? "wait" : "pointer", transition: "all .15s", flexShrink: 0, fontFamily: "inherit" }}
+            onMouseEnter={(e) => { if (!generatingReferral) { e.currentTarget.style.background = amber + "10"; e.currentTarget.style.borderColor = amber; } }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "none"; e.currentTarget.style.borderColor = amber + "40"; }}
+          >
+            {generatingReferral ? "Running…" : "Run"}{!generatingReferral && <ChevronRight size={11} />}
           </button>
         </div>
+        {(referralResult || referralError) && (
+          <div style={{ borderTop: `1px solid ${bdr}`, padding: "13px 14px" }}>
         {referralError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{referralError}</p>}
         {referralResult && (
           <div style={{ background: surf, borderRadius: 10, padding: 16 }}>
@@ -2166,6 +2260,8 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
                 ))}
               </div>
             )}
+          </div>
+        )}
           </div>
         )}
       </div>
@@ -3767,17 +3863,33 @@ function SalesScriptRenderer({ data, artifactId }: { data: Record<string, unknow
             </div>
 
             {/* ── Pricing Strategy ── */}
-            <div style={{ background: surf, borderRadius: 12, padding: "16px 20px", border: `1px solid ${bdr}` }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: pricingStrategy ? 14 : 0 }}>
-                <div>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: ink }}>Pricing Strategy</p>
-                  <p style={{ fontSize: 11, color: muted }}>Susi designs a full pricing model — tiers, discounting policy, trial strategy, and anchoring tactic — based on your ICP and competitor benchmarks.</p>
-                  {pricingStrategyError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{pricingStrategyError}</p>}
+            <div
+              style={{ background: bg, borderRadius: 14, border: `1px solid ${bdr}`, overflow: "hidden", transition: "border-color .18s, box-shadow .18s" }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#C7D2FE"; e.currentTarget.style.boxShadow = "0 2px 12px rgba(37,99,235,0.07)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = bdr; e.currentTarget.style.boxShadow = "none"; }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px" }}>
+                <div style={{ height: 36, width: 36, borderRadius: 10, flexShrink: 0, background: `${green}12`, border: `1px solid ${green}25`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {generatingPricingStrategy
+                    ? <motion.div style={{ height: 13, width: 13, borderRadius: "50%", border: `2px solid ${bdr}`, borderTopColor: green }} animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.75, ease: "linear" }} />
+                    : <DollarSign size={15} style={{ color: green }} />
+                  }
                 </div>
-                <button onClick={handleGeneratePricingStrategy} disabled={generatingPricingStrategy} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingPricingStrategy ? bdr : "#7C3AED", color: generatingPricingStrategy ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingPricingStrategy ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
-                  {generatingPricingStrategy ? "Designing…" : "Design Pricing"}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>Pricing Strategy</p>
+                  <p style={{ fontSize: 11, color: muted, lineHeight: 1.35, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Full pricing model — tiers, discounting, trial strategy, and anchoring.</p>
+                </div>
+                <button onClick={handleGeneratePricingStrategy} disabled={generatingPricingStrategy}
+                  style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 11px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: "none", color: generatingPricingStrategy ? muted : green, border: `1.5px solid ${generatingPricingStrategy ? bdr : green}40`, cursor: generatingPricingStrategy ? "wait" : "pointer", transition: "all .15s", flexShrink: 0, fontFamily: "inherit" }}
+                  onMouseEnter={(e) => { if (!generatingPricingStrategy) { e.currentTarget.style.background = `${green}10`; e.currentTarget.style.borderColor = green; } }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "none"; e.currentTarget.style.borderColor = `${green}40`; }}
+                >
+                  {generatingPricingStrategy ? "Running…" : "Run"}{!generatingPricingStrategy && <ChevronRight size={11} />}
                 </button>
               </div>
+              {(pricingStrategy || pricingStrategyError) && (
+                <div style={{ borderTop: `1px solid ${bdr}`, padding: "13px 14px" }}>
+                  {pricingStrategyError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{pricingStrategyError}</p>}
               {pricingStrategy && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -3839,20 +3951,38 @@ function SalesScriptRenderer({ data, artifactId }: { data: Record<string, unknow
                   <button onClick={() => setPricingStrategy(null)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>Regenerate</button>
                 </div>
               )}
+                </div>
+              )}
             </div>
 
             {/* ── BANT/MEDDIC Qualification Scorecard ── */}
-            <div style={{ background: surf, borderRadius: 12, padding: "16px 20px", border: `1px solid ${bdr}` }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: qualificationResult ? 14 : 0 }}>
-                <div>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: ink }}>BANT + MEDDIC Qualification</p>
-                  <p style={{ fontSize: 11, color: muted }}>Susi evaluates each open deal against BANT and MEDDIC criteria — scores 0–100, flags key risks, and recommends the best next question to ask.</p>
-                  {qualificationError && <p style={{ fontSize: 11, color: red, marginTop: 4 }}>{qualificationError}</p>}
+            <div
+              style={{ background: bg, borderRadius: 14, border: `1px solid ${bdr}`, overflow: "hidden", transition: "border-color .18s, box-shadow .18s" }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#C7D2FE"; e.currentTarget.style.boxShadow = "0 2px 12px rgba(37,99,235,0.07)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = bdr; e.currentTarget.style.boxShadow = "none"; }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px" }}>
+                <div style={{ height: 36, width: 36, borderRadius: 10, flexShrink: 0, background: "#7C3AED12", border: "1px solid #7C3AED25", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {runningQualification
+                    ? <motion.div style={{ height: 13, width: 13, borderRadius: "50%", border: `2px solid ${bdr}`, borderTopColor: "#7C3AED" }} animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.75, ease: "linear" }} />
+                    : <CheckCircle2 size={15} style={{ color: "#7C3AED" }} />
+                  }
                 </div>
-                <button onClick={handleRunQualification} disabled={runningQualification} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: runningQualification ? bdr : "#7C3AED", color: runningQualification ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: runningQualification ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
-                  {runningQualification ? "Qualifying…" : "Qualify Deals"}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>BANT + MEDDIC Qualification</p>
+                  <p style={{ fontSize: 11, color: muted, lineHeight: 1.35, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Score each open deal against BANT and MEDDIC criteria.</p>
+                </div>
+                <button onClick={handleRunQualification} disabled={runningQualification}
+                  style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 11px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: "none", color: runningQualification ? muted : "#7C3AED", border: `1.5px solid ${runningQualification ? bdr : "#7C3AED40"}`, cursor: runningQualification ? "wait" : "pointer", transition: "all .15s", flexShrink: 0, fontFamily: "inherit" }}
+                  onMouseEnter={(e) => { if (!runningQualification) { e.currentTarget.style.background = "#7C3AED10"; e.currentTarget.style.borderColor = "#7C3AED"; } }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "none"; e.currentTarget.style.borderColor = "#7C3AED40"; }}
+                >
+                  {runningQualification ? "Running…" : "Run"}{!runningQualification && <ChevronRight size={11} />}
                 </button>
               </div>
+              {(qualificationResult || qualificationError) && (
+                <div style={{ borderTop: `1px solid ${bdr}`, padding: "13px 14px" }}>
+                  {qualificationError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{qualificationError}</p>}
               {qualificationResult && qualificationResult.scorecards && qualificationResult.scorecards.length > 0 && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   {qualificationResult.scorecards.map((sc, i) => (
@@ -3886,6 +4016,8 @@ function SalesScriptRenderer({ data, artifactId }: { data: Record<string, unknow
                     </div>
                   ))}
                   <button onClick={() => setQualificationResult(null)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>Re-qualify</button>
+                </div>
+              )}
                 </div>
               )}
             </div>
@@ -4035,16 +4167,31 @@ function SalesScriptRenderer({ data, artifactId }: { data: Record<string, unknow
       )}
 
       {/* ── Deal Coaching ── */}
-      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 24, marginTop: 24 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-          <div>
-            <p style={{ fontWeight: 700, fontSize: 14, color: ink, margin: 0 }}>Deal Coaching</p>
-            <p style={{ fontSize: 12, color: muted, margin: "2px 0 0" }}>Get a personalized playbook to close any specific deal — diagnosis, email, close strategy.</p>
+      <div
+        style={{ background: bg, borderRadius: 14, border: `1px solid ${bdr}`, overflow: "hidden", transition: "border-color .18s, box-shadow .18s" }}
+        onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#C7D2FE"; e.currentTarget.style.boxShadow = "0 2px 12px rgba(37,99,235,0.07)"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.borderColor = bdr; e.currentTarget.style.boxShadow = "none"; }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px" }}>
+          <div style={{ height: 36, width: 36, borderRadius: 10, flexShrink: 0, background: `${blue}12`, border: `1px solid ${blue}25`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {generatingDC
+              ? <motion.div style={{ height: 13, width: 13, borderRadius: "50%", border: `2px solid ${bdr}`, borderTopColor: blue }} animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.75, ease: "linear" }} />
+              : <MessageSquare size={15} style={{ color: blue }} />
+            }
           </div>
-          <button onClick={handleGenerateDealCoaching} disabled={generatingDC} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingDC ? bdr : blue, color: generatingDC ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingDC ? "not-allowed" : "pointer", whiteSpace: "nowrap" as const, flexShrink: 0, marginLeft: 12 }}>
-            {generatingDC ? "Coaching…" : "Coach This Deal"}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>Deal Coaching</p>
+            <p style={{ fontSize: 11, color: muted, lineHeight: 1.35, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Personalized playbook to close any deal — diagnosis, email, close strategy.</p>
+          </div>
+          <button onClick={handleGenerateDealCoaching} disabled={generatingDC}
+            style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 11px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: "none", color: generatingDC ? muted : blue, border: `1.5px solid ${generatingDC ? bdr : blue}40`, cursor: generatingDC ? "wait" : "pointer", transition: "all .15s", flexShrink: 0, fontFamily: "inherit" }}
+            onMouseEnter={(e) => { if (!generatingDC) { e.currentTarget.style.background = `${blue}10`; e.currentTarget.style.borderColor = blue; } }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "none"; e.currentTarget.style.borderColor = `${blue}40`; }}
+          >
+            {generatingDC ? "Running…" : "Run"}{!generatingDC && <ChevronRight size={11} />}
           </button>
         </div>
+        <div style={{ borderTop: `1px solid ${bdr}`, padding: "13px 14px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
           <input value={dcDealName} onChange={e => setDcDealName(e.target.value)} placeholder="Deal name (e.g. Acme Corp)" style={{ padding: "8px 12px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 12, color: ink, background: bg }} />
           <select value={dcStage} onChange={e => setDcStage(e.target.value)} style={{ padding: "8px 12px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 12, color: ink, background: bg }}>
@@ -4161,20 +4308,37 @@ function SalesScriptRenderer({ data, artifactId }: { data: Record<string, unknow
             )}
           </div>
         )}
+        </div>
       </div>
 
       {/* ── Pipeline Health ── */}
-      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 24, marginTop: 24 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-          <div>
-            <p style={{ fontWeight: 700, fontSize: 14, color: ink, margin: 0 }}>Pipeline Health</p>
-            <p style={{ fontSize: 12, color: muted, margin: "2px 0 0" }}>Stage-by-stage pipeline diagnostic, velocity analysis, and forecast accuracy</p>
+      <div
+        style={{ background: bg, borderRadius: 14, border: `1px solid ${bdr}`, overflow: "hidden", transition: "border-color .18s, box-shadow .18s" }}
+        onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#C7D2FE"; e.currentTarget.style.boxShadow = "0 2px 12px rgba(37,99,235,0.07)"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.borderColor = bdr; e.currentTarget.style.boxShadow = "none"; }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px" }}>
+          <div style={{ height: 36, width: 36, borderRadius: 10, flexShrink: 0, background: `${green}12`, border: `1px solid ${green}25`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {generatingPipeHealth
+              ? <motion.div style={{ height: 13, width: 13, borderRadius: "50%", border: `2px solid ${bdr}`, borderTopColor: green }} animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.75, ease: "linear" }} />
+              : <BarChart3 size={15} style={{ color: green }} />
+            }
           </div>
-          <button onClick={handleGeneratePipelineHealth} disabled={generatingPipeHealth} style={{ padding: "8px 16px", borderRadius: 8, background: generatingPipeHealth ? surf : ink, color: generatingPipeHealth ? muted : bg, fontSize: 12, fontWeight: 600, border: "none", cursor: generatingPipeHealth ? "default" : "pointer" }}>
-            {generatingPipeHealth ? "Diagnosing…" : "Check Pipeline"}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>Pipeline Health</p>
+            <p style={{ fontSize: 11, color: muted, lineHeight: 1.35, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Stage-by-stage diagnostic, velocity analysis, and forecast accuracy.</p>
+          </div>
+          <button onClick={handleGeneratePipelineHealth} disabled={generatingPipeHealth}
+            style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 11px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: "none", color: generatingPipeHealth ? muted : green, border: `1.5px solid ${generatingPipeHealth ? bdr : green}40`, cursor: generatingPipeHealth ? "wait" : "pointer", transition: "all .15s", flexShrink: 0, fontFamily: "inherit" }}
+            onMouseEnter={(e) => { if (!generatingPipeHealth) { e.currentTarget.style.background = `${green}10`; e.currentTarget.style.borderColor = green; } }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "none"; e.currentTarget.style.borderColor = `${green}40`; }}
+          >
+            {generatingPipeHealth ? "Running…" : "Run"}{!generatingPipeHealth && <ChevronRight size={11} />}
           </button>
         </div>
-        {pipeHealthError && <p style={{ color: "#DC2626", fontSize: 12 }}>{pipeHealthError}</p>}
+        {(pipeHealthResult || pipeHealthError) && (
+          <div style={{ borderTop: `1px solid ${bdr}`, padding: "13px 14px" }}>
+            {pipeHealthError && <p style={{ color: "#DC2626", fontSize: 12, marginBottom: 8 }}>{pipeHealthError}</p>}
         {pipeHealthResult && (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {!!pipeHealthResult.verdict && <p style={{ fontSize: 13, color: ink, margin: 0, padding: "10px 14px", background: surf, borderRadius: 8 }}>{String(pipeHealthResult.verdict)}</p>}
@@ -4239,20 +4403,38 @@ function SalesScriptRenderer({ data, artifactId }: { data: Record<string, unknow
             <button onClick={() => setPipeHealthResult(null)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>Re-run</button>
           </div>
         )}
+          </div>
+        )}
       </div>
 
       {/* ── Objection Bank ── */}
-      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 20, marginTop: 4 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-          <div>
-            <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>Objection Bank</p>
-            <p style={{ fontSize: 11, color: muted }}>Every objection your buyers use, with exact response scripts, the real meaning behind them, and follow-up questions.</p>
+      <div
+        style={{ background: bg, borderRadius: 14, border: `1px solid ${bdr}`, overflow: "hidden", transition: "border-color .18s, box-shadow .18s" }}
+        onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#C7D2FE"; e.currentTarget.style.boxShadow = "0 2px 12px rgba(37,99,235,0.07)"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.borderColor = bdr; e.currentTarget.style.boxShadow = "none"; }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px" }}>
+          <div style={{ height: 36, width: 36, borderRadius: 10, flexShrink: 0, background: `${amber}12`, border: `1px solid ${amber}25`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {generatingObjBank
+              ? <motion.div style={{ height: 13, width: 13, borderRadius: "50%", border: `2px solid ${bdr}`, borderTopColor: amber }} animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.75, ease: "linear" }} />
+              : <Shield size={15} style={{ color: amber }} />
+            }
           </div>
-          <button onClick={handleGenerateObjBank} disabled={generatingObjBank} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingObjBank ? bdr : blue, color: generatingObjBank ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingObjBank ? "not-allowed" : "pointer", whiteSpace: "nowrap" as const, flexShrink: 0, marginLeft: 12 }}>
-            {generatingObjBank ? "Building…" : "Build Objection Bank"}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>Objection Bank</p>
+            <p style={{ fontSize: 11, color: muted, lineHeight: 1.35, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Every buyer objection with response scripts, real meaning, and follow-ups.</p>
+          </div>
+          <button onClick={handleGenerateObjBank} disabled={generatingObjBank}
+            style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 11px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: "none", color: generatingObjBank ? muted : amber, border: `1.5px solid ${generatingObjBank ? bdr : amber}40`, cursor: generatingObjBank ? "wait" : "pointer", transition: "all .15s", flexShrink: 0, fontFamily: "inherit" }}
+            onMouseEnter={(e) => { if (!generatingObjBank) { e.currentTarget.style.background = `${amber}10`; e.currentTarget.style.borderColor = amber; } }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "none"; e.currentTarget.style.borderColor = `${amber}40`; }}
+          >
+            {generatingObjBank ? "Running…" : "Run"}{!generatingObjBank && <ChevronRight size={11} />}
           </button>
         </div>
-        {objBankError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{objBankError}</p>}
+        {(objBankResult || objBankError) && (
+          <div style={{ borderTop: `1px solid ${bdr}`, padding: "13px 14px" }}>
+            {objBankError && <p style={{ fontSize: 11, color: red, marginBottom: 8 }}>{objBankError}</p>}
         {objBankResult && (
           <div style={{ background: surf, borderRadius: 10, padding: 16 }}>
             {!!objBankResult.overview && <p style={{ fontSize: 12, color: muted, fontStyle: "italic", marginBottom: 14 }}>{String(objBankResult.overview)}</p>}
@@ -4302,20 +4484,36 @@ function SalesScriptRenderer({ data, artifactId }: { data: Record<string, unknow
             )}
           </div>
         )}
+          </div>
+        )}
       </div>
 
       {/* ── Deal Playbook ── */}
-      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 20, marginTop: 4 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-          <div style={{ flex: 1 }}>
+      <div
+        style={{ background: bg, borderRadius: 14, border: `1px solid ${bdr}`, overflow: "hidden", transition: "border-color .18s, box-shadow .18s" }}
+        onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#C7D2FE"; e.currentTarget.style.boxShadow = "0 2px 12px rgba(37,99,235,0.07)"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.borderColor = bdr; e.currentTarget.style.boxShadow = "none"; }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px" }}>
+          <div style={{ height: 36, width: 36, borderRadius: 10, flexShrink: 0, background: `${blue}12`, border: `1px solid ${blue}25`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {generatingPlaybook
+              ? <motion.div style={{ height: 13, width: 13, borderRadius: "50%", border: `2px solid ${bdr}`, borderTopColor: blue }} animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.75, ease: "linear" }} />
+              : <BookOpen size={15} style={{ color: blue }} />
+            }
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>Deal Playbook</p>
-            <p style={{ fontSize: 11, color: muted }}>Generate a deal-specific playbook with next actions, stakeholder map, objection handlers, and closing strategy.</p>
+            <p style={{ fontSize: 11, color: muted, lineHeight: 1.35, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Next actions, stakeholder map, objection handlers, and closing strategy.</p>
           </div>
           <button onClick={handleGenerateDealPlaybook} disabled={generatingPlaybook}
-            style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingPlaybook ? bdr : blue, color: generatingPlaybook ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingPlaybook ? "not-allowed" : "pointer", whiteSpace: "nowrap", flexShrink: 0, marginLeft: 12 }}>
-            {generatingPlaybook ? "Building…" : "Generate Playbook"}
+            style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 11px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: "none", color: generatingPlaybook ? muted : blue, border: `1.5px solid ${generatingPlaybook ? bdr : blue}40`, cursor: generatingPlaybook ? "wait" : "pointer", transition: "all .15s", flexShrink: 0, fontFamily: "inherit" }}
+            onMouseEnter={(e) => { if (!generatingPlaybook) { e.currentTarget.style.background = `${blue}10`; e.currentTarget.style.borderColor = blue; } }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "none"; e.currentTarget.style.borderColor = `${blue}40`; }}
+          >
+            {generatingPlaybook ? "Running…" : "Run"}{!generatingPlaybook && <ChevronRight size={11} />}
           </button>
         </div>
+        <div style={{ borderTop: `1px solid ${bdr}`, padding: "13px 14px" }}>
         {availableDeals.length > 0 && !playbookResult && (
           <div style={{ marginBottom: 12 }}>
             <p style={{ fontSize: 11, color: muted, marginBottom: 6 }}>Select deal (optional):</p>
@@ -4446,6 +4644,7 @@ function SalesScriptRenderer({ data, artifactId }: { data: Record<string, unknow
             </div>
           );
         })()}
+        </div>
       </div>
 
     </div>
@@ -6150,16 +6349,31 @@ function BrandMessagingRenderer({ data, artifactId }: { data: Record<string, unk
       </div>
 
       {/* ── Product Launch ── */}
-      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 24, marginTop: 24 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-          <div>
-            <p style={{ fontWeight: 700, fontSize: 14, color: ink, margin: 0 }}>Product Launch Plan</p>
-            <p style={{ fontSize: 12, color: muted, margin: "2px 0 0" }}>Full go-to-market launch plan: phases, channels, launch-day playbook, and metrics.</p>
+      <div
+        style={{ background: bg, borderRadius: 14, border: `1px solid ${bdr}`, overflow: "hidden", transition: "border-color .18s, box-shadow .18s" }}
+        onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#C7D2FE"; e.currentTarget.style.boxShadow = "0 2px 12px rgba(37,99,235,0.07)"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.borderColor = bdr; e.currentTarget.style.boxShadow = "none"; }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px" }}>
+          <div style={{ height: 36, width: 36, borderRadius: 10, flexShrink: 0, background: `${blue}12`, border: `1px solid ${blue}25`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {generatingPL
+              ? <motion.div style={{ height: 13, width: 13, borderRadius: "50%", border: `2px solid ${bdr}`, borderTopColor: blue }} animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.75, ease: "linear" }} />
+              : <Rocket size={15} style={{ color: blue }} />
+            }
           </div>
-          <button onClick={handleGenerateProductLaunch} disabled={generatingPL} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: generatingPL ? bdr : blue, color: generatingPL ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: generatingPL ? "not-allowed" : "pointer", whiteSpace: "nowrap" as const, flexShrink: 0, marginLeft: 12 }}>
-            {generatingPL ? "Planning…" : "Plan Launch"}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>Product Launch Plan</p>
+            <p style={{ fontSize: 11, color: muted, lineHeight: 1.35, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Full go-to-market launch plan: phases, channels, launch-day playbook, and metrics.</p>
+          </div>
+          <button onClick={handleGenerateProductLaunch} disabled={generatingPL}
+            style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 11px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: "none", color: generatingPL ? muted : blue, border: `1.5px solid ${generatingPL ? bdr : blue + "40"}`, cursor: generatingPL ? "wait" : "pointer", transition: "all .15s", flexShrink: 0, fontFamily: "inherit" }}
+            onMouseEnter={(e) => { if (!generatingPL) { e.currentTarget.style.background = blue + "10"; e.currentTarget.style.borderColor = blue; } }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "none"; e.currentTarget.style.borderColor = blue + "40"; }}
+          >
+            {generatingPL ? "Running…" : "Run"}{!generatingPL && <ChevronRight size={11} />}
           </button>
         </div>
+        <div style={{ borderTop: `1px solid ${bdr}`, padding: "13px 14px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
           <input value={plProductName} onChange={e => setPlProductName(e.target.value)} placeholder="Product/feature name" style={{ padding: "8px 12px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 12, color: ink, background: bg }} />
           <input value={plLaunchDate} onChange={e => setPlLaunchDate(e.target.value)} placeholder="Launch date (e.g. March 15)" style={{ padding: "8px 12px", borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 12, color: ink, background: bg }} />
@@ -6268,24 +6482,40 @@ function BrandMessagingRenderer({ data, artifactId }: { data: Record<string, unk
             )}
           </div>
         )}
+        </div>
       </div>
 
       {/* ── Content Calendar ── */}
-      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 24, marginTop: 24 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-          <div>
-            <p style={{ fontWeight: 700, fontSize: 14, color: ink, margin: 0 }}>Content Calendar</p>
-            <p style={{ fontSize: 12, color: muted, margin: "2px 0 0" }}>Week-by-week content plan with hooks, angles, and platform-specific posts</p>
+      <div
+        style={{ background: bg, borderRadius: 14, border: `1px solid ${bdr}`, overflow: "hidden", transition: "border-color .18s, box-shadow .18s" }}
+        onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#C7D2FE"; e.currentTarget.style.boxShadow = "0 2px 12px rgba(37,99,235,0.07)"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.borderColor = bdr; e.currentTarget.style.boxShadow = "none"; }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px" }}>
+          <div style={{ height: 36, width: 36, borderRadius: 10, flexShrink: 0, background: `${green}12`, border: `1px solid ${green}25`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {generatingCal
+              ? <motion.div style={{ height: 13, width: 13, borderRadius: "50%", border: `2px solid ${bdr}`, borderTopColor: green }} animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.75, ease: "linear" }} />
+              : <Calendar size={15} style={{ color: green }} />
+            }
           </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>Content Calendar</p>
+            <p style={{ fontSize: 11, color: muted, lineHeight: 1.35, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Week-by-week content plan with hooks, angles, and platform-specific posts.</p>
+          </div>
+          <button onClick={handleGenerateContentCalendar} disabled={generatingCal}
+            style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 11px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: "none", color: generatingCal ? muted : green, border: `1.5px solid ${generatingCal ? bdr : green + "40"}`, cursor: generatingCal ? "wait" : "pointer", transition: "all .15s", flexShrink: 0, fontFamily: "inherit" }}
+            onMouseEnter={(e) => { if (!generatingCal) { e.currentTarget.style.background = green + "10"; e.currentTarget.style.borderColor = green; } }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "none"; e.currentTarget.style.borderColor = green + "40"; }}
+          >
+            {generatingCal ? "Running…" : "Run"}{!generatingCal && <ChevronRight size={11} />}
+          </button>
+        </div>
+        <div style={{ borderTop: `1px solid ${bdr}`, padding: "13px 14px" }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
             <select value={calWeeks} onChange={e => setCalWeeks(e.target.value)} style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: ink, fontSize: 12 }}>
               {["2","4","6","8"].map(w => <option key={w} value={w}>{w} weeks</option>)}
             </select>
-            <button onClick={handleGenerateContentCalendar} disabled={generatingCal} style={{ padding: "8px 16px", borderRadius: 8, background: generatingCal ? surf : ink, color: generatingCal ? muted : bg, fontSize: 12, fontWeight: 600, border: "none", cursor: generatingCal ? "default" : "pointer" }}>
-              {generatingCal ? "Planning…" : "Generate Calendar"}
-            </button>
           </div>
-        </div>
         {calError && <p style={{ color: "#DC2626", fontSize: 12 }}>{calError}</p>}
         {calResult && (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -6343,6 +6573,7 @@ function BrandMessagingRenderer({ data, artifactId }: { data: Record<string, unk
             <button onClick={() => setCalResult(null)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${bdr}`, background: bg, color: muted, fontSize: 11, cursor: "pointer", alignSelf: "flex-start" }}>Re-run</button>
           </div>
         )}
+        </div>
       </div>
 
       {/* ── PR Strategy ── */}
@@ -20243,6 +20474,7 @@ function DeliverablePanel({
   onRefine,
   agentName = "the agent",
   userId,
+  actionsOnly = false,
 }: {
   artifact: ArtifactData;
   artifactHistory: ArtifactData[];
@@ -20251,6 +20483,7 @@ function DeliverablePanel({
   onRefine: (feedback: string) => void;
   agentName?: string;
   userId?: string;
+  actionsOnly?: boolean;
 }) {
   const [refineInput,       setRefineInput]       = useState("");
   const [reviseMode,        setReviseMode]        = useState(false);
@@ -20453,115 +20686,147 @@ function DeliverablePanel({
       overflow: "hidden",
     }}>
       {/* panel header */}
-      <div style={{ padding: "16px 18px 12px", borderBottom: `1px solid ${bdr}`, flexShrink: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Icon size={14} style={{ color: meta?.color || blue }} />
-            <span style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.14em", color: meta?.color || blue }}>
-              {meta?.label || artifact.type}
-            </span>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+      {actionsOnly ? (
+        <div style={{ flexShrink: 0 }}>
+          <div style={{ height: 3, background: "linear-gradient(90deg, #2563EB, #818CF8, #2563EB)", backgroundSize: "200% 100%", borderRadius: "0 0 2px 2px" }} />
+          <div style={{ padding: "14px 18px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ height: 34, width: 34, borderRadius: 10, flexShrink: 0, background: "linear-gradient(135deg, #EFF6FF, #EDE9FE)", border: "1.5px solid #BFDBFE", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800, color: blue }}>
+                {agentName[0]}
+              </div>
+              <div>
+                <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>{agentName}</p>
+                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                  <div style={{ height: 6, width: 6, borderRadius: "50%", background: green }} />
+                  <p style={{ fontSize: 10, color: muted, fontWeight: 500, letterSpacing: "0.02em" }}>AI Actions ready</p>
+                </div>
+              </div>
+            </div>
             <button
-              onClick={() => { setReviseMode(m => !m); setSelectedText(""); setReviseInstruction(""); }}
-              title="Revise mode: select text to rewrite a section"
-              style={{
-                background: reviseMode ? amber : "none",
-                border: `1px solid ${reviseMode ? amber : bdr}`,
-                borderRadius: 6, padding: "4px 8px", cursor: "pointer",
-                display: "flex", alignItems: "center", gap: 4,
-                fontSize: 11, color: reviseMode ? "#fff" : muted,
-                transition: "background .15s, color .15s",
-              }}
+              onClick={onClose}
+              style={{ background: "none", border: `1px solid ${bdr}`, cursor: "pointer", color: muted, display: "flex", padding: "5px 6px", borderRadius: 7, transition: "border-color .15s, color .15s" }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = ink; (e.currentTarget as HTMLElement).style.color = ink; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = bdr; (e.currentTarget as HTMLElement).style.color = muted; }}
             >
-              <Highlighter size={11} />
-              {reviseMode ? "Revising" : "Revise"}
-            </button>
-            <button
-              onClick={() => setShowShare(true)}
-              title="Share with co-founder"
-              style={{
-                background: "none", border: `1px solid ${bdr}`,
-                borderRadius: 6, padding: "4px 8px", cursor: "pointer",
-                display: "flex", alignItems: "center", gap: 4,
-                fontSize: 11, color: muted,
-                transition: "border-color .15s, color .15s",
-              }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = blue; (e.currentTarget as HTMLElement).style.borderColor = blue; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = muted; (e.currentTarget as HTMLElement).style.borderColor = bdr; }}
-            >
-              <Share2 size={11} />
-              Share
-            </button>
-            {artifact.type === "financial_summary" && (
-              <button
-                onClick={handleCSV}
-                title="Download as CSV — open in Excel or Google Sheets"
-                style={{
-                  background: "none", border: `1px solid ${bdr}`,
-                  borderRadius: 6, padding: "4px 8px", cursor: "pointer",
-                  display: "flex", alignItems: "center", gap: 4,
-                  fontSize: 11, color: green,
-                  transition: "border-color .15s",
-                }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = green; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = bdr; }}
-              >
-                <Download size={11} />
-                CSV
-              </button>
-            )}
-            {artifact.type === "gtm_playbook" && (
-              <button
-                onClick={handleHTMLDownload}
-                title="Download a ready-to-host landing page HTML file"
-                style={{
-                  background: "none", border: `1px solid ${bdr}`,
-                  borderRadius: 6, padding: "4px 8px", cursor: "pointer",
-                  display: "flex", alignItems: "center", gap: 4,
-                  fontSize: 11, color: blue,
-                  transition: "border-color .15s",
-                }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = blue; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = bdr; }}
-              >
-                <Download size={11} />
-                HTML
-              </button>
-            )}
-            <CopyBtn text={artifactToText(artifact)} />
-            <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: muted, display: "flex", padding: 4 }}>
-              <X size={16} />
+              <X size={14} />
             </button>
           </div>
+          <div style={{ height: 1, background: bdr }} />
         </div>
-        <p style={{ fontSize: 15, fontWeight: 600, color: ink, lineHeight: 1.3 }}>
-          {artifact.title || meta?.label}
-        </p>
+      ) : (
+        <div style={{ padding: "16px 18px 12px", borderBottom: `1px solid ${bdr}`, flexShrink: 0 }}>
+          {/* Full deliverable header */}
+          <>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Icon size={14} style={{ color: meta?.color || blue }} />
+                <span style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.14em", color: meta?.color || blue }}>
+                  {meta?.label || artifact.type}
+                </span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <button
+                  onClick={() => { setReviseMode(m => !m); setSelectedText(""); setReviseInstruction(""); }}
+                  title="Revise mode: select text to rewrite a section"
+                  style={{
+                    background: reviseMode ? amber : "none",
+                    border: `1px solid ${reviseMode ? amber : bdr}`,
+                    borderRadius: 6, padding: "4px 8px", cursor: "pointer",
+                    display: "flex", alignItems: "center", gap: 4,
+                    fontSize: 11, color: reviseMode ? "#fff" : muted,
+                    transition: "background .15s, color .15s",
+                  }}
+                >
+                  <Highlighter size={11} />
+                  {reviseMode ? "Revising" : "Revise"}
+                </button>
+                <button
+                  onClick={() => setShowShare(true)}
+                  title="Share with co-founder"
+                  style={{
+                    background: "none", border: `1px solid ${bdr}`,
+                    borderRadius: 6, padding: "4px 8px", cursor: "pointer",
+                    display: "flex", alignItems: "center", gap: 4,
+                    fontSize: 11, color: muted,
+                    transition: "border-color .15s, color .15s",
+                  }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = blue; (e.currentTarget as HTMLElement).style.borderColor = blue; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = muted; (e.currentTarget as HTMLElement).style.borderColor = bdr; }}
+                >
+                  <Share2 size={11} />
+                  Share
+                </button>
+                {artifact.type === "financial_summary" && (
+                  <button
+                    onClick={handleCSV}
+                    title="Download as CSV — open in Excel or Google Sheets"
+                    style={{
+                      background: "none", border: `1px solid ${bdr}`,
+                      borderRadius: 6, padding: "4px 8px", cursor: "pointer",
+                      display: "flex", alignItems: "center", gap: 4,
+                      fontSize: 11, color: green,
+                      transition: "border-color .15s",
+                    }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = green; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = bdr; }}
+                  >
+                    <Download size={11} />
+                    CSV
+                  </button>
+                )}
+                {artifact.type === "gtm_playbook" && (
+                  <button
+                    onClick={handleHTMLDownload}
+                    title="Download a ready-to-host landing page HTML file"
+                    style={{
+                      background: "none", border: `1px solid ${bdr}`,
+                      borderRadius: 6, padding: "4px 8px", cursor: "pointer",
+                      display: "flex", alignItems: "center", gap: 4,
+                      fontSize: 11, color: blue,
+                      transition: "border-color .15s",
+                    }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = blue; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = bdr; }}
+                  >
+                    <Download size={11} />
+                    HTML
+                  </button>
+                )}
+                <CopyBtn text={artifactToText(artifact)} />
+                <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: muted, display: "flex", padding: 4 }}>
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+            <p style={{ fontSize: 15, fontWeight: 600, color: ink, lineHeight: 1.3 }}>
+              {artifact.title || meta?.label}
+            </p>
 
-        {/* quality score bar */}
-        <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ flex: 1, height: 4, borderRadius: 999, background: bdr, overflow: "hidden" }}>
-            <div style={{
-              width: `${quality.pct}%`, height: "100%", borderRadius: 999,
-              background: quality.pct >= 90 ? green : quality.pct >= 70 ? blue : quality.pct >= 50 ? amber : red,
-              transition: "width .4s ease",
-            }} />
-          </div>
-          <span style={{
-            fontSize: 10, fontWeight: 700, flexShrink: 0,
-            color: quality.pct >= 90 ? green : quality.pct >= 70 ? blue : quality.pct >= 50 ? amber : red,
-          }}>
-            {quality.pct}% · {quality.label}
-          </span>
+            {/* quality score bar */}
+            <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ flex: 1, height: 4, borderRadius: 999, background: bdr, overflow: "hidden" }}>
+                <div style={{
+                  width: `${quality.pct}%`, height: "100%", borderRadius: 999,
+                  background: quality.pct >= 90 ? green : quality.pct >= 70 ? blue : quality.pct >= 50 ? amber : red,
+                  transition: "width .4s ease",
+                }} />
+              </div>
+              <span style={{
+                fontSize: 10, fontWeight: 700, flexShrink: 0,
+                color: quality.pct >= 90 ? green : quality.pct >= 70 ? blue : quality.pct >= 50 ? amber : red,
+              }}>
+                {quality.pct}% · {quality.label}
+              </span>
+            </div>
+            {quality.missing.length > 0 && quality.pct < 90 && (
+              <p style={{ fontSize: 10, color: muted, marginTop: 4, lineHeight: 1.4 }}>
+                Missing: {quality.missing.slice(0, 3).join(", ")}{quality.missing.length > 3 ? ` +${quality.missing.length - 3} more` : ""}
+                {" — "}<span style={{ color: blue }}>ask {agentName} to complete it</span>
+              </p>
+            )}
+          </>
         </div>
-        {quality.missing.length > 0 && quality.pct < 90 && (
-          <p style={{ fontSize: 10, color: muted, marginTop: 4, lineHeight: 1.4 }}>
-            Missing: {quality.missing.slice(0, 3).join(", ")}{quality.missing.length > 3 ? ` +${quality.missing.length - 3} more` : ""}
-            {" — "}<span style={{ color: blue }}>ask {agentName} to complete it</span>
-          </p>
-        )}
-      </div>
+      )}
 
       {/* artifact tabs (if multiple) */}
       {artifactHistory.length > 1 && (
@@ -20701,7 +20966,7 @@ function DeliverablePanel({
 // ═══════════════════════════════════════════════════════════════════════════════
 // FINANCIAL PANEL (Felix)
 // ═══════════════════════════════════════════════════════════════════════════════
-function FinancialPanel({ onShare }: { onShare: (ctx: string) => void }) {
+function FinancialPanel({ onShare, onClose }: { onShare: (ctx: string) => void; onClose?: () => void }) {
   const [model, setModel] = useState<FinModel>({
     mrr: "", growthRate: "", burn: "", grossMargin: "",
     cac: "", ltv: "", cash: "",
@@ -20779,19 +21044,45 @@ function FinancialPanel({ onShare }: { onShare: (ctx: string) => void }) {
 
   return (
     <div style={{
-      width: 340, flexShrink: 0,
+      width: 420, flexShrink: 0,
       borderLeft: `1px solid ${bdr}`,
       background: bg,
       display: "flex", flexDirection: "column",
       overflowY: "auto",
     }}>
-      <div style={{ padding: "20px 20px 14px", borderBottom: `1px solid ${bdr}` }}>
-        <p style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.18em", color: green, fontWeight: 600, marginBottom: 4 }}>
-          Financial Model
-        </p>
-        <p style={{ fontSize: 13, color: muted, lineHeight: 1.5 }}>
-          Enter your numbers, then share them with Felix.
-        </p>
+      <div style={{ flexShrink: 0 }}>
+        {/* Green gradient accent bar */}
+        <div style={{ height: 3, background: "linear-gradient(90deg, #16A34A, #34D399, #16A34A)", backgroundSize: "200% 100%", borderRadius: "0 0 2px 2px" }} />
+        <div style={{ padding: "14px 18px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{
+              height: 34, width: 34, borderRadius: 10, flexShrink: 0,
+              background: "linear-gradient(135deg, #F0FDF4, #DCFCE7)",
+              border: "1.5px solid #86EFAC",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 14, fontWeight: 800, color: green,
+            }}>
+              F
+            </div>
+            <div>
+              <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>Felix</p>
+              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <div style={{ height: 6, width: 6, borderRadius: "50%", background: green }} />
+                <p style={{ fontSize: 10, color: muted, fontWeight: 500, letterSpacing: "0.02em" }}>AI Actions ready</p>
+              </div>
+            </div>
+          </div>
+          {onClose && (
+            <button onClick={onClose}
+              style={{ background: "none", border: `1px solid ${bdr}`, cursor: "pointer", color: muted, display: "flex", padding: "5px 6px", borderRadius: 7, transition: "border-color .15s, color .15s" }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = ink; (e.currentTarget as HTMLElement).style.color = ink; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = bdr; (e.currentTarget as HTMLElement).style.color = muted; }}
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+        <div style={{ height: 1, background: bdr }} />
       </div>
 
       <div style={{ padding: "16px 20px", borderBottom: `1px solid ${bdr}` }}>
@@ -20965,13 +21256,15 @@ export default function AgentChat() {
   const [actionItems,     setActionItems]     = useState<{ id: string; action_text: string; priority: string; status: string; action_type?: string; cta_label?: string }[]>([]);
   const [extractingActions, setExtractingActions] = useState(false);
   const [showActions,     setShowActions]     = useState(false);
+  const [showDelivDropdown, setShowDelivDropdown] = useState(false);
+  const [showActionsPanel, setShowActionsPanel] = useState(false);
   // Susi deal reminders
   const [susiReminders,   setSusiReminders]   = useState<{ id: string; company: string; contact_name?: string; stage: string; next_action?: string; label: string; isOverdue: boolean }[]>([]);
   const chatEndRef    = useRef<HTMLDivElement>(null);
   const chatFileRef   = useRef<HTMLInputElement>(null);
   const [agentFileUploading, setAgentFileUploading] = useState(false);
 
-  const hasPanel = isFelix || activeArtifact !== null;
+  const hasPanel = activeArtifact !== null || showActionsPanel;
 
   useEffect(() => {
     if (!agent) router.push("/founder/agents");
@@ -21437,106 +21730,6 @@ export default function AgentChat() {
         )}
       </AnimatePresence>
 
-      {/* ── quick generate modal ─────────────────────────────────────────────── */}
-      <AnimatePresence>
-        {showQuickGen && agent.artifactType && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            style={{
-              position: "fixed", inset: 0, zIndex: 200,
-              background: "rgba(24,22,15,0.55)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              padding: 24,
-            }}
-            onClick={(e) => { if (e.target === e.currentTarget) setShowQuickGen(false); }}
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              transition={{ duration: 0.18 }}
-              style={{
-                background: bg, borderRadius: 16, padding: "28px 32px",
-                width: "100%", maxWidth: 560,
-                boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
-                maxHeight: "90vh", overflowY: "auto",
-              }}
-            >
-              {/* header */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <Zap size={16} style={{ color: amber }} />
-                  <span style={{ fontSize: 14, fontWeight: 700, color: ink }}>Quick Generate</span>
-                </div>
-                <button onClick={() => setShowQuickGen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: muted, padding: 4 }}>
-                  <X size={16} />
-                </button>
-              </div>
-              <p style={{ fontSize: 12, color: muted, marginBottom: 22 }}>
-                Answer 5 quick questions to generate your {ARTIFACT_META[agent.artifactType]?.label} without a full conversation.
-              </p>
-
-              {/* questions */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                {(QUICK_QUESTIONS[agent.artifactType] ?? []).map((q, i) => (
-                  <div key={i}>
-                    <label style={{ fontSize: 12, fontWeight: 600, color: ink, display: "block", marginBottom: 6 }}>
-                      {i + 1}. {q}
-                    </label>
-                    <textarea
-                      value={quickAnswers[i] ?? ""}
-                      onChange={(e) => setQuickAnswers(prev => { const next = [...prev]; next[i] = e.target.value; return next; })}
-                      rows={2}
-                      placeholder="Your answer…"
-                      style={{
-                        width: "100%", padding: "9px 12px", borderRadius: 8,
-                        background: surf, border: `1px solid ${bdr}`, fontSize: 12,
-                        color: ink, outline: "none", resize: "vertical",
-                        fontFamily: "inherit", lineHeight: 1.5,
-                        boxSizing: "border-box",
-                      }}
-                      onFocus={(e) => { e.currentTarget.style.borderColor = accent; }}
-                      onBlur={(e) => { e.currentTarget.style.borderColor = bdr; }}
-                    />
-                  </div>
-                ))}
-              </div>
-
-              {/* footer */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10, marginTop: 22 }}>
-                <button
-                  onClick={() => setShowQuickGen(false)}
-                  style={{
-                    padding: "9px 18px", borderRadius: 8, fontSize: 13,
-                    background: "none", border: `1px solid ${bdr}`, color: muted,
-                    cursor: "pointer", fontFamily: "inherit",
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleQuickGenerate}
-                  disabled={isQuickGenerating || !quickAnswers.some(a => a.trim())}
-                  style={{
-                    padding: "9px 20px", borderRadius: 8, fontSize: 13, fontWeight: 600,
-                    background: isQuickGenerating ? surf : accent,
-                    color: isQuickGenerating ? muted : "#fff",
-                    border: "none", cursor: isQuickGenerating ? "wait" : "pointer",
-                    fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6,
-                    opacity: isQuickGenerating ? 0.7 : 1,
-                  }}
-                >
-                  <Zap size={13} />
-                  {isQuickGenerating ? "Generating…" : "Generate Now"}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* ── score challenge banner ───────────────────────────────────────────── */}
       {challengeDim && CHALLENGE_LABEL[challengeDim] && (
         <div style={{
@@ -21604,63 +21797,100 @@ export default function AgentChat() {
                 <TrendingUp style={{ height: 11, width: 11, color: accent }} />
                 Improves {dimLabel}
               </div>
-              {apiMessages.length >= 4 && (
+              {/* ── Deliverable dropdown ───────────────────────────────────── */}
+              <div style={{ position: "relative" }}>
                 <button
-                  onClick={handleExtractActions}
-                  disabled={extractingActions}
+                  onClick={() => setShowDelivDropdown(d => !d)}
                   style={{
-                    display: "flex", alignItems: "center", gap: 5,
-                    padding: "5px 12px", borderRadius: 999, fontSize: 11, fontWeight: 600,
-                    background: showActions ? ink : surf,
-                    color: showActions ? bg : ink,
-                    border: `1px solid ${showActions ? ink : bdr}`,
-                    cursor: extractingActions ? "wait" : "pointer",
-                    transition: "background .15s, color .15s",
-                    fontFamily: "inherit",
-                    opacity: extractingActions ? 0.6 : 1,
+                    display: "flex", alignItems: "center", gap: 6,
+                    padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600,
+                    background: showDelivDropdown ? ink : surf,
+                    color: showDelivDropdown ? bg : ink,
+                    border: `1px solid ${showDelivDropdown ? ink : bdr}`,
+                    cursor: "pointer", transition: "all .15s", fontFamily: "inherit",
                   }}
                 >
-                  {extractingActions ? "Extracting…" : "Get action items"}
+                  <FileText style={{ height: 12, width: 12 }} />
+                  Deliverable
+                  <ChevronRight style={{ height: 10, width: 10, transform: showDelivDropdown ? "rotate(90deg)" : "none", transition: "transform .2s" }} />
                 </button>
-              )}
-              {!isPatel && agent.artifactType && apiMessages.length < 4 && QUICK_QUESTIONS[agent.artifactType] && (
-                <button
-                  onClick={() => { setShowQuickGen(true); setQuickAnswers(["", "", "", "", ""]); }}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 5,
-                    padding: "5px 12px", borderRadius: 999, fontSize: 11, fontWeight: 600,
-                    background: surf,
-                    color: ink,
-                    border: `1px solid ${bdr}`,
-                    cursor: "pointer",
-                    transition: "background .15s",
-                    fontFamily: "inherit",
-                  }}
-                >
-                  <Zap style={{ height: 11, width: 11, color: amber }} />
-                  Quick Generate
-                </button>
-              )}
-              {!isPatel && agent.artifactType && apiMessages.length >= 4 && (
-                <button
-                  onClick={handleGenerate}
-                  disabled={generatingArtifact}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 5,
-                    padding: "5px 12px", borderRadius: 999, fontSize: 11, fontWeight: 600,
-                    background: generatingArtifact ? surf : accent,
-                    color: generatingArtifact ? muted : "#fff",
-                    border: `1px solid ${generatingArtifact ? bdr : accent}`,
-                    cursor: generatingArtifact ? "wait" : "pointer",
-                    transition: "background .15s, color .15s",
-                    fontFamily: "inherit",
-                    opacity: generatingArtifact ? 0.7 : 1,
-                  }}
-                >
-                  <FileText style={{ height: 11, width: 11 }} />
-                  {generatingArtifact ? "Generating…" : `Generate ${ARTIFACT_META[agent.artifactType]?.label ?? "Deliverable"}`}
-                </button>
-              )}
+                {showDelivDropdown && (
+                  <>
+                    <div style={{ position: "fixed", inset: 0, zIndex: 99 }} onClick={() => setShowDelivDropdown(false)} />
+                    <div style={{
+                      position: "absolute", top: "calc(100% + 8px)", right: 0, zIndex: 100,
+                      width: 290, background: bg, border: `1px solid ${bdr}`,
+                      borderRadius: 12, boxShadow: "0 8px 32px rgba(0,0,0,0.13)", overflow: "hidden",
+                    }}>
+                      {(AGENT_TEMPLATES[agentId] ?? []).map((tmpl, i) => {
+                        const meta  = tmpl.artifactType ? ARTIFACT_META[tmpl.artifactType as keyof typeof ARTIFACT_META] : null;
+                        const TIcon = meta?.icon ?? FileText;
+                        return (
+                          <button
+                            key={i}
+                            onClick={() => { handleSend(tmpl.starterPrompt); setShowDelivDropdown(false); }}
+                            style={{
+                              display: "flex", alignItems: "flex-start", gap: 10,
+                              width: "100%", padding: "11px 14px", textAlign: "left",
+                              background: "none", border: "none",
+                              borderBottom: i < (AGENT_TEMPLATES[agentId] ?? []).length - 1 || apiMessages.length >= 4 ? `1px solid ${bdr}` : "none",
+                              cursor: "pointer", fontFamily: "inherit", transition: "background .12s",
+                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.background = surf; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.background = "none"; }}
+                          >
+                            <TIcon size={13} style={{ color: meta?.color ?? accent, flexShrink: 0, marginTop: 2 }} />
+                            <div>
+                              <p style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 2 }}>{tmpl.title}</p>
+                              <p style={{ fontSize: 10, color: muted, lineHeight: 1.4 }}>{tmpl.description}</p>
+                            </div>
+                          </button>
+                        );
+                      })}
+                      {!isPatel && agent.artifactType && apiMessages.length >= 4 && (
+                        <button
+                          onClick={() => { handleGenerate(); setShowDelivDropdown(false); }}
+                          disabled={generatingArtifact}
+                          style={{
+                            display: "flex", alignItems: "center", gap: 10,
+                            width: "100%", padding: "11px 14px", textAlign: "left",
+                            background: generatingArtifact ? surf : "none", border: "none",
+                            cursor: generatingArtifact ? "wait" : "pointer",
+                            fontFamily: "inherit", transition: "background .12s",
+                            opacity: generatingArtifact ? 0.6 : 1,
+                          }}
+                          onMouseEnter={(e) => { if (!generatingArtifact) e.currentTarget.style.background = surf; }}
+                          onMouseLeave={(e) => { if (!generatingArtifact) e.currentTarget.style.background = "none"; }}
+                        >
+                          <Sparkles size={13} style={{ color: accent, flexShrink: 0 }} />
+                          <div>
+                            <p style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 2 }}>
+                              {generatingArtifact ? "Generating…" : "Generate from conversation"}
+                            </p>
+                            <p style={{ fontSize: 10, color: muted }}>Uses your chat history</p>
+                          </div>
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* ── Actions button ─────────────────────────────────────────── */}
+              <button
+                onClick={() => setShowActionsPanel(p => !p)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600,
+                  background: showActionsPanel ? ink : surf,
+                  color: showActionsPanel ? bg : ink,
+                  border: `1px solid ${showActionsPanel ? ink : bdr}`,
+                  cursor: "pointer", transition: "all .15s", fontFamily: "inherit",
+                }}
+              >
+                <Zap style={{ height: 12, width: 12, color: showActionsPanel ? bg : accent }} />
+                Actions
+              </button>
             </div>
           </div>
 
@@ -21703,59 +21933,6 @@ export default function AgentChat() {
                   exit={{ opacity: 0, y: -6 }}
                   transition={{ duration: 0.25 }}
                 >
-                  {/* ── template gallery ─────────────────────────────────── */}
-                  {(AGENT_TEMPLATES[agentId] ?? []).length > 0 && (
-                    <div style={{ marginBottom: 28 }}>
-                      <p style={{
-                        fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em",
-                        color: muted, fontWeight: 600, marginBottom: 12,
-                      }}>
-                        Choose a deliverable
-                      </p>
-                      <div style={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(2, 1fr)",
-                        gap: 10,
-                      }}>
-                        {(AGENT_TEMPLATES[agentId] ?? []).map((tmpl, i) => {
-                          const meta = tmpl.artifactType ? ARTIFACT_META[tmpl.artifactType] : null;
-                          const TIcon = meta?.icon ?? FileText;
-                          return (
-                            <button
-                              key={i}
-                              onClick={() => handleSend(tmpl.starterPrompt)}
-                              style={{
-                                background: bg, border: `1px solid ${bdr}`, borderRadius: 10,
-                                padding: "12px 14px", textAlign: "left", cursor: "pointer",
-                                transition: "border-color .15s, background .15s",
-                                fontFamily: "inherit",
-                              }}
-                              onMouseEnter={(e) => {
-                                (e.currentTarget as HTMLElement).style.borderColor = accent;
-                                (e.currentTarget as HTMLElement).style.background = surf;
-                              }}
-                              onMouseLeave={(e) => {
-                                (e.currentTarget as HTMLElement).style.borderColor = bdr;
-                                (e.currentTarget as HTMLElement).style.background = bg;
-                              }}
-                            >
-                              <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 5 }}>
-                                <TIcon size={13} style={{ color: meta?.color ?? accent, flexShrink: 0 }} />
-                                <span style={{ fontSize: 13, fontWeight: 600, color: ink }}>{tmpl.title}</span>
-                              </div>
-                              <p style={{ fontSize: 11, color: muted, lineHeight: 1.4, marginBottom: 8 }}>
-                                {tmpl.description}
-                              </p>
-                              <div style={{ display: "flex", alignItems: "center", gap: 3, color: accent, fontSize: 11, fontWeight: 600 }}>
-                                Start <ChevronRight size={11} />
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
                   <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
                     <div style={{
                       height: 28, width: 28, borderRadius: 8, flexShrink: 0, marginTop: 2,
@@ -21942,11 +22119,8 @@ export default function AgentChat() {
           </div>
         </div>
 
-        {/* ── Felix financial panel ───────────────────────────────────────── */}
-        {isFelix && <FinancialPanel onShare={(ctx) => handleSend(ctx)} />}
-
         {/* ── deliverable panel (all agents) ──────────────────────────────── */}
-        {activeArtifact && (
+        {activeArtifact ? (
           <DeliverablePanel
             artifact={activeArtifact}
             artifactHistory={artifactHistory}
@@ -21956,7 +22130,18 @@ export default function AgentChat() {
             agentName={agent.name}
             userId={userId ?? undefined}
           />
-        )}
+        ) : showActionsPanel ? (
+          <DeliverablePanel
+            artifact={{ id: null, type: (agent.artifactType ?? "gtm_playbook") as ArtifactData["type"], title: agent.name, content: {} }}
+            artifactHistory={[]}
+            onSelectArtifact={setActiveArtifact}
+            onClose={() => setShowActionsPanel(false)}
+            onRefine={(feedback) => handleSend(feedback)}
+            agentName={agent.name}
+            userId={userId ?? undefined}
+            actionsOnly
+          />
+        ) : null}
       </div>
 
       {/* ── input bar ──────────────────────────────────────────────────────── */}
@@ -21971,7 +22156,7 @@ export default function AgentChat() {
         <div style={{
           maxWidth: hasPanel ? "none" : 680, margin: "0 auto",
           display: "flex", alignItems: "flex-end", gap: 8,
-          paddingRight: hasPanel ? (isFelix ? 356 : 436) : 0,
+          paddingRight: hasPanel ? 436 : 0,
         }}>
           {/* attachment button */}
           <button
@@ -22038,7 +22223,7 @@ export default function AgentChat() {
         <p style={{
           textAlign: "center", fontSize: 11, color: muted,
           marginTop: 8, opacity: 0.5,
-          paddingRight: hasPanel ? (isFelix ? 356 : 436) : 0,
+          paddingRight: hasPanel ? 436 : 0,
         }}>
           Enter to send · Shift+Enter for new line · Attach docs with the clip icon
         </p>
@@ -22049,7 +22234,7 @@ export default function AgentChat() {
         <div style={{
           flexShrink: 0, borderTop: `1px solid ${bdr}`, padding: "16px 28px",
           background: surf,
-          paddingRight: hasPanel ? (isFelix ? `${356 + 28}px` : `${436 + 28}px`) : 28,
+          paddingRight: hasPanel ? `${436 + 28}px` : 28,
         }}>
           <div style={{ maxWidth: hasPanel ? "none" : 680, margin: "0 auto" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
