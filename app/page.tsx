@@ -753,7 +753,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── MARKETPLACE ───────────────────────────────────────────────────── */}
-      <section id="for-investors" className="py-28 px-6">
+      <section className="py-28 px-6">
         <div className="mx-auto max-w-7xl">
           <motion.div className="mb-12" initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
             <p className="text-[10px] uppercase tracking-[0.22em] font-medium mb-4" style={{ color: "#B5B0A8" }}>Marketplace</p>
@@ -910,7 +910,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── FOR INVESTORS ─────────────────────────────────────────────────── */}
-      <section className="py-28 px-6" style={{ background: "#F0EDE6" }}>
+      <section id="for-investors" className="py-28 px-6" style={{ background: "#F0EDE6" }}>
         <div className="mx-auto max-w-7xl">
           <div className="grid lg:grid-cols-2 gap-16 items-start">
             <motion.div initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
