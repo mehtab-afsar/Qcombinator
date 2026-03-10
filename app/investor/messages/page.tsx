@@ -35,7 +35,7 @@ interface PendingRequest {
 }
 
 interface AcceptedConversation {
-  id: string
+  id: string           // connection_request id (used as connectionId for messaging)
   founderId: string
   founderName: string
   startupName: string
@@ -47,6 +47,14 @@ interface AcceptedConversation {
 }
 
 type Tab = 'requests' | 'conversations'
+
+interface Message {
+  id: string
+  sender_id: string
+  body: string
+  read_at: string | null
+  created_at: string
+}
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 function relDate(iso: string) {
@@ -78,10 +86,20 @@ export default function InvestorMessagesPage() {
   const [selected,      setSelected]      = useState<AcceptedConversation | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [toast,         setToast]         = useState<string | null>(null)
+  const [messages,      setMessages]      = useState<Message[]>([])
+  const [msgLoading,    setMsgLoading]    = useState(false)
+  const [msgInput,      setMsgInput]      = useState('')
+  const [sending,       setSending]       = useState(false)
+  const [myUserId,      setMyUserId]      = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
       try {
+        const { createClient } = await import('@/lib/supabase/client')
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) setMyUserId(user.id)
+
         const [pendingRes, portfolioRes] = await Promise.all([
           fetch('/api/investor/connections'),
           fetch('/api/investor/portfolio'),
@@ -94,11 +112,11 @@ export default function InvestorMessagesPage() {
           const d = await portfolioRes.json()
           setConversations(
             (d.companies ?? []).map((c: {
-              id: string; founderName: string; name: string;
+              id: string; connectionId?: string; founderName: string; name: string;
               stage: string; sector: string; qScore: number;
               connectedAt: string;
             }) => ({
-              id: c.id,
+              id: c.connectionId ?? c.id, // connectionId = connection_request.id for messaging
               founderId: c.id,
               founderName: c.founderName,
               startupName: c.name,
@@ -116,6 +134,17 @@ export default function InvestorMessagesPage() {
     load()
   }, [])
 
+  // Load messages when a conversation is selected
+  useEffect(() => {
+    if (!selected) { setMessages([]); return }
+    setMsgLoading(true)
+    fetch(`/api/messages?connectionId=${selected.id}`)
+      .then(r => r.ok ? r.json() : { messages: [] })
+      .then(d => setMessages(d.messages ?? []))
+      .catch(() => {})
+      .finally(() => setMsgLoading(false))
+  }, [selected])
+
   function showToast(msg: string) {
     setToast(msg)
     setTimeout(() => setToast(null), 3000)
@@ -132,7 +161,7 @@ export default function InvestorMessagesPage() {
       if (res.ok) {
         setRequests(prev => prev.filter(r => r.id !== req.id))
         setConversations(prev => [{
-          id: req.founderId,
+          id: req.id, // connection_request.id — used as connectionId for messaging
           founderId: req.founderId,
           founderName: req.founderName,
           startupName: req.startupName,
@@ -164,6 +193,27 @@ export default function InvestorMessagesPage() {
       }
     } catch { /* noop */ } finally {
       setActionLoading(null)
+    }
+  }
+
+  async function handleSendMessage() {
+    if (!selected || !msgInput.trim() || sending) return
+    setSending(true)
+    try {
+      const res = await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ connectionId: selected.id, body: msgInput.trim() }),
+      })
+      if (res.ok) {
+        const d = await res.json()
+        setMessages(prev => [...prev, d.message])
+        setMsgInput('')
+      } else {
+        showToast('Failed to send message')
+      }
+    } catch { showToast('Failed to send message') } finally {
+      setSending(false)
     }
   }
 
@@ -217,23 +267,6 @@ export default function InvestorMessagesPage() {
             <span style={{ fontSize: 11, color: muted, marginLeft: 'auto' }}>Connected {relDate(selected.connectedAt)}</span>
           </div>
 
-          {/* Initial message from founder */}
-          {selected.personalMessage && (
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ display: 'flex', gap: 10, marginBottom: 8 }}>
-                <div style={{ width: 32, height: 32, borderRadius: 8, background: surf, border: `1px solid ${bdr}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: ink, flexShrink: 0 }}>
-                  {initials(selected.founderName)}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <p style={{ fontSize: 11, color: muted, marginBottom: 4 }}>{selected.founderName} · Initial message</p>
-                  <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: '4px 12px 12px 12px', padding: '12px 16px' }}>
-                    <p style={{ fontSize: 13, color: ink, lineHeight: 1.6 }}>{selected.personalMessage}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Connection accepted notice */}
           <div style={{ textAlign: 'center', padding: '12px 0', marginBottom: 20 }}>
             <span style={{ fontSize: 11, color: muted, background: surf, padding: '4px 14px', borderRadius: 999, border: `1px solid ${bdr}` }}>
@@ -241,14 +274,59 @@ export default function InvestorMessagesPage() {
             </span>
           </div>
 
-          {/* Draft reply area */}
+          {/* Message thread */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20, minHeight: 80 }}>
+            {/* Initial connection message from founder */}
+            {selected.personalMessage && messages.length === 0 && (
+              <div style={{ display: 'flex', gap: 10 }}>
+                <div style={{ width: 30, height: 30, borderRadius: 8, background: surf, border: `1px solid ${bdr}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: ink, flexShrink: 0 }}>
+                  {initials(selected.founderName)}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontSize: 10, color: muted, marginBottom: 3 }}>{selected.founderName} · Connection request message</p>
+                  <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: '4px 12px 12px 12px', padding: '10px 14px' }}>
+                    <p style={{ fontSize: 13, color: ink, lineHeight: 1.6, margin: 0 }}>{selected.personalMessage}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+            {msgLoading && (
+              <p style={{ fontSize: 12, color: muted, textAlign: 'center' }}>Loading messages…</p>
+            )}
+            {messages.map(msg => {
+              const isMine = msg.sender_id === myUserId
+              return (
+                <div key={msg.id} style={{ display: 'flex', gap: 10, flexDirection: isMine ? 'row-reverse' : 'row' }}>
+                  <div style={{ width: 30, height: 30, borderRadius: 8, background: isMine ? ink : surf, border: `1px solid ${bdr}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: isMine ? bg : ink, flexShrink: 0 }}>
+                    {isMine ? 'Me' : initials(selected.founderName)}
+                  </div>
+                  <div style={{ maxWidth: '72%' }}>
+                    <p style={{ fontSize: 10, color: muted, marginBottom: 3, textAlign: isMine ? 'right' : 'left' }}>
+                      {relDate(msg.created_at)}
+                    </p>
+                    <div style={{
+                      background: isMine ? ink : surf,
+                      color: isMine ? bg : ink,
+                      border: `1px solid ${isMine ? ink : bdr}`,
+                      borderRadius: isMine ? '12px 4px 12px 12px' : '4px 12px 12px 12px',
+                      padding: '10px 14px',
+                    }}>
+                      <p style={{ fontSize: 13, lineHeight: 1.6, margin: 0 }}>{msg.body}</p>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Message compose area */}
           <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 12, overflow: 'hidden' }}>
-            <div style={{ padding: '14px 16px', borderBottom: `1px solid ${bdr}` }}>
-              <p style={{ fontSize: 11, color: muted, fontWeight: 500 }}>Reply to {selected.founderName}</p>
-            </div>
             <textarea
-              placeholder={`Message ${selected.founderName} about ${selected.startupName}…`}
-              rows={4}
+              value={msgInput}
+              onChange={e => setMsgInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSendMessage() }}
+              placeholder={`Message ${selected.founderName}… (⌘+Enter to send)`}
+              rows={3}
               style={{
                 width: '100%', border: 'none', outline: 'none', resize: 'none',
                 background: 'transparent', padding: '14px 16px',
@@ -256,13 +334,14 @@ export default function InvestorMessagesPage() {
                 boxSizing: 'border-box',
               }}
             />
-            <div style={{ padding: '10px 16px', borderTop: `1px solid ${bdr}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <p style={{ fontSize: 11, color: muted }}>Replies coming soon — use email for now</p>
+            <div style={{ padding: '10px 16px', borderTop: `1px solid ${bdr}`, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 11, color: muted }}>{msgInput.length}/4000</span>
               <button
-                style={{ padding: '7px 16px', borderRadius: 8, border: 'none', background: ink, color: bg, fontSize: 12, fontWeight: 500, cursor: 'not-allowed', opacity: 0.6, display: 'flex', alignItems: 'center', gap: 5 }}
-                disabled
+                onClick={handleSendMessage}
+                disabled={!msgInput.trim() || sending || msgInput.length > 4000}
+                style={{ padding: '7px 16px', borderRadius: 8, border: 'none', background: ink, color: bg, fontSize: 12, fontWeight: 500, cursor: (!msgInput.trim() || sending) ? 'not-allowed' : 'pointer', opacity: (!msgInput.trim() || sending) ? 0.5 : 1, display: 'flex', alignItems: 'center', gap: 5 }}
               >
-                <Send style={{ height: 11, width: 11 }} /> Send
+                <Send style={{ height: 11, width: 11 }} /> {sending ? 'Sending…' : 'Send'}
               </button>
             </div>
           </div>

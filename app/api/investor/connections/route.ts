@@ -45,48 +45,59 @@ export async function GET() {
       return NextResponse.json({ error: 'Failed to fetch requests' }, { status: 500 })
     }
 
-    // For each request, fetch founder profile + latest Q-Score separately
-    const enriched = await Promise.all(
-      (requests ?? []).map(async (req) => {
-        const [{ data: profile }, { data: qrow }] = await Promise.all([
-          supabase
-            .from('founder_profiles')
-            .select('full_name, startup_name, industry, stage')
-            .eq('user_id', req.founder_id)
-            .single(),
-          supabase
-            .from('qscore_history')
-            .select('overall_score, market_score, product_score, gtm_score, financial_score, team_score, traction_score, percentile')
-            .eq('user_id', req.founder_id)
-            .order('calculated_at', { ascending: false })
-            .limit(1)
-            .single(),
-        ])
+    const founderIds = (requests ?? []).map(r => r.founder_id).filter(Boolean)
 
-        return {
-          id: req.id,
-          founderId: req.founder_id,
-          founderName: profile?.full_name ?? 'Unknown Founder',
-          startupName: profile?.startup_name ?? 'Unknown Startup',
-          oneLiner: profile?.industry ?? '',
-          stage: profile?.stage ?? 'Unknown',
-          industry: profile?.industry ?? '',
-          fundingTarget: '',
-          qScore: qrow?.overall_score ?? req.founder_qscore ?? 0,
-          qScorePercentile: qrow?.percentile ?? 0,
-          qScoreBreakdown: {
-            market: qrow?.market_score ?? 0,
-            product: qrow?.product_score ?? 0,
-            goToMarket: qrow?.gtm_score ?? 0,
-            financial: qrow?.financial_score ?? 0,
-            team: qrow?.team_score ?? 0,
-            traction: qrow?.traction_score ?? 0,
-          },
-          personalMessage: req.personal_message ?? undefined,
-          requestedDate: req.created_at,
-        }
-      })
-    )
+    // Batch fetch founder profiles + Q-Scores in 2 queries instead of N×2
+    const [{ data: profiles }, { data: allScores }] = await Promise.all([
+      supabase
+        .from('founder_profiles')
+        .select('user_id, full_name, startup_name, industry, stage')
+        .in('user_id', founderIds),
+      supabase
+        .from('qscore_history')
+        .select('user_id, overall_score, market_score, product_score, gtm_score, financial_score, team_score, traction_score, percentile, calculated_at')
+        .in('user_id', founderIds)
+        .order('calculated_at', { ascending: false }),
+    ])
+
+    type ProfileRow = { user_id: string; full_name: string; startup_name: string; industry: string; stage: string }
+    type QRow = { user_id: string; overall_score: number; market_score: number; product_score: number; gtm_score: number; financial_score: number; team_score: number; traction_score: number; percentile: number }
+
+    const profileMap = new Map<string, ProfileRow>()
+    for (const p of (profiles ?? []) as ProfileRow[]) profileMap.set(p.user_id, p)
+
+    const scoreMap = new Map<string, QRow>()
+    for (const s of (allScores ?? []) as QRow[]) {
+      if (!scoreMap.has(s.user_id)) scoreMap.set(s.user_id, s)
+    }
+
+    const enriched = (requests ?? []).map((req) => {
+      const profile = profileMap.get(req.founder_id)
+      const qrow    = scoreMap.get(req.founder_id)
+
+      return {
+        id: req.id,
+        founderId: req.founder_id,
+        founderName: profile?.full_name ?? 'Unknown Founder',
+        startupName: profile?.startup_name ?? 'Unknown Startup',
+        oneLiner: profile?.industry ?? '',
+        stage: profile?.stage ?? 'Unknown',
+        industry: profile?.industry ?? '',
+        fundingTarget: '',
+        qScore: qrow?.overall_score ?? req.founder_qscore ?? 0,
+        qScorePercentile: qrow?.percentile ?? 0,
+        qScoreBreakdown: {
+          market: qrow?.market_score ?? 0,
+          product: qrow?.product_score ?? 0,
+          goToMarket: qrow?.gtm_score ?? 0,
+          financial: qrow?.financial_score ?? 0,
+          team: qrow?.team_score ?? 0,
+          traction: qrow?.traction_score ?? 0,
+        },
+        personalMessage: req.personal_message ?? undefined,
+        requestedDate: req.created_at,
+      }
+    })
 
     return NextResponse.json({ requests: enriched })
   } catch (err) {

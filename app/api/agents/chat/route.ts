@@ -14,6 +14,7 @@ import {
   sageSystemPrompt,
 } from '@/features/agents';
 import { getArtifactPrompt } from '@/features/agents/patel/prompts/artifact-prompts';
+import { callOpenRouter as sharedCallOpenRouter, OpenRouterError } from '@/lib/openrouter';
 
 // ─── dedicated system prompt registry ────────────────────────────────────────
 
@@ -31,124 +32,18 @@ const AGENT_SYSTEM_PROMPTS: Record<string, string> = {
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
+// Thin wrapper — delegates to shared lib (timeout + 429 retry + typed errors)
 async function callOpenRouter(
   messages: Array<{ role: string; content: string }>,
   maxTokens: number = 500,
   temperature: number = 0.7
 ): Promise<string> {
-  const primaryKey  = process.env.OPENROUTER_API_KEY;
-  const fallbackKey = process.env.OPENROUTER_API_KEY_FALLBACK;
-  if (!primaryKey && !fallbackKey) throw new Error('No OpenRouter API key configured');
-
-  const tryWithKey = (key: string) =>
-    fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${key}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://edgealpha.ai',
-        'X-Title': 'Edge Alpha Agents',
-      },
-      body: JSON.stringify({
-        model: 'anthropic/claude-3.5-haiku',
-        messages,
-        temperature,
-        max_tokens: maxTokens,
-      }),
-    });
-
-  let response = await tryWithKey(primaryKey ?? fallbackKey!);
-
-  // Primary key hit its limit — retry immediately with fallback
-  if (response.status === 402 && fallbackKey && primaryKey) {
-    console.warn('Primary OpenRouter key hit limit — switching to fallback key');
-    response = await tryWithKey(fallbackKey);
-  }
-
-  if (!response.ok) {
-    const errText = await response.text();
-    console.error('OpenRouter error:', response.status, errText);
-    if (response.status === 402) {
-      throw new Error('OpenRouter account has insufficient credits. Please top up at openrouter.ai/credits.');
-    }
-    throw new Error(`OpenRouter API error: ${response.status} ${response.statusText}`);
-  }
-
-  const data = await response.json();
-  return data.choices[0]?.message?.content ?? '';
+  return sharedCallOpenRouter(
+    messages as import('@/lib/openrouter').OpenRouterMessage[],
+    { maxTokens, temperature }
+  );
 }
 
-// Streaming variant — forwards OpenRouter SSE tokens to the client while collecting
-// the full text in parallel. Calls onComplete(fullText) after the stream ends.
-function streamOpenRouter(
-  messages: Array<{ role: string; content: string }>,
-  maxTokens: number,
-  temperature: number,
-  onComplete: (fullText: string) => Promise<void>
-): ReadableStream<Uint8Array> {
-  const key = process.env.OPENROUTER_API_KEY;
-  if (!key) throw new Error('OPENROUTER_API_KEY not configured');
-
-  const encoder = new TextEncoder();
-
-  return new ReadableStream({
-    async start(controller) {
-      try {
-        const upstreamRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${key}`,
-            'Content-Type': 'application/json',
-            'HTTP-Referer': 'https://edgealpha.ai',
-            'X-Title': 'Edge Alpha Agents',
-          },
-          body: JSON.stringify({
-            model: 'anthropic/claude-3.5-haiku',
-            messages,
-            temperature,
-            max_tokens: maxTokens,
-            stream: true,
-          }),
-        });
-
-        if (!upstreamRes.ok || !upstreamRes.body) {
-          throw new Error(`OpenRouter streaming error: ${upstreamRes.statusText}`);
-        }
-
-        const reader = upstreamRes.body.getReader();
-        const decoder = new TextDecoder();
-        let fullText = '';
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          const chunk = decoder.decode(value, { stream: true });
-          controller.enqueue(encoder.encode(chunk));
-
-          for (const line of chunk.split('\n')) {
-            if (!line.startsWith('data: ')) continue;
-            const payload = line.slice(6).trim();
-            if (payload === '[DONE]') continue;
-            try {
-              const parsed = JSON.parse(payload);
-              fullText += parsed.choices?.[0]?.delta?.content ?? '';
-            } catch { /* malformed SSE line */ }
-          }
-        }
-
-        // After stream ends: persist to DB, then send final metadata event
-        await onComplete(fullText);
-
-      } catch (err) {
-        console.error('streamOpenRouter error:', err);
-        controller.enqueue(encoder.encode('event: error\ndata: {"message":"Stream error"}\n\n'));
-      } finally {
-        controller.close();
-      }
-    },
-  });
-}
 
 async function fetchTavilyResearch(query: string): Promise<Record<string, unknown> | null> {
   const apiKey = process.env.TAVILY_API_KEY;
@@ -158,9 +53,12 @@ async function fetchTavilyResearch(query: string): Promise<Record<string, unknow
   }
 
   try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15_000);
     const response = await fetch('https://api.tavily.com/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
       body: JSON.stringify({
         api_key: apiKey,
         query,
@@ -170,6 +68,7 @@ async function fetchTavilyResearch(query: string): Promise<Record<string, unknow
         include_raw_content: false,
       }),
     });
+    clearTimeout(timer);
 
     if (!response.ok) {
       console.error('Tavily error:', response.statusText);
@@ -293,9 +192,13 @@ async function executeLeadEnrich(domain: string): Promise<string> {
   if (!cleanDomain) return '*No domain provided for lead enrichment.*';
 
   try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10_000);
     const res = await fetch(
-      `https://api.hunter.io/v2/domain-search?domain=${encodeURIComponent(cleanDomain)}&limit=10&api_key=${apiKey}`
+      `https://api.hunter.io/v2/domain-search?domain=${encodeURIComponent(cleanDomain)}&limit=10&api_key=${apiKey}`,
+      { signal: controller.signal }
     );
+    clearTimeout(timer);
 
     if (!res.ok) return `Could not enrich ${cleanDomain} — Hunter.io returned ${res.status}.`;
 
@@ -369,6 +272,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Agent ID and message are required' }, { status: 400 });
     }
 
+    // Input length cap — prevents token budget blowout
+    if (typeof message === 'string' && message.length > 8000) {
+      return NextResponse.json(
+        { error: 'Message too long (max 8,000 characters)' },
+        { status: 400 }
+      );
+    }
+
     const agent = getAgentById(agentId);
     if (!agent) {
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
@@ -393,10 +304,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // All agents use non-streaming path for tool_call support across all agents.
-    // The client already has a JSON fallback path that handles this correctly.
-    const useStream = false;
-    void wantStream; // acknowledged but not used
+    void wantStream; // stream param accepted but not used — all agents use JSON path
 
     // Use dedicated system prompt if available, fall back to built one
     let systemPrompt = AGENT_SYSTEM_PROMPTS[agentId] ?? buildAgentSystemPrompt(agent, userContext);
@@ -463,6 +371,32 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // ── System prompt token budget guard ──────────────────────────────────
+    // If the prompt grew too large (e.g., many artifacts), trim the MEMORY block
+    // to keep only the 3 most recent own-artifacts entries.
+    const SYSTEM_PROMPT_CHAR_LIMIT = 6000;
+    if (systemPrompt.length > SYSTEM_PROMPT_CHAR_LIMIT) {
+      const memoryStart = systemPrompt.indexOf('\n\nMEMORY — What you have previously built');
+      if (memoryStart !== -1) {
+        // Find end of the MEMORY block (next \n\n block or end of string)
+        const memoryEnd = systemPrompt.indexOf('\n\nFOUNDER CONTEXT', memoryStart + 1);
+        const memoryBlock = memoryEnd !== -1
+          ? systemPrompt.slice(memoryStart, memoryEnd)
+          : systemPrompt.slice(memoryStart);
+        const lines = memoryBlock.split('\n').filter(l => l.startsWith('- '));
+        if (lines.length > 3) {
+          // Keep only the 3 most recent lines
+          const trimmedBlock = memoryBlock.replace(
+            lines.slice(3).join('\n'),
+            ''
+          );
+          systemPrompt = memoryEnd !== -1
+            ? systemPrompt.slice(0, memoryStart) + trimmedBlock + systemPrompt.slice(memoryEnd)
+            : systemPrompt.slice(0, memoryStart) + trimmedBlock;
+        }
+      }
+    }
+
     const CONVERSATION_RULES = `
 
 CONVERSATION RULES:
@@ -487,88 +421,6 @@ CONVERSATION RULES:
         content: message,
       },
     ];
-
-    // ── Streaming path (non-Patel agents) ─────────────────────────────────
-    if (useStream) {
-      const encoder = new TextEncoder();
-      let conversationId = existingConversationId ?? null;
-
-      const readableStream = streamOpenRouter(
-        messages,
-        500,
-        0.7,
-        async (fullText) => {
-          // Increment usage after successful stream
-          if (usageId) await incrementUsage(usageId, supabaseAdmin);
-
-          // Persist to DB after stream completes
-          if (userId && fullText) {
-            if (!conversationId) {
-              const { data: conv } = await supabaseAdmin
-                .from('agent_conversations')
-                .insert({
-                  user_id: userId,
-                  agent_id: agentId,
-                  title: message.slice(0, 60),
-                  last_message_at: new Date().toISOString(),
-                  message_count: 1,
-                })
-                .select('id')
-                .single();
-              conversationId = conv?.id ?? null;
-            } else {
-              await supabaseAdmin
-                .from('agent_conversations')
-                .update({
-                  last_message_at: new Date().toISOString(),
-                  message_count: (conversationHistory?.length ?? 0) + 2,
-                })
-                .eq('id', conversationId);
-            }
-
-            if (conversationId) {
-              await supabaseAdmin.from('agent_messages').insert([
-                { conversation_id: conversationId, role: 'user', content: message },
-                { conversation_id: conversationId, role: 'assistant', content: fullText },
-              ]);
-            }
-          }
-        }
-      );
-
-      // We need to intercept the stream to inject the final metadata event.
-      // Use a TransformStream to append it after the upstream [DONE].
-      const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
-      const writer = writable.getWriter();
-
-      // Pipe the upstream stream, then append metadata event
-      ;(async () => {
-        const reader = readableStream.getReader();
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            await writer.write(value);
-          }
-          // After stream, send conversationId so client can persist it
-          const meta = encoder.encode(
-            `event: meta\ndata: ${JSON.stringify({ conversationId, agentId })}\n\n`
-          );
-          await writer.write(meta);
-        } finally {
-          await writer.close();
-        }
-      })();
-
-      return new Response(readable, {
-        headers: {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive',
-          'X-Accel-Buffering': 'no',
-        },
-      });
-    }
 
     // ── Pass 1: regular (non-streaming) chat call ──────────────────────────
     // 900 tokens for all agents — needed for tool_call JSON in any agent
@@ -805,16 +657,36 @@ CONVERSATION RULES:
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : String(error);
     console.error('Agent chat error:', errMsg, error);
-    const isCredits = errMsg.includes('insufficient credits') || errMsg.includes('Payment Required');
-    return NextResponse.json({
-      response: isCredits
+
+    let userMessage: string;
+    let httpStatus = 500;
+
+    if (error instanceof OpenRouterError) {
+      if (error.isTimeout) {
+        userMessage = "The AI took too long to respond. Please try again — shorter messages tend to be faster.";
+        httpStatus = 504;
+      } else if (error.statusCode === 429) {
+        userMessage = "The AI service is currently busy. Please wait a moment and try again.";
+        httpStatus = 429;
+      } else if (error.statusCode === 402) {
+        userMessage = "The AI service is temporarily unavailable due to account credits. The team has been notified. Please try again shortly.";
+      } else {
+        userMessage = "I'm having trouble connecting to the AI right now. Please try again in a moment.";
+      }
+    } else {
+      const isCredits = errMsg.includes('insufficient credits') || errMsg.includes('Payment Required');
+      userMessage = isCredits
         ? "The AI service is temporarily unavailable due to account credits. The team has been notified. Please try again shortly."
-        : "I apologize, but I'm having trouble connecting right now. Please try again in a moment. In the meantime, feel free to explore the suggested questions or try rephrasing your question.",
+        : "I apologize, but I'm having trouble connecting right now. Please try again in a moment.";
+    }
+
+    return NextResponse.json({
+      response: userMessage,
       agentId: '',
       timestamp: new Date().toISOString(),
       error: true,
       ...(process.env.NODE_ENV === 'development' ? { errorDetail: errMsg } : {}),
-    }, { status: 500 });
+    }, { status: httpStatus });
   }
 }
 

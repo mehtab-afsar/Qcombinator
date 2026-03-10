@@ -39,25 +39,31 @@ export async function POST() {
       .eq('role', 'founder')
       .limit(30)
 
-    // For each founder get their latest Q-Score
+    // Batch fetch all Q-Scores in one query instead of N per-founder queries
     type FounderRow = { user_id: string; full_name: string; startup_name: string | null; industry: string | null; stage: string | null; tagline: string | null; location: string | null; funding: string | null }
     const enriched: { id: string; name: string; sector: string; stage: string; tagline: string; qScore: number }[] = []
     if (founders && founders.length > 0) {
+      const founderIds = (founders as FounderRow[]).map(f => f.user_id)
+      const { data: allScores } = await admin
+        .from('qscore_history')
+        .select('user_id, overall_score, calculated_at')
+        .in('user_id', founderIds)
+        .order('calculated_at', { ascending: false })
+
+      // Pick the latest score per founder
+      const scoreByUid = new Map<string, number>()
+      for (const row of allScores ?? []) {
+        if (!scoreByUid.has(row.user_id)) scoreByUid.set(row.user_id, row.overall_score)
+      }
+
       for (const f of founders as FounderRow[]) {
-        const { data: qrow } = await admin
-          .from('qscore_history')
-          .select('overall_score')
-          .eq('user_id', f.user_id)
-          .order('calculated_at', { ascending: false })
-          .limit(1)
-          .single()
         enriched.push({
           id: f.user_id,
           name: f.startup_name || f.full_name,
           sector: f.industry ?? 'Unknown',
           stage: f.stage ?? 'Unknown',
           tagline: f.tagline ?? '',
-          qScore: qrow?.overall_score ?? 0,
+          qScore: scoreByUid.get(f.user_id) ?? 0,
         })
       }
     }

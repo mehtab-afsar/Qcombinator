@@ -439,54 +439,56 @@ export default function PitchDeckPage() {
   const [slides, setSlides]             = useState<Slide[]>([]);
   const [activeSlide, setActiveSlide]   = useState(0);
   const [loading, setLoading]           = useState(true);
+  const [refreshing, setRefreshing]     = useState(false);
   const [companyName, setCompanyName]   = useState("Your Company");
   const [artifactCount, setArtifactCount] = useState(0);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const { createClient } = await import("@/lib/supabase/client");
-        const supabase = createClient();
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) { setSlides(buildSlides({})); setLoading(false); return; }
+  const loadArtifacts = async (silent = false) => {
+    if (!silent) setLoading(true);
+    else setRefreshing(true);
+    try {
+      const { createClient } = await import("@/lib/supabase/client");
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setSlides(buildSlides({})); return; }
 
-        // Fetch the latest artifact of each relevant type
-        const relevantTypes = [
-          "gtm_playbook", "brand_messaging", "financial_summary",
-          "competitive_matrix", "hiring_plan",
-        ];
+      const relevantTypes = [
+        "gtm_playbook", "brand_messaging", "financial_summary",
+        "competitive_matrix", "hiring_plan",
+      ];
 
-        const { data: rows } = await supabase
-          .from("agent_artifacts")
-          .select("artifact_type, content, title")
-          .eq("user_id", user.id)
-          .in("artifact_type", relevantTypes)
-          .order("created_at", { ascending: false });
+      const { data: rows } = await supabase
+        .from("agent_artifacts")
+        .select("artifact_type, content, title")
+        .eq("user_id", user.id)
+        .in("artifact_type", relevantTypes)
+        .order("created_at", { ascending: false });
 
-        const artifacts: Record<string, Record<string, unknown>> = {};
-        for (const row of (rows || [])) {
-          if (!artifacts[row.artifact_type]) {
-            artifacts[row.artifact_type] = row.content as Record<string, unknown>;
-          }
+      const artifacts: Record<string, Record<string, unknown>> = {};
+      for (const row of (rows || [])) {
+        if (!artifacts[row.artifact_type]) {
+          artifacts[row.artifact_type] = row.content as Record<string, unknown>;
         }
-        setArtifactCount(Object.keys(artifacts).length);
-
-        // Try to extract company name from GTM
-        const gtm   = artifacts.gtm_playbook   as { messaging?: { headline?: string }[] } | undefined;
-        if (gtm?.messaging?.[0]?.headline) {
-          const parts = gtm.messaging[0].headline.split(" for ");
-          if (parts[0]) setCompanyName(parts[0]);
-        }
-
-        setSlides(buildSlides(artifacts));
-      } catch (e) {
-        console.error("Pitch deck load error:", e);
-        setSlides(buildSlides({}));
-      } finally {
-        setLoading(false);
       }
-    })();
-  }, []);
+      setArtifactCount(Object.keys(artifacts).length);
+
+      const gtm = artifacts.gtm_playbook as { messaging?: { headline?: string }[] } | undefined;
+      if (gtm?.messaging?.[0]?.headline) {
+        const parts = gtm.messaging[0].headline.split(" for ");
+        if (parts[0]) setCompanyName(parts[0]);
+      }
+
+      setSlides(buildSlides(artifacts));
+    } catch (e) {
+      console.error("Pitch deck load error:", e);
+      setSlides(buildSlides({}));
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => { loadArtifacts(); }, []);
 
   function handleDownload() {
     const html = generateDeckHTML(slides, companyName);
@@ -518,6 +520,7 @@ export default function PitchDeckPage() {
 
   return (
     <div style={{ background: bg, minHeight: "100vh", padding: "32px 40px" }}>
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
       {/* header */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 32 }}>
         <div>
@@ -535,6 +538,20 @@ export default function PitchDeckPage() {
           </p>
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <button
+            onClick={() => loadArtifacts(true)}
+            disabled={refreshing}
+            title="Reload latest agent deliverables"
+            style={{
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "9px 14px", borderRadius: 9, background: surf, border: `1px solid ${bdr}`,
+              fontSize: 13, fontWeight: 500, color: ink, cursor: refreshing ? "not-allowed" : "pointer",
+              opacity: refreshing ? 0.6 : 1,
+            }}
+          >
+            <RefreshCw size={14} style={{ animation: refreshing ? "spin 1s linear infinite" : undefined }} />
+            Refresh data
+          </button>
           <button
             onClick={handleDownload}
             style={{

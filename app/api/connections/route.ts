@@ -4,11 +4,11 @@ import { createClient } from '@/lib/supabase/server';
 /**
  * GET  /api/connections
  * Returns the current founder's connection request statuses,
- * keyed by demo_investor_id, so the matching page can restore UI state.
+ * keyed by demo_investor_id (demo) or investor_id (real investors).
  *
  * POST /api/connections
- * Saves a connection request from the authenticated founder to a demo investor.
- * Body: { demo_investor_id: string, personal_message: string, founder_qscore: number }
+ * Body: { demo_investor_id?, investor_id?, personal_message, founder_qscore }
+ * Exactly one of demo_investor_id or investor_id must be present.
  */
 
 export async function GET() {
@@ -22,29 +22,29 @@ export async function GET() {
 
     const { data, error } = await supabase
       .from('connection_requests')
-      .select('demo_investor_id, status, created_at')
-      .eq('founder_id', user.id)
-      .not('demo_investor_id', 'is', null);
+      .select('id, demo_investor_id, investor_id, status')
+      .eq('founder_id', user.id);
 
     if (error) {
       console.error('Connections GET error:', error);
-      return NextResponse.json({ connections: [] });
+      return NextResponse.json({ connections: {}, connectionIds: {} });
     }
 
-    // Return as a map: { [demo_investor_id]: status }
-    // Normalize DB status values to the badge component's expected format
     const STATUS_MAP: Record<string, string> = {
       meeting_scheduled: 'meeting-scheduled',
       declined: 'passed',
     };
     const statusMap: Record<string, string> = {};
+    const idMap: Record<string, string> = {};
     for (const row of data ?? []) {
-      if (row.demo_investor_id) {
-        statusMap[row.demo_investor_id] = STATUS_MAP[row.status] ?? row.status;
+      const key = row.demo_investor_id ?? row.investor_id;
+      if (key) {
+        statusMap[key] = STATUS_MAP[row.status] ?? row.status;
+        idMap[key] = row.id;
       }
     }
 
-    return NextResponse.json({ connections: statusMap });
+    return NextResponse.json({ connections: statusMap, connectionIds: idMap });
   } catch (err) {
     console.error('Connections GET unexpected error:', err);
     return NextResponse.json({ connections: {} });
@@ -60,33 +60,39 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { demo_investor_id, personal_message, founder_qscore } = await request.json();
+    const { demo_investor_id, investor_id, personal_message, founder_qscore } = await request.json();
 
-    if (!demo_investor_id) {
-      return NextResponse.json({ error: 'demo_investor_id is required' }, { status: 400 });
+    if (!demo_investor_id && !investor_id) {
+      return NextResponse.json({ error: 'demo_investor_id or investor_id is required' }, { status: 400 });
     }
 
-    // Upsert: if already exists, keep existing row (don't re-send)
-    const { data: existing } = await supabase
+    // Check for existing request to avoid duplicates
+    const dupQuery = supabase
       .from('connection_requests')
       .select('id, status')
-      .eq('founder_id', user.id)
-      .eq('demo_investor_id', demo_investor_id)
-      .maybeSingle();
+      .eq('founder_id', user.id);
+
+    const { data: existing } = await (demo_investor_id
+      ? dupQuery.eq('demo_investor_id', demo_investor_id)
+      : dupQuery.eq('investor_id', investor_id)
+    ).maybeSingle();
 
     if (existing) {
       return NextResponse.json({ status: existing.status, already_exists: true });
     }
 
+    const insertRow: Record<string, unknown> = {
+      founder_id: user.id,
+      personal_message: personal_message || '',
+      founder_qscore: founder_qscore || null,
+      status: 'pending',
+    };
+    if (demo_investor_id) insertRow.demo_investor_id = demo_investor_id;
+    if (investor_id)      insertRow.investor_id      = investor_id;
+
     const { data, error } = await supabase
       .from('connection_requests')
-      .insert({
-        founder_id: user.id,
-        demo_investor_id,
-        personal_message: personal_message || '',
-        founder_qscore: founder_qscore || null,
-        status: 'pending',
-      })
+      .insert(insertRow)
       .select('id, status')
       .single();
 

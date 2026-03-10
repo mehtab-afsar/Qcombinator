@@ -23,7 +23,7 @@ export async function POST() {
 
     const admin = getAdmin()
 
-    // Fetch latest artifact of each type
+    // Fetch all artifact types in a single query, pick latest per type in JS
     const ARTIFACT_TYPES = [
       'icp_document', 'outreach_sequence', 'gtm_playbook',
       'sales_script', 'brand_messaging', 'financial_summary',
@@ -31,23 +31,20 @@ export async function POST() {
       'competitive_matrix', 'strategic_plan', 'battle_card',
     ] as const
 
-    const artifacts: Record<string, unknown> = {}
+    const { data: allArtifactRows } = await admin
+      .from('agent_artifacts')
+      .select('artifact_type, content, created_at')
+      .eq('user_id', user.id)
+      .in('artifact_type', ARTIFACT_TYPES as unknown as string[])
+      .order('created_at', { ascending: false })
 
-    await Promise.all(
-      ARTIFACT_TYPES.map(async (type) => {
-        const { data } = await admin
-          .from('agent_artifacts')
-          .select('artifact_type, content')
-          .eq('user_id', user.id)
-          .eq('artifact_type', type)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle()
-        if (data?.content) {
-          artifacts[type] = data.content
-        }
-      })
-    )
+    // Pick the most recent per type
+    const artifacts: Record<string, unknown> = {}
+    for (const row of allArtifactRows ?? []) {
+      if (!artifacts[row.artifact_type] && row.content) {
+        artifacts[row.artifact_type] = row.content
+      }
+    }
 
     const availableTypes = Object.keys(artifacts)
     if (availableTypes.length < 2) {

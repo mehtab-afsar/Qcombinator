@@ -38,21 +38,57 @@ function shouldUpgradeStatus(current: string, incoming: string): boolean {
   return incomingIdx > currentIdx
 }
 
+// Verify Svix-style HMAC-SHA256 signature used by Resend webhooks.
+// Spec: https://docs.svix.com/receiving/verifying-payloads/how
+async function verifySignature(
+  rawBody: string,
+  headers: Headers,
+  secret: string
+): Promise<boolean> {
+  const msgId        = headers.get('svix-id')
+  const msgTimestamp = headers.get('svix-timestamp')
+  const msgSignature = headers.get('svix-signature')
+
+  if (!msgId || !msgTimestamp || !msgSignature) return false
+
+  // Reject timestamps older than 5 minutes (replay-attack guard)
+  const ts = parseInt(msgTimestamp, 10)
+  if (isNaN(ts) || Math.abs(Date.now() / 1000 - ts) > 300) return false
+
+  // Secret is prefixed "whsec_" + base64; strip prefix if present
+  const base64Secret = secret.startsWith('whsec_') ? secret.slice(6) : secret
+  const keyBytes = Uint8Array.from(atob(base64Secret), c => c.charCodeAt(0))
+
+  const toSign = `${msgId}.${msgTimestamp}.${rawBody}`
+  const encoder = new TextEncoder()
+
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw', keyBytes, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+  )
+  const sigBytes = await crypto.subtle.sign('HMAC', cryptoKey, encoder.encode(toSign))
+  const computed = btoa(String.fromCharCode(...new Uint8Array(sigBytes)))
+
+  // svix-signature header may contain multiple "v1,<sig>" pairs separated by spaces
+  return msgSignature.split(' ').some(part => {
+    const sig = part.startsWith('v1,') ? part.slice(3) : part
+    return sig === computed
+  })
+}
+
 export async function POST(request: NextRequest) {
   try {
+    const rawBody = await request.text()
+
     // Verify the webhook signature if signing secret is configured
     const signingSecret = process.env.RESEND_WEBHOOK_SECRET
     if (signingSecret) {
-      const signature = request.headers.get('svix-signature') ?? request.headers.get('resend-signature')
-      if (!signature) {
-        return NextResponse.json({ error: 'Missing signature' }, { status: 401 })
+      const valid = await verifySignature(rawBody, request.headers, signingSecret)
+      if (!valid) {
+        return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
       }
-      // Basic HMAC verification — for production use svix SDK
-      // We're accepting without full svix verification here for simplicity
-      // but checking the secret exists as a minimal guard
     }
 
-    const body = await request.json()
+    const body = JSON.parse(rawBody)
     const { type, data } = body as {
       type: string
       data: {
@@ -108,7 +144,7 @@ export async function POST(request: NextRequest) {
           .eq('id', row.id)
       )
 
-    await Promise.all(updates.map(q => q))
+    await Promise.all(updates)
 
     // Log the event to agent_activity for the founder's activity feed
     const uniqueUserIds = [...new Set(rows.map(r => r.user_id).filter(Boolean))]

@@ -38,10 +38,13 @@ export async function POST(request: NextRequest) {
 
     const cleanDomain = domain.trim().replace(/^https?:\/\//i, '').replace(/\/.*/,'').trim()
 
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10_000);
     const res = await fetch(
       `https://api.hunter.io/v2/domain-search?domain=${encodeURIComponent(cleanDomain)}&limit=10&api_key=${apiKey}`,
-      { method: 'GET' }
-    )
+      { method: 'GET', signal: controller.signal }
+    );
+    clearTimeout(timer);
 
     if (!res.ok) {
       const errData = await res.json().catch(() => ({})) as { errors?: { details: string }[] }

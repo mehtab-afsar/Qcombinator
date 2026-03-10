@@ -81,6 +81,11 @@ export async function PATCH(request: NextRequest) {
     const { founderId, stage, notes } = await request.json()
     if (!founderId) return NextResponse.json({ error: 'founderId is required' }, { status: 400 })
 
+    const validStages = ['watching', 'interested', 'meeting', 'in_dd', 'portfolio', 'passed']
+    if (stage !== undefined && !validStages.includes(stage)) {
+      return NextResponse.json({ error: 'Invalid stage' }, { status: 400 })
+    }
+
     const updates: Record<string, unknown> = {}
     if (stage !== undefined) updates.stage = stage
     if (notes !== undefined) updates.notes = notes

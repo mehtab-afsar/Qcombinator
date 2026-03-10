@@ -316,7 +316,7 @@ export default function FounderSidebar() {
       .then(r => r.json())
       .then(d => {
         const statuses = Object.values(d.connections ?? {}) as string[];
-        const pending  = statuses.filter(s => s === "pending" || s === "viewed").length;
+        const pending  = statuses.filter(s => s === "pending").length;
         setMsgCount(pending);
       })
       .catch(() => setMsgCount(null));

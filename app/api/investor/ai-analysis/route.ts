@@ -27,13 +27,13 @@ export async function GET() {
     const { data: scores } = founderIds.length > 0
       ? await supabase
           .from('qscore_history')
-          .select('user_id, overall_score, team_score, market_score, product_score, traction_score, gtm_score, financial_score, created_at')
+          .select('user_id, overall_score, team_score, market_score, product_score, traction_score, gtm_score, financial_score, calculated_at')
           .in('user_id', founderIds)
-          .order('created_at', { ascending: false })
+          .order('calculated_at', { ascending: false })
       : { data: [] }
 
     // Keep only the latest score per founder
-    const latestScore: Record<string, { overall_score: number; team_score: number; market_score: number; product_score: number; traction_score: number; gtm_score: number; financial_score: number; created_at: string }> = {}
+    const latestScore: Record<string, { overall_score: number; team_score: number; market_score: number; product_score: number; traction_score: number; gtm_score: number; financial_score: number; calculated_at: string }> = {}
     for (const s of (scores ?? [])) {
       if (!latestScore[s.user_id]) latestScore[s.user_id] = s
     }

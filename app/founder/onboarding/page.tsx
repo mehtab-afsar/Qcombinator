@@ -54,6 +54,7 @@ function OnboardingContent() {
 
   const [signup, setSignup] = useState<SignupData>({ firstName: "", lastName: "", email: "", password: "" });
   const [signingUp, setSigningUp] = useState(false);
+  const [emailError, setEmailError] = useState("");
 
   const [onboardingExtracted, setOnboardingExtracted] = useState<Record<string, unknown>>({});
 
@@ -128,6 +129,7 @@ const callAI = useCallback(async (history: ApiMessage[]) => {
   };
 
   const handleSignup = async () => {
+    setEmailError("");
     if (!signup.email || !signup.password || !signup.firstName) {
       toast.error("Please fill in all required fields");
       return;
@@ -148,10 +150,30 @@ const callAI = useCallback(async (history: ApiMessage[]) => {
         }),
       });
       const data = await res.json();
-      if (!res.ok) { toast.error(data.error || "Signup failed"); setSigningUp(false); return; }
+      if (!res.ok) {
+        const msg = data.error || "Signup failed";
+        // Show inline error under the email field for duplicate/invalid email errors
+        if (msg.toLowerCase().includes("email") || msg.toLowerCase().includes("already") || msg.toLowerCase().includes("registered")) {
+          setEmailError(msg);
+        } else {
+          toast.error(msg);
+        }
+        setSigningUp(false);
+        return;
+      }
+
+      // Only attempt sign-in after confirmed successful signup
       const { createClient } = await import("@/lib/supabase/client");
       const supabase = createClient();
-      await supabase.auth.signInWithPassword({ email: signup.email, password: signup.password });
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: signup.email,
+        password: signup.password,
+      });
+      if (signInError) {
+        toast.error("Account created but sign-in failed. Please go to the login page.");
+        setSigningUp(false);
+        return;
+      }
 
       // Persist onboarding data + score to database
       try {
@@ -490,9 +512,12 @@ const callAI = useCallback(async (history: ApiMessage[]) => {
                     type="email"
                     placeholder="you@startup.com"
                     value={signup.email}
-                    onChange={(e) => setSignup((p) => ({ ...p, email: e.target.value }))}
-                    style={{ width: "100%", background: surf, border: `1px solid ${bdr}`, color: ink, borderRadius: 10, height: 42, padding: "0 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }}
+                    onChange={(e) => { setEmailError(""); setSignup((p) => ({ ...p, email: e.target.value })); }}
+                    style={{ width: "100%", background: surf, border: `1px solid ${emailError ? "#DC2626" : bdr}`, color: ink, borderRadius: 10, height: 42, padding: "0 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }}
                   />
+                  {emailError && (
+                    <p style={{ fontSize: 12, color: "#DC2626", marginTop: 4 }}>{emailError}</p>
+                  )}
                 </div>
                 <div>
                   <label style={{ fontSize: 12, color: muted, marginBottom: 6, display: "block" }}>Password</label>

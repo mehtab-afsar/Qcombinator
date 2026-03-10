@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { createClient as createSupabaseClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -65,11 +66,20 @@ interface Conversation {
   id: string
   participant: Participant
   requestId: string
+  connectionId?: string   // connection_request.id — set when connection is accepted
   lastMessage: string
   timestamp: string
   unread: number
   starred: boolean
   messages: Message[]
+}
+
+interface RealMessage {
+  id: string
+  sender_id: string
+  body: string
+  read_at: string | null
+  created_at: string
 }
 
 interface NetworkPost {
@@ -166,13 +176,27 @@ export default function MessagesPage() {
   const [replyInput,    setReplyInput]    = useState('')
   const [composeText,   setComposeText]   = useState('')
   const [composeOpen,   setComposeOpen]   = useState(false)
+  const [realMessages,  setRealMessages]  = useState<RealMessage[]>([])
+  const [msgLoading,    setMsgLoading]    = useState(false)
+  const [sending,       setSending]       = useState(false)
+  const [myUserId,      setMyUserId]      = useState<string | null>(null)
   const bottomRef                         = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [selected])
 
-  // Load outgoing connection requests from DB → show as pending conversations
+  // Fetch my user ID once for message direction
+  useEffect(() => {
+    try {
+      const supabase = createSupabaseClient()
+      supabase.auth.getUser().then(({ data }) => {
+        if (data.user?.id) setMyUserId(data.user.id)
+      })
+    } catch { /* Supabase not configured in dev */ }
+  }, [])
+
+  // Load outgoing connection requests from DB → show as pending/accepted conversations
   useEffect(() => {
     async function loadConnections() {
       try {
@@ -181,7 +205,10 @@ export default function MessagesPage() {
           fetch('/api/investors'),
         ])
         if (!connRes.ok) return
-        const { connections } = await connRes.json() as { connections: Record<string, string> }
+        const { connections, connectionIds = {} } = await connRes.json() as {
+          connections: Record<string, string>
+          connectionIds: Record<string, string>
+        }
         const { investors: dbInvestors } = invRes.ok ? await invRes.json() : { investors: [] }
 
         const investorMap: Record<string, { name: string; firm: string; title: string }> = {}
@@ -202,12 +229,13 @@ export default function MessagesPage() {
               type: 'investor',
             }
             const msgContent = isAccepted
-              ? `${participant.name} from ${participant.company} accepted your connection request. You can now reach out to them directly.`
+              ? `${participant.name} from ${participant.company} accepted your connection request. You can now message each other directly.`
               : `Your connection request to ${participant.name} at ${participant.company} is pending. Once accepted you can message each other here.`
             return {
               id: `pending-${investorId}`,
               participant,
               requestId: investorId,
+              connectionId: connectionIds[investorId],
               lastMessage: isAccepted ? `Connected with ${participant.name}` : 'Connection request sent',
               timestamp: 'Recently',
               unread: isAccepted ? 1 : 0,
@@ -236,6 +264,23 @@ export default function MessagesPage() {
     }
     loadConnections()
   }, [])
+
+  // Load real messages when an accepted conversation is selected
+  useEffect(() => {
+    if (!selected?.connectionId) {
+      setRealMessages([])
+      return
+    }
+    const connId = selected.connectionId
+    setMsgLoading(true)
+    fetch(`/api/messages?connectionId=${connId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d?.messages) setRealMessages(d.messages)
+      })
+      .catch(() => {})
+      .finally(() => setMsgLoading(false))
+  }, [selected?.connectionId])
 
   // ─ request actions ──────────────────────────────────────────────────────────
   const handleAccept = (reqId: string) => {
@@ -292,19 +337,47 @@ export default function MessagesPage() {
   }
 
   // ─ send message ─────────────────────────────────────────────────────────────
-  const handleSend = () => {
-    if (!messageInput.trim() || !selected) return
+  const handleSend = async () => {
+    if (!messageInput.trim() || !selected || sending) return
+    const body = messageInput.trim()
+    setMessageInput('')
+
+    // If this is an accepted connection with a real connectionId, use the real API
+    if (selected.connectionId) {
+      setSending(true)
+      try {
+        const res = await fetch('/api/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ connectionId: selected.connectionId, body }),
+        })
+        if (res.ok) {
+          const { message: sent } = await res.json()
+          setRealMessages(prev => [...prev, sent])
+          setConversations(prev => prev.map(c =>
+            c.id === selected.id ? { ...c, lastMessage: body, timestamp: 'Just now' } : c
+          ))
+          setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+        }
+      } catch (err) {
+        console.error('Send message error:', err)
+      } finally {
+        setSending(false)
+      }
+      return
+    }
+
+    // Fallback: local-only (pending connections — cannot actually send yet)
     const newMsg: Message = {
       id:        Date.now().toString(),
-      content:   messageInput.trim(),
+      content:   body,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       sender:    'user',
       type:      'text',
     }
-    const updatedConv = { ...selected, messages: [...selected.messages, newMsg], lastMessage: messageInput.trim(), timestamp: 'Just now' }
+    const updatedConv = { ...selected, messages: [...selected.messages, newMsg], lastMessage: body, timestamp: 'Just now' }
     setSelected(updatedConv)
     setConversations(prev => prev.map(c => c.id === selected.id ? updatedConv : c))
-    setMessageInput('')
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
   }
 
@@ -813,7 +886,28 @@ export default function MessagesPage() {
                   <span style={{ fontSize: 10, color: muted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', whiteSpace: 'nowrap' }}>Today</span>
                   <div style={{ flex: 1, height: 1, background: bdr }} />
                 </div>
-                {selected.messages.map((msg, idx) => renderMessage(msg, idx, selected.messages))}
+                {msgLoading && (
+                  <div style={{ textAlign: 'center', padding: '20px 0', color: muted, fontSize: 12 }}>Loading messages…</div>
+                )}
+                {selected.connectionId
+                  ? realMessages.map((m, idx) => {
+                      const mapped: Message = {
+                        id: m.id,
+                        content: m.body,
+                        timestamp: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                        sender: m.sender_id === myUserId ? 'user' : 'other',
+                        type: 'text',
+                      }
+                      const all = realMessages.map(r => ({
+                        id: r.id, content: r.body,
+                        timestamp: new Date(r.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                        sender: r.sender_id === myUserId ? 'user' as const : 'other' as const,
+                        type: 'text' as const,
+                      }))
+                      return renderMessage(mapped, idx, all)
+                    })
+                  : selected.messages.map((msg, idx) => renderMessage(msg, idx, selected.messages))
+                }
                 <div ref={bottomRef} />
               </div>
 
@@ -840,13 +934,17 @@ export default function MessagesPage() {
                   </div>
                   <button
                     onClick={handleSend}
-                    disabled={!messageInput.trim()}
-                    style={{ height: 36, width: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', background: messageInput.trim() ? ink : surf, border: `1px solid ${messageInput.trim() ? ink : bdr}`, borderRadius: 8, cursor: messageInput.trim() ? 'pointer' : 'default', transition: 'all 0.15s', flexShrink: 0 }}
+                    disabled={!messageInput.trim() || sending}
+                    style={{ height: 36, width: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', background: messageInput.trim() && !sending ? ink : surf, border: `1px solid ${messageInput.trim() && !sending ? ink : bdr}`, borderRadius: 8, cursor: messageInput.trim() && !sending ? 'pointer' : 'default', transition: 'all 0.15s', flexShrink: 0 }}
                   >
-                    <Send style={{ height: 13, width: 13, color: messageInput.trim() ? bg : muted }} />
+                    <Send style={{ height: 13, width: 13, color: messageInput.trim() && !sending ? bg : muted }} />
                   </button>
                 </div>
-                <p style={{ fontSize: 10, color: muted, marginTop: 6 }}>Enter to send · Shift+Enter for new line</p>
+                <p style={{ fontSize: 10, color: muted, marginTop: 6 }}>
+                  {selected?.connectionId
+                    ? `Enter to send · Shift+Enter for new line · ${messageInput.length}/4000`
+                    : 'Enter to send · Shift+Enter for new line'}
+                </p>
               </div>
             </div>
 

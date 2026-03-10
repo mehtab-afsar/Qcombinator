@@ -328,7 +328,7 @@ export default function ApplyPage() {
           fontFamily: "system-ui, -apple-system, sans-serif",
           fontSize: 12, color: muted, textAlign: "center", marginTop: 40,
         }}>
-          Powered by Qcombinator
+          Powered by Edge Alpha
         </p>
       </div>
     </div>

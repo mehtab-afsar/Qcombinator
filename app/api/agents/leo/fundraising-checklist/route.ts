@@ -25,12 +25,12 @@ export async function POST() {
 
     const [{ data: tsArt }, { data: planArt }, { data: fp }, { data: latestScore }] = await Promise.all([
       admin.from('agent_artifacts').select('content').eq('user_id', user.id).eq('agent_id', 'leo')
-        .eq('artifact_type', 'term_sheet').order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        .eq('artifact_type', 'term_sheet').order('calculated_at', { ascending: false }).limit(1).maybeSingle(),
       admin.from('agent_artifacts').select('content').eq('user_id', user.id).eq('agent_id', 'sage')
-        .eq('artifact_type', 'strategic_plan').order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        .eq('artifact_type', 'strategic_plan').order('calculated_at', { ascending: false }).limit(1).maybeSingle(),
       admin.from('founder_profiles').select('startup_name, startup_profile_data').eq('user_id', user.id).single(),
       admin.from('qscore_history').select('overall_score, assessment_data').eq('user_id', user.id)
-        .order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        .order('calculated_at', { ascending: false }).limit(1).maybeSingle(),
     ])
 
     const startupName = fp?.startup_name ?? 'Your startup'

@@ -44,6 +44,7 @@ export default function SettingsPage() {
   const [qScoreUpdates,       setQScoreUpdates]       = useState(true);
   const [investorMessages,    setInvestorMessages]    = useState(true);
   const [weeklyDigest,        setWeeklyDigest]        = useState(false);
+  const [runwayAlerts,        setRunwayAlerts]        = useState(true);
 
   // Load all settings from Supabase on mount (auth email + founder_profiles row)
   useEffect(() => {
@@ -69,6 +70,7 @@ export default function SettingsPage() {
           if (prefs.qScoreUpdates      === false) setQScoreUpdates(false);
           if (prefs.investorMessages   === false) setInvestorMessages(false);
           if (prefs.weeklyDigest       === true)  setWeeklyDigest(true);
+          if (prefs.runwayAlerts       === false) setRunwayAlerts(false);
         }
       } catch { /* non-fatal */ }
     }
@@ -125,8 +127,8 @@ export default function SettingsPage() {
       if (!user) return;
       const [{ data: fp }, { data: qs }, { data: aa }] = await Promise.all([
         supabase.from('founder_profiles').select('*').eq('user_id', user.id).single(),
-        supabase.from('qscore_history').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(10),
-        supabase.from('agent_artifacts').select('id, agent_id, artifact_type, title, created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(20),
+        supabase.from('qscore_history').select('*').eq('user_id', user.id).order('calculated_at', { ascending: false }).limit(10),
+        supabase.from('agent_artifacts').select('id, agent_id, artifact_type, title, created_at').eq('user_id', user.id).order('calculated_at', { ascending: false }).limit(20),
       ]);
       const blob = new Blob([JSON.stringify({ profile: fp, qscoreHistory: qs, agentArtifacts: aa }, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
@@ -150,7 +152,7 @@ export default function SettingsPage() {
       const { error } = await supabase
         .from('founder_profiles')
         .update({
-          notification_preferences: { emailNotifications, qScoreUpdates, investorMessages, weeklyDigest },
+          notification_preferences: { emailNotifications, qScoreUpdates, investorMessages, weeklyDigest, runwayAlerts },
         })
         .eq('user_id', user.id);
       if (error) throw error;
@@ -342,6 +344,13 @@ export default function SettingsPage() {
                   sub="Notifications for new investor connections"
                   checked={investorMessages}
                   onChange={setInvestorMessages}
+                />
+                <Divider />
+                <NotifRow
+                  label="Runway Alerts"
+                  sub="Alert when runway drops below 3 months"
+                  checked={runwayAlerts}
+                  onChange={setRunwayAlerts}
                 />
                 <Divider />
                 <NotifRow

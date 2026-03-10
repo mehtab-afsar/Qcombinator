@@ -262,7 +262,7 @@ export default function InvestorDashboard() {
           <div style={{ border: `1px solid ${bdr}`, borderRadius: 14, padding: '40px 36px', textAlign: 'center', marginBottom: 32 }}>
             <p style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.18em', color: muted, marginBottom: 20 }}>Getting started</p>
             <h2 style={{ fontSize: 22, fontWeight: 300, letterSpacing: '-0.02em', color: ink, marginBottom: 12 }}>
-              Welcome to Qcombinator
+              Welcome to Edge Alpha
             </h2>
             <p style={{ fontSize: 14, color: muted, lineHeight: 1.65, maxWidth: 440, margin: '0 auto 32px' }}>
               Founders complete a Q-Score assessment before appearing in your deal flow. Once they do, you&apos;ll see them here ranked by score with full breakdowns.

@@ -25,6 +25,7 @@ import { calculateConfidence, adjustForConfidence } from '@/features/qscore/util
 import { detectBluffSignals, applyBluffPenalty } from '@/features/qscore/utils/bluff-detection';
 import { calculateGrade } from '@/features/qscore/types/qscore.types';
 import { inferSector, retrieveChunks, retrieveBenchmarkContext } from '@/features/qscore/rag/retrieval';
+import { KNOWLEDGE_BASE } from '@/features/qscore/rag/knowledge-base';
 import {
   EMPTY_ASSESSMENT,
   MINIMAL_ASSESSMENT,
@@ -41,11 +42,7 @@ import {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function isValidScore(score: number): boolean {
-  return isFinite(score) && !isNaN(score) && score >= 0 && score <= 100;
-}
-
-function expectValidScore(score: number, label = '') {
+function expectValidScore(score: number, _label = '') {
   expect(isFinite(score)).toBe(true);
   expect(isNaN(score)).toBe(false);
   expect(score).toBeGreaterThanOrEqual(0);
@@ -620,7 +617,6 @@ describe('RAG retrieval', () => {
   });
 
   it('KNOWLEDGE_BASE has all required categories', () => {
-    const { KNOWLEDGE_BASE } = require('@/features/qscore/rag/knowledge-base');
     const categories = new Set(KNOWLEDGE_BASE.map((c: { category: string }) => c.category));
     ['market_benchmark', 'gtm_playbook', 'team_signal', 'traction_milestone', 'scoring_rubric'].forEach(cat => {
       expect(categories.has(cat)).toBe(true);

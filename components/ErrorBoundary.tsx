@@ -53,7 +53,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
               fontSize: 11, textTransform: "uppercase", letterSpacing: "0.15em",
               color: muted, marginBottom: 20,
             }}>
-              Qcombinator
+              Edge Alpha
             </p>
             <h2 style={{
               fontSize: 22, fontWeight: 300, letterSpacing: "-0.02em",

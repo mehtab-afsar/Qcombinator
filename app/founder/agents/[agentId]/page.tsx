@@ -8,7 +8,7 @@ import Link from "next/link";
 import { getAgentById } from "@/features/agents/data/agents";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Separator } from "@/components/ui/separator";
 
@@ -597,7 +597,7 @@ function OutreachRenderer({ data, artifactId, sequenceName }: { data: Record<str
     }
   }
 
-  const chColor: Record<string, string> = { email: blue, linkedin: "#0A66C2", call: amber };
+  const _chColor: Record<string, string> = { email: blue, linkedin: "#0A66C2", call: amber };
   const chLabel: Record<string, string> = { email: "Email", linkedin: "LinkedIn", call: "Call" };
   const previewContact = contacts[previewIdx] || { name: 'Alex Johnson', email: 'alex@acme.com', company: 'Acme Corp', title: 'Head of Operations' };
   const previewStep    = emailSteps[selectedStep];
@@ -1023,7 +1023,7 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
     sequenceStrategy?: string;
     sequence?: { step: number; day: number; subject: string; body: string; cta: string; toneNote: string }[];
   } | null>(null);
-  const [sequenceError, setSequenceError]             = useState<string | null>(null);
+  const [_sequenceError, setSequenceError]             = useState<string | null>(null);
   const [copiedSeqStep, setCopiedSeqStep]             = useState<number | null>(null);
 
   async function handleGenerateSequence() {
@@ -20976,6 +20976,7 @@ function DeliverablePanel({
 // ═══════════════════════════════════════════════════════════════════════════════
 // FINANCIAL PANEL (Felix)
 // ═══════════════════════════════════════════════════════════════════════════════
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function FinancialPanel({ onShare, onClose }: { onShare: (ctx: string) => void; onClose?: () => void }) {
   const [model, setModel] = useState<FinModel>({
     mrr: "", growthRate: "", burn: "", grossMargin: "",
@@ -21260,7 +21261,7 @@ export default function AgentChat() {
   const [artifactHistory, setArtifactHistory] = useState<ArtifactData[]>([]);
   const [generatingArtifact, setGeneratingArtifact] = useState(false);
   const [scoreBoost, setScoreBoost] = useState<{ points: number; dimension: string } | null>(null);
-  const [showQuickGen, setShowQuickGen] = useState(false);
+  const [_showQuickGen, setShowQuickGen] = useState(false);
   const [quickAnswers, setQuickAnswers] = useState<string[]>(["", "", "", "", ""]);
   const [isQuickGenerating, setIsQuickGenerating] = useState(false);
   const [actionItems,     setActionItems]     = useState<{ id: string; action_text: string; priority: string; status: string; action_type?: string; cta_label?: string }[]>([]);
@@ -21386,6 +21387,15 @@ export default function AgentChat() {
         .catch(() => {});
     }
   }, [agentId, targetArtifactId]);
+
+  // Load persisted action items when conversation is known
+  useEffect(() => {
+    if (!conversationId) return;
+    fetch(`/api/agents/actions?conversationId=${conversationId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.actions?.length) { setActionItems(d.actions); setShowActions(true); } })
+      .catch(() => {});
+  }, [conversationId]);
 
   // ── Auto-send ?prompt= when history finishes loading and chat is empty ──────
   useEffect(() => {
@@ -21548,7 +21558,7 @@ export default function AgentChat() {
     }
   };
 
-  const handleExtractActions = useCallback(async () => {
+  const _handleExtractActions = useCallback(async () => {
     if (extractingActions || apiMessages.length < 4) return;
     setExtractingActions(true);
     setShowActions(true);
@@ -21612,7 +21622,7 @@ export default function AgentChat() {
     }
   }, [agent, agentId, generatingArtifact, apiMessages, userId, conversationId]);
 
-  const handleQuickGenerate = useCallback(async () => {
+  const _handleQuickGenerate = useCallback(async () => {
     if (!agent?.artifactType || isQuickGenerating) return;
     const questions = QUICK_QUESTIONS[agent.artifactType] ?? [];
     const hasAnyAnswer = quickAnswers.some(a => a.trim().length > 0);

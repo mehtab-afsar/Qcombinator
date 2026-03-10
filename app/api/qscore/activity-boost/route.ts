@@ -38,13 +38,14 @@ export async function POST() {
         .gte('created_at', sevenDaysAgo),
       admin.from('agent_messages')
         .select('id', { count: 'exact' })
-        .eq('sender', 'user')
+        .eq('user_id', user.id)
+        .eq('role', 'user')
         .gte('created_at', todayStart)
         .limit(1), // just need count
       admin.from('qscore_history')
-        .select('overall_score, created_at')
+        .select('id, overall_score, calculated_at')
         .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
+        .order('calculated_at', { ascending: false })
         .limit(1).maybeSingle(),
       admin.from('qscore_history')
         .select('created_at')
@@ -100,11 +101,11 @@ export async function POST() {
 
     const newScore = Math.min(100, currentScore + boostAmount)
 
-    // Insert a new qscore_history row as activity boost
+    // Insert a new qscore_history row as activity boost (chain to previous score)
     await admin.from('qscore_history').insert({
       user_id: user.id,
       overall_score: newScore,
-      previous_score_id: latestScore ? undefined : undefined,
+      previous_score_id: latestScore?.id ?? null,
       data_source: 'activity_boost',
       source_artifact_type: null,
       assessment_data: {},
@@ -119,6 +120,7 @@ export async function POST() {
       reason: reasons.join(' + '),
     })
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 })
+    console.error('Activity boost error:', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

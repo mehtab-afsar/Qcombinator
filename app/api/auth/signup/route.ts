@@ -26,35 +26,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if user already exists
-    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
-    const existingUser = existingUsers?.users.find(u => u.email === email);
-
-    if (existingUser) {
-      // User exists - check if they have a profile
-      const { data: existingProfile } = await supabaseAdmin
-        .from('founder_profiles')
-        .select('*')
-        .eq('user_id', existingUser.id)
-        .single();
-
-      if (existingProfile) {
-        return NextResponse.json(
-          { error: 'An account with this email already exists. Please login instead.' },
-          { status: 409 }
-        );
-      }
-
-      // User exists but no profile - delete and recreate
-      console.log('Found orphaned user, deleting and recreating...');
-      await supabaseAdmin.auth.admin.deleteUser(existingUser.id);
-    }
-
-    // Create user with admin API (bypasses email confirmation & rate limits)
+    // Attempt to create user directly — handle duplicate email via error response
+    // (avoids fetching all users just to check existence)
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
-      email_confirm: true, // Auto-confirm email for testing
+      email_confirm: true,
       user_metadata: {
         full_name: fullName,
         startup_name: startupName,
@@ -63,6 +40,16 @@ export async function POST(request: NextRequest) {
 
     if (authError) {
       console.error('Auth signup error:', authError);
+      const isDuplicate =
+        authError.message?.toLowerCase().includes('already registered') ||
+        authError.message?.toLowerCase().includes('already exists') ||
+        authError.status === 422;
+      if (isDuplicate) {
+        return NextResponse.json(
+          { error: 'An account with this email already exists. Please login instead.' },
+          { status: 409 }
+        );
+      }
       return NextResponse.json(
         { error: authError.message || 'Failed to create account' },
         { status: 400 }
@@ -97,30 +84,32 @@ export async function POST(request: NextRequest) {
 
     if (profileError) {
       console.error('Error creating founder profile:', profileError);
-      // Note: User auth account was created, but profile failed
-      // In production, you might want to handle this with a retry mechanism
+      // Roll back auth user to avoid orphaned accounts
+      await supabaseAdmin.auth.admin.deleteUser(authData.user.id).catch(e =>
+        console.error('Failed to rollback auth user after profile error:', e)
+      );
       return NextResponse.json(
-        { error: 'Account created but profile setup failed. Please contact support.' },
+        { error: 'Account setup failed. Please try again.' },
         { status: 500 }
       );
     }
 
     // Initialize subscription usage limits for free tier
     const featureLimits = [
-      { feature: 'agent_chat', usage_count: 0, limit_count: 10 }, // 10 agent chats/month
+      { feature: 'agent_chat', usage_count: 0, limit_count: 50 }, // 50 agent chats/month
       { feature: 'qscore_recalc', usage_count: 0, limit_count: 2 }, // 2 recalcs/month
       { feature: 'investor_connection', usage_count: 0, limit_count: 3 }, // 3 connections/month
     ];
 
-    for (const limit of featureLimits) {
-      await supabaseAdmin.from('subscription_usage').insert({
+    await Promise.all(featureLimits.map(limit =>
+      supabaseAdmin.from('subscription_usage').insert({
         user_id: authData.user.id,
         feature: limit.feature,
         usage_count: limit.usage_count,
         limit_count: limit.limit_count,
         reset_at: getNextMonthDate(),
-      });
-    }
+      })
+    ));
 
     return NextResponse.json({
       message: 'Account created successfully',

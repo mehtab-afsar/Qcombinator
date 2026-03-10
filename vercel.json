@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/weekly-automation",
       "schedule": "0 9 * * 1"
+    },
+    {
+      "path": "/api/agents/atlas/weekly-scan",
+      "schedule": "0 8 * * 1"
     }
   ]
 }

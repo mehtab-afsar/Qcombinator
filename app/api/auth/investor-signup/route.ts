@@ -18,27 +18,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 })
     }
 
-    // Check if user already exists
-    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers()
-    const existing = existingUsers?.users.find(u => u.email === email)
-    if (existing) {
-      // Check if they already have an investor profile
-      const { data: profile } = await supabaseAdmin
-        .from('investor_profiles')
-        .select('id')
-        .eq('user_id', existing.id)
-        .single()
-      if (profile) {
-        return NextResponse.json(
-          { error: 'An account with this email already exists. Please sign in instead.' },
-          { status: 409 }
-        )
-      }
-      // Orphaned user — delete and recreate
-      await supabaseAdmin.auth.admin.deleteUser(existing.id)
-    }
-
-    // Create the user (auto-confirms email so no verification step needed in demo)
+    // Attempt to create user directly — handle duplicate email via error response
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
@@ -47,6 +27,16 @@ export async function POST(request: NextRequest) {
     })
 
     if (authError || !authData.user) {
+      const isDuplicate =
+        authError?.message?.toLowerCase().includes('already registered') ||
+        authError?.message?.toLowerCase().includes('already exists') ||
+        authError?.status === 422;
+      if (isDuplicate) {
+        return NextResponse.json(
+          { error: 'An account with this email already exists. Please sign in instead.' },
+          { status: 409 }
+        )
+      }
       return NextResponse.json(
         { error: authError?.message || 'Failed to create account' },
         { status: 400 }

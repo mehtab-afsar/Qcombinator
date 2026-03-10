@@ -11,25 +11,28 @@ export async function GET() {
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    // Get investor profile to find their demo_investor_id
+    // Get investor profile to find their demo_investor_id (if any)
     const { data: investorProfile } = await supabase
       .from('investor_profiles')
-      .select('demo_investor_id, id')
+      .select('demo_investor_id')
       .eq('user_id', user.id)
       .single()
 
-    if (!investorProfile || !investorProfile.demo_investor_id) {
-      return NextResponse.json({ companies: [] })
-    }
+    const demoInvestorId = investorProfile?.demo_investor_id
 
-    // Find accepted connections for this investor
-    const { data: connections } = await supabase
+    // Find accepted connections for this investor — check both FKs
+    let connectionsQuery = supabase
       .from('connection_requests')
       .select('id, founder_id, founder_qscore, personal_message, created_at, status')
-      .eq('demo_investor_id', investorProfile.demo_investor_id)
       .in('status', ['accepted', 'viewed', 'meeting_scheduled'])
       .order('created_at', { ascending: false })
       .limit(20)
+
+    connectionsQuery = demoInvestorId
+      ? connectionsQuery.eq('demo_investor_id', demoInvestorId)
+      : connectionsQuery.eq('investor_id', user.id)
+
+    const { data: connections } = await connectionsQuery
 
     if (!connections || connections.length === 0) {
       return NextResponse.json({ companies: [] })
@@ -46,9 +49,9 @@ export async function GET() {
     // Fetch latest Q-Score per founder
     const { data: scores } = await supabase
       .from('qscore_history')
-      .select('user_id, overall_score, team_score, market_score, traction_score, gtm_score, product_score, created_at')
+      .select('user_id, overall_score, team_score, market_score, traction_score, gtm_score, product_score, calculated_at')
       .in('user_id', founderIds)
-      .order('created_at', { ascending: false })
+      .order('calculated_at', { ascending: false })
 
     // Fetch financial artifact per founder (for revenue/runway data)
     const { data: financials } = await supabase
@@ -58,7 +61,7 @@ export async function GET() {
       .eq('artifact_type', 'financial_summary')
       .order('created_at', { ascending: false })
 
-    type ScoreRow = { user_id: string; overall_score: number; team_score: number; market_score: number; traction_score: number; gtm_score: number; product_score: number; created_at: string }
+    type ScoreRow = { user_id: string; overall_score: number; team_score: number; market_score: number; traction_score: number; gtm_score: number; product_score: number; calculated_at: string }
     type FounderRow = { user_id: string; startup_name: string; industry: string; stage: string; description: string; full_name: string }
 
     // Build a map: user_id → latest score

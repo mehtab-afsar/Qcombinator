@@ -98,7 +98,7 @@ export default function AIEnhancementStation() {
           .from('qscore_history')
           .select('overall_score, team_score, market_score, traction_score, gtm_score, product_score')
           .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
+          .order('calculated_at', { ascending: false })
           .limit(1)
           .single();
 

@@ -136,32 +136,40 @@ export async function POST(request: NextRequest) {
     const dayMs = 24 * 60 * 60 * 1000
     const postHour = 9 // 9am local
 
-    for (const post of posts.slice(0, 30)) {
+    // Build the list of posts with their computed schedule timestamps
+    const postsToSchedule = posts.slice(0, 30).flatMap(post => {
       const service = post.type === 'twitter' ? 'twitter' : 'linkedin'
       const profile = profileByService[service]
-      if (!profile) continue
-
-      // Scheduled time: day N at 9am
+      if (!profile) return []
       const scheduledAt = Math.floor((now + post.day * dayMs) / 1000)
-      // Snap to 9am — approximate by adding offset
       const schedTs = scheduledAt - (scheduledAt % 86400) + postHour * 3600
+      return [{ post, service, profile, schedTs }]
+    })
 
-      try {
-        const result = await bufferRequest(bufferToken, 'updates/create.json', {
-          access_token: bufferToken,
-          'profile_ids[]': profile.id,
-          text: post.content,
-          scheduled_at: String(schedTs),
-          now: 'false',
-        }) as { updates?: { id: string }[] }
-
-        scheduled.push({
-          day: post.day,
-          platform: service,
-          text: post.content.slice(0, 60) + (post.content.length > 60 ? '…' : ''),
-          bufferId: result.updates?.[0]?.id,
-        })
-      } catch { /* non-fatal — skip this post */ }
+    // Send in parallel batches of 5 to stay within Buffer API rate limits
+    const BUFFER_BATCH_SIZE = 5
+    for (let i = 0; i < postsToSchedule.length; i += BUFFER_BATCH_SIZE) {
+      const batch = postsToSchedule.slice(i, i + BUFFER_BATCH_SIZE)
+      const results = await Promise.allSettled(
+        batch.map(({ post, service, profile, schedTs }) =>
+          bufferRequest(bufferToken, 'updates/create.json', {
+            access_token: bufferToken,
+            'profile_ids[]': profile.id,
+            text: post.content,
+            scheduled_at: String(schedTs),
+            now: 'false',
+          }).then(result => ({
+            day: post.day,
+            platform: service,
+            text: post.content.slice(0, 60) + (post.content.length > 60 ? '…' : ''),
+            bufferId: (result as { updates?: { id: string }[] }).updates?.[0]?.id,
+          }))
+        )
+      )
+      for (const outcome of results) {
+        if (outcome.status === 'fulfilled') scheduled.push(outcome.value)
+        // non-fatal — silently skip failed posts
+      }
     }
 
     // Log activity

@@ -3,6 +3,32 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
 
+// GET /api/agents/actions?conversationId=<uuid>
+// Returns persisted action items for a given conversation.
+export async function GET(request: NextRequest) {
+  try {
+    const supabase = await createClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const conversationId = new URL(request.url).searchParams.get('conversationId')
+    if (!conversationId) return NextResponse.json({ actions: [] })
+
+    const { data, error } = await supabase
+      .from('agent_actions')
+      .select('id, action_text, priority, status, action_type, cta_label')
+      .eq('user_id', user.id)
+      .eq('conversation_id', conversationId)
+      .order('created_at', { ascending: true })
+
+    if (error) return NextResponse.json({ error: 'Failed to fetch actions' }, { status: 500 })
+    return NextResponse.json({ actions: data ?? [] })
+  } catch (err) {
+    console.error('Agent actions GET error:', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
 // POST /api/agents/actions
 // Body: { conversationId, agentId, conversationHistory }
 // Extracts 2-3 concrete action items from the conversation using LLM,
@@ -94,21 +120,17 @@ Return ONLY valid JSON, no markdown fences, no explanation:
       agent_id: agentId,
       action_text: a.text,
       priority: ['high', 'medium', 'low'].includes(a.priority) ? a.priority : 'medium',
+      action_type: validTypes.includes(a.action_type ?? '') ? a.action_type : 'task',
+      cta_label: a.cta_label || 'Do it',
       status: 'pending',
     }))
 
     const { data: saved, error: saveError } = await supabaseAdmin
       .from('agent_actions')
       .insert(rows)
-      .select('id, action_text, priority, status')
+      .select('id, action_text, priority, status, action_type, cta_label')
 
-    // Merge action_type + cta_label back into response (not stored in DB yet)
-    const withMeta = (saved ?? extracted.actions.map(a => ({ id: '', action_text: a.text, priority: a.priority, status: 'pending' })))
-      .map((row, i) => ({
-        ...row,
-        action_type: validTypes.includes(extracted.actions[i]?.action_type ?? '') ? extracted.actions[i].action_type : 'task',
-        cta_label: extracted.actions[i]?.cta_label ?? 'Do it',
-      }))
+    const withMeta = saved ?? rows.map(r => ({ id: '', ...r }))
 
     if (saveError) {
       console.error('Save agent_actions error:', saveError)
@@ -133,8 +155,8 @@ export async function PATCH(request: NextRequest) {
     }
 
     const { actionId, status } = await request.json()
-    if (!actionId || !status) {
-      return NextResponse.json({ error: 'actionId and status required' }, { status: 400 })
+    if (!actionId || !['done', 'in_progress', 'pending'].includes(status)) {
+      return NextResponse.json({ error: 'actionId and status (done|in_progress|pending) required' }, { status: 400 })
     }
 
     const { error } = await supabase

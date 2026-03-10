@@ -25,6 +25,7 @@ const blue  = "#2563EB"
 // ─── types ────────────────────────────────────────────────────────────────────
 interface Investor {
   id: string
+  type: 'demo' | 'real'
   name: string
   firm: string
   matchScore: number
@@ -37,9 +38,10 @@ interface Investor {
   connectionStatus: ConnectionStatus
 }
 
-// ─── DB row shape ─────────────────────────────────────────────────────────────
+// ─── DB row shape (normalised from /api/investors) ────────────────────────────
 interface DBInvestor {
   id: string
+  type: 'demo' | 'real'
   name: string
   firm: string
   title: string
@@ -117,6 +119,7 @@ function mapInvestor(
 ): Investor {
   return {
     id: row.id,
+    type: row.type,
     name: row.name,
     firm: row.firm,
     matchScore: computeMatchScore(row, founderQScore, founderSector, founderStage),
@@ -212,14 +215,19 @@ export default function InvestorMatching() {
   const handleConnectionSubmit = async (message: string) => {
     if (!selectedInvestor) return
     try {
+      const body: Record<string, unknown> = {
+        personal_message: message,
+        founder_qscore: founderQScore,
+      }
+      if (selectedInvestor.type === 'real') {
+        body.investor_id = selectedInvestor.id
+      } else {
+        body.demo_investor_id = selectedInvestor.id
+      }
       await fetch('/api/connections', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          demo_investor_id: selectedInvestor.id,
-          personal_message: message,
-          founder_qscore: founderQScore,
-        }),
+        body: JSON.stringify(body),
       })
     } catch (err) {
       console.error('Connection request failed:', err)
@@ -359,8 +367,15 @@ export default function InvestorMatching() {
 
                 {/* investor info */}
                 <div>
-                  <p style={{ fontSize: 14, fontWeight: 600, color: ink, marginBottom: 2 }}>{investor.name}</p>
-                  <p style={{ fontSize: 12, color: muted }}>{investor.firm} · {investor.location}</p>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: ink, margin: 0 }}>{investor.name}</p>
+                    {investor.type === 'real' && (
+                      <span style={{ fontSize: 10, fontWeight: 600, padding: "1px 6px", borderRadius: 999, background: "#DCFCE7", color: "#166534", letterSpacing: "0.05em" }}>
+                        LIVE
+                      </span>
+                    )}
+                  </div>
+                  <p style={{ fontSize: 12, color: muted, margin: 0 }}>{investor.firm}{investor.location ? ` · ${investor.location}` : ''}</p>
                 </div>
 
                 {/* match % */}

@@ -33,7 +33,7 @@ export async function GET() {
         .single(),
       supabase
         .from('qscore_history')
-        .select('overall_score, market_score, product_score, gtm_score, financial_score, team_score, traction_score, ai_actions, calculated_at')
+        .select('id, overall_score, market_score, product_score, gtm_score, financial_score, team_score, traction_score, ai_actions, calculated_at')
         .eq('user_id', user.id)
         .order('calculated_at', { ascending: false })
         .limit(1)
@@ -171,15 +171,13 @@ Rules:
 
     const generatedAt = new Date().toISOString()
 
-    // Cache in ai_actions on latest qscore_history row
-    if (latestScore) {
+    // Cache in ai_actions on the specific latest qscore_history row (by id)
+    if (latestScore && (latestScore as Record<string, unknown>).id) {
       const existingActions = (latestScore.ai_actions as Record<string, unknown>) ?? {}
       supabase
         .from('qscore_history')
         .update({ ai_actions: { ...existingActions, daily_priority: { priorities, generatedAt } } })
-        .eq('user_id', user.id)
-        .order('calculated_at', { ascending: false })
-        .limit(1)
+        .eq('id', (latestScore as Record<string, unknown>).id)
         .then(() => {}) // fire-and-forget
     }
 

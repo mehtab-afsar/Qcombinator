@@ -1,125 +1,186 @@
-# TODO: Actionable Agents & Q-Score Overhaul
+# Edge Alpha — What's Left to Test & Build
+
+> Generated 2026-03-10. Covers founder portal, investor portal, agents, infra, and known gaps.
 
 ---
 
-## Q-Score Improvements
+## 1. Testing Gaps (Things Built But Not Validated End-to-End)
 
-- [x] Let founders attach proof (Stripe screenshots, LOIs, contracts, analytics) — verified evidence bumps dimension scores
-- [x] Add "What gets me to 80?" — auto-generate 5 specific actions after every interview
-- [x] Build score simulation — "If you close 3 pilots, your Traction score jumps from 55 to 72"
-- [x] Add peer benchmarks — "Your GTM is top 30% among seed-stage B2B founders"
-- [x] Score decay after 90 days — force re-interview to keep it fresh
-- [x] Sector-specific scoring rubrics — biotech ≠ SaaS ≠ marketplace
-- [x] Connect agent completions to score — finishing a GTM plan in the agent should nudge your GTM dimension up
-- [x] Show score trajectory graph over time, not just current number
-- [x] Add "Score Unlock Challenges" — complete specific tasks to boost specific dimensions
+### Auth & Onboarding
+- [ ] **Middleware redirect loop** — verify `/login?next=/founder/dashboard` correctly bounces back after sign-in, especially across incognito/session-expired states
+- [ ] **Signup → auto-signin race** — test the fixed onboarding flow: create account → immediate `signInWithPassword` → redirect to dashboard. Confirm no race on slow connections.
+- [ ] **Investor signup duplicate email** — test creating an investor account with an already-registered email returns a clean 409 + UI error (not a 500)
+- [ ] **Auth rollback** — simulate a DB failure after `createUser` to confirm the orphaned auth user is deleted
 
----
+### Agent Chat
+- [ ] **8,000 char input cap** — send a message > 8,000 chars and confirm 400 response with correct error shown in UI
+- [ ] **Token budget guard** — trigger with a user who has many artifacts (long MEMORY block > 6,000 chars) and confirm the system prompt is trimmed without breaking the agent response
+- [ ] **429 retry** — mock OpenRouter returning 429 and confirm the retry-after wait + single retry works; after 2nd failure confirm correct error toast
+- [ ] **30s timeout** — test what the UI shows when the AI call times out (504 toast expected)
+- [ ] **Tool call parsing** — test all 16 tool call types produce the correct renderer in the UI: `lead_enrich`, `web_research`, `create_deal`, `competitive_matrix`, and all 12 artifact types
 
-## Agent Architecture: Chat → Actionable
+### Webhook
+- [ ] **Resend webhook signature** — send a real test event from Resend dashboard with `RESEND_WEBHOOK_SECRET` set; confirm it passes. Then send with a bad signature and confirm 401.
+- [ ] **Replay attack guard** — send a valid-signature payload with a timestamp > 5 minutes old; confirm 401
+- [ ] **Unhandled event types** — send `email.delivery_delayed` and confirm `{ received: true, handled: false }` response (no DB writes)
 
-### Core Shift
-- [x] Every agent session ends with a **generated document**, not just a conversation
-- [x] Add an **artifact panel** (side-by-side with chat) — agent writes a real deliverable in real-time as you talk
-- [x] Build **agent workspace** — each agent has a folder where all generated docs live
-- [x] Add **export everywhere** — PDF, Google Docs, Notion, copy-to-clipboard for every output
-- [x] Build **agent memory** — agents remember past sessions, reference previous outputs, build on them
-- [x] Add **cross-agent context** — Finance agent knows what GTM agent already planned
+### Q-Score
+- [ ] **Activity boost idempotency** — call `/api/qscore/activity-boost` twice in one day for the same user; second call should return `boosted: false`
+- [ ] **Priority cache** — call `/api/qscore/priority` twice within 6 hours; second call should return `{ cached: true }` and not hit OpenRouter
+- [ ] **Score history chain** — after activity boost, confirm `previous_score_id` on new row points to the previous row (was always `null` before the fix)
 
----
+### Investor Portal
+- [ ] **Deal flow with 50 founders** — load `/investor/deal-flow` with 50+ founder accounts in DB; confirm it doesn't timeout (was 150 queries, now 4)
+- [ ] **Investor alerts secret** — confirm that `POST /api/investor/alerts` returns 403 when `INTERNAL_API_SECRET` env var is missing (fail-closed behaviour)
+- [ ] **Pipeline stage validation** — attempt PATCH `/api/investor/pipeline` with `stage: "hacked"` and confirm 400
 
-## Agent-by-Agent: What They Actually Produce
-
-### GTM Agent (Patel)
-- [x] Generates a full **GTM Plan document** (ICP, channels, timeline, budget, KPIs)
-- [x] Builds a **channel prioritization matrix** — scores each channel by effort/impact for YOUR specific product
-- [x] Creates **30/60/90 day launch plan** with actual weekly tasks
-- [x] Outputs a **landing page copy draft** — headline, subhead, CTA, feature blocks, FAQ
-- [x] Generates **outreach email sequences** (5-email drip) tailored to your ICP
-
-### Sales Agent (Susi)
-- [x] Writes **cold outreach templates** — email, LinkedIn DM, Twitter DM — personalized to your product
-- [x] Builds a **prospect list criteria doc** — who to target, where to find them, what to say
-- [x] Generates a **sales script** — discovery call framework with questions, objection handling, close
-- [x] Creates a **pricing page recommendation** — tiers, anchoring, what to include at each level
-- [x] Outputs a **proposal/SOW template** you can actually send to prospects
-- [x] Builds an **objection handling cheat sheet** — top 10 objections with responses
-
-### Brand Agent (Maya)
-- [x] Generates **positioning statement** (category, audience, differentiation, proof)
-- [x] Creates **5 tagline options** with reasoning
-- [x] Builds a **messaging framework doc** — elevator pitch, 1-liner, boilerplate, value props
-- [x] Outputs **social media bio + content calendar** (4 weeks of post ideas with hooks)
-- [x] Generates a **brand voice guide** — tone, do/don't, example sentences
-- [x] Creates **investor-facing narrative** — the story arc for your pitch
-
-### Finance Agent (Felix)
-- [x] Builds a **financial model spreadsheet** (revenue, costs, runway, break-even) — exportable CSV/Google Sheets link
-- [x] Generates a **fundraising ask calculator** — how much to raise based on burn, milestones, timeline
-- [x] Creates a **cap table snapshot** with dilution scenarios (pre-seed, seed, Series A)
-- [x] Outputs a **unit economics breakdown** — CAC, LTV, payback period, gross margin
-- [x] Builds a **use of funds slide** — exactly how to allocate the raise
-- [x] Generates **investor-ready financial summary** — 1-pager with key metrics
-
-### Legal Agent (Leo)
-- [x] Generates a **SAFE/convertible note comparison doc** with recommendations
-- [x] Creates a **term sheet red flags checklist** — what to watch for
-- [x] Outputs a **privacy policy draft** and **terms of service draft** based on your product
-- [x] Builds an **incorporation checklist** — step-by-step for Delaware C-Corp
-- [x] Generates a **co-founder agreement template** with vesting schedules
-- [x] Creates an **IP assignment checklist** — what you need before raising
-
-### HR Agent (Harper)
-- [x] Writes **job descriptions** for your first 3-5 hires based on your stage and gaps
-- [x] Builds an **org chart roadmap** — who to hire at $0, $500K, $1M, $5M ARR
-- [x] Generates a **compensation framework** — salary bands, equity ranges by role and stage
-- [x] Creates **interview question banks** per role
-- [x] Outputs a **culture doc template** — values, operating principles, ways of working
-- [x] Builds a **hiring scorecard** for evaluating candidates
-
-### PMF Agent (Nova)
-- [x] Generates a **customer interview script** (20 questions, sequenced properly)
-- [x] Builds an **experiment tracker** — hypothesis, test, metric, result — prefilled with suggestions
-- [x] Creates a **PMF survey** (Sean Ellis test + custom questions) ready to deploy
-- [x] Outputs a **customer segment analysis** — which segment loves you most and why
-- [x] Generates a **feature prioritization matrix** — impact vs effort based on customer signals
-- [x] Builds a **"Signs of PMF" dashboard checklist** — where you stand on each indicator
-
-### Competitive Intel Agent (Atlas)
-- [x] Generates a **competitive matrix** — feature-by-feature comparison table
-- [x] Creates **battle cards** — 1-pager per competitor with strengths, weaknesses, how to sell against
-- [x] Builds a **market map visual** — categories, players, white space
-- [x] Outputs a **SWOT analysis doc**
-- [x] Generates **win/loss analysis framework** — template to track why you win or lose deals
-- [x] Creates a **competitive positioning statement** — your wedge, their weakness
-
-### Strategy Agent (Sage)
-- [x] Builds a **1-page strategic plan** — vision, bets, milestones, risks
-- [x] Generates **OKRs** for current quarter based on your stage and goals
-- [x] Creates a **product roadmap** — now, next, later — aligned with fundraising milestones
-- [x] Outputs a **board deck template** with pre-filled structure
-- [x] Generates a **"What could kill us" risk register** with mitigation plans
-- [x] Builds a **pivot evaluation framework** — should you pivot, double down, or expand?
+### Cron
+- [ ] **Weekly automation** — trigger manually via `GET /api/cron/weekly-automation` with correct `Authorization: Bearer <CRON_SECRET>` header; confirm emails sent, results object correct
+- [ ] **Cron with no founders** — run when `founder_profiles` is empty and confirm it returns `{ usersProcessed: 0 }` without erroring
 
 ---
 
-## Agent UX Upgrades
+## 2. Features to Build
 
-- [x] Add **template gallery** per agent — founder picks what they want built, agent asks clarifying questions, then generates
-- [x] Build **progress tracker** — "You've completed 4/9 agent deliverables. 5 remaining."
-- [x] Add **"Quick Generate" mode** — skip the chat, agent asks 5 rapid questions then produces the doc
-- [x] Build **revision workflow** — founder highlights a section, says "make this more aggressive," agent rewrites just that part
-- [x] Add **version history** on every deliverable — v1, v2, v3 with diffs
-- [x] Build **agent recommendations engine** — after Q-Score interview, auto-suggest which 3 agents to use first based on weakest dimensions
-- [x] Add **deliverable quality score** — agent rates the completeness of what it produced: "This GTM plan is 70% complete — you still need to define pricing"
-- [x] Build **"Share with co-founder" flow** — send any deliverable to a teammate for review/edit
+### Critical Path (Blocking Launch)
+
+#### ~~Branding Sweep~~ ✅ DONE
+- All `Qcombinator` references replaced with `Edge Alpha` across `app/`, `lib/`, `components/`
+
+#### ~~Email Unsubscribe Flow~~ ✅ DONE
+- `GET /api/unsubscribe?token=<base64url>` built — handles types: `weekly`, `runway`, `alerts`, `all`
+- Links wired into weekly OKR standup, runway alert, investor deal alerts
+- Cron now respects `notification_preferences.weeklyDigest` opt-out
+
+#### ~~Rate Limiting~~ ✅ DONE
+- Sliding-window in-memory limiter in `middleware.ts` — no extra dependencies
+- chat 12/min · generate 5/min · calculate 5/min · research 10/min · actions 6/min · analyze-pitch 8/min
+- Returns 429 + `Retry-After: 60` header; auto-prunes store at 5,000 keys
+- Upgrade path: replace `checkRateLimit` with Upstash Redis for cross-instance limits
+
+#### ~~`agent_messages` Missing `user_id` RLS~~ ✅ DONE
+- Migration `20260310000001` adds `user_id` column (back-filled from conversations), RLS policy, and 6 performance indexes
+- `activity-boost` query fixed: uses `role` (not `sender`) column
 
 ---
 
-## Connecting Agents to Q-Score
+### Investor Portal
 
-- [x] Completing an agent deliverable flags that dimension as "actively improving"
-- [x] Investor profiles show which agents a founder has used — signals coachability
-- [x] Build **"Score Challenge" flows**: Q-Score says "GTM is 52" → prompts GTM agent → founder builds plan → re-score that dimension based on plan quality
-- [x] Add **agent-generated evidence** to score: Finance agent model counts as financial preparedness proof
-- [x] Show investors a **"Founder Activity" heatmap** — which agents they used, how often, what they built
+#### ~~Real Investor Profiles (not demo)~~ ✅ DONE
+- `/api/investors` now merges real `investor_profiles` (onboarding_completed=true) with `demo_investors`. Real investors appear first with a green "LIVE" badge in the UI.
+- `/api/connections` GET returns status keyed by `demo_investor_id` OR `investor_id` (whichever is set).
+- `/api/connections` POST accepts `{ investor_id }` for real investors or `{ demo_investor_id }` for demo.
+- Matching page passes the correct FK based on `investor.type`.
+- [x] `investor_id` column already existed in `connection_requests` from initial migration.
+
+#### ~~Investor Messages — Real 2-Way Messaging~~ ✅ DONE
+- `supabase/migrations/20260310000002_messages_table.sql` — `messages` table with RLS (sender+recipient only), `read_at` for unread tracking.
+- `app/api/messages/route.ts` — GET (fetch thread, auto-marks unread) + POST (send, 4000 char cap, party-check).
+- Investor messages page wired: real message thread with chat bubble UI, `⌘+Enter` to send, character counter, disabled state while sending.
+- Founder messages page wired: `GET /api/connections` now returns `connectionIds` map; `MessagesPage.tsx` fetches real messages via `GET /api/messages?connectionId=...` and sends via `POST /api/messages` for accepted connections; character counter + sending disabled state.
+- Also fixed: portfolio route now returns `connectionId` field and handles real investors (`investor_id`) alongside demo (`demo_investor_id`).
+
+#### ~~Investor → Accept/Decline Connections~~ ✅ DONE
+- `PATCH /api/investor/connections` with `{ requestId, action: 'accept' | 'decline' }` was already built.
+- Investor messages page has Accept / Decline buttons wired with optimistic UI update and toast confirmation.
+
+---
+
+### Founder Portal
+
+#### Academy Page
+- `/founder/academy` exists in the sidebar and as a page file — audit whether it has real content or is a placeholder. Remove from sidebar if placeholder.
+
+#### ~~Notification Preferences~~ ✅ DONE
+- Settings page already had email/qscore/investorMessages/weeklyDigest toggles. Added missing `runwayAlerts` toggle (state, load, save, UI). Cron now also respects `runwayAlerts !== false` before sending runway alert emails.
+
+#### ~~Pitch Deck — Real Data Refresh~~ ✅ DONE
+- Added "Refresh data" button that re-fetches latest agent artifacts without a full page reload. Shows spinner while refreshing.
+
+#### ~~Messages Badge Accuracy~~ ✅ DONE
+- Fixed `FounderSidebar` — badge now only counts `pending` connections (not `pending + viewed`).
+
+---
+
+### Agent Execution Gaps
+
+#### Harper → Public Apply Page (`/apply/[userId]/[roleSlug]`)
+- Full flow not tested: generate hiring plan → "Post on Wellfound" → candidate applies via `/apply` URL → score appears in Harper inbox.
+- The `roleSlug` derived from artifact content must be stable across artifact versions.
+
+#### Nova → Hosted PMF Survey (`/s/[surveyId]`)
+- Test full round-trip: generate PMF survey → share link → respondent fills → results appear in Nova renderer.
+- Check `localStorage` response storage doesn't collide across multiple surveys for the same respondent.
+
+#### Atlas → Weekly Competitor Scan
+- `POST /api/agents/atlas/weekly-scan` exists but needs to be triggered via Vercel Cron (see infra section).
+- Test that changes found insert correct `agent_activity` rows and surface in the activity feed.
+
+#### Felix → Stripe Live Metrics
+- Test with a real Stripe restricted key — confirm MRR/ARR display correctly and the key is never persisted to the DB.
+
+---
+
+## 3. Infrastructure / DevOps
+
+### Environment Variables Audit
+
+| Variable | Used In | Status |
+|---|---|---|
+| `OPENROUTER_API_KEY` | All LLM calls | ✅ Critical |
+| `SUPABASE_SERVICE_ROLE_KEY` | All admin routes | ✅ Critical |
+| `NEXT_PUBLIC_SUPABASE_URL` | All routes | ✅ Critical |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Client auth | ✅ Critical |
+| `RESEND_API_KEY` | Email sending | ✅ Critical |
+| `RESEND_WEBHOOK_SECRET` | Webhook verification | ⚠️ Skips verification if missing |
+| `INTERNAL_API_SECRET` | Investor alerts | ✅ Fails closed if missing (fixed) |
+| `HUNTER_API_KEY` | Patel lead enrich | ⚠️ Falls back to user-provided key |
+| `TAVILY_API_KEY` | Web research | ⚠️ Research disabled if missing |
+| `CRON_SECRET` | Weekly automation | ⚠️ Unprotected if missing |
+| `NEXT_PUBLIC_APP_URL` | Email CTAs | ⚠️ Falls back to `https://edgealpha.ai` |
+| `STRIPE_RESTRICTED_KEY` | Felix Stripe sync | Optional |
+| `NETLIFY_ACCESS_TOKEN` | Patel/Maya deploy | Optional |
+
+### Vercel Cron Setup
+~~Add to `vercel.json`~~ ✅ `vercel.json` exists with both crons:
+- `0 9 * * 1` → `/api/cron/weekly-automation`
+- `0 8 * * 1` → `/api/agents/atlas/weekly-scan`
+
+Confirm `CRON_SECRET` is set in Vercel environment variables.
+
+### Database
+- [x] ~~Confirm RLS policies exist~~ — all confirmed in migrations: `agent_messages` (003 + 20260310000001), `pending_actions` (20260225000007), `deals` (20260225000008), `outreach_sends` (20260225000007), `legal_documents` (20260227000001), `deployed_sites` (20260225000009)
+- [x] ~~Add index on `agent_activity(user_id, created_at DESC)`~~ — in migration 20260310000001
+- [x] ~~Add index on `agent_artifacts(user_id, artifact_type)`~~ — in migration 20260310000001
+- [ ] Clean up `connection_requests` dual-FK (`demo_investor_id` UUID + old `investor_id`)
+
+### Error Monitoring
+- No Sentry or error tracking is configured. All errors are `console.error` only — invisible in production.
+- Recommended: `@sentry/nextjs` with a `SENTRY_DSN` env var and `withSentryConfig` in `next.config`.
+
+---
+
+## 4. Known Dead Code / Tech Debt
+
+| File | Issue |
+|---|---|
+| ~~`app/api/agents/chat/route.ts`~~ | ~~`streamOpenRouter()` function is dead — `useStream = false` everywhere. Safe to delete.~~ ✅ Deleted (−130 lines) |
+| ~~`app/api/agents/outreach/send/route.ts`~~ | ~~Serial email loop with 150ms intentional delay. 100 contacts = 15s response time.~~ ✅ Fixed: batches of 10 in parallel (300ms between batches) → 100 contacts ≈ 3s |
+| ~~`app/api/agents/maya/buffer-schedule/route.ts`~~ | ~~Serial Buffer API calls per post.~~ ✅ Fixed: batches of 5 in parallel — 30 posts ≈ 6 batches |
+| ~~`app/api/investor/alerts/route.ts`~~ | ~~Serial email loop for up to 50 investors.~~ ✅ Fixed: `Promise.allSettled` — all 50 investor alert emails sent in parallel. |
+| ~~`app/api/agents/research/route.ts`~~ | ~~`maxResults` param passed directly to Tavily.~~ ✅ Fixed: server-side cap at 15. |
+
+---
+
+## 5. Pre-Launch Checklist
+
+- [ ] All pages load without console errors on a fresh user account (no leftover `undefined` renders)
+- [ ] Complete full **founder flow**: signup → onboarding → assessment → chat 3 agents → workspace → portfolio → request investor connection
+- [ ] Complete full **investor flow**: signup → onboarding → browse deal flow → startup deep-dive → add to pipeline → respond to connection
+- [ ] Test on mobile (320px viewport) — agent chat page and dashboard especially
+- [ ] Confirm `og:image` and `og:title` meta tags on public pages: `/`, `/p/[userId]`, `/s/[surveyId]`, `/apply/[userId]/[roleSlug]`
+- [ ] Run `next build` — zero TypeScript errors, zero missing env var warnings
+- [ ] Set `RESEND_WEBHOOK_SECRET` in production (webhook events are accepted unsigned without it)
+- [ ] Set `INTERNAL_API_SECRET` in production (investor alerts blocked without it — fail-closed)
+- [ ] Set `CRON_SECRET` and register crons in `vercel.json`
+- [ ] Confirm Supabase RLS is enabled on all tables with user data

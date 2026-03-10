@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -13,8 +13,11 @@ const ink  = "#18160F";
 const muted = "#8A867C";
 const blue  = "#2563EB";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextPath = searchParams.get("next");
+
   const [email,    setEmail]    = useState("");
   const [password, setPassword] = useState("");
   const [showPwd,  setShowPwd]  = useState(false);
@@ -32,7 +35,13 @@ export default function LoginPage() {
       if (signInErr) { setError(signInErr.message || "Sign in failed"); setLoading(false); return; }
       if (!data.user) { setError("Sign in failed — please try again."); setLoading(false); return; }
 
-      // Determine where to redirect based on whether the user has an investor profile
+      // Honor ?next= redirect from middleware (only allow relative paths to prevent open redirect)
+      if (nextPath && nextPath.startsWith("/")) {
+        router.push(nextPath);
+        return;
+      }
+
+      // Default: route by user role
       const { data: investorProfile } = await supabase
         .from("investor_profiles")
         .select("id")
@@ -137,5 +146,13 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   );
 }

@@ -79,11 +79,17 @@ export async function PATCH(request: NextRequest) {
     if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const body = await request.json()
-    const { id, ...updates } = body
+    const { id } = body
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
 
-    // Only allow valid stage values
-    if (updates.stage && !VALID_STAGES.includes(updates.stage)) delete updates.stage
+    // Allowlist updatable fields — prevents callers from overwriting user_id or other system fields
+    const ALLOWED = ['company','contact_name','contact_email','contact_title','stage','value','notes','next_action','next_action_date','source','win_reason','loss_reason'] as const
+    type AllowedKey = typeof ALLOWED[number]
+    const updates: Partial<Record<AllowedKey, unknown>> = {}
+    for (const key of ALLOWED) {
+      if (key in body) updates[key] = body[key]
+    }
+    if (updates.stage && !VALID_STAGES.includes(updates.stage as Stage)) delete updates.stage
 
     const { data, error } = await supabase
       .from('deals')

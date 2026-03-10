@@ -198,9 +198,9 @@ export async function POST(request: NextRequest) {
     // Fetch latest qscore_history row
     const { data: qscoreRow } = await supabase
       .from('qscore_history')
-      .select('overall_score, created_at')
+      .select('overall_score, calculated_at')
       .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
+      .order('calculated_at', { ascending: false })
       .limit(1)
       .single()
 

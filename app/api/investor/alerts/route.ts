@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import { createClient } from '@supabase/supabase-js'
+import { encodeToken } from '@/app/api/unsubscribe/route'
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://edgealpha.ai'
 
 // POST /api/investor/alerts
 // Called internally (from onboarding/complete or qscore/calculate) when a founder
@@ -14,9 +17,14 @@ import { createClient } from '@supabase/supabase-js'
 
 export async function POST(request: NextRequest) {
   try {
-    // Internal auth check
+    // Internal auth check — fail closed if secret is not configured
+    const requiredSecret = process.env.INTERNAL_API_SECRET
+    if (!requiredSecret) {
+      console.error('INTERNAL_API_SECRET not configured — rejecting all alerts requests')
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
     const secret = request.headers.get('x-internal-secret')
-    if (secret !== (process.env.INTERNAL_API_SECRET ?? 'ea-internal')) {
+    if (secret !== requiredSecret) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -48,13 +56,16 @@ export async function POST(request: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
     )
 
+    // Sanitize industry/stage before interpolating into the PostgREST contains filter
+    // to prevent query injection via curly-brace characters in field values
+    const safeIndustry = String(industry).replace(/[{},"\\]/g, '')
+    const safeStage    = String(stage).replace(/[{},"\\]/g, '')
+
     // Find matching investors — sector or stage overlap
-    // We search for investors whose sectors array contains the founder's industry
-    // or whose stages array contains the founder's stage
     const { data: investors, error } = await supabase
       .from('investor_profiles')
       .select('user_id, full_name, email, sectors, stages, firm_name, thesis, deal_flow_notifications')
-      .or(`sectors.cs.{${industry}},stages.cs.{${stage}}`)
+      .or(`sectors.cs.{${safeIndustry}},stages.cs.{${safeStage}}`)
       .neq('user_id', founderId) // not self
       .limit(50)
 
@@ -72,15 +83,15 @@ export async function POST(request: NextRequest) {
     }
 
     const resend = new Resend(resendKey)
-    let sent = 0
+    const scoreColor = qScore >= 70 ? '#16A34A' : qScore >= 50 ? '#D97706' : '#DC2626'
 
-    for (const investor of eligible) {
-      try {
-        const greeting = investor.full_name ? `Hi ${investor.full_name.split(' ')[0]},` : 'Hi,'
-        const firmLine = investor.firm_name ? ` at ${investor.firm_name}` : ''
-        const scoreColor = qScore >= 70 ? '#16A34A' : qScore >= 50 ? '#D97706' : '#DC2626'
-
-        await resend.emails.send({
+    // Build all email payloads first, then send in parallel
+    const emailPayloads = eligible.map(investor => {
+      const greeting = investor.full_name ? `Hi ${investor.full_name.split(' ')[0]},` : 'Hi,'
+      const firmLine = investor.firm_name ? ` at ${investor.firm_name}` : ''
+      return {
+        investorId: investor.user_id,
+        email: {
           from:    'Edge Alpha <deals@edgealpha.ai>',
           to:      investor.email,
           subject: `New ${stage} ${industry} founder on Edge Alpha — Q-Score ${qScore}`,
@@ -159,7 +170,7 @@ export async function POST(request: NextRequest) {
               View Full Portfolio →
             </a>
             <p style="margin:12px 0 0;font-size:11px;color:#8A867C">
-              Or <a href="https://edgealpha.ai/investor/deal-flow" style="color:#2563EB;text-decoration:none">browse all deal flow</a> on your dashboard
+              Or <a href="${APP_URL}/investor/deal-flow" style="color:#2563EB;text-decoration:none">browse all deal flow</a> on your dashboard
             </p>
           </td>
         </tr>
@@ -169,8 +180,9 @@ export async function POST(request: NextRequest) {
           <td style="padding:20px 36px;border-top:1px solid #E2DDD5">
             <p style="margin:0;font-size:11px;color:#8A867C;text-align:center">
               You received this because you opted in to deal flow alerts on
-              <a href="https://edgealpha.ai" style="color:#2563EB;text-decoration:none"> Edge Alpha</a>.
-              <a href="https://edgealpha.ai/investor/settings" style="color:#2563EB;text-decoration:none"> Manage notifications</a>
+              <a href="${APP_URL}" style="color:#2563EB;text-decoration:none"> Edge Alpha</a>.
+              <a href="${APP_URL}/investor/settings" style="color:#2563EB;text-decoration:none"> Manage notifications</a> ·
+              <a href="${APP_URL}/api/unsubscribe?token=${encodeToken(investor.user_id, 'alerts')}" style="color:#8A867C;text-decoration:none">Unsubscribe</a>
             </p>
           </td>
         </tr>
@@ -180,11 +192,21 @@ export async function POST(request: NextRequest) {
   </table>
 </body>
 </html>`,
-        })
+        },
+      }
+    })
 
+    // Send all in parallel — up to 50 investors, each email is independent
+    const outcomes = await Promise.allSettled(
+      emailPayloads.map(p => resend.emails.send(p.email))
+    )
+
+    let sent = 0
+    for (let i = 0; i < outcomes.length; i++) {
+      if (outcomes[i].status === 'fulfilled') {
         sent++
-      } catch (emailErr) {
-        console.error(`Alert email failed for investor ${investor.user_id}:`, emailErr)
+      } else {
+        console.error(`Alert email failed for investor ${emailPayloads[i].investorId}:`, (outcomes[i] as PromiseRejectedResult).reason)
       }
     }
 

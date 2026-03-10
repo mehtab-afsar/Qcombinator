@@ -42,32 +42,54 @@ export async function GET() {
     }
 
     const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+    const userIds = founders.map(f => f.user_id)
 
-    // For each founder, get their latest Q-Score + activity signals
-    const enriched = await Promise.all(
-      founders.map(async (f) => {
-        const [
-          { data: qrow },
-          { count: weeklyActions },
-          { count: deliverableCount },
-        ] = await Promise.all([
-          supabase
-            .from('qscore_history')
-            .select('overall_score, market_score, product_score, gtm_score, financial_score, team_score, traction_score, percentile, calculated_at')
-            .eq('user_id', f.user_id)
-            .order('calculated_at', { ascending: false })
-            .limit(1)
-            .single(),
-          supabase
-            .from('agent_activity')
-            .select('id', { count: 'exact', head: true })
-            .eq('user_id', f.user_id)
-            .gte('created_at', since7d),
-          supabase
-            .from('agent_artifacts')
-            .select('id', { count: 'exact', head: true })
-            .eq('user_id', f.user_id),
-        ])
+    // ── 3 batch queries instead of N×3 per-founder queries ────────────────
+    const [
+      { data: allQScores },
+      { data: allActivity },
+      { data: allArtifacts },
+    ] = await Promise.all([
+      // Latest Q-Score per founder — fetch all, pick latest in JS
+      supabase
+        .from('qscore_history')
+        .select('user_id, overall_score, market_score, product_score, gtm_score, financial_score, team_score, traction_score, percentile, calculated_at')
+        .in('user_id', userIds)
+        .order('calculated_at', { ascending: false }),
+      // Weekly activity — fetch user_ids only and count in JS
+      supabase
+        .from('agent_activity')
+        .select('user_id')
+        .in('user_id', userIds)
+        .gte('created_at', since7d),
+      // Total deliverables — fetch user_ids only and count in JS
+      supabase
+        .from('agent_artifacts')
+        .select('user_id')
+        .in('user_id', userIds),
+    ])
+
+    // Build lookup maps from batched results
+    type QScoreRow = { user_id: string; overall_score: number; market_score: number; product_score: number; gtm_score: number; financial_score: number; team_score: number; traction_score: number; percentile: number; calculated_at: string }
+    const latestQScore = new Map<string, QScoreRow>()
+    for (const row of (allQScores ?? []) as QScoreRow[]) {
+      if (!latestQScore.has(row.user_id)) latestQScore.set(row.user_id, row)
+    }
+
+    const activityCountByUser = new Map<string, number>()
+    for (const row of (allActivity ?? []) as { user_id: string }[]) {
+      activityCountByUser.set(row.user_id, (activityCountByUser.get(row.user_id) ?? 0) + 1)
+    }
+
+    const artifactCountByUser = new Map<string, number>()
+    for (const row of (allArtifacts ?? []) as { user_id: string }[]) {
+      artifactCountByUser.set(row.user_id, (artifactCountByUser.get(row.user_id) ?? 0) + 1)
+    }
+
+    const enriched = founders.map((f) => {
+        const qrow = latestQScore.get(f.user_id) ?? null
+        const weeklyActions = activityCountByUser.get(f.user_id) ?? 0
+        const deliverableCount = artifactCountByUser.get(f.user_id) ?? 0
 
         // Map DB stage values to display labels
         const stageLabel: Record<string, string> = {
@@ -90,8 +112,8 @@ export async function GET() {
         if (sp.businessModel) highlights.push(sp.businessModel as string)
         if (sp.whyNow)        highlights.push((sp.whyNow as string).slice(0, 60))
 
-        const agentActionsThisWeek = weeklyActions ?? 0
-        const totalDeliverables    = deliverableCount ?? 0
+        const agentActionsThisWeek = weeklyActions
+        const totalDeliverables    = deliverableCount
 
         return {
           id: f.user_id,
@@ -115,7 +137,6 @@ export async function GET() {
           isActiveFounder: agentActionsThisWeek >= 3,
         }
       })
-    )
 
     // Fetch investor's AI personalization for match scores
     const { data: investorProfile } = await supabase

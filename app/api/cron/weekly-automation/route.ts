@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
+import { encodeToken } from '@/app/api/unsubscribe/route';
 
 // GET /api/cron/weekly-automation
 // Triggered every Monday at 9am UTC via Vercel Cron.
@@ -24,30 +25,69 @@ export async function GET(request: Request) {
 
   const results = { usersProcessed: 0, standupsSent: 0, runwayAlerts: 0, errors: 0 };
 
-  // List all users via admin API
-  const { data: { users }, error: listError } = await supabase.auth.admin.listUsers({ perPage: 1000 });
-  if (listError || !users) {
-    console.error('Cron: failed to list users:', listError);
-    return NextResponse.json({ error: 'Failed to list users' }, { status: 500 });
+  // Query founders who have completed onboarding directly from the DB —
+  // avoids the O(n) admin.listUsers() call (paginates all auth users).
+  // notification_preferences->weeklyDigest defaults to true unless explicitly false
+  const { data: founders, error: listError } = await supabase
+    .from('founder_profiles')
+    .select('user_id, full_name, notification_preferences')
+    .eq('onboarding_completed', true)
+    .eq('role', 'founder')
+    .limit(500);
+
+  if (listError || !founders) {
+    console.error('Cron: failed to list founders:', listError);
+    return NextResponse.json({ error: 'Failed to list founders' }, { status: 500 });
   }
 
-  for (const user of users) {
-    if (!user.email) continue;
+  const founderIds = founders.map(f => f.user_id);
+
+  // Fetch emails + both artifact types in parallel — 3 queries instead of N×2
+  const [{ data: authUsers }, { data: planRows }, { data: finRows }] = await Promise.all([
+    supabase.auth.admin.listUsers({ perPage: 1000 }),
+    supabase
+      .from('agent_artifacts')
+      .select('user_id, content, created_at')
+      .in('user_id', founderIds)
+      .eq('artifact_type', 'strategic_plan')
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('agent_artifacts')
+      .select('user_id, content, created_at')
+      .in('user_id', founderIds)
+      .eq('artifact_type', 'financial_summary')
+      .order('created_at', { ascending: false }),
+  ]);
+
+  const emailByUid = new Map<string, string>();
+  for (const u of authUsers?.users ?? []) {
+    if (u.email) emailByUid.set(u.id, u.email);
+  }
+
+  // Pick the latest artifact per user (rows already ordered desc)
+  const planByUid = new Map<string, Record<string, unknown>>();
+  for (const row of planRows ?? []) {
+    if (!planByUid.has(row.user_id) && row.content) planByUid.set(row.user_id, row.content as Record<string, unknown>);
+  }
+  const finByUid = new Map<string, Record<string, unknown>>();
+  for (const row of finRows ?? []) {
+    if (!finByUid.has(row.user_id) && row.content) finByUid.set(row.user_id, row.content as Record<string, unknown>);
+  }
+
+  for (const founder of founders) {
+    const email = emailByUid.get(founder.user_id);
+    if (!email) continue;
+    // Respect opt-out: weeklyDigest defaults to true unless explicitly set false
+    const prefs = (founder.notification_preferences ?? {}) as Record<string, boolean>;
+    if (prefs.weeklyDigest === false) continue;
+    const user = { id: founder.user_id, email, user_metadata: { full_name: founder.full_name } };
     results.usersProcessed++;
 
     // ── Weekly OKR Standup (Sage) ──────────────────────────────────────
     try {
-      const { data: planArtifact } = await supabase
-        .from('agent_artifacts')
-        .select('content')
-        .eq('user_id', user.id)
-        .eq('artifact_type', 'strategic_plan')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const plan = planByUid.get(user.id);
 
-      if (planArtifact?.content) {
-        const plan = planArtifact.content as Record<string, unknown>;
+      if (plan) {
         const okrs = (plan.okrs as Array<{
           objective: string;
           keyResults: { kr: string; target: string; metric: string }[];
@@ -101,7 +141,7 @@ export async function GET(request: Request) {
                 </div>
               </div>
               <div style="padding:16px 28px;background:#F0EDE6;border-top:1px solid #E2DDD5">
-                <p style="font-size:11px;color:#8A867C;margin:0">You're receiving this because you have an active strategic plan in Edge Alpha. <a href="${APP_URL}/founder/settings" style="color:#8A867C">Manage preferences</a></p>
+                <p style="font-size:11px;color:#8A867C;margin:0">You're receiving this because you have an active strategic plan in Edge Alpha. <a href="${APP_URL}/founder/settings?tab=notifications" style="color:#8A867C">Manage preferences</a> · <a href="${APP_URL}/api/unsubscribe?token=${encodeToken(user.id, 'weekly')}" style="color:#8A867C">Unsubscribe</a></p>
               </div>
             </div>
           `,
@@ -116,17 +156,9 @@ export async function GET(request: Request) {
 
     // ── Runway Alert (Felix) ──────────────────────────────────────────
     try {
-      const { data: finArtifact } = await supabase
-        .from('agent_artifacts')
-        .select('content')
-        .eq('user_id', user.id)
-        .eq('artifact_type', 'financial_summary')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const fin = finByUid.get(user.id);
 
-      if (finArtifact?.content) {
-        const fin = finArtifact.content as Record<string, unknown>;
+      if (fin && prefs.runwayAlerts !== false) {
         const snapshot = fin.snapshot as Record<string, string> | undefined;
         const runwayStr = snapshot?.runway ?? '';
         // Parse "4.2 months", "4 months", "Pre-revenue", etc.
@@ -162,6 +194,9 @@ export async function GET(request: Request) {
                   <div style="margin-top:20px;text-align:center">
                     <a href="${APP_URL}/founder/agents/felix" style="display:inline-block;padding:11px 24px;background:#DC2626;color:#fff;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600">Talk to Felix about this →</a>
                   </div>
+                  <p style="margin-top:16px;font-size:11px;color:#8A867C;text-align:center">
+                    <a href="${APP_URL}/api/unsubscribe?token=${encodeToken(user.id, 'runway')}" style="color:#8A867C">Unsubscribe from runway alerts</a>
+                  </p>
                 </div>
               </div>
             `,

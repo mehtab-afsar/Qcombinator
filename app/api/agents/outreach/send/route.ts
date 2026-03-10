@@ -16,7 +16,8 @@ import { createClient } from '@/lib/supabase/server'
 // Returns: { sent: number; failed: number; results: Array<{ email: string; status: 'sent'|'failed'; id?: string }> }
 
 const PLATFORM_FROM = 'Edge Alpha <outreach@edgealpha.ai>'
-const DELAY_MS = 200 // 200ms between sends to stay under Resend burst limits
+const BATCH_SIZE = 10  // send up to 10 emails in parallel per batch
+const BATCH_DELAY_MS = 300 // wait 300ms between batches (stays under Resend burst limits)
 
 interface Contact {
   name: string
@@ -74,8 +75,31 @@ function textToHtml(text: string, fromName: string, _fromEmail: string): string 
   `
 }
 
-function sleep(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms))
+function sleep(ms: number) { return new Promise(resolve => setTimeout(resolve, ms)) }
+
+async function sendOne(
+  resend: Resend,
+  contact: Contact,
+  step: OutreachStep,
+  fromName: string,
+  fromEmail: string,
+): Promise<{ email: string; status: 'sent' | 'failed'; resendId?: string; error?: string }> {
+  try {
+    const personalizedSubject = personalize(step.subject, contact)
+    const personalizedBody    = personalize(step.body, contact)
+    const htmlBody            = textToHtml(personalizedBody, fromName || 'The Founder', fromEmail)
+    const { data, error } = await resend.emails.send({
+      from:    PLATFORM_FROM,
+      replyTo: fromEmail ? `${fromName} <${fromEmail}>` : undefined,
+      to:      contact.email,
+      subject: personalizedSubject,
+      html:    htmlBody,
+    })
+    if (error) return { email: contact.email, status: 'failed', error: error.message }
+    return { email: contact.email, status: 'sent', resendId: data?.id }
+  } catch (err) {
+    return { email: contact.email, status: 'failed', error: err instanceof Error ? err.message : 'Unknown error' }
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -127,30 +151,23 @@ export async function POST(request: NextRequest) {
     let sent = 0
     let failed = 0
 
-    // Send emails one at a time with a small delay
-    for (const contact of contacts) {
-      try {
-        const personalizedSubject = personalize(step.subject, contact)
-        const personalizedBody    = personalize(step.body, contact)
-        const htmlBody            = textToHtml(personalizedBody, fromName || 'The Founder', fromEmail)
+    // Send in parallel batches of BATCH_SIZE to stay under Resend burst rate limits.
+    // 100 contacts → ~10 batches × 300ms delay ≈ 3s (vs 20s serial with 200ms delay).
+    for (let i = 0; i < contacts.length; i += BATCH_SIZE) {
+      const batch = contacts.slice(i, i + BATCH_SIZE)
+      const batchResults = await Promise.allSettled(
+        batch.map(contact => sendOne(resend, contact, step, fromName || 'The Founder', fromEmail))
+      )
 
-        const { data, error } = await resend.emails.send({
-          from:     PLATFORM_FROM,
-          replyTo:  fromEmail ? `${fromName} <${fromEmail}>` : undefined,
-          to:       contact.email,
-          subject:  personalizedSubject,
-          html:     htmlBody,
-        })
-
-        if (error) {
-          results.push({ email: contact.email, status: 'failed', error: error.message })
-          failed++
-        } else {
-          results.push({ email: contact.email, status: 'sent', resendId: data?.id })
+      // Collect results and batch-insert successful sends into outreach_sends
+      const dbInserts: Record<string, unknown>[] = []
+      for (const outcome of batchResults) {
+        const r = outcome.status === 'fulfilled' ? outcome.value : { email: '', status: 'failed' as const, error: String((outcome as PromiseRejectedResult).reason) }
+        results.push(r)
+        if (r.status === 'sent') {
           sent++
-
-          // Log to outreach_sends
-          await supabase.from('outreach_sends').insert({
+          const contact = contacts.find(c => c.email === r.email)!
+          dbInserts.push({
             user_id:         user.id,
             artifact_id:     artifactId ?? null,
             sequence_name:   sequenceName ?? null,
@@ -159,20 +176,22 @@ export async function POST(request: NextRequest) {
             contact_company: contact.company ?? null,
             contact_title:   contact.title ?? null,
             step_index:      stepIndex,
-            subject:         personalizedSubject,
-            body_html:       htmlBody,
-            resend_id:       data?.id ?? null,
+            subject:         personalize(step.subject, contact),
+            body_html:       textToHtml(personalize(step.body, contact), fromName || 'The Founder', fromEmail),
+            resend_id:       r.resendId ?? null,
             status:          'sent',
           })
+        } else {
+          failed++
         }
-
-        // Rate-limit delay
-        await sleep(DELAY_MS)
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Unknown error'
-        results.push({ email: contact.email, status: 'failed', error: msg })
-        failed++
       }
+
+      if (dbInserts.length > 0) {
+        await supabase.from('outreach_sends').insert(dbInserts)
+      }
+
+      // Delay between batches (not within them)
+      if (i + BATCH_SIZE < contacts.length) await sleep(BATCH_DELAY_MS)
     }
 
     // ── Cross-agent: auto-create lead deals in Susi's pipeline ──────────
