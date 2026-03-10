@@ -32,7 +32,9 @@ export function calculateFinancialScore(data: AssessmentData): {
 
   // Gross margin calculation (20 pts)
   if (hasCOGS && hasAvgDeal && finData.averageDealSize! > 0) {
-    const grossMargin = ((finData.averageDealSize! - finData.cogs!) / finData.averageDealSize!) * 100;
+    const grossMargin = isFinite(finData.cogs! / finData.averageDealSize!)
+      ? ((finData.averageDealSize! - finData.cogs!) / finData.averageDealSize!) * 100
+      : 0;
     if (grossMargin >= 80) points += 20; // Excellent (80%+)
     else if (grossMargin >= 70) points += 17; // Great (70-80%)
     else if (grossMargin >= 60) points += 14; // Good (60-70%)
@@ -106,12 +108,13 @@ export function calculateFinancialScore(data: AssessmentData): {
     points += 3; // No assumptions
   }
 
-  // Normalize to 0-100 scale
-  const score = Math.min(Math.round((points / maxPoints) * 100), 100);
+  // Normalize to 0-100, clamp both ends, guard NaN
+  const raw = isFinite(points) ? Math.round((points / maxPoints) * 100) : 0;
+  const score = Math.max(0, Math.min(100, raw));
 
   return {
     score,
-    rawPoints: points,
+    rawPoints: Math.max(0, points),
     maxPoints
   };
 }

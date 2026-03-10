@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { calculatePRDQScore } from '@/features/qscore/calculators/prd-aligned-qscore';
 import { AssessmentData, calculateGrade } from '@/features/qscore/types/qscore.types';
 import { detectBluffSignals, applyBluffPenalty } from '@/features/qscore/utils/bluff-detection';
+import { evaluateAssessmentAnswers } from '@/features/qscore/rag/answer-evaluator';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export async function POST(request: NextRequest) {
@@ -38,10 +39,19 @@ export async function POST(request: NextRequest) {
       .limit(1)
       .single();
 
-    // Calculate new Q-Score
+    // ── RAG: Semantic evaluation ───────────────────────────────────────────
+    // Run BEFORE scoring so dimension calculators can use LLM quality scores
+    // instead of character-count heuristics. Falls back gracefully on failure.
+    const semanticEval = await evaluateAssessmentAnswers(assessmentData as AssessmentData);
+    if (!semanticEval.success) {
+      console.warn('[Q-Score RAG] Semantic eval failed, using heuristics:', semanticEval.errorMessage);
+    }
+
+    // Calculate new Q-Score (with RAG semantic evaluation injected)
     const qScore = calculatePRDQScore(
       assessmentData as AssessmentData,
-      previousScoreData || undefined
+      previousScoreData || undefined,
+      semanticEval
     );
 
     // Run bluff detection — penalize inflated/AI-generated inputs
@@ -70,6 +80,9 @@ export async function POST(request: NextRequest) {
         team_score: qScore.breakdown.team.score,
         traction_score: qScore.breakdown.traction.score,
         assessment_data: assessmentData,
+        // Store semantic eval result for debugging / future analytics
+        // (stored under ai_actions.rag_eval so it doesn't break existing schema)
+        ai_actions: { rag_eval: semanticEval },
       })
       .select()
       .single();

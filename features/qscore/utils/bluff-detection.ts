@@ -172,5 +172,5 @@ export function applyBluffPenalty(score: number, signals: BluffSignal[]): number
   const penalty = highCount * 0.10 + mediumCount * 0.03 + lowCount * 0.01;
   const clampedPenalty = Math.min(penalty, 0.30); // Max 30% penalty
 
-  return Math.round(score * (1 - clampedPenalty));
+  return Math.max(0, Math.round(score * (1 - clampedPenalty)));
 }

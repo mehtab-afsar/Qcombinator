@@ -63,12 +63,13 @@ export function calculateMarketScore(data: AssessmentData): {
   else if (ltvCacRatio >= 1) points += 4; // Breakeven
   else points += 0; // Negative economics
 
-  // Normalize to 0-100 scale
-  const score = Math.min(Math.round((points / maxPoints) * 100), 100);
+  // Normalize to 0-100, clamp both ends, guard NaN
+  const raw = isFinite(points) ? Math.round((points / maxPoints) * 100) : 0;
+  const score = Math.max(0, Math.min(100, raw));
 
   return {
     score,
-    rawPoints: points,
+    rawPoints: Math.max(0, points),
     maxPoints
   };
 }

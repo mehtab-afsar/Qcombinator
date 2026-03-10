@@ -1,6 +1,9 @@
 /**
  * PRD-Aligned Q-Score Calculator
  * Calculates Q-Score using 6-dimension weighted model per PRD requirements
+ *
+ * RAG enhancement: accepts optional SemanticEvaluation to pass into dimension
+ * calculators, replacing character-count heuristics with LLM substance scores.
  */
 
 import { PRDQScore, PRD_WEIGHTS, calculateGrade, AssessmentData, DimensionScore } from '../types/qscore.types';
@@ -11,18 +14,28 @@ import { calculateFinancialScore } from './dimensions/financial';
 import { calculateTeamScore } from './dimensions/team';
 import { calculateTractionScore } from './dimensions/traction';
 import { calculateConfidence, adjustForConfidence } from '../utils/confidence';
+import { SemanticEvaluation } from '../rag/types';
 
 /**
  * Main Q-Score calculation function
- * Maps existing 7-section assessment to PRD's 6 dimensions
+ * Maps existing 7-section assessment to PRD's 6 dimensions.
+ *
+ * @param assessmentData  - Founder's raw assessment answers
+ * @param previousScore   - Previous score for trend calculation
+ * @param semanticEval    - Optional RAG semantic evaluation (replaces heuristics when present)
  */
-export function calculatePRDQScore(assessmentData: AssessmentData, previousScore?: PRDQScore): PRDQScore {
+export function calculatePRDQScore(
+  assessmentData: AssessmentData,
+  previousScore?: PRDQScore,
+  semanticEval?: SemanticEvaluation
+): PRDQScore {
   // Calculate each dimension (0-100 scale)
+  // RAG-enhanced dimensions receive semanticEval; others remain unchanged
   const marketResult = calculateMarketScore(assessmentData);
-  const productResult = calculateProductScore(assessmentData);
-  const gtmResult = calculateGTMScore(assessmentData);
+  const productResult = calculateProductScore(assessmentData, semanticEval);
+  const gtmResult = calculateGTMScore(assessmentData, semanticEval);
   const financialResult = calculateFinancialScore(assessmentData);
-  const teamResult = calculateTeamScore(assessmentData);
+  const teamResult = calculateTeamScore(assessmentData, semanticEval);
   const tractionResult = calculateTractionScore(assessmentData);
 
   // Apply confidence adjustment — don't inflate scores from missing data
@@ -58,18 +71,24 @@ export function calculatePRDQScore(assessmentData: AssessmentData, previousScore
   } else {
     // Partial data — re-normalize weights across dimensions with data
     const totalActiveWeight = activeDimensions.reduce((sum, d) => sum + d.weight, 0);
-    const rawWeighted = activeDimensions.reduce(
-      (sum, d) => sum + d.result.score * (d.weight / totalActiveWeight), 0
-    );
+    const rawWeighted = totalActiveWeight > 0
+      ? activeDimensions.reduce(
+          (sum, d) => sum + d.result.score * (d.weight / totalActiveWeight), 0
+        )
+      : 0;
     // Apply a penalty for missing dimensions (each missing dim reduces score slightly)
     const missingCount = dimensionResults.length - activeDimensions.length;
-    const coveragePenalty = 1 - (missingCount * 0.05); // 5% penalty per missing dimension
+    const coveragePenalty = Math.max(0, 1 - (missingCount * 0.05)); // 5% penalty, never negative
     overall = Math.round(rawWeighted * coveragePenalty);
   }
 
+  // Hard bounds: score must always be 0–100 and finite
+  overall = Math.max(0, Math.min(100, isFinite(overall) ? overall : 0));
+
   // Calculate trends if previous score exists
   const calculateTrend = (current: number, previous?: number): { trend: 'up' | 'down' | 'neutral', change: number } => {
-    if (!previous) return { trend: 'neutral', change: 0 };
+    // Explicit null/undefined check — previous=0 is a valid score, not "no data"
+    if (previous == null || !isFinite(previous)) return { trend: 'neutral', change: 0 };
     const change = current - previous;
     if (change > 2) return { trend: 'up', change };
     if (change < -2) return { trend: 'down', change };

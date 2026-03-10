@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { callOpenRouter } from '@/lib/openrouter';
+import { retrieveActionsContext, inferSector } from '@/features/qscore/rag/retrieval';
+import { AssessmentData } from '@/features/qscore/types/qscore.types';
 
 /**
  * GET /api/qscore/actions
@@ -32,7 +34,7 @@ export async function GET(_request: NextRequest) {
     // Fetch latest score row (includes cached ai_actions)
     const { data: latest, error: scoreError } = await supabase
       .from('qscore_history')
-      .select('id, ai_actions, overall_score, market_score, product_score, gtm_score, financial_score, team_score, traction_score, assessment_id')
+      .select('id, ai_actions, overall_score, market_score, product_score, gtm_score, financial_score, team_score, traction_score, assessment_id, assessment_data')
       .eq('user_id', user.id)
       .order('calculated_at', { ascending: false })
       .limit(1)
@@ -42,12 +44,17 @@ export async function GET(_request: NextRequest) {
       return NextResponse.json({ actions: [] });
     }
 
-    // Return cached actions if they exist
-    if (Array.isArray(latest.ai_actions) && latest.ai_actions.length > 0) {
-      return NextResponse.json({ actions: latest.ai_actions });
+    // Return cached actions if they exist (skip rag_eval object stored there)
+    const cachedActions = Array.isArray(latest.ai_actions)
+      ? latest.ai_actions
+      : Array.isArray(latest.ai_actions?.actions)
+      ? latest.ai_actions.actions
+      : null;
+    if (cachedActions && cachedActions.length > 0) {
+      return NextResponse.json({ actions: cachedActions });
     }
 
-    // ── Generate personalized actions via LLM ──────────────────────────────────
+    // ── Generate personalized actions via LLM + RAG ────────────────────────
     const scores: Record<string, number> = {
       market:     latest.market_score    ?? 0,
       product:    latest.product_score   ?? 0,
@@ -58,10 +65,23 @@ export async function GET(_request: NextRequest) {
     };
 
     // Sorted worst → best
-    const sortedDims = Object.entries(scores)
-      .sort((a, b) => a[1] - b[1])
+    const sortedDimsArr = Object.entries(scores).sort((a, b) => a[1] - b[1]);
+    const sortedDims = sortedDimsArr
       .map(([dim, score]) => `${DIMENSION_AGENTS[dim]?.label ?? dim}: ${score}/100`)
       .join(', ');
+
+    // Weak dimensions for targeted retrieval (bottom 3)
+    const weakDimensions = sortedDimsArr.slice(0, 3).map(([dim]) => dim);
+
+    // ── RAG: retrieve relevant playbooks and benchmarks ────────────────────
+    // Use assessment_data stored on the score row (faster than fetching assessment)
+    const assessmentData = (latest.assessment_data ?? {}) as AssessmentData;
+    const sector = inferSector(assessmentData);
+    const { context: ragContext, chunkIds } = retrieveActionsContext(
+      assessmentData,
+      weakDimensions,
+      sector
+    );
 
     // Fetch assessment data for personalisation
     let assessmentContext = '';
@@ -73,20 +93,32 @@ export async function GET(_request: NextRequest) {
         .single();
 
       if (assessment?.assessment_data) {
-        const snippet = JSON.stringify(assessment.assessment_data).slice(0, 3000);
+        const snippet = JSON.stringify(assessment.assessment_data).slice(0, 2000);
         assessmentContext = `\n\nFounder's assessment responses (use these for specificity):\n${snippet}`;
       }
+    } else if (latest.assessment_data) {
+      // Fallback: use assessment_data stored directly on the score row
+      const snippet = JSON.stringify(latest.assessment_data).slice(0, 2000);
+      assessmentContext = `\n\nFounder's assessment responses (use these for specificity):\n${snippet}`;
     }
+
+    // ── RAG context block (injected BEFORE the generation request) ─────────
+    const ragContextBlock = ragContext
+      ? `\n\nRELEVANT STARTUP KNOWLEDGE (use this to ground your advice in real benchmarks and frameworks — reference specific numbers and strategies from here):\n${ragContext}`
+      : '';
 
     const systemPrompt = `You are a top-tier startup advisor. Generate exactly 5 highly specific, personalized action items to help this founder improve their Q-Score toward 80.
 
 Current Q-Score: ${latest.overall_score}/100
+Detected sector: ${sector.replace(/_/g, ' ')}
 Dimension Scores (worst → best): ${sortedDims}
 ${assessmentContext}
+${ragContextBlock}
 
 Rules:
 - Each action must be SPECIFIC to this founder's actual product, market, and situation
 - Reference things they mentioned (product name, customers, competitors, metrics) wherever possible
+- Use the RELEVANT STARTUP KNOWLEDGE section to cite specific benchmarks and tactics (e.g., "For B2B SaaS, a healthy conversion rate is 2–5%...")
 - Target their lowest-scoring dimensions first
 - Each action must be achievable in 1–4 weeks
 - Actions must be concrete steps, NOT generic advice like "define your ICP"
@@ -97,7 +129,7 @@ Return a JSON array of exactly 5 objects:
 [
   {
     "title": "Short action title (max 8 words)",
-    "description": "2-3 sentences: what to do and why it specifically helps this founder",
+    "description": "2-3 sentences: what to do and why it specifically helps this founder, with a specific benchmark or tactic from the knowledge base",
     "dimension": "one of: market, product, goToMarket, financial, team, traction",
     "impact": "+X points",
     "agentId": "one of: atlas, nova, patel, felix, harper, susi",
@@ -108,6 +140,9 @@ Return a JSON array of exactly 5 objects:
 ]
 
 Return ONLY valid JSON. No markdown, no explanation.`;
+
+    // Track which chunks were used (for analytics)
+    void chunkIds; // Available for future logging
 
     const raw = await callOpenRouter([
       { role: 'system', content: systemPrompt },
@@ -124,16 +159,22 @@ Return ONLY valid JSON. No markdown, no explanation.`;
       const parsed = JSON.parse(cleaned);
       if (Array.isArray(parsed)) {
         actions = parsed.slice(0, 5);
+      } else if (Array.isArray(parsed?.actions)) {
+        actions = parsed.actions.slice(0, 5);
       }
     } catch {
       return NextResponse.json({ actions: [] });
     }
 
-    // Cache to DB
+    // Cache to DB (preserve any existing rag_eval stored in ai_actions)
     if (actions.length > 0) {
+      const existingRagEval =
+        latest.ai_actions && !Array.isArray(latest.ai_actions)
+          ? { rag_eval: latest.ai_actions.rag_eval }
+          : {};
       await supabase
         .from('qscore_history')
-        .update({ ai_actions: actions })
+        .update({ ai_actions: { ...existingRagEval, actions } })
         .eq('id', latest.id);
     }
 
