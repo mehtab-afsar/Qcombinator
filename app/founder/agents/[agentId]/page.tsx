@@ -6,6 +6,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, Send, TrendingUp, ChevronRight, Copy, Check, X, RefreshCw, FileText, Mail, Swords, BookOpen, Sparkles, DollarSign, Scale, Users, Search, Compass, BarChart3, Zap, Highlighter, Share2, Download, Upload, Loader2, CheckCircle2, PlayCircle, Paperclip, MessageSquare, Shield, Rocket, Globe, Calendar, Crosshair } from "lucide-react";
 import Link from "next/link";
 import { getAgentById } from "@/features/agents/data/agents";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Separator } from "@/components/ui/separator";
 
 // ─── palette (matches investor dashboard exactly) ─────────────────────────────
 const bg    = "#F9F7F2";
@@ -245,25 +250,20 @@ function ICPRenderer({ data }: { data: Record<string, unknown> }) {
     letterSpacing: "0.14em", color: muted, marginBottom: 10,
   };
 
-  const pill = (text: string, accent = muted): React.CSSProperties => ({
-    display: "inline-block", padding: "3px 10px", borderRadius: 999,
-    fontSize: 11, background: surf, border: `1px solid ${bdr}`, color: accent, marginRight: 6, marginBottom: 5,
-  });
-
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+    <div className="flex flex-col gap-3">
       {/* Summary */}
       {d.summary && (
-        <div style={{ background: surf, borderRadius: 10, padding: "14px 16px", border: `1px solid ${bdr}` }}>
+        <Card><CardContent className="pt-4 pb-4">
           <p style={{ fontSize: 13, lineHeight: 1.6, color: ink }}>{d.summary}</p>
-        </div>
+        </CardContent></Card>
       )}
 
       {/* Buyer Persona */}
       {d.buyerPersona && (
-        <div>
+        <Card><CardContent className="pt-4 pb-4">
           <p style={sectionHead}>Buyer Persona</p>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
+          <div className="grid grid-cols-3 gap-3 mb-3">
             {[
               { l: "Title", v: d.buyerPersona.title },
               { l: "Role", v: d.buyerPersona.role },
@@ -294,98 +294,108 @@ function ICPRenderer({ data }: { data: Record<string, unknown> }) {
               ))}
             </div>
           )}
-        </div>
+        </CardContent></Card>
       )}
 
       {/* Firmographics */}
       {d.firmographics && (
-        <div>
+        <Card><CardContent className="pt-4 pb-4">
           <p style={sectionHead}>Firmographics</p>
-          {d.firmographics.companySize && <p style={{ fontSize: 12, color: ink, marginBottom: 6 }}>Size: {d.firmographics.companySize}</p>}
-          {d.firmographics.revenue && <p style={{ fontSize: 12, color: ink, marginBottom: 6 }}>Revenue: {d.firmographics.revenue}</p>}
-          <div style={{ marginTop: 6 }}>
-            {(d.firmographics.industry || []).map(t => <span key={t} style={pill(t)}>{t}</span>)}
-            {(d.firmographics.geography || []).map(t => <span key={t} style={pill(t, blue)}>{t}</span>)}
-            {(d.firmographics.techStack || []).map(t => <span key={t} style={pill(t, amber)}>{t}</span>)}
+          {d.firmographics.companySize && <p style={{ fontSize: 12, color: ink, marginBottom: 4 }}>Size: {d.firmographics.companySize}</p>}
+          {d.firmographics.revenue && <p style={{ fontSize: 12, color: ink, marginBottom: 4 }}>Revenue: {d.firmographics.revenue}</p>}
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {(d.firmographics.industry || []).map(t => <Badge key={t} variant="outline">{t}</Badge>)}
+            {(d.firmographics.geography || []).map(t => <Badge key={t} variant="outline">{t}</Badge>)}
+            {(d.firmographics.techStack || []).map(t => <Badge key={t} variant="outline">{t}</Badge>)}
           </div>
-        </div>
+        </CardContent></Card>
       )}
 
       {/* Pain Points */}
       {d.painPoints && d.painPoints.length > 0 && (
         <div>
           <p style={sectionHead}>Pain Points</p>
-          {d.painPoints.map((pp, i) => (
-            <div key={i} style={{ padding: "10px 14px", background: surf, borderRadius: 8, border: `1px solid ${bdr}`, marginBottom: 8 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>{pp.pain}</p>
-                <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: sevColor[pp.severity] || muted }}>{pp.severity}</span>
-              </div>
-              <p style={{ fontSize: 11, color: muted }}>Current: {pp.currentSolution}</p>
-            </div>
-          ))}
+          <Accordion type="multiple" className="flex flex-col gap-1">
+            {d.painPoints.map((pp, i) => (
+              <AccordionItem key={i} value={`pp-${i}`} className="border rounded-xl overflow-hidden">
+                <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                  <div className="flex items-center gap-3 w-full">
+                    <span style={{ fontSize: 13, fontWeight: 600, color: ink }}>{pp.pain}</span>
+                    <Badge variant="outline" style={{ color: sevColor[pp.severity] || muted, borderColor: sevColor[pp.severity] || muted, marginLeft: "auto" }}>
+                      {pp.severity}
+                    </Badge>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-3">
+                  <p style={{ fontSize: 11, color: muted }}>Current solution: {pp.currentSolution}</p>
+                </AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
         </div>
       )}
 
       {/* Buying Triggers */}
       {d.buyingTriggers && d.buyingTriggers.length > 0 && (
-        <div>
+        <Card><CardContent className="pt-4 pb-4">
           <p style={sectionHead}>Buying Triggers</p>
-          {d.buyingTriggers.map((t, i) => (
-            <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 6 }}>
-              <span style={{ fontSize: 11, color: green, fontWeight: 700, flexShrink: 0, marginTop: 1 }}>{i + 1}.</span>
-              <p style={{ fontSize: 12, color: ink, lineHeight: 1.5 }}>{t}</p>
-            </div>
-          ))}
-        </div>
+          <div className="flex flex-col gap-1.5">
+            {d.buyingTriggers.map((t, i) => (
+              <div key={i} className="flex gap-2 items-start">
+                <span style={{ fontSize: 11, color: muted, fontWeight: 700, flexShrink: 0, marginTop: 1 }}>{i + 1}.</span>
+                <p style={{ fontSize: 12, color: ink, lineHeight: 1.5 }}>{t}</p>
+              </div>
+            ))}
+          </div>
+        </CardContent></Card>
       )}
 
       {/* Channels */}
       {d.channels && d.channels.length > 0 && (
-        <div>
+        <Card><CardContent className="pt-4 pb-4">
           <p style={sectionHead}>Recommended Channels</p>
-          {d.channels.map((ch, i) => (
-            <div key={i} style={{ marginBottom: 8 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: ink }}>{ch.channel}</span>
-                <span style={{
-                  fontSize: 9, fontWeight: 700, textTransform: "uppercase",
-                  padding: "2px 7px", borderRadius: 999,
-                  background: ch.priority === "primary" ? blue : surf,
-                  color: ch.priority === "primary" ? "#fff" : muted,
-                }}>{ch.priority}</span>
+          <div className="flex flex-col gap-3">
+            {d.channels.map((ch, i) => (
+              <div key={i}>
+                <div className="flex items-center gap-2 mb-1">
+                  <span style={{ fontSize: 13, fontWeight: 600, color: ink }}>{ch.channel}</span>
+                  <Badge variant={ch.priority === "primary" ? "default" : "secondary"}>{ch.priority}</Badge>
+                </div>
+                <p style={{ fontSize: 11, color: muted, lineHeight: 1.5 }}>{ch.rationale}</p>
+                {i < d.channels!.length - 1 && <Separator className="mt-3" />}
               </div>
-              <p style={{ fontSize: 11, color: muted, lineHeight: 1.5 }}>{ch.rationale}</p>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        </CardContent></Card>
       )}
 
       {/* Qualification */}
       {d.qualificationCriteria && d.qualificationCriteria.length > 0 && (
-        <div>
+        <Card><CardContent className="pt-4 pb-4">
           <p style={sectionHead}>Qualification Criteria</p>
-          {d.qualificationCriteria.map((q, i) => (
-            <p key={i} style={{ fontSize: 12, color: ink, paddingLeft: 10, lineHeight: 1.6 }}>✓ {q}</p>
-          ))}
-        </div>
+          <div className="flex flex-col gap-1">
+            {d.qualificationCriteria.map((q, i) => (
+              <p key={i} style={{ fontSize: 12, color: ink, paddingLeft: 10, lineHeight: 1.6 }}>✓ {q}</p>
+            ))}
+          </div>
+        </CardContent></Card>
       )}
 
-      {/* ── Hunter.io Lead Enrichment ───────────────────────────────────────── */}
-      <div style={{ background: surf, borderRadius: 12, padding: "14px 16px", border: `1px solid ${bdr}` }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: showEnrich || enrichLeads ? 14 : 0 }}>
+      {/* Hunter.io Lead Enrichment */}
+      <Card><CardContent className="pt-4 pb-4">
+        <div className="flex justify-between items-start" style={{ marginBottom: showEnrich || enrichLeads ? 14 : 0 }}>
           <div>
             <p style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 2 }}>Suggested Leads (Hunter.io)</p>
             <p style={{ fontSize: 11, color: muted }}>Enter a company domain — Patel finds decision-maker emails matching your ICP.</p>
           </div>
-          <button onClick={() => { setShowEnrich(p => !p); setEnrichLeads(null); setEnrichError(null); }} style={{ padding: "6px 12px", borderRadius: 7, border: "none", background: ink, color: bg, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+          <button onClick={() => { setShowEnrich(p => !p); setEnrichLeads(null); setEnrichError(null); }} style={{ padding: "6px 12px", borderRadius: 7, border: "none", background: ink, color: bg, fontSize: 11, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>
             {showEnrich ? "Close" : "Find Leads"}
           </button>
         </div>
 
         {showEnrich && !enrichLeads && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <div style={{ display: "flex", gap: 8 }}>
+          <div className="flex flex-col gap-2.5">
+            <div className="flex gap-2">
               <input
                 value={enrichDomain}
                 onChange={e => setEnrichDomain(e.target.value)}
@@ -399,7 +409,7 @@ function ICPRenderer({ data }: { data: Record<string, unknown> }) {
             </div>
             <div>
               <p style={{ fontSize: 10, color: muted, marginBottom: 4 }}>Hunter API Key (optional — uses shared key if blank)</p>
-              <input value={enrichKey} onChange={e => setEnrichKey(e.target.value)} placeholder="Leave blank to use Edge Alpha's key (25 searches/mo)" style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: `1px solid ${bdr}`, background: "#fff", fontSize: 12, color: ink, outline: "none", boxSizing: "border-box" }} />
+              <input value={enrichKey} onChange={e => setEnrichKey(e.target.value)} placeholder="Leave blank to use Edge Alpha's key (25 searches/mo)" style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: `1px solid ${bdr}`, background: bg, fontSize: 12, color: ink, outline: "none", boxSizing: "border-box" }} />
             </div>
             {enrichError && <p style={{ fontSize: 12, color: red }}>{enrichError}</p>}
           </div>
@@ -407,10 +417,10 @@ function ICPRenderer({ data }: { data: Record<string, unknown> }) {
 
         {enrichLeads && (
           <div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <div className="flex justify-between items-center mb-2.5">
               <p style={{ fontSize: 12, fontWeight: 600, color: ink }}>{enrichLeads.length} leads at {enrichOrg}</p>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={copyLeadsAsCSV} style={{ padding: "5px 12px", borderRadius: 6, border: `1px solid ${bdr}`, background: "#fff", fontSize: 11, fontWeight: 600, color: copiedLeads ? green : ink, cursor: "pointer" }}>
+              <div className="flex gap-2">
+                <button onClick={copyLeadsAsCSV} style={{ padding: "5px 12px", borderRadius: 6, border: `1px solid ${bdr}`, background: bg, fontSize: 11, fontWeight: 600, color: copiedLeads ? green : ink, cursor: "pointer" }}>
                   {copiedLeads ? "✓ Copied" : "Copy as CSV"}
                 </button>
                 <button
@@ -425,28 +435,26 @@ function ICPRenderer({ data }: { data: Record<string, unknown> }) {
                 >
                   {addedToSeq ? "✓ Added to Outreach!" : "Add to Outreach Sequence ↓"}
                 </button>
-                <button onClick={() => { setEnrichLeads(null); setShowEnrich(true); }} style={{ padding: "5px 12px", borderRadius: 6, border: `1px solid ${bdr}`, background: "#fff", fontSize: 11, color: muted, cursor: "pointer" }}>
+                <button onClick={() => { setEnrichLeads(null); setShowEnrich(true); }} style={{ padding: "5px 12px", borderRadius: 6, border: `1px solid ${bdr}`, background: bg, fontSize: 11, color: muted, cursor: "pointer" }}>
                   New search
                 </button>
               </div>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <div className="flex flex-col gap-1.5">
               {enrichLeads.map((lead, i) => (
-                <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "#fff", borderRadius: 8, border: `1px solid ${bdr}` }}>
+                <div key={i} className="flex justify-between items-center" style={{ padding: "8px 12px", background: bg, borderRadius: 8, border: `1px solid ${bdr}` }}>
                   <div>
                     <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>{lead.name}</p>
                     <p style={{ fontSize: 11, color: muted }}>{lead.email}{lead.title ? ` · ${lead.title}` : ''}</p>
                   </div>
-                  <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 999, background: lead.confidence >= 80 ? "#F0FDF4" : "#FFFBEB", color: lead.confidence >= 80 ? green : amber }}>
-                    {lead.confidence}%
-                  </span>
+                  <Badge variant="outline">{lead.confidence}%</Badge>
                 </div>
               ))}
             </div>
             <p style={{ fontSize: 10, color: muted, marginTop: 8 }}>Copy as CSV to paste into the Outreach Sequence sender above →</p>
           </div>
         )}
-      </div>
+      </CardContent></Card>
     </div>
   );
 }
@@ -598,12 +606,14 @@ function OutreachRenderer({ data, artifactId, sequenceName }: { data: Record<str
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
       {/* ── Send Emails CTA bar ─────────────────────────────────────── */}
-      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <Card>
+        <CardContent className="pt-4 pb-4">
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ height: 36, width: 36, borderRadius: 9, background: surf, border: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
             {sendResult?.sent
               ? <CheckCircle2 size={16} color={green} />
-              : <PlayCircle size={16} color={blue} />
+              : <PlayCircle size={16} color={muted} />
             }
           </div>
           <div>
@@ -631,25 +641,27 @@ function OutreachRenderer({ data, artifactId, sequenceName }: { data: Record<str
         >
           <Send size={12} /> {showSendPanel ? 'Close' : 'Send Emails'}
         </button>
-      </div>
+        </div>
+        </CardContent>
+      </Card>
 
       {/* ── Send Panel ─────────────────────────────────────────────── */}
       {showSendPanel && (
-        <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 14, padding: "20px", display: "flex", flexDirection: "column", gap: 18 }}>
+        <Card><CardContent className="pt-5 pb-5">
+          <div className="flex flex-col gap-4">
           <p style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.14em", color: muted }}>Outreach Campaign</p>
 
           {/* Step selector */}
           {emailSteps.length > 1 && (
             <div>
               <p style={{ fontSize: 11, color: muted, marginBottom: 8 }}>Which step?</p>
-              <div style={{ display: "flex", gap: 6 }}>
-                {emailSteps.map((s, i) => (
-                  <button key={i} onClick={() => setSelectedStep(i)}
-                    style={{ padding: "6px 12px", borderRadius: 7, fontSize: 12, fontWeight: 500, cursor: "pointer", border: `1px solid ${selectedStep === i ? ink : bdr}`, background: selectedStep === i ? ink : bg, color: selectedStep === i ? bg : ink }}>
-                    Step {i + 1} · {s.timing}
-                  </button>
-                ))}
-              </div>
+              <Tabs value={String(selectedStep)} onValueChange={v => setSelectedStep(Number(v))}>
+                <TabsList>
+                  {emailSteps.map((s, i) => (
+                    <TabsTrigger key={i} value={String(i)}>Step {i + 1} · {s.timing}</TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
             </div>
           )}
 
@@ -746,64 +758,64 @@ function OutreachRenderer({ data, artifactId, sequenceName }: { data: Record<str
             <p style={{ fontSize: 11, color: amber, textAlign: "center", marginTop: -10 }}>Enter your email above to enable sending</p>
           )}
           <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-        </div>
+          </div>
+        </CardContent></Card>
       )}
 
       {d.targetICP && (
-        <div style={{ background: surf, borderRadius: 10, padding: "12px 14px", border: `1px solid ${bdr}` }}>
+        <Card><CardContent className="pt-3 pb-3">
           <p style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.12em", color: muted, marginBottom: 4 }}>Target</p>
           <p style={{ fontSize: 13, color: ink, lineHeight: 1.5 }}>{d.targetICP}</p>
-        </div>
+        </CardContent></Card>
       )}
 
       {(d.sequence || []).map((step, i) => (
-        <div key={i} style={{ position: "relative", paddingLeft: 20 }}>
+        <div key={i} className="relative pl-5">
           {i < (d.sequence?.length ?? 0) - 1 && (
             <div style={{ position: "absolute", left: 6, top: 20, bottom: -14, width: 1, background: bdr }} />
           )}
           <div style={{
-            position: "absolute", left: 0, top: 6,
-            width: 13, height: 13, borderRadius: "50%",
-            background: chColor[step.channel] || muted,
+            position: "absolute", left: 0, top: 8,
+            width: 12, height: 12, borderRadius: "50%",
+            background: muted,
             border: `2px solid ${bg}`,
           }} />
 
-          <div style={{ background: "#fff", border: `1px solid ${bdr}`, borderRadius: 10, padding: "14px 16px" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: ink }}>{step.timing}</span>
-                <span style={{
-                  fontSize: 9, fontWeight: 700, textTransform: "uppercase",
-                  padding: "2px 8px", borderRadius: 999,
-                  background: chColor[step.channel] || muted, color: "#fff",
-                }}>{chLabel[step.channel] || step.channel}</span>
+          <Card>
+            <CardContent className="pt-4 pb-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span style={{ fontSize: 12, fontWeight: 700, color: ink }}>{step.timing}</span>
+                  <Badge variant="outline">{chLabel[step.channel] || step.channel}</Badge>
+                </div>
+                <CopyBtn text={step.body} />
               </div>
-              <CopyBtn text={step.body} />
-            </div>
 
-            {step.subject && (
-              <p style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 6 }}>
-                Subject: {step.subject}
-              </p>
-            )}
-            <p style={{ fontSize: 12, color: ink, lineHeight: 1.7, whiteSpace: "pre-wrap", marginBottom: 8 }}>{step.body}</p>
-            <p style={{ fontSize: 11, color: muted, marginBottom: 4 }}><strong>Goal:</strong> {step.goal}</p>
-            {step.tips && step.tips.map((tip, ti) => (
-              <p key={ti} style={{ fontSize: 11, color: muted, paddingLeft: 8 }}>💡 {tip}</p>
-            ))}
+              {step.subject && (
+                <p style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 6 }}>
+                  Subject: {step.subject}
+                </p>
+              )}
+              <p style={{ fontSize: 12, color: ink, lineHeight: 1.7, whiteSpace: "pre-wrap", marginBottom: 8 }}>{step.body}</p>
+              <p style={{ fontSize: 11, color: muted, marginBottom: 4 }}><strong>Goal:</strong> {step.goal}</p>
+              {step.tips && step.tips.map((tip, ti) => (
+                <p key={ti} style={{ fontSize: 11, color: muted, paddingLeft: 8 }}>💡 {tip}</p>
+              ))}
 
-            {step.channel === "email" && (
-              <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${bdr}` }}>
-                <a
-                  href={`https://mail.google.com/mail/?view=cm&fs=1${step.subject ? `&su=${encodeURIComponent(step.subject)}` : ""}&body=${encodeURIComponent(step.body)}`}
-                  target="_blank" rel="noopener noreferrer"
-                  style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: surf, color: ink, textDecoration: "none", border: `1px solid ${bdr}` }}
-                >
-                  <Mail size={11} /> Send one in Gmail
-                </a>
-              </div>
-            )}
-          </div>
+              {step.channel === "email" && (
+                <>
+                  <Separator className="my-2.5" />
+                  <a
+                    href={`https://mail.google.com/mail/?view=cm&fs=1${step.subject ? `&su=${encodeURIComponent(step.subject)}` : ""}&body=${encodeURIComponent(step.body)}`}
+                    target="_blank" rel="noopener noreferrer"
+                    style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: surf, color: ink, textDecoration: "none", border: `1px solid ${bdr}` }}
+                  >
+                    <Mail size={11} /> Send one in Gmail
+                  </a>
+                </>
+              )}
+            </CardContent>
+          </Card>
         </div>
       ))}
     </div>
@@ -834,80 +846,86 @@ function BattleCardRenderer({ data }: { data: Record<string, unknown> }) {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+    <div className="flex flex-col gap-3">
       {d.overview && (
-        <div style={{ background: surf, borderRadius: 10, padding: "14px 16px", border: `1px solid ${bdr}` }}>
+        <Card><CardContent className="pt-4 pb-4">
           <p style={{ fontSize: 13, lineHeight: 1.6, color: ink }}>{d.overview}</p>
-        </div>
+        </CardContent></Card>
       )}
 
       {/* Positioning Matrix */}
       {d.positioningMatrix && d.positioningMatrix.length > 0 && (
-        <div>
+        <Card><CardContent className="pt-4 pb-4">
           <p style={sectionHead}>Positioning Matrix</p>
-          {/* header row */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 50px", gap: 1, background: bdr, borderRadius: 8, overflow: "hidden" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 60px", gap: 1, background: bdr, borderRadius: 8, overflow: "hidden" }}>
             {["Dimension", "Us", "Them", ""].map(h => (
               <div key={h} style={{ background: surf, padding: "8px 10px", fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>{h}</div>
             ))}
             {d.positioningMatrix.map((row, i) => (
               <>
-                <div key={`d${i}`} style={{ background: "#fff", padding: "10px", fontSize: 12, fontWeight: 600, color: ink }}>{row.dimension}</div>
-                <div key={`u${i}`} style={{ background: "#fff", padding: "10px", fontSize: 11, color: ink, lineHeight: 1.4 }}>{row.us}</div>
-                <div key={`t${i}`} style={{ background: "#fff", padding: "10px", fontSize: 11, color: muted, lineHeight: 1.4 }}>{row.them}</div>
-                <div key={`v${i}`} style={{ background: "#fff", padding: "10px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <span style={{
-                    fontSize: 9, fontWeight: 700, textTransform: "uppercase",
-                    color: verdictColor[row.verdict] || muted,
-                  }}>{verdictLabel[row.verdict] || row.verdict}</span>
+                <div key={`d${i}`} style={{ background: bg, padding: "10px", fontSize: 12, fontWeight: 600, color: ink }}>{row.dimension}</div>
+                <div key={`u${i}`} style={{ background: bg, padding: "10px", fontSize: 11, color: ink, lineHeight: 1.4 }}>{row.us}</div>
+                <div key={`t${i}`} style={{ background: bg, padding: "10px", fontSize: 11, color: muted, lineHeight: 1.4 }}>{row.them}</div>
+                <div key={`v${i}`} style={{ background: bg, padding: "10px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Badge variant="outline" style={{ fontSize: 9, color: verdictColor[row.verdict] || muted, borderColor: verdictColor[row.verdict] || muted }}>
+                    {verdictLabel[row.verdict] || row.verdict}
+                  </Badge>
                 </div>
               </>
             ))}
           </div>
-        </div>
+        </CardContent></Card>
       )}
 
       {/* Objection Handling */}
       {d.objectionHandling && d.objectionHandling.length > 0 && (
         <div>
           <p style={sectionHead}>Objection Handling</p>
-          {d.objectionHandling.map((obj, i) => (
-            <div key={i} style={{ background: "#fff", border: `1px solid ${bdr}`, borderRadius: 10, padding: "14px 16px", marginBottom: 8 }}>
-              <p style={{ fontSize: 12, fontWeight: 600, color: red, marginBottom: 6 }}>&quot;{obj.objection}&quot;</p>
-              <p style={{ fontSize: 12, color: ink, lineHeight: 1.6, marginBottom: 6 }}>{obj.response}</p>
-              <p style={{ fontSize: 11, color: green }}>📊 {obj.proofPoint}</p>
-            </div>
-          ))}
+          <Accordion type="multiple" className="flex flex-col gap-1">
+            {d.objectionHandling.map((obj, i) => (
+              <AccordionItem key={i} value={`obj-${i}`} className="border rounded-xl overflow-hidden">
+                <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                  <p style={{ fontSize: 12, fontWeight: 600, color: ink, textAlign: "left" }}>&quot;{obj.objection}&quot;</p>
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-3">
+                  <p style={{ fontSize: 12, color: ink, lineHeight: 1.6, marginBottom: 6 }}>{obj.response}</p>
+                  <p style={{ fontSize: 11, color: muted }}>📊 {obj.proofPoint}</p>
+                </AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
         </div>
       )}
 
       {/* Strengths / Weaknesses */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        {d.strengths && d.strengths.length > 0 && (
-          <div>
-            <p style={{ ...sectionHead, color: amber }}>Their Strengths</p>
-            {d.strengths.map((s, i) => <p key={i} style={{ fontSize: 12, color: ink, lineHeight: 1.6, marginBottom: 4 }}>• {s}</p>)}
-          </div>
-        )}
-        {d.weaknesses && d.weaknesses.length > 0 && (
-          <div>
-            <p style={{ ...sectionHead, color: green }}>Their Weaknesses</p>
-            {d.weaknesses.map((w, i) => <p key={i} style={{ fontSize: 12, color: ink, lineHeight: 1.6, marginBottom: 4 }}>• {w}</p>)}
-          </div>
-        )}
-      </div>
+      {(d.strengths?.length || d.weaknesses?.length) ? (
+        <div className="grid grid-cols-2 gap-3">
+          {d.strengths && d.strengths.length > 0 && (
+            <Card><CardContent className="pt-4 pb-4">
+              <p style={{ ...sectionHead, color: amber }}>Their Strengths</p>
+              {d.strengths.map((s, i) => <p key={i} style={{ fontSize: 12, color: ink, lineHeight: 1.6, marginBottom: 4 }}>• {s}</p>)}
+            </CardContent></Card>
+          )}
+          {d.weaknesses && d.weaknesses.length > 0 && (
+            <Card><CardContent className="pt-4 pb-4">
+              <p style={{ ...sectionHead, color: green }}>Their Weaknesses</p>
+              {d.weaknesses.map((w, i) => <p key={i} style={{ fontSize: 12, color: ink, lineHeight: 1.6, marginBottom: 4 }}>• {w}</p>)}
+            </CardContent></Card>
+          )}
+        </div>
+      ) : null}
 
       {/* Win Strategy */}
       {d.winStrategy && (
-        <div style={{ background: "#F0FDF4", border: `1px solid #BBF7D0`, borderRadius: 10, padding: "14px 16px" }}>
-          <p style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.12em", color: green, marginBottom: 6 }}>Win Strategy</p>
+        <Card><CardContent className="pt-4 pb-4">
+          <p style={sectionHead}>Win Strategy</p>
           <p style={{ fontSize: 13, color: ink, lineHeight: 1.6 }}>{d.winStrategy}</p>
-        </div>
+        </CardContent></Card>
       )}
 
       {/* Sources */}
       {d.sources && d.sources.length > 0 && (
-        <div>
+        <Card><CardContent className="pt-4 pb-4">
           <p style={sectionHead}>Sources</p>
           {d.sources.map((s, i) => (
             <a key={i} href={s.url} target="_blank" rel="noopener noreferrer"
@@ -915,7 +933,7 @@ function BattleCardRenderer({ data }: { data: Record<string, unknown> }) {
               {s.title || s.url} ↗
             </a>
           ))}
-        </div>
+        </CardContent></Card>
       )}
     </div>
   );
@@ -1449,48 +1467,42 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
 
       {/* Company Context */}
       {d.companyContext && (
-        <div style={{ background: surf, borderRadius: 10, padding: "14px 16px", border: `1px solid ${bdr}` }}>
+        <Card><CardContent className="pt-4 pb-4">
           <p style={{ fontSize: 13, lineHeight: 1.6, color: ink }}>{d.companyContext}</p>
-        </div>
+        </CardContent></Card>
       )}
 
       {/* Positioning */}
       {d.positioning?.statement && (
-        <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 10, padding: "14px 16px" }}>
-          <p style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.12em", color: muted, marginBottom: 6 }}>Positioning</p>
+        <Card><CardContent className="pt-4 pb-4">
+          <p style={sectionHead}>Positioning</p>
           <p style={{ fontSize: 13, color: ink, lineHeight: 1.6, fontStyle: "italic" }}>{d.positioning.statement}</p>
           {d.positioning.differentiators && (
-            <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 6 }}>
+            <div className="flex flex-wrap gap-1.5 mt-3">
               {d.positioning.differentiators.map((diff, i) => (
-                <span key={i} style={{
-                  padding: "3px 10px", borderRadius: 999, fontSize: 11,
-                  background: bg, color: ink, border: `1px solid ${bdr}`,
-                }}>{diff}</span>
+                <Badge key={i} variant="outline">{diff}</Badge>
               ))}
             </div>
           )}
-        </div>
+        </CardContent></Card>
       )}
 
       {/* ICP Segments */}
       {d.icp?.segments && d.icp.segments.length > 0 && (
-        <div>
+        <Card><CardContent className="pt-4 pb-4">
           <p style={sectionHead}>ICP Segments</p>
           {d.icp.summary && <p style={{ fontSize: 12, color: muted, lineHeight: 1.5, marginBottom: 8 }}>{d.icp.summary}</p>}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          <div className="flex flex-wrap gap-1.5">
             {d.icp.segments.map((seg, i) => (
-              <span key={i} style={{
-                padding: "5px 12px", borderRadius: 999, fontSize: 12,
-                background: surf, border: `1px solid ${bdr}`, color: ink,
-              }}>{seg}</span>
+              <Badge key={i} variant="outline">{seg}</Badge>
             ))}
           </div>
-        </div>
+        </CardContent></Card>
       )}
 
       {/* Channels */}
       {d.channels && d.channels.length > 0 && (
-        <div>
+        <Card><CardContent className="pt-4 pb-4">
           <p style={sectionHead}>Channel Strategy</p>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 60px 70px 70px", gap: 1, background: bdr, borderRadius: 8, overflow: "hidden" }}>
             {["Channel", "Priority", "Budget", "CAC"].map(h => (
@@ -1498,31 +1510,35 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
             ))}
             {d.channels.map((ch, i) => (
               <>
-                <div key={`c${i}`} style={{ background: "#fff", padding: "10px", fontSize: 12, fontWeight: 600, color: ink }}>{ch.channel}</div>
-                <div key={`p${i}`} style={{ background: "#fff", padding: "10px", display: "flex", alignItems: "center" }}>
-                  <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: priColor[ch.priority] || muted }}>{ch.priority}</span>
+                <div key={`c${i}`} style={{ background: bg, padding: "10px", fontSize: 12, fontWeight: 600, color: ink }}>{ch.channel}</div>
+                <div key={`p${i}`} style={{ background: bg, padding: "10px", display: "flex", alignItems: "center" }}>
+                  <Badge variant="outline" style={{ fontSize: 9, color: priColor[ch.priority] || muted, borderColor: priColor[ch.priority] || muted }}>
+                    {ch.priority}
+                  </Badge>
                 </div>
-                <div key={`b${i}`} style={{ background: "#fff", padding: "10px", fontSize: 11, color: ink }}>{ch.budget}</div>
-                <div key={`a${i}`} style={{ background: "#fff", padding: "10px", fontSize: 11, color: ink }}>{ch.expectedCAC}</div>
+                <div key={`b${i}`} style={{ background: bg, padding: "10px", fontSize: 11, color: ink }}>{ch.budget}</div>
+                <div key={`a${i}`} style={{ background: bg, padding: "10px", fontSize: 11, color: ink }}>{ch.expectedCAC}</div>
               </>
             ))}
           </div>
-        </div>
+        </CardContent></Card>
       )}
 
       {/* Messaging */}
       {d.messaging && d.messaging.length > 0 && (
         <div>
           <p style={sectionHead}>Messaging</p>
-          {d.messaging.map((msg, i) => (
-            <div key={i} style={{ background: "#fff", border: `1px solid ${bdr}`, borderRadius: 10, padding: "14px 16px", marginBottom: 8 }}>
-              <p style={{ fontSize: 10, fontWeight: 600, color: blue, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>{msg.audience}</p>
-              <p style={{ fontSize: 14, fontWeight: 600, color: ink, marginBottom: 6 }}>{msg.headline}</p>
-              {msg.valueProps.map((vp, vi) => (
-                <p key={vi} style={{ fontSize: 12, color: muted, lineHeight: 1.6, paddingLeft: 8 }}>• {vp}</p>
-              ))}
-            </div>
-          ))}
+          <div className="flex flex-col gap-2">
+            {d.messaging.map((msg, i) => (
+              <Card key={i}><CardContent className="pt-4 pb-4">
+                <p style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>{msg.audience}</p>
+                <p style={{ fontSize: 14, fontWeight: 600, color: ink, marginBottom: 6 }}>{msg.headline}</p>
+                {msg.valueProps.map((vp, vi) => (
+                  <p key={vi} style={{ fontSize: 12, color: muted, lineHeight: 1.6, paddingLeft: 8 }}>• {vp}</p>
+                ))}
+              </CardContent></Card>
+            ))}
+          </div>
         </div>
       )}
 
@@ -1530,13 +1546,13 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
       {d.metrics && d.metrics.length > 0 && (
         <div>
           <p style={sectionHead}>Key Metrics</p>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          <div className="grid grid-cols-2 gap-2">
             {d.metrics.map((m, i) => (
-              <div key={i} style={{ background: surf, borderRadius: 8, padding: "10px 14px", border: `1px solid ${bdr}` }}>
+              <Card key={i}><CardContent className="pt-3 pb-3">
                 <p style={{ fontSize: 10, color: muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>{m.metric}</p>
                 <p style={{ fontSize: 15, fontWeight: 700, color: ink }}>{m.target}</p>
                 <p style={{ fontSize: 10, color: muted }}>Baseline: {m.currentBaseline}</p>
-              </div>
+              </CardContent></Card>
             ))}
           </div>
         </div>
@@ -1546,37 +1562,39 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
       {d.ninetyDayPlan && d.ninetyDayPlan.length > 0 && (
         <div>
           <p style={sectionHead}>90-Day Plan</p>
-          {d.ninetyDayPlan.map((phase, i) => (
-            <div key={i} style={{
-              background: "#fff", border: `1px solid ${bdr}`, borderRadius: 10,
-              padding: "16px", marginBottom: 10,
-              borderLeft: `3px solid ${i === 0 ? blue : i === 1 ? amber : green}`,
-            }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                <p style={{ fontSize: 14, fontWeight: 600, color: ink }}>{phase.phase}</p>
-                <span style={{ fontSize: 11, color: muted }}>{phase.weeks}</span>
-              </div>
-              <div style={{ marginBottom: 8 }}>
-                <p style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: "uppercase", marginBottom: 4 }}>Objectives</p>
-                {phase.objectives.map((o, oi) => <p key={oi} style={{ fontSize: 12, color: ink, lineHeight: 1.6, paddingLeft: 8 }}>→ {o}</p>)}
-              </div>
-              <div style={{ marginBottom: 8 }}>
-                <p style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: "uppercase", marginBottom: 4 }}>Key Actions</p>
-                {phase.keyActions.map((a, ai) => <p key={ai} style={{ fontSize: 12, color: ink, lineHeight: 1.6, paddingLeft: 8 }}>• {a}</p>)}
-              </div>
-              <div style={{ background: "#F0FDF4", borderRadius: 6, padding: "8px 10px" }}>
-                <p style={{ fontSize: 11, color: green }}>✓ {phase.successCriteria}</p>
-              </div>
-            </div>
-          ))}
+          <Accordion type="multiple" defaultValue={["phase-0"]} className="flex flex-col gap-1">
+            {d.ninetyDayPlan.map((phase, i) => (
+              <AccordionItem key={i} value={`phase-${i}`} className="border rounded-xl overflow-hidden">
+                <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                  <div className="flex items-center justify-between w-full">
+                    <span style={{ fontSize: 14, fontWeight: 600, color: ink }}>{phase.phase}</span>
+                    <Badge variant="secondary" className="mr-2">{phase.weeks}</Badge>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                  <div className="mb-3">
+                    <p style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: "uppercase", marginBottom: 4 }}>Objectives</p>
+                    {phase.objectives.map((o, oi) => <p key={oi} style={{ fontSize: 12, color: ink, lineHeight: 1.6, paddingLeft: 8 }}>→ {o}</p>)}
+                  </div>
+                  <div className="mb-3">
+                    <p style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: "uppercase", marginBottom: 4 }}>Key Actions</p>
+                    {phase.keyActions.map((a, ai) => <p key={ai} style={{ fontSize: 12, color: ink, lineHeight: 1.6, paddingLeft: 8 }}>• {a}</p>)}
+                  </div>
+                  <div style={{ background: surf, borderRadius: 6, padding: "8px 10px", border: `1px solid ${bdr}` }}>
+                    <p style={{ fontSize: 11, color: muted }}>✓ {phase.successCriteria}</p>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
         </div>
       )}
 
       {/* ── Directory Submissions ─────────────────────────────────────────────── */}
-      <div style={{ background: surf, borderRadius: 12, padding: "14px 18px", border: `1px solid ${bdr}` }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <Card><CardContent className="pt-4 pb-4">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
           <div>
-            <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>Directory Submissions</p>
+            <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 2 }}>Directory Submissions</p>
             <p style={{ fontSize: 11, color: muted }}>Launch-ready copy for Product Hunt, HackerNews Show HN, BetaList, and Indie Hackers — tailored per platform.</p>
           </div>
           <button onClick={() => { if (showDirectories && !directoriesLoading) { setShowDirectories(false); } else if (!directoriesResult) { handleGenerateDirectories(); } else setShowDirectories(true); }} disabled={directoriesLoading} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: directoriesLoading ? bdr : blue, color: directoriesLoading ? muted : "#fff", fontSize: 12, fontWeight: 600, cursor: directoriesLoading ? "not-allowed" : "pointer", flexShrink: 0, whiteSpace: "nowrap" }}>
@@ -1587,13 +1605,15 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
         {showDirectories && directoriesResult && (
           <div style={{ marginTop: 14 }}>
             {/* Platform tabs */}
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
-              {(["productHunt", "hackerNews", "betaList", "indieHackers", "verticalDirectories"] as const).map(p => (
-                <button key={p} onClick={() => setActiveDirectory(p)} style={{ padding: "5px 12px", borderRadius: 8, border: `1px solid ${activeDirectory === p ? blue : bdr}`, background: activeDirectory === p ? "#EFF6FF" : bg, color: activeDirectory === p ? blue : muted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
-                  {p === "productHunt" ? "Product Hunt" : p === "hackerNews" ? "HackerNews" : p === "betaList" ? "BetaList" : p === "indieHackers" ? "Indie Hackers" : "Directories"}
-                </button>
-              ))}
-            </div>
+            <Tabs value={activeDirectory} onValueChange={(v) => setActiveDirectory(v as typeof activeDirectory)} className="mb-3">
+              <TabsList>
+                <TabsTrigger value="productHunt">Product Hunt</TabsTrigger>
+                <TabsTrigger value="hackerNews">HackerNews</TabsTrigger>
+                <TabsTrigger value="betaList">BetaList</TabsTrigger>
+                <TabsTrigger value="indieHackers">Indie Hackers</TabsTrigger>
+                <TabsTrigger value="verticalDirectories">Directories</TabsTrigger>
+              </TabsList>
+            </Tabs>
 
             {/* Product Hunt */}
             {activeDirectory === "productHunt" && directoriesResult.productHunt && (
@@ -1717,14 +1737,10 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
             )}
           </div>
         )}
-      </div>
+      </CardContent></Card>
 
       {/* ── ICP Validation ── */}
-      <div
-        style={{ background: bg, borderRadius: 14, border: `1px solid ${bdr}`, overflow: "hidden", transition: "border-color .18s, box-shadow .18s" }}
-        onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#C7D2FE"; e.currentTarget.style.boxShadow = "0 2px 12px rgba(37,99,235,0.07)"; }}
-        onMouseLeave={(e) => { e.currentTarget.style.borderColor = bdr; e.currentTarget.style.boxShadow = "none"; }}
-      >
+      <Card className="overflow-hidden">
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px" }}>
           <div style={{ height: 36, width: 36, borderRadius: 10, flexShrink: 0, background: `${blue}12`, border: `1px solid ${blue}25`, display: "flex", alignItems: "center", justifyContent: "center" }}>
             {runningIcpValidation
@@ -1797,10 +1813,10 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
         )}
           </div>
         )}
-      </div>
+      </Card>
 
       {/* ── Launch Plan CTA ── */}
-      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "14px 18px" }}>
+      <Card><CardContent className="pt-4 pb-4">
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ flex: 1 }}>
             <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 2 }}>30-Day Launch Plan</p>
@@ -1815,10 +1831,10 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
             {generatingLaunchPlan ? "Generating…" : "Download Launch Plan"}
           </button>
         </div>
-      </div>
+      </CardContent></Card>
 
       {/* ── Landing Page Copy ── */}
-      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "16px 20px" }}>
+      <Card><CardContent className="pt-4 pb-4">
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: landingCopyResult ? 14 : 0 }}>
           <div style={{ flex: 1 }}>
             <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>Landing Page Copy</p>
@@ -1832,14 +1848,13 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
         </div>
         {landingCopyResult && (
           <div>
-            <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
-              {(['hero', 'features', 'faq'] as const).map(t => (
-                <button key={t} onClick={() => setLandingCopyTab(t)}
-                  style={{ padding: "4px 12px", borderRadius: 6, border: `1px solid ${landingCopyTab === t ? blue : bdr}`, background: landingCopyTab === t ? blue : "transparent", color: landingCopyTab === t ? "#fff" : muted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
-                  {t === 'hero' ? 'Hero & Value Props' : t === 'features' ? 'How It Works' : 'FAQ & Meta'}
-                </button>
-              ))}
-            </div>
+            <Tabs value={landingCopyTab} onValueChange={(v) => setLandingCopyTab(v as typeof landingCopyTab)} className="mb-3">
+              <TabsList>
+                <TabsTrigger value="hero">Hero & Value Props</TabsTrigger>
+                <TabsTrigger value="features">How It Works</TabsTrigger>
+                <TabsTrigger value="faq">FAQ & Meta</TabsTrigger>
+              </TabsList>
+            </Tabs>
             {landingCopyTab === 'hero' && (
               <div>
                 <div style={{ background: "#18160F", borderRadius: 8, padding: "16px 18px", marginBottom: 12 }}>
@@ -1888,10 +1903,10 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
             )}
           </div>
         )}
-      </div>
+      </CardContent></Card>
 
       {/* ── A/B Test Designer ── */}
-      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "16px 20px" }}>
+      <Card><CardContent className="pt-4 pb-4">
         <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 2 }}>A/B Test Designer</p>
         <p style={{ fontSize: 11, color: muted, marginBottom: 12 }}>Paste any element (headline, CTA, email subject, etc.) and Patel designs 3 challenger variants — each grounded in a different conversion psychology principle — with sample size, success criteria, and win conditions.</p>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 8, marginBottom: 8 }}>
@@ -1960,14 +1975,10 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
             </button>
           </div>
         )}
-      </div>
+      </CardContent></Card>
 
       {/* ── Outreach Sequence Builder ── */}
-      <div
-        style={{ background: bg, borderRadius: 14, border: `1px solid ${bdr}`, overflow: "hidden", transition: "border-color .18s, box-shadow .18s" }}
-        onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#C7D2FE"; e.currentTarget.style.boxShadow = "0 2px 12px rgba(37,99,235,0.07)"; }}
-        onMouseLeave={(e) => { e.currentTarget.style.borderColor = bdr; e.currentTarget.style.boxShadow = "none"; }}
-      >
+      <Card className="overflow-hidden">
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px" }}>
           <div style={{ height: 36, width: 36, borderRadius: 10, flexShrink: 0, background: `${blue}12`, border: `1px solid ${blue}25`, display: "flex", alignItems: "center", justifyContent: "center" }}>
             {generatingSequence
@@ -2040,14 +2051,10 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
           </div>
           </div>
         )}
-      </div>
+      </Card>
 
       {/* ── ABM Strategy ── */}
-      <div
-        style={{ background: bg, borderRadius: 14, border: `1px solid ${bdr}`, overflow: "hidden", transition: "border-color .18s, box-shadow .18s" }}
-        onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#C7D2FE"; e.currentTarget.style.boxShadow = "0 2px 12px rgba(37,99,235,0.07)"; }}
-        onMouseLeave={(e) => { e.currentTarget.style.borderColor = bdr; e.currentTarget.style.boxShadow = "none"; }}
-      >
+      <Card className="overflow-hidden">
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px" }}>
           <div style={{ height: 36, width: 36, borderRadius: 10, flexShrink: 0, background: "#7C3AED12", border: "1px solid #7C3AED25", display: "flex", alignItems: "center", justifyContent: "center" }}>
             {generatingABM
@@ -2074,13 +2081,14 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
           <div style={{ background: surf, borderRadius: 10, padding: 16 }}>
             {!!abmResult.overview && <p style={{ fontSize: 12, color: muted, fontStyle: "italic", marginBottom: 10 }}>{String(abmResult.overview)}</p>}
             {!!abmResult.abmTier && <span style={{ fontSize: 11, background: blue + "22", color: blue, borderRadius: 20, padding: "2px 10px", fontWeight: 700, marginBottom: 12, display: "inline-block" }}>{String(abmResult.abmTier)}</span>}
-            <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" as const }}>
-              {(["targets", "playbook", "content", "metrics"] as const).map(t => (
-                <button key={t} onClick={() => setAbmTab(t)} style={{ padding: "5px 12px", borderRadius: 20, border: `1px solid ${abmTab === t ? blue : bdr}`, background: abmTab === t ? blue : bg, color: abmTab === t ? "#fff" : ink, fontSize: 11, fontWeight: abmTab === t ? 700 : 400, cursor: "pointer" }}>
-                  {t === "targets" ? "🎯 Target List" : t === "playbook" ? "📋 Playbook" : t === "content" ? "📝 Content" : "📊 Metrics"}
-                </button>
-              ))}
-            </div>
+            <Tabs value={abmTab} onValueChange={(v) => setAbmTab(v as typeof abmTab)} className="mb-3">
+              <TabsList>
+                <TabsTrigger value="targets">Target List</TabsTrigger>
+                <TabsTrigger value="playbook">Playbook</TabsTrigger>
+                <TabsTrigger value="content">Content</TabsTrigger>
+                <TabsTrigger value="metrics">Metrics</TabsTrigger>
+              </TabsList>
+            </Tabs>
             {abmTab === "targets" && !!abmResult.targetList && (() => {
               const list = abmResult.targetList as Record<string, unknown>[];
               return (
@@ -2165,14 +2173,10 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
           </div>
         )}
         </div>
-      </div>
+      </Card>
 
       {/* ── Referral Program ── */}
-      <div
-        style={{ background: bg, borderRadius: 14, border: `1px solid ${bdr}`, overflow: "hidden", transition: "border-color .18s, box-shadow .18s" }}
-        onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#C7D2FE"; e.currentTarget.style.boxShadow = "0 2px 12px rgba(37,99,235,0.07)"; }}
-        onMouseLeave={(e) => { e.currentTarget.style.borderColor = bdr; e.currentTarget.style.boxShadow = "none"; }}
-      >
+      <Card className="overflow-hidden">
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 14px" }}>
           <div style={{ height: 36, width: 36, borderRadius: 10, flexShrink: 0, background: `${amber}12`, border: `1px solid ${amber}25`, display: "flex", alignItems: "center", justifyContent: "center" }}>
             {generatingReferral
@@ -2199,11 +2203,14 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
           <div style={{ background: surf, borderRadius: 10, padding: 16 }}>
             {!!referralResult.programName && <p style={{ fontSize: 14, fontWeight: 700, color: ink, marginBottom: 4 }}>{String(referralResult.programName)}</p>}
             {!!referralResult.overview && <p style={{ fontSize: 12, color: muted, fontStyle: "italic", marginBottom: 14 }}>{String(referralResult.overview)}</p>}
-            <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-              {(["mechanics", "viral", "launch", "templates"] as const).map(t => (
-                <button key={t} onClick={() => setReferralTab(t)} style={{ padding: "5px 12px", borderRadius: 6, border: `1px solid ${referralTab === t ? blue : bdr}`, background: referralTab === t ? "#EFF6FF" : "transparent", color: referralTab === t ? blue : muted, fontSize: 11, fontWeight: 600, cursor: "pointer", textTransform: "capitalize" }}>{t === "viral" ? "Viral Loops" : t}</button>
-              ))}
-            </div>
+            <Tabs value={referralTab} onValueChange={(v) => setReferralTab(v as typeof referralTab)} className="mb-3">
+              <TabsList>
+                <TabsTrigger value="mechanics">Mechanics</TabsTrigger>
+                <TabsTrigger value="viral">Viral Loops</TabsTrigger>
+                <TabsTrigger value="launch">Launch</TabsTrigger>
+                <TabsTrigger value="templates">Templates</TabsTrigger>
+              </TabsList>
+            </Tabs>
             {referralTab === "mechanics" && !!referralResult.incentiveStructure && (() => {
               const is = referralResult.incentiveStructure as { referrerIncentive?: string; referreeIncentive?: string; incentiveType?: string; minimumQualification?: string; payoutTiming?: string };
               const mech = referralResult.mechanics as { howItWorks?: string; trackingMethod?: string; minimumViableVersion?: string } | undefined;
@@ -2264,10 +2271,10 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
         )}
           </div>
         )}
-      </div>
+      </Card>
 
       {/* ── Partnership Strategy ── */}
-      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 20, marginTop: 4 }}>
+      <Card><CardContent className="pt-4 pb-4">
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
           <div>
             <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>Partnership Strategy</p>
@@ -2281,11 +2288,14 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
         {partnershipResult && (
           <div style={{ background: surf, borderRadius: 10, padding: 16 }}>
             {!!partnershipResult.overview && <p style={{ fontSize: 12, color: muted, fontStyle: "italic", marginBottom: 14 }}>{String(partnershipResult.overview)}</p>}
-            <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-              {(["types", "targets", "outreach", "integrations"] as const).map(t => (
-                <button key={t} onClick={() => setPartnershipTab(t)} style={{ padding: "5px 12px", borderRadius: 6, border: `1px solid ${partnershipTab === t ? blue : bdr}`, background: partnershipTab === t ? "#EFF6FF" : "transparent", color: partnershipTab === t ? blue : muted, fontSize: 11, fontWeight: 600, cursor: "pointer", textTransform: "capitalize" }}>{t}</button>
-              ))}
-            </div>
+            <Tabs value={partnershipTab} onValueChange={(v) => setPartnershipTab(v as typeof partnershipTab)} className="mb-3">
+              <TabsList>
+                <TabsTrigger value="types">Types</TabsTrigger>
+                <TabsTrigger value="targets">Targets</TabsTrigger>
+                <TabsTrigger value="outreach">Outreach</TabsTrigger>
+                <TabsTrigger value="integrations">Integrations</TabsTrigger>
+              </TabsList>
+            </Tabs>
             {partnershipTab === "types" && !!(partnershipResult.partnerTypes as unknown[])?.length && (
               <div>
                 {(partnershipResult.partnerTypes as { type: string; priority: string; rationale: string; examplePartners: string[]; valueExchange: string; timeToRevenue: string }[]).map((pt, i) => (
@@ -2349,10 +2359,10 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
             )}
           </div>
         )}
-      </div>
+      </CardContent></Card>
 
       {/* ── Customer Journey Map ── */}
-      <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 20, marginTop: 4 }}>
+      <Card><CardContent className="pt-4 pb-4">
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
           <div>
             <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 }}>Customer Journey Map</p>
@@ -2435,7 +2445,7 @@ function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>;
             </div>
           );
         })()}
-      </div>
+      </CardContent></Card>
 
     </div>
   );

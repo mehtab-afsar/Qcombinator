@@ -71,12 +71,6 @@ const DIMENSION_AGENT: Record<string, { agentId: string; agentName: string; labe
   traction:   { agentId: "susi",   agentName: "Susi",   label: "Sales Script"         },
 };
 
-const MOCK_AGENT_SESSIONS = [
-  { agentId: "patel",  preview: "Let's tighten your ICP — you said B2B SaaS, but which segment?",  ago: "2h ago" },
-  { agentId: "felix",  preview: "Your LTV:CAC is 2.1x. Target is 3x minimum for Series A.",          ago: "Yesterday" },
-  { agentId: "nova",   preview: "How many users reach your core value event in the first 7 days?",    ago: "3 days ago" },
-];
-
 // Pick the next upcoming workshop by date (relative to today)
 const today = new Date().toISOString().slice(0, 10);
 const NEXT_WORKSHOP = getUpcomingWorkshops()
@@ -96,12 +90,6 @@ function gradeLabel(s: number) {
   if (s >= 50) return "Developing";
   return "Early Stage";
 }
-
-const pillarAccent: Record<string, string> = {
-  "sales-marketing":    blue,
-  "operations-finance": green,
-  "product-strategy":   "#7C3AED",
-};
 
 // ─── score history types ──────────────────────────────────────────────────────
 interface ScorePoint {
@@ -321,9 +309,7 @@ export default function FounderDashboard() {
   const [scoreHistory,  setScoreHistory]  = useState<ScorePoint[]>([]);
   const [usedAgentIds, setUsedAgentIds]  = useState<Set<string>>(new Set());
 
-  type ActivityRow = { id: string; agent_id: string; action_type: string; description: string; created_at: string };
   type PendingRow  = { id: string; agent_id: string; action_type: string; title: string; summary: string | null; created_at: string };
-  const [agentActivity,    setAgentActivity]    = useState<ActivityRow[]>([]);
   const [pendingActions,   setPendingActions]   = useState<PendingRow[]>([]);
   const [weeklyActivity,   setWeeklyActivity]   = useState<number | null>(null);
   const [investorMatches,  setInvestorMatches]  = useState<number | null>(null);
@@ -388,15 +374,6 @@ export default function FounderDashboard() {
               })));
             }
           });
-
-        // Live agent activity feed (last 5 actions)
-        supabase
-          .from("agent_activity")
-          .select("id, agent_id, action_type, description, created_at")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
-          .limit(5)
-          .then(({ data }) => { if (data) setAgentActivity(data as ActivityRow[]); });
 
         // Sessions this week (agent_activity count in last 7 days)
         const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -897,8 +874,8 @@ export default function FounderDashboard() {
           })}
         </div>
 
-        {/* ── main content: actions + sessions ──────────────────────── */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 24 }}>
+        {/* ── top actions ──────────────────────────────────────────── */}
+        <div style={{ marginBottom: 24 }}>
 
           {/* top actions */}
           <motion.div
@@ -957,75 +934,6 @@ export default function FounderDashboard() {
             </div>
           </motion.div>
 
-          {/* recent agent sessions */}
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.35 }}
-            style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 18, overflow: "hidden" }}
-          >
-            <div style={{ padding: "20px 22px 16px", borderBottom: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", color: muted, fontWeight: 600 }}>
-                Recent adviser sessions
-              </p>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                {agentActivity.length > 0 && (
-                  <Link href="/founder/activity" style={{ fontSize: 11, color: muted, textDecoration: "none", fontWeight: 500 }}>
-                    Full log →
-                  </Link>
-                )}
-                <Link href="/founder/agents" style={{ fontSize: 11, color: blue, textDecoration: "none", fontWeight: 500 }}>
-                  All advisers →
-                </Link>
-              </div>
-            </div>
-            <div>
-              {(agentActivity.length > 0 ? agentActivity : MOCK_AGENT_SESSIONS).map((item, i) => {
-                const isReal = agentActivity.length > 0;
-                const agentId  = isReal ? (item as ActivityRow).agent_id   : (item as typeof MOCK_AGENT_SESSIONS[0]).agentId;
-                const preview  = isReal ? (item as ActivityRow).description : (item as typeof MOCK_AGENT_SESSIONS[0]).preview;
-                const ago      = isReal
-                  ? (() => {
-                      const diff = Date.now() - new Date((item as ActivityRow).created_at).getTime();
-                      const h = Math.floor(diff / 3600000);
-                      const d = Math.floor(diff / 86400000);
-                      return h < 1 ? "Just now" : h < 24 ? `${h}h ago` : d === 1 ? "Yesterday" : `${d}d ago`;
-                    })()
-                  : (item as typeof MOCK_AGENT_SESSIONS[0]).ago;
-                const agent  = agents.find((a) => a.id === agentId);
-                if (!agent) return null;
-                const accent = pillarAccent[agent.pillar] ?? blue;
-                const listLen = isReal ? agentActivity.length : MOCK_AGENT_SESSIONS.length;
-                return (
-                  <motion.div key={isReal ? (item as ActivityRow).id : i}
-                    initial={{ opacity: 0, x: 6 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.5 + i * 0.07 }}
-                    style={{ borderBottom: i < listLen - 1 ? `1px solid ${bdr}` : "none" }}
-                  >
-                    <Link href={`/founder/agents/${agent.id}`} style={{ textDecoration: "none" }}>
-                      <div
-                        style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 22px", cursor: "pointer", transition: "background 0.15s" }}
-                        onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = surf)}
-                        onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "transparent")}
-                      >
-                        <div style={{ height: 34, width: 34, borderRadius: 10, background: bg, border: `2px solid ${accent}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: accent, flexShrink: 0 }}>
-                          {agent.name[0]}
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <p style={{ fontSize: 13, fontWeight: 500, color: ink }}>{agent.name}</p>
-                          <p style={{ fontSize: 11, color: muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 1 }}>
-                            {preview}
-                          </p>
-                        </div>
-                        <span style={{ fontSize: 10, color: muted, flexShrink: 0 }}>{ago}</span>
-                      </div>
-                    </Link>
-                  </motion.div>
-                );
-              })}
-            </div>
-          </motion.div>
         </div>
 
         {/* ── score trajectory (full width) ─────────────────────── */}
@@ -1232,104 +1140,8 @@ export default function FounderDashboard() {
           </motion.div>
         )}
 
-        {/* ── bottom row: activity + investor pulse + academy ───── */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 24 }} className="dashboard-bottom">
-
-          {/* live agent activity feed */}
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.45 }}
-            style={{ padding: "22px 24px", background: surf, border: `1px solid ${bdr}`, borderRadius: 18 }}
-          >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-              <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", color: muted, fontWeight: 600 }}>
-                Adviser activity
-              </p>
-              <span style={{ fontSize: 11, fontWeight: 700, color: usedAgentIds.size > 0 ? green : muted }}>
-                {usedAgentIds.size}/{agents.length}
-              </span>
-            </div>
-
-            {agentActivity.length > 0 ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {agentActivity.map(row => {
-                  const accent = agents.find(a => a.id === row.agent_id)
-                    ? (pillarAccent[agents.find(a => a.id === row.agent_id)!.pillar] ?? blue)
-                    : blue;
-                  const ago = (() => {
-                    const diff = Date.now() - new Date(row.created_at).getTime();
-                    const m = Math.floor(diff / 60000);
-                    if (m < 1) return "just now";
-                    if (m < 60) return `${m}m ago`;
-                    const h = Math.floor(m / 60);
-                    if (h < 24) return `${h}h ago`;
-                    return `${Math.floor(h / 24)}d ago`;
-                  })();
-                  return (
-                    <div key={row.id} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                      <div style={{
-                        height: 28, width: 28, borderRadius: 8, flexShrink: 0,
-                        background: `${accent}18`, border: `1.5px solid ${accent}40`,
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 11, fontWeight: 700, color: accent,
-                      }}>
-                        {(row.agent_id[0] ?? "?").toUpperCase()}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ fontSize: 12, color: ink, lineHeight: 1.4, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
-                          {row.description}
-                        </p>
-                        <p style={{ fontSize: 10, color: muted, marginTop: 2 }}>{ago}</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
-                {agents.map((agent) => {
-                  const done   = usedAgentIds.has(agent.id);
-                  const accent = { "sales-marketing": blue, "operations-finance": green, "product-strategy": "#7C3AED" }[agent.pillar] ?? blue;
-                  return (
-                    <Link key={agent.id} href={`/founder/agents/${agent.id}`} style={{ textDecoration: "none" }}>
-                      <div
-                        title={agent.name}
-                        style={{
-                          height: 48, borderRadius: 10,
-                          border: `1.5px solid ${done ? accent : bdr}`,
-                          background: done ? `${accent}12` : bg,
-                          display: "flex", flexDirection: "column",
-                          alignItems: "center", justifyContent: "center", gap: 2,
-                          cursor: "pointer", transition: "opacity .15s",
-                        }}
-                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = "0.7"}
-                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = "1"}
-                      >
-                        <span style={{ fontSize: 13, fontWeight: 700, color: done ? accent : muted }}>
-                          {agent.name[0]}
-                        </span>
-                        {done && (
-                          <span style={{ fontSize: 8, fontWeight: 600, color: accent, letterSpacing: "0.05em" }}>✓</span>
-                        )}
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
-
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14 }}>
-              <Link href="/founder/agents" style={{ textDecoration: "none" }}>
-                <p style={{ fontSize: 11, color: blue, fontWeight: 500 }}>All advisers →</p>
-              </Link>
-              {agentActivity.length > 0 && (
-                <Link href="/founder/activity" style={{ textDecoration: "none" }}>
-                  <p style={{ fontSize: 11, color: muted, fontWeight: 500 }}>Full log →</p>
-                </Link>
-              )}
-            </div>
-          </motion.div>
+        {/* ── bottom row: investor pulse + academy ──────────────── */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }} className="dashboard-bottom">
 
           {/* investor pulse */}
           <motion.div
