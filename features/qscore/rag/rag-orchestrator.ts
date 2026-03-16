@@ -20,7 +20,7 @@ import { scoreWithRubrics } from './rubrics/rubric-scorer';
 import { blendScores, calculateRAGConfidence } from './score-blender';
 import { assembleEvidenceContext } from './evidence/context-assembler';
 import { adjustScoresWithEvidence } from './evidence/evidence-scorer';
-import type { EnhancedSemanticEvaluation, EvidenceContext } from './types';
+import type { EnhancedSemanticEvaluation } from './types';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Field Extraction (mirrors answer-evaluator.ts)

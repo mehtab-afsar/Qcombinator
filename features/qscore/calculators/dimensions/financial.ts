@@ -1,120 +1,121 @@
 /**
  * Financial Dimension Scorer
- * Sources: NEW Financial section (to be added to assessment)
- * Scoring: Unit economics (40), runway (30), projections (30)
+ * Sources: Financial section (MRR/ARR, gross margin, runway, projections)
+ *
+ * Thresholds are DB-driven via ThresholdMap. Falls back to hardcoded values
+ * if thresholds are not loaded.
  */
 
 import { AssessmentData } from '../../types/qscore.types';
+import { ThresholdMap, scoreTiers, getTiers } from '../../services/threshold-config';
 
-export function calculateFinancialScore(data: AssessmentData): {
-  score: number;
-  rawPoints: number;
-  maxPoints: number;
-} {
+export function calculateFinancialScore(
+  data: AssessmentData,
+  thresholds?: ThresholdMap
+): { score: number; rawPoints: number; maxPoints: number } {
   let points = 0;
   const maxPoints = 100;
 
-  // If no financial data provided, return default score
   if (!data.financial) {
-    return {
-      score: 50, // Default middle score if section not completed
-      rawPoints: 50,
-      maxPoints: 100
-    };
+    return { score: 50, rawPoints: 50, maxPoints: 100 };
   }
 
   const finData = data.financial;
+  const t = thresholds ?? new Map();
 
-  // 1. Unit Economics (40 points)
+  // 1. Gross Margin (20 pts)
   const hasCOGS = finData.cogs !== undefined && finData.cogs >= 0;
   const hasAvgDeal = finData.averageDealSize !== undefined && finData.averageDealSize > 0;
-  const _hasRevenue = (finData.mrr && finData.mrr > 0) || (finData.arr && finData.arr > 0);
 
-  // Gross margin calculation (20 pts)
   if (hasCOGS && hasAvgDeal && finData.averageDealSize! > 0) {
     const grossMargin = isFinite(finData.cogs! / finData.averageDealSize!)
       ? ((finData.averageDealSize! - finData.cogs!) / finData.averageDealSize!) * 100
       : 0;
-    if (grossMargin >= 80) points += 20; // Excellent (80%+)
-    else if (grossMargin >= 70) points += 17; // Great (70-80%)
-    else if (grossMargin >= 60) points += 14; // Good (60-70%)
-    else if (grossMargin >= 50) points += 10; // Acceptable (50-60%)
-    else if (grossMargin >= 40) points += 6; // Low (40-50%)
-    else points += 2; // Poor (<40%)
+    const gmTiers = getTiers(t, 'financial', 'gross_margin_pct');
+    if (gmTiers) {
+      points += scoreTiers(grossMargin, gmTiers);
+    } else {
+      if (grossMargin >= 80) points += 20;
+      else if (grossMargin >= 70) points += 17;
+      else if (grossMargin >= 60) points += 14;
+      else if (grossMargin >= 50) points += 10;
+      else if (grossMargin >= 40) points += 6;
+      else points += 2;
+    }
   } else {
-    points += 5; // No unit economics tracked
+    points += 5;
   }
 
-  // Revenue existence and scale (20 pts)
+  // 2. ARR / Revenue Scale (20 pts)
   const revenue = finData.arr || (finData.mrr || 0) * 12;
-  if (revenue >= 1_000_000) points += 20; // $1M+ ARR
-  else if (revenue >= 500_000) points += 17; // $500K+ ARR
-  else if (revenue >= 100_000) points += 14; // $100K+ ARR
-  else if (revenue >= 50_000) points += 10; // $50K+ ARR
-  else if (revenue >= 10_000) points += 6; // $10K+ ARR
-  else if (revenue > 0) points += 3; // Some revenue
-  else points += 0; // No revenue yet
+  const arrTiers = getTiers(t, 'financial', 'arr');
+  if (arrTiers) {
+    points += scoreTiers(revenue, arrTiers);
+  } else {
+    if (revenue >= 1_000_000) points += 20;
+    else if (revenue >= 500_000) points += 17;
+    else if (revenue >= 100_000) points += 14;
+    else if (revenue >= 50_000) points += 10;
+    else if (revenue >= 10_000) points += 6;
+    else if (revenue > 0) points += 3;
+    else points += 0;
+  }
 
-  // 2. Runway & Cash Management (30 points)
+  // 3. Runway & Cash Management (30 pts)
   const hasRunway = finData.runway !== undefined && finData.runway > 0;
   const hasBurn = finData.monthlyBurn > 0;
 
   if (hasRunway) {
-    const runway = finData.runway!;
-    if (runway >= 18) points += 30; // 18+ months
-    else if (runway >= 12) points += 25; // 12-18 months
-    else if (runway >= 9) points += 20; // 9-12 months
-    else if (runway >= 6) points += 15; // 6-9 months
-    else if (runway >= 3) points += 10; // 3-6 months
-    else points += 5; // < 3 months (critical)
+    const runwayTiers = getTiers(t, 'financial', 'runway_months');
+    if (runwayTiers) {
+      points += scoreTiers(finData.runway!, runwayTiers);
+    } else {
+      const runway = finData.runway!;
+      if (runway >= 18) points += 30;
+      else if (runway >= 12) points += 25;
+      else if (runway >= 9) points += 20;
+      else if (runway >= 6) points += 15;
+      else if (runway >= 3) points += 10;
+      else points += 5;
+    }
   } else if (hasBurn) {
-    // Has burn but no runway specified
-    points += 10; // Partial credit for tracking burn
+    points += 10;
   } else {
-    // No financial tracking
     points += 5;
   }
 
-  // 3. Financial Projections (30 points)
+  // 4. Financial Projections (30 pts)
   const hasProjections = finData.projectedRevenue12mo !== undefined && finData.projectedRevenue12mo > 0;
   const hasAssumptions = finData.revenueAssumptions && finData.revenueAssumptions.length > 50;
 
   // Projection quality (15 pts)
   if (hasProjections && revenue > 0) {
     const projectedGrowth = ((finData.projectedRevenue12mo! - revenue) / revenue) * 100;
-    // Realistic growth rates
-    if (projectedGrowth >= 50 && projectedGrowth <= 300) {
-      points += 15; // Realistic ambitious growth
-    } else if (projectedGrowth >= 20 && projectedGrowth <= 500) {
-      points += 12; // Plausible range
-    } else if (projectedGrowth >= 0) {
-      points += 8; // Conservative or very aggressive
+    const pgTiers = getTiers(t, 'financial', 'projected_growth_pct');
+    if (pgTiers) {
+      points += scoreTiers(projectedGrowth, pgTiers);
     } else {
-      points += 3; // Declining projections
+      if (projectedGrowth >= 50 && projectedGrowth <= 300) points += 15;
+      else if (projectedGrowth >= 20 && projectedGrowth <= 500) points += 12;
+      else if (projectedGrowth >= 0) points += 8;
+      else points += 3;
     }
   } else if (hasProjections) {
-    points += 10; // Has projections, no baseline
+    points += 10;
   } else {
-    points += 3; // No projections
+    points += 3;
   }
 
-  // Assumptions documentation (15 pts)
+  // Assumptions documentation (15 pts) — text-based, not DB-driven
   if (hasAssumptions) {
-    const assumptionsLength = finData.revenueAssumptions!.length;
-    if (assumptionsLength >= 200) points += 15; // Detailed
-    else if (assumptionsLength >= 100) points += 12; // Moderate
-    else points += 8; // Basic
+    const len = finData.revenueAssumptions!.length;
+    if (len >= 200) points += 15;
+    else if (len >= 100) points += 12;
+    else points += 8;
   } else {
-    points += 3; // No assumptions
+    points += 3;
   }
 
-  // Normalize to 0-100, clamp both ends, guard NaN
   const raw = isFinite(points) ? Math.round((points / maxPoints) * 100) : 0;
-  const score = Math.max(0, Math.min(100, raw));
-
-  return {
-    score,
-    rawPoints: Math.max(0, points),
-    maxPoints
-  };
+  return { score: Math.max(0, Math.min(100, raw)), rawPoints: Math.max(0, points), maxPoints };
 }

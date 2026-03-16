@@ -1,23 +1,24 @@
 /**
  * Market Dimension Scorer
  * Sources: Market Realism section (TAM, conversion, activity)
- * Scoring: 0-100 based on market size, growth potential, and realism
+ *
+ * Thresholds are DB-driven via ThresholdMap. Falls back to hardcoded values
+ * if thresholds are not loaded (e.g. during tests or DB unavailability).
  */
 
 import { AssessmentData } from '../../types/qscore.types';
+import { ThresholdMap, scoreTiers, getTiers } from '../../services/threshold-config';
 
-export function calculateMarketScore(data: AssessmentData): {
-  score: number;
-  rawPoints: number;
-  maxPoints: number;
-} {
+export function calculateMarketScore(
+  data: AssessmentData,
+  thresholds?: ThresholdMap
+): { score: number; rawPoints: number; maxPoints: number } {
   const targetCustomers = data.targetCustomers ?? 0;
   const lifetimeValue = data.lifetimeValue ?? 0;
   const conversionRate = data.conversionRate ?? 0;
   const dailyActivity = data.dailyActivity ?? 0;
   const costPerAcquisition = data.costPerAcquisition ?? 0;
 
-  // If no market data at all, return 0 (confidence layer handles display)
   if (targetCustomers === 0 && lifetimeValue === 0 && conversionRate === 0 && costPerAcquisition === 0) {
     return { score: 0, rawPoints: 0, maxPoints: 100 };
   }
@@ -25,51 +26,53 @@ export function calculateMarketScore(data: AssessmentData): {
   let points = 0;
   const maxPoints = 100;
 
-  // 1. TAM Size (40 points)
+  // 1. TAM Size (40 pts)
   const tam = targetCustomers * lifetimeValue;
-  if (tam >= 1_000_000_000) points += 40; // $1B+ TAM
-  else if (tam >= 100_000_000) points += 35; // $100M+ TAM
-  else if (tam >= 10_000_000) points += 28; // $10M+ TAM
-  else if (tam >= 1_000_000) points += 20; // $1M+ TAM
-  else points += 10; // < $1M TAM
-
-  // 2. Conversion Rate Realism (30 points)
-  if (conversionRate >= 0.5 && conversionRate <= 5) {
-    points += 30; // Realistic range (0.5% - 5%)
-  } else if (conversionRate >= 0.1 && conversionRate <= 10) {
-    points += 20; // Somewhat realistic
-  } else if (conversionRate < 0.5) {
-    points += 10; // Too conservative
+  const tamTiers = getTiers(thresholds ?? new Map(), 'market', 'tam');
+  if (tamTiers) {
+    points += scoreTiers(tam, tamTiers);
   } else {
-    points += 5; // Unrealistic (>10%)
+    if (tam >= 1_000_000_000) points += 40;
+    else if (tam >= 100_000_000) points += 35;
+    else if (tam >= 10_000_000) points += 28;
+    else if (tam >= 1_000_000) points += 20;
+    else points += 10;
   }
 
-  // 3. Daily Activity Assumptions (20 points)
+  // 2. Conversion Rate Realism (30 pts)
+  const crTiers = getTiers(thresholds ?? new Map(), 'market', 'conversion_rate');
+  if (crTiers) {
+    points += scoreTiers(conversionRate, crTiers);
+  } else {
+    if (conversionRate >= 0.5 && conversionRate <= 5) points += 30;
+    else if (conversionRate >= 0.1 && conversionRate <= 10) points += 20;
+    else if (conversionRate < 0.5) points += 10;
+    else points += 5;
+  }
+
+  // 3. Daily Activity Assumptions (20 pts)
   const activityRate = targetCustomers > 0 ? (dailyActivity / targetCustomers) * 100 : 0;
-
-  if (activityRate >= 10 && activityRate <= 50) {
-    points += 20; // Realistic engagement
-  } else if (activityRate >= 5 && activityRate <= 70) {
-    points += 15; // Somewhat realistic
+  const arTiers = getTiers(thresholds ?? new Map(), 'market', 'activity_rate');
+  if (arTiers) {
+    points += scoreTiers(activityRate, arTiers);
   } else {
-    points += 5; // Unrealistic assumptions
+    if (activityRate >= 10 && activityRate <= 50) points += 20;
+    else if (activityRate >= 5 && activityRate <= 70) points += 15;
+    else points += 5;
   }
 
-  // 4. Unit Economics Validation (10 points)
+  // 4. LTV:CAC Unit Economics (10 pts)
   const ltvCacRatio = costPerAcquisition > 0 ? lifetimeValue / costPerAcquisition : 0;
+  const ltvTiers = getTiers(thresholds ?? new Map(), 'market', 'ltv_cac_ratio');
+  if (ltvTiers) {
+    points += scoreTiers(ltvCacRatio, ltvTiers);
+  } else {
+    if (ltvCacRatio >= 3) points += 10;
+    else if (ltvCacRatio >= 2) points += 7;
+    else if (ltvCacRatio >= 1) points += 4;
+    else points += 0;
+  }
 
-  if (ltvCacRatio >= 3) points += 10; // Excellent (3:1 or better)
-  else if (ltvCacRatio >= 2) points += 7; // Good (2:1)
-  else if (ltvCacRatio >= 1) points += 4; // Breakeven
-  else points += 0; // Negative economics
-
-  // Normalize to 0-100, clamp both ends, guard NaN
   const raw = isFinite(points) ? Math.round((points / maxPoints) * 100) : 0;
-  const score = Math.max(0, Math.min(100, raw));
-
-  return {
-    score,
-    rawPoints: Math.max(0, points),
-    maxPoints
-  };
+  return { score: Math.max(0, Math.min(100, raw)), rawPoints: Math.max(0, points), maxPoints };
 }

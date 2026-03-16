@@ -1,2 +1,0 @@
--- Seed file intentionally empty.
--- No demo/mock data on this platform.

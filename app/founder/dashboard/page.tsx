@@ -302,10 +302,20 @@ function getGreeting(name?: string) {
 }
 
 // ─── component ────────────────────────────────────────────────────────────────
+// ─── IQ Score mini-types (for dashboard card only) ────────────────────────────
+interface DashIQScore {
+  normalizedScore: number;
+  grade: string;
+  indicatorsUsed: number;
+  scoringMethod: string;
+  parameterScores: Array<{ parameterId: number; name: string; score: number }>;
+}
+
 export default function FounderDashboard() {
   const { loading: authLoading, user } = useAuth();
   const { qScore: realQScore, loading: qScoreLoading } = useQScore();
   const { metrics: dashMetrics } = useMetrics();
+  const [iqScore, setIqScore] = useState<DashIQScore | null>(null);
   const [scoreHistory,  setScoreHistory]  = useState<ScorePoint[]>([]);
   const [usedAgentIds, setUsedAgentIds]  = useState<Set<string>>(new Set());
 
@@ -340,6 +350,12 @@ export default function FounderDashboard() {
       const supabase = createClient();
       supabase.auth.getUser().then(({ data: { user } }) => {
         if (!user) return;
+
+        // Fetch IQ Score
+        fetch("/api/iq/latest")
+          .then(r => r.ok ? r.json() : null)
+          .then(d => { if (d?.iqScore) setIqScore(d.iqScore); })
+          .catch(() => {});
 
         // Fetch completed agent deliverables
         supabase
@@ -885,6 +901,65 @@ export default function FounderDashboard() {
             })}
           </div>
         </motion.div>
+
+        {/* ── IQ Score card ─────────────────────────────────────────── */}
+        {iqScore && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.28 }}
+            style={{ marginBottom: 24 }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", color: muted, fontWeight: 600 }}>
+                Edge Alpha IQ — Investment Readiness
+              </p>
+              <Link href="/founder/improve-qscore" style={{ fontSize: 11, color: blue, textDecoration: "none", fontWeight: 500 }}>
+                Full breakdown →
+              </Link>
+            </div>
+            <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 18, padding: "20px 22px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 20, marginBottom: 16 }}>
+                {/* Grade circle */}
+                <div style={{
+                  width: 64, height: 64, borderRadius: "50%", flexShrink: 0,
+                  background: iqScore.normalizedScore >= 74 ? "#EFF6FF" : iqScore.normalizedScore >= 50 ? "#FFFBEB" : "#FEF2F2",
+                  border: `2px solid ${iqScore.normalizedScore >= 74 ? blue : iqScore.normalizedScore >= 50 ? amber : red}`,
+                  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                }}>
+                  <span style={{ fontSize: 18, fontWeight: 700, color: iqScore.normalizedScore >= 74 ? blue : iqScore.normalizedScore >= 50 ? amber : red, lineHeight: 1 }}>
+                    {iqScore.grade}
+                  </span>
+                  <span style={{ fontSize: 9, color: muted, marginTop: 1 }}>{iqScore.normalizedScore}/100</span>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: ink, margin: "0 0 2px" }}>
+                    IQ Score: {iqScore.normalizedScore}
+                  </p>
+                  <p style={{ fontSize: 11, color: muted, margin: 0 }}>
+                    {iqScore.indicatorsUsed} of 25 indicators scored · {iqScore.scoringMethod} assessment
+                  </p>
+                  {/* Parameter bars */}
+                  <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
+                    {iqScore.parameterScores.map(p => {
+                      const pct = Math.round((p.score / 5) * 100);
+                      const col = pct >= 70 ? blue : pct >= 50 ? amber : red;
+                      return (
+                        <div key={p.parameterId} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, minWidth: 36 }}>
+                          <div style={{ width: 36, height: 4, background: bdr, borderRadius: 2, overflow: "hidden" }}>
+                            <div style={{ width: `${pct}%`, height: "100%", background: col, borderRadius: 2 }} />
+                          </div>
+                          <span style={{ fontSize: 9, color: muted }}>{p.name.split(" ")[0]}</span>
+                          <span style={{ fontSize: 9, fontWeight: 600, color: col }}>{pct}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
 
         {/* ── quick stats row ───────────────────────────────────────── */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 32 }}>

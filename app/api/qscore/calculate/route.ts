@@ -7,6 +7,13 @@ import { detectBluffSignals, applyBluffPenalty, createEvidenceConflictSignals } 
 import type { EnhancedSemanticEvaluation } from '@/features/qscore/rag/types';
 import { runRAGScoring } from '@/features/qscore/rag/rag-orchestrator';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { runIQScoring } from '@/features/iq/calculators/iq-orchestrator';
+import { fetchQScoreThresholds, fetchDimensionWeights } from '@/features/qscore/services/threshold-config';
+import {
+  saveMetricSnapshot,
+  computeCohortScores,
+  extractMetrics,
+} from '@/features/qscore/services/cohort-scorer';
 
 export async function POST(request: NextRequest) {
   try {
@@ -41,6 +48,34 @@ export async function POST(request: NextRequest) {
       .limit(1)
       .single();
 
+    // ── Load DB thresholds + sector weights (1h cache) ─────────────────────
+    const { data: founderProfileForWeights } = await supabase
+      .from('founder_profiles')
+      .select('sector')
+      .eq('user_id', user.id)
+      .single();
+
+    const adminForConfig = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
+      process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
+    );
+
+    const sectorKey = (() => {
+      const s = (founderProfileForWeights?.sector ?? '').toLowerCase();
+      if (s.includes('deep') || s.includes('hardware')) return 'deeptech';
+      if (s.includes('health') || s.includes('bio')) return 'healthtech';
+      if (s.includes('fin') || s.includes('payment')) return 'fintech';
+      if (s.includes('climate') || s.includes('clean')) return 'climatetech';
+      if (s.includes('consumer')) return 'consumer';
+      if (s.includes('edu')) return 'edtech';
+      return 'default';
+    })();
+
+    const [qscoreThresholds, dimensionWeights] = await Promise.all([
+      fetchQScoreThresholds(adminForConfig),
+      fetchDimensionWeights(adminForConfig, sectorKey),
+    ]);
+
     // ── RAG: Enhanced semantic evaluation ──────────────────────────────────
     // Runs 3-layer RAG pipeline: rubric scoring → evidence lookup → benchmark
     // validation. Falls back gracefully to heuristics on any failure.
@@ -67,11 +102,13 @@ export async function POST(request: NextRequest) {
       error_msg:               semanticEval.success ? null : ((semanticEval as { errorMessage?: string }).errorMessage ?? 'unknown error'),
     });
 
-    // Calculate new Q-Score (with RAG semantic evaluation injected)
+    // Calculate new Q-Score — with DB thresholds + sector weights + RAG
     const qScore = calculatePRDQScore(
       assessmentData as AssessmentData,
       previousScoreData || undefined,
-      semanticEval
+      semanticEval,
+      qscoreThresholds,
+      dimensionWeights
     );
 
     // Run bluff detection — penalize inflated/AI-generated inputs
@@ -139,10 +176,95 @@ export async function POST(request: NextRequest) {
       })
       .eq('user_id', user.id);
 
+    // ── Cohort scoring — compute percentile-based dimension scores ─────────────
+    // Uses every founder's raw metric values to rank this founder relative to cohort.
+    // Returns null when cohort is too small (< 100) — tier scoring stays as-is.
+    const cohortScores = await computeCohortScores(
+      adminForConfig,
+      user.id,
+      sectorKey,
+      qScore.breakdown
+    );
+
+    // ── Fire-and-forget: save metric snapshot + IQ scoring ────────────────────
+    // The snapshot feeds the cohort scorer for all future calculations.
+    // Runs after the score is saved so qscore_history_id is available.
+    void (async () => {
+      try {
+        const rawMetrics = extractMetrics(assessmentData as Record<string, unknown>);
+        const dimScores = {
+          market:     qScore.breakdown.market.score,
+          product:    qScore.breakdown.product.score,
+          goToMarket: qScore.breakdown.goToMarket.score,
+          financial:  qScore.breakdown.financial.score,
+          team:       qScore.breakdown.team.score,
+          traction:   qScore.breakdown.traction.score,
+        };
+        await saveMetricSnapshot(
+          adminForConfig,
+          user.id,
+          savedScore?.id ?? null,
+          sectorKey,
+          rawMetrics,
+          dimScores,
+          qScore.overall
+        );
+      } catch (snapshotErr) {
+        console.warn('[Q-Score] Metric snapshot failed:', snapshotErr);
+      }
+    })();
+
+    // ── Fire-and-forget IQ scoring (never blocks the Q-Score response) ────────
+    const adminClientForIQ = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
+      process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
+    );
+
+    void (async () => {
+      try {
+        // Load latest artifacts for IQ resolver
+        const { data: arts } = await adminClientForIQ
+          .from('agent_artifacts')
+          .select('agent_id, artifact_type, content')
+          .eq('user_id', user.id)
+          .in('artifact_type', ['financial_summary', 'hiring_plan', 'competitive_matrix'])
+          .order('created_at', { ascending: false });
+
+        const artifactBundle: Record<string, Record<string, unknown> | null> = {
+          financial: null, hiring: null, competitive: null,
+        };
+        for (const art of (arts ?? []) as Array<{ artifact_type: string; content: Record<string, unknown> }>) {
+          if (art.artifact_type === 'financial_summary' && !artifactBundle.financial) artifactBundle.financial = art.content;
+          if (art.artifact_type === 'hiring_plan' && !artifactBundle.hiring) artifactBundle.hiring = art.content;
+          if (art.artifact_type === 'competitive_matrix' && !artifactBundle.competitive) artifactBundle.competitive = art.content;
+        }
+
+        const { data: founderProfile } = await adminClientForIQ
+          .from('founder_profiles')
+          .select('sector, stage')
+          .eq('user_id', user.id)
+          .single();
+
+        await runIQScoring({
+          userId: user.id,
+          supabase: adminClientForIQ,
+          assessment: assessmentData as AssessmentData,
+          artifacts: artifactBundle,
+          profile: founderProfile ? { sector: founderProfile.sector, stage: founderProfile.stage } : null,
+          skipTavily: false,
+        });
+      } catch (iqErr) {
+        console.warn('[Q-Score] IQ scoring fire-and-forget failed:', iqErr);
+      }
+    })();
+
     return NextResponse.json({
       qScore: {
         ...qScore,
         percentile,
+        // cohortScores is null until MIN_COHORT_SIZE (30) founders have scored.
+        // When present, these are percentile-based scores (0–100) per dimension.
+        cohortScores,
       },
       savedScore,
     });

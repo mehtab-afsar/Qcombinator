@@ -96,6 +96,7 @@ export function retrieveChunks(query: RetrievalQuery): RetrievedChunk[] {
 export function retrieveBenchmarkContext(sector: Sector, dimension: string): string {
   // Try structured benchmark registry first (Phase 3 enhancement)
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { buildBenchmarkContext } = require('./benchmarks/benchmark-retriever');
     const metricsForDimension: Record<string, string[]> = {
       market: ['conversion_rate', 'ltv_cac_ratio'],
@@ -154,6 +155,7 @@ export function retrieveGTMPlaybooks(sector: Sector, stage?: string): string {
 export function retrieveScoringRubrics(fields: string[]): string {
   // Try structured rubrics first (Phase 1 enhancement)
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { getRubricsForFields, formatRubricsForPrompt } = require('./rubrics/rubric-data');
     const rubrics = getRubricsForFields(fields);
     if (rubrics.length > 0) {

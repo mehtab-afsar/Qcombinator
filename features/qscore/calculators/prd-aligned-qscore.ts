@@ -15,6 +15,7 @@ import { calculateTeamScore } from './dimensions/team';
 import { calculateTractionScore } from './dimensions/traction';
 import { calculateConfidence, adjustForConfidence } from '../utils/confidence';
 import { SemanticEvaluation } from '../rag/types';
+import { ThresholdMap, DimensionWeightMap } from '../services/threshold-config';
 
 /**
  * Main Q-Score calculation function
@@ -27,16 +28,17 @@ import { SemanticEvaluation } from '../rag/types';
 export function calculatePRDQScore(
   assessmentData: AssessmentData,
   previousScore?: PRDQScore,
-  semanticEval?: SemanticEvaluation
+  semanticEval?: SemanticEvaluation,
+  thresholds?: ThresholdMap,
+  dimensionWeights?: DimensionWeightMap
 ): PRDQScore {
-  // Calculate each dimension (0-100 scale)
-  // RAG-enhanced dimensions receive semanticEval; others remain unchanged
-  const marketResult = calculateMarketScore(assessmentData);
-  const productResult = calculateProductScore(assessmentData, semanticEval);
-  const gtmResult = calculateGTMScore(assessmentData, semanticEval);
-  const financialResult = calculateFinancialScore(assessmentData);
-  const teamResult = calculateTeamScore(assessmentData, semanticEval);
-  const tractionResult = calculateTractionScore(assessmentData);
+  // Calculate each dimension — pass DB thresholds if available
+  const marketResult = calculateMarketScore(assessmentData, thresholds);
+  const productResult = calculateProductScore(assessmentData, semanticEval, thresholds);
+  const gtmResult = calculateGTMScore(assessmentData, semanticEval, thresholds);
+  const financialResult = calculateFinancialScore(assessmentData, thresholds);
+  const teamResult = calculateTeamScore(assessmentData, semanticEval, thresholds);
+  const tractionResult = calculateTractionScore(assessmentData, thresholds);
 
   // Apply confidence adjustment — don't inflate scores from missing data
   const confidence = calculateConfidence(assessmentData);
@@ -47,15 +49,25 @@ export function calculatePRDQScore(
   teamResult.score = adjustForConfidence(teamResult.score, confidence.team);
   tractionResult.score = adjustForConfidence(tractionResult.score, confidence.traction);
 
-  // Apply PRD weights to get overall score (0-100)
+  // Resolve weights: DB-loaded sector weights > PRD_WEIGHTS hardcoded fallback
+  const w = {
+    market:     dimensionWeights?.get('market')     ?? PRD_WEIGHTS.market,
+    product:    dimensionWeights?.get('product')    ?? PRD_WEIGHTS.product,
+    goToMarket: dimensionWeights?.get('goToMarket') ?? PRD_WEIGHTS.goToMarket,
+    financial:  dimensionWeights?.get('financial')  ?? PRD_WEIGHTS.financial,
+    team:       dimensionWeights?.get('team')       ?? PRD_WEIGHTS.team,
+    traction:   dimensionWeights?.get('traction')   ?? PRD_WEIGHTS.traction,
+  };
+
+  // Apply weights to get overall score (0-100)
   // Only count dimensions with data toward the weighted average
   const dimensionResults = [
-    { result: marketResult, weight: PRD_WEIGHTS.market, conf: confidence.market },
-    { result: productResult, weight: PRD_WEIGHTS.product, conf: confidence.product },
-    { result: gtmResult, weight: PRD_WEIGHTS.goToMarket, conf: confidence.goToMarket },
-    { result: financialResult, weight: PRD_WEIGHTS.financial, conf: confidence.financial },
-    { result: teamResult, weight: PRD_WEIGHTS.team, conf: confidence.team },
-    { result: tractionResult, weight: PRD_WEIGHTS.traction, conf: confidence.traction },
+    { result: marketResult,    weight: w.market,     conf: confidence.market },
+    { result: productResult,   weight: w.product,    conf: confidence.product },
+    { result: gtmResult,       weight: w.goToMarket, conf: confidence.goToMarket },
+    { result: financialResult, weight: w.financial,  conf: confidence.financial },
+    { result: teamResult,      weight: w.team,       conf: confidence.team },
+    { result: tractionResult,  weight: w.traction,   conf: confidence.traction },
   ];
 
   const activeDimensions = dimensionResults.filter(d => d.conf.status !== 'none');
