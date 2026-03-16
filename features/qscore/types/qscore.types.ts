@@ -16,6 +16,13 @@ export interface DimensionScore {
   change?: number; // Change from previous assessment
 }
 
+/** RAG scoring metadata (from enhanced evaluation pipeline) */
+export interface RAGMetadata {
+  scoringMethod: 'rag' | 'heuristic' | 'blended';
+  ragConfidence: number;
+  evidenceSummary: string[];
+}
+
 export interface PRDQScore {
   overall: number; // 0-100 weighted average
   percentile: number | null; // Percentile ranking vs cohort
@@ -29,6 +36,8 @@ export interface PRDQScore {
     traction: DimensionScore;
   };
   calculatedAt: Date;
+  /** RAG scoring metadata (available when score was calculated with enhanced pipeline) */
+  ragMetadata?: RAGMetadata | null;
 }
 
 // PRD Weight Configuration

@@ -326,7 +326,7 @@ export default function LandingPage() {
       </motion.header>
 
       {/* ── HERO ─────────────────────────────────────────────────────────── */}
-      <section className="pt-36 pb-24 px-6 lg:px-8 relative overflow-hidden">
+      <section className="pt-28 sm:pt-36 pb-16 sm:pb-24 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
         {/* Subtle dot-grid background */}
         <div
           style={{
@@ -344,7 +344,7 @@ export default function LandingPage() {
           pointerEvents: "none",
         }} />
 
-        <div className="mx-auto max-w-7xl grid lg:grid-cols-2 gap-16 items-center relative">
+        <div className="mx-auto max-w-7xl grid lg:grid-cols-2 gap-10 lg:gap-16 items-center relative">
 
           {/* copy */}
           <div>
@@ -360,7 +360,7 @@ export default function LandingPage() {
             </motion.div>
 
             <h1
-              className="text-5xl sm:text-6xl xl:text-7xl leading-[1.05] tracking-tight mb-7"
+              className="text-[2.25rem] sm:text-5xl md:text-6xl xl:text-7xl leading-[1.05] tracking-tight mb-5 sm:mb-7"
               style={{ fontWeight: 300, color: "#18160F" }}
             >
               {[
@@ -381,7 +381,7 @@ export default function LandingPage() {
             </h1>
 
             <motion.p
-              className="text-[17px] font-light leading-relaxed max-w-md mb-10"
+              className="text-[15px] sm:text-[17px] font-light leading-relaxed max-w-md mb-8 sm:mb-10"
               style={{ color: "#8A867C" }}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -391,7 +391,7 @@ export default function LandingPage() {
             </motion.p>
 
             <motion.div
-              className="flex flex-wrap items-center gap-4 mb-12"
+              className="flex flex-wrap items-center gap-3 sm:gap-4 mb-10 sm:mb-12"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.88, duration: 0.5 }}
@@ -524,7 +524,7 @@ export default function LandingPage() {
 
       {/* ── PRESS ────────────────────────────────────────────────────────── */}
       <div
-        className="py-8 px-6"
+        className="py-6 sm:py-8 px-4 sm:px-6"
         style={{ borderTop: "1px solid #E2DDD5", borderBottom: "1px solid #E2DDD5" }}
       >
         <div className="mx-auto max-w-4xl flex flex-wrap items-center justify-center gap-x-10 gap-y-3">
@@ -543,7 +543,7 @@ export default function LandingPage() {
       </div>
 
       {/* ── HOW IT WORKS STEPS ───────────────────────────────────────────── */}
-      <section id="how-it-works" className="py-24 px-6">
+      <section id="how-it-works" className="py-16 sm:py-24 px-4 sm:px-6">
         <div className="mx-auto max-w-4xl">
           <motion.div className="text-center mb-16" initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
             <p className="text-[10px] uppercase tracking-[0.22em] font-medium mb-4" style={{ color: "#B5B0A8" }}>How it works</p>
@@ -585,9 +585,9 @@ export default function LandingPage() {
       </section>
 
       {/* ── THREE PILLARS ─────────────────────────────────────────────────── */}
-      <section className="py-28 px-6">
+      <section className="py-16 sm:py-28 px-4 sm:px-6">
         <div className="mx-auto max-w-7xl">
-          <motion.div className="mb-16" initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
+          <motion.div className="mb-10 sm:mb-16" initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
             <p className="text-[10px] uppercase tracking-[0.22em] font-medium mb-4" style={{ color: "#B5B0A8" }}>Platform</p>
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
               <h2 className="text-3xl sm:text-4xl tracking-tight max-w-lg leading-tight" style={{ fontWeight: 300, color: "#18160F" }}>
@@ -605,7 +605,7 @@ export default function LandingPage() {
               return (
                 <motion.div
                   key={p.num}
-                  className="grid md:grid-cols-12 gap-6 py-10 group cursor-pointer relative"
+                  className="grid md:grid-cols-12 gap-4 sm:gap-6 py-6 sm:py-10 group cursor-pointer relative"
                   initial={{ opacity: 0, y: 16 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
@@ -614,10 +614,10 @@ export default function LandingPage() {
                   onClick={() => go("/founder/onboarding")}
                   style={{ borderRadius: 8, transition: "background 0.2s" }}
                 >
-                  <div className="md:col-span-1">
+                  <div className="hidden md:block md:col-span-1">
                     <span className="text-[12px] font-mono" style={{ color: "#C8C3BB" }}>{p.num}</span>
                   </div>
-                  <div className="md:col-span-2 flex items-start gap-2">
+                  <div className="md:col-span-2 flex items-center md:items-start gap-2">
                     <motion.div
                       className="h-8 w-8 rounded flex items-center justify-center shrink-0 transition-colors"
                       style={{ background: "#F0EDE6", border: "1px solid #E2DDD5" }}
@@ -648,7 +648,7 @@ export default function LandingPage() {
                       ))}
                     </ul>
                   </div>
-                  <div className="md:col-span-1 flex items-center justify-end">
+                  <div className="hidden md:flex md:col-span-1 items-center justify-end">
                     <ArrowUpRight className="h-4 w-4 transition-all group-hover:translate-x-0.5 group-hover:-translate-y-0.5" style={{ color: "#C8C3BB" }} />
                   </div>
                 </motion.div>
@@ -659,9 +659,9 @@ export default function LandingPage() {
       </section>
 
       {/* ── AI AGENTS ─────────────────────────────────────────────────────── */}
-      <section className="py-28 px-6" style={{ background: "#F0EDE6" }}>
+      <section className="py-16 sm:py-28 px-4 sm:px-6" style={{ background: "#F0EDE6" }}>
         <div className="mx-auto max-w-7xl">
-          <div className="grid lg:grid-cols-2 gap-20 items-start">
+          <div className="grid lg:grid-cols-2 gap-10 lg:gap-20 items-start">
             <motion.div initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
               <p className="text-[10px] uppercase tracking-[0.22em] font-medium mb-5" style={{ color: "#B5B0A8" }}>AI Agents</p>
               <h2 className="text-3xl sm:text-4xl tracking-tight leading-tight mb-7" style={{ fontWeight: 300, color: "#18160F" }}>
@@ -753,9 +753,9 @@ export default function LandingPage() {
       </section>
 
       {/* ── MARKETPLACE ───────────────────────────────────────────────────── */}
-      <section className="py-28 px-6">
+      <section className="py-16 sm:py-28 px-4 sm:px-6">
         <div className="mx-auto max-w-7xl">
-          <motion.div className="mb-12" initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
+          <motion.div className="mb-8 sm:mb-12" initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
             <p className="text-[10px] uppercase tracking-[0.22em] font-medium mb-4" style={{ color: "#B5B0A8" }}>Marketplace</p>
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
               <h2 className="text-3xl sm:text-4xl tracking-tight leading-tight max-w-lg" style={{ fontWeight: 300, color: "#18160F" }}>
@@ -779,7 +779,8 @@ export default function LandingPage() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
           >
-            <table className="w-full">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[480px]">
               <thead>
                 <tr style={{ background: "#F0EDE6", borderBottom: "1px solid #E2DDD5" }}>
                   {["Investor", "Check size", "Stages", "Match"].map((h, i) => (
@@ -831,6 +832,7 @@ export default function LandingPage() {
                 ))}
               </tbody>
             </table>
+            </div>
             <div className="px-5 py-4 flex items-center justify-between" style={{ background: "#F5F2EC", borderTop: "1px solid #E2DDD5" }}>
               <span className="text-[12px] font-light" style={{ color: "#B5B0A8" }}>Showing 6 of 500+ investors</span>
               <button className="text-[12px] font-medium inline-flex items-center gap-1 transition-opacity hover:opacity-70"
@@ -843,7 +845,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── STATS ─────────────────────────────────────────────────────────── */}
-      <div className="py-16 px-6" style={{ background: "#F0EDE6", borderTop: "1px solid #E2DDD5", borderBottom: "1px solid #E2DDD5" }}>
+      <div className="py-12 sm:py-16 px-4 sm:px-6" style={{ background: "#F0EDE6", borderTop: "1px solid #E2DDD5", borderBottom: "1px solid #E2DDD5" }}>
         <div className="mx-auto max-w-4xl grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
           {stats.map((s, i) => (
             <motion.div
@@ -863,9 +865,9 @@ export default function LandingPage() {
       </div>
 
       {/* ── TESTIMONIALS ─────────────────────────────────────────────────── */}
-      <section className="py-28 px-6">
+      <section className="py-16 sm:py-28 px-4 sm:px-6">
         <div className="mx-auto max-w-7xl">
-          <motion.div className="mb-14" initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
+          <motion.div className="mb-10 sm:mb-14" initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
             <p className="text-[10px] uppercase tracking-[0.22em] font-medium mb-3" style={{ color: "#B5B0A8" }}>Testimonials</p>
             <h2 className="text-3xl sm:text-4xl tracking-tight max-w-sm leading-tight" style={{ fontWeight: 300, color: "#18160F" }}>
               What founders and investors say.
@@ -910,9 +912,9 @@ export default function LandingPage() {
       </section>
 
       {/* ── FOR INVESTORS ─────────────────────────────────────────────────── */}
-      <section id="for-investors" className="py-28 px-6" style={{ background: "#F0EDE6" }}>
+      <section id="for-investors" className="py-16 sm:py-28 px-4 sm:px-6" style={{ background: "#F0EDE6" }}>
         <div className="mx-auto max-w-7xl">
-          <div className="grid lg:grid-cols-2 gap-16 items-start">
+          <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-start">
             <motion.div initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
               <p className="text-[10px] uppercase tracking-[0.22em] font-medium mb-5" style={{ color: "#B5B0A8" }}>For Investors</p>
               <h2 className="text-3xl sm:text-4xl tracking-tight leading-tight mb-6" style={{ fontWeight: 300, color: "#18160F" }}>
@@ -961,7 +963,7 @@ export default function LandingPage() {
               ].map((d, i) => (
                 <motion.div
                   key={d.name}
-                  className="flex items-center justify-between px-6 py-5"
+                  className="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-6 py-4 sm:py-5 gap-3 sm:gap-0"
                   style={{ background: "#FDFCFA", borderBottom: i < 2 ? "1px solid #E8E4DC" : "none" }}
                   initial={{ opacity: 0 }}
                   whileInView={{ opacity: 1 }}
@@ -973,16 +975,16 @@ export default function LandingPage() {
                     <p className="text-[14px] font-medium" style={{ color: "#18160F" }}>{d.name}</p>
                     <p className="text-[12px] font-light mt-0.5" style={{ color: "#B5B0A8" }}>{d.tag}</p>
                   </div>
-                  <div className="flex items-center gap-6">
-                    <div className="text-right">
+                  <div className="flex items-center gap-4 sm:gap-6">
+                    <div className="text-left sm:text-right">
                       <p className="text-[10px] uppercase tracking-[0.12em] font-medium mb-0.5" style={{ color: "#C8C3BB" }}>Q-Score</p>
                       <p className="text-[14px] font-medium" style={{ color: "#18160F" }}>{d.score}</p>
                     </div>
-                    <div className="text-right">
+                    <div className="text-left sm:text-right">
                       <p className="text-[10px] uppercase tracking-[0.12em] font-medium mb-0.5" style={{ color: "#C8C3BB" }}>Match</p>
                       <p className="text-[14px] font-medium" style={{ color: "#18160F" }}>{d.match}%</p>
                     </div>
-                    <ArrowUpRight className="h-4 w-4" style={{ color: "#C8C3BB" }} />
+                    <ArrowUpRight className="h-4 w-4 hidden sm:block" style={{ color: "#C8C3BB" }} />
                   </div>
                 </motion.div>
               ))}
@@ -1004,18 +1006,18 @@ export default function LandingPage() {
       </section>
 
       {/* ── PRICING ───────────────────────────────────────────────────────── */}
-      <section id="pricing" className="py-28 px-6" style={{ background: "#F0EDE6" }}>
+      <section id="pricing" className="py-16 sm:py-28 px-4 sm:px-6" style={{ background: "#F0EDE6" }}>
         <div className="mx-auto max-w-4xl">
-          <motion.div className="text-center mb-14" initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
+          <motion.div className="text-center mb-10 sm:mb-14" initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
             <p className="text-[10px] uppercase tracking-[0.22em] font-medium mb-4" style={{ color: "#B5B0A8" }}>Pricing</p>
             <h2 className="text-3xl sm:text-4xl tracking-tight leading-tight" style={{ fontWeight: 300, color: "#18160F" }}>
               Start free. Scale when you&apos;re raising.
             </h2>
           </motion.div>
-          <div className="grid md:grid-cols-2 gap-6">
+          <div className="grid md:grid-cols-2 gap-5 sm:gap-6">
             {/* Free */}
             <motion.div
-              className="rounded-2xl p-8"
+              className="rounded-2xl p-6 sm:p-8"
               style={{ background: "#FDFCFA", border: "1px solid #E2DDD5" }}
               initial={{ opacity: 0, y: 16 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -1042,7 +1044,7 @@ export default function LandingPage() {
 
             {/* Pro */}
             <motion.div
-              className="rounded-2xl p-8"
+              className="rounded-2xl p-6 sm:p-8"
               style={{ background: "#18160F", border: "1px solid #18160F" }}
               initial={{ opacity: 0, y: 16 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -1075,9 +1077,9 @@ export default function LandingPage() {
       </section>
 
       {/* ── FAQ ───────────────────────────────────────────────────────────── */}
-      <section className="py-28 px-6">
+      <section className="py-16 sm:py-28 px-4 sm:px-6">
         <div className="mx-auto max-w-2xl">
-          <motion.div className="mb-12" initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
+          <motion.div className="mb-10 sm:mb-12" initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
             <p className="text-[10px] uppercase tracking-[0.22em] font-medium mb-4" style={{ color: "#B5B0A8" }}>FAQ</p>
             <h2 className="text-3xl sm:text-4xl tracking-tight leading-tight" style={{ fontWeight: 300, color: "#18160F" }}>
               Common questions.
@@ -1129,7 +1131,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── FINAL CTA ─────────────────────────────────────────────────────── */}
-      <section className="py-28 px-6 relative overflow-hidden" style={{ borderTop: "1px solid #E2DDD5" }}>
+      <section className="py-16 sm:py-28 px-4 sm:px-6 relative overflow-hidden" style={{ borderTop: "1px solid #E2DDD5" }}>
         {/* Subtle animated dot grid */}
         <motion.div
           style={{
@@ -1146,22 +1148,22 @@ export default function LandingPage() {
 
         <div className="mx-auto max-w-2xl text-center relative">
           <motion.div initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
-            <h2 className="text-4xl sm:text-5xl tracking-tight mb-5 leading-tight" style={{ fontWeight: 300, color: "#18160F" }}>
+            <h2 className="text-3xl sm:text-4xl md:text-5xl tracking-tight mb-5 leading-tight" style={{ fontWeight: 300, color: "#18160F" }}>
               Start building.<br />Start raising.
             </h2>
             <p className="text-[16px] font-light mb-10 leading-relaxed" style={{ color: "#8A867C" }}>
               Join 10,000+ founders using Edge Alpha to build investor-ready businesses and connect with the right capital.
             </p>
-            <div className="flex flex-wrap justify-center gap-4">
+            <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-3 sm:gap-4">
               <GetStartedDropdown
                 label={<>Get started free <ArrowRight className="h-4 w-4" /></>}
-                className="inline-flex items-center gap-2 font-medium px-9 py-4 rounded-full text-[15px] transition-all hover:opacity-85 hover:scale-[1.02] active:scale-[0.98]"
+                className="inline-flex items-center justify-center gap-2 font-medium px-9 py-4 rounded-full text-[15px] transition-all hover:opacity-85 hover:scale-[1.02] active:scale-[0.98] w-full sm:w-auto"
                 style={{ background: "#18160F", color: "#F9F7F2" }}
                 align="center"
               />
               <button
                 onClick={() => go("/investor/onboarding")}
-                className="inline-flex items-center gap-2 font-light px-9 py-4 rounded-full text-[15px] transition-all hover:bg-[#F0EDE6]"
+                className="inline-flex items-center justify-center gap-2 font-light px-9 py-4 rounded-full text-[15px] transition-all hover:bg-[#F0EDE6] w-full sm:w-auto"
                 style={{ border: "1px solid #E2DDD5", color: "#8A867C" }}
               >
                 I&apos;m an investor
@@ -1172,10 +1174,10 @@ export default function LandingPage() {
       </section>
 
       {/* ── FOOTER ────────────────────────────────────────────────────────── */}
-      <footer className="py-12 px-6" style={{ borderTop: "1px solid #E2DDD5", background: "#F0EDE6" }}>
+      <footer className="py-10 sm:py-12 px-4 sm:px-6" style={{ borderTop: "1px solid #E2DDD5", background: "#F0EDE6" }}>
         <div className="mx-auto max-w-7xl">
-          <div className="grid md:grid-cols-5 gap-10 mb-10">
-            <div className="md:col-span-2">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-8 sm:gap-10 mb-10">
+            <div className="col-span-2 md:col-span-2">
               <div className="flex items-center gap-2.5 mb-4">
                 <div className="h-7 w-7 rounded-md flex items-center justify-center" style={{ background: "#18160F" }}>
                   <span className="font-bold text-[8px]" style={{ color: "#F9F7F2" }}>EA</span>

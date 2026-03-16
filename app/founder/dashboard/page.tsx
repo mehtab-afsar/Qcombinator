@@ -319,6 +319,7 @@ export default function FounderDashboard() {
   type Priority = { title: string; why: string; action: string; agentId?: string; urgency: "high" | "medium" | "low" };
   const [priorities,       setPriorities]       = useState<Priority[]>([]);
   const [priorityLoading,  setPriorityLoading]  = useState(false);
+  const [conflictDims,     setConflictDims]     = useState<Set<string>>(new Set());
 
   async function handleDecision(actionId: string, decision: "approved" | "rejected") {
     setApprovingId(actionId);
@@ -418,6 +419,25 @@ export default function FounderDashboard() {
           .then(d => { if (d?.priorities) setPriorities(d.priorities); })
           .catch(() => {})
           .finally(() => setPriorityLoading(false));
+
+        // Fetch RAG evidence conflicts for dimension indicators
+        supabase
+          .from("qscore_history")
+          .select("ai_actions")
+          .eq("user_id", user.id)
+          .order("calculated_at", { ascending: false })
+          .limit(1)
+          .single()
+          .then(({ data }) => {
+            if (data?.ai_actions?.rag_eval?.conflicts) {
+              const dims = new Set<string>(
+                (data.ai_actions.rag_eval.conflicts as Array<{ dimension?: string }>)
+                  .map(c => c.dimension)
+                  .filter(Boolean) as string[]
+              );
+              setConflictDims(dims);
+            }
+          }, () => {});
       });
     });
   }, []);
@@ -652,6 +672,18 @@ export default function FounderDashboard() {
                   {isStale ? "⚠ " : isMaturing ? "○ " : ""}{daysSinceScore}d old
                 </p>
               )}
+              {/* RAG scoring method indicator */}
+              {realQScore?.ragMetadata?.scoringMethod && realQScore.ragMetadata.scoringMethod !== 'heuristic' && (
+                <p style={{
+                  fontSize: 9, marginTop: 4,
+                  color: "rgba(37,99,235,0.7)",
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.1em",
+                }}>
+                  RAG-enhanced
+                </p>
+              )}
             </div>
             <Link href={isDemo ? "/founder/assessment" : "/founder/improve-qscore"}
               style={{
@@ -693,7 +725,12 @@ export default function FounderDashboard() {
                     transition={{ delay: 0.35 + i * 0.06 }}
                     style={{ display: "flex", alignItems: "center", gap: 12 }}
                   >
-                    <span style={{ width: 64, fontSize: 11, color: muted, fontWeight: 500, flexShrink: 0, textAlign: "right" }}>{meta.label}</span>
+                    <span style={{ width: 64, fontSize: 11, color: muted, fontWeight: 500, flexShrink: 0, textAlign: "right", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
+                      {conflictDims.has(key) && (
+                        <span title="Data mismatch — check Improve Q-Score" style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: "#DC2626", flexShrink: 0 }} />
+                      )}
+                      {meta.label}
+                    </span>
                     <div style={{ flex: 1, height: 5, background: bdr, borderRadius: 999, overflow: "hidden" }}>
                       <motion.div
                         style={{ height: "100%", borderRadius: 999, background: scoreColor(dim.score) }}

@@ -41,10 +41,25 @@ CREATE INDEX IF NOT EXISTS idx_deals_user_stage
   ON deals(user_id, stage);
 
 -- 4. RLS policy for direct user_id access on agent_messages
-CREATE POLICY IF NOT EXISTS "Users can view own messages by user_id"
-  ON agent_messages FOR SELECT
-  USING (auth.uid() = user_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE tablename = 'agent_messages'
+      AND policyname = 'Users can view own messages by user_id'
+  ) THEN
+    CREATE POLICY "Users can view own messages by user_id"
+      ON agent_messages FOR SELECT
+      USING (auth.uid() = user_id);
+  END IF;
 
-CREATE POLICY IF NOT EXISTS "Users can insert messages by user_id"
-  ON agent_messages FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE tablename = 'agent_messages'
+      AND policyname = 'Users can insert messages by user_id'
+  ) THEN
+    CREATE POLICY "Users can insert messages by user_id"
+      ON agent_messages FOR INSERT
+      WITH CHECK (auth.uid() = user_id);
+  END IF;
+END $$;

@@ -90,9 +90,28 @@ export function retrieveChunks(query: RetrievalQuery): RetrievedChunk[] {
 
 /**
  * Retrieve benchmark context for a specific sector and dimension.
- * Returns a compact string suitable for injecting into LLM prompts.
+ * Now enhanced with structured benchmark data from the benchmark registry.
+ * Falls back to knowledge-base chunks if benchmark registry has no data.
  */
 export function retrieveBenchmarkContext(sector: Sector, dimension: string): string {
+  // Try structured benchmark registry first (Phase 3 enhancement)
+  try {
+    const { buildBenchmarkContext } = require('./benchmarks/benchmark-retriever');
+    const metricsForDimension: Record<string, string[]> = {
+      market: ['conversion_rate', 'ltv_cac_ratio'],
+      financial: ['gross_margin', 'burn_multiple', 'runway_months', 'arr_growth'],
+      traction: ['arr_growth', 'conversion_rate'],
+    };
+    const metrics = metricsForDimension[dimension] || ['conversion_rate', 'ltv_cac_ratio'];
+    const structured = buildBenchmarkContext(sector, metrics);
+    if (structured && !structured.includes('No sector-specific')) {
+      return structured;
+    }
+  } catch {
+    // Benchmark registry not available — fall through to knowledge base
+  }
+
+  // Fallback: knowledge base chunks
   const chunks = retrieveChunks({
     category: 'market_benchmark',
     sector,
@@ -129,9 +148,22 @@ export function retrieveGTMPlaybooks(sector: Sector, stage?: string): string {
 
 /**
  * Retrieve scoring rubrics for the LLM answer evaluator.
- * Returns rubric context for the fields being evaluated.
+ * Now enhanced with structured rubrics from rubric-data.ts.
+ * Falls back to knowledge-base chunks if structured rubrics unavailable.
  */
 export function retrieveScoringRubrics(fields: string[]): string {
+  // Try structured rubrics first (Phase 1 enhancement)
+  try {
+    const { getRubricsForFields, formatRubricsForPrompt } = require('./rubrics/rubric-data');
+    const rubrics = getRubricsForFields(fields);
+    if (rubrics.length > 0) {
+      return formatRubricsForPrompt(rubrics);
+    }
+  } catch {
+    // Structured rubrics not available — fall through
+  }
+
+  // Fallback: knowledge base chunks
   const chunks = retrieveChunks({
     category: 'scoring_rubric',
     keywords: fields,

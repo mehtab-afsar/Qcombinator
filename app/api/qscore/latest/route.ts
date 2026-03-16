@@ -32,11 +32,20 @@ export async function GET(_request: NextRequest) {
       return NextResponse.json({ qScore: null });
     }
 
+    // Extract RAG metadata from ai_actions (if available)
+    const ragEval = latest.ai_actions?.rag_eval;
+    const ragMetadata = ragEval ? {
+      scoringMethod: ragEval.scoringMethod ?? 'heuristic',
+      ragConfidence: ragEval.ragConfidence ?? 0,
+      evidenceSummary: ragEval.evidenceSummary ?? [],
+    } : null;
+
     const qScore = {
       overall: latest.overall_score,
       percentile: latest.percentile,
       grade: latest.grade,
       change: latest.overall_change ?? 0,
+      ragMetadata,
       breakdown: {
         market: {
           score: latest.market_score,

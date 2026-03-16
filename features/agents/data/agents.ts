@@ -1,4 +1,5 @@
 import { Agent, AgentPillar } from "@/features/agents/types/agent.types";
+import { DIMENSIONS } from "@/lib/constants/dimensions";
 
 /**
  * Edge Alpha AI Agents
@@ -25,7 +26,7 @@ export const agents: Agent[] = [
       'Should I focus on outbound or inbound first?',
       'How do I build a sales playbook from scratch?'
     ],
-    improvesScore: 'goToMarket',
+    improvesScore: DIMENSIONS.GTM,
     color: 'blue',
     // artifactType handled by Patel's own tool_call system (icp_document, outreach_sequence, battle_card, gtm_playbook)
   },
@@ -45,7 +46,7 @@ export const agents: Agent[] = [
       'What metrics should I track in my sales funnel?',
       'How do I scale from founder-led sales?'
     ],
-    improvesScore: 'traction',
+    improvesScore: DIMENSIONS.TRACTION,
     color: 'blue',
     artifactType: 'sales_script',
   },
@@ -65,7 +66,7 @@ export const agents: Agent[] = [
       'What makes a great founder story?',
       'Should I invest in SEO or paid content?'
     ],
-    improvesScore: 'goToMarket',
+    improvesScore: DIMENSIONS.GTM,
     color: 'blue',
     artifactType: 'brand_messaging',
   },

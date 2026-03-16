@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { createClient as createUserClient } from '@/lib/supabase/server';
 import { getArtifactPrompt } from '@/features/agents/patel/prompts/artifact-prompts';
 import { applyAgentScoreSignal } from '@/features/qscore/services/agent-signal';
 import { callOpenRouter } from '@/lib/openrouter';
+import { ARTIFACT_TYPES, ALL_ARTIFACT_TYPES, type ArtifactType } from '@/lib/constants/artifact-types';
+import { DIMENSIONS } from '@/lib/constants/dimensions';
+import { executeTool } from '@/lib/tools/executor';
 
 /**
  * Agent Artifact Generation API
@@ -15,26 +19,23 @@ import { callOpenRouter } from '@/lib/openrouter';
  * Works for all agents (not just Patel).
  */
 
-const VALID_ARTIFACT_TYPES = [
-  'icp_document', 'outreach_sequence', 'battle_card', 'gtm_playbook',
-  'sales_script', 'brand_messaging', 'financial_summary', 'legal_checklist',
-  'hiring_plan', 'pmf_survey', 'competitive_matrix', 'strategic_plan',
-];
+const VALID_ARTIFACT_TYPES: string[] = ALL_ARTIFACT_TYPES;
 
 // Which Q-Score dimension each artifact type improves
-const ARTIFACT_DIMENSION: Record<string, string> = {
-  icp_document:       'goToMarket',
-  outreach_sequence:  'traction',
-  battle_card:        'market',
-  gtm_playbook:       'goToMarket',
-  sales_script:       'traction',
-  brand_messaging:    'goToMarket',
-  financial_summary:  'financial',
-  legal_checklist:    'financial',
-  hiring_plan:        'team',
-  pmf_survey:         'product',
-  competitive_matrix: 'market',
-  strategic_plan:     'product',
+const ARTIFACT_DIMENSION: Record<ArtifactType, string> = {
+  [ARTIFACT_TYPES.ICP_DOCUMENT]:       DIMENSIONS.GTM,
+  [ARTIFACT_TYPES.OUTREACH_SEQUENCE]:  DIMENSIONS.TRACTION,
+  [ARTIFACT_TYPES.BATTLE_CARD]:        DIMENSIONS.MARKET,
+  [ARTIFACT_TYPES.GTM_PLAYBOOK]:       DIMENSIONS.GTM,
+  [ARTIFACT_TYPES.SALES_SCRIPT]:       DIMENSIONS.TRACTION,
+  [ARTIFACT_TYPES.BRAND_MESSAGING]:    DIMENSIONS.GTM,
+  [ARTIFACT_TYPES.FINANCIAL_SUMMARY]:  DIMENSIONS.FINANCIAL,
+  [ARTIFACT_TYPES.LEGAL_CHECKLIST]:    DIMENSIONS.FINANCIAL,
+  [ARTIFACT_TYPES.HIRING_PLAN]:        DIMENSIONS.TEAM,
+  [ARTIFACT_TYPES.PMF_SURVEY]:         DIMENSIONS.PRODUCT,
+  [ARTIFACT_TYPES.INTERVIEW_NOTES]:    DIMENSIONS.PRODUCT,
+  [ARTIFACT_TYPES.COMPETITIVE_MATRIX]: DIMENSIONS.MARKET,
+  [ARTIFACT_TYPES.STRATEGIC_PLAN]:     DIMENSIONS.PRODUCT,
 };
 
 // Points awarded as auto-verified evidence
@@ -132,7 +133,12 @@ export async function POST(request: NextRequest) {
   );
 
   try {
-    const { agentId, conversationHistory, artifactType, userId, conversationId } = await request.json();
+    // ── Server-side auth: never trust userId from the client body ──────────
+    const userClient = await createUserClient();
+    const { data: { user: authedUser } } = await userClient.auth.getUser();
+    const userId: string | undefined = authedUser?.id;
+
+    const { agentId, conversationHistory, artifactType, conversationId } = await request.json();
 
     if (!agentId || !artifactType) {
       return NextResponse.json({ error: 'agentId and artifactType are required' }, { status: 400 });
@@ -146,91 +152,127 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'conversationHistory is required' }, { status: 400 });
     }
 
-    // ── Pass 1: Extract context from conversation ──────────────────────────
-    const context = await extractContext(conversationHistory, artifactType);
+    // ── Wrap the 2-pass generation flow in the universal executor ─────────
+    // Benefits: retry logic, rate limiting, unified tool_execution_logs entry.
+    type ArtifactResult = {
+      artifactId: string | null;
+      artifactTitle: string;
+      parsedContent: Record<string, unknown>;
+      scoreSignal: { boosted: boolean; pointsAdded?: number; dimensionLabel?: string };
+    };
 
-    // ── Pass 2: Generate artifact ──────────────────────────────────────────
-    const artifactPrompt = getArtifactPrompt(artifactType, context, null);
-    const artifactRaw = await callOpenRouter(
-      [
-        { role: 'system', content: artifactPrompt },
-        { role: 'user', content: 'Generate the deliverable now. Return ONLY valid JSON, no markdown fences, no explanation text.' },
-      ],
-      { maxTokens: 3000, temperature: 0.4 },
-    );
-
-    const cleanJson = artifactRaw
-      .replace(/^```(?:json)?\s*/i, '')
-      .replace(/\s*```$/i, '')
-      .trim();
-
-    let parsedContent: Record<string, unknown>;
+    let generationResult: ArtifactResult;
     try {
-      parsedContent = JSON.parse(cleanJson);
+      const { result } = await executeTool<ArtifactResult>(
+        artifactType,
+        { agentId, conversationHistory },
+        userId ?? undefined,
+        supabaseAdmin,
+        async () => {
+          // ── Pass 1: Extract context from conversation ──────────────────
+          const context = await extractContext(conversationHistory, artifactType);
+
+          // ── Pass 2: Generate artifact ──────────────────────────────────
+          const artifactPrompt = getArtifactPrompt(artifactType, context, null);
+          const artifactRaw = await callOpenRouter(
+            [
+              { role: 'system', content: artifactPrompt },
+              { role: 'user', content: 'Generate the deliverable now. Return ONLY valid JSON, no markdown fences, no explanation text.' },
+            ],
+            { maxTokens: 3000, temperature: 0.4 },
+          );
+
+          const cleanJson = artifactRaw
+            .replace(/^```(?:json)?\s*/i, '')
+            .replace(/\s*```$/i, '')
+            .trim();
+
+          let parsedContent: Record<string, unknown>;
+          try {
+            parsedContent = JSON.parse(cleanJson);
+          } catch {
+            const match = cleanJson.match(/\{[\s\S]*\}/);
+            parsedContent = match ? JSON.parse(match[0]) : (() => { throw new Error('Malformed JSON from LLM'); })();
+          }
+          const artifactTitle = (parsedContent.title as string | undefined) || artifactType.replace(/_/g, ' ');
+
+          // ── Persist to DB ──────────────────────────────────────────────
+          let artifactId: string | null = null;
+          let scoreSignal: { boosted: boolean; pointsAdded?: number; dimensionLabel?: string } = { boosted: false };
+
+          if (userId) {
+            const { data: saved } = await supabaseAdmin
+              .from('agent_artifacts')
+              .insert({
+                conversation_id: conversationId ?? null,
+                user_id: userId,
+                agent_id: agentId,
+                artifact_type: artifactType,
+                title: artifactTitle,
+                content: parsedContent,
+              })
+              .select('id')
+              .single();
+            artifactId = saved?.id ?? null;
+
+            // ── RAG: embed artifact (fire-and-forget) ──────────────────
+            if (artifactId) {
+              import('@/features/qscore/rag/embeddings/embedding-pipeline')
+                .then(({ embedArtifact }) =>
+                  embedArtifact({
+                    id: artifactId!,
+                    user_id: userId,
+                    artifact_type: artifactType,
+                    content: parsedContent,
+                  })
+                )
+                .catch(err => console.warn('[RAG] Embedding failed:', err));
+            }
+
+            // ── Score signal ───────────────────────────────────────────
+            scoreSignal = await applyAgentScoreSignal(supabaseAdmin, userId, artifactType);
+
+            // ── Auto-create score evidence ─────────────────────────────
+            const evidenceDim    = ARTIFACT_DIMENSION[artifactType as ArtifactType];
+            const evidencePoints = ARTIFACT_EVIDENCE_POINTS[artifactType] ?? 4;
+            const evidenceLabel  = ARTIFACT_LABEL[artifactType] ?? artifactType;
+            if (evidenceDim) {
+              const { count } = await supabaseAdmin
+                .from('score_evidence')
+                .select('id', { count: 'exact', head: true })
+                .eq('user_id', userId)
+                .eq('evidence_type', 'agent_artifact')
+                .eq('data_value', artifactType);
+
+              if ((count ?? 0) === 0) {
+                await supabaseAdmin.from('score_evidence').insert({
+                  user_id:        userId,
+                  dimension:      evidenceDim,
+                  evidence_type:  'agent_artifact',
+                  title:          `${evidenceLabel} built with AI advisor`,
+                  description:    `Auto-verified: you generated a ${evidenceLabel} using the Edge Alpha agent network.`,
+                  data_value:     artifactType,
+                  status:         'verified',
+                  points_awarded: evidencePoints,
+                  reviewed_at:    new Date().toISOString(),
+                });
+              }
+            }
+          }
+
+          return { artifactId, artifactTitle, parsedContent, scoreSignal };
+        },
+        conversationId ?? undefined,
+      );
+      generationResult = result;
     } catch {
-      // Attempt regex extraction before giving up
-      const match = cleanJson.match(/\{[\s\S]*\}/);
-      try {
-        parsedContent = match ? JSON.parse(match[0]) : (() => { throw new Error(); })();
-      } catch {
-        return NextResponse.json(
-          { error: 'LLM returned malformed JSON — please try again.' },
-          { status: 500 },
-        );
-      }
+      return NextResponse.json(
+        { error: 'LLM returned malformed JSON — please try again.' },
+        { status: 500 },
+      );
     }
-    const artifactTitle = (parsedContent.title as string | undefined) || artifactType.replace(/_/g, ' ');
 
-    // ── Persist to DB ──────────────────────────────────────────────────────
-    let artifactId: string | null = null;
-    let scoreSignal: { boosted: boolean; pointsAdded?: number; dimensionLabel?: string } = { boosted: false };
-
-    if (userId) {
-      const { data: saved } = await supabaseAdmin
-        .from('agent_artifacts')
-        .insert({
-          conversation_id: conversationId ?? null,
-          user_id: userId,
-          agent_id: agentId,
-          artifact_type: artifactType,
-          title: artifactTitle,
-          content: parsedContent,
-        })
-        .select('id')
-        .single();
-      artifactId = saved?.id ?? null;
-
-      // ── Score signal: nudge the relevant dimension for this artifact type ──
-      scoreSignal = await applyAgentScoreSignal(supabaseAdmin, userId, artifactType);
-
-      // ── Auto-create score evidence: agent-generated artifacts count as verified proof ──
-      const evidenceDim    = ARTIFACT_DIMENSION[artifactType];
-      const evidencePoints = ARTIFACT_EVIDENCE_POINTS[artifactType] ?? 4;
-      const evidenceLabel  = ARTIFACT_LABEL[artifactType] ?? artifactType;
-      if (evidenceDim) {
-        // Only insert if evidence doesn't already exist for this artifact type + user
-        const { count } = await supabaseAdmin
-          .from('score_evidence')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', userId)
-          .eq('evidence_type', 'agent_artifact')
-          .eq('data_value', artifactType);
-
-        if ((count ?? 0) === 0) {
-          await supabaseAdmin.from('score_evidence').insert({
-            user_id:        userId,
-            dimension:      evidenceDim,
-            evidence_type:  'agent_artifact',
-            title:          `${evidenceLabel} built with AI advisor`,
-            description:    `Auto-verified: you generated a ${evidenceLabel} using the Edge Alpha agent network.`,
-            data_value:     artifactType,
-            status:         'verified',
-            points_awarded: evidencePoints,
-            reviewed_at:    new Date().toISOString(),
-          });
-        }
-      }
-    }
+    const { artifactId, artifactTitle, parsedContent, scoreSignal } = generationResult;
 
     return NextResponse.json({
       artifact: {

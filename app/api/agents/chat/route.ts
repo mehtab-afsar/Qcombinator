@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient as createUserClient } from '@/lib/supabase/server';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { getAgentById } from '@/features/agents/data/agents';
 import type { Agent } from '@/features/agents/types/agent.types';
@@ -15,6 +16,10 @@ import {
 } from '@/features/agents';
 import { getArtifactPrompt } from '@/features/agents/patel/prompts/artifact-prompts';
 import { callOpenRouter as sharedCallOpenRouter, OpenRouterError } from '@/lib/openrouter';
+import { llmChat } from '@/lib/llm/provider';
+import { getToolsForAgent } from '@/lib/llm/tools';
+import { executeTool } from '@/lib/tools/executor';
+import { getAgentContext, formatContextForPrompt } from '@/lib/agents/context';
 
 // ─── dedicated system prompt registry ────────────────────────────────────────
 
@@ -31,6 +36,26 @@ const AGENT_SYSTEM_PROMPTS: Record<string, string> = {
 };
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
+
+// Fire-and-forget tool execution logger
+function logToolExecution(
+  supabaseAdmin: SupabaseClient,
+  userId: string | undefined,
+  agentId: string,
+  toolName: string,
+  startMs: number,
+  status: 'success' | 'error' | 'timeout',
+  errorMsg?: string
+) {
+  void supabaseAdmin.from('tool_execution_logs').insert({
+    user_id:    userId ?? null,
+    agent_id:   agentId,
+    tool_name:  toolName,
+    status,
+    latency_ms: Date.now() - startMs,
+    error_msg:  errorMsg ?? null,
+  });
+}
 
 // Thin wrapper — delegates to shared lib (timeout + 429 retry + typed errors)
 async function callOpenRouter(
@@ -170,17 +195,6 @@ async function incrementUsage(usageId: string | null, supabaseAdmin: SupabaseCli
   }
 }
 
-// ─── tool-call detection ─────────────────────────────────────────────────────
-
-interface ToolCall {
-  type:
-    | 'icp_document' | 'outreach_sequence' | 'battle_card' | 'gtm_playbook'
-    | 'sales_script' | 'brand_messaging' | 'financial_summary' | 'legal_checklist'
-    | 'hiring_plan' | 'pmf_survey' | 'competitive_matrix' | 'strategic_plan'
-    | 'lead_enrich' | 'web_research' | 'create_deal';
-  context: Record<string, unknown>;
-}
-
 // Hunter.io lead enrichment — returns a formatted markdown table of contacts
 async function executeLeadEnrich(domain: string): Promise<string> {
   const apiKey = process.env.HUNTER_API_KEY;
@@ -232,30 +246,6 @@ async function executeLeadEnrich(domain: string): Promise<string> {
   }
 }
 
-function extractToolCall(text: string): { chatReply: string; toolCall: ToolCall | null } {
-  const match = text.match(/<tool_call>([\s\S]*?)<\/tool_call>/);
-  if (!match) return { chatReply: text, toolCall: null };
-
-  try {
-    const toolCall = JSON.parse(match[1]) as ToolCall;
-    const validTypes = [
-      'icp_document', 'outreach_sequence', 'battle_card', 'gtm_playbook',
-      'sales_script', 'brand_messaging', 'financial_summary', 'legal_checklist',
-      'hiring_plan', 'pmf_survey', 'competitive_matrix', 'strategic_plan',
-      'lead_enrich', 'web_research', 'create_deal',
-    ];
-    if (!validTypes.includes(toolCall.type)) return { chatReply: text, toolCall: null };
-
-    const chatReply = text.replace(/<tool_call>[\s\S]*?<\/tool_call>/, '').trim();
-    return { chatReply, toolCall };
-  } catch {
-    console.warn('Failed to parse tool_call JSON');
-    // Strip the malformed tag so it never reaches the chat UI
-    const stripped = text.replace(/<tool_call>[\s\S]*?<\/tool_call>/g, '').trim();
-    return { chatReply: stripped || text, toolCall: null };
-  }
-}
-
 // ─── main handler ────────────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
@@ -266,7 +256,12 @@ export async function POST(request: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
     );
 
-    const { agentId, message, conversationHistory, userContext, conversationId: existingConversationId, userId, stream: wantStream } = await request.json();
+    // ── Server-side auth: never trust userId from the client body ──────────
+    const userClient = await createUserClient();
+    const { data: { user: authedUser } } = await userClient.auth.getUser();
+    const userId: string | undefined = authedUser?.id;
+
+    const { agentId, message, conversationHistory, userContext, conversationId: existingConversationId, stream: wantStream } = await request.json();
 
     if (!agentId || !message) {
       return NextResponse.json({ error: 'Agent ID and message are required' }, { status: 400 });
@@ -309,62 +304,11 @@ export async function POST(request: NextRequest) {
     // Use dedicated system prompt if available, fall back to built one
     let systemPrompt = AGENT_SYSTEM_PROMPTS[agentId] ?? buildAgentSystemPrompt(agent, userContext);
 
-    // ── Agent memory + cross-agent context (fail-open — context is optional) ─
+    // ── Agent memory + cross-agent context (registry-driven, fail-open) ──────
     if (userId) {
       try {
-        const { data: allArtifacts } = await supabaseAdmin
-          .from('agent_artifacts')
-          .select('agent_id, artifact_type, title, created_at')
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false })
-          .limit(20);
-
-        if (allArtifacts && allArtifacts.length > 0) {
-          const dayAgo = (iso: string) => {
-            const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
-            return d === 0 ? 'today' : d === 1 ? 'yesterday' : `${d} days ago`;
-          };
-
-          type ArtifactRow = { agent_id: string; artifact_type: string; title: string; created_at: string };
-
-          const ownArtifacts   = (allArtifacts as ArtifactRow[]).filter(a => a.agent_id === agentId);
-          const crossArtifacts = (allArtifacts as ArtifactRow[]).filter(a => a.agent_id !== agentId);
-
-          if (ownArtifacts.length > 0) {
-            const memoryLines = ownArtifacts.slice(0, 5).map(a =>
-              `- ${a.artifact_type.replace(/_/g, ' ')} (${dayAgo(a.created_at)}): "${a.title}"`
-            ).join('\n');
-            systemPrompt += `\n\nMEMORY — What you have previously built together with this founder:\n${memoryLines}\nReference these when relevant. Build on them, don't restart from scratch.`;
-          }
-
-          if (crossArtifacts.length > 0) {
-            const crossLines = crossArtifacts.slice(0, 8).map(a =>
-              `- ${a.artifact_type.replace(/_/g, ' ')} by ${a.agent_id} (${dayAgo(a.created_at)}): "${a.title}"`
-            ).join('\n');
-            systemPrompt += `\n\nFOUNDER CONTEXT — Other advisers have already built these for this founder:\n${crossLines}\nUse this context to avoid re-asking what's already known. Reference these outputs to give more tailored advice.`;
-          }
-        }
-
-        // ── Cross-agent activity bus ───────────────────────────────────────
-        const { data: recentActivity } = await supabaseAdmin
-          .from('agent_activity')
-          .select('agent_id, action_type, description, created_at, metadata')
-          .eq('user_id', userId)
-          .neq('agent_id', agentId)
-          .order('created_at', { ascending: false })
-          .limit(8);
-
-        if (recentActivity && recentActivity.length > 0) {
-          type ActivityRow = { agent_id: string; action_type: string; description: string; created_at: string; metadata: Record<string, unknown> | null };
-          const dayAgo = (iso: string) => {
-            const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
-            return d === 0 ? 'today' : d === 1 ? 'yesterday' : `${d}d ago`;
-          };
-          const activityLines = (recentActivity as ActivityRow[]).map(a =>
-            `- [${a.agent_id}] ${a.description} (${dayAgo(a.created_at)})`
-          ).join('\n');
-          systemPrompt += `\n\nCROSS-AGENT ACTIVITY — What your fellow advisers did recently:\n${activityLines}\nUse this to give contextually-aware advice. E.g. if Patel just sent outreach, Susi should know those contacts are in the pipeline. If Felix updated financials, Sage can reference the latest MRR.`;
-        }
+        const ctx = await getAgentContext(agentId, userId, supabaseAdmin, message);
+        systemPrompt += formatContextForPrompt(ctx);
       } catch {
         // Context injection failed — proceed without memory (non-fatal)
         console.warn('Agent context injection failed — proceeding without memory');
@@ -422,22 +366,37 @@ CONVERSATION RULES:
       },
     ];
 
-    // ── Pass 1: regular (non-streaming) chat call ──────────────────────────
-    // 900 tokens for all agents — needed for tool_call JSON in any agent
-    const aiResponse = await callOpenRouter(messages, 900, 0.7);
+    // ── Pass 1: LLM chat call with native tool calling ─────────────────────
+    // Programmatic "no tools in first 3 messages" enforcement
+    const userMsgCount = (conversationHistory || []).filter((m: { role: string }) => m.role === 'user').length;
+    const agentTools = userMsgCount >= 3 ? getToolsForAgent(agentId) : [];
 
-    if (!aiResponse) {
+    const llmResponse = await llmChat({
+      messages,
+      maxTokens: 900,
+      temperature: 0.7,
+      tools: agentTools.length > 0 ? agentTools : undefined,
+    });
+
+    if (!llmResponse.text && !llmResponse.toolCall) {
       throw new Error('No response from AI');
     }
 
-    // ── Tool-call detection (all agents) ───────────────────────────────────
-    let chatReply = aiResponse;
+    // ── Map native tool call to existing { type, context } shape ──────────
+    let chatReply = llmResponse.text;
     let artifact = null;
 
-    const { chatReply: cleanReply, toolCall } = extractToolCall(aiResponse);
+    const DATA_TOOLS = ['lead_enrich', 'web_research', 'create_deal'];
+    const toolCall: { type: string; context: Record<string, unknown> } | null = llmResponse.toolCall
+      ? {
+          type: llmResponse.toolCall.name,
+          context: DATA_TOOLS.includes(llmResponse.toolCall.name)
+            ? llmResponse.toolCall.args
+            : (llmResponse.toolCall.args.context as Record<string, unknown>) ?? llmResponse.toolCall.args,
+        }
+      : null;
 
     if (toolCall) {
-      chatReply = cleanReply;
 
       try {
         if (toolCall.type === 'create_deal') {
@@ -451,6 +410,7 @@ CONVERSATION RULES:
           const notes        = (toolCall.context.notes as string) || undefined;
 
           if (company && userId) {
+            const t0Deal = Date.now();
             const { data: deal } = await supabaseAdmin
               .from('deals')
               .insert({
@@ -468,6 +428,7 @@ CONVERSATION RULES:
               .single();
 
             if (deal) {
+              logToolExecution(supabaseAdmin, userId, agentId, 'create_deal', t0Deal, 'success');
               const parts = [
                 `**Deal added to pipeline:** ${company}`,
                 dealValue ? `$${dealValue.toLocaleString()}` : null,
@@ -475,7 +436,7 @@ CONVERSATION RULES:
                 contactEmail ? `Contact: ${contactName || contactEmail}` : null,
               ].filter(Boolean).join(' · ');
 
-              chatReply = cleanReply ? `${cleanReply}\n\n${parts}` : parts;
+              chatReply = chatReply ? `${chatReply}\n\n${parts}` : parts;
 
               void supabaseAdmin.from('agent_activity').insert({
                 user_id: userId,
@@ -484,19 +445,35 @@ CONVERSATION RULES:
                 description: `Susi added ${company} to pipeline as ${stage}${dealValue ? ` — $${dealValue.toLocaleString()}` : ''}`,
                 metadata: { deal_id: deal.id, company, stage, value: dealValue },
               });
+            } else {
+              logToolExecution(supabaseAdmin, userId, agentId, 'create_deal', t0Deal, 'error', 'insert returned null');
             }
           }
 
         } else if (toolCall.type === 'lead_enrich') {
-          // ── Lead enrichment via Hunter.io ─────────────────────────────
+          // ── Lead enrichment via Hunter.io (routed through universal executor) ─
           const domain = (toolCall.context.domain as string) || '';
-          const enriched = await executeLeadEnrich(domain);
-          chatReply = cleanReply ? `${cleanReply}\n\n${enriched}` : enriched;
+          const { result: enriched } = await executeTool(
+            'lead_enrich',
+            { domain },
+            userId,
+            supabaseAdmin,
+            async (args) => executeLeadEnrich((args as { domain: string }).domain),
+            existingConversationId ?? undefined,
+          );
+          chatReply = chatReply ? `${chatReply}\n\n${enriched}` : enriched as string;
 
         } else if (toolCall.type === 'web_research') {
           // ── Live web research via Tavily + synthesis pass ─────────────
           const query = (toolCall.context.query as string) || '';
-          const research = await fetchTavilyResearch(query);
+          const { result: research } = await executeTool(
+            'web_research',
+            { query },
+            userId,
+            supabaseAdmin,
+            async (args) => fetchTavilyResearch((args as { query: string }).query),
+            existingConversationId ?? undefined,
+          );
           if (research) {
             const synthesis = await callOpenRouter(
               [
@@ -509,11 +486,12 @@ CONVERSATION RULES:
               600,
               0.5
             );
-            chatReply = cleanReply ? `${cleanReply}\n\n${synthesis}` : synthesis;
+            chatReply = chatReply ? `${chatReply}\n\n${synthesis}` : synthesis;
           }
 
         } else {
           // ── Artifact-generating tools (all 12 types) ──────────────────
+          const t0Artifact = Date.now();
           let researchData: Record<string, unknown> | null = null;
 
           // Inject live Tavily data for competition-heavy artifact types
@@ -580,6 +558,7 @@ CONVERSATION RULES:
             title: artifactTitle,
             content: parsedContent,
           };
+          logToolExecution(supabaseAdmin, userId, agentId, toolCall.type, t0Artifact, 'success');
         }
       } catch (err) {
         // Tool execution failed — return clean chat reply without artifact

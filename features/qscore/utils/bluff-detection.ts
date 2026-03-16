@@ -9,7 +9,7 @@ import { AssessmentData } from '../types/qscore.types';
 
 export interface BluffSignal {
   field: string;
-  signal: 'too_perfect' | 'inconsistent' | 'generic' | 'round_numbers' | 'impossible';
+  signal: 'too_perfect' | 'inconsistent' | 'generic' | 'round_numbers' | 'impossible' | 'evidence_conflict';
   severity: 'low' | 'medium' | 'high';
   description: string;
 }
@@ -173,4 +173,19 @@ export function applyBluffPenalty(score: number, signals: BluffSignal[]): number
   const clampedPenalty = Math.min(penalty, 0.30); // Max 30% penalty
 
   return Math.max(0, Math.round(score * (1 - clampedPenalty)));
+}
+
+/**
+ * Create bluff signals from RAG evidence conflicts.
+ * Each conflicting claim generates a medium-severity signal.
+ */
+export function createEvidenceConflictSignals(
+  conflicts: { claim: string; evidence: string; artifactType: string }[]
+): BluffSignal[] {
+  return conflicts.map(c => ({
+    field: c.artifactType,
+    signal: 'evidence_conflict' as const,
+    severity: 'medium' as const,
+    description: `Assessment claim "${c.claim.slice(0, 80)}" conflicts with ${c.artifactType} artifact data`,
+  }));
 }

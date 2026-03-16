@@ -1,5 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { calculateGrade } from '@/features/qscore/types/qscore.types';
+import { ARTIFACT_TYPES, type ArtifactType } from '@/lib/constants/artifact-types';
+import { DIMENSION_DB_COLUMN } from '@/lib/constants/dimensions';
+import { AGENTS } from '@/lib/edgealpha.config';
 
 /**
  * Dimension boost config per artifact type.
@@ -10,18 +13,19 @@ import { calculateGrade } from '@/features/qscore/types/qscore.types';
  * (max +6 pts) — the real assessment drives meaningful score changes.
  */
 const ARTIFACT_BOOST: Record<string, { dbColumn: string; label: string; points: number }> = {
-  icp_document:       { dbColumn: 'gtm_score',       label: 'Go-to-Market', points: 5 },
-  outreach_sequence:  { dbColumn: 'traction_score',  label: 'Traction',     points: 4 },
-  battle_card:        { dbColumn: 'market_score',    label: 'Market',       points: 4 },
-  gtm_playbook:       { dbColumn: 'gtm_score',       label: 'Go-to-Market', points: 6 },
-  sales_script:       { dbColumn: 'traction_score',  label: 'Traction',     points: 4 },
-  brand_messaging:    { dbColumn: 'gtm_score',       label: 'Go-to-Market', points: 4 },
-  financial_summary:  { dbColumn: 'financial_score', label: 'Financial',    points: 6 },
-  legal_checklist:    { dbColumn: 'financial_score', label: 'Financial',    points: 3 },
-  hiring_plan:        { dbColumn: 'team_score',      label: 'Team',         points: 5 },
-  pmf_survey:         { dbColumn: 'product_score',   label: 'Product',      points: 5 },
-  competitive_matrix: { dbColumn: 'market_score',    label: 'Market',       points: 5 },
-  strategic_plan:     { dbColumn: 'product_score',   label: 'Product',      points: 4 },
+  [ARTIFACT_TYPES.ICP_DOCUMENT]:       { dbColumn: DIMENSION_DB_COLUMN.gtm,      label: 'Go-to-Market', points: 5 },
+  [ARTIFACT_TYPES.OUTREACH_SEQUENCE]:  { dbColumn: DIMENSION_DB_COLUMN.traction, label: 'Traction',     points: 4 },
+  [ARTIFACT_TYPES.BATTLE_CARD]:        { dbColumn: DIMENSION_DB_COLUMN.market,   label: 'Market',       points: 4 },
+  [ARTIFACT_TYPES.GTM_PLAYBOOK]:       { dbColumn: DIMENSION_DB_COLUMN.gtm,      label: 'Go-to-Market', points: 6 },
+  [ARTIFACT_TYPES.SALES_SCRIPT]:       { dbColumn: DIMENSION_DB_COLUMN.traction, label: 'Traction',     points: 4 },
+  [ARTIFACT_TYPES.BRAND_MESSAGING]:    { dbColumn: DIMENSION_DB_COLUMN.gtm,      label: 'Go-to-Market', points: 4 },
+  [ARTIFACT_TYPES.FINANCIAL_SUMMARY]:  { dbColumn: DIMENSION_DB_COLUMN.financial,label: 'Financial',    points: 6 },
+  [ARTIFACT_TYPES.LEGAL_CHECKLIST]:    { dbColumn: DIMENSION_DB_COLUMN.financial,label: 'Financial',    points: 3 },
+  [ARTIFACT_TYPES.HIRING_PLAN]:        { dbColumn: DIMENSION_DB_COLUMN.team,     label: 'Team',         points: 5 },
+  [ARTIFACT_TYPES.PMF_SURVEY]:         { dbColumn: DIMENSION_DB_COLUMN.product,  label: 'Product',      points: 5 },
+  [ARTIFACT_TYPES.INTERVIEW_NOTES]:    { dbColumn: DIMENSION_DB_COLUMN.product,  label: 'Product',      points: 3 },
+  [ARTIFACT_TYPES.COMPETITIVE_MATRIX]: { dbColumn: DIMENSION_DB_COLUMN.market,   label: 'Market',       points: 5 },
+  [ARTIFACT_TYPES.STRATEGIC_PLAN]:     { dbColumn: DIMENSION_DB_COLUMN.product,  label: 'Product',      points: 4 },
 };
 
 interface SignalResult {
@@ -31,22 +35,56 @@ interface SignalResult {
   newOverall?: number;
 }
 
+export type ArtifactQuality = 'full' | 'partial' | 'minimal';
+
+const QUALITY_MULTIPLIER: Record<ArtifactQuality, number> = {
+  full:    1.0,
+  partial: 0.6,
+  minimal: 0.3,
+};
+
+/**
+ * Determine artifact quality from content size.
+ * Used when no explicit quality is provided.
+ */
+export function inferArtifactQuality(content: unknown): ArtifactQuality {
+  const len = JSON.stringify(content ?? '').length;
+  if (len > 800) return 'full';
+  if (len > 300) return 'partial';
+  return 'minimal';
+}
+
 /**
  * Apply a one-time score nudge when a founder completes an agent artifact.
  * Uses the Supabase admin client (must be called server-side).
  *
  * - No-ops if the artifact type was already signalled for this user
  * - No-ops if the user has no existing Q-Score (no base to nudge)
+ * - No-ops if no agent in the registry owns this artifact type
  * - Inserts a new qscore_history row (data_source = 'agent_completion')
  *   so deltas are tracked correctly via the previous_score_id chain
+ * - quality multiplier: full=1.0, partial=0.6, minimal=0.3
  */
 export async function applyAgentScoreSignal(
   supabase: SupabaseClient,
   userId: string,
   artifactType: string,
+  quality: ArtifactQuality = 'full',
 ): Promise<SignalResult> {
+  // Verify ownership via registry (also validates the artifact type is known)
+  const owningAgent = AGENTS.find(a =>
+    a.tools.includes(artifactType as ArtifactType)
+  );
+  if (!owningAgent) {
+    // Fall back to legacy ARTIFACT_BOOST lookup for unknown types
+  }
+
   const boost = ARTIFACT_BOOST[artifactType];
   if (!boost) return { boosted: false };
+
+  // Apply quality multiplier to points
+  const qualityMultiplier = QUALITY_MULTIPLIER[quality];
+  const adjustedPoints = Math.max(1, Math.round(boost.points * qualityMultiplier));
 
   // Check for existing boost of this artifact type for this user
   const { data: existing } = await supabase
@@ -81,7 +119,7 @@ export async function applyAgentScoreSignal(
   };
 
   const col = boost.dbColumn as keyof typeof scores;
-  scores[col] = Math.min(100, scores[col] + boost.points);
+  scores[col] = Math.min(100, scores[col] + adjustedPoints);
 
   // Recalculate weighted overall (weights match prd-aligned-qscore.ts)
   const newOverall = Math.min(100, Math.round(
@@ -115,7 +153,7 @@ export async function applyAgentScoreSignal(
 
   return {
     boosted:        true,
-    pointsAdded:    boost.points,
+    pointsAdded:    adjustedPoints,
     dimensionLabel: boost.label,
     newOverall,
   };

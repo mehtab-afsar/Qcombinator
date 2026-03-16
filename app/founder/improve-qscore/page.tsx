@@ -204,6 +204,7 @@ export default function ImproveQScorePage() {
   const [completedTypes, setCompletedTypes] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [evidenceList, setEvidenceList] = useState<Array<{ id: string; dimension: string; evidence_type: string; title: string; data_value: string; status: string; points_awarded: number; created_at: string }>>([]);
+  const [conflicts, setConflicts] = useState<Array<{ dimension: string; text: string; fix: string }>>([]);
   const [showEvidenceForm, setShowEvidenceForm] = useState(false);
   const [evidenceDim,  setEvidenceDim]  = useState("traction");
   const [evidenceType, setEvidenceType] = useState("stripe_screenshot");
@@ -308,6 +309,23 @@ export default function ImproveQScorePage() {
           .eq("user_id", user.id)
           .order("created_at", { ascending: false });
         if (evData) setEvidenceList(evData);
+
+        // Fetch RAG evidence conflicts from latest qscore_history row
+        const { data: scoreRow } = await supabase
+          .from("qscore_history")
+          .select("ai_actions")
+          .eq("user_id", user.id)
+          .order("calculated_at", { ascending: false })
+          .limit(1)
+          .single();
+        if (scoreRow?.ai_actions?.rag_eval?.conflicts) {
+          const rawConflicts = scoreRow.ai_actions.rag_eval.conflicts as Array<{ dimension?: string; text?: string; fix?: string }>;
+          setConflicts(rawConflicts.filter((c) => c.dimension && c.text).map((c) => ({
+            dimension: c.dimension!,
+            text: c.text!,
+            fix: c.fix ?? "Update your assessment data to match your evidence.",
+          })));
+        }
       } catch { /* anonymous */ }
     })();
   }, []);
@@ -424,6 +442,41 @@ export default function ImproveQScorePage() {
       </div>
 
       <div style={{ maxWidth: 1160, margin: "0 auto", padding: "28px 40px 60px" }}>
+
+        {/* ── data mismatch banners ────────────────────────────── */}
+        {conflicts.length > 0 && (
+          <div style={{ marginBottom: 28 }}>
+            {conflicts.map((c, i) => (
+              <div key={i} style={{
+                background: "#FEF2F2",
+                border: `1px solid #FCA5A5`,
+                borderRadius: 10,
+                padding: "14px 18px",
+                marginBottom: 10,
+                display: "flex",
+                gap: 14,
+                alignItems: "flex-start",
+              }}>
+                <div style={{ flexShrink: 0, marginTop: 2 }}>
+                  <div style={{
+                    width: 22, height: 22, borderRadius: "50%",
+                    background: red, display: "flex", alignItems: "center",
+                    justifyContent: "center", color: "#fff", fontSize: 13, fontWeight: 700,
+                  }}>!</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: red, marginBottom: 3 }}>
+                    Data Mismatch — {c.dimension.charAt(0).toUpperCase() + c.dimension.slice(1)}
+                  </div>
+                  <div style={{ fontSize: 13, color: ink, marginBottom: 4 }}>{c.text}</div>
+                  <div style={{ fontSize: 12, color: muted }}>
+                    <strong style={{ color: ink }}>How to fix:</strong> {c.fix}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* ── what gets me to 80 ──────────────────────────────── */}
         {(loadingActions || aiActions.length > 0) && (
@@ -1000,7 +1053,30 @@ export default function ImproveQScorePage() {
                     justifyContent: "space-between",
                     borderBottom: `1px solid ${bdr}`,
                   }}>
-                    <span style={{ fontSize: 14, fontWeight: 600 }}>{dim.name}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ fontSize: 14, fontWeight: 600 }}>{dim.name}</span>
+                      {/* Evidence badge from RAG pipeline */}
+                      {qScore?.ragMetadata && (() => {
+                        const summary = qScore.ragMetadata?.evidenceSummary || [];
+                        const hasCorroboration = summary.some(s => s.includes(dim.key) || s.startsWith('✓'));
+                        const hasConflict = summary.some(s => s.startsWith('✗'));
+                        if (hasConflict) return (
+                          <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: `${red}14`, color: red }}>
+                            Conflict
+                          </span>
+                        );
+                        if (hasCorroboration) return (
+                          <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: `${green}14`, color: green }}>
+                            Verified
+                          </span>
+                        );
+                        return (
+                          <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: `${muted}14`, color: muted }}>
+                            Unverified
+                          </span>
+                        );
+                      })()}
+                    </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                       {benchmarks && benchmarks[dim.key] !== undefined && (() => {
                         const pctVal = benchmarks[dim.key];

@@ -58,3 +58,42 @@ export interface SemanticEvaluation {
 
 /** Partial scores to use when only some fields are available */
 export type PartialAnswerQuality = Partial<AnswerQualityScores>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RAG Enhancement Types (Phase 1-3)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Evidence verdict from cross-referencing assessment claims against artifacts */
+export type EvidenceVerdict = 'corroborated' | 'conflicting' | 'unverified';
+
+/** Single evidence item from vector search */
+export interface EvidenceItem {
+  claim: string;
+  evidence: string;
+  artifactType: string;
+  similarity: number;
+  verdict: EvidenceVerdict;
+  dimension?: string;
+}
+
+/** Result of assembling evidence context for a user */
+export interface EvidenceContext {
+  corroborations: EvidenceItem[];
+  conflicts: EvidenceItem[];
+  /** 'all' when user has zero embeddings (cold start) */
+  unverified: EvidenceItem[] | 'all';
+  /** 0-1, drives blender behavior. 0 = skip evidence layer entirely */
+  confidence: number;
+}
+
+/** Extended SemanticEvaluation with RAG metadata */
+export interface EnhancedSemanticEvaluation extends SemanticEvaluation {
+  /** 0-1, how much RAG data was available for scoring */
+  ragConfidence?: number;
+  /** Human-readable evidence citations from internal artifact search */
+  evidenceSummary?: string[];
+  /** Which benchmark sources were used for market validation */
+  benchmarkSources?: string[];
+  /** How this score was produced */
+  scoringMethod?: 'rag' | 'heuristic' | 'blended';
+}

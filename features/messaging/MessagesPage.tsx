@@ -92,44 +92,7 @@ interface NetworkPost {
   tags: string[]
 }
 
-const mockNetwork: NetworkPost[] = [
-  {
-    id: 'n1',
-    author: {
-      id: 'ea', name: 'Edge Alpha', title: 'Platform Insight', company: 'Edge Alpha',
-      type: 'founder', qScore: 0, stage: '', sector: '',
-    },
-    content: "Founders who close first pilots without marketing spend typically share one trait: they solved one painfully specific problem obsessively before expanding scope. Narrow beats broad at every pre-seed stage.",
-    timestamp: '4h ago',
-    likes: 24,
-    replies: 7,
-    tags: ['enterprise-sales', 'pilots', 'focus'],
-  },
-  {
-    id: 'n2',
-    author: {
-      id: 'ea', name: 'Edge Alpha', title: 'Platform Insight', company: 'Edge Alpha',
-      type: 'founder', qScore: 0, stage: '', sector: '',
-    },
-    content: "Preparing for technical due diligence? Build a 1-page architecture doc that answers four questions investors always ask: How does it scale? What\u2019s the latency profile? Where is the data moat? What makes it defensible? Saves 3+ hours per DD call.",
-    timestamp: '1d ago',
-    likes: 61,
-    replies: 19,
-    tags: ['due-diligence', 'fundraising', 'technical'],
-  },
-  {
-    id: 'n3',
-    author: {
-      id: 'ea', name: 'Edge Alpha', title: 'Platform Insight', company: 'Edge Alpha',
-      type: 'founder', qScore: 0, stage: '', sector: '',
-    },
-    content: "Q-Score tip: the Market dimension weighs 20% of your total score. Most founders underinvest in articulating conversion rate assumptions. Even realistic, conservative estimates score significantly better than leaving fields blank \u2014 specificity signals credibility.",
-    timestamp: '2d ago',
-    likes: 89,
-    replies: 31,
-    tags: ['q-score', 'market', 'tips'],
-  },
-]
+const mockNetwork: NetworkPost[] = []
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 type InboxTab = 'connections' | 'requests' | 'network'

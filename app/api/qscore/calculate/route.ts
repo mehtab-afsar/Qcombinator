@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createClient as createAdminClient } from '@supabase/supabase-js';
 import { calculatePRDQScore } from '@/features/qscore/calculators/prd-aligned-qscore';
 import { AssessmentData, calculateGrade } from '@/features/qscore/types/qscore.types';
-import { detectBluffSignals, applyBluffPenalty } from '@/features/qscore/utils/bluff-detection';
-import { evaluateAssessmentAnswers } from '@/features/qscore/rag/answer-evaluator';
+import { detectBluffSignals, applyBluffPenalty, createEvidenceConflictSignals } from '@/features/qscore/utils/bluff-detection';
+import type { EnhancedSemanticEvaluation } from '@/features/qscore/rag/types';
+import { runRAGScoring } from '@/features/qscore/rag/rag-orchestrator';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export async function POST(request: NextRequest) {
@@ -39,13 +41,31 @@ export async function POST(request: NextRequest) {
       .limit(1)
       .single();
 
-    // ── RAG: Semantic evaluation ───────────────────────────────────────────
-    // Run BEFORE scoring so dimension calculators can use LLM quality scores
-    // instead of character-count heuristics. Falls back gracefully on failure.
-    const semanticEval = await evaluateAssessmentAnswers(assessmentData as AssessmentData);
+    // ── RAG: Enhanced semantic evaluation ──────────────────────────────────
+    // Runs 3-layer RAG pipeline: rubric scoring → evidence lookup → benchmark
+    // validation. Falls back gracefully to heuristics on any failure.
+    const ragStart = Date.now();
+    const semanticEval = await runRAGScoring(assessmentData as AssessmentData, user.id);
+    const ragLatencyMs = Date.now() - ragStart;
     if (!semanticEval.success) {
       console.warn('[Q-Score RAG] Semantic eval failed, using heuristics:', semanticEval.errorMessage);
     }
+
+    // Fire-and-forget RAG execution log — never block the scoring response
+    const enhanced = semanticEval as EnhancedSemanticEvaluation;
+    void createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
+      process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
+    ).from('rag_execution_logs').insert({
+      user_id:                 user.id,
+      scoring_method:          enhanced.scoringMethod ?? 'heuristic',
+      rag_confidence:          enhanced.ragConfidence ?? 0,
+      latency_ms:              ragLatencyMs,
+      answer_quality:          enhanced.answerQuality ?? null,
+      evidence_corroborations: (enhanced.evidenceSummary ?? []).filter((s: string) => s.startsWith('✓')).length,
+      evidence_conflicts:      (enhanced.evidenceSummary ?? []).filter((s: string) => s.startsWith('✗')).length,
+      error_msg:               semanticEval.success ? null : ((semanticEval as { errorMessage?: string }).errorMessage ?? 'unknown error'),
+    });
 
     // Calculate new Q-Score (with RAG semantic evaluation injected)
     const qScore = calculatePRDQScore(
@@ -56,6 +76,21 @@ export async function POST(request: NextRequest) {
 
     // Run bluff detection — penalize inflated/AI-generated inputs
     const bluffSignals = detectBluffSignals(assessmentData as AssessmentData);
+
+    // Add evidence conflict signals from RAG layer (if any)
+    if (enhanced.evidenceSummary?.some(s => s.startsWith('✗'))) {
+      // Extract conflict details from the evidence summary
+      const conflictSummaries = enhanced.evidenceSummary.filter(s => s.startsWith('✗'));
+      const conflictSignals = createEvidenceConflictSignals(
+        conflictSummaries.map(s => ({
+          claim: s.slice(3, 83),
+          evidence: s,
+          artifactType: 'agent_artifact',
+        }))
+      );
+      bluffSignals.push(...conflictSignals);
+    }
+
     if (bluffSignals.length > 0) {
       qScore.overall = applyBluffPenalty(qScore.overall, bluffSignals);
       qScore.grade = calculateGrade(qScore.overall);
