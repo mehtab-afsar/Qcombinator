@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Manrope } from "next/font/google";
+import { Inter, Manrope, Fraunces, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/features/auth/hooks/useAuth";
 import { QScoreProvider } from "@/features/qscore/hooks/useQScore";
@@ -9,6 +9,18 @@ const inter = Inter({ subsets: ["latin"] });
 const manrope = Manrope({
   subsets: ["latin"],
   variable: '--font-manrope'
+});
+const fraunces = Fraunces({
+  subsets: ["latin"],
+  variable: "--font-fraunces",
+  axes: ["opsz"],
+  style: ["italic", "normal"],
+  weight: "variable",
+});
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
+  weight: ["400", "500"],
 });
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://edgealpha.ai'
@@ -39,7 +51,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.className} ${manrope.variable} antialiased`}>
+      <body className={`${inter.className} ${manrope.variable} ${fraunces.variable} ${jetbrainsMono.variable} antialiased`}>
         <AuthProvider>
           <QScoreProvider>
             {children}

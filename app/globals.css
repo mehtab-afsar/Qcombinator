@@ -9,6 +9,20 @@
     /* Warm neutral theme — matches project palette */
     --background: 44 36% 96%;        /* #F9F7F2 bg */
     --foreground: 46 23% 8%;         /* #18160F ink */
+
+    /* Edge Alpha design tokens — use these instead of hardcoded hex */
+    --ea-bg:    #F9F7F2;
+    --ea-surf:  #F0EDE6;
+    --ea-bdr:   #E2DDD5;
+    --ea-ink:   #18160F;
+    --ea-muted: #8A867C;
+    --ea-dim:   #C8C3BB;
+    --ea-faint: #B5B0A8;
+    --ea-blue:  #2563EB;
+
+    /* Typography system */
+    --font-display: var(--font-fraunces), 'Georgia', serif;
+    --font-code:    var(--font-mono), 'Courier New', monospace;
     --card: 41 25% 92%;              /* #F0EDE6 surf */
     --card-foreground: 46 23% 8%;    /* #18160F ink */
     --popover: 41 25% 92%;
@@ -114,6 +128,15 @@
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+
+  /* Editorial typography utilities */
+  .font-display {
+    font-family: var(--font-display);
+  }
+  .font-ea-mono {
+    font-family: var(--font-code);
+    font-feature-settings: "tnum";
   }
 
   /* Hide scrollbar but keep functionality */

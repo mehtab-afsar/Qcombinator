@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { Fragment, useState, useEffect } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -576,16 +576,16 @@ export function PlaybookRenderer({ data, artifactId }: { data: Record<string, un
               <div key={h} style={{ background: surf, padding: "8px 10px", fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.06em" }}>{h}</div>
             ))}
             {d.channels.map((ch, i) => (
-              <>
-                <div key={`c${i}`} style={{ background: bg, padding: "10px", fontSize: 12, fontWeight: 600, color: ink }}>{ch.channel}</div>
-                <div key={`p${i}`} style={{ background: bg, padding: "10px", display: "flex", alignItems: "center" }}>
+              <Fragment key={i}>
+                <div style={{ background: bg, padding: "10px", fontSize: 12, fontWeight: 600, color: ink }}>{ch.channel}</div>
+                <div style={{ background: bg, padding: "10px", display: "flex", alignItems: "center" }}>
                   <Badge variant="outline" style={{ fontSize: 9, color: priColor[ch.priority] || muted, borderColor: priColor[ch.priority] || muted }}>
                     {ch.priority}
                   </Badge>
                 </div>
-                <div key={`b${i}`} style={{ background: bg, padding: "10px", fontSize: 11, color: ink }}>{ch.budget}</div>
-                <div key={`a${i}`} style={{ background: bg, padding: "10px", fontSize: 11, color: ink }}>{ch.expectedCAC}</div>
-              </>
+                <div style={{ background: bg, padding: "10px", fontSize: 11, color: ink }}>{ch.budget}</div>
+                <div style={{ background: bg, padding: "10px", fontSize: 11, color: ink }}>{ch.expectedCAC}</div>
+              </Fragment>
             ))}
           </div>
         </CardContent></Card>
