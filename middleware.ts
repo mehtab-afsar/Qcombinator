@@ -63,8 +63,8 @@ const PUBLIC_PATHS = [
   '/investor/onboarding',
 ]
 
-// Prefixes that are always public
-const PUBLIC_PREFIXES = ['/api/', '/s/', '/apply/', '/_next/', '/favicon.ico']
+// Prefixes that are always public (no session refresh needed)
+const PUBLIC_PREFIXES = ['/s/', '/apply/', '/_next/', '/favicon.ico']
 
 function isPublicRoute(pathname: string): boolean {
   if (PUBLIC_PREFIXES.some(prefix => pathname.startsWith(prefix))) return true
@@ -94,33 +94,28 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Pass through public routes immediately — no Supabase call needed
+  // Pass through static/public routes immediately — no Supabase call needed
   if (isPublicRoute(pathname)) {
     return NextResponse.next()
   }
 
-  // Only run auth check on protected routes
-  if (!isProtectedRoute(pathname)) {
-    return NextResponse.next()
-  }
-
-  // Create a response to pass to Supabase (so it can set refreshed session cookies)
-  let response = NextResponse.next({
-    request: { headers: request.headers },
-  })
-
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-  // If Supabase is not configured (dev/CI environment without .env.local), pass through
+  // If Supabase is not configured, pass through
   if (
     !supabaseUrl ||
     !supabaseAnonKey ||
     supabaseUrl === 'your-supabase-url-here' ||
     supabaseUrl === 'https://your-project.supabase.co'
   ) {
-    return response
+    return NextResponse.next()
   }
+
+  // Create a response to pass to Supabase (so it can write refreshed session cookies)
+  let response = NextResponse.next({
+    request: { headers: request.headers },
+  })
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
@@ -143,7 +138,13 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  if (!user) {
+  // For API routes: session has been refreshed (cookies updated), let the route
+  // handle its own auth — do NOT redirect
+  if (pathname.startsWith('/api/')) {
+    return response
+  }
+
+  if (!user && isProtectedRoute(pathname)) {
     // Redirect to login, preserving the intended destination for post-login redirect
     const loginUrl = new URL('/login', request.url)
     loginUrl.searchParams.set('next', pathname)

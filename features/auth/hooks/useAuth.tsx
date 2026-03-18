@@ -35,10 +35,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const client = createClient();
       setSupabase(client);
 
-      // Get initial session
-      client.auth.getSession().then(({ data: { session } }) => {
-        setSession(session);
-        setUser(session?.user ?? null);
+      // Validate session against server on startup to clear stale cookies
+      client.auth.getUser().then(async ({ data: { user }, error }) => {
+        if (error && !user) {
+          // Auth error (invalid/expired JWT) — sign out to clear stale cookie
+          // Ignore network errors (fetch failed) so offline users aren't signed out
+          if (error.message && !error.message.includes('fetch')) {
+            await client.auth.signOut();
+          }
+          setSession(null);
+          setUser(null);
+        } else {
+          const { data: { session } } = await client.auth.getSession();
+          setSession(session);
+          setUser(user ?? null);
+        }
         setLoading(false);
       });
 

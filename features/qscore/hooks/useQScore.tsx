@@ -50,8 +50,10 @@ export function QScoreProvider({ children }: { children: React.ReactNode }) {
       const response = await fetch('/api/qscore/latest');
 
       if (!response.ok) {
-        console.error('Failed to fetch Q-Score:', response.statusText);
-        // Fallback to localStorage
+        // 401 = session not ready yet — silent fallback, not an error
+        if (response.status !== 401) {
+          console.error('Failed to fetch Q-Score:', response.status, response.statusText);
+        }
         loadFromLocalStorage();
         setLoading(false);
         return;
