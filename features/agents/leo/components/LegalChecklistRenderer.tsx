@@ -1,14 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
-import { Separator } from '@/components/ui/separator'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { CheckCircle2, Shield, Scale, Copy, Check, Download, ExternalLink } from 'lucide-react'
 import { bg, surf, bdr, ink, muted, green, amber, red, blue } from '../../shared/constants/colors'
-import { CopyBtn } from '../../shared/components/CopyBtn'
 
 export function LegalChecklistRenderer({ data, artifactId: _artifactId }: { data: Record<string, unknown>; artifactId?: string }) {
   const d = data as {

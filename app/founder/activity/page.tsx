@@ -271,7 +271,7 @@ export default function ActivityPage() {
     return Array.from(map.entries()).map(([label, items]) => ({ label, items }));
   }
 
-  const groups = useMemo(() => buildGroups(rows), [rows]); // eslint-disable-line react-hooks/exhaustive-deps
+  const groups = useMemo(() => buildGroups(rows), [rows]);
 
   // Filter rows by selected agent
   const filteredGroups: Group[] = agentFilter === "all"

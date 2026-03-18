@@ -1,15 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
-import { Separator } from '@/components/ui/separator'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { motion, AnimatePresence } from 'framer-motion'
-import { BarChart3, Download, Loader2, CheckCircle2, Rocket, Globe, Copy, Check, TrendingUp, Send, MessageSquare, Users } from 'lucide-react'
+import { Download } from 'lucide-react'
 import { bg, surf, bdr, ink, muted, green, amber, red, blue } from '../../shared/constants/colors'
-import { CopyBtn } from '../../shared/components/CopyBtn'
 
 export function PMFSurveyRenderer({ data, artifactId, userId }: { data: Record<string, unknown>; artifactId?: string; userId?: string }) {
   const d = data as {

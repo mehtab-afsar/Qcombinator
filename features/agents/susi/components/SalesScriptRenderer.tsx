@@ -1,15 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Separator } from '@/components/ui/separator'
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
-import { Zap, CheckCircle2, Loader2, Copy, Check, TrendingUp, ChevronRight, Calendar, DollarSign, MessageSquare, BarChart3, Shield, BookOpen, Send, X, Mail, Bell } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { CheckCircle2, ChevronRight, DollarSign, MessageSquare, BarChart3, Shield, BookOpen } from 'lucide-react'
+import { motion } from 'framer-motion'
 import { bg, surf, bdr, ink, muted, green, amber, red, blue } from '../../shared/constants/colors'
-import { CopyBtn } from '../../shared/components/CopyBtn'
 import type { Deal } from '../../types/agent.types'
 
 export function SalesScriptRenderer({ data, artifactId }: { data: Record<string, unknown>; artifactId?: string }) {

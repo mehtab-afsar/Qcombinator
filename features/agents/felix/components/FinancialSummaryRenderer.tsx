@@ -1,15 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Loader2, CheckCircle2, Download, TrendingUp, DollarSign, Mail, Copy, Check, ChevronRight, X, Send } from 'lucide-react'
+import { useState } from 'react'
 import { bg, surf, bdr, ink, muted, green, amber, red, blue } from '../../shared/constants/colors'
-import { fmtNum, healthColor } from '../../shared/utils'
-import { CopyBtn } from '../../shared/components/CopyBtn'
 
 export function FinancialSummaryRenderer({ data, artifactId }: { data: Record<string, unknown>; artifactId?: string }) {
   const d = data as {

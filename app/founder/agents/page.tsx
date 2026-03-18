@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { motion } from "framer-motion";
 import { TrendingUp, ArrowRight, Check, Star } from "lucide-react";
 import Link from "next/link";

@@ -32,8 +32,6 @@ const red   = "#DC2626"
 // Alias so existing JSX `qCol(...)` calls resolve without rename
 const qCol = qScoreColor
 
-const mockNetwork: NetworkPost[] = []
-
 // ─── component ────────────────────────────────────────────────────────────────
 export default function MessagesPage() {
   const router = useRouter()
@@ -44,7 +42,7 @@ export default function MessagesPage() {
   const [messageInput, setMessageInput] = useState('')
   const [searchTerm,   setSearchTerm]   = useState('')
   const [showProfile,  setShowProfile]  = useState(true)
-  const [networkPosts, setNetworkPosts] = useState(mockNetwork)
+  const [networkPosts, setNetworkPosts] = useState<NetworkPost[]>([])
   const [likedPosts,   setLikedPosts]   = useState<Set<string>>(new Set())
   const [replyingTo,   setReplyingTo]   = useState<string | null>(null)
   const [replyInput,   setReplyInput]   = useState('')

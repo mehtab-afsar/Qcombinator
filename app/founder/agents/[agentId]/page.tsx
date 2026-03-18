@@ -3,24 +3,16 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Send, TrendingUp, ChevronRight, Copy, Check, X, RefreshCw, FileText, Mail, Swords, BookOpen, Sparkles, DollarSign, Scale, Users, Search, Compass, BarChart3, Zap, Highlighter, Share2, Download, Upload, Loader2, CheckCircle2, PlayCircle, Paperclip, MessageSquare, Shield, Rocket, Globe, Calendar, Crosshair } from "lucide-react";
+import { ArrowLeft, Send, TrendingUp, ChevronRight, X, FileText, Sparkles, Zap, CheckCircle2, Paperclip } from "lucide-react";
 import Link from "next/link";
 import { getAgentById } from "@/features/agents/data/agents";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Separator } from "@/components/ui/separator";
 
 // ─── shared features ──────────────────────────────────────────────────────────
 import { bg, surf, bdr, ink, muted, blue, green, amber, red, pillarAccent, pillarLabel, dimensionLabel } from "@/features/agents/shared/constants/colors";
 import { ARTIFACT_META, QUICK_QUESTIONS } from "@/features/agents/shared/constants/artifact-meta";
-import { fmtFileSize, fmtFileType, fmtNum, healthColor, computeQualityScore, artifactToText } from "@/features/agents/shared/utils";
-import { CopyBtn } from "@/features/agents/shared/components/CopyBtn";
-import { ShareModal } from "@/features/agents/shared/components/ShareModal";
+import { fmtFileSize, fmtFileType } from "@/features/agents/shared/utils";
 import { DeliverablePanel } from "@/features/agents/shared/components/DeliverablePanel";
 import { AGENT_TEMPLATES } from "@/features/agents/data/agent-templates";
-import { FinancialPanel } from "@/features/agents/felix/components/FinancialPanel";
 import type { ArtifactData } from "@/features/agents/types/agent.types";
 
 

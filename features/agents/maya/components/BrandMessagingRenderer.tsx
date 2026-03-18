@@ -1,14 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Download, Globe, Loader2, CheckCircle2, Copy, Check, Sparkles, Mail, TrendingUp, MessageSquare, Rocket, ChevronRight, Calendar, X, Users, Bell } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { Rocket, ChevronRight, Calendar } from 'lucide-react'
 import { bg, surf, bdr, ink, muted, green, amber, red, blue } from '../../shared/constants/colors'
-import { CopyBtn } from '../../shared/components/CopyBtn'
 
 export function BrandMessagingRenderer({ data, artifactId }: { data: Record<string, unknown>; artifactId?: string }) {
   const d = data as {

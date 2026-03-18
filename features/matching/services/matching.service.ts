@@ -3,7 +3,6 @@
  * Pure async functions, no React
  */
 
-import { createClient } from '@/lib/supabase/client'
 import { DBInvestor, MatchingInvestor, ConnectionStatus } from '../types/matching.types'
 import { mapInvestor } from '../utils/matching'
 

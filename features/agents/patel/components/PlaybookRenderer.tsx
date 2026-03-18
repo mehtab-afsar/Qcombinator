@@ -4,13 +4,10 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Separator } from '@/components/ui/separator'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
-import { Download, Globe, Loader2, CheckCircle2, Copy, Check, ChevronRight, Zap, Calendar, BookOpen, BarChart3, Rocket, Users, Send, Crosshair, Share2, X, Mail, Bell, TrendingUp } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { Globe, ChevronRight, Calendar, Users, Send, Crosshair, Share2 } from 'lucide-react'
+import { motion } from 'framer-motion'
 import { bg, surf, bdr, ink, muted, green, amber, red, blue } from '../../shared/constants/colors'
-import { CopyBtn } from '../../shared/components/CopyBtn'
-import type { Deal } from '../../types/agent.types'
 
 export function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>; artifactId?: string }) {
   const d = data as {

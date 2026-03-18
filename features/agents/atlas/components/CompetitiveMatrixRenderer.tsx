@@ -1,13 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Search, Crosshair, Bell, Copy, Check, Download, TrendingUp, BarChart3, ChevronRight } from 'lucide-react'
 import { bg, surf, bdr, ink, muted, green, amber, red, blue } from '../../shared/constants/colors'
-import { CopyBtn } from '../../shared/components/CopyBtn'
 
 export function CompetitiveMatrixRenderer({ data, artifactId: _artifactId }: { data: Record<string, unknown>; artifactId?: string }) {
   const d = data as {

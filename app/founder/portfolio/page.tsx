@@ -65,35 +65,6 @@ function timeAgo(iso: string): string {
   return "just now";
 }
 
-interface Artifact {
-  id: string;
-  artifact_type: string;
-  title: string;
-  agent_id: string;
-  created_at: string;
-}
-
-interface Evidence {
-  id: string;
-  dimension: string;
-  evidence_type: string;
-  title: string;
-  status: string;
-  points_awarded: number;
-  created_at: string;
-}
-
-interface ScoreDim {
-  score: number;
-  change: number;
-  trend: "up" | "down" | "neutral";
-}
-
-interface ScoreData {
-  overall: number;
-  percentile: number;
-  breakdown: Record<string, ScoreDim>;
-}
 
 // ─── component ────────────────────────────────────────────────────────────────
 export default function PortfolioPage() {

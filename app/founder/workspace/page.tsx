@@ -48,14 +48,6 @@ const PILLAR_ACCENT: Record<string, string> = {
   "product-strategy":   "#7C3AED",
 };
 
-interface Artifact {
-  id: string;
-  agent_id: string;
-  artifact_type: string;
-  title: string;
-  created_at: string;
-}
-
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const mins  = Math.floor(diff / 60000);

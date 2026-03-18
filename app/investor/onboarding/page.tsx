@@ -226,11 +226,6 @@ export default function InvestorOnboarding() {
 
   // ─── Choice screen ────────────────────────────────────────────────────────
   const renderChoice = () => {
-    const mockDeals = [
-      { name: 'Kairo AI', sector: 'AI/ML', stage: 'Seed', q: 84, match: 96, bg: '#F0FDF4', col: green },
-      { name: 'Lendify', sector: 'Fintech', stage: 'Pre-Seed', q: 71, match: 88, bg: '#FFFBEB', col: '#D97706' },
-      { name: 'OpsNova', sector: 'SaaS', stage: 'Seed', q: 78, match: 82, bg: '#EFF6FF', col: blue },
-    ]
     return (
       <div>
         {/* hero */}
@@ -270,45 +265,27 @@ export default function InvestorOnboarding() {
           ))}
         </div>
 
-        {/* sample deal flow */}
+        {/* platform features */}
         <div style={{ border: `1px solid ${bdr}`, borderRadius: 12, overflow: 'hidden', marginBottom: 28 }}>
-          <div style={{
-            padding: '9px 16px', background: surf, borderBottom: `1px solid ${bdr}`,
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          }}>
+          <div style={{ padding: '9px 16px', background: surf, borderBottom: `1px solid ${bdr}` }}>
             <span style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-              Sample deal flow
+              What you get
             </span>
-            <span style={{ fontSize: 10, color: muted, fontStyle: 'italic' }}>Preview</span>
           </div>
-          {mockDeals.map((d, i) => (
-            <div key={d.name} style={{
-              display: 'grid', gridTemplateColumns: '1fr 52px 70px',
-              gap: 12, padding: '11px 16px', alignItems: 'center',
-              borderBottom: i < mockDeals.length - 1 ? `1px solid ${bdr}` : 'none',
+          {[
+            { icon: '⚡', title: 'Q-Score on every founder', desc: 'AI-evaluated across 6 dimensions — GTM, financials, team, product, traction, legal' },
+            { icon: '🎯', title: 'Sector & stage filtering', desc: 'Only see founders that match your thesis, check size, and investment stage' },
+            { icon: '📬', title: 'Direct connection requests', desc: 'Founders reach out with personalised messages and their Q-Score attached' },
+          ].map((f, i, arr) => (
+            <div key={f.title} style={{
+              display: 'flex', gap: 14, padding: '13px 16px', alignItems: 'flex-start',
+              borderBottom: i < arr.length - 1 ? `1px solid ${bdr}` : 'none',
               background: bg,
             }}>
+              <span style={{ fontSize: 20, lineHeight: 1, marginTop: 1 }}>{f.icon}</span>
               <div>
-                <p style={{ fontSize: 13, fontWeight: 600, color: ink, margin: '0 0 2px' }}>{d.name}</p>
-                <div style={{ display: 'flex', gap: 5 }}>
-                  <span style={{ fontSize: 10, color: muted }}>{d.sector}</span>
-                  <span style={{ fontSize: 10, color: muted }}>·</span>
-                  <span style={{ fontSize: 10, color: muted }}>{d.stage}</span>
-                </div>
-              </div>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{
-                  width: 36, height: 36, borderRadius: '50%',
-                  border: `2px solid ${d.q >= 80 ? green : d.q >= 65 ? '#D97706' : '#DC2626'}`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto',
-                }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: ink }}>{d.q}</span>
-                </div>
-                <p style={{ fontSize: 9, color: muted, margin: '2px 0 0', textTransform: 'uppercase' }}>Q-Score</p>
-              </div>
-              <div style={{ background: d.bg, borderRadius: 8, padding: '5px 8px', textAlign: 'center' }}>
-                <p style={{ fontSize: 14, fontWeight: 800, color: d.col, margin: 0 }}>{d.match}%</p>
-                <p style={{ fontSize: 9, color: d.col, margin: 0, opacity: 0.7, textTransform: 'uppercase' }}>match</p>
+                <p style={{ fontSize: 13, fontWeight: 600, color: ink, margin: '0 0 2px' }}>{f.title}</p>
+                <p style={{ fontSize: 12, color: muted, margin: 0, lineHeight: 1.5 }}>{f.desc}</p>
               </div>
             </div>
           ))}
