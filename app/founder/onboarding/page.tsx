@@ -60,11 +60,10 @@ function OnboardingContent() {
 
   // Redirect already-authenticated founders to dashboard
   useEffect(() => {
-    import("@/lib/supabase/client").then(({ createClient }) => {
-      createClient().auth.getSession().then(({ data: { session } }) => {
-        if (session) router.replace("/founder/dashboard");
-      });
-    });
+    import("@/features/auth/services/auth.service")
+      .then(({ getSession }) => getSession())
+      .then(session => { if (session) router.replace("/founder/dashboard"); })
+      .catch(() => {});
   }, [router]);
 
   useEffect(() => {
@@ -163,13 +162,10 @@ const callAI = useCallback(async (history: ApiMessage[]) => {
       }
 
       // Only attempt sign-in after confirmed successful signup
-      const { createClient } = await import("@/lib/supabase/client");
-      const supabase = createClient();
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: signup.email,
-        password: signup.password,
-      });
-      if (signInError) {
+      try {
+        const { signInWithPassword } = await import("@/features/auth/services/auth.service");
+        await signInWithPassword(signup.email, signup.password);
+      } catch {
         toast.error("Account created but sign-in failed. Please go to the login page.");
         setSigningUp(false);
         return;

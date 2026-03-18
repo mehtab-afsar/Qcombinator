@@ -3,6 +3,11 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, Send, X, CheckCircle2 } from "lucide-react";
+import {
+  ConnectionRequestModalProps,
+  SEND_ANIMATION_DELAY_MS,
+  SEND_CLOSE_DELAY_MS,
+} from "../types/matching.types";
 
 // ─── palette ──────────────────────────────────────────────────────────────────
 const bg    = "#F9F7F2";
@@ -12,16 +17,6 @@ const ink   = "#18160F";
 const muted = "#8A867C";
 const blue  = "#2563EB";
 const green = "#16A34A";
-
-interface ConnectionRequestModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSubmit: (message: string) => void;
-  investorName: string;
-  startupOneLiner: string;
-  keyMetrics: string[];
-  matchReason: string;
-}
 
 export function ConnectionRequestModal({
   isOpen,
@@ -51,13 +46,13 @@ export function ConnectionRequestModal({
 
   const handleSubmit = async () => {
     setIsSending(true);
-    await new Promise(r => setTimeout(r, 900));
+    await new Promise(r => setTimeout(r, SEND_ANIMATION_DELAY_MS));
     setSent(true);
     setIsSending(false);
     setTimeout(() => {
       onSubmit(personalMessage);
       setPersonalMessage("");
-    }, 1400);
+    }, SEND_CLOSE_DELAY_MS);
   };
 
   return (

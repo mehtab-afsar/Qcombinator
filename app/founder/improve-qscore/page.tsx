@@ -239,32 +239,23 @@ export default function ImproveQScorePage() {
   const submitEvidence = async () => {
     if (!evidenceTitle.trim()) return;
     setSubmittingEvidence(true);
+    const pts = EVIDENCE_POINTS[evidenceType]?.[evidenceDim] ?? 3;
     try {
-      const { createClient } = await import("@/lib/supabase/client");
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { showToast("Please sign in to submit evidence", false); return; }
-      const pts = EVIDENCE_POINTS[evidenceType]?.[evidenceDim] ?? 3;
-      const { data, error } = await supabase.from("score_evidence").insert({
-        user_id: user.id,
+      const { submitEvidence: doSubmit } = await import("@/features/founder/services/improve-qscore.service");
+      const row = await doSubmit({
         dimension: evidenceDim,
-        evidence_type: evidenceType,
+        evidenceType,
         title: evidenceTitle,
-        data_value: evidenceValue,
-        status: "pending",
-        points_awarded: pts,
-      }).select().single();
-      if (error) {
-        showToast("Failed to submit evidence — please try again", false);
-      } else if (data) {
-        setEvidenceList(prev => [data, ...prev]);
-        setEvidenceTitle("");
-        setEvidenceValue("");
-        setShowEvidenceForm(false);
-        showToast(`Evidence submitted — pending review (+${pts} pts on approval)`);
-      }
+        dataValue: evidenceValue,
+        pointsAwarded: pts,
+      });
+      setEvidenceList(prev => [row, ...prev]);
+      setEvidenceTitle("");
+      setEvidenceValue("");
+      setShowEvidenceForm(false);
+      showToast(`Evidence submitted — pending review (+${pts} pts on approval)`);
     } catch {
-      showToast("Something went wrong — please try again", false);
+      showToast("Failed to submit evidence — please try again", false);
     } finally { setSubmittingEvidence(false); }
   };
 
@@ -290,44 +281,22 @@ export default function ImproveQScorePage() {
       .then(data => { if (data.benchmarks) setBenchmarks(data.benchmarks); })
       .catch(() => {});
 
-    (async () => {
-      try {
-        const { createClient } = await import("@/lib/supabase/client");
-        const supabase = createClient();
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-        const { data } = await supabase
-          .from("agent_artifacts")
-          .select("artifact_type")
-          .eq("user_id", user.id);
-        if (data) setCompletedTypes(new Set(data.map((r: { artifact_type: string }) => r.artifact_type)));
-
-        // Fetch existing evidence
-        const { data: evData } = await supabase
-          .from("score_evidence")
-          .select("id, dimension, evidence_type, title, data_value, status, points_awarded, created_at")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false });
-        if (evData) setEvidenceList(evData);
-
-        // Fetch RAG evidence conflicts from latest qscore_history row
-        const { data: scoreRow } = await supabase
-          .from("qscore_history")
-          .select("ai_actions")
-          .eq("user_id", user.id)
-          .order("calculated_at", { ascending: false })
-          .limit(1)
-          .single();
-        if (scoreRow?.ai_actions?.rag_eval?.conflicts) {
-          const rawConflicts = scoreRow.ai_actions.rag_eval.conflicts as Array<{ dimension?: string; text?: string; fix?: string }>;
-          setConflicts(rawConflicts.filter((c) => c.dimension && c.text).map((c) => ({
-            dimension: c.dimension!,
-            text: c.text!,
-            fix: c.fix ?? "Update your assessment data to match your evidence.",
-          })));
+    import("@/features/founder/services/improve-qscore.service")
+      .then(({ fetchImproveQScoreData }) => fetchImproveQScoreData())
+      .then(({ completedTypes, evidenceList, ragConflicts }) => {
+        setCompletedTypes(completedTypes);
+        setEvidenceList(evidenceList);
+        if (ragConflicts.length) {
+          setConflicts(ragConflicts
+            .filter((c) => c.dimension)
+            .map((c) => ({
+              dimension: c.dimension!,
+              text: (c as { text?: string }).text ?? '',
+              fix: (c as { fix?: string }).fix ?? 'Update your assessment data to match your evidence.',
+            })));
         }
-      } catch { /* anonymous */ }
-    })();
+      })
+      .catch(() => {});
   }, []);
 
   const overall = qScore?.overall ?? 58;

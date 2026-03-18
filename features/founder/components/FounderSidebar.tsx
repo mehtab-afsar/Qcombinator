@@ -10,6 +10,10 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/features/auth/hooks/useAuth";
+import { usePendingConnections } from "../hooks/usePendingConnections";
+import { useNotifications } from "../hooks/useNotifications";
+import { timeAgo } from "../utils/time";
+import { SidebarNotification } from "../types/founder.types";
 
 // ─── palette ──────────────────────────────────────────────────────────────────
 const bg    = "#F9F7F2";
@@ -45,35 +49,12 @@ function msgBadgeStyle(count: number): { bg: string; color: string } {
   return { bg: "#FEF2F2", color: "#DC2626" };
 }
 
-// ─── notification types ───────────────────────────────────────────────────────
-interface Notification {
-  id: string;
-  icon: string;
-  agentId: string;
-  action_type: string;
-  title: string;
-  time: string;
-}
-
-function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const m = Math.floor(diff / 60000);
-  if (m < 1)  return "just now";
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  return `${d}d ago`;
-}
-
-const READ_KEY = "ea_read_notifs_v1";
-
 // ─── notification panel ───────────────────────────────────────────────────────
 function NotificationPanel({
   notifications,
   onClose,
 }: {
-  notifications: Notification[];
+  notifications: SidebarNotification[];
   onClose: () => void;
 }) {
   return (
@@ -301,52 +282,18 @@ function DropSep() {
 
 // ─── component ────────────────────────────────────────────────────────────────
 export default function FounderSidebar() {
-  const [expanded,      setExpanded]      = useState(false);
-  const [msgCount,      setMsgCount]      = useState<number | null>(null);
-  const [notifOpen,     setNotifOpen]     = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [unreadCount,   setUnreadCount]   = useState(0);
+  const [expanded,  setExpanded]  = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
   const pathname = usePathname();
   const router   = useRouter();
   const { user, signOut } = useAuth();
 
-  // Fetch pending connection request count for Messages badge
-  useEffect(() => {
-    fetch("/api/connections")
-      .then(r => r.json())
-      .then(d => {
-        const statuses = Object.values(d.connections ?? {}) as string[];
-        const pending  = statuses.filter(s => s === "pending").length;
-        setMsgCount(pending);
-      })
-      .catch(() => setMsgCount(null));
-  }, []);
-
-  // Fetch notifications
-  useEffect(() => {
-    fetch("/api/notifications")
-      .then(r => r.json())
-      .then(d => {
-        const notifs: Notification[] = d.notifications ?? [];
-        setNotifications(notifs);
-        try {
-          const readIds = new Set<string>(JSON.parse(localStorage.getItem(READ_KEY) ?? "[]"));
-          setUnreadCount(notifs.filter(n => !readIds.has(n.id)).length);
-        } catch {
-          setUnreadCount(notifs.length);
-        }
-      })
-      .catch(() => {});
-  }, []);
+  const msgCount                            = usePendingConnections();
+  const { notifications, unreadCount, markAllRead } = useNotifications();
 
   function openNotifications() {
     setNotifOpen(true);
-    // Mark all as read
-    try {
-      const ids = notifications.map(n => n.id);
-      localStorage.setItem(READ_KEY, JSON.stringify(ids));
-      setUnreadCount(0);
-    } catch { /* ignore */ }
+    markAllRead();
   }
 
   // Build nav with dynamic message badge

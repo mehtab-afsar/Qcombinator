@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Calendar, Clock, Video, Send, X } from "lucide-react";
+import { MeetingSchedulerModalProps } from "../types/investor.types";
 
 // ─── palette ──────────────────────────────────────────────────────────────────
 const bg    = "#F9F7F2";
@@ -11,15 +12,6 @@ const ink   = "#18160F";
 const muted = "#8A867C";
 const blue  = "#2563EB";
 const green = "#16A34A";
-
-// ─── types ────────────────────────────────────────────────────────────────────
-interface MeetingSchedulerModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSchedule: (date: string, time: string, notes: string) => void;
-  founderName: string;
-  startupName: string;
-}
 
 const TIME_SLOTS = [
   "9:00 AM", "10:00 AM", "11:00 AM", "12:00 PM",

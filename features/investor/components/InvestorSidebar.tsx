@@ -9,6 +9,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/features/auth/hooks/useAuth";
+import { useInvestorMessageCount } from "../hooks/useInvestorMessageCount";
 
 // ─── palette ──────────────────────────────────────────────────────────────────
 const bg    = "#F9F7F2";
@@ -138,22 +139,12 @@ function DropSep() {
 
 // ─── component ────────────────────────────────────────────────────────────────
 export default function InvestorSidebar() {
-  const [expanded,  setExpanded]  = useState(false);
-  const [msgCount,  setMsgCount]  = useState<number | null>(null);
+  const [expanded, setExpanded] = useState(false);
   const pathname = usePathname();
   const router   = useRouter();
   const { user, signOut } = useAuth();
 
-  // Fetch pending connection request count for Messages badge
-  useEffect(() => {
-    fetch("/api/investor/connections")
-      .then(r => r.json())
-      .then(d => {
-        const count = Array.isArray(d.requests) ? d.requests.length : 0;
-        setMsgCount(count);
-      })
-      .catch(() => setMsgCount(null));
-  }, []);
+  const msgCount = useInvestorMessageCount();
 
   // Build nav with dynamic message badge
   const nav = BASE_NAV.map(item =>

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { useActivity } from "@/features/founder/hooks/useActivity";
 
 // ─── palette ──────────────────────────────────────────────────────────────────
 const bg    = "#F9F7F2";
@@ -192,11 +192,10 @@ function DateGroup({ group }: { group: Group }) {
 // ─── main component ───────────────────────────────────────────────────────────
 export default function ActivityPage() {
   const router = useRouter();
+  const { rows, loading, redirectToLogin } = useActivity();
 
-  const [loading,       setLoading]       = useState(true);
-  const [error,         setError]         = useState<string | null>(null);
-  const [groups,        setGroups]        = useState<Group[]>([]);
-  const [agentFilter,   setAgentFilter]   = useState<string>("all");
+  const [agentFilter, setAgentFilter] = useState<string>("all");
+  const [error] = useState<string | null>(null);
   const [sendingDigest,   setSendingDigest]   = useState(false);
   const [digestToast,     setDigestToast]     = useState<{ ok: boolean; msg: string } | null>(null);
   const [sendingBriefing, setSendingBriefing] = useState(false);
@@ -259,36 +258,8 @@ export default function ActivityPage() {
   }
 
   useEffect(() => {
-    (async () => {
-      try {
-        const supabase = createClient();
-
-        // Auth check
-        const { data: { user }, error: authErr } = await supabase.auth.getUser();
-        if (authErr || !user) {
-          router.replace("/auth/login");
-          return;
-        }
-
-        // Fetch activity
-        const { data, error: fetchErr } = await supabase
-          .from("agent_activity")
-          .select("*")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
-          .limit(50);
-
-        if (fetchErr) throw new Error(fetchErr.message);
-
-        const rows = (data ?? []) as ActivityRow[];
-        setGroups(buildGroups(rows));
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load activity");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [router]);
+    if (redirectToLogin) router.replace("/auth/login");
+  }, [redirectToLogin, router]);
 
   function buildGroups(rows: ActivityRow[]): Group[] {
     const map = new Map<string, ActivityRow[]>();
@@ -299,6 +270,8 @@ export default function ActivityPage() {
     }
     return Array.from(map.entries()).map(([label, items]) => ({ label, items }));
   }
+
+  const groups = useMemo(() => buildGroups(rows), [rows]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Filter rows by selected agent
   const filteredGroups: Group[] = agentFilter === "all"

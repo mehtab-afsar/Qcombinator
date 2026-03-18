@@ -4,7 +4,13 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { User, Building2, Bell, Lock, Download, Trash2, RefreshCw, Save, AlertTriangle } from 'lucide-react';
 import { useFounderData } from '@/features/founder/hooks/useFounderData';
-import { createClient } from '@/lib/supabase/client';
+import {
+  loadSettings,
+  saveAccountSettings,
+  saveCompanySettings,
+  saveNotificationSettings,
+  exportUserData,
+} from '@/features/founder/services/settings.service';
 
 // ─── palette ──────────────────────────────────────────────────────────────────
 const bg    = '#F9F7F2';
@@ -46,35 +52,21 @@ export default function SettingsPage() {
   const [weeklyDigest,        setWeeklyDigest]        = useState(false);
   const [runwayAlerts,        setRunwayAlerts]        = useState(true);
 
-  // Load all settings from Supabase on mount (auth email + founder_profiles row)
+  // Load all settings from Supabase on mount
   useEffect(() => {
-    async function loadPrefs() {
-      try {
-        const supabase = createClient();
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-        // Email comes from auth, not founder_profiles
-        setEmail(user.email ?? '');
-        const { data } = await supabase
-          .from('founder_profiles')
-          .select('full_name, startup_name, industry, description, notification_preferences')
-          .eq('user_id', user.id)
-          .single();
-        if (data) {
-          setFullName(data.full_name ?? '');
-          setStartupName(data.startup_name ?? '');
-          setIndustry(data.industry ?? '');
-          setDescription(data.description ?? '');
-          const prefs = (data.notification_preferences ?? {}) as Record<string, boolean>;
-          if (prefs.emailNotifications === false) setEmailNotifications(false);
-          if (prefs.qScoreUpdates      === false) setQScoreUpdates(false);
-          if (prefs.investorMessages   === false) setInvestorMessages(false);
-          if (prefs.weeklyDigest       === true)  setWeeklyDigest(true);
-          if (prefs.runwayAlerts       === false) setRunwayAlerts(false);
-        }
-      } catch { /* non-fatal */ }
-    }
-    loadPrefs();
+    loadSettings().then(s => {
+      if (!s) return
+      setEmail(s.email)
+      setFullName(s.fullName)
+      setStartupName(s.startupName)
+      setIndustry(s.industry)
+      setDescription(s.description)
+      setEmailNotifications(s.notificationPreferences.emailNotifications)
+      setQScoreUpdates(s.notificationPreferences.qScoreUpdates)
+      setInvestorMessages(s.notificationPreferences.investorMessages)
+      setWeeklyDigest(s.notificationPreferences.weeklyDigest)
+      setRunwayAlerts(s.notificationPreferences.runwayAlerts)
+    }).catch(() => {})
   }, []);
 
   function showToast(msg: string, type: 'success' | 'error' = 'success') {
@@ -85,14 +77,7 @@ export default function SettingsPage() {
   const handleSaveAccount = async () => {
     setSaving(true);
     try {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-      const { error } = await supabase
-        .from('founder_profiles')
-        .update({ full_name: fullName })
-        .eq('user_id', user.id);
-      if (error) throw error;
+      await saveAccountSettings(fullName);
       showToast('Account settings saved');
     } catch {
       showToast('Failed to save settings', 'error');
@@ -104,14 +89,7 @@ export default function SettingsPage() {
   const handleSaveCompany = async () => {
     setSaving(true);
     try {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-      const { error } = await supabase
-        .from('founder_profiles')
-        .update({ startup_name: startupName, industry, description })
-        .eq('user_id', user.id);
-      if (error) throw error;
+      await saveCompanySettings(startupName, industry, description);
       showToast('Company settings saved');
     } catch {
       showToast('Failed to save settings', 'error');
@@ -122,21 +100,7 @@ export default function SettingsPage() {
 
   const handleExportData = async () => {
     try {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const [{ data: fp }, { data: qs }, { data: aa }] = await Promise.all([
-        supabase.from('founder_profiles').select('*').eq('user_id', user.id).single(),
-        supabase.from('qscore_history').select('*').eq('user_id', user.id).order('calculated_at', { ascending: false }).limit(10),
-        supabase.from('agent_artifacts').select('id, agent_id, artifact_type, title, created_at').eq('user_id', user.id).order('calculated_at', { ascending: false }).limit(20),
-      ]);
-      const blob = new Blob([JSON.stringify({ profile: fp, qscoreHistory: qs, agentArtifacts: aa }, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `edge-alpha-data-${new Date().toISOString().split('T')[0]}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
+      await exportUserData();
       showToast('Data exported successfully');
     } catch {
       showToast('Failed to export data', 'error');
@@ -146,16 +110,7 @@ export default function SettingsPage() {
   const handleSaveNotifications = async () => {
     setSaving(true);
     try {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-      const { error } = await supabase
-        .from('founder_profiles')
-        .update({
-          notification_preferences: { emailNotifications, qScoreUpdates, investorMessages, weeklyDigest, runwayAlerts },
-        })
-        .eq('user_id', user.id);
-      if (error) throw error;
+      await saveNotificationSettings({ emailNotifications, qScoreUpdates, investorMessages, weeklyDigest, runwayAlerts });
       showToast('Preferences saved');
     } catch {
       showToast('Failed to save preferences', 'error');

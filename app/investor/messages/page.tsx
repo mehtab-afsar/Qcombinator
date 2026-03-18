@@ -95,10 +95,9 @@ export default function InvestorMessagesPage() {
   useEffect(() => {
     async function load() {
       try {
-        const { createClient } = await import('@/lib/supabase/client')
-        const supabase = createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user) setMyUserId(user.id)
+        const { getAuthUserId } = await import('@/features/auth/services/auth.service')
+        const uid = await getAuthUserId()
+        if (uid) setMyUserId(uid)
 
         const [pendingRes, portfolioRes] = await Promise.all([
           fetch('/api/investor/connections'),

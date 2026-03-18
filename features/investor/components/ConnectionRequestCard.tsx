@@ -2,6 +2,9 @@
 
 import { Check, X, ChevronDown, ChevronUp, DollarSign } from "lucide-react";
 import { useState } from "react";
+import { ConnectionRequestCardProps } from "../types/investor.types";
+import { qScoreColor } from "../utils/scoring";
+import { DIMENSION_LABELS } from "../constants/investor.constants";
 
 // ─── palette ──────────────────────────────────────────────────────────────────
 const bg    = "#F9F7F2";
@@ -9,58 +12,14 @@ const surf  = "#F0EDE6";
 const bdr   = "#E2DDD5";
 const ink   = "#18160F";
 const muted = "#8A867C";
-const blue  = "#2563EB";
-const green = "#16A34A";
 const red   = "#DC2626";
-const amber = "#D97706";
-
-// ─── types ────────────────────────────────────────────────────────────────────
-interface ConnectionRequest {
-  id: string;
-  founderName: string;
-  startupName: string;
-  oneLiner: string;
-  qScore: number;
-  qScorePercentile: number;
-  qScoreBreakdown: {
-    market: number;
-    product: number;
-    goToMarket: number;
-    financial: number;
-    team: number;
-    traction: number;
-  };
-  personalMessage?: string;
-  requestedDate: string;
-  stage: string;
-  industry: string;
-  fundingTarget: string;
-}
-
-interface ConnectionRequestCardProps {
-  request: ConnectionRequest;
-  onAccept: (requestId: string) => void;
-  onDecline: (requestId: string) => void;
-}
-
-function qScoreColor(score: number): string {
-  if (score >= 80) return green;
-  if (score >= 70) return blue;
-  if (score >= 60) return amber;
-  return red;
-}
-
-const DIMENSION_LABELS: Record<string, string> = {
-  market: "Market", product: "Product", goToMarket: "GTM",
-  financial: "Financial", team: "Team", traction: "Traction",
-};
 
 // ─── component ────────────────────────────────────────────────────────────────
 export function ConnectionRequestCard({ request, onAccept, onDecline }: ConnectionRequestCardProps) {
   const [showDetails, setShowDetails] = useState(false);
 
   const qColor = qScoreColor(request.qScore);
-  const initials = request.founderName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
+  const initials = request.founderName.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase();
 
   return (
     <div style={{ padding: "20px 20px", background: bg }}>

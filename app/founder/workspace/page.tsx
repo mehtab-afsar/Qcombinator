@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useWorkspaceData } from "@/features/founder/hooks/useWorkspaceData";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, FileText, Mail, Swords, BookOpen, Sparkles,
@@ -68,32 +69,8 @@ function timeAgo(iso: string): string {
 
 // ─── component ────────────────────────────────────────────────────────────────
 export default function WorkspacePage() {
-  const [artifacts,    setArtifacts]    = useState<Artifact[]>([]);
-  const [loading,      setLoading]      = useState(true);
+  const { artifacts, loading } = useWorkspaceData();
   const [expandedType, setExpandedType] = useState<string | null>(null);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const { createClient } = await import("@/lib/supabase/client");
-        const supabase = createClient();
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-
-        const { data } = await supabase
-          .from("agent_artifacts")
-          .select("id, agent_id, artifact_type, title, created_at")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false });
-
-        setArtifacts(data ?? []);
-      } catch {
-        // anonymous session
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
 
   const pillars: Array<"sales-marketing" | "operations-finance" | "product-strategy"> = [
     "sales-marketing", "operations-finance", "product-strategy",

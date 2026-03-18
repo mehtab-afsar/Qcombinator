@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Search,
@@ -11,8 +11,10 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { ConnectionRequestModal } from '@/features/matching/components/ConnectionRequestModal'
-import { ConnectionStatusBadge, ConnectionStatus } from '@/features/matching/components/ConnectionStatusBadge'
+import { ConnectionStatusBadge } from '@/features/matching/components/ConnectionStatusBadge'
+import { ConnectionStatus, MatchingInvestor } from '@/features/matching/types/matching.types'
 import { useQScore } from '@/features/qscore/hooks/useQScore'
+import { useMatchingData } from '@/features/matching/hooks/useMatchingData'
 
 // ─── palette ──────────────────────────────────────────────────────────────────
 const bg    = "#F9F7F2"
@@ -22,116 +24,8 @@ const ink   = "#18160F"
 const muted = "#8A867C"
 const blue  = "#2563EB"
 
-// ─── types ────────────────────────────────────────────────────────────────────
-interface Investor {
-  id: string
-  type: 'demo' | 'real'
-  name: string
-  firm: string
-  matchScore: number
-  investmentFocus: string[]
-  checkSize: string
-  location: string
-  portfolio: string[]
-  responseRate: number
-  thesis: string
-  connectionStatus: ConnectionStatus
-}
-
-// ─── DB row shape (normalised from /api/investors) ────────────────────────────
-interface DBInvestor {
-  id: string
-  type: 'demo' | 'real'
-  name: string
-  firm: string
-  title: string
-  location: string
-  check_sizes: string[]
-  stages: string[]
-  sectors: string[]
-  geography: string[]
-  thesis: string | null
-  portfolio: string[]
-  response_rate: number
-}
-
-// ─── match score algorithm ───────────────────────────────────────────────────
-// Computes a 0-100 match score from founder context vs investor preferences.
-function computeMatchScore(
-  row: DBInvestor,
-  founderQScore: number,
-  founderSector: string,   // e.g. "ai-ml", "saas", "healthtech"
-  founderStage: string,    // e.g. "pre-seed", "seed", "series-a"
-): number {
-  let score = 40 // base
-
-  // Sector alignment (+30)
-  const investorSectors = (row.sectors ?? []).map(s => s.toLowerCase())
-  const sectorAliases: Record<string, string[]> = {
-    'ai-ml':       ['ai/ml', 'ai', 'ml', 'artificial intelligence', 'machine learning', 'deep tech'],
-    saas:          ['saas', 'b2b saas', 'software', 'enterprise software'],
-    healthtech:    ['healthtech', 'health', 'medtech', 'digital health', 'biotech'],
-    fintech:       ['fintech', 'finance', 'financial services', 'wealthtech'],
-    climate:       ['climate', 'cleantech', 'sustainability', 'energy'],
-    marketplace:   ['marketplace', 'platform', 'two-sided marketplace'],
-    consumer:      ['consumer', 'd2c', 'e-commerce'],
-    edtech:        ['edtech', 'education', 'learning'],
-  }
-  const founderAliases = sectorAliases[founderSector.toLowerCase()] ?? [founderSector.toLowerCase()]
-  const sectorMatch = investorSectors.some(s =>
-    founderAliases.some(alias => s.includes(alias) || alias.includes(s))
-  )
-  if (sectorMatch) score += 30
-
-  // Stage alignment (+20)
-  const investorStages = (row.stages ?? []).map(s => s.toLowerCase())
-  const stageAliases: Record<string, string[]> = {
-    idea:      ['pre-seed', 'idea', 'pre seed', 'concept'],
-    mvp:       ['pre-seed', 'seed', 'mvp'],
-    launched:  ['seed', 'series a', 'launched'],
-    scaling:   ['series a', 'series b', 'growth', 'scaling'],
-  }
-  const founderStageAliases = stageAliases[founderStage.toLowerCase()] ?? [founderStage.toLowerCase()]
-  const stageMatch = investorStages.some(s =>
-    founderStageAliases.some(alias => s.includes(alias) || alias.includes(s))
-  )
-  if (stageMatch) score += 20
-
-  // Q-Score quality signal (+10)
-  if (founderQScore >= 80) score += 10
-  else if (founderQScore >= 65) score += 7
-  else if (founderQScore >= 50) score += 3
-
-  // Response rate bonus (up to +5) — higher rate = investor is more active
-  const responseBonus = Math.round(((row.response_rate - 50) / 100) * 5)
-  score += Math.max(0, responseBonus)
-
-  return Math.min(score, 100)
-}
-
-// Map a DB row → UI Investor
-function mapInvestor(
-  row: DBInvestor,
-  founderQScore: number,
-  founderSector: string,
-  founderStage: string,
-  connectionStatus: ConnectionStatus = 'none',
-): Investor {
-  return {
-    id: row.id,
-    type: row.type,
-    name: row.name,
-    firm: row.firm,
-    matchScore: computeMatchScore(row, founderQScore, founderSector, founderStage),
-    investmentFocus: (row.sectors ?? []).slice(0, 3),
-    checkSize: (row.check_sizes ?? [])[0] ?? 'Varies',
-    location: row.location,
-    portfolio: (row.portfolio ?? []).slice(0, 3),
-    responseRate: row.response_rate,
-    thesis: row.thesis ?? '',
-    connectionStatus,
-  }
-}
+// ─── local alias ─────────────────────────────────────────────────────────────
+type Investor = MatchingInvestor
 
 // ─── component ────────────────────────────────────────────────────────────────
 
@@ -140,71 +34,15 @@ export default function InvestorMatching() {
   const [selectedFocus,    setSelectedFocus]    = useState('all')
   const [selectedInvestor, setSelectedInvestor] = useState<Investor | null>(null)
   const [isModalOpen,      setIsModalOpen]      = useState(false)
-  const [investors,        setInvestors]        = useState<Investor[]>([])
-  const [loadingInvestors, setLoadingInvestors] = useState(true)
-  const [founderSector,    setFounderSector]    = useState('saas')
-  const [founderStage,     setFounderStage]     = useState('mvp')
   const { qScore } = useQScore()
   const founderQScore = qScore?.overall ?? 62   // use 62 as demo default so gate is visible
   const isLocked = founderQScore < 65
 
-  // Fetch founder profile + investors + existing connection statuses on mount
-  useEffect(() => {
-    async function load() {
-      try {
-        // Fetch founder profile for sector + stage
-        const { createClient } = await import('@/lib/supabase/client')
-        const supabase = createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-
-        let sector = 'saas'
-        let stage  = 'mvp'
-
-        if (user) {
-          const { data: profile } = await supabase
-            .from('founder_profiles')
-            .select('industry, stage')
-            .eq('user_id', user.id)
-            .maybeSingle()
-          if (profile?.industry) { sector = profile.industry; setFounderSector(profile.industry) }
-          if (profile?.stage)    { stage  = profile.stage;    setFounderStage(profile.stage)     }
-        }
-
-        // Fetch existing connection statuses from DB
-        let connectionStatuses: Record<string, ConnectionStatus> = {}
-        if (user) {
-          const res = await fetch('/api/connections')
-          if (res.ok) {
-            const json = await res.json()
-            connectionStatuses = json.connections ?? {}
-          }
-        }
-
-        // Fetch investors and map with real match score
-        const invRes = await fetch('/api/investors')
-        const invData = await invRes.json()
-        if (invData.investors) {
-          const mapped: Investor[] = invData.investors.map((row: DBInvestor) =>
-            mapInvestor(
-              row,
-              founderQScore,
-              sector,
-              stage,
-              (connectionStatuses[row.id] as ConnectionStatus) ?? 'none',
-            )
-          )
-          // Sort by match score descending
-          mapped.sort((a, b) => b.matchScore - a.matchScore)
-          setInvestors(mapped)
-        }
-      } catch (err) {
-        console.error('Matching load error:', err)
-      } finally {
-        setLoadingInvestors(false)
-      }
-    }
-    load()
-  }, [founderQScore])
+  const {
+    investors, setInvestors,
+    founderSector, founderStage,
+    loadingInvestors,
+  } = useMatchingData(founderQScore)
 
   const handleConnectClick = (investor: Investor) => {
     if (isLocked) return

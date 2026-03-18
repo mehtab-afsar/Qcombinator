@@ -53,11 +53,10 @@ export default function InvestorOnboarding() {
   const totalSteps = 5
 
   useEffect(() => {
-    import('@/lib/supabase/client').then(({ createClient }) => {
-      createClient().auth.getSession().then(({ data: { session } }) => {
-        if (session) router.replace('/investor/dashboard')
-      })
-    })
+    import('@/features/auth/services/auth.service')
+      .then(({ getSession }) => getSession())
+      .then(session => { if (session) router.replace('/investor/dashboard') })
+      .catch(() => {})
   }, [router])
 
   const set = (field: keyof FormData, value: string | string[]) =>
@@ -72,13 +71,11 @@ export default function InvestorOnboarding() {
     if (!form.email || !form.password) { setError('Email and password are required'); return }
     setError(''); setLoading(true)
     try {
-      const { createClient } = await import('@/lib/supabase/client')
-      const supabase = createClient()
-      const { error: signInErr } = await supabase.auth.signInWithPassword({ email: form.email, password: form.password })
-      if (signInErr) { setError('Invalid email or password'); setLoading(false); return }
+      const { signInWithPassword } = await import('@/features/auth/services/auth.service')
+      await signInWithPassword(form.email, form.password)
       router.push('/investor/dashboard')
     } catch {
-      setError('Something went wrong. Please try again.')
+      setError('Invalid email or password')
       setLoading(false)
     }
   }
@@ -94,13 +91,11 @@ export default function InvestorOnboarding() {
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error || 'Failed to create account'); setLoading(false); return }
-      const { createClient } = await import('@/lib/supabase/client')
-      const supabase = createClient()
-      const { error: signInErr } = await supabase.auth.signInWithPassword({ email: form.email, password: form.password })
-      if (signInErr) { setError(signInErr.message); setLoading(false); return }
+      const { signInWithPassword } = await import('@/features/auth/services/auth.service')
+      await signInWithPassword(form.email, form.password)
       setStep(2)
-    } catch {
-      setError('Something went wrong. Please try again.')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Something went wrong. Please try again.')
     }
     setLoading(false)
   }

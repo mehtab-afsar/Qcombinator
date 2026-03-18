@@ -1,4 +1,5 @@
 import { Clock, Eye, Calendar, X } from "lucide-react";
+import { ConnectionStatus, ConnectionStatusBadgeProps } from "../types/matching.types";
 
 // ─── palette ──────────────────────────────────────────────────────────────────
 const bdr   = "#E2DDD5";
@@ -6,12 +7,6 @@ const muted = "#8A867C";
 const blue  = "#2563EB";
 const green = "#16A34A";
 const red   = "#DC2626";
-
-export type ConnectionStatus = 'pending' | 'viewed' | 'meeting-scheduled' | 'passed' | 'none';
-
-interface ConnectionStatusBadgeProps {
-  status: ConnectionStatus;
-}
 
 const STATUS_CONFIG: Record<Exclude<ConnectionStatus, 'none'>, {
   icon: React.ElementType;

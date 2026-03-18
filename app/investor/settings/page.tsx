@@ -3,8 +3,14 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { User, Building2, Target, Bell, LogOut, Save, RefreshCw, CheckCircle } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { useInvestorSettings } from '@/features/investor/hooks/useInvestorSettings'
+import {
+  saveInvestorAccount,
+  saveInvestorPreferences,
+  saveInvestorNotifications,
+  signOutInvestor,
+} from '@/features/investor/services/investor-settings.service'
 
 // ─── palette ──────────────────────────────────────────────────────────────────
 const bg    = '#F9F7F2'
@@ -42,67 +48,42 @@ const inputStyle: React.CSSProperties = {
 // ─── component ────────────────────────────────────────────────────────────────
 export default function InvestorSettingsPage() {
   const router = useRouter()
+  const { settings: initialSettings, loading } = useInvestorSettings()
+
   const [activeTab, setActiveTab] = useState<TabId>('account')
-  const [loading,   setLoading]   = useState(true)
   const [saving,    setSaving]    = useState(false)
   const [toast,     setToast]     = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
 
-  // Account fields
+  // Form fields — initialised from hook once loaded
   const [displayName, setDisplayName] = useState('')
   const [email,       setEmail]       = useState('')
   const [fundName,    setFundName]    = useState('')
   const [title,       setTitle]       = useState('')
-
-  // Preference fields
-  const [thesis,        setThesis]        = useState('')
-  const [sectors,       setSectors]       = useState<string[]>([])
-  const [stages,        setStages]        = useState<string[]>([])
-  const [checkSizes,    setCheckSizes]    = useState<string[]>([])
-
-  // Notification toggles
+  const [thesis,      setThesis]      = useState('')
+  const [sectors,     setSectors]     = useState<string[]>([])
+  const [stages,      setStages]      = useState<string[]>([])
+  const [checkSizes,  setCheckSizes]  = useState<string[]>([])
   const [newFounders,   setNewFounders]   = useState(true)
   const [highQScore,    setHighQScore]    = useState(true)
   const [connectionReq, setConnectionReq] = useState(true)
   const [weeklyDigest,  setWeeklyDigest]  = useState(false)
 
+  // Populate form once settings are loaded
   useEffect(() => {
-    async function load() {
-      try {
-        const supabase = createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) { setLoading(false); return }
-
-        setEmail(user.email ?? '')
-        setDisplayName((user.user_metadata?.full_name as string) ?? '')
-
-        const { data: profile } = await supabase
-          .from('investor_profiles')
-          .select('full_name, firm_name, title, thesis, sectors, stages, check_sizes, deal_flow_notifications, notification_preferences')
-          .eq('user_id', user.id)
-          .single()
-
-        if (profile) {
-          setDisplayName(profile.full_name ?? (user.user_metadata?.full_name as string) ?? '')
-          setFundName(profile.firm_name ?? '')
-          setTitle(profile.title ?? '')
-          setThesis(profile.thesis ?? '')
-          setSectors(profile.sectors ?? [])
-          setStages(profile.stages ?? [])
-          setCheckSizes(profile.check_sizes ?? [])
-          // deal_flow_notifications defaults to true in DB; only override if explicitly false
-          if (profile.deal_flow_notifications === false) setNewFounders(false)
-          // load per-type preferences from JSONB
-          const prefs = (profile.notification_preferences ?? {}) as Record<string, boolean>
-          if (prefs.highQScore    === false) setHighQScore(false)
-          if (prefs.connectionReq === false) setConnectionReq(false)
-          if (prefs.weeklyDigest  === true)  setWeeklyDigest(true)
-        }
-      } catch { /* silently fail */ } finally {
-        setLoading(false)
-      }
-    }
-    load()
-  }, [])
+    if (!initialSettings) return
+    setEmail(initialSettings.email)
+    setDisplayName(initialSettings.displayName)
+    setFundName(initialSettings.fundName)
+    setTitle(initialSettings.title)
+    setThesis(initialSettings.thesis)
+    setSectors(initialSettings.sectors)
+    setStages(initialSettings.stages)
+    setCheckSizes(initialSettings.checkSizes)
+    setNewFounders(initialSettings.newFounders)
+    setHighQScore(initialSettings.highQScore)
+    setConnectionReq(initialSettings.connectionReq)
+    setWeeklyDigest(initialSettings.weeklyDigest)
+  }, [initialSettings])
 
   function showToast(msg: string, type: 'success' | 'error' = 'success') {
     setToast({ msg, type })
@@ -116,84 +97,35 @@ export default function InvestorSettingsPage() {
   const handleSaveAccount = async () => {
     setSaving(true)
     try {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not authenticated')
-      const { data: inv, error } = await supabase
-        .from('investor_profiles')
-        .update({ full_name: displayName, firm_name: fundName, title })
-        .eq('user_id', user.id)
-        .select('demo_investor_id')
-        .single()
-      if (error) throw error
-      // Sync name/firm to demo_investors so the matching page reflects updates
-      if (inv?.demo_investor_id) {
-        await supabase
-          .from('demo_investors')
-          .update({ name: displayName, firm: fundName || 'Independent' })
-          .eq('id', inv.demo_investor_id)
-      }
+      await saveInvestorAccount({ displayName, fundName, title })
       showToast('Account saved')
     } catch {
       showToast('Failed to save', 'error')
-    } finally {
-      setSaving(false)
-    }
+    } finally { setSaving(false) }
   }
 
   const handleSavePreferences = async () => {
     setSaving(true)
     try {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not authenticated')
-      const { data: inv, error } = await supabase
-        .from('investor_profiles')
-        .update({ thesis, sectors, stages, check_sizes: checkSizes })
-        .eq('user_id', user.id)
-        .select('demo_investor_id')
-        .single()
-      if (error) throw error
-      // Sync preferences to demo_investors so founders see updated matching criteria
-      if (inv?.demo_investor_id) {
-        await supabase
-          .from('demo_investors')
-          .update({ thesis, sectors, stages, check_sizes: checkSizes })
-          .eq('id', inv.demo_investor_id)
-      }
+      await saveInvestorPreferences({ thesis, sectors, stages, checkSizes })
       showToast('Preferences saved')
     } catch {
       showToast('Failed to save', 'error')
-    } finally {
-      setSaving(false)
-    }
+    } finally { setSaving(false) }
   }
 
   const handleSaveNotifications = async () => {
     setSaving(true)
     try {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not authenticated')
-      const { error } = await supabase
-        .from('investor_profiles')
-        .update({
-          deal_flow_notifications: newFounders,
-          notification_preferences: { highQScore, connectionReq, weeklyDigest },
-        })
-        .eq('user_id', user.id)
-      if (error) throw error
+      await saveInvestorNotifications({ newFounders, highQScore, connectionReq, weeklyDigest })
       showToast('Notification preferences saved')
     } catch {
       showToast('Failed to save', 'error')
-    } finally {
-      setSaving(false)
-    }
+    } finally { setSaving(false) }
   }
 
   const handleSignOut = async () => {
-    const supabase = createClient()
-    await supabase.auth.signOut()
+    await signOutInvestor()
     router.push('/login')
   }
 

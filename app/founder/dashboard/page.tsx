@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   ArrowRight,
   Lock,
@@ -24,6 +24,7 @@ import Link from "next/link";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { useQScore } from "@/features/qscore/hooks/useQScore";
 import { useMetrics } from "@/features/founder/hooks/useFounderData";
+import { useDashboardData } from "@/features/founder/hooks/useDashboardData";
 import { agents } from "@/features/agents/data/agents";
 import { getUpcomingWorkshops } from "@/features/academy/data/workshops";
 
@@ -302,34 +303,22 @@ function getGreeting(name?: string) {
 }
 
 // ─── component ────────────────────────────────────────────────────────────────
-// ─── IQ Score mini-types (for dashboard card only) ────────────────────────────
-interface DashIQScore {
-  normalizedScore: number;
-  grade: string;
-  indicatorsUsed: number;
-  scoringMethod: string;
-  parameterScores: Array<{ parameterId: number; name: string; score: number }>;
-}
-
 export default function FounderDashboard() {
   const { loading: authLoading, user } = useAuth();
   const { qScore: realQScore, loading: qScoreLoading } = useQScore();
   const { metrics: dashMetrics } = useMetrics();
-  const [iqScore, setIqScore] = useState<DashIQScore | null>(null);
-  const [scoreHistory,  setScoreHistory]  = useState<ScorePoint[]>([]);
-  const [usedAgentIds, setUsedAgentIds]  = useState<Set<string>>(new Set());
+  const { data: dashData, loading: dashLoading, removePendingAction } = useDashboardData();
+  const [approvingId, setApprovingId] = useState<string | null>(null);
 
-  type PendingRow  = { id: string; agent_id: string; action_type: string; title: string; summary: string | null; created_at: string };
-  const [pendingActions,   setPendingActions]   = useState<PendingRow[]>([]);
-  const [weeklyActivity,   setWeeklyActivity]   = useState<number | null>(null);
-  const [investorMatches,  setInvestorMatches]  = useState<number | null>(null);
-  const [portfolioViews,   setPortfolioViews]   = useState<{ total: number; last7: number } | null>(null);
-  const [approvingId,    setApprovingId]    = useState<string | null>(null);
-
-  type Priority = { title: string; why: string; action: string; agentId?: string; urgency: "high" | "medium" | "low" };
-  const [priorities,       setPriorities]       = useState<Priority[]>([]);
-  const [priorityLoading,  setPriorityLoading]  = useState(false);
-  const [conflictDims,     setConflictDims]     = useState<Set<string>>(new Set());
+  const iqScore        = dashData?.iqScore        ?? null;
+  const scoreHistory   = dashData?.scoreHistory   ?? [];
+  const usedAgentIds   = dashData?.usedAgentIds   ?? new Set<string>();
+  const pendingActions = dashData?.pendingActions  ?? [];
+  const weeklyActivity = dashData?.weeklyActivity  ?? null;
+  const investorMatches= dashData?.investorMatches ?? null;
+  const portfolioViews = dashData?.portfolioViews  ?? null;
+  const priorities     = dashData?.priorities      ?? [];
+  const conflictDims   = dashData?.conflictDims    ?? new Set<string>();
 
   async function handleDecision(actionId: string, decision: "approved" | "rejected") {
     setApprovingId(actionId);
@@ -339,124 +328,11 @@ export default function FounderDashboard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ actionId, decision }),
       });
-      setPendingActions(prev => prev.filter(a => a.id !== actionId));
+      removePendingAction(actionId);
     } finally {
       setApprovingId(null);
     }
   }
-
-  useEffect(() => {
-    import("@/lib/supabase/client").then(({ createClient }) => {
-      const supabase = createClient();
-      supabase.auth.getUser().then(({ data: { user } }) => {
-        if (!user) return;
-
-        // Fetch IQ Score
-        fetch("/api/iq/latest")
-          .then(r => r.ok ? r.json() : null)
-          .then(d => { if (d?.iqScore) setIqScore(d.iqScore); })
-          .catch(() => {});
-
-        // Fetch completed agent deliverables
-        supabase
-          .from("agent_artifacts")
-          .select("agent_id")
-          .eq("user_id", user.id)
-          .then(({ data }) => {
-            if (data) setUsedAgentIds(new Set(data.map((r: { agent_id: string }) => r.agent_id)));
-          });
-
-        supabase
-          .from("qscore_history")
-          .select("overall_score, market_score, product_score, gtm_score, financial_score, team_score, traction_score, calculated_at, data_source")
-          .eq("user_id", user.id)
-          .order("calculated_at", { ascending: true })
-          .limit(20)
-          .then(({ data }) => {
-            if (data && data.length > 0) {
-              setScoreHistory(data.map((r: {
-                overall_score: number; market_score: number; product_score: number;
-                gtm_score: number; financial_score: number; team_score: number;
-                traction_score: number; calculated_at: string; data_source: string;
-              }) => ({
-                overall:   r.overall_score   ?? 0,
-                market:    r.market_score    ?? 0,
-                product:   r.product_score   ?? 0,
-                gtm:       r.gtm_score       ?? 0,
-                financial: r.financial_score ?? 0,
-                team:      r.team_score      ?? 0,
-                traction:  r.traction_score  ?? 0,
-                date:      r.calculated_at,
-                source:    r.data_source ?? "assessment",
-              })));
-            }
-          });
-
-        // Sessions this week (agent_activity count in last 7 days)
-        const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-        supabase
-          .from("agent_activity")
-          .select("id", { count: "exact", head: true })
-          .eq("user_id", user.id)
-          .gte("created_at", weekAgo)
-          .then(({ count }) => { if (count !== null) setWeeklyActivity(count); });
-
-        // Investor matches (unique investors with any connection status)
-        supabase
-          .from("connection_requests")
-          .select("demo_investor_id", { count: "exact", head: true })
-          .eq("founder_id", user.id)
-          .then(({ count }) => { if (count !== null) setInvestorMatches(count); });
-
-        // Portfolio view analytics (fire-and-forget, non-critical)
-        fetch(`/api/p/${user.id}/analytics`)
-          .then(r => r.ok ? r.json() : null)
-          .then(d => {
-            if (d && typeof d.totalViews === "number") {
-              setPortfolioViews({ total: d.totalViews, last7: d.last7Days ?? 0 });
-            }
-          })
-          .catch(() => {});
-
-        // Pending approval queue
-        supabase
-          .from("pending_actions")
-          .select("id, agent_id, action_type, title, summary, created_at")
-          .eq("user_id", user.id)
-          .eq("status", "pending")
-          .order("created_at", { ascending: false })
-          .limit(10)
-          .then(({ data }) => { if (data) setPendingActions(data as PendingRow[]); });
-
-        // Fetch AI priorities ("What to work on today")
-        setPriorityLoading(true);
-        fetch("/api/qscore/priority")
-          .then(r => r.ok ? r.json() : null)
-          .then(d => { if (d?.priorities) setPriorities(d.priorities); })
-          .catch(() => {})
-          .finally(() => setPriorityLoading(false));
-
-        // Fetch RAG evidence conflicts for dimension indicators
-        supabase
-          .from("qscore_history")
-          .select("ai_actions")
-          .eq("user_id", user.id)
-          .order("calculated_at", { ascending: false })
-          .limit(1)
-          .single()
-          .then(({ data }) => {
-            if (data?.ai_actions?.rag_eval?.conflicts) {
-              const dims = new Set<string>(
-                (data.ai_actions.rag_eval.conflicts as Array<{ dimension?: string }>)
-                  .map(c => c.dimension)
-                  .filter(Boolean) as string[]
-              );
-              setConflictDims(dims);
-            }
-          }, () => {});
-      });
-    });
-  }, []);
 
   if (authLoading || qScoreLoading) {
     return (
@@ -787,10 +663,10 @@ export default function FounderDashboard() {
                 Today&apos;s focus — AI-recommended priorities
               </p>
             </div>
-            {priorityLoading && <Loader2 style={{ height: 14, width: 14, color: muted, animation: "spin 1s linear infinite" }} />}
+            {dashLoading && <Loader2 style={{ height: 14, width: 14, color: muted, animation: "spin 1s linear infinite" }} />}
           </div>
 
-          {priorityLoading && priorities.length === 0 ? (
+          {dashLoading && priorities.length === 0 ? (
             <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 14, padding: "20px 22px", display: "flex", alignItems: "center", gap: 10 }}>
               <Loader2 style={{ height: 16, width: 16, color: muted, animation: "spin 1s linear infinite", flexShrink: 0 }} />
               <p style={{ fontSize: 13, color: muted }}>Analysing your data to find the highest-impact tasks…</p>

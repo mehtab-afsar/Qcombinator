@@ -239,46 +239,15 @@ export default function MetricsTracker() {
   }
 
   async function handleSave() {
-    const mrr = Number(form.mrr) || 0;
-    if (mrr === 0 && !form.monthlyBurn) {
+    if (Number(form.mrr) === 0 && !form.monthlyBurn) {
       setSaveErr("Enter at least MRR to save metrics.");
       return;
     }
     setSaving(true);
     setSaveErr(null);
     try {
-      const { createClient } = await import("@/lib/supabase/client");
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not signed in");
-
-      const tamVal = (Number(form.tam) || 0) * 1_000_000;
-      const content = {
-        mrr,
-        arr:          mrr * 12,
-        monthlyBurn:  Number(form.monthlyBurn)   || 0,
-        customers:    Number(form.customers)     || 0,
-        ltv:          Number(form.ltv)           || 0,
-        cac:          Number(form.cac)           || 0,
-        grossMargin:  Number(form.grossMargin)   || 0,
-        tam:          tamVal,
-        sam:          tamVal * 0.3,
-        runway:       Number(form.runway)        || 0,
-        mrrGrowth:    Number(form.mrrGrowth)     || 0,
-        conversionRate: Number(form.conversionRate) || 0,
-        source:       "manual",
-      };
-
-      const { error } = await supabase.from("agent_artifacts").insert({
-        user_id:       user.id,
-        agent_id:      "felix",
-        artifact_type: "financial_summary",
-        title:         `Manual metrics update — ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`,
-        content,
-        version:       1,
-      });
-      if (error) throw error;
-
+      const { saveMetrics } = await import("@/features/founder/services/metrics.service");
+      await saveMetrics(form);
       setEditing(false);
       setRefreshKey(k => k + 1);
     } catch (e: unknown) {

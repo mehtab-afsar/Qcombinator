@@ -130,30 +130,13 @@ export default function ProfileBuilder() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    (async () => {
-      try {
-        const { createClient } = await import("@/lib/supabase/client");
-        const supabase = createClient();
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-        setUserId(user.id);
-        const { data } = await supabase
-          .from("agent_artifacts")
-          .select("agent_id, created_at")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false });
-        if (data) {
-          const activity: Record<string, { count: number; latestAt: string }> = {};
-          (data as { agent_id: string; created_at: string }[]).forEach(row => {
-            if (!activity[row.agent_id]) {
-              activity[row.agent_id] = { count: 0, latestAt: row.created_at };
-            }
-            activity[row.agent_id].count++;
-          });
-          setAgentActivity(activity);
-        }
-      } catch { /* anonymous */ }
-    })();
+    import("@/features/founder/services/profile.service")
+      .then(({ fetchProfileAgentActivity }) => fetchProfileAgentActivity())
+      .then(({ agentActivity, userId: uid }) => {
+        if (uid) setUserId(uid);
+        setAgentActivity(agentActivity);
+      })
+      .catch(() => {});
   }, []);
 
   function handleShare() {

@@ -3,6 +3,15 @@
  * Centralized type definitions for founder data
  */
 
+export interface SidebarNotification {
+  id: string
+  icon: string
+  agentId: string
+  action_type: string
+  title: string
+  time: string
+}
+
 export interface FounderProfile {
   fullName: string;
   email: string;

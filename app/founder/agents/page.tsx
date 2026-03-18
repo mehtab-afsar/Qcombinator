@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { TrendingUp, ArrowRight, Check, Star } from "lucide-react";
 import Link from "next/link";
 import { agents } from "@/features/agents/data/agents";
 import { Agent } from "@/features/agents/types/agent.types";
+import { useAgentCompletion } from "@/features/agents/hooks/useAgentCompletion";
 
 // ─── palette ──────────────────────────────────────────────────────────────────
 const bg    = "#F9F7F2";
@@ -37,15 +38,6 @@ const dimensionLabel: Record<string, string> = {
   traction:   "Traction Score",
 };
 
-// Which agent to recommend for each weak dimension
-const DIMENSION_AGENT: Record<string, string> = {
-  goToMarket: "patel",
-  market:     "atlas",
-  product:    "nova",
-  financial:  "felix",
-  team:       "harper",
-  traction:   "susi",
-};
 
 const pillars: Agent["pillar"][] = [
   "sales-marketing",
@@ -55,62 +47,7 @@ const pillars: Agent["pillar"][] = [
 
 // ─── component ────────────────────────────────────────────────────────────────
 export default function AgentsHub() {
-  const [completedAgents, setCompletedAgents] = useState<Set<string>>(new Set());
-  const [recommendedIds,  setRecommendedIds]  = useState<string[]>([]);
-  const [loaded,          setLoaded]          = useState(false);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const { createClient } = await import("@/lib/supabase/client");
-        const supabase = createClient();
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-
-        // Fetch completed agents (any artifact generated)
-        const { data: artifacts } = await supabase
-          .from("agent_artifacts")
-          .select("agent_id")
-          .eq("user_id", user.id);
-
-        const done = new Set(artifacts?.map((a: { agent_id: string }) => a.agent_id) ?? []);
-        setCompletedAgents(done);
-
-        // Fetch latest Q-Score to determine recommended agents
-        const { data: score } = await supabase
-          .from("qscore_history")
-          .select("market_score, product_score, gtm_score, financial_score, team_score, traction_score")
-          .eq("user_id", user.id)
-          .order("calculated_at", { ascending: false })
-          .limit(1)
-          .single();
-
-        if (score) {
-          const dimScores: Record<string, number> = {
-            market:     score.market_score    ?? 0,
-            product:    score.product_score   ?? 0,
-            goToMarket: score.gtm_score       ?? 0,
-            financial:  score.financial_score ?? 0,
-            team:       score.team_score      ?? 0,
-            traction:   score.traction_score  ?? 0,
-          };
-
-          // Sort by score ascending (weakest first), take top 3, map to agent IDs
-          const recommended = Object.entries(dimScores)
-            .sort((a, b) => a[1] - b[1])
-            .slice(0, 3)
-            .map(([dim]) => DIMENSION_AGENT[dim])
-            .filter(Boolean);
-
-          setRecommendedIds(recommended);
-        }
-      } catch {
-        // anonymous session — no personalization
-      } finally {
-        setLoaded(true);
-      }
-    })();
-  }, []);
+  const { completedAgents, recommendedIds, loaded } = useAgentCompletion();
 
   const totalAgents    = agents.length;
   const doneCount      = completedAgents.size;

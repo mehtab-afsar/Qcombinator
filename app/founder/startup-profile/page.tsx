@@ -182,48 +182,21 @@ export default function StartupProfilePage() {
 
   // load existing data
   useEffect(() => {
-    (async () => {
-      try {
-        const { createClient } = await import("@/lib/supabase/client");
-        const supabase = createClient();
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) { router.push("/login"); return; }
-        const { data: fp } = await supabase
-          .from("founder_profiles")
-          .select("startup_name, industry, stage, startup_profile_data")
-          .eq("user_id", user.id)
-          .maybeSingle();
-        if (fp) {
-          const saved = (fp.startup_profile_data ?? {}) as Partial<StartupData>;
-          setData({
-            ...EMPTY, ...saved,
-            companyName: saved.companyName || fp.startup_name || "",
-            industry:    saved.industry    || fp.industry    || "",
-            stage:       saved.stage       || fp.stage       || "",
-          });
-        }
-      } catch { /* anonymous */ }
-      finally { setLoading(false); }
-    })();
+    import("@/features/founder/services/startup-profile.service")
+      .then(({ loadStartupProfile }) => loadStartupProfile(EMPTY))
+      .then(({ data: loaded, userId }) => {
+        if (!userId) { router.push("/login"); return; }
+        setData(loaded);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, [router]);
 
   const persist = useCallback(async (complete = false) => {
     setSaving(true);
     try {
-      const { createClient } = await import("@/lib/supabase/client");
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      await supabase.from("founder_profiles").update({
-        startup_name:              data.companyName || undefined,
-        industry:                  data.industry    || undefined,
-        stage:                     data.stage       || undefined,
-        website:                   data.website     || undefined,
-        tagline:                   data.oneLiner    || undefined,
-        startup_profile_data:      data,
-        startup_profile_completed: complete,
-        updated_at: new Date().toISOString(),
-      }).eq("user_id", user.id);
+      const { saveStartupProfile } = await import("@/features/founder/services/startup-profile.service");
+      await saveStartupProfile(data, complete);
       setSavedFlash(true);
       setTimeout(() => setSavedFlash(false), 2500);
       if (complete) {

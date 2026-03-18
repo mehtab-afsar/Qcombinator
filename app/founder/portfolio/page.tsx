@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   ArrowLeft, Download, FileText, Mail, Swords, BookOpen, Sparkles,
@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/features/auth/hooks/useAuth";
+import { usePortfolioData } from "@/features/founder/hooks/usePortfolioData";
 
 // ─── palette ──────────────────────────────────────────────────────────────────
 const bg    = "#F9F7F2";
@@ -97,66 +98,17 @@ interface ScoreData {
 // ─── component ────────────────────────────────────────────────────────────────
 export default function PortfolioPage() {
   const { user } = useAuth();
-  const [loading,    setLoading]    = useState(true);
-  const [score,      setScore]      = useState<ScoreData | null>(null);
-  const [artifacts,  setArtifacts]  = useState<Artifact[]>([]);
-  const [evidence,   setEvidence]   = useState<Evidence[]>([]);
-  const [agentCount, setAgentCount] = useState(0);
-  const [viewStats,  setViewStats]  = useState<{ total: number; last7: number } | null>(null);
+  const { data: portfolioData, loading } = usePortfolioData();
+
+  const score      = portfolioData?.score      ?? null;
+  const artifacts  = portfolioData?.artifacts  ?? [];
+  const evidence   = portfolioData?.evidence   ?? [];
+  const agentCount = portfolioData?.agentCount ?? 0;
+  const viewStats  = portfolioData?.viewStats  ?? null;
 
   const displayName  = (user?.user_metadata?.full_name as string) || user?.email?.split("@")[0] || "Founder";
   const startupName  = (user?.user_metadata?.startup_name as string) || "Your Startup";
   const initials     = displayName.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase();
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const { createClient } = await import("@/lib/supabase/client");
-        const supabase = createClient();
-        const { data: { user: u } } = await supabase.auth.getUser();
-        if (!u) { setLoading(false); return; }
-
-        // Load latest Q-Score
-        const res = await fetch("/api/qscore/latest");
-        if (res.ok) {
-          const data = await res.json();
-          if (data.qScore) setScore({
-            overall:    data.qScore.overall,
-            percentile: data.qScore.percentile ?? 50,
-            breakdown:  data.qScore.breakdown,
-          });
-        }
-
-        // Load artifacts
-        const { data: arts } = await supabase
-          .from("agent_artifacts")
-          .select("id, artifact_type, title, agent_id, created_at")
-          .eq("user_id", u.id)
-          .order("created_at", { ascending: false });
-        if (arts) {
-          setArtifacts(arts);
-          setAgentCount(new Set(arts.map((a: Artifact) => a.agent_id)).size);
-        }
-
-        // Load verified evidence
-        const { data: evData } = await supabase
-          .from("score_evidence")
-          .select("id, dimension, evidence_type, title, status, points_awarded, created_at")
-          .eq("user_id", u.id)
-          .eq("status", "verified")
-          .order("created_at", { ascending: false });
-        if (evData) setEvidence(evData);
-
-        // Load portfolio view analytics
-        const analyticsRes = await fetch(`/api/p/${u.id}/analytics`);
-        if (analyticsRes.ok) {
-          const analyticsData = await analyticsRes.json();
-          setViewStats({ total: analyticsData.totalViews, last7: analyticsData.last7Days });
-        }
-      } catch { /* anonymous */ }
-      finally { setLoading(false); }
-    })();
-  }, []);
 
   const [copied, setCopied] = useState(false);
 

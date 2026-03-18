@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Brain, FileText, Play, Lightbulb, RefreshCw, BarChart3, ArrowRight, CheckCircle, AlertCircle } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
+import { fetchAiEnhancementData } from '@/features/founder/services/ai-enhancement.service';
 
 // ─── palette ──────────────────────────────────────────────────────────────────
 const bg    = '#F9F7F2';
@@ -87,62 +87,24 @@ export default function AIEnhancementStation() {
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function load() {
-      try {
-        const supabase = createClient();
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) { setLoading(false); return; }
-
-        // Fetch latest Q-Score row
-        const { data: qs } = await supabase
-          .from('qscore_history')
-          .select('overall_score, team_score, market_score, traction_score, gtm_score, product_score')
-          .eq('user_id', user.id)
-          .order('calculated_at', { ascending: false })
-          .limit(1)
-          .single();
-
-        // Fetch startup name
-        const { data: fp } = await supabase
-          .from('founder_profiles')
-          .select('startup_name')
-          .eq('user_id', user.id)
-          .single();
-
-        if (qs) {
-          const data: QScoreData = {
-            overallScore: qs.overall_score ?? 0,
-            teamScore:    qs.team_score    ?? 0,
-            marketScore:  qs.market_score  ?? 0,
-            tractionScore: qs.traction_score ?? 0,
-            gtmScore:     qs.gtm_score     ?? 0,
-            productScore: qs.product_score ?? 0,
-            startupName:  fp?.startup_name || 'Your Startup',
-          };
-          setQScore(data);
-
-          // Build practice questions from the 2 lowest-scoring dimensions
-          const dims = [
-            { key: 'market',   score: data.marketScore },
-            { key: 'traction', score: data.tractionScore },
-            { key: 'team',     score: data.teamScore },
-            { key: 'gtm',      score: data.gtmScore },
-            { key: 'product',  score: data.productScore },
-          ].sort((a, b) => a.score - b.score);
-
-          const questions = [
-            ...((PRACTICE_QUESTIONS_BY_DIM[dims[0].key] ?? []).slice(0, 2).map(q => ({ ...q, category: DIMENSION_LABELS[dims[0].key] }))),
-            ...((PRACTICE_QUESTIONS_BY_DIM[dims[1].key] ?? []).slice(0, 1).map(q => ({ ...q, category: DIMENSION_LABELS[dims[1].key] }))),
-          ];
-          setPracticeQ(questions);
-        }
-      } catch {
-        // silently fail — show empty state
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
+    fetchAiEnhancementData()
+      .then(data => {
+        if (!data) return;
+        setQScore({ ...data, startupName: data.startupName || 'Your Startup' });
+        const sortedDims = [
+          { key: 'market',   score: data.marketScore },
+          { key: 'traction', score: data.tractionScore },
+          { key: 'team',     score: data.teamScore },
+          { key: 'gtm',      score: data.gtmScore },
+          { key: 'product',  score: data.productScore },
+        ].sort((a, b) => a.score - b.score);
+        setPracticeQ([
+          ...((PRACTICE_QUESTIONS_BY_DIM[sortedDims[0].key] ?? []).slice(0, 2).map(q => ({ ...q, category: DIMENSION_LABELS[sortedDims[0].key] }))),
+          ...((PRACTICE_QUESTIONS_BY_DIM[sortedDims[1].key] ?? []).slice(0, 1).map(q => ({ ...q, category: DIMENSION_LABELS[sortedDims[1].key] }))),
+        ]);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
   const dims = qScore ? [
