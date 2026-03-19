@@ -516,7 +516,7 @@ export function CompetitiveMatrixRenderer({ data, artifactId: _artifactId }: { d
                 {d.featureComparison.rows.map((row, i) => (
                   <tr key={i} style={{ background: row.name === "Us" ? "#F0FDF4" : i % 2 === 0 ? "#fff" : surf }}>
                     <td style={{ padding: "8px 10px", borderBottom: `1px solid ${bdr}`, fontWeight: row.name === "Us" ? 700 : 400, color: row.name === "Us" ? green : ink }}>{row.name}</td>
-                    {d.featureComparison!.features.map((f, fi) => {
+                    {(d.featureComparison?.features ?? []).map((f, fi) => {
                       const score = row.scores[f] || "no";
                       return (
                         <td key={fi} style={{ padding: "8px", textAlign: "center", borderBottom: `1px solid ${bdr}` }}>
@@ -989,13 +989,13 @@ export function CompetitiveMatrixRenderer({ data, artifactId: _artifactId }: { d
             {(weeklyScanResult.pricingAlerts?.length ?? 0) > 0 && (
               <div style={{ background: "#FFFBEB", borderRadius: 8, padding: "10px 12px", border: "1px solid #FDE68A" }}>
                 <p style={{ fontSize: 10, fontWeight: 700, color: amber, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>Pricing Alerts</p>
-                {weeklyScanResult.pricingAlerts!.map((a, i) => <p key={i} style={{ fontSize: 11, color: ink, marginBottom: 3 }}>⚠ {a}</p>)}
+                {weeklyScanResult.pricingAlerts?.map((a, i) => <p key={i} style={{ fontSize: 11, color: ink, marginBottom: 3 }}>⚠ {a}</p>)}
               </div>
             )}
             {(weeklyScanResult.hiringSignals?.length ?? 0) > 0 && (
               <div>
                 <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>Hiring Signals</p>
-                {weeklyScanResult.hiringSignals!.map((s, i) => <p key={i} style={{ fontSize: 11, color: ink, marginBottom: 3 }}>👥 {s}</p>)}
+                {weeklyScanResult.hiringSignals?.map((s, i) => <p key={i} style={{ fontSize: 11, color: ink, marginBottom: 3 }}>👥 {s}</p>)}
               </div>
             )}
             <button onClick={() => setWeeklyScanResult(null)} style={{ padding: "7px 14px", borderRadius: 8, border: `1px solid ${bdr}`, background: "transparent", color: muted, fontSize: 12, cursor: "pointer", alignSelf: "flex-start" }}>

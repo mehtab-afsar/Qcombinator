@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { withCircuitBreaker } from '@/lib/circuit-breaker'
 
 // POST /api/agents/atlas/social
 // Searches Twitter/Reddit/HN/web for mentions of one or more competitors.
@@ -47,23 +48,25 @@ export async function POST(request: NextRequest) {
     if (tavilyKey) {
       await Promise.allSettled(
         queries.slice(0, 5).map(async (q) => {
-          const res = await fetch('https://api.tavily.com/search', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              api_key: tavilyKey,
-              query: q,
-              max_results: 4,
-              search_depth: 'basic',
-              include_answer: false,
-            }),
+          await withCircuitBreaker('tavily', async () => {
+            const res = await fetch('https://api.tavily.com/search', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                api_key: tavilyKey,
+                query: q,
+                max_results: 4,
+                search_depth: 'basic',
+                include_answer: false,
+              }),
+            })
+            if (!res.ok) return
+            const data = await res.json() as { results?: { title: string; url: string; content: string }[] }
+            const source = q.includes('reddit') ? 'Reddit' : q.includes('twitter') || q.includes('x.com') ? 'Twitter/X' : q.includes('ycombinator') ? 'HN' : 'Web'
+            for (const r of data.results ?? []) {
+              searchResults.push({ title: r.title, url: r.url, content: r.content?.slice(0, 400) ?? '', source })
+            }
           })
-          if (!res.ok) return
-          const data = await res.json() as { results?: { title: string; url: string; content: string }[] }
-          const source = q.includes('reddit') ? 'Reddit' : q.includes('twitter') || q.includes('x.com') ? 'Twitter/X' : q.includes('ycombinator') ? 'HN' : 'Web'
-          for (const r of data.results ?? []) {
-            searchResults.push({ title: r.title, url: r.url, content: r.content?.slice(0, 400) ?? '', source })
-          }
         })
       )
     }

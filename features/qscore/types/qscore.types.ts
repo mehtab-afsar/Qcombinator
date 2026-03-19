@@ -74,6 +74,18 @@ export function calculateGrade(score: number): PRDQScore['grade'] {
   return 'F';
 }
 
+// ── Data source tracking ─────────────────────────────────────────────────────
+// Tracks where key numeric fields came from.
+// Stripe-verified fields get full weight; documents get 0.85; self-reported 0.55.
+export type DataSourceType = 'stripe' | 'document' | 'self_reported';
+
+export type DataSourceField =
+  | 'mrr' | 'arr' | 'monthlyBurn' | 'runway' | 'cogs'
+  | 'targetCustomers' | 'lifetimeValue' | 'conversionRate'
+  | 'costPerAcquisition' | 'conversationCount' | 'customerCommitment';
+
+export type DataSourceMap = Partial<Record<DataSourceField, DataSourceType>>;
+
 // Assessment data structure (maps to existing assessment form)
 export interface AssessmentData {
   // Problem Origin (for Team dimension)
@@ -144,6 +156,48 @@ export interface AssessmentData {
     averageDealSize?: number;
     projectedRevenue12mo?: number;
     revenueAssumptions?: string;
+  };
+
+  // Data source provenance — set by the calculate route before scoring
+  // Tells the confidence system which fields came from verified sources
+  dataSourceMap?: DataSourceMap;
+
+  // ── P2: Market Potential sub-indicators ───────────────────────────────────
+  p2?: {
+    tamDescription?: string;       // 2.1 Founder's stated TAM with reasoning
+    marketUrgency?: string;        // 2.2 Why now — regulatory/tech/social trigger
+    valuePool?: string;            // 2.3 Total economic value in the problem space
+    expansionPotential?: string;   // 2.4 Adjacent markets / international paths
+    competitorCount?: number;      // 2.5 Number of known direct competitors
+    competitorDensityContext?: string; // 2.5 Additional competitive context
+  };
+
+  // ── P3: IP / Defensibility sub-indicators ─────────────────────────────────
+  p3?: {
+    hasPatent?: boolean;           // 3.1 Patent filed or granted
+    patentDescription?: string;    // 3.1 Patent claim / abstract
+    technicalDepth?: string;       // 3.2 Proprietary technology description
+    knowHowDensity?: string;       // 3.3 Trade secrets / tacit knowledge held by team
+    buildComplexity?: string;      // 3.4 Why is this hard to build (time, talent, data)
+    replicationCostUsd?: number;   // 3.5 Estimated cost for a well-funded competitor to replicate ($)
+  };
+
+  // ── P4: Founder / Team sub-indicators ─────────────────────────────────────
+  p4?: {
+    domainYears?: number;          // 4.1 Years working in this specific domain
+    founderMarketFit?: string;     // 4.2 Narrative: why this founder for this market
+    priorExits?: number;           // 4.3 Successful exits or companies built before
+    teamCoverage?: string[];       // 4.4 Leadership functions covered (e.g. ['tech','sales','product'])
+    teamCohesionMonths?: number;   // 4.5 How long the core team has worked together
+  };
+
+  // ── P5: Structural Impact sub-indicators ──────────────────────────────────
+  p5?: {
+    climateLeverage?: string;      // 5.1 Climate/environmental impact claim
+    socialImpact?: string;         // 5.2 Broader social or community impact
+    revenueImpactLink?: string;    // 5.3 How the impact is directly tied to the revenue model
+    scalingMechanism?: string;     // 5.4 How impact grows proportionally with revenue
+    viksitBharatAlignment?: string; // 5.5 Alignment with India's development priorities (sector + product)
   };
 }
 

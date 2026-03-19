@@ -18,7 +18,7 @@ export async function GET() {
       .eq('investor_user_id', user.id)
       .order('updated_at', { ascending: false })
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) return NextResponse.json({ error: 'Failed to process request' }, { status: 500 })
 
     // Build a quick map for easy lookup
     const pipelineMap: Record<string, { stage: string; notes: string | null; created_at: string; updated_at: string }> = {}
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
       .select()
       .single()
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) return NextResponse.json({ error: 'Failed to process request' }, { status: 500 })
 
     return NextResponse.json({ entry: data })
   } catch (err) {
@@ -98,7 +98,7 @@ export async function PATCH(request: NextRequest) {
       .select()
       .single()
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) return NextResponse.json({ error: 'Failed to process request' }, { status: 500 })
 
     return NextResponse.json({ entry: data })
   } catch (err) {

@@ -8,6 +8,7 @@ import type { EnhancedSemanticEvaluation } from '@/features/qscore/rag/types';
 import { runRAGScoring } from '@/features/qscore/rag/rag-orchestrator';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { runIQScoring } from '@/features/iq/calculators/iq-orchestrator';
+import { runGTMDiagnostics } from '@/features/qscore/diagnostics/gtm-diagnostics';
 import { fetchQScoreThresholds, fetchDimensionWeights } from '@/features/qscore/services/threshold-config';
 import {
   saveMetricSnapshot,
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest) {
     // ── Load DB thresholds + sector weights (1h cache) ─────────────────────
     const { data: founderProfileForWeights } = await supabase
       .from('founder_profiles')
-      .select('sector')
+      .select('sector, stripe_account_id')
       .eq('user_id', user.id)
       .single();
 
@@ -75,6 +76,36 @@ export async function POST(request: NextRequest) {
       fetchQScoreThresholds(adminForConfig),
       fetchDimensionWeights(adminForConfig, sectorKey),
     ]);
+
+    // ── Build data-source map before scoring ───────────────────────────────
+    // Marks key numeric fields with their provenance so the calculator can apply
+    // source multipliers (Stripe 1.0×, document 0.85×, self-reported 0.55×).
+    const stripeConnected = !!(founderProfileForWeights?.stripe_account_id);
+    const data = assessmentData as AssessmentData;
+    const dataSourceMap: import('@/features/qscore/types/qscore.types').DataSourceMap = {};
+
+    if (stripeConnected) {
+      // Financial fields — Stripe verifies these
+      if (data.financial?.mrr)         dataSourceMap.mrr         = 'stripe';
+      if (data.financial?.arr)         dataSourceMap.arr         = 'stripe';
+      if (data.financial?.monthlyBurn) dataSourceMap.monthlyBurn = 'stripe';
+      if (data.financial?.runway)      dataSourceMap.runway      = 'stripe';
+    } else {
+      // No external source — mark populated financial fields as self_reported
+      if (data.financial?.mrr)         dataSourceMap.mrr         = 'self_reported';
+      if (data.financial?.arr)         dataSourceMap.arr         = 'self_reported';
+      if (data.financial?.monthlyBurn) dataSourceMap.monthlyBurn = 'self_reported';
+      if (data.financial?.runway)      dataSourceMap.runway      = 'self_reported';
+    }
+
+    // Market fields are always self-reported until LinkedIn enrichment (Phase 2)
+    if (data.targetCustomers)    dataSourceMap.targetCustomers    = 'self_reported';
+    if (data.lifetimeValue)      dataSourceMap.lifetimeValue      = 'self_reported';
+    if (data.conversionRate)     dataSourceMap.conversionRate     = 'self_reported';
+    if (data.costPerAcquisition) dataSourceMap.costPerAcquisition = 'self_reported';
+
+    // Attach to assessmentData for the calculator
+    (assessmentData as AssessmentData).dataSourceMap = dataSourceMap;
 
     // ── RAG: Enhanced semantic evaluation ──────────────────────────────────
     // Runs 3-layer RAG pipeline: rubric scoring → evidence lookup → benchmark
@@ -112,7 +143,7 @@ export async function POST(request: NextRequest) {
     );
 
     // Run bluff detection — penalize inflated/AI-generated inputs
-    const bluffSignals = detectBluffSignals(assessmentData as AssessmentData);
+    const bluffSignals = detectBluffSignals(assessmentData as AssessmentData, dataSourceMap);
 
     // Add evidence conflict signals from RAG layer (if any)
     if (enhanced.evidenceSummary?.some(s => s.startsWith('✗'))) {
@@ -136,6 +167,12 @@ export async function POST(request: NextRequest) {
     // Calculate percentile (compare to cohort)
     const percentile = await calculatePercentile(qScore.overall, user.id, supabase);
 
+    // ── Compute cohort scores + GTM diagnostics before INSERT so they persist ──
+    const [cohortScores, gtmDiagnostics] = await Promise.all([
+      computeCohortScores(adminForConfig, user.id, sectorKey, qScore.breakdown),
+      Promise.resolve(runGTMDiagnostics(assessmentData as AssessmentData)),
+    ]);
+
     // Save Q-Score to history (include previous_score_id to form a chain)
     const { data: savedScore, error: saveError } = await supabase
       .from('qscore_history')
@@ -152,9 +189,9 @@ export async function POST(request: NextRequest) {
         team_score: qScore.breakdown.team.score,
         traction_score: qScore.breakdown.traction.score,
         assessment_data: assessmentData,
-        // Store semantic eval result for debugging / future analytics
-        // (stored under ai_actions.rag_eval so it doesn't break existing schema)
         ai_actions: { rag_eval: semanticEval },
+        cohort_scores:   cohortScores   ?? null,
+        gtm_diagnostics: gtmDiagnostics ?? null,
       })
       .select()
       .single();
@@ -167,50 +204,50 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update founder profile assessment status
+    // Update founder profile assessment status + signal strength + integrity index
+    const { computeSignalSnapshot } = await import('@/features/qscore/services/signal-strength');
+    const { signalStrength, integrityIndex } = computeSignalSnapshot(
+      assessmentData as Record<string, unknown>,
+      stripeConnected,
+      bluffSignals.filter(s => s.severity === 'high').length,
+      (enhanced.evidenceSummary ?? []).filter((s: string) => s.startsWith('✗')).length,
+      0, // stripe delta flags checked at connect time
+    );
+
     await supabase
       .from('founder_profiles')
       .update({
         assessment_completed: true,
-        updated_at: new Date().toISOString(),
+        signal_strength:      signalStrength,
+        integrity_index:      integrityIndex,
+        updated_at:           new Date().toISOString(),
       })
       .eq('user_id', user.id);
-
-    // ── Cohort scoring — compute percentile-based dimension scores ─────────────
-    // Uses every founder's raw metric values to rank this founder relative to cohort.
-    // Returns null when cohort is too small (< 100) — tier scoring stays as-is.
-    const cohortScores = await computeCohortScores(
-      adminForConfig,
-      user.id,
-      sectorKey,
-      qScore.breakdown
-    );
 
     // ── Fire-and-forget: save metric snapshot + IQ scoring ────────────────────
     // The snapshot feeds the cohort scorer for all future calculations.
     // Runs after the score is saved so qscore_history_id is available.
     void (async () => {
-      try {
-        const rawMetrics = extractMetrics(assessmentData as Record<string, unknown>);
-        const dimScores = {
-          market:     qScore.breakdown.market.score,
-          product:    qScore.breakdown.product.score,
-          goToMarket: qScore.breakdown.goToMarket.score,
-          financial:  qScore.breakdown.financial.score,
-          team:       qScore.breakdown.team.score,
-          traction:   qScore.breakdown.traction.score,
-        };
-        await saveMetricSnapshot(
-          adminForConfig,
-          user.id,
-          savedScore?.id ?? null,
-          sectorKey,
-          rawMetrics,
-          dimScores,
-          qScore.overall
-        );
-      } catch (snapshotErr) {
-        console.warn('[Q-Score] Metric snapshot failed:', snapshotErr);
+      const rawMetrics = extractMetrics(assessmentData as Record<string, unknown>);
+      const dimScores = {
+        market:     qScore.breakdown.market.score,
+        product:    qScore.breakdown.product.score,
+        goToMarket: qScore.breakdown.goToMarket.score,
+        financial:  qScore.breakdown.financial.score,
+        team:       qScore.breakdown.team.score,
+        traction:   qScore.breakdown.traction.score,
+      };
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          await saveMetricSnapshot(
+            adminForConfig, user.id, savedScore?.id ?? null,
+            sectorKey, rawMetrics, dimScores, qScore.overall
+          );
+          break;
+        } catch (snapshotErr) {
+          if (attempt === 2) console.error('[Q-Score] Metric snapshot failed after retry:', snapshotErr);
+          else await new Promise(r => setTimeout(r, 1000));
+        }
       }
     })();
 
@@ -252,9 +289,65 @@ export async function POST(request: NextRequest) {
           artifacts: artifactBundle,
           profile: founderProfile ? { sector: founderProfile.sector, stage: founderProfile.stage } : null,
           skipTavily: false,
+          bluffSignals,
         });
       } catch (iqErr) {
-        console.warn('[Q-Score] IQ scoring fire-and-forget failed:', iqErr);
+        // Retry once after 2s — IQ failure means the user never sees an IQ score
+        console.warn('[Q-Score] IQ scoring failed, retrying in 2s:', iqErr);
+        await new Promise(r => setTimeout(r, 2000));
+        try {
+          const { data: arts2 } = await adminClientForIQ
+            .from('agent_artifacts')
+            .select('agent_id, artifact_type, content')
+            .eq('user_id', user.id)
+            .in('artifact_type', ['financial_summary', 'hiring_plan', 'competitive_matrix'])
+            .order('created_at', { ascending: false });
+
+          const bundle2: Record<string, Record<string, unknown> | null> = { financial: null, hiring: null, competitive: null };
+          for (const art of (arts2 ?? []) as Array<{ artifact_type: string; content: Record<string, unknown> }>) {
+            if (art.artifact_type === 'financial_summary' && !bundle2.financial) bundle2.financial = art.content;
+            if (art.artifact_type === 'hiring_plan'       && !bundle2.hiring)    bundle2.hiring    = art.content;
+            if (art.artifact_type === 'competitive_matrix'&& !bundle2.competitive) bundle2.competitive = art.content;
+          }
+          const { data: fp2 } = await adminClientForIQ.from('founder_profiles').select('sector, stage').eq('user_id', user.id).single();
+          await runIQScoring({
+            userId: user.id, supabase: adminClientForIQ,
+            assessment: assessmentData as AssessmentData, artifacts: bundle2,
+            profile: fp2 ? { sector: fp2.sector, stage: fp2.stage } : null,
+            skipTavily: true, // skip expensive Tavily on retry
+            bluffSignals,
+          });
+        } catch (retryErr) {
+          console.error('[Q-Score] IQ scoring failed after retry — user_id:', user.id, retryErr);
+        }
+      }
+    })();
+
+    // ── Fire-and-forget: momentum + behavioural scoring ───────────────────────
+    void (async () => {
+      try {
+        const { updateMomentum } = await import('@/features/qscore/services/momentum');
+        const { computeBehaviouralScore } = await import('@/features/qscore/services/behavioural-scoring');
+        await Promise.all([
+          updateMomentum(adminForConfig, user.id, founderProfileForWeights?.sector ?? null),
+          computeBehaviouralScore(adminForConfig, user.id),
+        ]);
+
+        // Gate visibility when signal_strength < 40
+        const freshProfile = await adminForConfig
+          .from('founder_profiles')
+          .select('signal_strength')
+          .eq('user_id', user.id)
+          .single();
+        const ss = freshProfile.data?.signal_strength ?? null;
+        if (ss !== null) {
+          await adminForConfig
+            .from('founder_profiles')
+            .update({ visibility_gated: ss < 40 })
+            .eq('user_id', user.id);
+        }
+      } catch (bhErr) {
+        console.warn('[Q-Score] Momentum/behavioural update failed:', bhErr);
       }
     })();
 
@@ -267,6 +360,14 @@ export async function POST(request: NextRequest) {
         cohortScores,
       },
       savedScore,
+      // Diagnostics — included so the frontend can show the causal link:
+      // "Your GTM score is 42 because your ICP Clarity is weak (D1 score: 28)"
+      // and route to: /founder/agents/patel?challenge=gtm
+      diagnostics: {
+        gtm: gtmDiagnostics,
+        dataSourceMap,
+        stripeConnected,
+      },
     });
   } catch (error) {
     console.error('Error calculating Q-Score:', error);
@@ -277,40 +378,24 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Calculate percentile rank compared to cohort
+// Calculate percentile rank compared to cohort via SQL RPC.
+// Uses DISTINCT ON per user in Postgres — O(log n) vs previous O(n) JS scan.
 async function calculatePercentile(
   score: number,
-  userId: string,
+  _userId: string,
   supabase: SupabaseClient
 ): Promise<number> {
   try {
-    // Get all scores in the system
-    const { data: allScores, error } = await supabase
-      .from('qscore_history')
-      .select('overall_score, user_id')
-      .order('calculated_at', { ascending: false });
-
-    if (error || !allScores || allScores.length === 0) {
-      return 50; // Default to median if no data
-    }
-
-    // Get latest score per user (deduplicate)
-    const latestScores = new Map<string, number>();
-    allScores.forEach((record: { user_id: string; overall_score: number }) => {
-      if (!latestScores.has(record.user_id)) {
-        latestScores.set(record.user_id, record.overall_score);
-      }
+    const { data, error } = await supabase.rpc('compute_qscore_percentile', {
+      target_score: Math.round(score),
     });
-
-    const scores = Array.from(latestScores.values());
-
-    // Calculate percentile: (# of scores below this score) / (total scores)
-    const scoresBelow = scores.filter(s => s < score).length;
-    const percentile = Math.round((scoresBelow / scores.length) * 100);
-
-    return percentile;
-  } catch (error) {
-    console.error('Error calculating percentile:', error);
-    return 50; // Default to median on error
+    if (error) {
+      console.error('[Percentile] RPC error:', error);
+      return 50;
+    }
+    return (data as number) ?? 50;
+  } catch (err) {
+    console.error('[Percentile] Error:', err);
+    return 50;
   }
 }

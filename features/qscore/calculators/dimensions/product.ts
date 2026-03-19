@@ -9,6 +9,7 @@
 import { AssessmentData } from '../../types/qscore.types';
 import { SemanticEvaluation } from '../../rag/types';
 import { ThresholdMap, scoreTiers, getTiers } from '../../services/threshold-config';
+import { scoreP3IPDefensibility } from '../parameters/p3-ip-defensibility';
 
 function semPts(qualityScore: number, maxPts: number): number {
   const q = isFinite(qualityScore) && !isNaN(qualityScore) ? qualityScore : 0;
@@ -113,6 +114,21 @@ export function calculateProductScore(
     points += boolPts(hasReasoning, 6);
   }
 
-  const raw = isFinite(points) ? Math.round((points / maxPoints) * 100) : 0;
-  return { score: Math.max(0, Math.min(100, raw)), rawPoints: Math.max(0, points), maxPoints };
+  const baseRaw = isFinite(points) ? Math.round((points / maxPoints) * 100) : 0;
+  const baseScore = Math.max(0, Math.min(100, baseRaw));
+
+  // ── P3 blend (IP / Defensibility sub-indicators) ──────────────────────────
+  const hasP3Data = !!(data.p3 && (
+    data.p3.hasPatent !== undefined || data.p3.technicalDepth ||
+    data.p3.knowHowDensity || data.p3.buildComplexity || data.p3.replicationCostUsd !== undefined
+  ));
+
+  if (!hasP3Data) {
+    return { score: baseScore, rawPoints: Math.max(0, points), maxPoints };
+  }
+
+  const p3Result = scoreP3IPDefensibility(data);
+  // 55% existing product score + 45% P3 score
+  const blended = Math.round(baseScore * 0.55 + p3Result.score * 0.45);
+  return { score: Math.max(0, Math.min(100, blended)), rawPoints: Math.max(0, points), maxPoints };
 }

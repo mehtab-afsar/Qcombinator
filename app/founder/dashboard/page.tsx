@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   ArrowRight,
   Lock,
@@ -310,7 +310,69 @@ export default function FounderDashboard() {
   const { data: dashData, loading: dashLoading, removePendingAction } = useDashboardData();
   const [approvingId, setApprovingId] = useState<string | null>(null);
 
+  // ── Stripe verification state ────────────────────────────────────────────
+  const [stripeStatus, setStripeStatus] = useState<{
+    verified: boolean; mrr?: number; signalStrength?: number; integrityIndex?: number;
+  } | null>(null);
+  const [stripeKey,        setStripeKey]        = useState("");
+  const [stripeConnecting, setStripeConnecting] = useState(false);
+  const [stripeError,      setStripeError]      = useState("");
+  const [showStripeForm,   setShowStripeForm]   = useState(false);
+
+  // Load existing stripe status on mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    fetch("/api/stripe/connect")
+      .then(r => r.json())
+      .then(d => {
+        if (d.profile) {
+          setStripeStatus({
+            verified:       d.profile.stripe_verified ?? false,
+            mrr:            d.profile.stripe_mrr ?? undefined,
+            signalStrength: d.profile.signal_strength ?? undefined,
+            integrityIndex: d.profile.integrity_index ?? undefined,
+          });
+        }
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function handleStripeConnect() {
+    if (!stripeKey.startsWith("rk_")) {
+      setStripeError("Key must start with rk_");
+      return;
+    }
+    setStripeConnecting(true);
+    setStripeError("");
+    try {
+      const res = await fetch("/api/stripe/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ restrictedKey: stripeKey }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setStripeError(data.error ?? "Connection failed");
+      } else {
+        setStripeStatus({
+          verified:       true,
+          mrr:            data.verified?.mrr,
+          signalStrength: data.signalStrength,
+          integrityIndex: data.integrityIndex,
+        });
+        setShowStripeForm(false);
+        setStripeKey("");
+      }
+    } catch {
+      setStripeError("Network error — please try again");
+    } finally {
+      setStripeConnecting(false);
+    }
+  }
+
   const iqScore        = dashData?.iqScore        ?? null;
+  const iqCalculating  = dashData?.iqCalculating  ?? false;
   const scoreHistory   = dashData?.scoreHistory   ?? [];
   const usedAgentIds   = dashData?.usedAgentIds   ?? new Set<string>();
   const pendingActions = dashData?.pendingActions  ?? [];
@@ -511,6 +573,88 @@ export default function FounderDashboard() {
             >
               Retake now
             </Link>
+          </motion.div>
+        )}
+
+        {/* ── Stripe verification / Signal Strength banner ─────────── */}
+        {stripeStatus !== null && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            style={{
+              display: "flex", alignItems: "flex-start", gap: 14,
+              padding: "14px 20px", borderRadius: 12, marginBottom: 16,
+              background: stripeStatus.verified ? "#EFF6FF" : "#FFFBEB",
+              border: `1px solid ${stripeStatus.verified ? "#BFDBFE" : "#FDE68A"}`,
+            }}
+          >
+            <div style={{
+              height: 36, width: 36, borderRadius: 9, flexShrink: 0,
+              background: stripeStatus.verified ? "#DBEAFE" : "#FEF3C7",
+              display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17,
+            }}>
+              {stripeStatus.verified ? "✓" : "⚡"}
+            </div>
+            <div style={{ flex: 1 }}>
+              {stripeStatus.verified ? (
+                <>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: "#1D4ED8", marginBottom: 2 }}>
+                    Revenue verified via Stripe
+                    {stripeStatus.mrr !== undefined && ` · $${stripeStatus.mrr.toLocaleString()} MRR`}
+                  </p>
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 4 }}>
+                    {stripeStatus.signalStrength !== undefined && (
+                      <span style={{ fontSize: 11, color: blue }}>
+                        Signal Strength: <strong>{stripeStatus.signalStrength}</strong>/100
+                      </span>
+                    )}
+                    {stripeStatus.integrityIndex !== undefined && (
+                      <span style={{ fontSize: 11, color: blue }}>
+                        Integrity Index: <strong>{stripeStatus.integrityIndex}</strong>/100
+                      </span>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: "#92400E", marginBottom: 2 }}>
+                    Boost your Signal Strength — verify revenue with Stripe
+                  </p>
+                  <p style={{ fontSize: 12, color: "#A16207", marginBottom: showStripeForm ? 10 : 0 }}>
+                    Stripe-verified metrics raise your confidence multiplier from 0.55× to 1.0×, increasing your Q-Score and investor trust.
+                  </p>
+                  {showStripeForm && (
+                    <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 4, flexWrap: "wrap" }}>
+                      <input
+                        value={stripeKey}
+                        onChange={e => setStripeKey(e.target.value)}
+                        placeholder="rk_live_…  (read-only restricted key)"
+                        style={{ flex: 1, minWidth: 240, padding: "7px 12px", background: "#fff", border: `1px solid ${stripeError ? red : bdr}`, borderRadius: 8, fontSize: 12, color: ink, outline: "none", fontFamily: "inherit" }}
+                      />
+                      <button
+                        onClick={handleStripeConnect}
+                        disabled={stripeConnecting}
+                        style={{ padding: "7px 18px", background: blue, color: "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: stripeConnecting ? "not-allowed" : "pointer", opacity: stripeConnecting ? 0.6 : 1, fontFamily: "inherit" }}
+                      >
+                        {stripeConnecting ? "Connecting…" : "Verify"}
+                      </button>
+                      <button onClick={() => { setShowStripeForm(false); setStripeError(""); }} style={{ padding: "7px 12px", background: "transparent", color: muted, border: "none", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+                        Cancel
+                      </button>
+                      {stripeError && <p style={{ width: "100%", fontSize: 11, color: red, marginTop: 4 }}>{stripeError}</p>}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+            {!stripeStatus.verified && !showStripeForm && (
+              <button
+                onClick={() => setShowStripeForm(true)}
+                style={{ flexShrink: 0, padding: "7px 16px", background: amber, color: "#fff", border: "none", borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}
+              >
+                Connect Stripe
+              </button>
+            )}
           </motion.div>
         )}
 
@@ -779,6 +923,12 @@ export default function FounderDashboard() {
         </motion.div>
 
         {/* ── IQ Score card ─────────────────────────────────────────── */}
+        {!iqScore && iqCalculating && (
+          <div style={{ marginBottom: 24, padding: "10px 14px", background: surf, border: `1px solid ${bdr}`, borderRadius: 10, display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: muted }}>
+            <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: "50%", border: `2px solid ${muted}`, borderTopColor: "transparent", animation: "spin 0.8s linear infinite" }} />
+            IQ Score calculating…
+          </div>
+        )}
         {iqScore && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
@@ -1238,6 +1388,103 @@ export default function FounderDashboard() {
 
       </div>
 
+        {/* ── CXO Workspace layer ───────────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
+          style={{ marginTop: 32 }}
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+            <div>
+              <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", color: muted, fontWeight: 600, marginBottom: 3 }}>
+                CXO Workspace
+              </p>
+              <p style={{ fontSize: 16, fontWeight: 400, color: ink }}>Your executive team's work</p>
+            </div>
+            <Link href="/founder/agents" style={{ fontSize: 12, color: muted, textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}>
+              View all <ArrowRight style={{ height: 10, width: 10 }} />
+            </Link>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }} className="cxo-grid">
+            {[
+              { id: "patel",  title: "Patel",  role: "CMO",                  dim: "goToMarket", color: "#2563EB" },
+              { id: "felix",  title: "Felix",  role: "CFO",                  dim: "financial",  color: "#16A34A" },
+              { id: "nova",   title: "Nova",   role: "CPO",                  dim: "product",    color: "#7C3AED" },
+              { id: "atlas",  title: "Atlas",  role: "Chief Strategy Officer",dim: "market",    color: "#0891B2" },
+              { id: "harper", title: "Harper", role: "Chief People Officer",  dim: "team",      color: "#EA580C" },
+              { id: "susi",   title: "Susi",   role: "CRO",                  dim: "traction",   color: "#DC2626" },
+            ].map(exec => {
+              const dimScore = (qs.breakdown as Record<string, { score: number }>)[exec.dim]?.score ?? 0;
+              const isDone = usedAgentIds.has(exec.id);
+              return (
+                <Link
+                  key={exec.id}
+                  href={`/founder/agents/${exec.id}`}
+                  style={{ textDecoration: "none" }}
+                >
+                  <div
+                    style={{
+                      background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "14px 16px",
+                      cursor: "pointer", transition: "border-color .15s, background .15s",
+                    }}
+                    onMouseEnter={e => {
+                      (e.currentTarget as HTMLElement).style.borderColor = exec.color;
+                      (e.currentTarget as HTMLElement).style.background = bg;
+                    }}
+                    onMouseLeave={e => {
+                      (e.currentTarget as HTMLElement).style.borderColor = bdr;
+                      (e.currentTarget as HTMLElement).style.background = surf;
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <div style={{
+                          height: 30, width: 30, borderRadius: 8,
+                          background: isDone ? "#F0FDF4" : bg,
+                          border: `1.5px solid ${isDone ? "#16A34A" : exec.color}`,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          fontSize: 12, fontWeight: 700, color: isDone ? "#16A34A" : exec.color,
+                          flexShrink: 0,
+                        }}>
+                          {exec.title[0]}
+                        </div>
+                        <div>
+                          <p style={{ fontSize: 13, fontWeight: 600, color: ink, lineHeight: 1 }}>{exec.title}</p>
+                          <p style={{ fontSize: 10, color: exec.color, fontWeight: 600 }}>{exec.role}</p>
+                        </div>
+                      </div>
+                      {isDone && (
+                        <div style={{ height: 6, width: 6, borderRadius: "50%", background: "#16A34A" }} />
+                      )}
+                    </div>
+
+                    {/* dimension score bar */}
+                    <div style={{ marginBottom: 8 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                        <span style={{ fontSize: 9, color: muted, textTransform: "uppercase", letterSpacing: "0.1em" }}>
+                          {DIMENSION_META[exec.dim]?.label ?? exec.dim} score
+                        </span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: dimScore >= 70 ? "#16A34A" : dimScore >= 50 ? "#D97706" : "#DC2626" }}>
+                          {dimScore}
+                        </span>
+                      </div>
+                      <div style={{ height: 4, background: bdr, borderRadius: 99, overflow: "hidden" }}>
+                        <div style={{ height: "100%", borderRadius: 99, width: `${dimScore}%`, background: exec.color, transition: "width .6s ease" }} />
+                      </div>
+                    </div>
+
+                    <p style={{ fontSize: 11, color: muted }}>
+                      {isDone ? "Deliverable built · Open to update" : "No deliverable yet · Start a session"}
+                    </p>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </motion.div>
+
       {/* responsive styles */}
       <style>{`
         @media (max-width: 900px) {
@@ -1246,6 +1493,10 @@ export default function FounderDashboard() {
         }
         @media (max-width: 600px) {
           .dashboard-bottom { grid-template-columns: 1fr !important; }
+          .cxo-grid { grid-template-columns: 1fr 1fr !important; }
+        }
+        @media (max-width: 420px) {
+          .cxo-grid { grid-template-columns: 1fr !important; }
         }
       `}</style>
     </div>

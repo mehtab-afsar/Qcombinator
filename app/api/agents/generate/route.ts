@@ -7,6 +7,7 @@ import { callOpenRouter } from '@/lib/openrouter';
 import { ARTIFACT_TYPES, ALL_ARTIFACT_TYPES, type ArtifactType } from '@/lib/constants/artifact-types';
 import { DIMENSIONS } from '@/lib/constants/dimensions';
 import { executeTool } from '@/lib/tools/executor';
+import { isCircuitOpen, withCircuitBreaker } from '@/lib/circuit-breaker';
 
 /**
  * Agent Artifact Generation API
@@ -215,18 +216,20 @@ export async function POST(request: NextRequest) {
               .single();
             artifactId = saved?.id ?? null;
 
-            // ── RAG: embed artifact (fire-and-forget) ──────────────────
-            if (artifactId) {
+            // ── RAG: embed artifact (fire-and-forget, skipped if circuit open) ─
+            if (artifactId && !isCircuitOpen('openai_embeddings')) {
               import('@/features/qscore/rag/embeddings/embedding-pipeline')
                 .then(({ embedArtifact }) =>
-                  embedArtifact({
-                    id: artifactId!,
-                    user_id: userId,
-                    artifact_type: artifactType,
-                    content: parsedContent,
-                  })
+                  withCircuitBreaker('openai_embeddings', () =>
+                    embedArtifact({
+                      id: artifactId!,
+                      user_id: userId,
+                      artifact_type: artifactType,
+                      content: parsedContent,
+                    })
+                  )
                 )
-                .catch(err => console.warn('[RAG] Embedding failed:', err));
+                .catch(err => console.warn('[RAG] Embedding failed (circuit may open):', err));
             }
 
             // ── Score signal ───────────────────────────────────────────

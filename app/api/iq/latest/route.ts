@@ -24,7 +24,20 @@ export async function GET(_request: NextRequest) {
     ]);
 
     if (!iqScore) {
-      return NextResponse.json({ iqScore: null });
+      // Check if a Q-Score was just calculated (< 30s ago) — IQ write may still be in flight
+      const { data: recentQScore } = await serviceClient
+        .from('qscore_history')
+        .select('calculated_at')
+        .eq('user_id', user.id)
+        .order('calculated_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      const calculating =
+        !!recentQScore &&
+        Date.now() - new Date(recentQScore.calculated_at).getTime() < 30_000;
+
+      return NextResponse.json({ iqScore: null, calculating });
     }
 
     // Enrich indicator names from config

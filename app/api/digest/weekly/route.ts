@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { withCircuitBreaker } from '@/lib/circuit-breaker'
 
 // POST /api/digest/weekly
 // Sends a beautiful weekly digest email to the founder summarising:
@@ -121,16 +122,23 @@ export async function POST() {
 </body>
 </html>`
 
-    const emailRes = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        from: 'Edge Alpha <no-reply@edgealpha.ai>',
-        to: [founderEmail],
-        subject: `Weekly digest — ${companyName} · ${activity.length} agent action${activity.length !== 1 ? 's' : ''} this week`,
-        html: emailHtml,
-      }),
-    })
+    let emailRes: Response
+    try {
+      emailRes = await withCircuitBreaker('resend', () =>
+        fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            from: 'Edge Alpha <no-reply@edgealpha.ai>',
+            to: [founderEmail],
+            subject: `Weekly digest — ${companyName} · ${activity.length} agent action${activity.length !== 1 ? 's' : ''} this week`,
+            html: emailHtml,
+          }),
+        })
+      )
+    } catch {
+      return NextResponse.json({ error: 'Email service temporarily unavailable' }, { status: 503 })
+    }
 
     if (!emailRes.ok) {
       return NextResponse.json({ error: 'Failed to send digest email' }, { status: 500 })

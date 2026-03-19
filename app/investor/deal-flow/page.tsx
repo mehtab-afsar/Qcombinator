@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Search, TrendingUp, Sparkles, ChevronRight } from "lucide-react";
+import { Search, TrendingUp, Sparkles, ChevronRight, Settings2, Flame, ArrowUp, Minus } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 // ─── palette ──────────────────────────────────────────────────────────────────
@@ -36,6 +36,14 @@ interface Deal {
   agentActionsThisWeek: number;
   totalDeliverables: number;
   isActiveFounder: boolean;
+  stripeVerified:   boolean;
+  signalStrength:   number | null;
+  integrityIndex:   number | null;
+  momentumScore:    number | null;
+  behaviouralScore: number | null;
+  visibilityGated:  boolean;
+  weightedQScore:   number;
+  pipelineStage:    string | null;
 }
 
 function momentumStyle(m: Deal["momentum"]) {
@@ -44,15 +52,73 @@ function momentumStyle(m: Deal["momentum"]) {
   return                       { color: muted, bg: surf,      label: "Steady",   Icon: undefined }
 }
 
+function momentumBadge(score: number | null) {
+  if (score === null) return null;
+  if (score >= 10)  return { color: red,   bg: "#FEF2F2", label: `+${score} Hot`,    Icon: Flame };
+  if (score >= 4)   return { color: green, bg: "#ECFDF5", label: `+${score} Rising`, Icon: ArrowUp };
+  if (score >= -3)  return { color: muted, bg: surf,      label: "Steady",           Icon: Minus };
+  return                   { color: amber, bg: "#FFFBEB", label: `${score} Falling`, Icon: TrendingUp };
+}
+
+const PIPELINE_STAGES = [
+  { value: 'watching',   label: 'Watching',   color: muted  },
+  { value: 'interested', label: 'Interested', color: blue   },
+  { value: 'meeting',    label: 'Meeting',    color: amber  },
+  { value: 'in_dd',      label: 'In DD',      color: '#7C3AED' },
+  { value: 'portfolio',  label: 'Portfolio',  color: green  },
+  { value: 'passed',     label: 'Passed',     color: red    },
+];
+
 // ─── component ────────────────────────────────────────────────────────────────
 export default function DealFlowPage() {
   const router = useRouter();
   const [searchTerm,     setSearchTerm]     = useState("");
   const [selectedStage,  setSelectedStage]  = useState("all");
   const [selectedSector, setSelectedSector] = useState("all");
-  const [activeTab,      setActiveTab]      = useState<"all" | "hot" | "new" | "high-match" | "active">("all");
+  const [activeTab,      setActiveTab]      = useState<"all" | "hot" | "rising" | "new" | "high-match" | "active">("all");
   const [deals,          setDeals]          = useState<Deal[]>([]);
   const [loading,        setLoading]        = useState(true);
+  const [showWeights,    setShowWeights]    = useState(false);
+  const [pipelineMap,    setPipelineMap]    = useState<Record<string, string>>({});
+  const [weights, setWeights] = useState({
+    weight_market: 20, weight_product: 18, weight_gtm: 17,
+    weight_financial: 18, weight_team: 15, weight_traction: 12,
+  });
+  const [savingWeights, setSavingWeights] = useState(false);
+
+  // Load pipeline + weights on mount
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/investor/pipeline").then(r => r.json()),
+      fetch("/api/investor/weights").then(r => r.json()),
+    ]).then(([pipeData, wData]) => {
+      if (pipeData.pipelineMap) setPipelineMap(pipeData.pipelineMap);
+      if (wData.weights) setWeights(wData.weights);
+    }).catch(() => {});
+  }, []);
+
+  async function saveWeights() {
+    setSavingWeights(true);
+    try {
+      await fetch("/api/investor/weights", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(weights),
+      });
+      setShowWeights(false);
+    } finally {
+      setSavingWeights(false);
+    }
+  }
+
+  async function updatePipelineStage(founderId: string, stage: string) {
+    setPipelineMap(prev => ({ ...prev, [founderId]: stage }));
+    await fetch("/api/investor/pipeline", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ founderId, stage }),
+    }).catch(() => {});
+  }
 
   useEffect(() => {
     fetch("/api/investor/deal-flow")
@@ -65,6 +131,8 @@ export default function DealFlowPage() {
             matchScore: number; highlights: string[]; lastActive: string;
             founder: { name: string }; hasScore: boolean;
             agentActionsThisWeek: number; totalDeliverables: number; isActiveFounder: boolean;
+            stripeVerified?: boolean; signalStrength?: number | null; integrityIndex?: number | null;
+            momentumScore?: number | null; behaviouralScore?: number | null; visibilityGated?: boolean; weightedQScore?: number;
           }) => ({
             id: f.id,
             name: f.name,
@@ -84,6 +152,14 @@ export default function DealFlowPage() {
             agentActionsThisWeek: f.agentActionsThisWeek ?? 0,
             totalDeliverables:    f.totalDeliverables ?? 0,
             isActiveFounder:      f.isActiveFounder ?? false,
+            stripeVerified:       f.stripeVerified   ?? false,
+            signalStrength:       f.signalStrength   ?? null,
+            integrityIndex:       f.integrityIndex   ?? null,
+            momentumScore:        f.momentumScore    ?? null,
+            behaviouralScore:     f.behaviouralScore ?? null,
+            visibilityGated:      f.visibilityGated  ?? false,
+            weightedQScore:       f.weightedQScore   ?? f.qScore,
+            pipelineStage:        null,
           })));
         }
       })
@@ -97,6 +173,7 @@ export default function DealFlowPage() {
     const matchSector  = selectedSector === "all" || d.sector.toLowerCase().replace(/\//g, "-").replace(/\s+/g, "-") === selectedSector;
     const matchTab     = activeTab === "all"
       || (activeTab === "hot"        && d.momentum === "hot")
+      || (activeTab === "rising"     && (d.momentumScore ?? 0) >= 4)
       || (activeTab === "new"        && !d.viewed)
       || (activeTab === "high-match" && d.matchScore >= 90)
       || (activeTab === "active"     && d.isActiveFounder);
@@ -105,7 +182,8 @@ export default function DealFlowPage() {
 
   const tabs = [
     { key: "all"        as const, label: `All (${deals.length})` },
-    { key: "hot"        as const, label: `Hot (${deals.filter(d => d.momentum === "hot").length})` },
+    { key: "hot"        as const, label: `Hot 🔥 (${deals.filter(d => d.momentum === "hot").length})` },
+    { key: "rising"     as const, label: `Rising ↑ (${deals.filter(d => (d.momentumScore ?? 0) >= 4).length})` },
     { key: "new"        as const, label: `New (${deals.filter(d => !d.viewed).length})` },
     { key: "high-match" as const, label: `High Match (${deals.filter(d => d.matchScore >= 90).length})` },
     { key: "active"     as const, label: `Active (${deals.filter(d => d.isActiveFounder).length})` },
@@ -126,7 +204,7 @@ export default function DealFlowPage() {
           <p style={{ fontSize: 14, color: muted }}>Discover and evaluate new startups matched to your thesis.</p>
         </div>
 
-        {/* filters */}
+        {/* filters + weight config button */}
         <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
           <div style={{ position: "relative", flex: 1, minWidth: 200 }}>
             <Search style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", height: 13, width: 13, color: muted }} />
@@ -153,7 +231,54 @@ export default function DealFlowPage() {
             <option value="hr-tech">HR Tech</option>
             <option value="agtech">AgTech</option>
           </select>
+          <button onClick={() => setShowWeights(v => !v)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", background: showWeights ? ink : surf, color: showWeights ? bg : muted, border: `1px solid ${showWeights ? ink : bdr}`, borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+            <Settings2 style={{ height: 12, width: 12 }} />
+            Weights
+          </button>
         </div>
+
+        {/* ── Parameter weight config panel ────────────────────────────── */}
+        {showWeights && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "18px 20px", marginBottom: 16 }}
+          >
+            <p style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.14em", color: muted, marginBottom: 12 }}>
+              Your scoring weights — customise how each dimension is weighted in your Q-Score view
+            </p>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+              {([
+                { key: "weight_market",   label: "Market"    },
+                { key: "weight_product",  label: "Product"   },
+                { key: "weight_gtm",      label: "GTM"       },
+                { key: "weight_financial",label: "Financial" },
+                { key: "weight_team",     label: "Team"      },
+                { key: "weight_traction", label: "Traction"  },
+              ] as { key: keyof typeof weights; label: string }[]).map(({ key, label }) => (
+                <div key={key}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                    <span style={{ fontSize: 11, color: muted }}>{label}</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: ink }}>{weights[key]}</span>
+                  </div>
+                  <input
+                    type="range" min={0} max={40} value={weights[key]}
+                    onChange={e => setWeights(prev => ({ ...prev, [key]: Number(e.target.value) }))}
+                    style={{ width: "100%", accentColor: blue }}
+                  />
+                </div>
+              ))}
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 14 }}>
+              <span style={{ fontSize: 11, color: muted }}>
+                Total: {Object.values(weights).reduce((a, b) => a + b, 0)} (normalised to 100% automatically)
+              </span>
+              <button onClick={saveWeights} disabled={savingWeights} style={{ padding: "7px 18px", background: ink, color: bg, border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", opacity: savingWeights ? 0.6 : 1 }}>
+                {savingWeights ? "Saving…" : "Save weights"}
+              </button>
+            </div>
+          </motion.div>
+        )}
 
         {/* tabs */}
         <div style={{ display: "flex", borderBottom: `1px solid ${bdr}`, marginBottom: 0 }}>
@@ -165,8 +290,8 @@ export default function DealFlowPage() {
         </div>
 
         {/* table header */}
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 80px 80px 120px 120px 44px", gap: 12, padding: "10px 16px", borderBottom: `1px solid ${bdr}` }}>
-          {["Company", "Q-Score", "Match", "Stage", "Seeking", ""].map((h, i) => (
+        <div style={{ display: "grid", gridTemplateColumns: "2fr 80px 80px 120px 140px 44px", gap: 12, padding: "10px 16px", borderBottom: `1px solid ${bdr}` }}>
+          {["Company", "Q-Score", "Momentum", "Stage", "Pipeline", ""].map((h, i) => (
             <p key={i} style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.1em", color: muted, fontWeight: 600 }}>{h}</p>
           ))}
         </div>
@@ -198,7 +323,7 @@ export default function DealFlowPage() {
                 onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = surf}
                 onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = bg}
               >
-                <div style={{ display: "grid", gridTemplateColumns: "2fr 80px 80px 120px 120px 44px", gap: 12, padding: "16px 16px", alignItems: "center" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "2fr 80px 80px 120px 140px 44px", gap: 12, padding: "16px 16px", alignItems: "center" }}>
 
                   {/* company */}
                   <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
@@ -225,6 +350,12 @@ export default function DealFlowPage() {
                             <span style={{ fontSize: 10, color: green, fontWeight: 600 }}>{deal.agentActionsThisWeek} actions this week</span>
                           </div>
                         )}
+                        {deal.stripeVerified && (
+                          <div title="Revenue verified via Stripe" style={{ display: "flex", alignItems: "center", gap: 3, padding: "2px 7px", background: "#EFF6FF", borderRadius: 999, border: "1px solid #BFDBFE" }}>
+                            <span style={{ fontSize: 9 }}>✓</span>
+                            <span style={{ fontSize: 10, color: blue, fontWeight: 600 }}>Stripe verified</span>
+                          </div>
+                        )}
                       </div>
                       <p style={{ fontSize: 12, color: muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {deal.founder.name} · {deal.location}{deal.totalDeliverables > 0 ? ` · ${deal.totalDeliverables} deliverable${deal.totalDeliverables !== 1 ? "s" : ""}` : ""}
@@ -232,22 +363,49 @@ export default function DealFlowPage() {
                     </div>
                   </div>
 
-                  {/* q-score */}
-                  <p style={{ fontSize: 15, fontWeight: 700, color: deal.qScore >= 85 ? green : deal.qScore >= 78 ? blue : muted }}>{deal.qScore}</p>
-
-                  {/* match */}
+                  {/* q-score (custom weighted if investor set weights) */}
                   <div>
-                    <p style={{ fontSize: 14, fontWeight: 600, color: ink }}>{deal.matchScore}%</p>
-                    <div style={{ height: 3, background: bdr, borderRadius: 99, marginTop: 3, width: "80%" }}>
-                      <div style={{ height: "100%", background: blue, borderRadius: 99, width: `${deal.matchScore}%` }} />
-                    </div>
+                    <p style={{ fontSize: 15, fontWeight: 700, color: deal.weightedQScore >= 80 ? green : deal.weightedQScore >= 65 ? blue : muted }}>
+                      {deal.weightedQScore}
+                    </p>
+                    {deal.weightedQScore !== deal.qScore && (
+                      <p style={{ fontSize: 9, color: muted }}>raw {deal.qScore}</p>
+                    )}
                   </div>
+
+                  {/* momentum */}
+                  {(() => {
+                    const mb = momentumBadge(deal.momentumScore);
+                    if (!mb) return <p style={{ fontSize: 12, color: muted }}>—</p>;
+                    const MIcon = mb.Icon;
+                    return (
+                      <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 8px", background: mb.bg, borderRadius: 999, width: "fit-content" }}>
+                        <MIcon style={{ height: 10, width: 10, color: mb.color }} />
+                        <span style={{ fontSize: 10, fontWeight: 700, color: mb.color }}>{mb.label}</span>
+                      </div>
+                    );
+                  })()}
 
                   {/* stage */}
                   <p style={{ fontSize: 12, color: muted }}>{deal.stage} · {deal.sector}</p>
 
-                  {/* seeking */}
-                  <p style={{ fontSize: 13, fontWeight: 500, color: ink }}>{deal.fundingGoal}</p>
+                  {/* pipeline stage selector */}
+                  <select
+                    value={pipelineMap[deal.id] ?? ""}
+                    onChange={e => { e.stopPropagation(); updatePipelineStage(deal.id, e.target.value); }}
+                    onClick={e => e.stopPropagation()}
+                    style={{
+                      padding: "5px 8px", fontSize: 11, fontWeight: 600,
+                      background: surf, border: `1px solid ${bdr}`, borderRadius: 6,
+                      color: PIPELINE_STAGES.find(s => s.value === (pipelineMap[deal.id] ?? ""))?.color ?? muted,
+                      cursor: "pointer", fontFamily: "inherit", width: "100%",
+                    }}
+                  >
+                    <option value="">— Add to pipeline</option>
+                    {PIPELINE_STAGES.map(s => (
+                      <option key={s.value} value={s.value}>{s.label}</option>
+                    ))}
+                  </select>
 
                   {/* arrow */}
                   <button onClick={() => router.push(`/investor/startup/${deal.id}`)} style={{ height: 32, width: 32, display: "flex", alignItems: "center", justifyContent: "center", background: surf, border: `1px solid ${bdr}`, borderRadius: 8, cursor: "pointer" }}>
@@ -255,19 +413,40 @@ export default function DealFlowPage() {
                   </button>
                 </div>
 
-                {/* highlights */}
-                {(deal.highlights.length > 0 || deal.teamSize) && (
-                  <div style={{ display: "flex", gap: 6, padding: "0 16px 14px 76px", flexWrap: "wrap" }}>
-                    {deal.highlights.map((h, hi) => (
-                      <span key={hi} style={{ fontSize: 11, color: muted, padding: "2px 9px", background: surf, border: `1px solid ${bdr}`, borderRadius: 999 }}>{h}</span>
-                    ))}
-                    {deal.teamSize && (
-                      <span style={{ fontSize: 11, color: muted, padding: "2px 9px", background: surf, border: `1px solid ${bdr}`, borderRadius: 999 }}>
-                        {deal.teamSize} person team
-                      </span>
-                    )}
-                  </div>
-                )}
+                {/* ── 4-signal row + highlights ──────────────────────────── */}
+                <div style={{ display: "flex", gap: 6, padding: "0 16px 14px 76px", flexWrap: "wrap" }}>
+                  {/* Readiness Score */}
+                  <span title="Readiness Score — overall Q-Score" style={{ fontSize: 11, padding: "2px 9px", borderRadius: 999, background: deal.weightedQScore >= 80 ? "#ECFDF5" : deal.weightedQScore >= 60 ? "#EFF6FF" : surf, color: deal.weightedQScore >= 80 ? green : deal.weightedQScore >= 60 ? blue : muted, border: `1px solid ${deal.weightedQScore >= 80 ? "#A7F3D0" : deal.weightedQScore >= 60 ? "#BFDBFE" : bdr}` }}>
+                    Readiness {deal.weightedQScore}
+                  </span>
+                  {/* Signal Strength */}
+                  {deal.signalStrength !== null && (
+                    <span title="Signal Strength — weighted data-source confidence" style={{ fontSize: 11, padding: "2px 9px", borderRadius: 999, background: deal.signalStrength >= 75 ? "#ECFDF5" : deal.signalStrength >= 50 ? "#FFFBEB" : surf, color: deal.signalStrength >= 75 ? green : deal.signalStrength >= 50 ? amber : muted, border: `1px solid ${deal.signalStrength >= 75 ? "#A7F3D0" : deal.signalStrength >= 50 ? "#FDE68A" : bdr}` }}>
+                      Signal {deal.signalStrength}
+                    </span>
+                  )}
+                  {/* Momentum */}
+                  {deal.momentumScore !== null && (
+                    <span title="Momentum — 30-day score delta vs same-stage cohort" style={{ fontSize: 11, padding: "2px 9px", borderRadius: 999, background: deal.momentumScore >= 10 ? "#FEF2F2" : deal.momentumScore >= 4 ? "#ECFDF5" : surf, color: deal.momentumScore >= 10 ? red : deal.momentumScore >= 4 ? green : muted, border: `1px solid ${deal.momentumScore >= 10 ? "#FECACA" : deal.momentumScore >= 4 ? "#A7F3D0" : bdr}` }}>
+                      Momentum {deal.momentumScore > 0 ? `+${deal.momentumScore}` : deal.momentumScore}
+                    </span>
+                  )}
+                  {/* Integrity */}
+                  {deal.integrityIndex !== null && (
+                    <span title="Integrity Index — corroborated vs flagged claims" style={{ fontSize: 11, padding: "2px 9px", borderRadius: 999, background: deal.integrityIndex >= 80 ? "#ECFDF5" : deal.integrityIndex >= 60 ? "#FFFBEB" : "#FEF2F2", color: deal.integrityIndex >= 80 ? green : deal.integrityIndex >= 60 ? amber : red, border: `1px solid ${deal.integrityIndex >= 80 ? "#A7F3D0" : deal.integrityIndex >= 60 ? "#FDE68A" : "#FECACA"}` }}>
+                      Integrity {deal.integrityIndex}
+                    </span>
+                  )}
+                  {/* Highlights */}
+                  {deal.highlights.map((h, hi) => (
+                    <span key={hi} style={{ fontSize: 11, color: muted, padding: "2px 9px", background: surf, border: `1px solid ${bdr}`, borderRadius: 999 }}>{h}</span>
+                  ))}
+                  {deal.teamSize && (
+                    <span style={{ fontSize: 11, color: muted, padding: "2px 9px", background: surf, border: `1px solid ${bdr}`, borderRadius: 999 }}>
+                      {deal.teamSize} person team
+                    </span>
+                  )}
+                </div>
               </motion.div>
             );
           })}

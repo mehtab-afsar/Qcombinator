@@ -3,6 +3,8 @@
  */
 
 import { createClient } from '@/lib/supabase/client'
+import { ARTIFACT_TYPES } from '@/lib/constants/artifact-types'
+import { AGENT_IDS } from '@/lib/constants/agent-ids'
 
 export interface MetricsFormInput {
   mrr: string
@@ -43,8 +45,8 @@ export async function saveMetrics(form: MetricsFormInput): Promise<void> {
 
   const { error } = await supabase.from('agent_artifacts').insert({
     user_id:       user.id,
-    agent_id:      'felix',
-    artifact_type: 'financial_summary',
+    agent_id:      AGENT_IDS.FELIX,
+    artifact_type: ARTIFACT_TYPES.FINANCIAL_SUMMARY,
     title:         `Manual metrics update — ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`,
     content,
     version:       1,

@@ -13,9 +13,10 @@ import { calculateGTMScore } from './dimensions/gtm';
 import { calculateFinancialScore } from './dimensions/financial';
 import { calculateTeamScore } from './dimensions/team';
 import { calculateTractionScore } from './dimensions/traction';
-import { calculateConfidence, adjustForConfidence } from '../utils/confidence';
+import { calculateConfidence, adjustForConfidence, applySourceMultiplier } from '../utils/confidence';
 import { SemanticEvaluation } from '../rag/types';
 import { ThresholdMap, DimensionWeightMap } from '../services/threshold-config';
+import { scoreP5StructuralImpact } from './parameters/p5-structural-impact';
 
 /**
  * Main Q-Score calculation function
@@ -48,6 +49,17 @@ export function calculatePRDQScore(
   financialResult.score = adjustForConfidence(financialResult.score, confidence.financial);
   teamResult.score = adjustForConfidence(teamResult.score, confidence.team);
   tractionResult.score = adjustForConfidence(tractionResult.score, confidence.traction);
+
+  // Apply data-source multipliers — verified data scores higher than self-reported
+  // Stripe: 1.0× | Document: 0.85× | Self-reported: 0.55×
+  const dsm = assessmentData.dataSourceMap;
+  if (dsm) {
+    marketResult.score    = applySourceMultiplier(marketResult.score,    'market',     dsm);
+    financialResult.score = applySourceMultiplier(financialResult.score, 'financial',  dsm);
+    tractionResult.score  = applySourceMultiplier(tractionResult.score,  'traction',   dsm);
+    gtmResult.score       = applySourceMultiplier(gtmResult.score,       'goToMarket', dsm);
+    // team + product are always self-reported — no multiplier applied
+  }
 
   // Resolve weights: DB-loaded sector weights > PRD_WEIGHTS hardcoded fallback
   const w = {
@@ -96,6 +108,16 @@ export function calculatePRDQScore(
 
   // Hard bounds: score must always be 0–100 and finite
   overall = Math.max(0, Math.min(100, isFinite(overall) ? overall : 0));
+
+  // ── P5 Structural Impact bonus (max +8 pts) ───────────────────────────────
+  // Applied only when P5 data is present and score is above neutral (50).
+  // Scales from 0 pts (score=50) to +8 pts (score=100). Never subtracts.
+  const p5Result = scoreP5StructuralImpact(assessmentData);
+  if (p5Result.isApplicable && p5Result.score > 50) {
+    const bonusFraction = (p5Result.score - 50) / 50; // 0–1
+    const p5Bonus = Math.round(bonusFraction * 8);    // 0–8 pts
+    overall = Math.min(100, overall + p5Bonus);
+  }
 
   // Calculate trends if previous score exists
   const calculateTrend = (current: number, previous?: number): { trend: 'up' | 'down' | 'neutral', change: number } => {

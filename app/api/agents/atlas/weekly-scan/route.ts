@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { withCircuitBreaker } from '@/lib/circuit-breaker'
 
 // POST /api/agents/atlas/weekly-scan
 // Re-scrapes all tracked competitors via Tavily, diffs against last snapshot,
@@ -47,7 +48,7 @@ export async function POST() {
     for (const comp of competitors) {
       let currentData = ''
       if (tavilyKey && comp.url) {
-        try {
+        currentData = await withCircuitBreaker('tavily', async () => {
           const res = await fetch('https://api.tavily.com/search', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -59,41 +60,34 @@ export async function POST() {
               include_domains: comp.url ? [new URL(comp.url.startsWith('http') ? comp.url : `https://${comp.url}`).hostname] : undefined,
             }),
           })
-          if (res.ok) {
-            const data = await res.json()
-            currentData = (data.results ?? [])
-              .slice(0, 3)
-              .map((r: { title: string; content: string; url: string }) =>
-                `${r.title}: ${r.content?.slice(0, 300)}`
-              )
-              .join('\n')
-          }
-        } catch { /* non-fatal */ }
+          if (!res.ok) return ''
+          const data = await res.json()
+          return (data.results ?? [])
+            .slice(0, 3)
+            .map((r: { title: string; content: string; url: string }) => `${r.title}: ${r.content?.slice(0, 300)}`)
+            .join('\n')
+        }, '')
       }
 
-      if (!currentData) {
-        // Fallback: general search
-        if (tavilyKey) {
-          try {
-            const res = await fetch('https://api.tavily.com/search', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                api_key: tavilyKey,
-                query: `${comp.name} company news features product update 2026`,
-                max_results: 3,
-                search_depth: 'basic',
-              }),
-            })
-            if (res.ok) {
-              const data = await res.json()
-              currentData = (data.results ?? [])
-                .slice(0, 3)
-                .map((r: { title: string; content: string }) => `${r.title}: ${r.content?.slice(0, 300)}`)
-                .join('\n')
-            }
-          } catch { /* non-fatal */ }
-        }
+      if (!currentData && tavilyKey) {
+        currentData = await withCircuitBreaker('tavily', async () => {
+          const res = await fetch('https://api.tavily.com/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              api_key: tavilyKey,
+              query: `${comp.name} company news features product update 2026`,
+              max_results: 3,
+              search_depth: 'basic',
+            }),
+          })
+          if (!res.ok) return ''
+          const data = await res.json()
+          return (data.results ?? [])
+            .slice(0, 3)
+            .map((r: { title: string; content: string }) => `${r.title}: ${r.content?.slice(0, 300)}`)
+            .join('\n')
+        }, '')
       }
 
       const lastSnap = comp.last_snapshot as string | null

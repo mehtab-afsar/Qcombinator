@@ -20,6 +20,8 @@ import { llmChat } from '@/lib/llm/provider';
 import { getToolsForAgent } from '@/lib/llm/tools';
 import { executeTool } from '@/lib/tools/executor';
 import { getAgentContext, formatContextForPrompt } from '@/lib/agents/context';
+import { getRelevantResources, formatResourcesForPrompt } from '@/features/knowledge/library';
+import { withCircuitBreaker } from '@/lib/circuit-breaker';
 
 // ─── dedicated system prompt registry ────────────────────────────────────────
 
@@ -77,7 +79,7 @@ async function fetchTavilyResearch(query: string): Promise<Record<string, unknow
     return null;
   }
 
-  try {
+  return withCircuitBreaker('tavily', async () => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 15_000);
     const response = await fetch('https://api.tavily.com/search', {
@@ -109,10 +111,7 @@ async function fetchTavilyResearch(query: string): Promise<Record<string, unknow
         snippet: r.content?.slice(0, 400),
       })),
     };
-  } catch (err) {
-    console.error('Tavily fetch error:', err);
-    return null;
-  }
+  }, null);
 }
 
 // ─── usage limits ────────────────────────────────────────────────────────────
@@ -205,7 +204,7 @@ async function executeLeadEnrich(domain: string): Promise<string> {
   const cleanDomain = domain.trim().replace(/^https?:\/\//i, '').replace(/\/.*/,'').trim();
   if (!cleanDomain) return '*No domain provided for lead enrichment.*';
 
-  try {
+  return withCircuitBreaker('hunter_io', async () => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 10_000);
     const res = await fetch(
@@ -241,9 +240,7 @@ async function executeLeadEnrich(domain: string): Promise<string> {
       result += `| ${name} | ${lead.value} | ${title} | ${lead.confidence}% |\n`;
     }
     return result;
-  } catch {
-    return `Error enriching ${cleanDomain}. Please verify the domain and try again.`;
-  }
+  }, `*Hunter.io is temporarily unavailable. Please try again in a few minutes.*`);
 }
 
 // ─── main handler ────────────────────────────────────────────────────────────
@@ -312,6 +309,19 @@ export async function POST(request: NextRequest) {
       } catch {
         // Context injection failed — proceed without memory (non-fatal)
         console.warn('Agent context injection failed — proceeding without memory');
+      }
+    }
+
+    // ── Knowledge library RAG injection ──────────────────────────────────────
+    // Inject up to 2 curated resources relevant to the current message.
+    // Only fires after the first 2 messages (avoid injecting before context is set).
+    const userMsgCountForLibrary = (conversationHistory || []).filter((m: { role: string }) => m.role === 'user').length;
+    if (userMsgCountForLibrary >= 1) {
+      try {
+        const resources = await getRelevantResources(supabaseAdmin, agentId, message, 2);
+        systemPrompt += formatResourcesForPrompt(resources);
+      } catch {
+        // Non-critical — never block agent response
       }
     }
 

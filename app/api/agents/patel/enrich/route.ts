@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { withCircuitBreaker, isCircuitOpen } from '@/lib/circuit-breaker'
 
 // POST /api/agents/patel/enrich
 // Body: { domain, hunterApiKey? }
@@ -38,13 +39,25 @@ export async function POST(request: NextRequest) {
 
     const cleanDomain = domain.trim().replace(/^https?:\/\//i, '').replace(/\/.*/,'').trim()
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 10_000);
-    const res = await fetch(
-      `https://api.hunter.io/v2/domain-search?domain=${encodeURIComponent(cleanDomain)}&limit=10&api_key=${apiKey}`,
-      { method: 'GET', signal: controller.signal }
-    );
-    clearTimeout(timer);
+    if (isCircuitOpen('hunter_io')) {
+      return NextResponse.json({ error: 'Hunter.io is temporarily unavailable. Please try again in a few minutes.' }, { status: 503 })
+    }
+
+    let res: Response;
+    try {
+      res = await withCircuitBreaker('hunter_io', async () => {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 10_000);
+        const r = await fetch(
+          `https://api.hunter.io/v2/domain-search?domain=${encodeURIComponent(cleanDomain)}&limit=10&api_key=${apiKey}`,
+          { method: 'GET', signal: controller.signal }
+        );
+        clearTimeout(timer);
+        return r;
+      });
+    } catch {
+      return NextResponse.json({ error: 'Hunter.io request failed. Please try again.' }, { status: 502 })
+    }
 
     if (!res.ok) {
       const errData = await res.json().catch(() => ({})) as { errors?: { details: string }[] }

@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import {
   BarChart3, Bell, Brain, Building2, ChevronsUpDown,
-  GraduationCap, Home, LogOut, MessageSquare,
+  GraduationCap, Home, Library, LogOut, MessageSquare,
   Settings, Target, UserCircle, FolderOpen, Briefcase, Presentation,
 } from "lucide-react";
 import Link from "next/link";
@@ -26,12 +26,13 @@ const blue  = "#2563EB";
 // ─── nav items ────────────────────────────────────────────────────────────────
 const BASE_NAV = [
   { name: "Dashboard",         href: "/founder/dashboard", icon: Home,          badge: null    },
-  { name: "AI Agents",         href: "/founder/agents",    icon: Brain,         badge: "9"     },
+  { name: "CXO Suite",         href: "/founder/agents",    icon: Brain,         badge: "9"     },
   { name: "Workspace",         href: "/founder/workspace", icon: FolderOpen,    badge: null    },
   { name: "Portfolio",         href: "/founder/portfolio",  icon: Briefcase,     badge: null    },
   { name: "Pitch Deck",        href: "/founder/pitch-deck", icon: Presentation,  badge: null    },
   { name: "Investor Matching", href: "/founder/matching",   icon: Target,        badge: "Smart" },
   { name: "Academy",           href: "/founder/academy",   icon: GraduationCap, badge: "NEW"   },
+  { name: "Library",           href: "/library",            icon: Library,       badge: null    },
   { name: "Profile Builder",   href: "/founder/profile",         icon: Building2,     badge: null    },
   { name: "Startup Profile",  href: "/founder/startup-profile", icon: UserCircle,    badge: null    },
   { name: "Metrics",           href: "/founder/metrics",   icon: BarChart3,     badge: null    },

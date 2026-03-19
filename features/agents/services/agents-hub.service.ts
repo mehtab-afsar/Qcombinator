@@ -4,6 +4,7 @@
  */
 
 import { createClient } from '@/lib/supabase/client'
+import { AGENT_IDS } from '@/lib/constants/agent-ids'
 
 export interface AgentHubData {
   completedAgentIds: Set<string>
@@ -12,12 +13,12 @@ export interface AgentHubData {
 
 /** Dimension → agent ID mapping (mirrors DIMENSION_AGENT in the agents hub page). */
 const DIMENSION_AGENT: Record<string, string> = {
-  market:     'atlas',
-  product:    'nova',
-  goToMarket: 'patel',
-  financial:  'felix',
-  team:       'harper',
-  traction:   'susi',
+  market:     AGENT_IDS.ATLAS,
+  product:    AGENT_IDS.NOVA,
+  goToMarket: AGENT_IDS.PATEL,
+  financial:  AGENT_IDS.FELIX,
+  team:       AGENT_IDS.HARPER,
+  traction:   AGENT_IDS.SUSI,
 }
 
 /** Fetches completed agent IDs and recommended agents based on Q-Score. */

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { withCircuitBreaker } from '@/lib/circuit-breaker'
 
 // POST /api/agents/felix/investor-update
 // Body: { recipients, metricsSnapshot, subject? }
@@ -170,24 +171,25 @@ export async function POST(request: NextRequest) {
     let sentCount = 0
     for (const recipient of recipients) {
       try {
-        const res = await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${resendKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            from: 'Edge Alpha <noreply@edgealpha.ai>',
-            to: recipient,
-            subject,
-            html: bodyHtml,
-          }),
-        })
-        if (res.ok) sentCount++
-        else {
+        await withCircuitBreaker('resend', async () => {
+          const res = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${resendKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              from: 'Edge Alpha <noreply@edgealpha.ai>',
+              to: recipient,
+              subject,
+              html: bodyHtml,
+            }),
+          })
+          if (res.ok) { sentCount++; return }
           const errText = await res.text()
           console.error(`Resend error for ${recipient}:`, errText)
-        }
+          throw new Error(`Resend ${res.status}`)
+        })
       } catch (err) {
         console.error(`Failed to send to ${recipient}:`, err)
       }

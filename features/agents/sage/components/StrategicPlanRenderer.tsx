@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { bg, surf, bdr, ink, muted, green, amber, red, blue } from '../../shared/constants/colors'
+import { AGENT_IDS } from '@/lib/constants/agent-ids'
 
 export function StrategicPlanRenderer({ data, artifactId }: { data: Record<string, unknown>; artifactId?: string }) {
   const d = data as {
@@ -393,7 +394,7 @@ export function StrategicPlanRenderer({ data, artifactId }: { data: Record<strin
       .then(r => r.json())
       .then(d => {
         const felixEvent = (d.events ?? []).find((e: { agent_id: string; action_type: string }) =>
-          e.agent_id === 'felix' && ['stripe_sync', 'mrr_updated', 'invoice_created'].includes(e.action_type)
+          e.agent_id === AGENT_IDS.FELIX && ['stripe_sync', 'mrr_updated', 'invoice_created'].includes(e.action_type)
         );
         if (felixEvent) setFelixUpdate(felixEvent);
       })
@@ -598,7 +599,7 @@ document.addEventListener('keydown', e => {
               <div>
                 <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: muted, marginBottom: 6 }}>Also on the radar</p>
                 {focusResult.secondaryPriorities.map((sp, i) => (
-                  <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "6px 0", borderBottom: i < focusResult.secondaryPriorities!.length - 1 ? `1px solid ${bdr}` : "none" }}>
+                  <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "6px 0", borderBottom: i < (focusResult.secondaryPriorities?.length ?? 0) - 1 ? `1px solid ${bdr}` : "none" }}>
                     <span style={{ fontSize: 10, color: muted, flexShrink: 0, marginTop: 2 }}>{sp.urgency === "this_week" ? "→" : "···"}</span>
                     <div>
                       <p style={{ fontSize: 12, fontWeight: 600, color: ink }}>{sp.action}</p>
@@ -1521,7 +1522,7 @@ document.addEventListener('keydown', e => {
               rel="noopener noreferrer"
               onClick={() => {
                 // Copy all OKRs as markdown for pasting into Linear/Notion
-                const md = d.okrs!.map((okr, i) =>
+                const md = (d.okrs ?? []).map((okr, i) =>
                   `## O${i + 1}: ${okr.objective}\n${okr.keyResults.map(kr => `- **KR:** ${kr.kr} → ${kr.target} (${kr.metric})`).join("\n")}`
                 ).join("\n\n");
                 navigator.clipboard.writeText(md).catch(() => {});
@@ -1624,7 +1625,7 @@ document.addEventListener('keydown', e => {
         }
 
         const now = new Date();
-        const msItems = d.fundraisingMilestones!.map((m, mi) => {
+        const msItems = (d.fundraisingMilestones ?? []).map((m, mi) => {
           const target = parseMilestoneDate(m);
           const daysLeft = target ? Math.ceil((target.getTime() - now.getTime()) / 86400000) : null;
           return { idx: mi, text: m, target, daysLeft };

@@ -199,7 +199,7 @@ async function callAnthropicWithTools(
   // Convert tool definitions to Anthropic format
   const hasTools = options.tools && options.tools.length > 0;
   const anthropicTools = hasTools
-    ? options.tools!.map(t => ({
+    ? options.tools?.map(t => ({
         name: t.name,
         description: t.description,
         input_schema: t.parameters as Anthropic.Tool['input_schema'],

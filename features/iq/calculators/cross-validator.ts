@@ -211,7 +211,7 @@ export function runCrossValidation(
     // Attach flag to each target indicator
     for (const target of rule.flagTargets) {
       if (!flagMap.has(target)) flagMap.set(target, []);
-      flagMap.get(target)!.push({
+      flagMap.get(target)?.push({
         ruleCode: rule.code,
         description: rule.description,
         severity: rule.severity,

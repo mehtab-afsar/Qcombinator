@@ -174,7 +174,8 @@ export default function AgentChat() {
       if (!isPatel && res.headers.get("content-type")?.includes("text/event-stream")) {
         setUiMessages((p) => [...p, { role: "agent", text: "" }]);
         let fullText = "";
-        const reader = res.body!.getReader();
+        const reader = res.body?.getReader();
+        if (!reader) return;
         const decoder = new TextDecoder();
         let buffer = "";
 
@@ -540,8 +541,8 @@ export default function AgentChat() {
               <div style={{ minWidth: 0 }}>
                 <p style={{ fontSize: 14, fontWeight: 600, color: ink, lineHeight: 1.2 }}>
                   {agent.name}
-                  <span style={{ fontSize: 10, fontWeight: 500, color: accent, textTransform: "uppercase", letterSpacing: "0.12em", marginLeft: 8 }}>
-                    {pillar}
+                  <span style={{ fontSize: 10, fontWeight: 600, color: accent, letterSpacing: "0.08em", marginLeft: 8 }}>
+                    {(agent as typeof agent & { cxoTitle?: string }).cxoTitle ?? pillar}
                   </span>
                 </p>
                 <p style={{ fontSize: 11, color: muted, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>

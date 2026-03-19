@@ -95,10 +95,14 @@ async function sendOne(
       subject: personalizedSubject,
       html:    htmlBody,
     })
-    if (error) return { email: contact.email, status: 'failed', error: error.message }
+    if (error) {
+      console.error('[Outreach send] Resend error:', error);
+      return { email: contact.email, status: 'failed', error: 'send_failed' }
+    }
     return { email: contact.email, status: 'sent', resendId: data?.id }
   } catch (err) {
-    return { email: contact.email, status: 'failed', error: err instanceof Error ? err.message : 'Unknown error' }
+    console.error('[Outreach send] Unexpected error:', err);
+    return { email: contact.email, status: 'failed', error: 'send_failed' }
   }
 }
 

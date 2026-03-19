@@ -8,6 +8,8 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Globe, ChevronRight, Calendar, Users, Send, Crosshair, Share2 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { bg, surf, bdr, ink, muted, green, amber, red, blue } from '../../shared/constants/colors'
+import { ARTIFACT_TYPES } from '@/lib/constants/artifact-types'
+import { AGENT_IDS } from '@/lib/constants/agent-ids'
 
 export function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>; artifactId?: string }) {
   const d = data as {
@@ -332,7 +334,7 @@ export function PlaybookRenderer({ data, artifactId }: { data: Record<string, un
       const res = await fetch('/api/agents/landingpage/deploy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ artifactType: 'gtm_playbook', artifactContent: data, siteName: 'startup-landing', agentId: 'patel', artifactId }),
+        body: JSON.stringify({ artifactType: ARTIFACT_TYPES.GTM_PLAYBOOK, artifactContent: data, siteName: 'startup-landing', agentId: AGENT_IDS.PATEL, artifactId }),
       });
       const result = await res.json();
       if (res.ok) setDeployedUrl(result.url);
@@ -726,7 +728,7 @@ export function PlaybookRenderer({ data, artifactId }: { data: Record<string, un
                 <div style={{ background: surf, borderRadius: 8, padding: "10px 14px", border: `1px solid ${bdr}` }}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
                     <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase" }}>Post Body</p>
-                    <button onClick={() => { navigator.clipboard.writeText(directoriesResult!.hackerNews!.title + '\n\n' + directoriesResult!.hackerNews!.body); setCopiedDir('hn'); setTimeout(() => setCopiedDir(null), 1500); }} style={{ fontSize: 10, color: blue, background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>
+                    <button onClick={() => { navigator.clipboard.writeText((directoriesResult?.hackerNews?.title ?? '') + '\n\n' + (directoriesResult?.hackerNews?.body ?? '')); setCopiedDir('hn'); setTimeout(() => setCopiedDir(null), 1500); }} style={{ fontSize: 10, color: blue, background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>
                       {copiedDir === 'hn' ? "Copied!" : "Copy All"}
                     </button>
                   </div>

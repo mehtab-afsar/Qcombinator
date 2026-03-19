@@ -5,7 +5,7 @@
  * Adjusts raw scores to avoid misleading results from partial data.
  */
 
-import { AssessmentData } from '../types/qscore.types';
+import { AssessmentData, DataSourceMap, DataSourceType } from '../types/qscore.types';
 
 export interface DimensionConfidence {
   dimension: string;
@@ -74,4 +74,76 @@ export function adjustForConfidence(rawScore: number, conf: DimensionConfidence)
     return Math.round(rawScore * conf.confidence + baseline * (1 - conf.confidence));
   }
   return rawScore;
+}
+
+// ── Data-source multipliers ───────────────────────────────────────────────────
+// Stripe-verified data is trusted at face value.
+// Document-backed data earns a small discount (manual errors possible).
+// Self-reported only gets the largest discount — the core anti-gaming mechanism.
+const SOURCE_MULTIPLIER: Record<DataSourceType, number> = {
+  stripe:        1.00,
+  document:      0.85,
+  self_reported: 0.55,
+};
+
+// Which fields from DataSourceMap are most relevant per dimension
+const DIMENSION_SOURCE_FIELDS: Record<string, Array<keyof DataSourceMap>> = {
+  financial:  ['mrr', 'arr', 'monthlyBurn', 'runway', 'cogs'],
+  traction:   ['mrr', 'conversationCount', 'customerCommitment'],
+  market:     ['targetCustomers', 'lifetimeValue', 'conversionRate', 'costPerAcquisition'],
+  goToMarket: ['conversationCount', 'customerCommitment'],
+  // team + product are always self-reported (no external verification source)
+};
+
+/**
+ * Apply a data-source multiplier to a dimension score.
+ *
+ * If no dataSourceMap is provided (pre-Stripe, legacy assessments), score is unchanged.
+ * If some fields have explicit sources, we average the multipliers of known fields.
+ * Fields without an explicit source are assumed self_reported.
+ *
+ * Only dimensions with financially verifiable fields get penalised.
+ */
+export function applySourceMultiplier(
+  score: number,
+  dimension: string,
+  dataSourceMap?: DataSourceMap,
+): number {
+  if (!dataSourceMap) return score;
+
+  const relevantFields = DIMENSION_SOURCE_FIELDS[dimension];
+  if (!relevantFields || relevantFields.length === 0) return score;
+
+  const multipliers = relevantFields.map(field => {
+    const source = dataSourceMap[field] ?? 'self_reported';
+    return SOURCE_MULTIPLIER[source];
+  });
+
+  const avgMultiplier = multipliers.reduce((sum, m) => sum + m, 0) / multipliers.length;
+  return Math.round(score * avgMultiplier);
+}
+
+/**
+ * Summarise data sources for a given assessment — used in the UI
+ * to show founders what would lift their score.
+ */
+export function summariseDataSources(
+  dataSourceMap: DataSourceMap,
+): {
+  stripeFields: string[];
+  documentFields: string[];
+  selfReportedFields: string[];
+  hasStripe: boolean;
+} {
+  const stripeFields: string[] = [];
+  const documentFields: string[] = [];
+  const selfReportedFields: string[] = [];
+
+  for (const [field, source] of Object.entries(dataSourceMap)) {
+    if (source === 'stripe') stripeFields.push(field);
+    else if (source === 'document') documentFields.push(field);
+    else selfReportedFields.push(field);
+  }
+
+  return { stripeFields, documentFields, selfReportedFields, hasStripe: stripeFields.length > 0 };
 }

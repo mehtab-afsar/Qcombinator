@@ -23,8 +23,8 @@ const pillarAccent: Record<string, string> = {
 };
 
 const pillarLabel: Record<string, string> = {
-  "sales-marketing":    "Sales & Marketing",
-  "operations-finance": "Operations & Finance",
+  "sales-marketing":    "Marketing",
+  "operations-finance": "Finance & Operations",
   "product-strategy":   "Product & Strategy",
 };
 
@@ -60,13 +60,13 @@ export default function AgentsHub() {
         {/* header */}
         <div style={{ marginBottom: 32 }}>
           <p style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.18em", color: muted, fontWeight: 600, marginBottom: 10 }}>
-            AI Adviser Suite
+            CXO Suite
           </p>
           <h1 style={{ fontSize: "clamp(1.8rem,4vw,2.6rem)", fontWeight: 300, letterSpacing: "-0.03em", color: ink, marginBottom: 10 }}>
-            Your advisory board.
+            Your executive team.
           </h1>
           <p style={{ fontSize: 15, color: muted, lineHeight: 1.65, maxWidth: 520 }}>
-            Nine specialist advisers, each with deep domain expertise. Every conversation is context-aware and tied to your Q-Score.
+            Nine AI executives — CMO, CFO, CRO, CPO and more. Each has deep domain expertise, builds real deliverables, and improves your Q-Score.
           </p>
         </div>
 
@@ -174,6 +174,9 @@ export default function AgentsHub() {
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
                             <p style={{ fontSize: 15, fontWeight: 600, color: ink }}>{agent.name}</p>
+                            <span style={{ fontSize: 10, color: accent, fontWeight: 600, letterSpacing: "0.04em" }}>
+                              {(agent as typeof agent & { cxoTitle?: string }).cxoTitle}
+                            </span>
                             {isRecommended && (
                               <span style={{
                                 fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em",
@@ -223,7 +226,7 @@ export default function AgentsHub() {
 
         {/* footnote */}
         <p style={{ marginTop: 48, fontSize: 12, color: muted, opacity: 0.6, textAlign: "center" }}>
-          All 9 advisers are live · Powered by Claude 3.5 Haiku via OpenRouter
+          Your CXO team · 9 AI executives · Powered by Claude 3.5 Haiku via OpenRouter
         </p>
       </div>
     </div>

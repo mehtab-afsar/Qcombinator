@@ -99,7 +99,7 @@ export async function callOpenRouter(
       }
     }
 
-    // 402 — primary key hit credit limit: retry with fallback
+    // 402 — primary key hit credit limit: retry with fallback key
     if (res.status === 402 && fallbackKey && primaryKey) {
       console.warn('[openrouter] primary key hit limit — switching to fallback');
       const { controller: c3, clear: clear3 } = makeAbortController(TIMEOUT_MS);
@@ -112,6 +112,38 @@ export async function callOpenRouter(
         throw err;
       } finally {
         clear3();
+      }
+    }
+
+    // 402 on all paid keys — retry with a free model as last resort
+    if (res.status === 402) {
+      console.warn('[openrouter] all paid keys exhausted — falling back to free model');
+      const freeKey = primaryKey ?? fallbackKey!;
+      const { controller: c4, clear: clear4 } = makeAbortController(TIMEOUT_MS);
+      try {
+        res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          signal: c4.signal,
+          headers: {
+            Authorization: `Bearer ${freeKey}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': 'https://edgealpha.ai',
+            'X-Title': 'Edge Alpha Agents',
+          },
+          body: JSON.stringify({
+            model: 'meta-llama/llama-3.1-8b-instruct:free',
+            messages,
+            temperature,
+            max_tokens: maxTokens,
+          }),
+        });
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          throw new OpenRouterError('OpenRouter free-model request timed out after 30s', 0, true);
+        }
+        throw err;
+      } finally {
+        clear4();
       }
     }
 
@@ -186,6 +218,38 @@ export async function streamOpenRouter(
       }
       if (res.status === 429) {
         throw new OpenRouterError('OpenRouter rate limit exceeded — please try again later', 429);
+      }
+    }
+
+    // 402 — credits exhausted: retry stream with free model
+    if (res.status === 402) {
+      console.warn('[openrouter] stream credits exhausted — falling back to free model');
+      const { controller: c2, clear: clear2 } = makeAbortController(STREAM_TIMEOUT_MS);
+      try {
+        res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          signal: c2.signal,
+          headers: {
+            Authorization: `Bearer ${key}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': 'https://edgealpha.ai',
+            'X-Title': 'Edge Alpha Agents',
+          },
+          body: JSON.stringify({
+            model: 'meta-llama/llama-3.1-8b-instruct:free',
+            messages,
+            temperature,
+            max_tokens: maxTokens,
+            stream: true,
+          }),
+        });
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          throw new OpenRouterError('OpenRouter free-model stream timed out after 60s', 0, true);
+        }
+        throw err;
+      } finally {
+        clear2();
       }
     }
 

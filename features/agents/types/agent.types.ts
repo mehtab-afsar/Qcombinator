@@ -9,6 +9,8 @@ export type AgentPillar = 'sales-marketing' | 'operations-finance' | 'product-st
 export interface Agent {
   id: string;
   name: string;
+  /** CXO-equivalent title shown to founders and investors */
+  cxoTitle: string;
   pillar: AgentPillar;
   specialty: string;
   avatar: string;

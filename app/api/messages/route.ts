@@ -49,11 +49,10 @@ export async function GET(request: NextRequest) {
     // Mark messages sent to this user as read (fire-and-forget)
     const unread = (msgs ?? []).filter(m => m.sender_id !== user.id && !m.read_at).map(m => m.id)
     if (unread.length > 0) {
-      supabase
+      void supabase
         .from('messages')
         .update({ read_at: new Date().toISOString() })
         .in('id', unread)
-        .then(() => {})
     }
 
     return NextResponse.json({ messages: msgs ?? [] })

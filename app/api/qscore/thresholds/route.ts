@@ -68,7 +68,7 @@ export async function PATCH(request: NextRequest) {
       .select()
       .single();
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return NextResponse.json({ error: 'Failed to process request' }, { status: 500 });
 
     invalidateQScoreThresholdCache();
     return NextResponse.json({ updated });
@@ -105,7 +105,7 @@ export async function PUT(request: NextRequest) {
       .select()
       .single();
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return NextResponse.json({ error: 'Failed to process request' }, { status: 500 });
 
     invalidateQScoreThresholdCache();
     return NextResponse.json({ updated });

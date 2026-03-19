@@ -1,3 +1,4 @@
+import { withCircuitBreaker } from '@/lib/circuit-breaker'
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
@@ -18,7 +19,7 @@ function getAdmin() {
 async function tavilySearch(query: string): Promise<string> {
   const key = process.env.TAVILY_API_KEY
   if (!key) return ''
-  try {
+  return withCircuitBreaker('tavily', async () => {
     const res = await fetch('https://api.tavily.com/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -26,7 +27,7 @@ async function tavilySearch(query: string): Promise<string> {
     })
     const j = await res.json() as { results?: { title: string; content: string; url: string }[] }
     return (j.results ?? []).map(r => `${r.title}: ${r.content.slice(0, 200)}`).join('\n')
-  } catch { return '' }
+  }, '')
 }
 
 export async function POST() {

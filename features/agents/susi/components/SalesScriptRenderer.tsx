@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { CheckCircle2, ChevronRight, DollarSign, MessageSquare, BarChart3, Shield, BookOpen } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { bg, surf, bdr, ink, muted, green, amber, red, blue } from '../../shared/constants/colors'
+import { AGENT_IDS } from '@/lib/constants/agent-ids'
 import type { Deal } from '../../types/agent.types'
 
 export function SalesScriptRenderer({ data, artifactId }: { data: Record<string, unknown>; artifactId?: string }) {
@@ -354,7 +355,7 @@ export function SalesScriptRenderer({ data, artifactId }: { data: Record<string,
       .then(r => r.json())
       .then(d => {
         const event = (d.events ?? []).find((e: { agent_id: string; action_type: string; metadata?: Record<string, unknown> }) =>
-          e.agent_id === 'patel' && ['send_outreach', 'outreach_drafted'].includes(e.action_type)
+          e.agent_id === AGENT_IDS.PATEL && ['send_outreach', 'outreach_drafted'].includes(e.action_type)
         );
         if (event) setPatelUpdate(event);
       })

@@ -1,3 +1,4 @@
+import { withCircuitBreaker } from '@/lib/circuit-breaker'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { callOpenRouter } from '@/lib/openrouter'
@@ -10,7 +11,7 @@ const TAVILY_KEY = process.env.TAVILY_API_KEY
 
 async function tavilySearch(query: string): Promise<{ title: string; url: string; content: string }[]> {
   if (!TAVILY_KEY) return []
-  try {
+  return withCircuitBreaker('tavily', async () => {
     const res = await fetch('https://api.tavily.com/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -26,7 +27,7 @@ async function tavilySearch(query: string): Promise<{ title: string; url: string
     return (data.results ?? []).map((r: { title: string; url: string; content: string }) => ({
       title: r.title, url: r.url, content: r.content?.slice(0, 600) ?? '',
     }))
-  } catch { return [] }
+  }, [])
 }
 
 export async function POST(request: NextRequest) {

@@ -282,6 +282,7 @@ export default function LandingPage() {
               { label: "How it works", href: "#how-it-works" },
               { label: "Pricing",      href: "#pricing" },
               { label: "For investors", href: "#for-investors" },
+              { label: "Library",      href: "/library" },
             ].map((l) => (
               <a key={l.label} href={l.href}
                 className="text-[13px] font-light transition-opacity hover:opacity-70"
@@ -314,6 +315,7 @@ export default function LandingPage() {
               <a href="#how-it-works" className="block text-sm font-light" style={{ color: "#8A867C" }} onClick={() => setMobileOpen(false)}>How it works</a>
               <a href="#pricing" className="block text-sm font-light" style={{ color: "#8A867C" }} onClick={() => setMobileOpen(false)}>Pricing</a>
               <a href="#for-investors" className="block text-sm font-light" style={{ color: "#8A867C" }} onClick={() => setMobileOpen(false)}>For investors</a>
+              <a href="/library" className="block text-sm font-light" style={{ color: "#8A867C" }} onClick={() => setMobileOpen(false)}>Library</a>
               <GetStartedDropdown
                 label="Get started free"
                 className="w-full text-sm font-medium py-3 rounded-full"
@@ -1180,6 +1182,65 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ── KNOWLEDGE LIBRARY ──────────────────────────────────────────────── */}
+      <section className="py-16 sm:py-24 px-4 sm:px-6" style={{ background: "#F9F7F2", borderTop: "1px solid #E2DDD5" }}>
+        <div className="mx-auto max-w-7xl">
+          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-12">
+            <div>
+              <span className="font-ea-mono text-[10px] tracking-[0.28em] uppercase block mb-3" style={{ color: "#8A867C" }}>
+                Free resource
+              </span>
+              <h2 className="text-3xl sm:text-4xl tracking-tight" style={{ fontWeight: 300, color: "#18160F" }}>
+                Startup Playbook Library
+              </h2>
+              <p className="mt-3 text-base font-light max-w-xl" style={{ color: "#8A867C" }}>
+                60+ curated frameworks from YC, a16z, Bessemer, and HBR — surfaced by your AI team when you need them. Free to browse.
+              </p>
+            </div>
+            <a
+              href="/library"
+              className="shrink-0 inline-flex items-center gap-2 text-[13px] font-medium px-5 py-2.5 rounded-full transition-all hover:scale-[1.03]"
+              style={{ background: "#18160F", color: "#F9F7F2" }}
+            >
+              Browse library →
+            </a>
+          </div>
+
+          {/* Resource preview grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[
+              { icon: "⚙️", type: "Framework", title: "SaaS Metrics 2.0", source: "David Skok · For Entrepreneurs", fn: "CFO", color: "#D97706" },
+              { icon: "📋", type: "Playbook", title: "ICP Narrowing Worksheet", source: "First Round Capital", fn: "CMO", color: "#2563EB" },
+              { icon: "📖", type: "Framework", title: "The Burn Multiple", source: "David Sacks · Craft Ventures", fn: "CFO", color: "#D97706" },
+              { icon: "⚙️", type: "Framework", title: "MEDDIC Sales Qualification", source: "Jack Napoli · PTC", fn: "CRO", color: "#16A34A" },
+              { icon: "📖", type: "Guide", title: "How to Find Product-Market Fit", source: "Gustaf Alströmer · YC", fn: "CPO", color: "#DB2777" },
+              { icon: "⚙️", type: "Framework", title: "7 Powers: Competitive Moats", source: "Hamilton Helmer", fn: "CSO", color: "#059669" },
+            ].map((r) => (
+              <a
+                key={r.title}
+                href="/library"
+                className="block p-5 rounded-xl transition-all hover:scale-[1.01] hover:shadow-sm"
+                style={{ background: "#F0EDE6", border: "1px solid #E2DDD5", textDecoration: "none" }}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="text-2xl mt-0.5">{r.icon}</div>
+                  <div>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="text-[10px] font-medium px-2 py-0.5 rounded" style={{ background: r.color + "20", color: r.color }}>
+                        {r.fn}
+                      </span>
+                      <span className="text-[10px]" style={{ color: "#B5B0A8" }}>{r.type}</span>
+                    </div>
+                    <p className="text-[14px] font-medium leading-snug mb-1" style={{ color: "#18160F" }}>{r.title}</p>
+                    <p className="text-[12px] font-light" style={{ color: "#8A867C" }}>{r.source}</p>
+                  </div>
+                </div>
+              </a>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ── FINAL CTA ─────────────────────────────────────────────────────── */}
       <section className="py-24 sm:py-40 px-4 sm:px-6 text-center" style={{ background: "var(--ea-bg)" }}>
         <motion.div
@@ -1225,15 +1286,30 @@ export default function LandingPage() {
               </p>
             </div>
             {[
-              { title: "Product",   links: ["Q-Score", "AI Agents", "Academy", "Marketplace"] },
-              { title: "Resources", links: ["Blog", "Guides", "Podcast", "Newsletter"] },
-              { title: "Company",   links: ["About", "Careers", "Contact", "Privacy"] },
+              { title: "Product", links: [
+                { label: "Q-Score", href: "/founder/improve-qscore" },
+                { label: "CXO Suite", href: "/founder/agents" },
+                { label: "Academy", href: "/founder/academy" },
+                { label: "Investor Matching", href: "/founder/matching" },
+              ]},
+              { title: "Resources", links: [
+                { label: "Startup Library", href: "/library" },
+                { label: "Frameworks", href: "/library?type=framework" },
+                { label: "Playbooks", href: "/library?type=playbook" },
+                { label: "Templates", href: "/library?type=template" },
+              ]},
+              { title: "Company", links: [
+                { label: "For Founders", href: "/founder/onboarding" },
+                { label: "For Investors", href: "/investor/onboarding" },
+                { label: "Contact", href: "#" },
+                { label: "Privacy", href: "#" },
+              ]},
             ].map((col) => (
               <div key={col.title}>
                 <p className="text-[10px] uppercase tracking-[0.18em] font-medium mb-4" style={{ color: "#B5B0A8" }}>{col.title}</p>
                 <ul className="space-y-2.5">
                   {col.links.map((l) => (
-                    <li key={l}><a href="#" className="text-[13px] font-light transition-opacity hover:opacity-60" style={{ color: "#8A867C" }}>{l}</a></li>
+                    <li key={l.label}><a href={l.href} className="text-[13px] font-light transition-opacity hover:opacity-60" style={{ color: "#8A867C" }}>{l.label}</a></li>
                   ))}
                 </ul>
               </div>

@@ -26,6 +26,7 @@ import {
   ConsistencyFlag,
   EvidenceCitation,
 } from '../types/iq.types';
+import type { BluffSignal } from '@/features/qscore/utils/bluff-detection';
 import { fetchIndicatorConfig, scoreValue, finalizeScore } from './indicator-scorer';
 import { resolveAllIndicators, ResolverContext } from './data-resolver';
 import { reconcileIndicator } from './ai-reconciler';
@@ -128,6 +129,8 @@ export interface IQOrchestratorInput extends ResolverContext {
   supabase: SupabaseClient;
   /** If true, skip Tavily calls (for testing or when quota exhausted) */
   skipTavily?: boolean;
+  /** Bluff signals from Q-Score pipeline — applied as confidence penalties on self-reported indicators */
+  bluffSignals?: BluffSignal[];
 }
 
 /**
@@ -135,7 +138,29 @@ export interface IQOrchestratorInput extends ResolverContext {
  * Returns a complete IQScore with per-indicator audit trail.
  */
 export async function runIQScoring(input: IQOrchestratorInput): Promise<IQScore> {
-  const { userId, supabase, assessment, artifacts, stripe, profile, skipTavily } = input;
+  const { userId, supabase, assessment, artifacts, stripe, profile, skipTavily, bluffSignals } = input;
+
+  // Build bluff-derived confidence flags for self-reported / AI-estimated indicators
+  const bluffConsistencyFlags: ConsistencyFlag[] = [];
+  if (bluffSignals && bluffSignals.length > 0) {
+    const highBluffs = bluffSignals.filter(b => b.severity === 'high');
+    const medBluffs  = bluffSignals.filter(b => b.severity === 'medium');
+    if (highBluffs.length > 0) {
+      bluffConsistencyFlags.push({
+        ruleCode: 'BLUFF_SIGNAL_HIGH',
+        description: `Q-Score bluff detection: ${highBluffs.map(b => b.description).join('; ')}`,
+        severity: 'high',
+        indicatorsInvolved: [],
+      });
+    } else if (medBluffs.length >= 2) {
+      bluffConsistencyFlags.push({
+        ruleCode: 'BLUFF_SIGNAL_MEDIUM',
+        description: `Q-Score bluff detection: ${medBluffs.length} medium-severity signal(s)`,
+        severity: 'medium',
+        indicatorsInvolved: [],
+      });
+    }
+  }
 
   const assessmentExtra = assessment as unknown as Record<string, unknown>;
   const sector = profile?.sector ?? (assessmentExtra.sector as string | undefined) ?? 'saas_b2b';
@@ -310,10 +335,16 @@ export async function runIQScoring(input: IQOrchestratorInput): Promise<IQScore>
     const config = configMap.get(r.code);
     const flags: ConsistencyFlag[] = getFlagsForIndicator(r.code, flagMap);
 
+    // Apply bluff penalty only on unverified sources
+    const bluffFlagsForIndicator: ConsistencyFlag[] =
+      (r.dataSource === 'self_reported' || r.dataSource === 'ai_reconciled_estimated')
+        ? bluffConsistencyFlags
+        : [];
+
     const { effectiveScore, finalConfidence } = computeEffectiveScore(
       r.rawScore ?? 1,
       r.dataSource,
-      flags
+      [...flags, ...bluffFlagsForIndicator]
     );
 
     const citations: EvidenceCitation[] = r.evidenceQuotes.map(q => ({

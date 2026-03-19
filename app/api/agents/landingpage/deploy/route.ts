@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import crypto from 'crypto'
+import { withCircuitBreaker } from '@/lib/circuit-breaker'
 
 const NETLIFY_API = 'https://api.netlify.com/api/v1'
 
@@ -43,58 +44,49 @@ export async function POST(request: NextRequest) {
     let siteId = existing?.netlify_site_id
     let siteUrl = existing?.url
 
-    // Create site if none exists
-    if (!siteId) {
-      const createRes = await fetch(`${NETLIFY_API}/sites`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${NETLIFY_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ name: `${slug}-${Date.now()}` }),
-      })
-      if (!createRes.ok) {
-        const err = await createRes.text()
-        console.error('Netlify create site error:', err)
-        return NextResponse.json({ error: 'Failed to create Netlify site' }, { status: 502 })
-      }
-      const site = await createRes.json()
-      siteId = site.id
-      siteUrl = site.ssl_url || site.url
-    }
-
-    // Deploy via Files API (hash + upload)
+    // Deploy via Netlify (all three API calls wrapped in circuit breaker)
     const htmlBytes = Buffer.from(html, 'utf-8')
     const htmlHash  = crypto.createHash('sha1').update(htmlBytes).digest('hex')
 
-    const deployRes = await fetch(`${NETLIFY_API}/sites/${siteId}/deploys`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${NETLIFY_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ files: { '/index.html': htmlHash } }),
-    })
-    if (!deployRes.ok) {
-      const err = await deployRes.text()
-      console.error('Netlify deploy error:', err)
-      return NextResponse.json({ error: 'Failed to create deploy' }, { status: 502 })
-    }
-    const deploy = await deployRes.json()
+    let deploy: { id: string; required?: string[] }
+    try {
+      const result = await withCircuitBreaker('netlify', async () => {
+        // Create site if none exists
+        if (!siteId) {
+          const createRes = await fetch(`${NETLIFY_API}/sites`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${NETLIFY_API_KEY}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: `${slug}-${Date.now()}` }),
+          })
+          if (!createRes.ok) throw new Error(`Netlify create site failed: ${await createRes.text()}`)
+          const site = await createRes.json()
+          siteId  = site.id
+          siteUrl = site.ssl_url || site.url
+        }
 
-    // Upload the file if required
-    if (deploy.required?.includes(htmlHash) || deploy.required_functions?.length >= 0) {
-      const uploadRes = await fetch(`${NETLIFY_API}/deploys/${deploy.id}/files/index.html`, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${NETLIFY_API_KEY}`,
-          'Content-Type': 'application/octet-stream',
-        },
-        body: htmlBytes,
+        const deployRes = await fetch(`${NETLIFY_API}/sites/${siteId}/deploys`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${NETLIFY_API_KEY}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ files: { '/index.html': htmlHash } }),
+        })
+        if (!deployRes.ok) throw new Error(`Netlify deploy failed: ${await deployRes.text()}`)
+        const dep = await deployRes.json()
+
+        if (dep.required?.includes(htmlHash)) {
+          const uploadRes = await fetch(`${NETLIFY_API}/deploys/${dep.id}/files/index.html`, {
+            method: 'PUT',
+            headers: { Authorization: `Bearer ${NETLIFY_API_KEY}`, 'Content-Type': 'application/octet-stream' },
+            body: htmlBytes,
+          })
+          if (!uploadRes.ok) console.error('Netlify upload error:', await uploadRes.text())
+        }
+
+        return dep
       })
-      if (!uploadRes.ok) {
-        console.error('Netlify upload error:', await uploadRes.text())
-      }
+      deploy = result
+    } catch (err) {
+      console.error('Netlify deploy error:', err)
+      return NextResponse.json({ error: 'Netlify deployment failed. Please try again.' }, { status: 502 })
     }
 
     const liveUrl = siteUrl || `https://${siteId}.netlify.app`

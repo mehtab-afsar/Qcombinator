@@ -4,6 +4,7 @@
  */
 
 import { MetricsData } from '../types/founder.types'
+import { ARTIFACT_TYPES } from '@/lib/constants/artifact-types'
 
 /** Fetches MetricsData from Supabase (financial_summary artifact → qscore_history fallback).
  *  Returns null if neither source has usable data or the user is unauthenticated.
@@ -19,7 +20,7 @@ export async function fetchMetricsFromSupabase(): Promise<MetricsData | null> {
     .from('agent_artifacts')
     .select('content, created_at')
     .eq('user_id', user.id)
-    .eq('artifact_type', 'financial_summary')
+    .eq('artifact_type', ARTIFACT_TYPES.FINANCIAL_SUMMARY)
     .order('created_at', { ascending: false })
     .limit(1)
 

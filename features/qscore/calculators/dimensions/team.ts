@@ -9,6 +9,7 @@
 import { AssessmentData } from '../../types/qscore.types';
 import { SemanticEvaluation } from '../../rag/types';
 import { ThresholdMap, scoreTiers, getTiers } from '../../services/threshold-config';
+import { scoreP4FounderTeam } from '../parameters/p4-founder-team';
 
 function semPts(qualityScore: number, maxPts: number): number {
   const q = isFinite(qualityScore) && !isNaN(qualityScore) ? qualityScore : 0;
@@ -135,6 +136,21 @@ export function calculateTeamScore(
     points += 3;
   }
 
-  const raw = isFinite(points) ? Math.round((points / maxPoints) * 100) : 0;
-  return { score: Math.max(0, Math.min(100, raw)), rawPoints: Math.max(0, points), maxPoints };
+  const baseRaw = isFinite(points) ? Math.round((points / maxPoints) * 100) : 0;
+  const baseScore = Math.max(0, Math.min(100, baseRaw));
+
+  // ── P4 blend (Founder / Team sub-indicators) ──────────────────────────────
+  const hasP4Data = !!(data.p4 && (
+    data.p4.domainYears !== undefined || data.p4.founderMarketFit ||
+    data.p4.priorExits !== undefined || data.p4.teamCoverage || data.p4.teamCohesionMonths !== undefined
+  ));
+
+  if (!hasP4Data) {
+    return { score: baseScore, rawPoints: Math.max(0, points), maxPoints };
+  }
+
+  const p4Result = scoreP4FounderTeam(data);
+  // 55% existing team score + 45% P4 score
+  const blended = Math.round(baseScore * 0.55 + p4Result.score * 0.45);
+  return { score: Math.max(0, Math.min(100, blended)), rawPoints: Math.max(0, points), maxPoints };
 }

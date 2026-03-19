@@ -69,7 +69,7 @@ export async function fetchQScoreThresholds(supabase: SupabaseClient): Promise<T
   }>) {
     const key = `${row.dimension}.${row.metric}`;
     if (!map.has(key)) map.set(key, []);
-    map.get(key)!.push({
+    map.get(key)?.push({
       tierRank: row.tier_rank,
       minValue: row.min_value,
       maxValue: row.max_value,
@@ -107,7 +107,7 @@ export async function fetchDimensionWeights(
   weightCache = new Map();
   for (const row of data as Array<{ sector: string; dimension: string; weight: number }>) {
     if (!weightCache.has(row.sector)) weightCache.set(row.sector, new Map());
-    weightCache.get(row.sector)!.set(row.dimension, row.weight);
+    weightCache.get(row.sector)?.set(row.dimension, row.weight);
   }
   weightCachedAt = now;
 

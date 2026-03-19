@@ -25,7 +25,13 @@ export async function GET() {
         location,
         funding,
         startup_profile_data,
-        updated_at
+        updated_at,
+        stripe_verified,
+        signal_strength,
+        integrity_index,
+        momentum_score,
+        behavioural_score,
+        visibility_gated
       `)
       .eq('onboarding_completed', true)
       .eq('role', 'founder')
@@ -135,29 +141,78 @@ export async function GET() {
           agentActionsThisWeek,
           totalDeliverables,
           isActiveFounder: agentActionsThisWeek >= 3,
+          // External verification signals
+          stripeVerified:   (f as Record<string, unknown>).stripe_verified   ?? false,
+          signalStrength:   (f as Record<string, unknown>).signal_strength   ?? null,
+          integrityIndex:   (f as Record<string, unknown>).integrity_index   ?? null,
+          momentumScore:    (f as Record<string, unknown>).momentum_score    ?? null,
+          behaviouralScore: (f as Record<string, unknown>).behavioural_score ?? null,
+          visibilityGated:  (f as Record<string, unknown>).visibility_gated  ?? false,
         }
       })
 
-    // Fetch investor's AI personalization for match scores
-    const { data: investorProfile } = await supabase
-      .from('investor_profiles')
-      .select('ai_personalization')
-      .eq('user_id', user.id)
-      .single()
+    // Fetch investor's AI personalization + custom parameter weights
+    const [{ data: investorProfile }, { data: investorWeights }] = await Promise.all([
+      supabase
+        .from('investor_profiles')
+        .select('ai_personalization')
+        .eq('user_id', user.id)
+        .single(),
+      supabase
+        .from('investor_parameter_weights')
+        .select('weight_market, weight_product, weight_gtm, weight_financial, weight_team, weight_traction')
+        .eq('investor_user_id', user.id)
+        .single(),
+    ]);
 
     const aiMatches = (investorProfile?.ai_personalization as { matches?: Record<string, { score: number; reason: string }> } | null)?.matches ?? {}
 
-    // Apply personalized match scores where available
-    const withMatch = enriched.map(f => ({
-      ...f,
-      matchScore: aiMatches[f.id]?.score ?? Math.round(50 + (f.qScore / 100) * 40),
-      matchReason: aiMatches[f.id]?.reason ?? null,
-    }))
+    type WeightRow = { weight_market: number; weight_product: number; weight_gtm: number; weight_financial: number; weight_team: number; weight_traction: number } | null;
+    const iw = investorWeights as WeightRow;
 
-    // Sort by personalized match score, then by Q-Score as tiebreaker
-    withMatch.sort((a, b) => b.matchScore - a.matchScore || b.qScore - a.qScore)
+    // Apply personalized match scores + custom weighted Q-Score
+    const withMatch = enriched.map(f => {
+      const baseMatch = aiMatches[f.id]?.score ?? Math.round(50 + (f.qScore / 100) * 40);
+      // If investor has custom weights, recalculate match score using them
+      // (uses dimension scores from qscore_history if available via latestQScore map)
+      const qrow = latestQScore.get(f.id);
+      let weightedQScore = f.qScore;
+      if (iw && qrow) {
+        const total = iw.weight_market + iw.weight_product + iw.weight_gtm + iw.weight_financial + iw.weight_team + iw.weight_traction;
+        if (total > 0) {
+          weightedQScore = Math.round(
+            (qrow.market_score   * iw.weight_market   +
+             qrow.product_score  * iw.weight_product  +
+             qrow.gtm_score      * iw.weight_gtm      +
+             qrow.financial_score* iw.weight_financial +
+             qrow.team_score     * iw.weight_team     +
+             qrow.traction_score * iw.weight_traction) / total
+          );
+        }
+      }
+      return {
+        ...f,
+        weightedQScore,
+        matchScore: aiMatches[f.id]?.score ?? Math.round(50 + (weightedQScore / 100) * 40),
+        matchReason: aiMatches[f.id]?.reason ?? null,
+      };
+    });
 
-    return NextResponse.json({ founders: withMatch })
+    // Gate visibility: filter out founders below Signal Strength 40
+    const visible = withMatch.filter(f => !f.visibilityGated);
+
+    // Sort by momentum first (hot founders first), then match score, then Q-Score
+    visible.sort((a, b) => {
+      const mA = (a.momentumScore as number | null) ?? 0;
+      const mB = (b.momentumScore as number | null) ?? 0;
+      if (mB !== mA) return (mB as number) - (mA as number);
+      return b.matchScore - a.matchScore || b.qScore - a.qScore;
+    });
+
+    return NextResponse.json({
+      founders: visible,
+      meta: { totalFounders: withMatch.length, gated: withMatch.length - visible.length },
+    })
   } catch (err) {
     console.error('Deal flow GET error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

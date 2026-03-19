@@ -1,5 +1,7 @@
 import { Agent, AgentPillar } from "@/features/agents/types/agent.types";
 import { DIMENSIONS } from "@/lib/constants/dimensions";
+import { ARTIFACT_TYPES } from "@/lib/constants/artifact-types";
+import { AGENT_IDS } from "@/lib/constants/agent-ids";
 
 /**
  * Edge Alpha AI Agents
@@ -11,8 +13,9 @@ export const agents: Agent[] = [
   // PILLAR 1: SALES & MARKETING
   // ============================================================================
   {
-    id: 'patel',
+    id: AGENT_IDS.PATEL,
     name: 'Patel',
+    cxoTitle: 'CMO',
     pillar: 'sales-marketing',
     specialty: 'Go-to-Market Strategy',
     avatar: 'P',
@@ -31,8 +34,9 @@ export const agents: Agent[] = [
     // artifactType handled by Patel's own tool_call system (icp_document, outreach_sequence, battle_card, gtm_playbook)
   },
   {
-    id: 'susi',
+    id: AGENT_IDS.SUSI,
     name: 'Susi',
+    cxoTitle: 'CRO',
     pillar: 'sales-marketing',
     specialty: 'Sales & Lead Generation',
     avatar: 'S',
@@ -48,11 +52,12 @@ export const agents: Agent[] = [
     ],
     improvesScore: DIMENSIONS.TRACTION,
     color: 'blue',
-    artifactType: 'sales_script',
+    artifactType: ARTIFACT_TYPES.SALES_SCRIPT,
   },
   {
-    id: 'maya',
+    id: AGENT_IDS.MAYA,
     name: 'Maya',
+    cxoTitle: 'Brand Director',
     pillar: 'sales-marketing',
     specialty: 'Brand & Content Marketing',
     avatar: 'M',
@@ -68,15 +73,16 @@ export const agents: Agent[] = [
     ],
     improvesScore: DIMENSIONS.GTM,
     color: 'blue',
-    artifactType: 'brand_messaging',
+    artifactType: ARTIFACT_TYPES.BRAND_MESSAGING,
   },
 
   // ============================================================================
   // PILLAR 2: OPERATIONS & FINANCE
   // ============================================================================
   {
-    id: 'felix',
+    id: AGENT_IDS.FELIX,
     name: 'Felix',
+    cxoTitle: 'CFO',
     pillar: 'operations-finance',
     specialty: 'Financial Modeling & Metrics',
     avatar: 'F',
@@ -92,11 +98,12 @@ export const agents: Agent[] = [
     ],
     improvesScore: 'financial',
     color: 'green',
-    artifactType: 'financial_summary',
+    artifactType: ARTIFACT_TYPES.FINANCIAL_SUMMARY,
   },
   {
-    id: 'leo',
+    id: AGENT_IDS.LEO,
     name: 'Leo',
+    cxoTitle: 'General Counsel',
     pillar: 'operations-finance',
     specialty: 'Legal & Compliance',
     avatar: 'L',
@@ -112,11 +119,12 @@ export const agents: Agent[] = [
     ],
     improvesScore: 'team',
     color: 'green',
-    artifactType: 'legal_checklist',
+    artifactType: ARTIFACT_TYPES.LEGAL_CHECKLIST,
   },
   {
-    id: 'harper',
+    id: AGENT_IDS.HARPER,
     name: 'Harper',
+    cxoTitle: 'Chief People Officer',
     pillar: 'operations-finance',
     specialty: 'HR & Team Building',
     avatar: 'H',
@@ -132,15 +140,16 @@ export const agents: Agent[] = [
     ],
     improvesScore: 'team',
     color: 'green',
-    artifactType: 'hiring_plan',
+    artifactType: ARTIFACT_TYPES.HIRING_PLAN,
   },
 
   // ============================================================================
   // PILLAR 3: PRODUCT & STRATEGY
   // ============================================================================
   {
-    id: 'nova',
+    id: AGENT_IDS.NOVA,
     name: 'Nova',
+    cxoTitle: 'CPO',
     pillar: 'product-strategy',
     specialty: 'Product-Market Fit',
     avatar: 'N',
@@ -156,11 +165,12 @@ export const agents: Agent[] = [
     ],
     improvesScore: 'product',
     color: 'purple',
-    artifactType: 'pmf_survey',
+    artifactType: ARTIFACT_TYPES.PMF_SURVEY,
   },
   {
-    id: 'atlas',
+    id: AGENT_IDS.ATLAS,
     name: 'Atlas',
+    cxoTitle: 'Chief Strategy Officer',
     pillar: 'product-strategy',
     specialty: 'Competitive Intelligence',
     avatar: 'A',
@@ -176,11 +186,12 @@ export const agents: Agent[] = [
     ],
     improvesScore: 'market',
     color: 'purple',
-    artifactType: 'competitive_matrix',
+    artifactType: ARTIFACT_TYPES.COMPETITIVE_MATRIX,
   },
   {
-    id: 'sage',
+    id: AGENT_IDS.SAGE,
     name: 'Sage',
+    cxoTitle: 'CEO Advisor',
     pillar: 'product-strategy',
     specialty: 'Strategic Planning',
     avatar: 'S',
@@ -196,7 +207,7 @@ export const agents: Agent[] = [
     ],
     improvesScore: 'market',
     color: 'purple',
-    artifactType: 'strategic_plan',
+    artifactType: ARTIFACT_TYPES.STRATEGIC_PLAN,
   }
 ];
 

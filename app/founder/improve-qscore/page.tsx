@@ -33,6 +33,8 @@ import {
 import Link from "next/link";
 import { useQScore } from "@/features/qscore/hooks/useQScore";
 import { SECTOR_CONFIGS, Sector, applyWeights } from "@/features/qscore/utils/sector-weights";
+import { createClient } from "@/lib/supabase/client";
+import type { GTMDiagnosticsResult } from "@/features/qscore/diagnostics/gtm-diagnostics";
 
 // ─── AI action type ────────────────────────────────────────────────────────────
 interface AIAction {
@@ -205,6 +207,7 @@ export default function ImproveQScorePage() {
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [evidenceList, setEvidenceList] = useState<Array<{ id: string; dimension: string; evidence_type: string; title: string; data_value: string; status: string; points_awarded: number; created_at: string }>>([]);
   const [conflicts, setConflicts] = useState<Array<{ dimension: string; text: string; fix: string }>>([]);
+  const [gtmDiag, setGtmDiag] = useState<GTMDiagnosticsResult | null>(null);
   const [showEvidenceForm, setShowEvidenceForm] = useState(false);
   const [evidenceDim,  setEvidenceDim]  = useState("traction");
   const [evidenceType, setEvidenceType] = useState("stripe_screenshot");
@@ -279,6 +282,26 @@ export default function ImproveQScorePage() {
     fetch("/api/qscore/benchmarks")
       .then(r => r.json())
       .then(data => { if (data.benchmarks) setBenchmarks(data.benchmarks); })
+      .catch(() => {});
+
+    // Load persisted GTM diagnostics from the latest qscore_history row
+    createClient()
+      .auth.getUser()
+      .then(({ data: { user } }) => {
+        if (!user) return;
+        return createClient()
+          .from('qscore_history')
+          .select('gtm_diagnostics')
+          .eq('user_id', user.id)
+          .order('calculated_at', { ascending: false })
+          .limit(1)
+          .single();
+      })
+      .then(res => {
+        const diag = (res as { data?: { gtm_diagnostics?: GTMDiagnosticsResult } } | null | undefined)
+          ?.data?.gtm_diagnostics;
+        if (diag) setGtmDiag(diag);
+      })
       .catch(() => {});
 
     import("@/features/founder/services/improve-qscore.service")
@@ -741,6 +764,56 @@ export default function ImproveQScorePage() {
             })}
           </div>
         </div>
+
+        {/* ── GTM Diagnostics ─────────────────────────────────── */}
+        {gtmDiag && (dimScores.goToMarket ?? 100) < 70 && (
+          <div style={{ marginBottom: 36 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+              <Target size={16} style={{ color: amber }} />
+              <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: muted }}>
+                GTM Diagnostics — Why your Go-to-Market score is low
+              </span>
+            </div>
+            <p style={{ fontSize: 13, color: muted, marginBottom: 16 }}>
+              {gtmDiag.primaryGap
+                ? `Top gap: ${gtmDiag.primaryGap}`
+                : "Detailed breakdown of your 3 GTM sub-scores."}
+            </p>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+              {([gtmDiag.D1, gtmDiag.D2, gtmDiag.D3] as typeof gtmDiag.D1[]).map((d) => {
+                const gradeColor = d.grade === "strong" ? green : d.grade === "weak" ? amber : red;
+                return (
+                  <div key={d.id} style={{ ...cardStyle, padding: "16px 18px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: ink }}>{d.name}</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: gradeColor }}>{d.score}/100</span>
+                    </div>
+                    <div style={{ height: 4, borderRadius: 999, background: surf, marginBottom: 10 }}>
+                      <div style={{ width: `${d.score}%`, height: "100%", borderRadius: 999, background: gradeColor }} />
+                    </div>
+                    {d.topGap && (
+                      <p style={{ fontSize: 11, color: muted, lineHeight: 1.5, margin: "0 0 10px" }}>
+                        {d.topGap}
+                      </p>
+                    )}
+                    {d.routeTo && (
+                      <Link href={`/founder/agents/${d.routeTo}?challenge=gtm`} style={{ textDecoration: "none" }}>
+                        <div style={{
+                          display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                          padding: "7px 0", borderRadius: 8, background: ink,
+                          color: bg, fontSize: 11, fontWeight: 500, cursor: "pointer",
+                        }}>
+                          <MessageCircle size={11} />
+                          Fix with Patel
+                        </div>
+                      </Link>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* ── score simulator ─────────────────────────────────── */}
         <div style={{ marginBottom: 36 }}>

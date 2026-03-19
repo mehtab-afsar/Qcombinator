@@ -28,6 +28,7 @@ export async function GET() {
   }
 
   // ── Fetch data ────────────────────────────────────────────────────────────
+  try {
   const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
     process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
@@ -35,12 +36,23 @@ export async function GET() {
 
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-  const [ragResult, toolResult, qscoreResult, cacheResult, activityResult] = await Promise.all([
+  const [ragResult, toolResult, qscoreResult, cacheResult, activityResult,
+         founderResult, qscoreAllResult, snapshotResult] = await Promise.all([
     supabaseAdmin.from('rag_execution_logs').select('*').gte('created_at', since),
     supabaseAdmin.from('tool_execution_logs').select('*').gte('created_at', since),
     supabaseAdmin.from('qscore_history').select('overall_score, data_source, created_at').gte('created_at', since),
     supabaseAdmin.from('rag_score_cache').select('created_at, expires_at'),
     supabaseAdmin.from('agent_activity').select('agent_id, action_type, created_at').gte('created_at', since),
+    // Beta cohort health
+    supabaseAdmin.from('founder_profiles').select(
+      'user_id, onboarding_completed, assessment_completed, role, stripe_verified, ' +
+      'signal_strength, integrity_index, momentum_score, behavioural_score, visibility_gated, updated_at'
+    ).eq('role', 'founder'),
+    // All-time Q-Score history for percentile calculation
+    supabaseAdmin.from('qscore_history').select('user_id, overall_score, calculated_at')
+      .order('calculated_at', { ascending: false }),
+    // Metric snapshots for cohort scorer readiness
+    supabaseAdmin.from('founder_metric_snapshots').select('user_id, sector, created_at'),
   ]);
 
   const ragLogs = ragResult.data ?? [];
@@ -48,6 +60,11 @@ export async function GET() {
   const qscoreLogs = qscoreResult.data ?? [];
   const cacheRows = cacheResult.data ?? [];
   const activityRows = activityResult.data ?? [];
+  type FounderRow = { user_id: string; onboarding_completed: boolean; assessment_completed: boolean; stripe_verified: boolean; visibility_gated: boolean; signal_strength: number | null; integrity_index: number | null; momentum_score: number | null; behavioural_score: number | null; updated_at: string | null };
+  const founderRows = (founderResult.data ?? []) as unknown as FounderRow[];
+  type QScoreAllRow = { user_id: string; overall_score: number | null; calculated_at: string };
+  const qscoreAllRows = (qscoreAllResult.data ?? []) as unknown as QScoreAllRow[];
+  const snapshotRows = snapshotResult.data ?? [];
 
   // ── Aggregate RAG metrics ─────────────────────────────────────────────────
   const ragTotal = ragLogs.length;
@@ -120,6 +137,64 @@ export async function GET() {
     activityByAgent[row.agent_id] = (activityByAgent[row.agent_id] ?? 0) + 1;
   }
 
+  // ── Beta cohort aggregation ───────────────────────────────────────────────
+  const totalFounders = founderRows.length;
+  const onboardedFounders  = founderRows.filter(f => f.onboarding_completed).length;
+  const assessedFounders   = founderRows.filter(f => f.assessment_completed).length;
+  const stripeVerified     = founderRows.filter(f => f.stripe_verified).length;
+  const visibilityGated    = founderRows.filter(f => f.visibility_gated).length;
+
+  // Active in last 7 days — check updated_at
+  const activeFounders = founderRows.filter(f =>
+    f.updated_at && f.updated_at >= since
+  ).length;
+
+  // Signal strength distribution
+  const ssValues  = founderRows.map(f => f.signal_strength).filter((v): v is number => v !== null && v !== undefined);
+  const avgSignalStrength  = ssValues.length > 0 ? Math.round(ssValues.reduce((a, b) => a + b, 0) / ssValues.length) : 0;
+  const ssHigh   = ssValues.filter(v => v >= 70).length;
+  const ssMed    = ssValues.filter(v => v >= 40 && v < 70).length;
+  const ssLow    = ssValues.filter(v => v < 40).length;
+
+  // Integrity index distribution
+  const iiValues  = founderRows.map(f => f.integrity_index).filter((v): v is number => v !== null && v !== undefined);
+  const avgIntegrityIndex  = iiValues.length > 0 ? Math.round(iiValues.reduce((a, b) => a + b, 0) / iiValues.length) : 0;
+
+  // Momentum score breakdown
+  const momentumValues = founderRows.map(f => f.momentum_score).filter((v): v is number => v !== null && v !== undefined);
+  const momentumHot    = momentumValues.filter(v => v >= 10).length;
+  const momentumRising = momentumValues.filter(v => v >= 4 && v < 10).length;
+  const momentumSteady = momentumValues.filter(v => v >= -3 && v < 4).length;
+  const momentumFalling = momentumValues.filter(v => v < -3).length;
+  const avgMomentum    = momentumValues.length > 0 ? Math.round(momentumValues.reduce((a, b) => a + b, 0) / momentumValues.length) : 0;
+
+  // Behavioural score
+  const bhValues = founderRows.map(f => f.behavioural_score).filter((v): v is number => v !== null && v !== undefined);
+  const avgBehaviouralScore = bhValues.length > 0 ? Math.round(bhValues.reduce((a, b) => a + b, 0) / bhValues.length) : 0;
+
+  // Cohort scorer readiness
+  const uniqueSnapshotUsers = new Set(snapshotRows.map(r => r.user_id)).size;
+  const snapshotsBySector: Record<string, number> = {};
+  for (const row of snapshotRows) {
+    snapshotsBySector[row.sector ?? 'unknown'] = (snapshotsBySector[row.sector ?? 'unknown'] ?? 0) + 1;
+  }
+
+  // All-time Q-Score distribution (latest per user)
+  const latestScoreByUser = new Map<string, number>();
+  for (const row of qscoreAllRows) {
+    if (!latestScoreByUser.has(row.user_id)) {
+      latestScoreByUser.set(row.user_id, row.overall_score ?? 0);
+    }
+  }
+  const allScores = Array.from(latestScoreByUser.values());
+  const avgAllTimeScore = allScores.length > 0 ? Math.round(allScores.reduce((a, b) => a + b, 0) / allScores.length) : 0;
+  const scoreDistribution = {
+    excellent: allScores.filter(s => s >= 80).length,
+    good:      allScores.filter(s => s >= 65 && s < 80).length,
+    fair:      allScores.filter(s => s >= 50 && s < 65).length,
+    poor:      allScores.filter(s => s < 50).length,
+  };
+
   // ── Build response ────────────────────────────────────────────────────────
   return NextResponse.json({
     rag: {
@@ -164,5 +239,35 @@ export async function GET() {
       totalEvents: activityRows.length,
       byAgent: activityByAgent,
     },
+    beta: {
+      // Founder funnel
+      totalFounders,
+      onboardedFounders,
+      assessedFounders,
+      activeFounders,
+      stripeVerified,
+      visibilityGated,
+      // Signal health
+      avgSignalStrength,
+      signalDistribution: { high: ssHigh, medium: ssMed, low: ssLow },
+      avgIntegrityIndex,
+      // Momentum
+      avgMomentum,
+      momentumDistribution: { hot: momentumHot, rising: momentumRising, steady: momentumSteady, falling: momentumFalling },
+      avgBehaviouralScore,
+      // Cohort scorer readiness
+      cohortSnapshots: uniqueSnapshotUsers,
+      cohortActivationThreshold: 100,
+      cohortReady: uniqueSnapshotUsers >= 100,
+      snapshotsBySector,
+      // Q-Score health (all-time)
+      totalScoredFounders: latestScoreByUser.size,
+      avgAllTimeScore,
+      scoreDistribution,
+    },
   });
+  } catch (err) {
+    console.error('[Admin metrics] Unexpected error:', err);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
 }

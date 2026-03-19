@@ -8,6 +8,7 @@
 
 import { AssessmentData } from '../../types/qscore.types';
 import { ThresholdMap, scoreTiers, getTiers } from '../../services/threshold-config';
+import { scoreP2MarketPotential } from '../parameters/p2-market-potential';
 
 export function calculateMarketScore(
   data: AssessmentData,
@@ -73,6 +74,22 @@ export function calculateMarketScore(
     else points += 0;
   }
 
-  const raw = isFinite(points) ? Math.round((points / maxPoints) * 100) : 0;
-  return { score: Math.max(0, Math.min(100, raw)), rawPoints: Math.max(0, points), maxPoints };
+  const baseRaw = isFinite(points) ? Math.round((points / maxPoints) * 100) : 0;
+  const baseScore = Math.max(0, Math.min(100, baseRaw));
+
+  // ── P2 blend (Market Potential sub-indicators) ────────────────────────────
+  // Only blend when P2 data is present; otherwise keep base score untouched.
+  const hasP2Data = !!(data.p2 && (
+    data.p2.tamDescription || data.p2.marketUrgency || data.p2.valuePool ||
+    data.p2.expansionPotential || data.p2.competitorCount !== undefined
+  ));
+
+  if (!hasP2Data) {
+    return { score: baseScore, rawPoints: Math.max(0, points), maxPoints };
+  }
+
+  const p2Result = scoreP2MarketPotential(data);
+  // 55% existing market score + 45% P2 score
+  const blended = Math.round(baseScore * 0.55 + p2Result.score * 0.45);
+  return { score: Math.max(0, Math.min(100, blended)), rawPoints: Math.max(0, points), maxPoints };
 }

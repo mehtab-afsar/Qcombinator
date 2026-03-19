@@ -16,6 +16,7 @@ export interface DashPriority {
 
 export interface DashboardData {
   iqScore: IQScore | null
+  iqCalculating: boolean
   usedAgentIds: Set<string>
   scoreHistory: Array<{
     overall: number; market: number; product: number; gtm: number
@@ -46,6 +47,7 @@ export async function fetchDashboardData(): Promise<DashboardData> {
 
   const empty: DashboardData = {
     iqScore: null,
+    iqCalculating: false,
     usedAgentIds: new Set(),
     scoreHistory: [],
     weeklyActivity: 0,
@@ -116,7 +118,9 @@ export async function fetchDashboardData(): Promise<DashboardData> {
       .single(),
   ])
 
-  const iqScore     = (iqRes as { iqScore?: IQScore } | null)?.iqScore ?? null
+  const iqRes_       = iqRes as { iqScore?: IQScore; calculating?: boolean } | null
+  const iqScore      = iqRes_?.iqScore ?? null
+  const iqCalculating = iqScore === null ? (iqRes_?.calculating ?? false) : false
   const usedAgentIds = new Set(
     (artifactRows ?? []).map((r: { agent_id: string }) => r.agent_id)
   )
@@ -149,6 +153,7 @@ export async function fetchDashboardData(): Promise<DashboardData> {
 
   return {
     iqScore,
+    iqCalculating,
     usedAgentIds,
     scoreHistory,
     weeklyActivity:  activityCount ?? 0,

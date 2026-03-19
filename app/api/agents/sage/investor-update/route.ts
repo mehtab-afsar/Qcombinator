@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { withCircuitBreaker } from '@/lib/circuit-breaker'
 
 // POST /api/agents/sage/investor-update
 // Body: { contactIds: string[] }
@@ -252,26 +253,29 @@ export async function POST(request: NextRequest) {
 
     for (const contact of contacts as InvestorContact[]) {
       try {
-        const res = await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${resendKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            from: 'Edge Alpha <noreply@edgealpha.ai>',
-            to: contact.email,
-            subject,
-            html: bodyHtml,
-          }),
-        })
-        if (res.ok) {
-          sentCount++
-          recipients.push(contact.email)
-        } else {
+        await withCircuitBreaker('resend', async () => {
+          const res = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${resendKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              from: 'Edge Alpha <noreply@edgealpha.ai>',
+              to: contact.email,
+              subject,
+              html: bodyHtml,
+            }),
+          })
+          if (res.ok) {
+            sentCount++
+            recipients.push(contact.email)
+            return
+          }
           const errText = await res.text()
           console.error(`Resend error for ${contact.email}:`, errText)
-        }
+          throw new Error(`Resend ${res.status}`)
+        })
       } catch (err) {
         console.error(`Failed to send to ${contact.email}:`, err)
       }

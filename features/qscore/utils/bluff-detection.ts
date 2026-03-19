@@ -5,7 +5,7 @@
  * or AI-generated inputs that would artificially boost scoring.
  */
 
-import { AssessmentData } from '../types/qscore.types';
+import { AssessmentData, DataSourceMap } from '../types/qscore.types';
 
 export interface BluffSignal {
   field: string;
@@ -39,7 +39,7 @@ const AI_PHRASES = [
 // Specificity indicators — real founders use specific details
 const SPECIFICITY_PATTERN = /\b(last (week|month|quarter|year)|in (january|february|march|april|may|june|july|august|september|october|november|december)|\d{1,2}\/\d{1,2}|\$[\d,]+|\d+%|\d+ (customers|users|people|companies|conversations|calls|meetings))/gi;
 
-export function detectBluffSignals(data: AssessmentData): BluffSignal[] {
+export function detectBluffSignals(data: AssessmentData, dataSourceMap?: DataSourceMap): BluffSignal[] {
   const signals: BluffSignal[] = [];
 
   // ── 1. Round number detection ──────────────────────────────────────────
@@ -151,6 +151,46 @@ export function detectBluffSignals(data: AssessmentData): BluffSignal[] {
       signal: 'inconsistent',
       severity: 'medium',
       description: 'Claims 50+ customer conversations but provides no quotes or surprises',
+    });
+  }
+
+  // ── 7. HIGH_GROWTH_NO_CUSTOMERS ─────────────────────────────────────────
+  // Claims strong revenue but zero customer conversations — growth needs customers
+  if (data.financial?.mrr && data.financial.mrr > 5000 && data.conversationCount < 3) {
+    signals.push({
+      field: 'financial.mrr',
+      signal: 'inconsistent',
+      severity: 'high',
+      description: `Claims $${data.financial.mrr.toLocaleString()} MRR but only ${data.conversationCount} customer conversations — revenue requires real customers`,
+    });
+  }
+
+  // ── 8. REVENUE_PIPELINE_MISMATCH ───────────────────────────────────────
+  // Claims ARR much higher than 12× MRR (impossible unless massive one-off deals)
+  if (data.financial?.arr && data.financial?.mrr && data.financial.mrr > 0) {
+    const impliedArr = data.financial.mrr * 12;
+    if (data.financial.arr > impliedArr * 2) {
+      signals.push({
+        field: 'financial.arr',
+        signal: 'inconsistent',
+        severity: 'high',
+        description: `ARR ($${data.financial.arr.toLocaleString()}) is more than 2× MRR×12 ($${impliedArr.toLocaleString()}) — these numbers don't reconcile`,
+      });
+    }
+  }
+
+  // ── 9. PAID_CLAIMED_NO_STRIPE ──────────────────────────────────────────
+  // Claims revenue (MRR > $1K) but no Stripe-verified source — self-reported only
+  if (
+    data.financial?.mrr && data.financial.mrr > 1000 &&
+    dataSourceMap &&
+    dataSourceMap.mrr === 'self_reported'
+  ) {
+    signals.push({
+      field: 'financial.mrr',
+      signal: 'inconsistent',
+      severity: 'medium',
+      description: `$${data.financial.mrr.toLocaleString()} MRR is self-reported with no Stripe verification — connect Stripe to remove this flag`,
     });
   }
 
