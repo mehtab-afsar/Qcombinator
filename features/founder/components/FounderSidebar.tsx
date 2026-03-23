@@ -32,7 +32,7 @@ const BASE_NAV = [
   { name: "Pitch Deck",        href: "/founder/pitch-deck", icon: Presentation,  badge: null    },
   { name: "Investor Matching", href: "/founder/matching",   icon: Target,        badge: "Smart" },
   { name: "Academy",           href: "/founder/academy",   icon: GraduationCap, badge: "NEW"   },
-  { name: "Library",           href: "/library",            icon: Library,       badge: null    },
+  { name: "Library",           href: "/founder/library",    icon: Library,       badge: null    },
   { name: "Profile Builder",   href: "/founder/profile",         icon: Building2,     badge: null    },
   { name: "Startup Profile",  href: "/founder/startup-profile", icon: UserCircle,    badge: null    },
   { name: "Metrics",           href: "/founder/metrics",   icon: BarChart3,     badge: null    },
