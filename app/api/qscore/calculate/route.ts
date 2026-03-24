@@ -7,7 +7,6 @@ import { detectBluffSignals, applyBluffPenalty, createEvidenceConflictSignals } 
 import type { EnhancedSemanticEvaluation } from '@/features/qscore/rag/types';
 import { runRAGScoring } from '@/features/qscore/rag/rag-orchestrator';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { runIQScoring } from '@/features/iq/calculators/iq-orchestrator';
 import { runGTMDiagnostics } from '@/features/qscore/diagnostics/gtm-diagnostics';
 import { fetchQScoreThresholds, fetchDimensionWeights } from '@/features/qscore/services/threshold-config';
 import {
@@ -247,78 +246,6 @@ export async function POST(request: NextRequest) {
         } catch (snapshotErr) {
           if (attempt === 2) console.error('[Q-Score] Metric snapshot failed after retry:', snapshotErr);
           else await new Promise(r => setTimeout(r, 1000));
-        }
-      }
-    })();
-
-    // ── Fire-and-forget IQ scoring (never blocks the Q-Score response) ────────
-    const adminClientForIQ = createAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
-      process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
-    );
-
-    void (async () => {
-      try {
-        // Load latest artifacts for IQ resolver
-        const { data: arts } = await adminClientForIQ
-          .from('agent_artifacts')
-          .select('agent_id, artifact_type, content')
-          .eq('user_id', user.id)
-          .in('artifact_type', ['financial_summary', 'hiring_plan', 'competitive_matrix'])
-          .order('created_at', { ascending: false });
-
-        const artifactBundle: Record<string, Record<string, unknown> | null> = {
-          financial: null, hiring: null, competitive: null,
-        };
-        for (const art of (arts ?? []) as Array<{ artifact_type: string; content: Record<string, unknown> }>) {
-          if (art.artifact_type === 'financial_summary' && !artifactBundle.financial) artifactBundle.financial = art.content;
-          if (art.artifact_type === 'hiring_plan' && !artifactBundle.hiring) artifactBundle.hiring = art.content;
-          if (art.artifact_type === 'competitive_matrix' && !artifactBundle.competitive) artifactBundle.competitive = art.content;
-        }
-
-        const { data: founderProfile } = await adminClientForIQ
-          .from('founder_profiles')
-          .select('sector, stage')
-          .eq('user_id', user.id)
-          .single();
-
-        await runIQScoring({
-          userId: user.id,
-          supabase: adminClientForIQ,
-          assessment: assessmentData as AssessmentData,
-          artifacts: artifactBundle,
-          profile: founderProfile ? { sector: founderProfile.sector, stage: founderProfile.stage } : null,
-          skipTavily: false,
-          bluffSignals,
-        });
-      } catch (iqErr) {
-        // Retry once after 2s — IQ failure means the user never sees an IQ score
-        console.warn('[Q-Score] IQ scoring failed, retrying in 2s:', iqErr);
-        await new Promise(r => setTimeout(r, 2000));
-        try {
-          const { data: arts2 } = await adminClientForIQ
-            .from('agent_artifacts')
-            .select('agent_id, artifact_type, content')
-            .eq('user_id', user.id)
-            .in('artifact_type', ['financial_summary', 'hiring_plan', 'competitive_matrix'])
-            .order('created_at', { ascending: false });
-
-          const bundle2: Record<string, Record<string, unknown> | null> = { financial: null, hiring: null, competitive: null };
-          for (const art of (arts2 ?? []) as Array<{ artifact_type: string; content: Record<string, unknown> }>) {
-            if (art.artifact_type === 'financial_summary' && !bundle2.financial) bundle2.financial = art.content;
-            if (art.artifact_type === 'hiring_plan'       && !bundle2.hiring)    bundle2.hiring    = art.content;
-            if (art.artifact_type === 'competitive_matrix'&& !bundle2.competitive) bundle2.competitive = art.content;
-          }
-          const { data: fp2 } = await adminClientForIQ.from('founder_profiles').select('sector, stage').eq('user_id', user.id).single();
-          await runIQScoring({
-            userId: user.id, supabase: adminClientForIQ,
-            assessment: assessmentData as AssessmentData, artifacts: bundle2,
-            profile: fp2 ? { sector: fp2.sector, stage: fp2.stage } : null,
-            skipTavily: true, // skip expensive Tavily on retry
-            bluffSignals,
-          });
-        } catch (retryErr) {
-          console.error('[Q-Score] IQ scoring failed after retry — user_id:', user.id, retryErr);
         }
       }
     })();

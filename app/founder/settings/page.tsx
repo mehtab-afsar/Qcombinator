@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { motion } from 'framer-motion';
-import { User, Building2, Bell, Lock, Download, Trash2, RefreshCw, Save, AlertTriangle } from 'lucide-react';
+import { User, Building2, Bell, Lock, Download, Trash2, RefreshCw, Save, AlertTriangle, Plug, CreditCard, CheckCircle, XCircle } from 'lucide-react';
 import { useFounderData } from '@/features/founder/hooks/useFounderData';
+import { useSearchParams, useRouter } from 'next/navigation';
 import {
   loadSettings,
   saveAccountSettings,
@@ -21,18 +22,45 @@ const muted = '#8A867C';
 const red   = '#DC2626';
 const green = '#16A34A';
 
-type TabId = 'account' | 'company' | 'notifications' | 'data';
+type TabId = 'account' | 'company' | 'notifications' | 'data' | 'connectors' | 'billing';
 
 const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: 'account',       label: 'Account',       icon: User },
   { id: 'company',       label: 'Company',        icon: Building2 },
   { id: 'notifications', label: 'Notifications',  icon: Bell },
+  { id: 'connectors',    label: 'Connectors',     icon: Plug },
+  { id: 'billing',       label: 'Billing',        icon: CreditCard },
   { id: 'data',          label: 'Data & Privacy', icon: Lock },
 ];
 
-export default function SettingsPage() {
+// ─── connectors data ──────────────────────────────────────────────────────────
+const CONNECTORS = [
+  { id: 'stripe',  name: 'Stripe',        desc: 'Revenue & MRR data',          available: true,  link: '/founder/dashboard' },
+  { id: 'linkedin',name: 'LinkedIn',      desc: 'Team & founder signals',       available: false, link: null },
+  { id: 'sheets',  name: 'Google Sheets', desc: 'Financial models',             available: false, link: null },
+  { id: 'gmail',   name: 'Gmail',         desc: 'Customer conversations',       available: false, link: null },
+  { id: 'slack',   name: 'Slack',         desc: 'Team structure',               available: false, link: null },
+];
+
+function SettingsInner() {
+  const router   = useRouter();
+  const params   = useSearchParams();
+  const urlTab   = params.get('tab') as TabId | null;
+
   const { profile, loading } = useFounderData();
-  const [activeTab, setActiveTab] = useState<TabId>('account');
+  const [activeTab, setActiveTab] = useState<TabId>(urlTab ?? 'account');
+
+  // Sync from URL
+  useEffect(() => {
+    if (urlTab && TABS.some(t => t.id === urlTab)) {
+      setActiveTab(urlTab);
+    }
+  }, [urlTab]);
+
+  function handleTabChange(tab: TabId) {
+    setActiveTab(tab);
+    router.push(`/founder/settings?tab=${tab}`);
+  }
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
@@ -184,7 +212,7 @@ export default function SettingsPage() {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => handleTabChange(tab.id)}
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 6,
                   padding: '10px 18px', fontSize: 12,
@@ -321,6 +349,107 @@ export default function SettingsPage() {
             </div>
           )}
 
+          {/* Connectors */}
+          {activeTab === 'connectors' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ marginBottom: 8 }}>
+                <p style={{ fontSize: 13, color: muted }}>
+                  Connect external tools to enrich your Q-Score and investor profile with verified data.
+                </p>
+              </div>
+              {CONNECTORS.map(c => (
+                <div
+                  key={c.id}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 14,
+                    padding: '16px 20px',
+                    background: surf, border: `1px solid ${bdr}`, borderRadius: 14,
+                  }}
+                >
+                  <div style={{
+                    width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+                    background: bg, border: `1px solid ${bdr}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <Plug style={{ width: 16, height: 16, color: muted }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>{c.name}</p>
+                    <p style={{ fontSize: 11, color: muted }}>{c.desc}</p>
+                  </div>
+                  {!c.available ? (
+                    <span style={{
+                      fontSize: 10, fontWeight: 600, padding: '3px 10px', borderRadius: 999,
+                      background: surf, color: muted, border: `1px solid ${bdr}`,
+                    }}>
+                      Coming soon
+                    </span>
+                  ) : c.link ? (
+                    <a
+                      href={c.link}
+                      style={{
+                        fontSize: 12, fontWeight: 600, padding: '7px 16px', borderRadius: 999,
+                        background: ink, color: bg, textDecoration: 'none',
+                        display: 'inline-flex', alignItems: 'center', gap: 5,
+                      }}
+                    >
+                      <CheckCircle style={{ width: 12, height: 12 }} />
+                      Connect
+                    </a>
+                  ) : (
+                    <span style={{ fontSize: 12, color: muted }}>—</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Billing */}
+          {activeTab === 'billing' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <SettingsCard title="Current Plan" description="Your subscription details">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <div style={{
+                    width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+                    background: '#EFF6FF', border: '1px solid #BFDBFE',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <CreditCard style={{ width: 18, height: 18, color: '#2563EB' }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontSize: 15, fontWeight: 600, color: ink }}>Pro Plan</p>
+                    <p style={{ fontSize: 12, color: muted }}>
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                        color: green, fontWeight: 600, marginRight: 8,
+                      }}>
+                        <CheckCircle style={{ width: 11, height: 11 }} /> Active
+                      </span>
+                      · Renews monthly
+                    </p>
+                  </div>
+                </div>
+                <div style={{ paddingTop: 8, borderTop: `1px solid ${bdr}` }}>
+                  <button
+                    disabled
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 7,
+                      padding: '9px 22px',
+                      background: bdr, color: muted,
+                      border: 'none', borderRadius: 999, fontSize: 12, fontWeight: 500,
+                      cursor: 'not-allowed',
+                    }}
+                  >
+                    Manage subscription →
+                  </button>
+                  <p style={{ fontSize: 11, color: muted, marginTop: 8 }}>
+                    Subscription management coming soon.
+                  </p>
+                </div>
+              </SettingsCard>
+            </div>
+          )}
+
           {/* Data & Privacy */}
           {activeTab === 'data' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -373,6 +502,18 @@ export default function SettingsPage() {
         </motion.div>
       </div>
     </div>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={
+      <div style={{ minHeight: '100vh', background: '#F9F7F2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p style={{ fontSize: 13, color: '#8A867C', fontFamily: 'system-ui, sans-serif' }}>Loading settings…</p>
+      </div>
+    }>
+      <SettingsInner />
+    </Suspense>
   );
 }
 

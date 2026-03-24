@@ -12,7 +12,7 @@ create table if not exists knowledge_library (
   function_owner   text not null,        -- agent_id: patel | susi | maya | felix | leo | harper | nova | atlas | sage
   topic_cluster    text not null,        -- e.g. 'icp', 'unit_economics', 'pmf', 'hiring', 'fundraising'
   stage_relevance  text[] not null default '{}'::text[],  -- ['idea','mvp','seed','series-a'] etc.
-  format           text not null default 'article' check (format in ('article','pdf','template','video','tool','checklist')),
+  format           text not null default 'article' check (format in ('article','pdf','template','video','tool','checklist','playbook','framework','guide','benchmark','case_study')),
   access_level     text not null default 'public' check (access_level in ('public','premium')),
   url              text,                 -- external link (may be null for internal content)
   summary          text not null,        -- 2-4 sentence summary used for RAG injection

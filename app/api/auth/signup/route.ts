@@ -16,7 +16,13 @@ export async function POST(request: NextRequest) {
     );
 
     // Get signup data from request
-    const { email, password, fullName, startupName, industry, stage, funding, timeCommitment } = await request.json();
+    const {
+      email, password, fullName, startupName, industry, stage, funding, timeCommitment,
+      // Registration fields (new)
+      companyName, website, foundedDate, incorporationType, description,
+      revenueStatus, fundingStatus, teamSize, founderName, linkedinUrl,
+      cofounderCount, yearsOnProblem, priorExperience,
+    } = await request.json();
 
     // Validate required fields
     if (!email || !password || !fullName) {
@@ -34,7 +40,7 @@ export async function POST(request: NextRequest) {
       email_confirm: true,
       user_metadata: {
         full_name: fullName,
-        startup_name: startupName,
+        startup_name: startupName || companyName,
       },
     });
 
@@ -63,21 +69,37 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create founder profile
+    // Create founder profile with all registration fields
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('founder_profiles')
       .insert({
         user_id: authData.user.id,
         full_name: fullName,
-        startup_name: startupName || null,
+        startup_name: companyName || startupName || null,
         industry: industry || null,
-        stage: stage || 'idea',
-        funding: funding || null,
+        stage: stage || 'pre-product',
+        funding: fundingStatus || funding || null,
         time_commitment: timeCommitment || null,
         role: 'founder',
         subscription_tier: 'free',
-        onboarding_completed: false,
+        onboarding_completed: true,
         assessment_completed: false,
+        // New registration columns
+        company_name: companyName || startupName || null,
+        website: website || null,
+        founded_date: foundedDate || null,
+        incorporation_type: incorporationType || null,
+        description: description || null,
+        revenue_status: revenueStatus || null,
+        funding_status: fundingStatus || funding || null,
+        team_size: teamSize || null,
+        founder_name: founderName || fullName,
+        linkedin_url: linkedinUrl || null,
+        cofounder_count: cofounderCount ?? null,
+        years_on_problem: yearsOnProblem || null,
+        prior_experience: priorExperience || null,
+        registration_completed: true,
+        profile_builder_completed: false,
       })
       .select()
       .single();
@@ -93,6 +115,14 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    // Insert zero Q-Score row — honest baseline before Profile Builder
+    const { error: qscoreErr } = await supabaseAdmin.from('qscore_history').insert({
+      user_id: authData.user.id,
+      overall_score: 0,
+      data_source: 'registration',
+    });
+    if (qscoreErr) console.error('Failed to insert initial qscore row:', qscoreErr);
 
     // Initialize subscription usage limits for free tier
     const featureLimits = [

@@ -1,5 +1,7 @@
 'use client'
 
+export const dynamic = 'force-dynamic'
+
 import { useState, useEffect, useMemo, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 
@@ -10,7 +12,6 @@ const bdr    = '#E2DDD5'
 const ink    = '#18160F'
 const muted  = '#8A867C'
 const blue   = '#2563EB'
-const green  = '#16A34A'
 
 // ── types ─────────────────────────────────────────────────────────────────────
 interface Resource {

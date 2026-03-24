@@ -75,7 +75,7 @@ function grade(score: number): 'strong' | 'weak' | 'critical' {
 function diagnoseD1(data: AssessmentData): GTMDiagnostic {
   const icp = data.gtm?.icpDescription ?? '';
   const channels = data.gtm?.channelsTried ?? [];
-  const channelResults = data.gtm?.channelResults ?? [];
+  const _channelResults = data.gtm?.channelResults ?? [];
 
   const indicators: DiagnosticIndicator[] = [
     // 1.1 Persona Specificity — named job title + company type
@@ -275,7 +275,7 @@ function diagnoseD3(data: AssessmentData): GTMDiagnostic {
   const channels = data.gtm?.channelsTried ?? [];
   const channelResults = data.gtm?.channelResults ?? [];
   const currentCAC = data.gtm?.currentCAC;
-  const targetCAC = data.gtm?.targetCAC;
+  const _targetCAC = data.gtm?.targetCAC;
   const messagingTested = data.gtm?.messagingTested ?? false;
   const messagingResults = data.gtm?.messagingResults ?? '';
 

@@ -1,658 +1,526 @@
-"use client";
+'use client'
 
-import { useState, useRef, useEffect, useCallback, Suspense } from "react";
-import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  ArrowRight,
-  Send,
-  Play,
-  ChevronRight,
-  Lock,
-} from "lucide-react";
-import { toast } from "sonner";
-import Link from "next/link";
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@supabase/supabase-js'
 
-// ─── palette ──────────────────────────────────────────────────────────────────
-// bg: #F9F7F2 | surface: #F0EDE6 | border: #E2DDD5
-// ink: #18160F | muted: #8A867C | accent: #2563EB
+// ── palette ──────────────────────────────────────────────────────────────────
+const bg    = '#F9F7F2'
+const surf  = '#F0EDE6'
+const bdr   = '#E2DDD5'
+const ink   = '#18160F'
+const muted = '#8A867C'
+const blue  = '#2563EB'
 
-// ─── types ────────────────────────────────────────────────────────────────────
-
-type Step = "video" | "chat" | "signup" | "emailsent";
-
-interface ChatMessage {
-  role: "agent" | "user";
-  text: string;
+// ── types ────────────────────────────────────────────────────────────────────
+interface Page1 {
+  companyName: string
+  website: string
+  foundedDate: string
+  incorporationType: string
+  industry: string
+  description: string
 }
 
-interface ApiMessage {
-  role: "user" | "assistant";
-  content: string;
+interface Page2 {
+  stage: string
+  revenueStatus: string
+  fundingStatus: string
+  teamSize: string
 }
 
-interface SignupData {
-  firstName: string;
-  lastName: string;
-  email: string;
-  password: string;
+interface Page3 {
+  founderName: string
+  linkedinUrl: string
+  cofounderCount: string
+  yearsOnProblem: string
+  priorExperience: string
+  email: string
+  password: string
 }
 
-// ─── component ────────────────────────────────────────────────────────────────
+const INDUSTRIES = [
+  'SaaS / Software', 'FinTech', 'HealthTech', 'EdTech', 'CleanTech / Climate',
+  'AgriTech', 'Deep Tech / AI', 'Consumer', 'Marketplace', 'Web3 / Crypto',
+  'Hardware / IoT', 'Other',
+]
 
-function OnboardingContent() {
-  const router = useRouter();
-  const [step, setStep] = useState<Step>("video");
+const STAGES = [
+  { value: 'pre-product', label: 'Pre-Product', sub: 'Idea / research phase' },
+  { value: 'mvp',         label: 'MVP',          sub: 'Built, testing with users' },
+  { value: 'beta',        label: 'Beta',          sub: 'Limited release' },
+  { value: 'launched',    label: 'Launched',      sub: 'Public product, early revenue' },
+  { value: 'growing',     label: 'Growing',       sub: 'Scaling revenue' },
+]
 
-  const [uiMessages, setUiMessages]   = useState<ChatMessage[]>([]);
-  const [apiMessages, setApiMessages] = useState<ApiMessage[]>([]);
-  const [input, setInput]             = useState("");
-  const [agentTyping, setAgentTyping] = useState(false);
-  const [chatDone, setChatDone]       = useState(false);
-  const [exchangeCount, setExchangeCount] = useState(0);
-  const chatEndRef = useRef<HTMLDivElement>(null);
+const REVENUE_STATUSES = [
+  { value: 'pre-revenue',    label: 'Pre-revenue' },
+  { value: 'first-revenue',  label: 'First revenue — under $10K MRR' },
+  { value: '10k-100k',       label: '$10K – $100K MRR' },
+  { value: '100k-plus',      label: '$100K+ MRR' },
+]
 
-  const [signup, setSignup] = useState<SignupData>({ firstName: "", lastName: "", email: "", password: "" });
-  const [signingUp, setSigningUp] = useState(false);
-  const [emailError, setEmailError] = useState("");
+const FUNDING_STATUSES = [
+  { value: 'bootstrapped',       label: 'Bootstrapped' },
+  { value: 'friends-and-family', label: 'Friends & family' },
+  { value: 'pre-seed',           label: 'Pre-seed' },
+  { value: 'seed',               label: 'Seed' },
+  { value: 'series-a-plus',      label: 'Series A+' },
+]
 
-  const [onboardingExtracted, setOnboardingExtracted] = useState<Record<string, unknown>>({});
+const TEAM_SIZES = [
+  { value: '1-2',  label: '1–2' },
+  { value: '3-5',  label: '3–5' },
+  { value: '6-15', label: '6–15' },
+  { value: '16+',  label: '16+' },
+]
 
-  // Redirect already-authenticated founders to dashboard
+const PRIOR_EXP = [
+  { value: 'first-time',  label: 'First-time founder' },
+  { value: 'founded-no-exit', label: 'Founded — didn\'t scale' },
+  { value: 'exited',      label: 'Founded and exited' },
+  { value: 'serial',      label: 'Serial founder' },
+]
+
+// ── helpers ───────────────────────────────────────────────────────────────────
+function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <label style={{ fontSize: 13, fontWeight: 600, color: ink }}>{label}</label>
+      {hint && <span style={{ fontSize: 12, color: muted, marginTop: -4 }}>{hint}</span>}
+      {children}
+    </div>
+  )
+}
+
+const inputStyle: React.CSSProperties = {
+  padding: '10px 12px', borderRadius: 8, border: `1.5px solid ${bdr}`,
+  background: '#fff', fontSize: 14, color: ink, outline: 'none',
+  fontFamily: 'inherit',
+}
+
+function RadioGroup({ options, value, onChange }: {
+  options: { value: string; label: string; sub?: string }[]
+  value: string
+  onChange: (v: string) => void
+}) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {options.map(opt => (
+        <div
+          key={opt.value}
+          onClick={() => onChange(opt.value)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '10px 14px', borderRadius: 8, cursor: 'pointer',
+            border: `1.5px solid ${value === opt.value ? blue : bdr}`,
+            background: value === opt.value ? '#EFF6FF' : '#fff',
+            transition: 'all 0.15s',
+          }}
+        >
+          <div style={{
+            width: 16, height: 16, borderRadius: '50%',
+            border: `2px solid ${value === opt.value ? blue : bdr}`,
+            background: value === opt.value ? blue : 'transparent',
+            flexShrink: 0,
+          }} />
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: ink }}>{opt.label}</div>
+            {opt.sub && <div style={{ fontSize: 12, color: muted }}>{opt.sub}</div>}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── main component ────────────────────────────────────────────────────────────
+export default function OnboardingPage() {
+  const router = useRouter()
+  const [page, setPage] = useState(1)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const [p1, setP1] = useState<Page1>({
+    companyName: '', website: '', foundedDate: '', incorporationType: '',
+    industry: '', description: '',
+  })
+  const [p2, setP2] = useState<Page2>({
+    stage: '', revenueStatus: '', fundingStatus: '', teamSize: '',
+  })
+  const [p3, setP3] = useState<Page3>({
+    founderName: '', linkedinUrl: '', cofounderCount: '0',
+    yearsOnProblem: '', priorExperience: '', email: '', password: '',
+  })
+
+  // Redirect already-authenticated founders
   useEffect(() => {
-    import("@/features/auth/services/auth.service")
-      .then(({ getSession }) => getSession())
-      .then(session => { if (session) router.replace("/founder/dashboard"); })
-      .catch(() => {});
-  }, [router]);
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) router.replace('/founder/dashboard')
+    })
+  }, [router])
 
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [uiMessages, agentTyping]);
+  const progress = ((page - 1) / 3) * 100
 
-const callAI = useCallback(async (history: ApiMessage[]) => {
-    setAgentTyping(true);
+  const canAdvancePage1 = p1.companyName.trim() && p1.industry && p1.description.trim()
+  const canAdvancePage2 = p2.stage && p2.revenueStatus && p2.fundingStatus && p2.teamSize
+  const canSubmitPage3  = p3.founderName.trim() && p3.cofounderCount !== '' &&
+                          p3.yearsOnProblem && p3.priorExperience &&
+                          p3.email.trim() && p3.password.length >= 8
+
+  async function handleSubmit() {
+    setLoading(true)
+    setError('')
     try {
-      const res = await fetch("/api/onboarding/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: history }),
-      });
-      if (!res.ok) throw new Error("API error");
-      const data: { content: string; isComplete: boolean } = await res.json();
-      setUiMessages((prev) => [...prev, { role: "agent", text: data.content }]);
-      setApiMessages((prev) => [...prev, { role: "assistant", content: data.content }]);
-      if (data.isComplete) {
-        setChatDone(true);
-        // Run LLM extraction in background for real data
-        fetch("/api/onboarding/extract", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ conversationHistory: history }),
-        })
-          .then((r) => r.json())
-          .then((result) => {
-            if (result.extractedData && Object.keys(result.extractedData).length > 0) {
-              setOnboardingExtracted(result.extractedData);
-            }
-          })
-          .catch(() => { /* extraction failed — use keyword score as fallback */ });
-        setTimeout(() => setStep("signup"), 2500);
-      }
-    } catch {
-      toast.error("Connection issue — please try again.");
-    } finally {
-      setAgentTyping(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (step !== "chat" || uiMessages.length > 0) return;
-    callAI([]);
-  }, [step, uiMessages.length, callAI]);
-
-  const handleSend = useCallback(() => {
-    const text = input.trim();
-    if (!text || agentTyping || chatDone) return;
-    const userApiMsg: ApiMessage = { role: "user", content: text };
-    const newHistory = [...apiMessages, userApiMsg];
-    setUiMessages((prev) => [...prev, { role: "user", text }]);
-    setApiMessages(newHistory);
-    setInput("");
-    setExchangeCount((c) => c + 1);
-    callAI(newHistory);
-  }, [input, agentTyping, chatDone, apiMessages, callAI]);
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
-  };
-
-  const handleSignup = async () => {
-    setEmailError("");
-    if (!signup.email || !signup.password || !signup.firstName) {
-      toast.error("Please fill in all required fields");
-      return;
-    }
-    if (signup.password.length < 6) {
-      toast.error("Password must be at least 6 characters");
-      return;
-    }
-    setSigningUp(true);
-    try {
-      const res = await fetch("/api/auth/signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: signup.email,
-          password: signup.password,
-          fullName: `${signup.firstName} ${signup.lastName}`.trim(),
+          email: p3.email.trim(),
+          password: p3.password,
+          fullName: p3.founderName.trim(),
+          // Page 1
+          companyName: p1.companyName,
+          website: p1.website,
+          foundedDate: p1.foundedDate,
+          incorporationType: p1.incorporationType,
+          industry: p1.industry,
+          description: p1.description,
+          // Page 2
+          stage: p2.stage,
+          revenueStatus: p2.revenueStatus,
+          fundingStatus: p2.fundingStatus,
+          teamSize: p2.teamSize,
+          // Page 3
+          founderName: p3.founderName,
+          linkedinUrl: p3.linkedinUrl,
+          cofounderCount: parseInt(p3.cofounderCount, 10),
+          yearsOnProblem: p3.yearsOnProblem,
+          priorExperience: p3.priorExperience,
         }),
-      });
-      const data = await res.json();
+      })
+
+      const data = await res.json()
       if (!res.ok) {
-        const msg = data.error || "Signup failed";
-        // Show inline error under the email field for duplicate/invalid email errors
-        if (msg.toLowerCase().includes("email") || msg.toLowerCase().includes("already") || msg.toLowerCase().includes("registered")) {
-          setEmailError(msg);
-        } else {
-          toast.error(msg);
+        setError(data.error ?? 'Sign up failed. Please try again.')
+        setLoading(false)
+        return
+      }
+
+      // Sign in the user
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      )
+      const { error: signInErr } = await supabase.auth.signInWithPassword({
+        email: p3.email.trim(),
+        password: p3.password,
+      })
+      if (signInErr) {
+        setError('Account created but sign-in failed. Please go to the login page.')
+        setLoading(false)
+        return
+      }
+
+      // Silent LinkedIn enrichment (fire-and-forget)
+      if (p3.linkedinUrl) {
+        const { data: sessionData } = await supabase.auth.getSession()
+        const token = sessionData.session?.access_token
+        if (token) {
+          fetch('/api/profile-builder/linkedin-enrich', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ linkedinUrl: p3.linkedinUrl }),
+          }).catch(() => {})
         }
-        setSigningUp(false);
-        return;
       }
 
-      // Only attempt sign-in after confirmed successful signup
-      try {
-        const { signInWithPassword } = await import("@/features/auth/services/auth.service");
-        await signInWithPassword(signup.email, signup.password);
-      } catch {
-        toast.error("Account created but sign-in failed. Please go to the login page.");
-        setSigningUp(false);
-        return;
-      }
-
-      // Persist onboarding data + score to database
-      try {
-        const completeRes = await fetch("/api/onboarding/complete", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            extractedData: Object.keys(onboardingExtracted).length > 0 ? onboardingExtracted : {},
-            chatHistory: apiMessages,
-          }),
-        });
-        if (!completeRes.ok) {
-          console.warn("Onboarding data persistence failed");
-        }
-      } catch {
-        // Non-fatal — score still visible from client-side calculation
-      }
-
-      toast.success("Account created!");
-      setStep("emailsent");
+      router.push('/founder/profile-builder')
     } catch {
-      toast.error("Something went wrong. Please try again.");
+      setError('Something went wrong. Please try again.')
+      setLoading(false)
     }
-    setSigningUp(false);
-  };
-
-  const TOTAL_DOTS = 5;
-  const filledDots = chatDone ? TOTAL_DOTS : Math.min(exchangeCount, TOTAL_DOTS - 1);
-
-  // ── shared styles ────────────────────────────────────────────────────────────
-  const bg   = "#F9F7F2";
-  const surf = "#F0EDE6";
-  const bdr  = "#E2DDD5";
-  const ink  = "#18160F";
-  const muted = "#8A867C";
-  const blue  = "#2563EB";
+  }
 
   return (
-    <div style={{ minHeight: "100vh", background: bg, color: ink, fontFamily: "inherit" }}>
-      <AnimatePresence mode="wait">
+    <div style={{ minHeight: '100vh', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 16px' }}>
+      <div style={{ width: '100%', maxWidth: 520 }}>
 
-        {/* ── VIDEO ─────────────────────────────────────────────────────────── */}
-        {step === "video" && (
-          <motion.div
-            key="video"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.35 }}
-            style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}
-          >
-            {/* nav */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 28px", borderBottom: `1px solid ${bdr}` }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ height: 32, width: 32, borderRadius: 8, background: blue, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <span style={{ color: "#fff", fontWeight: 900, fontSize: 8 }}>EA</span>
-                </div>
-                <span style={{ fontWeight: 600, fontSize: 15, color: ink }}>Edge Alpha</span>
+        {/* Header */}
+        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+          <div style={{ fontSize: 22, fontWeight: 700, color: ink, letterSpacing: -0.5 }}>Edge Alpha</div>
+          <div style={{ fontSize: 14, color: muted, marginTop: 4 }}>
+            {page === 1 && 'Tell us about your company'}
+            {page === 2 && 'Where are you in your journey?'}
+            {page === 3 && 'About you'}
+          </div>
+        </div>
+
+        {/* Progress bar */}
+        <div style={{ height: 4, background: bdr, borderRadius: 4, marginBottom: 32, overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${progress}%`, background: blue, borderRadius: 4, transition: 'width 0.4s ease' }} />
+        </div>
+
+        {/* Step indicator */}
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 28 }}>
+          {[1, 2, 3].map(n => (
+            <div key={n} style={{
+              width: n === page ? 24 : 8, height: 8, borderRadius: 4,
+              background: n <= page ? blue : bdr, transition: 'all 0.3s',
+            }} />
+          ))}
+        </div>
+
+        {/* Card */}
+        <div style={{ background: surf, borderRadius: 16, border: `1px solid ${bdr}`, padding: 28, display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+          {/* ── PAGE 1 — Company Basics ── */}
+          {page === 1 && (
+            <>
+              <Field label="Company name *">
+                <input
+                  style={inputStyle}
+                  value={p1.companyName}
+                  onChange={e => setP1(s => ({ ...s, companyName: e.target.value }))}
+                  placeholder="e.g. Acme Inc."
+                />
+              </Field>
+              <Field label="Website" hint="Optional — skippable">
+                <input
+                  style={inputStyle}
+                  value={p1.website}
+                  onChange={e => setP1(s => ({ ...s, website: e.target.value }))}
+                  placeholder="https://"
+                />
+              </Field>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <Field label="Founded">
+                  <input
+                    style={inputStyle}
+                    type="month"
+                    value={p1.foundedDate}
+                    onChange={e => setP1(s => ({ ...s, foundedDate: e.target.value }))}
+                  />
+                </Field>
+                <Field label="Incorporation type">
+                  <select
+                    style={inputStyle}
+                    value={p1.incorporationType}
+                    onChange={e => setP1(s => ({ ...s, incorporationType: e.target.value }))}
+                  >
+                    <option value="">Select…</option>
+                    <option value="delaware-c-corp">Delaware C-Corp</option>
+                    <option value="llc">LLC</option>
+                    <option value="other">Other</option>
+                    <option value="not-yet">Not yet incorporated</option>
+                  </select>
+                </Field>
               </div>
-              <button
-                onClick={() => setStep("chat")}
-                style={{ fontSize: 13, color: muted, display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer" }}
-              >
-                Skip intro <ChevronRight style={{ height: 14, width: 14 }} />
-              </button>
-            </div>
-
-            {/* body */}
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "48px 24px" }}>
-              <div style={{ width: "100%", maxWidth: 600 }}>
-                <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 14px", background: surf, border: `1px solid ${bdr}`, borderRadius: 999, fontSize: 12, color: muted, fontWeight: 500, marginBottom: 28 }}>
-                  <span style={{ height: 6, width: 6, background: blue, borderRadius: "50%", display: "inline-block" }} />
-                  Welcome to Edge Alpha
-                </div>
-
-                <h1 style={{ fontSize: "clamp(2rem,5vw,3.2rem)", fontWeight: 300, letterSpacing: "-0.03em", lineHeight: 1.1, marginBottom: 16, color: ink }}>
-                  Build a fundable business.<br />
-                  <span style={{ color: blue }}>Then raise from the best.</span>
-                </h1>
-                <p style={{ color: muted, fontSize: 16, marginBottom: 36, lineHeight: 1.7, maxWidth: 480 }}>
-                  Watch a 90-second overview, then have a quick conversation with your Edge Alpha adviser to generate your initial Q-Score — no forms, just a conversation.
-                </p>
-
-                {/* video placeholder */}
-                <div
-                  onClick={() => setStep("chat")}
-                  style={{ position: "relative", borderRadius: 16, overflow: "hidden", border: `1px solid ${bdr}`, background: surf, aspectRatio: "16/9", marginBottom: 32, cursor: "pointer" }}
+              <Field label="Industry *">
+                <select
+                  style={inputStyle}
+                  value={p1.industry}
+                  onChange={e => setP1(s => ({ ...s, industry: e.target.value }))}
                 >
-                  <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-                    <motion.div
-                      whileHover={{ scale: 1.08 }}
-                      style={{ height: 64, width: 64, borderRadius: "50%", background: "#fff", border: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 12, boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
-                    >
-                      <Play style={{ height: 26, width: 26, color: ink, marginLeft: 3 }} />
-                    </motion.div>
-                    <p style={{ color: muted, fontSize: 13 }}>90-second overview · click to continue</p>
-                  </div>
-                  <div style={{ position: "absolute", bottom: 12, right: 14, background: "rgba(24,22,15,0.08)", borderRadius: 6, padding: "3px 8px", fontSize: 11, color: muted, fontFamily: "monospace" }}>1:32</div>
-                </div>
+                  <option value="">Select industry…</option>
+                  {INDUSTRIES.map(i => <option key={i} value={i}>{i}</option>)}
+                </select>
+              </Field>
+              <Field label="One-line description *" hint="Max 100 characters — what you do in plain English">
+                <input
+                  style={inputStyle}
+                  value={p1.description}
+                  onChange={e => setP1(s => ({ ...s, description: e.target.value.slice(0, 100) }))}
+                  placeholder="We help [who] do [what] without [pain]"
+                />
+                <span style={{ fontSize: 11, color: muted, textAlign: 'right' }}>{p1.description.length}/100</span>
+              </Field>
+            </>
+          )}
 
-                {/* stats */}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 36 }}>
-                  {[
-                    { value: "5 min",  label: "to your Q-Score" },
-                    { value: "500+",   label: "verified investors" },
-                    { value: "3",      label: "assessment categories" },
-                  ].map((s) => (
-                    <div key={s.label} style={{ textAlign: "center", padding: "16px 12px", background: surf, border: `1px solid ${bdr}`, borderRadius: 12 }}>
-                      <p style={{ fontSize: 20, fontWeight: 600, color: ink, marginBottom: 2 }}>{s.value}</p>
-                      <p style={{ fontSize: 11, color: muted }}>{s.label}</p>
-                    </div>
+          {/* ── PAGE 2 — Stage & Revenue ── */}
+          {page === 2 && (
+            <>
+              <Field label="Current stage *">
+                <RadioGroup
+                  options={STAGES}
+                  value={p2.stage}
+                  onChange={v => setP2(s => ({ ...s, stage: v }))}
+                />
+              </Field>
+              <Field label="Revenue status *">
+                <RadioGroup
+                  options={REVENUE_STATUSES}
+                  value={p2.revenueStatus}
+                  onChange={v => setP2(s => ({ ...s, revenueStatus: v }))}
+                />
+              </Field>
+              <Field label="Funding status *">
+                <RadioGroup
+                  options={FUNDING_STATUSES}
+                  value={p2.fundingStatus}
+                  onChange={v => setP2(s => ({ ...s, fundingStatus: v }))}
+                />
+              </Field>
+              <Field label="Team size *">
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                  {TEAM_SIZES.map(opt => (
+                    <div
+                      key={opt.value}
+                      onClick={() => setP2(s => ({ ...s, teamSize: opt.value }))}
+                      style={{
+                        textAlign: 'center', padding: '10px 8px', borderRadius: 8, cursor: 'pointer',
+                        border: `1.5px solid ${p2.teamSize === opt.value ? blue : bdr}`,
+                        background: p2.teamSize === opt.value ? '#EFF6FF' : '#fff',
+                        fontSize: 14, fontWeight: 600, color: p2.teamSize === opt.value ? blue : ink,
+                        transition: 'all 0.15s',
+                      }}
+                    >{opt.label}</div>
                   ))}
                 </div>
+              </Field>
+            </>
+          )}
 
-                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  <button
-                    onClick={() => setStep("chat")}
-                    style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, background: ink, color: "#F9F7F2", fontWeight: 500, padding: "14px 32px", borderRadius: 999, fontSize: 15, border: "none", cursor: "pointer", transition: "opacity .15s" }}
-                    onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.85")}
-                    onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
-                  >
-                    Get started <ArrowRight style={{ height: 16, width: 16 }} />
-                  </button>
-                  <button onClick={() => setStep("chat")} style={{ fontSize: 13, color: muted, background: "none", border: "none", cursor: "pointer" }}>
-                    Skip introduction →
-                  </button>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {/* ── CHAT ──────────────────────────────────────────────────────────── */}
-        {step === "chat" && (
-          <motion.div
-            key="chat"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.35 }}
-            style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}
-          >
-            {/* header */}
-            <div style={{ position: "sticky", top: 0, zIndex: 10, background: bg, borderBottom: `1px solid ${bdr}`, padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ height: 34, width: 34, borderRadius: 8, background: blue, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <span style={{ color: "#fff", fontWeight: 800, fontSize: 11, letterSpacing: "-0.02em" }}>EA</span>
-                </div>
-                <div>
-                  <p style={{ fontSize: 14, fontWeight: 600, color: ink, marginBottom: 1 }}>Edge Alpha Adviser</p>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <div style={{ height: 6, width: 6, background: "#22C55E", borderRadius: "50%" }} />
-                    <p style={{ fontSize: 11, color: muted }}>
-                      {chatDone ? "Analysis complete — creating your account" : `Category 1 of 3 · Question ${Math.min(exchangeCount + 1, 5)} of 5`}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* progress dots */}
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                {Array.from({ length: TOTAL_DOTS }).map((_, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      height: 6,
-                      borderRadius: 999,
-                      transition: "all .5s",
-                      width: i < filledDots ? 20 : i === filledDots && !chatDone ? 10 : 6,
-                      background: i < filledDots ? blue : i === filledDots && !chatDone ? bdr : "#E8E4DC",
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* messages */}
-            <div style={{ flex: 1, overflowY: "auto", padding: "24px 16px" }}>
-              <div style={{ maxWidth: 640, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
-                {uiMessages.map((msg, i) => (
-                  <motion.div
-                    key={i}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3 }}
-                    style={{ display: "flex", gap: 12, flexDirection: msg.role === "user" ? "row-reverse" : "row" }}
-                  >
-                    {msg.role === "agent" && (
-                      <div style={{ height: 28, width: 28, borderRadius: 8, background: blue, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2 }}>
-                        <span style={{ color: "#fff", fontWeight: 800, fontSize: 9, letterSpacing: "-0.02em" }}>EA</span>
-                      </div>
-                    )}
-                    <div
-                      style={{
-                        maxWidth: "82%",
-                        borderRadius: 18,
-                        padding: "12px 16px",
-                        fontSize: 14,
-                        lineHeight: 1.6,
-                        whiteSpace: "pre-wrap",
-                        background: msg.role === "user" ? ink : surf,
-                        color: msg.role === "user" ? bg : ink,
-                        border: msg.role === "agent" ? `1px solid ${bdr}` : "none",
-                        borderTopLeftRadius: msg.role === "agent" ? 4 : 18,
-                        borderTopRightRadius: msg.role === "user" ? 4 : 18,
-                      }}
-                    >
-                      {msg.text}
-                    </div>
-                  </motion.div>
-                ))}
-
-                {/* typing indicator */}
-                {agentTyping && (
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ display: "flex", gap: 12 }}>
-                    <div style={{ height: 28, width: 28, borderRadius: 8, background: blue, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                      <span style={{ color: "#fff", fontWeight: 800, fontSize: 9, letterSpacing: "-0.02em" }}>EA</span>
-                    </div>
-                    <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 18, borderTopLeftRadius: 4, padding: "14px 18px", display: "flex", gap: 5, alignItems: "center" }}>
-                      {[0, 0.2, 0.4].map((d, i) => (
-                        <motion.div key={i} style={{ height: 6, width: 6, background: muted, borderRadius: "50%" }} animate={{ y: [0, -4, 0] }} transition={{ repeat: Infinity, duration: 0.8, delay: d }} />
-                      ))}
-                    </div>
-                  </motion.div>
-                )}
-
-                {/* transitioning */}
-                {chatDone && !agentTyping && (
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ display: "flex", justifyContent: "center", padding: "8px 0" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 20px", background: surf, border: `1px solid ${bdr}`, borderRadius: 16 }}>
-                      <motion.div style={{ height: 14, width: 14, border: `2px solid ${blue}`, borderTopColor: "transparent", borderRadius: "50%" }} animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.8, ease: "linear" }} />
-                      <span style={{ fontSize: 13, color: muted }}>Analysing responses · creating your account next…</span>
-                    </div>
-                  </motion.div>
-                )}
-
-                <div ref={chatEndRef} />
-              </div>
-            </div>
-
-            {/* input */}
-            <div style={{ position: "sticky", bottom: 0, background: bg, borderTop: `1px solid ${bdr}`, padding: "14px 16px" }}>
-              <div style={{ maxWidth: 640, margin: "0 auto", display: "flex", alignItems: "center", gap: 10 }}>
+          {/* ── PAGE 3 — Founder Basics + Auth ── */}
+          {page === 3 && (
+            <>
+              <Field label="Your full name *">
                 <input
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder={agentTyping ? "Adviser is thinking…" : chatDone ? "Analysis complete…" : "Type your answer…"}
-                  disabled={agentTyping || chatDone}
-                  style={{
-                    flex: 1,
-                    background: surf,
-                    border: `1px solid ${bdr}`,
-                    borderRadius: 12,
-                    padding: "12px 16px",
-                    fontSize: 14,
-                    color: ink,
-                    outline: "none",
-                    opacity: agentTyping || chatDone ? 0.5 : 1,
-                    cursor: agentTyping || chatDone ? "not-allowed" : "text",
-                  }}
+                  style={inputStyle}
+                  value={p3.founderName}
+                  onChange={e => setP3(s => ({ ...s, founderName: e.target.value }))}
+                  placeholder="Jane Smith"
                 />
-                <button
-                  onClick={handleSend}
-                  disabled={!input.trim() || agentTyping || chatDone}
-                  style={{
-                    height: 44,
-                    width: 44,
-                    background: ink,
-                    borderRadius: 12,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                    border: "none",
-                    cursor: !input.trim() || agentTyping || chatDone ? "not-allowed" : "pointer",
-                    opacity: !input.trim() || agentTyping || chatDone ? 0.3 : 1,
-                    transition: "opacity .15s",
-                  }}
-                >
-                  <Send style={{ height: 16, width: 16, color: bg }} />
-                </button>
+              </Field>
+              <Field label="LinkedIn profile URL" hint="Optional — improves your Q-Score accuracy">
+                <input
+                  style={inputStyle}
+                  value={p3.linkedinUrl}
+                  onChange={e => setP3(s => ({ ...s, linkedinUrl: e.target.value }))}
+                  placeholder="https://linkedin.com/in/yourname"
+                />
+              </Field>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <Field label="Co-founders *">
+                  <select
+                    style={inputStyle}
+                    value={p3.cofounderCount}
+                    onChange={e => setP3(s => ({ ...s, cofounderCount: e.target.value }))}
+                  >
+                    <option value="0">Solo founder</option>
+                    <option value="1">1 co-founder</option>
+                    <option value="2">2 co-founders</option>
+                    <option value="3">3+ co-founders</option>
+                  </select>
+                </Field>
+                <Field label="Years on this problem *">
+                  <select
+                    style={inputStyle}
+                    value={p3.yearsOnProblem}
+                    onChange={e => setP3(s => ({ ...s, yearsOnProblem: e.target.value }))}
+                  >
+                    <option value="">Select…</option>
+                    <option value="less-than-1">&lt;1 year</option>
+                    <option value="1-2">1–2 years</option>
+                    <option value="3-5">3–5 years</option>
+                    <option value="5-plus">5+ years</option>
+                  </select>
+                </Field>
               </div>
-              <p style={{ textAlign: "center", fontSize: 11, color: muted, marginTop: 8, opacity: 0.6 }}>
-                Enter to send · No account needed yet — just a conversation
-              </p>
-            </div>
-          </motion.div>
-        )}
+              <Field label="Prior startup experience *">
+                <RadioGroup
+                  options={PRIOR_EXP}
+                  value={p3.priorExperience}
+                  onChange={v => setP3(s => ({ ...s, priorExperience: v }))}
+                />
+              </Field>
 
-        {/* ── SIGN UP ───────────────────────────────────────────────────────── */}
-        {step === "signup" && (
-          <motion.div
-            key="signup"
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -16 }}
-            transition={{ duration: 0.35 }}
-            style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "48px 24px" }}
-          >
-            <div style={{ width: "100%", maxWidth: 440 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 36 }}>
-                <div style={{ height: 32, width: 32, borderRadius: 8, background: blue, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <span style={{ color: "#fff", fontWeight: 900, fontSize: 8 }}>EA</span>
-                </div>
-                <span style={{ fontWeight: 600, fontSize: 15, color: ink }}>Edge Alpha</span>
-              </div>
+              <div style={{ height: 1, background: bdr, margin: '4px 0' }} />
 
-              <h1 style={{ fontSize: 28, fontWeight: 300, letterSpacing: "-0.03em", color: ink, marginBottom: 6 }}>Create your account</h1>
-              <p style={{ color: muted, fontSize: 14, marginBottom: 28 }}>Free to start. No credit card required.</p>
+              <Field label="Work email *">
+                <input
+                  style={inputStyle}
+                  type="email"
+                  value={p3.email}
+                  onChange={e => setP3(s => ({ ...s, email: e.target.value }))}
+                  placeholder="you@company.com"
+                  autoComplete="email"
+                />
+              </Field>
+              <Field label="Password *" hint="Minimum 8 characters">
+                <input
+                  style={inputStyle}
+                  type="password"
+                  value={p3.password}
+                  onChange={e => setP3(s => ({ ...s, password: e.target.value }))}
+                  placeholder="Create a strong password"
+                  autoComplete="new-password"
+                />
+              </Field>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 20 }}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                  <div>
-                    <label style={{ fontSize: 12, color: muted, marginBottom: 6, display: "block" }}>First name</label>
-                    <input
-                      placeholder="Alex"
-                      value={signup.firstName}
-                      onChange={(e) => setSignup((p) => ({ ...p, firstName: e.target.value }))}
-                      style={{ width: "100%", background: surf, border: `1px solid ${bdr}`, color: ink, borderRadius: 10, height: 42, padding: "0 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: 12, color: muted, marginBottom: 6, display: "block" }}>Last name</label>
-                    <input
-                      placeholder="Smith"
-                      value={signup.lastName}
-                      onChange={(e) => setSignup((p) => ({ ...p, lastName: e.target.value }))}
-                      style={{ width: "100%", background: surf, border: `1px solid ${bdr}`, color: ink, borderRadius: 10, height: 42, padding: "0 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }}
-                    />
-                  </div>
+              {error && (
+                <div style={{ padding: '10px 14px', borderRadius: 8, background: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626', fontSize: 13 }}>
+                  {error}
                 </div>
-                <div>
-                  <label style={{ fontSize: 12, color: muted, marginBottom: 6, display: "block" }}>Work email</label>
-                  <input
-                    type="email"
-                    placeholder="you@startup.com"
-                    value={signup.email}
-                    onChange={(e) => { setEmailError(""); setSignup((p) => ({ ...p, email: e.target.value })); }}
-                    style={{ width: "100%", background: surf, border: `1px solid ${emailError ? "#DC2626" : bdr}`, color: ink, borderRadius: 10, height: 42, padding: "0 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }}
-                  />
-                  {emailError && (
-                    <p style={{ fontSize: 12, color: "#DC2626", marginTop: 4 }}>{emailError}</p>
-                  )}
-                </div>
-                <div>
-                  <label style={{ fontSize: 12, color: muted, marginBottom: 6, display: "block" }}>Password</label>
-                  <input
-                    type="password"
-                    placeholder="At least 6 characters"
-                    value={signup.password}
-                    onChange={(e) => setSignup((p) => ({ ...p, password: e.target.value }))}
-                    onKeyDown={(e) => e.key === "Enter" && handleSignup()}
-                    style={{ width: "100%", background: surf, border: `1px solid ${bdr}`, color: ink, borderRadius: 10, height: 42, padding: "0 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }}
-                  />
-                </div>
-              </div>
+              )}
+            </>
+          )}
 
+          {/* Nav buttons */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+            {page > 1 ? (
               <button
-                onClick={handleSignup}
-                disabled={signingUp}
+                onClick={() => setPage(p => p - 1)}
+                style={{ padding: '10px 20px', borderRadius: 8, border: `1.5px solid ${bdr}`, background: 'transparent', fontSize: 14, color: ink, cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                Back
+              </button>
+            ) : (
+              <a href="/login" style={{ fontSize: 13, color: muted, textDecoration: 'none' }}>
+                Already have an account? Log in
+              </a>
+            )}
+
+            {page < 3 ? (
+              <button
+                onClick={() => setPage(p => p + 1)}
+                disabled={(page === 1 && !canAdvancePage1) || (page === 2 && !canAdvancePage2)}
                 style={{
-                  width: "100%",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 8,
-                  background: ink,
-                  color: bg,
-                  fontWeight: 500,
-                  padding: "14px 0",
-                  borderRadius: 999,
-                  fontSize: 15,
-                  border: "none",
-                  cursor: signingUp ? "not-allowed" : "pointer",
-                  opacity: signingUp ? 0.6 : 1,
-                  marginBottom: 16,
-                  transition: "opacity .15s",
+                  padding: '10px 24px', borderRadius: 8, border: 'none',
+                  background: ((page === 1 && !canAdvancePage1) || (page === 2 && !canAdvancePage2)) ? bdr : blue,
+                  color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                  fontFamily: 'inherit', transition: 'background 0.15s',
                 }}
               >
-                {signingUp ? "Creating account…" : "See my Q-Score"}
-                {!signingUp && <ArrowRight style={{ height: 16, width: 16 }} />}
+                Continue →
               </button>
-
-              <p style={{ textAlign: "center", fontSize: 13, color: muted }}>
-                Already have an account?{" "}
-                <Link href="/login" style={{ color: blue, fontWeight: 500 }}>Sign in</Link>
-              </p>
-              <p style={{ textAlign: "center", fontSize: 11, color: muted, marginTop: 16, opacity: 0.6 }}>
-                By continuing you agree to our Terms and Privacy Policy.
-              </p>
-            </div>
-          </motion.div>
-        )}
-
-        {/* ── EMAIL SENT ────────────────────────────────────────────────────── */}
-        {step === "emailsent" && (
-          <motion.div
-            key="emailsent"
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
-            style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "48px 24px" }}
-          >
-            <div style={{ width: "100%", maxWidth: 440, textAlign: "center" }}>
-              {/* logo */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 40 }}>
-                <div style={{ height: 32, width: 32, borderRadius: 8, background: blue, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <span style={{ color: "#fff", fontWeight: 900, fontSize: 8 }}>EA</span>
-                </div>
-                <span style={{ fontWeight: 600, fontSize: 15, color: ink }}>Edge Alpha</span>
-              </div>
-
-              {/* envelope icon */}
-              <motion.div
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ delay: 0.1, type: "spring", stiffness: 160 }}
-                style={{ width: 72, height: 72, borderRadius: 20, background: surf, border: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 28px" }}
+            ) : (
+              <button
+                onClick={handleSubmit}
+                disabled={!canSubmitPage3 || loading}
+                style={{
+                  padding: '10px 24px', borderRadius: 8, border: 'none',
+                  background: (!canSubmitPage3 || loading) ? bdr : blue,
+                  color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                  fontFamily: 'inherit', transition: 'background 0.15s',
+                }}
               >
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={blue} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="2" y="4" width="20" height="16" rx="2" />
-                  <polyline points="2,4 12,13 22,4" />
-                </svg>
-              </motion.div>
-
-              <h1 style={{ fontSize: "clamp(1.6rem,4vw,2.2rem)", fontWeight: 300, letterSpacing: "-0.03em", color: ink, marginBottom: 10 }}>
-                Check your inbox
-              </h1>
-              <p style={{ color: muted, fontSize: 14, lineHeight: 1.7, marginBottom: 8 }}>
-                We sent a confirmation link to
-              </p>
-              <p style={{ color: ink, fontSize: 14, fontWeight: 600, marginBottom: 28 }}>
-                {signup.email}
-              </p>
-
-              {/* info box */}
-              <div style={{ padding: "16px 20px", background: surf, border: `1px solid ${bdr}`, borderRadius: 14, marginBottom: 32, textAlign: "left" }}>
-                <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                  <div style={{ height: 32, width: 32, borderRadius: 8, background: bg, border: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
-                    <Lock style={{ height: 13, width: 13, color: blue }} />
-                  </div>
-                  <div>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: ink, marginBottom: 4 }}>Your Q-Score is waiting</p>
-                    <p style={{ fontSize: 12, color: muted, lineHeight: 1.6 }}>
-                      Once you confirm your email, you&apos;ll be taken to your dashboard where your full Q-Score breakdown and AI advisers are ready.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <p style={{ fontSize: 12, color: muted, marginBottom: 20 }}>
-                Didn&apos;t receive it? Check your spam folder or{" "}
-                <Link href="/login" style={{ color: blue, fontWeight: 500 }}>sign in here</Link>.
-              </p>
-
-              <p style={{ textAlign: "center", fontSize: 11, color: muted, opacity: 0.6 }}>
-                The confirmation link expires in 24 hours.
-              </p>
-            </div>
-          </motion.div>
-        )}
-
-      </AnimatePresence>
-    </div>
-  );
-}
-
-// ─── export ───────────────────────────────────────────────────────────────────
-
-export default function FounderOnboarding() {
-  return (
-    <Suspense fallback={
-      <div style={{ minHeight: "100vh", background: "#F9F7F2", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ textAlign: "center" }}>
-          <div style={{ height: 40, width: 40, borderRadius: 10, background: "#2563EB", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-            <span style={{ color: "#fff", fontWeight: 900, fontSize: 8 }}>EA</span>
+                {loading ? 'Creating account…' : 'Create account →'}
+              </button>
+            )}
           </div>
-          <p style={{ color: "#8A867C", fontSize: 13 }}>Loading…</p>
         </div>
+
+        {/* Legal */}
+        <p style={{ textAlign: 'center', fontSize: 12, color: muted, marginTop: 20 }}>
+          By creating an account you agree to our Terms of Service and Privacy Policy.
+        </p>
       </div>
-    }>
-      <OnboardingContent />
-    </Suspense>
-  );
+    </div>
+  )
 }

@@ -62,6 +62,25 @@ const DIMENSION_META: Record<string, { label: string; weight: number }> = {
   traction:   { label: "Traction",  weight: 12 },
 };
 
+// ─── dimension inline panel data ──────────────────────────────────────────────
+const DIM_ISSUES: Record<string, string[]> = {
+  market:     ["TAM needs clearer validation", "LTV:CAC ratio below 3:1"],
+  product:    ["Customer conversation count below 30", "Failed assumption documentation missing"],
+  goToMarket: ["ICP definition needs specificity", "Channel testing breadth low"],
+  financial:  ["Runway below 12 months", "Gross margin not documented"],
+  team:       ["Team completeness: consider co-founder", "Domain expertise narrative weak"],
+  traction:   ["Revenue or LOI commitments not documented", "Customer commitment level low"],
+};
+
+const DIM_BOOSTS: Record<string, { agent: string; artifact: string; pts: number }[]> = {
+  market:     [{ agent: "atlas",  artifact: "competitive_matrix", pts: 5 }, { agent: "patel",  artifact: "battle_card",    pts: 4 }],
+  product:    [{ agent: "nova",   artifact: "pmf_survey",         pts: 5 }, { agent: "nova",   artifact: "interview_notes", pts: 3 }],
+  goToMarket: [{ agent: "patel",  artifact: "gtm_playbook",       pts: 6 }, { agent: "patel",  artifact: "icp_document",   pts: 5 }],
+  financial:  [{ agent: "felix",  artifact: "financial_summary",  pts: 6 }, { agent: "leo",    artifact: "legal_checklist", pts: 3 }],
+  team:       [{ agent: "harper", artifact: "hiring_plan",        pts: 5 }, { agent: "sage",   artifact: "strategic_plan", pts: 4 }],
+  traction:   [{ agent: "susi",   artifact: "outreach_sequence",  pts: 4 }, { agent: "susi",   artifact: "sales_script",   pts: 4 }],
+};
+
 // Maps each Q-Score dimension to the best agent to challenge it
 const DIMENSION_AGENT: Record<string, { agentId: string; agentName: string; label: string }> = {
   market:     { agentId: "atlas",  agentName: "Atlas",  label: "Competitive Analysis" },
@@ -309,6 +328,8 @@ export default function FounderDashboard() {
   const { metrics: dashMetrics } = useMetrics();
   const { data: dashData, loading: dashLoading, removePendingAction } = useDashboardData();
   const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [profileBuilderCompleted, setProfileBuilderCompleted] = useState<boolean | null>(null);
+  const [selectedDimension, setSelectedDimension] = useState<string | null>(null);
 
   // ── Stripe verification state ────────────────────────────────────────────
   const [stripeStatus, setStripeStatus] = useState<{
@@ -319,8 +340,28 @@ export default function FounderDashboard() {
   const [stripeError,      setStripeError]      = useState("");
   const [showStripeForm,   setShowStripeForm]   = useState(false);
 
+  // Check profile_builder_completed
+  useEffect(() => {
+    if (!user) return
+    import("@supabase/supabase-js").then(async ({ createClient }) => {
+      try {
+        const supabase = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        )
+        const { data } = await supabase
+          .from("founder_profiles")
+          .select("profile_builder_completed")
+          .eq("user_id", user.id)
+          .single()
+        setProfileBuilderCompleted(data?.profile_builder_completed ?? false)
+      } catch {
+        setProfileBuilderCompleted(true) // don't block on error
+      }
+    })
+  }, [user])
+
   // Load existing stripe status on mount
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     fetch("/api/stripe/connect")
       .then(r => r.json())
@@ -335,7 +376,6 @@ export default function FounderDashboard() {
         }
       })
       .catch(() => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleStripeConnect() {
@@ -371,8 +411,6 @@ export default function FounderDashboard() {
     }
   }
 
-  const iqScore        = dashData?.iqScore        ?? null;
-  const iqCalculating  = dashData?.iqCalculating  ?? false;
   const scoreHistory   = dashData?.scoreHistory   ?? [];
   const usedAgentIds   = dashData?.usedAgentIds   ?? new Set<string>();
   const pendingActions = dashData?.pendingActions  ?? [];
@@ -482,6 +520,32 @@ export default function FounderDashboard() {
             )}
           </div>
         </motion.div>
+
+        {/* ── profile builder gate banner ───────────────────────────── */}
+        {profileBuilderCompleted === false && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap",
+            padding: "16px 20px", borderRadius: 12, marginBottom: 20,
+            background: "#EFF6FF", border: `1.5px solid ${blue}`,
+          }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: blue }}>Complete your Profile Builder to get your Q-Score</div>
+              <div style={{ fontSize: 13, color: "#3B82F6", marginTop: 2 }}>
+                Answer 5 sections of questions — takes about 10–15 minutes. Your score is currently 0 until you complete it.
+              </div>
+            </div>
+            <a
+              href="/founder/profile-builder"
+              style={{
+                padding: "10px 22px", borderRadius: 8, background: blue,
+                color: "#fff", fontSize: 13, fontWeight: 600,
+                textDecoration: "none", flexShrink: 0,
+              }}
+            >
+              Start Profile Builder →
+            </a>
+          </div>
+        )}
 
         {/* ── runway warning banner ─────────────────────────────────── */}
         {runwayLow && (
@@ -922,71 +986,6 @@ export default function FounderDashboard() {
           </div>
         </motion.div>
 
-        {/* ── IQ Score card ─────────────────────────────────────────── */}
-        {!iqScore && iqCalculating && (
-          <div style={{ marginBottom: 24, padding: "10px 14px", background: surf, border: `1px solid ${bdr}`, borderRadius: 10, display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: muted }}>
-            <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: "50%", border: `2px solid ${muted}`, borderTopColor: "transparent", animation: "spin 0.8s linear infinite" }} />
-            IQ Score calculating…
-          </div>
-        )}
-        {iqScore && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.28 }}
-            style={{ marginBottom: 24 }}
-          >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", color: muted, fontWeight: 600 }}>
-                Edge Alpha IQ — Investment Readiness
-              </p>
-              <Link href="/founder/improve-qscore" style={{ fontSize: 11, color: blue, textDecoration: "none", fontWeight: 500 }}>
-                Full breakdown →
-              </Link>
-            </div>
-            <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 18, padding: "20px 22px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 20, marginBottom: 16 }}>
-                {/* Grade circle */}
-                <div style={{
-                  width: 64, height: 64, borderRadius: "50%", flexShrink: 0,
-                  background: iqScore.normalizedScore >= 74 ? "#EFF6FF" : iqScore.normalizedScore >= 50 ? "#FFFBEB" : "#FEF2F2",
-                  border: `2px solid ${iqScore.normalizedScore >= 74 ? blue : iqScore.normalizedScore >= 50 ? amber : red}`,
-                  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-                }}>
-                  <span style={{ fontSize: 18, fontWeight: 700, color: iqScore.normalizedScore >= 74 ? blue : iqScore.normalizedScore >= 50 ? amber : red, lineHeight: 1 }}>
-                    {iqScore.grade}
-                  </span>
-                  <span style={{ fontSize: 9, color: muted, marginTop: 1 }}>{iqScore.normalizedScore}/100</span>
-                </div>
-                <div style={{ flex: 1 }}>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: ink, margin: "0 0 2px" }}>
-                    IQ Score: {iqScore.normalizedScore}
-                  </p>
-                  <p style={{ fontSize: 11, color: muted, margin: 0 }}>
-                    {iqScore.indicatorsUsed} of 25 indicators scored · {iqScore.scoringMethod} assessment
-                  </p>
-                  {/* Parameter bars */}
-                  <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
-                    {iqScore.parameterScores.map(p => {
-                      const pct = Math.round((p.score / 5) * 100);
-                      const col = pct >= 70 ? blue : pct >= 50 ? amber : red;
-                      return (
-                        <div key={p.parameterId} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, minWidth: 36 }}>
-                          <div style={{ width: 36, height: 4, background: bdr, borderRadius: 2, overflow: "hidden" }}>
-                            <div style={{ width: `${pct}%`, height: "100%", background: col, borderRadius: 2 }} />
-                          </div>
-                          <span style={{ fontSize: 9, color: muted }}>{p.name.split(" ")[0]}</span>
-                          <span style={{ fontSize: 9, fontWeight: 600, color: col }}>{pct}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-
         {/* ── quick stats row ───────────────────────────────────────── */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 32 }}>
           {quickStats.map((s, i) => {
@@ -1400,7 +1399,7 @@ export default function FounderDashboard() {
               <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", color: muted, fontWeight: 600, marginBottom: 3 }}>
                 CXO Workspace
               </p>
-              <p style={{ fontSize: 16, fontWeight: 400, color: ink }}>Your executive team's work</p>
+              <p style={{ fontSize: 16, fontWeight: 400, color: ink }}>Your executive team&apos;s work</p>
             </div>
             <Link href="/founder/agents" style={{ fontSize: 12, color: muted, textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}>
               View all <ArrowRight style={{ height: 10, width: 10 }} />

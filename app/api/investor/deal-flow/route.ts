@@ -172,7 +172,7 @@ export async function GET() {
 
     // Apply personalized match scores + custom weighted Q-Score
     const withMatch = enriched.map(f => {
-      const baseMatch = aiMatches[f.id]?.score ?? Math.round(50 + (f.qScore / 100) * 40);
+      const _baseMatch = aiMatches[f.id]?.score ?? Math.round(50 + (f.qScore / 100) * 40);
       // If investor has custom weights, recalculate match score using them
       // (uses dimension scores from qscore_history if available via latestQScore map)
       const qrow = latestQScore.get(f.id);

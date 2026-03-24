@@ -207,5 +207,4 @@ export async function embedArtifact(artifact: ArtifactInput): Promise<void> {
       .eq('user_id', artifact.user_id);
   }
 
-  console.log(`[Embedding Pipeline] Embedded ${chunks.length} chunks for artifact ${artifact.id} (invalidated dims: ${affectedDims.join(', ') || 'all'})`);
 }

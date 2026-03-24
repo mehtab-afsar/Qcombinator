@@ -211,6 +211,5 @@ export async function GET(request: Request) {
     }
   }
 
-  console.log('Weekly automation complete:', results);
   return NextResponse.json(results);
 }

@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -c \"SELECT viewname FROM pg_views WHERE viewname = ''qscore_with_delta'';\")",
+      "Bash(SUPABASE_DB_PASSWORD=Mehtabafsar@1 supabase db push --linked)",
+      "Bash(SUPABASE_DB_PASSWORD=Mehtabafsar@1 supabase migration repair --status reverted 20260303000001)"
+    ]
+  }
+}

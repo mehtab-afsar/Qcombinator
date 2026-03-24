@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Calendar, Users, Clock, Star,
   Award, ArrowRight, Video, Play, CheckCircle,
-  Sparkles, BookOpen, Zap,
+  Sparkles, BookOpen, Zap, Brain,
 } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import {
   getUpcomingWorkshops, getPastWorkshops, mentors,
   academyPrograms, getOpenPrograms,
@@ -18,6 +20,13 @@ const surf  = "#F0EDE6";
 const bdr   = "#E2DDD5";
 const ink   = "#18160F";
 const muted = "#8A867C";
+
+// ─── recommended resources per dimension ──────────────────────────────────────
+const RECOMMENDED = [
+  { title: "ICP Definition Masterclass",  topic: "go-to-market", agent: "patel",  summary: "Define your Ideal Customer Profile with precision — the foundation of every great GTM strategy." },
+  { title: "PMF Validation Framework",    topic: "product",      agent: "nova",   summary: "Sean Ellis' proven method for measuring and reaching product-market fit with real customer data." },
+  { title: "Fundraising Narrative Guide", topic: "fundraising",  agent: "sage",   summary: "Build a compelling story that resonates with investors at seed and Series A." },
+];
 
 const TOPIC_COLORS: Record<string, { bg: string; text: string }> = {
   "go-to-market": { bg: "#EEF2FF", text: "#3730A3" },
@@ -34,7 +43,9 @@ const TABS = [
   { key: "programs",  label: "Programs",  icon: BookOpen },
 ];
 
-export default function Academy() {
+function AcademyInner() {
+  const params = useSearchParams();
+  const focusDim = params.get("focus");
   const [tab, setTab]               = useState("workshops");
   const [toast, setToast]           = useState(false);
   const [hoveredCard, setHoveredCard] = useState<string | null>(null);
@@ -82,6 +93,76 @@ export default function Academy() {
               <span style={{ height: 6, width: 6, borderRadius: "50%", background: "#6366F1", display: "inline-block" }} />
               New workshops added weekly
             </div>
+          </div>
+        </motion.div>
+
+        {/* ── Recommended for you ─────────────────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.06 }}
+          style={{ marginBottom: 32 }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+            <h2 style={{ fontSize: 14, fontWeight: 600, color: ink }}>Recommended for you</h2>
+            {focusDim && (
+              <span style={{
+                fontSize: 10, fontWeight: 600, padding: "2px 9px", borderRadius: 999,
+                background: "#EEF2FF", color: "#3730A3", border: "1px solid #C7D2FE",
+                textTransform: "capitalize",
+              }}>
+                Focus: {focusDim}
+              </span>
+            )}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 14 }}>
+            {RECOMMENDED.map((r, i) => {
+              const topicStyle = TOPIC_COLORS[r.topic] ?? { bg: surf, text: muted };
+              return (
+                <motion.div
+                  key={r.title}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.07 }}
+                  style={{
+                    background: bg, border: `1px solid ${bdr}`, borderRadius: 14,
+                    padding: "18px 20px", position: "relative",
+                  }}
+                >
+                  <span style={{
+                    position: "absolute", top: 14, right: 14,
+                    fontSize: 9, fontWeight: 700, padding: "2px 8px", borderRadius: 999,
+                    background: "#EEF2FF", color: "#3730A3",
+                    letterSpacing: "0.08em", textTransform: "uppercase",
+                  }}>
+                    Recommended
+                  </span>
+                  <span style={{
+                    fontSize: 10, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase",
+                    padding: "2px 8px", borderRadius: 999, display: "inline-block", marginBottom: 10,
+                    background: topicStyle.bg, color: topicStyle.text,
+                  }}>
+                    {r.topic.replace("-", " ")}
+                  </span>
+                  <h3 style={{ fontSize: 14, fontWeight: 500, color: ink, marginBottom: 8, lineHeight: 1.4 }}>
+                    {r.title}
+                  </h3>
+                  <p style={{ fontSize: 12, color: muted, lineHeight: 1.6, marginBottom: 14 }}>
+                    {r.summary}
+                  </p>
+                  <Link
+                    href={`/founder/cxo?agent=${r.agent}`}
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 6,
+                      fontSize: 12, fontWeight: 600, color: "#2563EB", textDecoration: "none",
+                    }}
+                  >
+                    <Brain style={{ width: 12, height: 12 }} />
+                    Work on this with AI →
+                  </Link>
+                </motion.div>
+              );
+            })}
           </div>
         </motion.div>
 
@@ -597,5 +678,17 @@ export default function Academy() {
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+export default function Academy() {
+  return (
+    <Suspense fallback={
+      <div style={{ minHeight: "100vh", background: "#F9F7F2", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <p style={{ fontSize: 13, color: "#8A867C", fontFamily: "system-ui, sans-serif" }}>Loading Academy…</p>
+      </div>
+    }>
+      <AcademyInner />
+    </Suspense>
   );
 }

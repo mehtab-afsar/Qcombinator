@@ -2,9 +2,9 @@
 
 import { motion } from "framer-motion";
 import {
-  BarChart3, Bell, Brain, Building2, ChevronsUpDown,
-  GraduationCap, Home, Library, LogOut, MessageSquare,
-  Settings, Target, UserCircle, FolderOpen, Briefcase, Presentation,
+  Bell, Brain, Building2, ChevronsUpDown,
+  GraduationCap, Home, LogOut, MessageSquare,
+  Settings, Target, UserCircle,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -26,17 +26,10 @@ const blue  = "#2563EB";
 // ─── nav items ────────────────────────────────────────────────────────────────
 const BASE_NAV = [
   { name: "Dashboard",         href: "/founder/dashboard", icon: Home,          badge: null    },
-  { name: "CXO Suite",         href: "/founder/agents",    icon: Brain,         badge: "9"     },
-  { name: "Workspace",         href: "/founder/workspace", icon: FolderOpen,    badge: null    },
-  { name: "Portfolio",         href: "/founder/portfolio",  icon: Briefcase,     badge: null    },
-  { name: "Pitch Deck",        href: "/founder/pitch-deck", icon: Presentation,  badge: null    },
-  { name: "Investor Matching", href: "/founder/matching",   icon: Target,        badge: "Smart" },
+  { name: "CXO Suite",         href: "/founder/cxo",       icon: Brain,         badge: "9"     },
+  { name: "Investor Matching", href: "/founder/matching",  icon: Target,        badge: "Smart" },
   { name: "Academy",           href: "/founder/academy",   icon: GraduationCap, badge: "NEW"   },
-  { name: "Library",           href: "/founder/library",    icon: Library,       badge: null    },
-  { name: "Profile Builder",   href: "/founder/profile",         icon: Building2,     badge: null    },
-  { name: "Startup Profile",  href: "/founder/startup-profile", icon: UserCircle,    badge: null    },
-  { name: "Metrics",           href: "/founder/metrics",   icon: BarChart3,     badge: null    },
-  { name: "Messages",          href: "/messages",          icon: MessageSquare, badge: null    },
+  { name: "Messages",          href: "/founder/messages",  icon: MessageSquare, badge: null    },
 ];
 
 const BADGE: Record<string, { bg: string; color: string }> = {
@@ -304,6 +297,14 @@ export default function FounderSidebar() {
       : item
   );
 
+  // Active path helpers for CXO Suite (matches /founder/cxo and /founder/agents/*)
+  function isNavActive(href: string, pathname: string): boolean {
+    if (href === "/founder/cxo") {
+      return pathname === "/founder/cxo" || pathname.startsWith("/founder/cxo?") || pathname.startsWith("/founder/agents/");
+    }
+    return pathname === href || pathname.startsWith(href + "/");
+  }
+
   const displayName = (user?.user_metadata?.full_name as string) || user?.email?.split("@")[0] || "Founder";
   const startupName = (user?.user_metadata?.startup_name as string) || "Edge Alpha";
   const initials    = displayName.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase();
@@ -424,7 +425,7 @@ export default function FounderSidebar() {
           <div style={{ height: 1, background: bdr, margin: "6px 4px 8px" }} />
 
           {nav.map(item => {
-            const active = pathname === item.href || pathname.startsWith(item.href + "/");
+            const active = isNavActive(item.href, pathname);
             const Icon   = item.icon;
             const isMessages = item.name === "Messages";
             const bs = isMessages && item.badge
@@ -549,6 +550,8 @@ export default function FounderSidebar() {
             <DropSep />
             <DropItem href="/founder/profile" icon={UserCircle} label="Profile" />
             <DropItem href="/founder/settings" icon={Settings} label="Settings" />
+            <DropItem href="/founder/settings?tab=company" icon={Building2} label="Company Settings" />
+            <DropItem href="/founder/settings?tab=connectors" icon={Settings} label="Connectors" />
             <DropSep />
             <DropItem icon={LogOut} label="Sign out" onClick={handleSignOut} danger />
           </Dropdown>

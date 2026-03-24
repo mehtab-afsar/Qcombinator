@@ -4,7 +4,6 @@
  */
 
 import { createClient } from '@/lib/supabase/client'
-import type { IQScore } from '@/features/iq/types/iq.types'
 
 export interface DashPriority {
   title: string
@@ -15,8 +14,6 @@ export interface DashPriority {
 }
 
 export interface DashboardData {
-  iqScore: IQScore | null
-  iqCalculating: boolean
   usedAgentIds: Set<string>
   scoreHistory: Array<{
     overall: number; market: number; product: number; gtm: number
@@ -46,8 +43,6 @@ export async function fetchDashboardData(): Promise<DashboardData> {
   const { data: { user } } = await supabase.auth.getUser()
 
   const empty: DashboardData = {
-    iqScore: null,
-    iqCalculating: false,
     usedAgentIds: new Set(),
     scoreHistory: [],
     weeklyActivity: 0,
@@ -63,7 +58,6 @@ export async function fetchDashboardData(): Promise<DashboardData> {
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
 
   const [
-    iqRes,
     priorityRes,
     { data: artifactRows },
     { data: scoreRows },
@@ -73,7 +67,6 @@ export async function fetchDashboardData(): Promise<DashboardData> {
     { data: pendingRows },
     { data: conflictRow },
   ] = await Promise.all([
-    fetch('/api/iq/latest').then(r => r.ok ? r.json() : null).catch(() => null),
     fetch('/api/qscore/priority').then(r => r.ok ? r.json() : null).catch(() => null),
 
     supabase
@@ -118,9 +111,6 @@ export async function fetchDashboardData(): Promise<DashboardData> {
       .single(),
   ])
 
-  const iqRes_       = iqRes as { iqScore?: IQScore; calculating?: boolean } | null
-  const iqScore      = iqRes_?.iqScore ?? null
-  const iqCalculating = iqScore === null ? (iqRes_?.calculating ?? false) : false
   const usedAgentIds = new Set(
     (artifactRows ?? []).map((r: { agent_id: string }) => r.agent_id)
   )
@@ -152,8 +142,6 @@ export async function fetchDashboardData(): Promise<DashboardData> {
   const priorities: DashPriority[] = (priorityRes as { priorities?: DashPriority[] } | null)?.priorities ?? []
 
   return {
-    iqScore,
-    iqCalculating,
     usedAgentIds,
     scoreHistory,
     weeklyActivity:  activityCount ?? 0,
