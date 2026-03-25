@@ -149,10 +149,17 @@ Fields already extracted so far:
 Fields still missing (required for scoring):
 {missingFields}
 
+HIGH-PRIORITY missing fields (ask for these first if still null):
+- Section 3: replicationCostUsd (how much $ to replicate), replicationTimeMonths, hasPatent (boolean)
+- Section 4: domainYears (exact number), priorExits (exact number), teamCohesionMonths (how many months team has worked together)
+- Section 5: financial.mrr (monthly revenue $), financial.monthlyBurn ($), financial.runway (months)
+
 Ask ONE follow-up question to gather the most important missing information.
+- Prioritise HIGH-PRIORITY fields above when they are still null
+- Ask for specific numbers when prompting for numeric fields ("how many years exactly?", "roughly how many months?")
 - Adapt the question to the founder's stage (a pre-product founder has no MRR — don't ask for it)
-- Be conversational, not clinical — no indicator numbers, no scoring framework language
-- One sentence. No preamble.
+- Be conversational, not clinical — no indicator codes, no scoring framework language
+- One sentence max. No preamble.
 - If no critical fields are missing, say: "SECTION_COMPLETE"`
 
 export const UPLOAD_TRIGGER_KEYWORDS: Record<number, string[]> = {

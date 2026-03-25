@@ -28,12 +28,15 @@ const INITIAL_QUESTIONS: Record<number, Record<string, string>> = {
     'growing':   "You're already in market — how do you size the opportunity? How many more customers like yours are out there, and what's the path to the next 10×?",
   },
   3: {
-    default:     "What's technically hard about what you've built? If a strong engineering team started building a competitor tomorrow, what would take them the longest to figure out?",
-    'pre-product': "What's technically challenging about the problem you're solving? What expertise or knowledge does your team have that others would struggle to replicate?",
-    'healthtech': "Have you filed or applied for any patents, FDA clearances, or CE marks? What regulatory or IP moat are you building?",
+    default:     "What's technically hard about what you've built? If a well-funded competitor started tomorrow, how long and how much money would it take them to replicate what you have — and have you filed any patents?",
+    'pre-product': "What expertise or IP does your team hold that a competitor would struggle to replicate? Have you filed any patents, and roughly how much would it cost someone to build a competitive alternative?",
+    'healthtech': "Have you filed or applied for any patents, FDA clearances, or CE marks? What's your regulatory strategy, and how long would it take a well-funded team to catch up technically?",
+    'deeptech':  "What's the core technical breakthrough? Have you filed patents? Roughly how much capital would a competitor need to replicate your core IP or know-how?",
   },
   4: {
-    default:     "Tell me your story. How did you end up working on this specific problem? What's the personal connection or professional background that makes you the right person to solve it?",
+    default:     "Tell me your story — how many years have you worked in this exact domain, how many previous companies have you started or exited, and how long have the key members of your current team worked together?",
+    'pre-product': "What's your background in this space — years of domain experience, any prior startups, and who's on the founding team and how long have you all known each other?",
+    'growing':   "Walk me through the founding team — years of relevant domain experience, prior exits, and which functions (tech, sales, product, finance) are covered by the core team?",
   },
   5: {
     default:     "What's your current MRR and monthly burn? If you're pre-revenue, what's your cash runway in months?",

@@ -125,7 +125,15 @@ export async function GET() {
           id: f.user_id,
           name: f.startup_name || (sp.companyName as string) || `${f.full_name}'s Startup`,
           tagline,
-          qScore: qrow?.overall_score ?? 0,
+          qScore: (() => {
+            if (!qrow) return 0;
+            const daysSince = Math.floor((Date.now() - new Date(qrow.calculated_at).getTime()) / 86400000);
+            const decay = daysSince < 90 ? 1.00 : daysSince < 180 ? 0.975 : daysSince < 270 ? 0.95 : daysSince < 365 ? 0.90 : 0.80;
+            return Math.max(1, Math.round(qrow.overall_score * decay));
+          })(),
+          rawQScore: qrow?.overall_score ?? 0,
+          qScoreCalculatedAt: qrow?.calculated_at ?? null,
+          qScoreDaysSince: qrow ? Math.floor((Date.now() - new Date(qrow.calculated_at).getTime()) / 86400000) : null,
           qScorePercentile: qrow?.percentile ?? 0,
           stage: stageLabel[f.stage ?? ''] ?? f.stage ?? 'Unknown',
           sector: f.industry ?? 'Other',

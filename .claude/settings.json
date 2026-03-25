@@ -3,7 +3,27 @@
     "allow": [
       "Bash(psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -c \"SELECT viewname FROM pg_views WHERE viewname = ''qscore_with_delta'';\")",
       "Bash(SUPABASE_DB_PASSWORD=Mehtabafsar@1 supabase db push --linked)",
-      "Bash(SUPABASE_DB_PASSWORD=Mehtabafsar@1 supabase migration repair --status reverted 20260303000001)"
+      "Bash(SUPABASE_DB_PASSWORD=Mehtabafsar@1 supabase migration repair --status reverted 20260303000001)",
+      "Bash(SUPABASE_DB_PASSWORD='Mehtabafsar@1' npx supabase db push)",
+      "Read(//Users/mohammedmehtabafsr/Desktop/Qcombinator/features/qscore/types/**)",
+      "Bash(PGPASSWORD='Mehtabafsar@1' psql \"postgresql://postgres.mxlezjkwjxtdbdtofkxy:Mehtabafsar@1@aws-0-ap-south-1.pooler.supabase.com:5432/postgres\" -f supabase/seed.sql)",
+      "Bash(brew install:*)",
+      "Bash(SUPABASE_DB_PASSWORD='Mehtabafsar@1' npx supabase db reset --db-url \"postgresql://postgres:Mehtabafsar@1@db.mxlezjkwjxtdbdtofkxy.supabase.co:5432/postgres\")",
+      "Bash(export PATH=\"/opt/homebrew/opt/postgresql@18/bin:$PATH\")",
+      "Bash(psql \"postgresql://postgres.mxlezjkwjxtdbdtofkxy:Mehtabafsar%401@aws-0-ap-south-1.pooler.supabase.com:5432/postgres\" -f /Users/mohammedmehtabafsar/Desktop/Qcombinator/supabase/seed.sql)",
+      "Bash(psql \"postgresql://postgres:Mehtabafsar%401@db.mxlezjkwjxtdbdtofkxy.supabase.co:5432/postgres\" -f /Users/mohammedmehtabafsar/Desktop/Qcombinator/supabase/seed.sql)",
+      "Bash(psql \"postgresql://postgres:postgres@127.0.0.1:54322/postgres\" -f /Users/mohammedmehtabafsar/Desktop/Qcombinator/supabase/seed.sql)",
+      "Bash(psql \"postgresql://postgres:postgres@127.0.0.1:54322/postgres\" -c \"SELECT 1\")",
+      "Bash(xxd)",
+      "Bash(find /Users/mohammedmehtabafsar/Desktop/Qcombinator -path ./node_modules -prune -o -type f \\\\\\(-name *.ts -o -name *.tsx \\\\\\) -size 0 -print)",
+      "Bash(find /Users/mohammedmehtabafsar/Desktop/Qcombinator -path */node_modules -prune -o -type f \\\\\\(-name *.ts -o -name *.tsx \\\\\\) -size -200c -print)",
+      "Bash(find /Users/mohammedmehtabafsar/Desktop/Qcombinator/components -type f \\\\\\(-name *.ts -o -name *.tsx \\\\\\))",
+      "Bash(head -20 grep \"ADD COLUMN\\\\|founder_name\\\\|company_name\\\\|revenue_status\\\\|team_size\\\\|years_on_problem\\\\|prior_experience\\\\|registration_completed\\\\|profile_builder_completed\\\\|cofounder_count\\\\|funding_status\" /Users/mohammedmehtabafsar/Desktop/Qcombinator/supabase/migrations/20260325000002_profile_builder.sql)"
+    ],
+    "additionalDirectories": [
+      "/Users/mohammedmehtabafsar/Desktop/Qcombinator/app/founder/cxo",
+      "/Users/mohammedmehtabafsar/Desktop/Qcombinator/app/startup",
+      "/Users/mohammedmehtabafsar/Desktop/Qcombinator/supabase/migrations"
     ]
   }
 }

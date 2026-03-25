@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { callOpenRouter } from '@/lib/openrouter';
-import { retrieveActionsContext, inferSector } from '@/features/qscore/rag/retrieval';
+import { retrieveActionsContext, inferSector, loadKnowledgeBase } from '@/features/qscore/rag/retrieval';
 import { AssessmentData } from '@/features/qscore/types/qscore.types';
 
 /**
@@ -77,6 +77,8 @@ export async function GET(_request: NextRequest) {
     // Use assessment_data stored on the score row (faster than fetching assessment)
     const assessmentData = (latest.assessment_data ?? {}) as AssessmentData;
     const sector = inferSector(assessmentData);
+    // Warm the knowledge base cache with DB chunks (falls back to TypeScript constants)
+    await loadKnowledgeBase(supabase);
     const { context: ragContext, chunkIds } = retrieveActionsContext(
       assessmentData,
       weakDimensions,

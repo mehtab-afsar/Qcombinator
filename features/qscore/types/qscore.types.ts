@@ -24,7 +24,10 @@ export interface RAGMetadata {
 }
 
 export interface PRDQScore {
-  overall: number; // 0-100 weighted average
+  overall: number; // 0-100 weighted average (decay-adjusted when stale)
+  rawOverall?: number; // Stored score before decay
+  decayApplied?: boolean; // true when score is older than 90 days
+  daysSince?: number; // Days since last assessment
   percentile: number | null; // Percentile ranking vs cohort
   grade: 'A+' | 'A' | 'B+' | 'B' | 'C+' | 'C' | 'D' | 'F';
   breakdown: {

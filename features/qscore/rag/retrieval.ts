@@ -12,6 +12,58 @@
 
 import { KNOWLEDGE_BASE, KnowledgeChunk, KnowledgeCategory, Sector } from './knowledge-base';
 import { AssessmentData } from '../types/qscore.types';
+import type { SupabaseClient } from '@supabase/supabase-js';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DB-backed knowledge base (populated lazily, falls back to TypeScript constant)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** In-memory cache — set once per serverless warm instance */
+let _dbChunks: KnowledgeChunk[] | null = null;
+let _lastLoad = 0;
+const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+/**
+ * Load knowledge chunks from the `qscore_knowledge_chunks` DB table into the
+ * in-memory cache. Falls back silently to the TypeScript constants if the DB
+ * query fails. Call this at the start of any route that runs scoring.
+ */
+export async function loadKnowledgeBase(supabase: SupabaseClient): Promise<void> {
+  const now = Date.now();
+  if (_dbChunks !== null && now - _lastLoad < CACHE_TTL_MS) return; // still fresh
+
+  try {
+    const { data, error } = await supabase
+      .from('qscore_knowledge_chunks')
+      .select('id, category, sector, stage, dimension, title, content, metadata')
+      .eq('active', true);
+
+    if (error || !data || data.length === 0) return; // silently keep TypeScript fallback
+
+    _dbChunks = data.map(row => ({
+      id:        row.id as string,
+      category:  row.category as KnowledgeChunk['category'],
+      sector:    (row.sector as string[]).length === 1
+                   ? (row.sector[0] as Sector)
+                   : (row.sector as Sector[]),
+      stage:     (row.stage as string[]).length === 1
+                   ? (row.stage[0] as 'pre-seed' | 'seed' | 'series-a' | 'all')
+                   : (row.stage as ('pre-seed' | 'seed' | 'series-a' | 'all')[]),
+      dimension: row.dimension as string,
+      title:     row.title as string,
+      content:   row.content as string,
+      metadata:  (row.metadata ?? {}) as Record<string, unknown>,
+    }));
+    _lastLoad = now;
+  } catch {
+    // DB unavailable — keep using TypeScript constants
+  }
+}
+
+/** Active knowledge base: DB chunks when loaded, TypeScript fallback otherwise */
+function activeKnowledgeBase(): KnowledgeChunk[] {
+  return _dbChunks ?? KNOWLEDGE_BASE;
+}
 
 export interface RetrievalQuery {
   dimension?: string;
@@ -40,7 +92,7 @@ export function retrieveChunks(query: RetrievalQuery): RetrievedChunk[] {
     maxResults = 5,
   } = query;
 
-  const results: RetrievedChunk[] = KNOWLEDGE_BASE.map(chunk => {
+  const results: RetrievedChunk[] = activeKnowledgeBase().map(chunk => {
     let score = 0;
 
     // Dimension match

@@ -22,6 +22,8 @@ interface Deal {
   name: string;
   tagline: string;
   qScore: number;
+  rawQScore: number;
+  qScoreDaysSince: number | null;
   stage: string;
   sector: string;
   location: string;
@@ -126,7 +128,7 @@ export default function DealFlowPage() {
       .then(data => {
         if (data.founders && data.founders.length > 0) {
           setDeals(data.founders.map((f: {
-            id: string; name: string; tagline: string; qScore: number; stage: string;
+            id: string; name: string; tagline: string; qScore: number; rawQScore?: number; qScoreDaysSince?: number | null; stage: string;
             sector: string; location: string; fundingGoal: string; teamSize: number | null;
             matchScore: number; highlights: string[]; lastActive: string;
             founder: { name: string }; hasScore: boolean;
@@ -138,6 +140,8 @@ export default function DealFlowPage() {
             name: f.name,
             tagline: f.tagline || f.sector,
             qScore: f.qScore,
+            rawQScore: f.rawQScore ?? f.qScore,
+            qScoreDaysSince: f.qScoreDaysSince ?? null,
             stage: f.stage || "Unknown",
             sector: f.sector || "Other",
             location: f.location || "",
@@ -369,7 +373,12 @@ export default function DealFlowPage() {
                       {deal.weightedQScore}
                     </p>
                     {deal.weightedQScore !== deal.qScore && (
-                      <p style={{ fontSize: 9, color: muted }}>raw {deal.qScore}</p>
+                      <p style={{ fontSize: 9, color: muted }}>raw {deal.rawQScore}</p>
+                    )}
+                    {deal.qScoreDaysSince !== null && (
+                      <p style={{ fontSize: 9, color: deal.qScoreDaysSince < 30 ? green : deal.qScoreDaysSince < 90 ? amber : red }}>
+                        {deal.qScoreDaysSince}d ago
+                      </p>
                     )}
                   </div>
 
@@ -416,9 +425,18 @@ export default function DealFlowPage() {
                 {/* ── 4-signal row + highlights ──────────────────────────── */}
                 <div style={{ display: "flex", gap: 6, padding: "0 16px 14px 76px", flexWrap: "wrap" }}>
                   {/* Readiness Score */}
-                  <span title="Readiness Score — overall Q-Score" style={{ fontSize: 11, padding: "2px 9px", borderRadius: 999, background: deal.weightedQScore >= 80 ? "#ECFDF5" : deal.weightedQScore >= 60 ? "#EFF6FF" : surf, color: deal.weightedQScore >= 80 ? green : deal.weightedQScore >= 60 ? blue : muted, border: `1px solid ${deal.weightedQScore >= 80 ? "#A7F3D0" : deal.weightedQScore >= 60 ? "#BFDBFE" : bdr}` }}>
+                  <span title="Readiness Score — overall Q-Score (effective, decay-adjusted)" style={{ fontSize: 11, padding: "2px 9px", borderRadius: 999, background: deal.weightedQScore >= 80 ? "#ECFDF5" : deal.weightedQScore >= 60 ? "#EFF6FF" : surf, color: deal.weightedQScore >= 80 ? green : deal.weightedQScore >= 60 ? blue : muted, border: `1px solid ${deal.weightedQScore >= 80 ? "#A7F3D0" : deal.weightedQScore >= 60 ? "#BFDBFE" : bdr}` }}>
                     Readiness {deal.weightedQScore}
                   </span>
+                  {/* Score freshness */}
+                  {deal.qScoreDaysSince !== null && (
+                    <span
+                      title={`Score updated ${deal.qScoreDaysSince} days ago`}
+                      style={{ fontSize: 11, padding: "2px 9px", borderRadius: 999, background: surf, color: deal.qScoreDaysSince < 30 ? green : deal.qScoreDaysSince < 90 ? amber : red, border: `1px solid ${deal.qScoreDaysSince < 30 ? "#A7F3D0" : deal.qScoreDaysSince < 90 ? "#FDE68A" : "#FECACA"}` }}
+                    >
+                      {deal.qScoreDaysSince < 30 ? "Fresh" : deal.qScoreDaysSince < 90 ? `${deal.qScoreDaysSince}d old` : `Stale ${deal.qScoreDaysSince}d`}
+                    </span>
+                  )}
                   {/* Signal Strength */}
                   {deal.signalStrength !== null && (
                     <span title="Signal Strength — weighted data-source confidence" style={{ fontSize: 11, padding: "2px 9px", borderRadius: 999, background: deal.signalStrength >= 75 ? "#ECFDF5" : deal.signalStrength >= 50 ? "#FFFBEB" : surf, color: deal.signalStrength >= 75 ? green : deal.signalStrength >= 50 ? amber : muted, border: `1px solid ${deal.signalStrength >= 75 ? "#A7F3D0" : deal.signalStrength >= 50 ? "#FDE68A" : bdr}` }}>

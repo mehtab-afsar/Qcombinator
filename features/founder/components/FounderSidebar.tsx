@@ -297,10 +297,10 @@ export default function FounderSidebar() {
       : item
   );
 
-  // Active path helpers for CXO Suite (matches /founder/cxo and /founder/agents/*)
+  // Active path helpers for CXO Suite (matches /founder/cxo, /founder/cxo/*, and /founder/agents/*)
   function isNavActive(href: string, pathname: string): boolean {
     if (href === "/founder/cxo") {
-      return pathname === "/founder/cxo" || pathname.startsWith("/founder/cxo?") || pathname.startsWith("/founder/agents/");
+      return pathname === "/founder/cxo" || pathname.startsWith("/founder/cxo?") || pathname.startsWith("/founder/cxo/") || pathname.startsWith("/founder/agents/");
     }
     return pathname === href || pathname.startsWith(href + "/");
   }

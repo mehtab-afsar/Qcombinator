@@ -130,6 +130,10 @@ function chunkArtifactContent(
  * @param artifact - Must have id, user_id, artifact_type, and content (parsed JSON)
  */
 export async function embedArtifact(artifact: ArtifactInput): Promise<void> {
+  // Skip silently when OPENAI_API_KEY is not configured — Layer 2 now uses
+  // LLM-based semantic matching via OpenRouter and does not need embeddings.
+  if (!process.env.OPENAI_API_KEY) return;
+
   if (!artifact.content || typeof artifact.content !== 'object') {
     console.warn('[Embedding Pipeline] Artifact has no content to embed:', artifact.id);
     return;

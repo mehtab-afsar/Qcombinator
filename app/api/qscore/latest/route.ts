@@ -57,8 +57,39 @@ export async function GET(_request: NextRequest) {
       evidenceSummary: (ragEval.evidenceSummary as string[]) ?? [],
     } : null;
 
+    // ── Temporal decay (computed on read, stored score never modified) ─────
+    // Scores degrade presentation-only once 90 days pass without reassessment.
+    // This ensures investors see recency-adjusted signals without cron jobs.
+    const daysSince = Math.floor(
+      (Date.now() - new Date(latest.calculated_at as string).getTime()) / 86400000
+    );
+    const decayFactor =
+      daysSince < 90  ? 1.00 :
+      daysSince < 180 ? 0.975 :
+      daysSince < 270 ? 0.95 :
+      daysSince < 365 ? 0.90 : 0.80;
+    const decayApplied = decayFactor < 1.0;
+    const rawOverall = num(latest.overall_score);
+    const effectiveOverall = decayApplied
+      ? Math.max(1, Math.round(rawOverall * decayFactor))
+      : rawOverall;
+
+    // ── Score confidence interval (±X) ───────────────────────────────────────
+    // Higher RAG confidence + Stripe-verified data = tighter interval.
+    // Formula: ±round(10 × (1 - ragConfidence) × dataPenalty)
+    // dataPenalty: 1.0 if all self-reported, 0.7 if some Stripe-verified
+    const ragConf = ragMetadata?.ragConfidence ?? 0;
+    const dataSource = (latest.data_source as string) ?? '';
+    const hasVerifiedData = dataSource.includes('stripe') || ragConf > 0.6;
+    const dataPenalty = hasVerifiedData ? 0.7 : 1.0;
+    const scoreRange = Math.max(2, Math.round(10 * (1 - ragConf) * dataPenalty));
+
     const qScore = {
-      overall: latest.overall_score,
+      overall: effectiveOverall,
+      rawOverall,
+      decayApplied,
+      daysSince,
+      scoreRange, // ±N — consumers show as "72 ±5"
       percentile: latest.percentile,
       grade: latest.grade,
       change: num(latest.overall_change),

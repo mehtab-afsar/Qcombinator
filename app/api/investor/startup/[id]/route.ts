@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
 
 // GET /api/investor/startup/:id
 // Returns a full founder profile for the investor deep-dive page.
@@ -66,6 +67,33 @@ export async function GET(
 
     if (profileError || !profile) {
       return NextResponse.json({ error: 'Founder not found' }, { status: 404 })
+    }
+
+    // Fetch IQ Score via admin client (bypasses RLS — investor can see founder's IQ score)
+    let iqScore: { normalizedScore: number; grade: string; scoringMethod: string; indicatorsUsed: number; calculatedAt: string } | null = null
+    try {
+      const admin = createAdminClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      )
+      const { data: iqRow } = await admin
+        .from('iq_scores')
+        .select('normalized_score, grade, scoring_method, indicators_used, calculated_at')
+        .eq('user_id', founderId)
+        .order('calculated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (iqRow) {
+        iqScore = {
+          normalizedScore: iqRow.normalized_score,
+          grade:           iqRow.grade,
+          scoringMethod:   iqRow.scoring_method,
+          indicatorsUsed:  iqRow.indicators_used,
+          calculatedAt:    iqRow.calculated_at,
+        }
+      }
+    } catch {
+      // IQ Score not critical — silently skip
     }
 
     // Pick the most recent artifact per type
@@ -165,7 +193,14 @@ export async function GET(
       fundingGoal: profile.funding || (sp.raisingAmount as string) || '',
       teamSize: (sp.teamSize as number | string) ? Number(sp.teamSize) || teamMembers.length || 1 : teamMembers.length || 0,
 
-      qScore: qrow?.overall_score ?? 0,
+      qScore: (() => {
+        if (!qrow) return 0;
+        const days = Math.floor((Date.now() - new Date(qrow.calculated_at).getTime()) / 86400000);
+        const decay = days < 90 ? 1.00 : days < 180 ? 0.975 : days < 270 ? 0.95 : days < 365 ? 0.90 : 0.80;
+        return Math.max(1, Math.round(qrow.overall_score * decay));
+      })(),
+      rawQScore: qrow?.overall_score ?? 0,
+      qScoreDaysSince: qrow ? Math.floor((Date.now() - new Date(qrow.calculated_at).getTime()) / 86400000) : null,
       qScorePercentile: qrow?.percentile ?? 0,
       qScoreGrade: qrow?.grade ?? '—',
       qScoreBreakdown,
@@ -234,6 +269,7 @@ export async function GET(
           lastActiveDays,
         }
       })(),
+      iqScore,
     }
 
     return NextResponse.json({ startup: result })

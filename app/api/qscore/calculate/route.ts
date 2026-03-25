@@ -9,6 +9,7 @@ import { runRAGScoring } from '@/features/qscore/rag/rag-orchestrator';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { runGTMDiagnostics } from '@/features/qscore/diagnostics/gtm-diagnostics';
 import { fetchQScoreThresholds, fetchDimensionWeights } from '@/features/qscore/services/threshold-config';
+import { loadKnowledgeBase } from '@/features/qscore/rag/retrieval';
 import {
   saveMetricSnapshot,
   computeCohortScores,
@@ -74,6 +75,7 @@ export async function POST(request: NextRequest) {
     const [qscoreThresholds, dimensionWeights] = await Promise.all([
       fetchQScoreThresholds(adminForConfig),
       fetchDimensionWeights(adminForConfig, sectorKey),
+      loadKnowledgeBase(adminForConfig), // DB-backed knowledge chunks (1h cache)
     ]);
 
     // ── Build data-source map before scoring ───────────────────────────────
@@ -163,6 +165,55 @@ export async function POST(request: NextRequest) {
       qScore.grade = calculateGrade(qScore.overall);
     }
 
+    // ── Apply verified score_evidence boosts ───────────────────────────────
+    // Founders can attach verified proof (LOI, Stripe screenshot, patent) — boost
+    // those dimension scores before calculating the final overall.
+    const { data: verifiedEvidence } = await supabase
+      .from('score_evidence')
+      .select('dimension, points_awarded')
+      .eq('user_id', user.id)
+      .eq('status', 'verified');
+
+    if (verifiedEvidence && verifiedEvidence.length > 0) {
+      // Sum points per dimension
+      const evidenceBoosts: Record<string, number> = {};
+      for (const e of verifiedEvidence) {
+        if (e.dimension && (e.points_awarded ?? 0) > 0) {
+          evidenceBoosts[e.dimension] = (evidenceBoosts[e.dimension] ?? 0) + (e.points_awarded ?? 0);
+        }
+      }
+      // Apply to breakdown (dimension key 'gtm' maps to 'goToMarket' in breakdown)
+      const dimMap: Record<string, keyof typeof qScore.breakdown> = {
+        market:    'market',
+        product:   'product',
+        gtm:       'goToMarket',
+        goToMarket:'goToMarket',
+        financial: 'financial',
+        team:      'team',
+        traction:  'traction',
+      };
+      let boosted = false;
+      for (const [dim, pts] of Object.entries(evidenceBoosts)) {
+        const key = dimMap[dim];
+        if (key && qScore.breakdown[key]) {
+          qScore.breakdown[key].score = Math.min(100, qScore.breakdown[key].score + pts);
+          boosted = true;
+        }
+      }
+      if (boosted) {
+        // Recalculate overall using the sector weights already embedded in breakdown
+        qScore.overall = Math.min(100, Math.round(
+          qScore.breakdown.market.score     * (qScore.breakdown.market.weight     ?? 0.20) +
+          qScore.breakdown.product.score    * (qScore.breakdown.product.weight    ?? 0.18) +
+          qScore.breakdown.goToMarket.score * (qScore.breakdown.goToMarket.weight ?? 0.17) +
+          qScore.breakdown.financial.score  * (qScore.breakdown.financial.weight  ?? 0.18) +
+          qScore.breakdown.team.score       * (qScore.breakdown.team.weight       ?? 0.15) +
+          qScore.breakdown.traction.score   * (qScore.breakdown.traction.weight   ?? 0.12),
+        ));
+        qScore.grade = calculateGrade(qScore.overall);
+      }
+    }
+
     // Calculate percentile (compare to cohort)
     const percentile = await calculatePercentile(qScore.overall, user.id, supabase);
 
@@ -247,6 +298,26 @@ export async function POST(request: NextRequest) {
           if (attempt === 2) console.error('[Q-Score] Metric snapshot failed after retry:', snapshotErr);
           else await new Promise(r => setTimeout(r, 1000));
         }
+      }
+    })();
+
+    // ── Fire-and-forget: IQ Score computation ─────────────────────────────────
+    // Runs async so it never delays the Q-Score response.
+    void (async () => {
+      try {
+        const { computeIQScore, saveIQScore } = await import('@/features/iq/calculators/iq-calculator');
+        // Fetch previous IQ score id for chain
+        const { data: prevIQ } = await adminForConfig
+          .from('iq_scores')
+          .select('id')
+          .eq('user_id', user.id)
+          .order('calculated_at', { ascending: false })
+          .limit(1)
+          .single();
+        const iqResult = await computeIQScore(adminForConfig, assessmentData as AssessmentData, sectorKey);
+        await saveIQScore(adminForConfig, user.id, iqResult, prevIQ?.id ?? null, sectorKey);
+      } catch (iqErr) {
+        console.warn('[Q-Score] IQ Score computation failed:', iqErr);
       }
     })();
 

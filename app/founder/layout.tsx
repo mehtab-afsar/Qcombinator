@@ -1,32 +1,45 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { Suspense } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import FounderSidebar from "@/features/founder/components/FounderSidebar";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
-export default function FounderLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const pathname = usePathname();
+function LayoutInner({ children }: { children: React.ReactNode }) {
+  const pathname     = usePathname();
+  const searchParams = useSearchParams();
 
-  // Hide sidebar during onboarding and assessment
-  const hideSidebar = pathname.includes('/onboarding') || pathname.includes('/assessment');
+  // Hide sidebar when:
+  // 1. Embedded inside CXOChat iframe (?_embed=1)
+  // 2. Onboarding / assessment flows
+  // 3. CXO workspace pages (/founder/cxo/[agentId]) — those have their own sidebar
+  const hideSidebar =
+    searchParams.get("_embed") === "1" ||
+    pathname.includes("/onboarding") ||
+    pathname.includes("/assessment") ||
+    /\/founder\/cxo\/.+/.test(pathname);
 
   if (hideSidebar) {
-    return <ErrorBoundary>{children}</ErrorBoundary>;
+    return <>{children}</>;
   }
 
   return (
-    <ErrorBoundary>
-      <div style={{ background: "#F9F7F2", minHeight: "100vh" }}>
-        <FounderSidebar />
-        {/* Offset by collapsed sidebar width so content is never hidden */}
-        <div style={{ marginLeft: 52, minHeight: "100vh", overflowX: "hidden" }}>
-          {children}
-        </div>
+    <div style={{ background: "#F9F7F2", minHeight: "100vh" }}>
+      <FounderSidebar />
+      {/* Offset by collapsed sidebar width so content is never hidden */}
+      <div style={{ marginLeft: 52, minHeight: "100vh", overflowX: "hidden" }}>
+        {children}
       </div>
+    </div>
+  );
+}
+
+export default function FounderLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <ErrorBoundary>
+      <Suspense fallback={<>{children}</>}>
+        <LayoutInner>{children}</LayoutInner>
+      </Suspense>
     </ErrorBoundary>
   );
 }

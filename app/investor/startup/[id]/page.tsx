@@ -71,6 +71,8 @@ interface StartupData {
   fundingGoal: string
   teamSize: number
   qScore: number
+  rawQScore?: number
+  qScoreDaysSince?: number | null
   qScorePercentile: number
   qScoreGrade: string
   qScoreBreakdown: QBreakdown[]
@@ -88,6 +90,13 @@ interface StartupData {
     lastActiveAt: string | null
     lastActiveDays: number | null
   }
+  iqScore?: {
+    normalizedScore: number
+    grade: string
+    scoringMethod: string
+    indicatorsUsed: number
+    calculatedAt: string
+  } | null
 }
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -577,9 +586,20 @@ export default function StartupDeepDive({ params }: { params: { id: string } }) 
                   {/* Q-Score breakdown */}
                   <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 18, overflow: "hidden" }}>
                     <div style={{ padding: "16px 20px", borderBottom: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <p style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: "uppercase", letterSpacing: "0.14em" }}>Q-Score Breakdown</p>
+                      <div>
+                        <p style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: "uppercase", letterSpacing: "0.14em" }}>Q-Score Breakdown</p>
+                        {s.qScoreDaysSince !== null && s.qScoreDaysSince !== undefined && (
+                          <p style={{ fontSize: 10, color: s.qScoreDaysSince < 30 ? green : s.qScoreDaysSince < 90 ? amber : red, marginTop: 2 }}>
+                            {s.qScoreDaysSince < 30 ? `Updated ${s.qScoreDaysSince}d ago` : s.qScoreDaysSince < 90 ? `${s.qScoreDaysSince}d ago` : `Stale — ${s.qScoreDaysSince}d ago`}
+                            {s.qScoreDaysSince >= 90 && s.rawQScore && s.qScore !== s.rawQScore && ` (raw ${s.rawQScore})`}
+                          </p>
+                        )}
+                      </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <span style={{ fontSize: 20, fontWeight: 700, color: qColor(s.qScore) }}>{s.qScore || '—'}</span>
+                        {s.iqScore && (
+                          <span style={{ fontSize: 10, color: muted, fontWeight: 500 }}>±{Math.max(2, Math.round(10 * (1 - (s.iqScore.normalizedScore / 100))))}</span>
+                        )}
                         {s.qScoreGrade && s.qScoreGrade !== '—' && <span style={{ fontSize: 11, padding: "2px 8px", background: surf, border: `1px solid ${bdr}`, borderRadius: 999, color: muted }}>{s.qScoreGrade}</span>}
                       </div>
                     </div>
@@ -616,6 +636,35 @@ export default function StartupDeepDive({ params }: { params: { id: string } }) 
                       <p style={{ fontSize: 11, color: muted }}>percentile among assessed founders</p>
                       <div style={{ marginTop: 14, height: 6, background: surf, border: `1px solid ${bdr}`, borderRadius: 999, overflow: "hidden" }}>
                         <motion.div style={{ height: "100%", borderRadius: 999, background: qColor(s.qScore) }} initial={{ width: 0 }} animate={{ width: `${s.qScorePercentile}%` }} transition={{ duration: 0.8, ease: "easeOut" }} />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* IQ Score — data confidence signal */}
+                  {s.iqScore && (
+                    <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 18, overflow: "hidden" }}>
+                      <div style={{ padding: "14px 20px", borderBottom: `1px solid ${bdr}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div>
+                          <p style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: "uppercase", letterSpacing: "0.14em" }}>Data Confidence</p>
+                          <p style={{ fontSize: 10, color: muted, marginTop: 2 }}>IQ Score — 25 investment-readiness indicators</p>
+                        </div>
+                        <span style={{ fontSize: 20, fontWeight: 700, color: s.iqScore.normalizedScore >= 65 ? green : s.iqScore.normalizedScore >= 40 ? amber : red }}>
+                          {s.iqScore.normalizedScore}
+                        </span>
+                      </div>
+                      <div style={{ padding: "14px 20px" }}>
+                        <div style={{ height: 5, background: surf, border: `1px solid ${bdr}`, borderRadius: 999, overflow: "hidden", marginBottom: 10 }}>
+                          <motion.div
+                            style={{ height: "100%", borderRadius: 999, background: s.iqScore.normalizedScore >= 65 ? green : s.iqScore.normalizedScore >= 40 ? amber : red }}
+                            initial={{ width: 0 }}
+                            animate={{ width: `${s.iqScore.normalizedScore}%` }}
+                            transition={{ duration: 0.8, ease: "easeOut" }}
+                          />
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between" }}>
+                          <span style={{ fontSize: 10, color: muted }}>Grade {s.iqScore.grade} · {s.iqScore.indicatorsUsed} indicators</span>
+                          <span style={{ fontSize: 10, color: muted, textTransform: "capitalize" }}>{s.iqScore.scoringMethod}</span>
+                        </div>
                       </div>
                     </div>
                   )}

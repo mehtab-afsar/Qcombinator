@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
 import { motion } from 'framer-motion';
+import Link from 'next/link';
 
 // ─── palette ──────────────────────────────────────────────────────────────────
 const bg    = '#F9F7F2';
@@ -258,7 +259,7 @@ function MessagesInner() {
                 <p style={{ fontSize: 13, color: muted, lineHeight: 1.6 }}>
                   Start a conversation in the CXO Suite to see updates here.
                 </p>
-                <a
+                <Link
                   href="/founder/cxo"
                   style={{
                     display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -268,7 +269,7 @@ function MessagesInner() {
                   }}
                 >
                   Open CXO Suite →
-                </a>
+                </Link>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -307,7 +308,7 @@ function MessagesInner() {
                       </p>
                     </div>
                     <a
-                      href={`/founder/cxo?agent=${a.agent_id}`}
+                      href={`/founder/cxo/${a.agent_id}`}
                       style={{
                         flexShrink: 0, fontSize: 11, fontWeight: 600, color: blue,
                         textDecoration: 'none', padding: '4px 10px',

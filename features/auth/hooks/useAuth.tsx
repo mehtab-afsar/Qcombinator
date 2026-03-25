@@ -56,10 +56,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Listen for auth changes
       const {
         data: { subscription },
-      } = client.auth.onAuthStateChange((_event, session) => {
+      } = client.auth.onAuthStateChange((event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
+        // Redirect to login when token refresh fails mid-session
+        if (event === 'SIGNED_OUT' && typeof window !== 'undefined') {
+          const { pathname } = window.location;
+          if (pathname.startsWith('/founder/') || pathname.startsWith('/investor/')) {
+            window.location.href = '/login';
+          }
+        }
       });
 
       return () => subscription.unsubscribe();

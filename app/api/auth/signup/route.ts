@@ -32,6 +32,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Map onboarding stage values to DB-accepted values (CHECK constraint uses legacy set)
+    const STAGE_MAP: Record<string, string> = {
+      'pre-product': 'idea',
+      'mvp':         'mvp',
+      'beta':        'mvp',
+      'launched':    'launched',
+      'growing':     'scaling',
+    };
+    const dbStage = STAGE_MAP[stage] ?? stage ?? 'idea';
+
     // Attempt to create user directly — handle duplicate email via error response
     // (avoids fetching all users just to check existence)
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
@@ -77,7 +87,7 @@ export async function POST(request: NextRequest) {
         full_name: fullName,
         startup_name: companyName || startupName || null,
         industry: industry || null,
-        stage: stage || 'pre-product',
+        stage: dbStage,
         funding: fundingStatus || funding || null,
         time_commitment: timeCommitment || null,
         role: 'founder',

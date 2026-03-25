@@ -9,8 +9,10 @@
 import { Sector } from '../knowledge-base';
 import {
   BENCHMARK_REGISTRY,
+  STAGE_BENCHMARK_REGISTRY,
   type BenchmarkRange,
   type BenchmarkPercentile,
+  type BenchmarkStage,
   type MetricName,
   type SectorBenchmarks,
 } from './benchmark-data';
@@ -38,22 +40,32 @@ export interface BenchmarkEvaluation {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Retrieve benchmark ranges for specific metrics in a given sector.
- * Falls back to saas_b2b if sector not found.
+ * Retrieve benchmark ranges for specific metrics in a given sector and optional stage.
+ * Falls back: stage-specific → 'all' stage → saas_b2b.
  */
 export function retrieveBenchmarks(
   sector: Sector,
-  metrics: MetricName[]
+  metrics: MetricName[],
+  stage?: BenchmarkStage
 ): BenchmarkResult[] {
   const sectorKey = sector === 'all' ? 'saas_b2b' : sector;
-  const benchmarks: SectorBenchmarks =
-    BENCHMARK_REGISTRY[sectorKey] ?? BENCHMARK_REGISTRY.saas_b2b;
+
+  // Try stage-aware registry first
+  let benchmarks: SectorBenchmarks | undefined;
+  if (stage && stage !== 'all') {
+    const stageBuckets = STAGE_BENCHMARK_REGISTRY[sectorKey as keyof typeof STAGE_BENCHMARK_REGISTRY];
+    benchmarks = stageBuckets?.[stage] ?? stageBuckets?.['all' as BenchmarkStage];
+  }
+  // Fall back to legacy flat registry
+  if (!benchmarks) {
+    benchmarks = BENCHMARK_REGISTRY[sectorKey as keyof typeof BENCHMARK_REGISTRY] ?? BENCHMARK_REGISTRY.saas_b2b;
+  }
 
   return metrics
-    .filter(m => benchmarks[m] !== undefined)
+    .filter(m => benchmarks![m] !== undefined)
     .map(m => ({
       metric: m,
-      benchmark: benchmarks[m],
+      benchmark: benchmarks![m],
       sector: sectorKey,
     }));
 }
@@ -140,9 +152,10 @@ export function evaluateMetric(
  */
 export function buildBenchmarkContext(
   sector: Sector,
-  metrics: MetricName[] = ['conversion_rate', 'ltv_cac_ratio', 'gross_margin']
+  metrics: MetricName[] = ['conversion_rate', 'ltv_cac_ratio', 'gross_margin'],
+  stage?: BenchmarkStage
 ): string {
-  const results = retrieveBenchmarks(sector, metrics);
+  const results = retrieveBenchmarks(sector, metrics, stage);
   if (results.length === 0) {
     return 'No sector-specific benchmarks available. Use general startup benchmarks.';
   }

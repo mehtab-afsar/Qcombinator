@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { createClient as createUserClient } from '@/lib/supabase/server';
 import { getArtifactPrompt } from '@/features/agents/patel/prompts/artifact-prompts';
 import { applyAgentScoreSignal } from '@/features/qscore/services/agent-signal';
+import { checkArtifactConsistency } from '@/features/qscore/services/consistency-checker';
 import { callOpenRouter } from '@/lib/openrouter';
 import { ARTIFACT_TYPES, ALL_ARTIFACT_TYPES, type ArtifactType } from '@/lib/constants/artifact-types';
 import { DIMENSIONS } from '@/lib/constants/dimensions';
@@ -22,21 +23,21 @@ import { isCircuitOpen, withCircuitBreaker } from '@/lib/circuit-breaker';
 
 const VALID_ARTIFACT_TYPES: string[] = ALL_ARTIFACT_TYPES;
 
-// Which Q-Score dimension each artifact type improves
+// Which Q-Score dimension each artifact type improves — canonical, aligned with docs/scoring-stages.md
 const ARTIFACT_DIMENSION: Record<ArtifactType, string> = {
   [ARTIFACT_TYPES.ICP_DOCUMENT]:       DIMENSIONS.GTM,
-  [ARTIFACT_TYPES.OUTREACH_SEQUENCE]:  DIMENSIONS.TRACTION,
+  [ARTIFACT_TYPES.OUTREACH_SEQUENCE]:  DIMENSIONS.GTM,
   [ARTIFACT_TYPES.BATTLE_CARD]:        DIMENSIONS.MARKET,
   [ARTIFACT_TYPES.GTM_PLAYBOOK]:       DIMENSIONS.GTM,
   [ARTIFACT_TYPES.SALES_SCRIPT]:       DIMENSIONS.TRACTION,
-  [ARTIFACT_TYPES.BRAND_MESSAGING]:    DIMENSIONS.GTM,
+  [ARTIFACT_TYPES.BRAND_MESSAGING]:    DIMENSIONS.PRODUCT,
   [ARTIFACT_TYPES.FINANCIAL_SUMMARY]:  DIMENSIONS.FINANCIAL,
-  [ARTIFACT_TYPES.LEGAL_CHECKLIST]:    DIMENSIONS.FINANCIAL,
+  [ARTIFACT_TYPES.LEGAL_CHECKLIST]:    DIMENSIONS.TEAM,
   [ARTIFACT_TYPES.HIRING_PLAN]:        DIMENSIONS.TEAM,
-  [ARTIFACT_TYPES.PMF_SURVEY]:         DIMENSIONS.PRODUCT,
+  [ARTIFACT_TYPES.PMF_SURVEY]:         DIMENSIONS.TRACTION,
   [ARTIFACT_TYPES.INTERVIEW_NOTES]:    DIMENSIONS.PRODUCT,
   [ARTIFACT_TYPES.COMPETITIVE_MATRIX]: DIMENSIONS.MARKET,
-  [ARTIFACT_TYPES.STRATEGIC_PLAN]:     DIMENSIONS.PRODUCT,
+  [ARTIFACT_TYPES.STRATEGIC_PLAN]:     DIMENSIONS.MARKET,
 };
 
 // Points awarded as auto-verified evidence
@@ -232,8 +233,43 @@ export async function POST(request: NextRequest) {
                 .catch(err => console.warn('[RAG] Embedding failed (circuit may open):', err));
             }
 
+            // ── LLM artifact quality evaluation ───────────────────────
+            let artifactQuality: 'full' | 'partial' | 'minimal' = 'full';
+            try {
+              const qualityRaw = await callOpenRouter(
+                [
+                  {
+                    role: 'system',
+                    content: `You are evaluating the quality of a startup founder's ${artifactType.replace(/_/g, ' ')} document.
+Score it on three dimensions (0–100 each):
+- Completeness: Are all expected sections present and filled with real content?
+- Specificity: Are there real names, numbers, dates, percentages — not generic placeholder text?
+- Actionability: Could someone act on this tomorrow without needing more information?
+
+Return ONLY valid JSON: { "score": <integer average 0-100>, "quality": "full" | "partial" | "minimal" }
+Rules: score >= 70 → "full", score 40–69 → "partial", score < 40 → "minimal"`,
+                  },
+                  {
+                    role: 'user',
+                    content: `Evaluate this ${artifactType.replace(/_/g, ' ')}:\n${JSON.stringify(parsedContent).slice(0, 3000)}`,
+                  },
+                ],
+                { maxTokens: 80, temperature: 0.1 },
+              );
+              const qualityClean = qualityRaw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+              const qualityParsed = JSON.parse(qualityClean) as { score: number; quality: string };
+              if (qualityParsed.quality === 'full' || qualityParsed.quality === 'partial' || qualityParsed.quality === 'minimal') {
+                artifactQuality = qualityParsed.quality;
+              }
+            } catch {
+              // LLM quality eval failed — default to 'full' (no penalty)
+            }
+
             // ── Score signal ───────────────────────────────────────────
-            scoreSignal = await applyAgentScoreSignal(supabaseAdmin, userId, artifactType);
+            scoreSignal = await applyAgentScoreSignal(supabaseAdmin, userId, artifactType, artifactQuality);
+
+            // ── Cross-artifact consistency check (fire-and-forget) ─────
+            void checkArtifactConsistency(supabaseAdmin, userId, artifactType, parsedContent);
 
             // ── Auto-create score evidence ─────────────────────────────
             const evidenceDim    = ARTIFACT_DIMENSION[artifactType as ArtifactType];

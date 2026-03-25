@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { motion } from 'framer-motion';
-import { User, Building2, Bell, Lock, Download, Trash2, RefreshCw, Save, AlertTriangle, Plug, CreditCard, CheckCircle, XCircle } from 'lucide-react';
+import { User, Building2, Bell, Lock, Download, Trash2, RefreshCw, Save, AlertTriangle, Plug, CreditCard, CheckCircle } from 'lucide-react';
 import { useFounderData } from '@/features/founder/hooks/useFounderData';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {

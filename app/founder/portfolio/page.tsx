@@ -256,18 +256,45 @@ export default function PortfolioPage() {
                 />
               </svg>
               <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-                <span style={{ fontSize: 30, fontWeight: 600, color: "#F9F7F2", lineHeight: 1 }}>{score.overall}</span>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 3 }}>
+                  <span style={{ fontSize: 30, fontWeight: 600, color: "#F9F7F2", lineHeight: 1 }}>{score.overall}</span>
+                  {score.scoreRange && (
+                    <span style={{ fontSize: 10, color: "rgba(249,247,242,0.38)", fontWeight: 500 }}>±{score.scoreRange}</span>
+                  )}
+                </div>
                 <span style={{ fontSize: 9, color: "rgba(249,247,242,0.5)", marginTop: 2, textTransform: "uppercase", letterSpacing: "0.12em" }}>Q-Score</span>
               </div>
             </div>
 
             {/* Dimension breakdown */}
             <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
                 <p style={{ fontSize: 15, fontWeight: 500, color: "#F9F7F2" }}>{gradeLabel(score.overall)}</p>
                 <span style={{ padding: "2px 10px", borderRadius: 999, background: "rgba(249,247,242,0.12)", fontSize: 11, color: "rgba(249,247,242,0.7)", fontWeight: 600 }}>
                   Top {100 - score.percentile}% of founders
                 </span>
+                {/* Score confidence chip */}
+                {score.ragConfidence !== null && score.ragConfidence !== undefined && (
+                  <span
+                    title={`Score confidence — based on data source mix and RAG evaluation quality (${Math.round(score.ragConfidence * 100)}%)`}
+                    style={{
+                      padding: "2px 10px", borderRadius: 999, fontSize: 11, fontWeight: 600,
+                      background: score.ragConfidence > 0.6 ? "rgba(74,222,128,0.15)" : score.ragConfidence > 0.3 ? "rgba(251,191,36,0.15)" : "rgba(255,255,255,0.08)",
+                      color: score.ragConfidence > 0.6 ? "#4ade80" : score.ragConfidence > 0.3 ? "#fbbf24" : "rgba(249,247,242,0.4)",
+                    }}
+                  >
+                    {score.ragConfidence > 0.6 ? "High confidence" : score.ragConfidence > 0.3 ? "Medium confidence" : "Low confidence"}
+                  </span>
+                )}
+                {/* Decay indicator */}
+                {score.decayApplied && score.daysSince !== undefined && (
+                  <span
+                    title={`Score last updated ${score.daysSince} days ago. Decay applied to encourage reassessment.`}
+                    style={{ padding: "2px 10px", borderRadius: 999, fontSize: 11, fontWeight: 600, background: "rgba(251,191,36,0.12)", color: "#fbbf24" }}
+                  >
+                    {score.daysSince}d old — reassess
+                  </span>
+                )}
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
                 {Object.entries(score.breakdown).map(([key, dim]) => {

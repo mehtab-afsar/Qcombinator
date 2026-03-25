@@ -13,8 +13,13 @@ export interface PortfolioScoreDim {
 
 export interface PortfolioScore {
   overall: number
+  rawOverall?: number
+  decayApplied?: boolean
+  daysSince?: number
+  scoreRange?: number   // ±N confidence interval
   percentile: number
   breakdown: Record<string, PortfolioScoreDim>
+  ragConfidence?: number | null
 }
 
 export interface PortfolioArtifact {
@@ -55,7 +60,16 @@ export async function fetchPortfolioData(): Promise<PortfolioData> {
   const scoreRes = await fetch('/api/qscore/latest')
   if (scoreRes.ok) {
     const d = await scoreRes.json()
-    if (d.qScore) score = { overall: d.qScore.overall, percentile: d.qScore.percentile ?? 50, breakdown: d.qScore.breakdown }
+    if (d.qScore) score = {
+      overall:      d.qScore.overall,
+      rawOverall:   d.qScore.rawOverall,
+      decayApplied: d.qScore.decayApplied,
+      daysSince:    d.qScore.daysSince,
+      scoreRange:   d.qScore.scoreRange ?? null,
+      percentile:   d.qScore.percentile ?? 50,
+      breakdown:    d.qScore.breakdown,
+      ragConfidence: d.qScore.ragMetadata?.ragConfidence ?? null,
+    }
   }
 
   // Artifacts

@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
 import {
   ArrowRight,
@@ -330,6 +330,8 @@ export default function FounderDashboard() {
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [profileBuilderCompleted, setProfileBuilderCompleted] = useState<boolean | null>(null);
   const [selectedDimension, setSelectedDimension] = useState<string | null>(null);
+  const [publicSlug,  setPublicSlug]  = useState<string | null>(null);
+  const [linkCopied,  setLinkCopied]  = useState(false);
 
   // ── Stripe verification state ────────────────────────────────────────────
   const [stripeStatus, setStripeStatus] = useState<{
@@ -360,6 +362,25 @@ export default function FounderDashboard() {
       }
     })
   }, [user])
+
+  // Fetch public_slug for share button
+  useEffect(() => {
+    if (!user) return;
+    import("@supabase/supabase-js").then(async ({ createClient }) => {
+      try {
+        const supabase = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        );
+        const { data } = await supabase
+          .from("founder_profiles")
+          .select("public_slug")
+          .eq("user_id", user.id)
+          .single();
+        setPublicSlug(data?.public_slug ?? null);
+      } catch { /* non-critical */ }
+    });
+  }, [user]);
 
   // Load existing stripe status on mount
   useEffect(() => {
@@ -521,6 +542,32 @@ export default function FounderDashboard() {
           </div>
         </motion.div>
 
+        {/* ── empty state (real score is 0, profile builder unknown/done) ─ */}
+        {!isDemo && qs.overall === 0 && profileBuilderCompleted !== false && (
+          <div style={{
+            textAlign: "center", padding: "56px 32px",
+            background: surf, border: `1px dashed ${bdr}`,
+            borderRadius: 20, marginBottom: 32,
+          }}>
+            <p style={{ fontSize: 20, fontWeight: 300, color: ink, letterSpacing: "-0.02em", marginBottom: 10 }}>
+              Your Q-Score is calculating
+            </p>
+            <p style={{ fontSize: 13, color: muted, lineHeight: 1.7, maxWidth: 420, margin: "0 auto 24px" }}>
+              Complete your Profile Builder so we can generate your personalised investment-readiness score across all 6 dimensions.
+            </p>
+            <Link
+              href="/founder/profile-builder"
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 5,
+                padding: "10px 24px", background: ink, color: bg,
+                borderRadius: 999, fontSize: 13, fontWeight: 600, textDecoration: "none",
+              }}
+            >
+              Start Profile Builder <ArrowRight style={{ height: 13, width: 13 }} />
+            </Link>
+          </div>
+        )}
+
         {/* ── profile builder gate banner ───────────────────────────── */}
         {profileBuilderCompleted === false && (
           <div style={{
@@ -580,7 +627,7 @@ export default function FounderDashboard() {
               </p>
             </div>
             <Link
-              href="/founder/agents/felix"
+              href="/founder/cxo/felix"
               style={{
                 flexShrink: 0, padding: "7px 16px",
                 background: runwayCritical ? "#991B1B" : "#92400E",
@@ -772,6 +819,11 @@ export default function FounderDashboard() {
                   {isStale ? "⚠ " : isMaturing ? "○ " : ""}{daysSinceScore}d old
                 </p>
               )}
+              {realQScore?.decayApplied && realQScore.rawOverall && realQScore.rawOverall !== realQScore.overall && (
+                <p style={{ fontSize: 9, marginTop: 3, color: "#FCA5A5", fontWeight: 600 }}>
+                  Score reduced from {realQScore.rawOverall} — reassess to restore
+                </p>
+              )}
               {/* RAG scoring method indicator */}
               {realQScore?.ragMetadata?.scoringMethod && realQScore.ragMetadata.scoringMethod !== 'heuristic' && (
                 <p style={{
@@ -813,42 +865,100 @@ export default function FounderDashboard() {
             <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", color: muted, fontWeight: 600, marginBottom: 20 }}>
               6-dimension breakdown
             </p>
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: 13 }}>
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: 4 }}>
               {Object.entries(qs.breakdown).map(([key, dim], i) => {
                 const meta = DIMENSION_META[key];
                 const TrendIcon = dim.trend === "up" ? TrendingUp : dim.trend === "down" ? TrendingDown : Minus;
                 const trendColor = dim.trend === "up" ? green : dim.trend === "down" ? red : muted;
+                const isExpanded = selectedDimension === key;
+                const agentInfo  = DIMENSION_AGENT[key];
                 return (
-                  <motion.div key={key}
-                    initial={{ opacity: 0, x: -8 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.35 + i * 0.06 }}
-                    style={{ display: "flex", alignItems: "center", gap: 12 }}
-                  >
-                    <span style={{ width: 64, fontSize: 11, color: muted, fontWeight: 500, flexShrink: 0, textAlign: "right", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
-                      {conflictDims.has(key) && (
-                        <span title="Data mismatch — check Improve Q-Score" style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: "#DC2626", flexShrink: 0 }} />
-                      )}
-                      {meta.label}
-                    </span>
-                    <div style={{ flex: 1, height: 5, background: bdr, borderRadius: 999, overflow: "hidden" }}>
-                      <motion.div
-                        style={{ height: "100%", borderRadius: 999, background: scoreColor(dim.score) }}
-                        initial={{ width: 0 }}
-                        animate={{ width: `${dim.score}%` }}
-                        transition={{ delay: 0.45 + i * 0.06, duration: 0.7, ease: "easeOut" }}
-                      />
-                    </div>
-                    <span style={{ width: 24, fontSize: 12, color: ink, fontWeight: 600, fontFamily: "monospace", flexShrink: 0, textAlign: "right" }}>{dim.score}</span>
-                    {dim.change !== 0 && (
-                      <div style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
-                        <TrendIcon style={{ height: 10, width: 10, color: trendColor }} />
-                        <span style={{ fontSize: 10, color: trendColor, fontWeight: 600 }}>
-                          {dim.change > 0 ? "+" : ""}{dim.change}
-                        </span>
+                  <div key={key}>
+                    <motion.div
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.35 + i * 0.06 }}
+                      onClick={() => setSelectedDimension(isExpanded ? null : key)}
+                      style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer", padding: "5px 0", borderRadius: 8 }}
+                    >
+                      <span style={{ width: 64, fontSize: 11, color: muted, fontWeight: 500, flexShrink: 0, textAlign: "right", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
+                        {conflictDims.has(key) && (
+                          <span title="Data mismatch — check Improve Q-Score" style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: "#DC2626", flexShrink: 0 }} />
+                        )}
+                        {meta.label}
+                      </span>
+                      <div style={{ flex: 1, height: 5, background: bdr, borderRadius: 999, overflow: "hidden" }}>
+                        <motion.div
+                          style={{ height: "100%", borderRadius: 999, background: scoreColor(dim.score) }}
+                          initial={{ width: 0 }}
+                          animate={{ width: `${dim.score}%` }}
+                          transition={{ delay: 0.45 + i * 0.06, duration: 0.7, ease: "easeOut" }}
+                        />
                       </div>
-                    )}
-                  </motion.div>
+                      <span style={{ width: 24, fontSize: 12, color: ink, fontWeight: 600, fontFamily: "monospace", flexShrink: 0, textAlign: "right" }}>{dim.score}</span>
+                      {dim.change !== 0 && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
+                          <TrendIcon style={{ height: 10, width: 10, color: trendColor }} />
+                          <span style={{ fontSize: 10, color: trendColor, fontWeight: 600 }}>
+                            {dim.change > 0 ? "+" : ""}{dim.change}
+                          </span>
+                        </div>
+                      )}
+                      <span style={{ fontSize: 10, color: muted, flexShrink: 0, transition: "transform 0.15s", transform: isExpanded ? "rotate(90deg)" : "none" }}>▶</span>
+                    </motion.div>
+
+                    {/* Expansion panel */}
+                    <AnimatePresence>
+                      {isExpanded && agentInfo && (
+                        <motion.div
+                          key="expansion"
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.22, ease: "easeOut" }}
+                          style={{ overflow: "hidden" }}
+                        >
+                          <div style={{
+                            margin: "4px 0 8px 76px",
+                            padding: "12px 14px",
+                            background: bg,
+                            border: `1px solid ${bdr}`,
+                            borderRadius: 10,
+                          }}>
+                            <p style={{ fontSize: 11, fontWeight: 600, color: ink, marginBottom: 6 }}>
+                              How to improve {meta.label}
+                            </p>
+                            {(DIM_ISSUES[key] ?? []).map((issue, idx) => (
+                              <p key={idx} style={{ fontSize: 11, color: muted, margin: "0 0 3px", lineHeight: 1.5 }}>
+                                · {issue}
+                              </p>
+                            ))}
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+                              {(DIM_BOOSTS[key] ?? []).map((b, idx) => (
+                                <span key={idx} style={{
+                                  fontSize: 10, padding: "2px 8px", borderRadius: 999,
+                                  background: "#EFF6FF", color: blue, border: `1px solid ${blue}22`,
+                                  fontWeight: 600,
+                                }}>
+                                  +{b.pts}pts · {b.artifact.replace(/_/g, " ")}
+                                </span>
+                              ))}
+                            </div>
+                            <Link
+                              href={`/founder/cxo/${agentInfo.agentId}?challenge=${key}`}
+                              style={{
+                                display: "inline-flex", alignItems: "center", gap: 4,
+                                marginTop: 10, fontSize: 11, fontWeight: 600,
+                                color: blue, textDecoration: "none",
+                              }}
+                            >
+                              Talk to {agentInfo.agentName} → <ChevronRight style={{ height: 10, width: 10 }} />
+                            </Link>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
                 );
               })}
             </div>
@@ -884,7 +994,7 @@ export default function FounderDashboard() {
               {priorities.map((p, i) => {
                 const urgencyColor = p.urgency === "high" ? red : p.urgency === "medium" ? amber : muted;
                 const urgencyBg    = p.urgency === "high" ? "#FEF2F2" : p.urgency === "medium" ? "#FFFBEB" : surf;
-                const agentHref    = p.agentId ? `/founder/agents/${p.agentId}` : "/founder/agents";
+                const agentHref    = p.agentId ? `/founder/cxo/${p.agentId}` : "/founder/cxo";
                 return (
                   <motion.div
                     key={i}
@@ -943,7 +1053,7 @@ export default function FounderDashboard() {
               const col     = scoreColor(dim.score);
               const TrendIcon = dim.trend === "up" ? TrendingUp : dim.trend === "down" ? TrendingDown : Minus;
               return (
-                <Link key={key} href={`/founder/agents/${aInfo.agentId}?challenge=${key}`} style={{ textDecoration: "none" }}>
+                <Link key={key} href={`/founder/cxo/${aInfo.agentId}?challenge=${key}`} style={{ textDecoration: "none" }}>
                   <motion.div
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -1011,6 +1121,35 @@ export default function FounderDashboard() {
           })}
         </div>
 
+        {/* ── connectors strip ─────────────────────────────────────── */}
+        {stripeStatus && (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
+            <Link
+              href="/founder/settings?tab=connectors"
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 6, textDecoration: "none",
+                padding: "5px 12px", borderRadius: 999,
+                background: stripeStatus.verified ? "#F0FDF4" : surf,
+                border: `1px solid ${stripeStatus.verified ? green + "44" : bdr}`,
+              }}
+            >
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: stripeStatus.verified ? green : "#D1CEC8", flexShrink: 0 }} />
+              <span style={{ fontSize: 11, fontWeight: 500, color: stripeStatus.verified ? green : muted }}>
+                Stripe {stripeStatus.verified ? "connected" : "not connected"}
+              </span>
+            </Link>
+            {(["LinkedIn", "Google Sheets", "Gmail", "Slack"] as const).map(name => (
+              <Link key={name} href="/founder/settings?tab=connectors" style={{
+                display: "inline-flex", alignItems: "center", gap: 6, textDecoration: "none",
+                padding: "5px 12px", borderRadius: 999, background: surf, border: `1px solid ${bdr}`,
+              }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#D1CEC8", flexShrink: 0 }} />
+                <span style={{ fontSize: 11, color: muted }}>{name} · soon</span>
+              </Link>
+            ))}
+          </div>
+        )}
+
         {/* ── top actions ──────────────────────────────────────────── */}
         <div style={{ marginBottom: 24 }}>
 
@@ -1043,7 +1182,7 @@ export default function FounderDashboard() {
                     transition={{ delay: 0.45 + i * 0.07 }}
                     style={{ borderBottom: i < 2 ? `1px solid ${bdr}` : "none" }}
                   >
-                    <Link href={agent ? `/founder/agents/${agent.id}` : "/founder/assessment"} style={{ textDecoration: "none" }}>
+                    <Link href={agent ? `/founder/cxo/${agent.id}` : "/founder/assessment"} style={{ textDecoration: "none" }}>
                       <div
                         style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 22px", cursor: "pointer", transition: "background 0.15s" }}
                         onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = surf)}
@@ -1151,14 +1290,36 @@ export default function FounderDashboard() {
                 </p>
               </div>
             </div>
-            <Link href="/founder/portfolio" style={{
-              display: "inline-flex", alignItems: "center", gap: 6,
-              padding: "7px 16px", background: ink, color: bg,
-              borderRadius: 999, fontSize: 12, fontWeight: 500, textDecoration: "none",
-              whiteSpace: "nowrap",
-            }}>
-              View portfolio <ArrowRight style={{ height: 11, width: 11 }} />
-            </Link>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+              {publicSlug && (
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(`${window.location.origin}/startup/${publicSlug}`).then(() => {
+                      setLinkCopied(true);
+                      setTimeout(() => setLinkCopied(false), 2500);
+                    });
+                  }}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 6,
+                    padding: "7px 14px", background: linkCopied ? green : surf,
+                    color: linkCopied ? "#fff" : muted,
+                    border: `1px solid ${linkCopied ? green : bdr}`,
+                    borderRadius: 999, fontSize: 12, fontWeight: 500, cursor: "pointer",
+                    whiteSpace: "nowrap", transition: "all 0.2s",
+                  }}
+                >
+                  {linkCopied ? "Link copied!" : "Share profile"}
+                </button>
+              )}
+              <Link href="/founder/portfolio" style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                padding: "7px 16px", background: ink, color: bg,
+                borderRadius: 999, fontSize: 12, fontWeight: 500, textDecoration: "none",
+                whiteSpace: "nowrap",
+              }}>
+                View portfolio <ArrowRight style={{ height: 11, width: 11 }} />
+              </Link>
+            </div>
           </motion.div>
         )}
 
@@ -1401,7 +1562,7 @@ export default function FounderDashboard() {
               </p>
               <p style={{ fontSize: 16, fontWeight: 400, color: ink }}>Your executive team&apos;s work</p>
             </div>
-            <Link href="/founder/agents" style={{ fontSize: 12, color: muted, textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}>
+            <Link href="/founder/cxo" style={{ fontSize: 12, color: muted, textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}>
               View all <ArrowRight style={{ height: 10, width: 10 }} />
             </Link>
           </div>
@@ -1420,7 +1581,7 @@ export default function FounderDashboard() {
               return (
                 <Link
                   key={exec.id}
-                  href={`/founder/agents/${exec.id}`}
+                  href={`/founder/cxo/${exec.id}`}
                   style={{ textDecoration: "none" }}
                 >
                   <div

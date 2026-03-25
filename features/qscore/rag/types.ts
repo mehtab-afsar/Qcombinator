@@ -80,8 +80,8 @@ export interface EvidenceItem {
 export interface EvidenceContext {
   corroborations: EvidenceItem[];
   conflicts: EvidenceItem[];
-  /** 'all' when user has zero embeddings (cold start) */
-  unverified: EvidenceItem[] | 'all';
+  /** 'all' = cold start (no artifacts); 'none' = all claims verified; array = specific unverified items */
+  unverified: EvidenceItem[] | 'all' | 'none';
   /** 0-1, drives blender behavior. 0 = skip evidence layer entirely */
   confidence: number;
 }

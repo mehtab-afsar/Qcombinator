@@ -3,6 +3,7 @@ import { calculateGrade } from '@/features/qscore/types/qscore.types';
 import { ARTIFACT_TYPES, type ArtifactType } from '@/lib/constants/artifact-types';
 import { DIMENSION_DB_COLUMN } from '@/lib/constants/dimensions';
 import { AGENTS } from '@/lib/edgealpha.config';
+import { fetchDimensionWeights } from '@/features/qscore/services/threshold-config';
 
 /**
  * Dimension boost config per artifact type.
@@ -12,20 +13,21 @@ import { AGENTS } from '@/lib/edgealpha.config';
  * Caps: no single dimension can exceed 100, and the boost is conservative
  * (max +6 pts) — the real assessment drives meaningful score changes.
  */
+// Canonical dimension mappings — aligned with docs/scoring-stages.md
 const ARTIFACT_BOOST: Record<string, { dbColumn: string; label: string; points: number }> = {
   [ARTIFACT_TYPES.ICP_DOCUMENT]:       { dbColumn: DIMENSION_DB_COLUMN.gtm,      label: 'Go-to-Market', points: 5 },
-  [ARTIFACT_TYPES.OUTREACH_SEQUENCE]:  { dbColumn: DIMENSION_DB_COLUMN.traction, label: 'Traction',     points: 4 },
+  [ARTIFACT_TYPES.OUTREACH_SEQUENCE]:  { dbColumn: DIMENSION_DB_COLUMN.gtm,      label: 'Go-to-Market', points: 3 },
   [ARTIFACT_TYPES.BATTLE_CARD]:        { dbColumn: DIMENSION_DB_COLUMN.market,   label: 'Market',       points: 4 },
   [ARTIFACT_TYPES.GTM_PLAYBOOK]:       { dbColumn: DIMENSION_DB_COLUMN.gtm,      label: 'Go-to-Market', points: 6 },
   [ARTIFACT_TYPES.SALES_SCRIPT]:       { dbColumn: DIMENSION_DB_COLUMN.traction, label: 'Traction',     points: 4 },
-  [ARTIFACT_TYPES.BRAND_MESSAGING]:    { dbColumn: DIMENSION_DB_COLUMN.gtm,      label: 'Go-to-Market', points: 4 },
+  [ARTIFACT_TYPES.BRAND_MESSAGING]:    { dbColumn: DIMENSION_DB_COLUMN.product,  label: 'Product',      points: 3 },
   [ARTIFACT_TYPES.FINANCIAL_SUMMARY]:  { dbColumn: DIMENSION_DB_COLUMN.financial,label: 'Financial',    points: 6 },
-  [ARTIFACT_TYPES.LEGAL_CHECKLIST]:    { dbColumn: DIMENSION_DB_COLUMN.financial,label: 'Financial',    points: 3 },
+  [ARTIFACT_TYPES.LEGAL_CHECKLIST]:    { dbColumn: DIMENSION_DB_COLUMN.team,     label: 'Team',         points: 3 },
   [ARTIFACT_TYPES.HIRING_PLAN]:        { dbColumn: DIMENSION_DB_COLUMN.team,     label: 'Team',         points: 5 },
-  [ARTIFACT_TYPES.PMF_SURVEY]:         { dbColumn: DIMENSION_DB_COLUMN.product,  label: 'Product',      points: 5 },
+  [ARTIFACT_TYPES.PMF_SURVEY]:         { dbColumn: DIMENSION_DB_COLUMN.traction, label: 'Traction',     points: 5 },
   [ARTIFACT_TYPES.INTERVIEW_NOTES]:    { dbColumn: DIMENSION_DB_COLUMN.product,  label: 'Product',      points: 3 },
   [ARTIFACT_TYPES.COMPETITIVE_MATRIX]: { dbColumn: DIMENSION_DB_COLUMN.market,   label: 'Market',       points: 5 },
-  [ARTIFACT_TYPES.STRATEGIC_PLAN]:     { dbColumn: DIMENSION_DB_COLUMN.product,  label: 'Product',      points: 4 },
+  [ARTIFACT_TYPES.STRATEGIC_PLAN]:     { dbColumn: DIMENSION_DB_COLUMN.market,   label: 'Market',       points: 4 },
 };
 
 interface SignalResult {
@@ -121,14 +123,32 @@ export async function applyAgentScoreSignal(
   const col = boost.dbColumn as keyof typeof scores;
   scores[col] = Math.min(100, scores[col] + adjustedPoints);
 
-  // Recalculate weighted overall (weights match prd-aligned-qscore.ts)
+  // Fetch sector-specific weights so Biotech/Fintech/etc. get the right overall delta
+  const { data: fp } = await supabase
+    .from('founder_profiles')
+    .select('industry')
+    .eq('user_id', userId)
+    .single();
+  const sector = fp?.industry ?? 'default';
+  const dimWeights = await fetchDimensionWeights(supabase, sector);
+
+  const w = {
+    market:    dimWeights.get('market')     ?? 0.20,
+    product:   dimWeights.get('product')    ?? 0.18,
+    gtm:       dimWeights.get('goToMarket') ?? dimWeights.get('gtm') ?? 0.17,
+    financial: dimWeights.get('financial')  ?? 0.18,
+    team:      dimWeights.get('team')       ?? 0.15,
+    traction:  dimWeights.get('traction')   ?? 0.12,
+  };
+
+  // Recalculate weighted overall using founder's sector weights
   const newOverall = Math.min(100, Math.round(
-    scores.market_score    * 0.20 +
-    scores.product_score   * 0.18 +
-    scores.gtm_score       * 0.17 +
-    scores.financial_score * 0.18 +
-    scores.team_score      * 0.15 +
-    scores.traction_score  * 0.12,
+    scores.market_score    * w.market +
+    scores.product_score   * w.product +
+    scores.gtm_score       * w.gtm +
+    scores.financial_score * w.financial +
+    scores.team_score      * w.team +
+    scores.traction_score  * w.traction,
   ));
 
   // Insert new history row (linked via previous_score_id for delta tracking)
