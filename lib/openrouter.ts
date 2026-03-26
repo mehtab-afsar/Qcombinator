@@ -59,7 +59,7 @@ export async function callOpenRouter(
         'X-Title': 'Edge Alpha Agents',
       },
       body: JSON.stringify({
-        model: 'anthropic/claude-3.5-haiku',
+        model: 'anthropic/claude-3-haiku',
         messages,
         temperature,
         max_tokens: maxTokens,
@@ -185,7 +185,7 @@ export async function streamOpenRouter(
         'X-Title': 'Edge Alpha Agents',
       },
       body: JSON.stringify({
-        model: 'anthropic/claude-3.5-haiku',
+        model: 'anthropic/claude-3-haiku',
         messages,
         temperature,
         max_tokens: maxTokens,
