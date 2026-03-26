@@ -4,6 +4,28 @@
  * Never invent data — return null for missing fields.
  */
 
+// Pitch section prompt (keyed as string 'pitch')
+export const PITCH_EXTRACTION_PROMPT = `You are evaluating the clarity of a startup founder's pitch for a VC.
+
+Extract the following fields. Return ONLY valid JSON. Null for missing fields.
+
+{
+  "startup_pitch": "string — verbatim or paraphrased answer",
+  "clarity_score": number,
+  "timing_thesis": "string | null — their 'why now' explanation",
+  "problem_urgency": "high | medium | low",
+  "has_customer_defined": boolean,
+  "has_solution_defined": boolean,
+  "completion_score": number
+}
+
+Scoring rules:
+- clarity_score (0-100): Is the problem, customer, solution all present? Is it jargon-free? 70+ = clear enough for an investor meeting.
+- completion_score: 70+ if clarity_score >= 70 AND timing_thesis is not null. Otherwise proportional.
+- problem_urgency: "high" if founder describes a burning pain with real consequences; "medium" if pain is real but not urgent; "low" if vague.
+
+Return JSON only — no preamble.`
+
 export const EXTRACTION_PROMPTS: Record<number, string> = {
 
   // ── Section 1 — Market Validation (P1: Market Readiness) ──────────────────

@@ -127,13 +127,13 @@ function MatchBar({ value }: { value: number }) {
     <div ref={ref} style={{ display: "flex", alignItems: "center", gap: 8 }}>
       <div style={{ height: 4, width: 56, borderRadius: 999, background: "#E8E4DC", overflow: "hidden" }}>
         <motion.div
-          style={{ height: "100%", borderRadius: 999, background: "#18160F" }}
+          style={{ height: "100%", borderRadius: 999, background: "var(--ea-ink)" }}
           initial={{ width: 0 }}
           animate={inView ? { width: `${value}%` } : { width: 0 }}
           transition={{ duration: 1.2, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
         />
       </div>
-      <span style={{ fontSize: 13, fontWeight: 500, color: "#18160F" }}>{value}%</span>
+      <span style={{ fontSize: 13, fontWeight: 500, color: "var(--ea-ink)" }}>{value}%</span>
     </div>
   );
 }
@@ -179,29 +179,29 @@ function GetStartedDropdown({
             transition={{ duration: 0.14 }}
             style={{
               position: "absolute", top: "calc(100% + 10px)", ...alignStyle,
-              background: "#F9F7F2", border: "1px solid #E2DDD5", borderRadius: 12,
+              background: "var(--ea-bg)", border: "1px solid #E2DDD5", borderRadius: 12,
               overflow: "hidden", minWidth: 210,
               boxShadow: "0 12px 36px rgba(24,22,15,0.13)", zIndex: 200,
             }}
           >
             <button
               onClick={() => navigate("/founder/onboarding")}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "#F0EDE6")}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "var(--ea-surf)")}
               onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
               style={{ display: "block", width: "100%", padding: "14px 20px", textAlign: "left", background: "transparent", border: "none", cursor: "pointer" }}
             >
-              <span style={{ fontSize: 11, display: "block", color: "#8A867C", marginBottom: 2, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase" }}>First time</span>
-              <span style={{ fontSize: 14, fontWeight: 500, color: "#18160F" }}>Get started free</span>
+              <span style={{ fontSize: 11, display: "block", color: "var(--ea-muted)", marginBottom: 2, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase" }}>First time</span>
+              <span style={{ fontSize: 14, fontWeight: 500, color: "var(--ea-ink)" }}>Get started free</span>
             </button>
-            <div style={{ height: 1, background: "#E2DDD5" }} />
+            <div style={{ height: 1, background: "var(--ea-bdr)" }} />
             <button
               onClick={() => navigate("/login")}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "#F0EDE6")}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "var(--ea-surf)")}
               onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
               style={{ display: "block", width: "100%", padding: "14px 20px", textAlign: "left", background: "transparent", border: "none", cursor: "pointer" }}
             >
-              <span style={{ fontSize: 11, display: "block", color: "#8A867C", marginBottom: 2, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase" }}>Returning</span>
-              <span style={{ fontSize: 14, fontWeight: 400, color: "#18160F" }}>Sign in</span>
+              <span style={{ fontSize: 11, display: "block", color: "var(--ea-muted)", marginBottom: 2, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase" }}>Returning</span>
+              <span style={{ fontSize: 14, fontWeight: 400, color: "var(--ea-ink)" }}>Sign in</span>
             </button>
           </motion.div>
         )}
@@ -246,13 +246,13 @@ export default function LandingPage() {
   const go = (p: string) => router.push(p);
 
   return (
-    <div className="min-h-screen antialiased" style={{ background: "#F9F7F2", color: "#18160F" }}>
+    <div className="min-h-screen antialiased" style={{ background: "var(--ea-bg)", color: "var(--ea-ink)" }}>
 
       {/* ── SCROLL PROGRESS BAR ──────────────────────────────────────────── */}
       <motion.div
         style={{
           position: "fixed", top: 0, left: 0, right: 0, height: 2,
-          background: "#18160F", scaleX: scrollYProgress,
+          background: "var(--ea-ink)", scaleX: scrollYProgress,
           transformOrigin: "0%", zIndex: 200,
         }}
       />
@@ -271,10 +271,10 @@ export default function LandingPage() {
       >
         <div className="mx-auto max-w-7xl px-6 lg:px-8 h-16 flex items-center justify-between">
           <button onClick={() => go("/")} className="flex items-center gap-2.5 group">
-            <div className="h-7 w-7 rounded-md flex items-center justify-center" style={{ background: "#18160F" }}>
-              <span className="font-bold text-[8px] tracking-tight" style={{ color: "#F9F7F2" }}>EA</span>
+            <div className="h-7 w-7 rounded-md flex items-center justify-center" style={{ background: "var(--ea-ink)" }}>
+              <span className="font-bold text-[8px] tracking-tight" style={{ color: "var(--ea-bg)" }}>EA</span>
             </div>
-            <span className="font-medium tracking-tight text-[15px]" style={{ color: "#18160F" }}>Edge Alpha</span>
+            <span className="font-medium tracking-tight text-[15px]" style={{ color: "var(--ea-ink)" }}>Edge Alpha</span>
           </button>
 
           <nav className="hidden md:flex items-center gap-10">
@@ -286,19 +286,19 @@ export default function LandingPage() {
             ].map((l) => (
               <a key={l.label} href={l.href}
                 className="text-[13px] font-light transition-opacity hover:opacity-70"
-                style={{ color: "#8A867C" }}>
+                style={{ color: "var(--ea-muted)" }}>
                 {l.label}
               </a>
             ))}
             <GetStartedDropdown
               label="Get started"
               className="text-[13px] font-medium px-5 py-2 rounded-full transition-all hover:scale-[1.03] active:scale-[0.97]"
-              style={{ background: "#18160F", color: "#F9F7F2" }}
+              style={{ background: "var(--ea-ink)", color: "var(--ea-bg)" }}
               align="right"
             />
           </nav>
 
-          <button className="md:hidden" onClick={() => setMobileOpen(!mobileOpen)} style={{ color: "#8A867C" }}>
+          <button className="md:hidden" onClick={() => setMobileOpen(!mobileOpen)} style={{ color: "var(--ea-muted)" }}>
             {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
         </div>
@@ -310,16 +310,16 @@ export default function LandingPage() {
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
               className="md:hidden px-6 py-5 space-y-4"
-              style={{ background: "#F9F7F2", borderTop: "1px solid #E2DDD5" }}
+              style={{ background: "var(--ea-bg)", borderTop: "1px solid #E2DDD5" }}
             >
-              <a href="#how-it-works" className="block text-sm font-light" style={{ color: "#8A867C" }} onClick={() => setMobileOpen(false)}>How it works</a>
-              <a href="#pricing" className="block text-sm font-light" style={{ color: "#8A867C" }} onClick={() => setMobileOpen(false)}>Pricing</a>
-              <a href="#for-investors" className="block text-sm font-light" style={{ color: "#8A867C" }} onClick={() => setMobileOpen(false)}>For investors</a>
-              <a href="/library" className="block text-sm font-light" style={{ color: "#8A867C" }} onClick={() => setMobileOpen(false)}>Library</a>
+              <a href="#how-it-works" className="block text-sm font-light" style={{ color: "var(--ea-muted)" }} onClick={() => setMobileOpen(false)}>How it works</a>
+              <a href="#pricing" className="block text-sm font-light" style={{ color: "var(--ea-muted)" }} onClick={() => setMobileOpen(false)}>Pricing</a>
+              <a href="#for-investors" className="block text-sm font-light" style={{ color: "var(--ea-muted)" }} onClick={() => setMobileOpen(false)}>For investors</a>
+              <a href="/library" className="block text-sm font-light" style={{ color: "var(--ea-muted)" }} onClick={() => setMobileOpen(false)}>Library</a>
               <GetStartedDropdown
                 label="Get started free"
                 className="w-full text-sm font-medium py-3 rounded-full"
-                style={{ background: "#18160F", color: "#F9F7F2" }}
+                style={{ background: "var(--ea-ink)", color: "var(--ea-bg)" }}
                 align="center"
               />
             </motion.div>
@@ -388,7 +388,7 @@ export default function LandingPage() {
 
             <motion.p
               className="text-[15px] sm:text-[17px] font-light leading-relaxed max-w-md mb-8 sm:mb-10"
-              style={{ color: "#8A867C" }}
+              style={{ color: "var(--ea-muted)" }}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.72, duration: 0.6 }}
@@ -405,13 +405,13 @@ export default function LandingPage() {
               <GetStartedDropdown
                 label={<>Start free <ArrowRight className="h-4 w-4" /></>}
                 className="inline-flex items-center gap-2 text-[14px] font-medium px-7 py-3.5 rounded-full transition-all hover:opacity-90 hover:scale-[1.03] active:scale-[0.97]"
-                style={{ background: "#18160F", color: "#F9F7F2" }}
+                style={{ background: "var(--ea-ink)", color: "var(--ea-bg)" }}
                 align="left"
               />
               <button
                 onClick={() => document.getElementById("how-it-works")?.scrollIntoView({ behavior: "smooth" })}
                 className="text-[14px] font-light inline-flex items-center gap-1.5 transition-opacity hover:opacity-70"
-                style={{ color: "#8A867C" }}
+                style={{ color: "var(--ea-muted)" }}
               >
                 See how it works
                 <ChevronRight className="h-4 w-4" />
@@ -420,7 +420,7 @@ export default function LandingPage() {
 
             <motion.p
               className="text-[12px] font-light -mt-8 mb-2"
-              style={{ color: "#C8C3BB" }}
+              style={{ color: "var(--ea-dim)" }}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 1.0, duration: 0.4 }}
@@ -468,16 +468,16 @@ export default function LandingPage() {
                 <div className="h-2.5 w-2.5 rounded-full" style={{ background: "#E8DDB8" }} />
                 <div className="h-2.5 w-2.5 rounded-full" style={{ background: "#B8E8C4" }} />
                 <div className="ml-3 flex items-center gap-2">
-                  <div className="h-5 w-5 rounded flex items-center justify-center" style={{ background: "#18160F" }}>
-                    <Bot className="h-3 w-3" style={{ color: "#F9F7F2" }} />
+                  <div className="h-5 w-5 rounded flex items-center justify-center" style={{ background: "var(--ea-ink)" }}>
+                    <Bot className="h-3 w-3" style={{ color: "var(--ea-bg)" }} />
                   </div>
-                  <span className="text-[12px] font-medium" style={{ color: "#8A867C" }}>Strategy Adviser</span>
+                  <span className="text-[12px] font-medium" style={{ color: "var(--ea-muted)" }}>Strategy Adviser</span>
                   <div className="h-1.5 w-1.5 rounded-full bg-green-500 ml-1" />
                 </div>
               </div>
 
               {/* messages */}
-              <div className="px-4 py-5 space-y-4 min-h-[280px]" style={{ background: "#F9F7F2" }}>
+              <div className="px-4 py-5 space-y-4 min-h-[280px]" style={{ background: "var(--ea-bg)" }}>
                 {agentMessages.map((msg, i) => {
                   if (i >= visibleMsg) return null;
                   const isUser   = msg.role === "user";
@@ -486,20 +486,20 @@ export default function LandingPage() {
                     <motion.div key={i} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}
                       className={`flex gap-2.5 ${isUser ? "flex-row-reverse" : ""}`}>
                       {!isUser && (
-                        <div className="h-6 w-6 rounded flex items-center justify-center shrink-0 mt-0.5" style={{ background: "#18160F" }}>
-                          <Bot className="h-3 w-3" style={{ color: "#F9F7F2" }} />
+                        <div className="h-6 w-6 rounded flex items-center justify-center shrink-0 mt-0.5" style={{ background: "var(--ea-ink)" }}>
+                          <Bot className="h-3 w-3" style={{ color: "var(--ea-bg)" }} />
                         </div>
                       )}
                       <div
                         className="max-w-[78%] rounded-xl px-3.5 py-2.5 text-[13px] leading-relaxed"
                         style={isUser
-                          ? { background: "#18160F", color: "#F9F7F2", borderRadius: "12px 4px 12px 12px" }
-                          : { background: "#F0EDE6", border: "1px solid #E2DDD5", color: "#18160F", borderRadius: "4px 12px 12px 12px" }
+                          ? { background: "var(--ea-ink)", color: "var(--ea-bg)", borderRadius: "12px 4px 12px 12px" }
+                          : { background: "var(--ea-surf)", border: "1px solid #E2DDD5", color: "var(--ea-ink)", borderRadius: "4px 12px 12px 12px" }
                         }
                       >
                         {msg.text}
                         {isTyping && (
-                          <motion.span className="inline-block w-0.5 h-3.5 ml-0.5 align-middle rounded" style={{ background: "#8A867C" }}
+                          <motion.span className="inline-block w-0.5 h-3.5 ml-0.5 align-middle rounded" style={{ background: "var(--ea-muted)" }}
                             animate={{ opacity: [1, 0] }} transition={{ repeat: Infinity, duration: 0.7 }} />
                         )}
                       </div>
@@ -512,16 +512,16 @@ export default function LandingPage() {
               <div className="px-4 py-3 flex items-center gap-3" style={{ borderTop: "1px solid #E8E4DC", background: "#FDFCFA" }}>
                 <input readOnly placeholder="Ask your adviser…"
                   className="flex-1 text-[13px] font-light rounded-lg px-3 py-2 focus:outline-none"
-                  style={{ background: "#F0EDE6", border: "1px solid #E2DDD5", color: "#8A867C" }} />
-                <button className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0 transition-transform hover:scale-105" style={{ background: "#18160F" }}>
-                  <Send className="h-3.5 w-3.5" style={{ color: "#F9F7F2" }} />
+                  style={{ background: "var(--ea-surf)", border: "1px solid #E2DDD5", color: "var(--ea-muted)" }} />
+                <button className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0 transition-transform hover:scale-105" style={{ background: "var(--ea-ink)" }}>
+                  <Send className="h-3.5 w-3.5" style={{ color: "var(--ea-bg)" }} />
                 </button>
               </div>
 
               {/* score strip */}
-              <div className="px-4 py-2.5 flex items-center justify-between" style={{ background: "#F0EDE6", borderTop: "1px solid #E2DDD5" }}>
-                <span className="text-[11px] font-light" style={{ color: "#8A867C" }}>This session is improving your Q-Score</span>
-                <div className="flex items-center gap-1 text-[11px] font-medium" style={{ color: "#18160F" }}>
+              <div className="px-4 py-2.5 flex items-center justify-between" style={{ background: "var(--ea-surf)", borderTop: "1px solid #E2DDD5" }}>
+                <span className="text-[11px] font-light" style={{ color: "var(--ea-muted)" }}>This session is improving your Q-Score</span>
+                <div className="flex items-center gap-1 text-[11px] font-medium" style={{ color: "var(--ea-ink)" }}>
                   <TrendingUp className="h-3 w-3" /> +3 pts
                 </div>
               </div>
@@ -582,7 +582,7 @@ export default function LandingPage() {
           </motion.div>
           <div className="grid md:grid-cols-3 gap-10 relative">
             {/* connector line */}
-            <div className="hidden md:block absolute top-8 left-[calc(16.67%+20px)] right-[calc(16.67%+20px)] h-px" style={{ background: "#E2DDD5" }} />
+            <div className="hidden md:block absolute top-8 left-[calc(16.67%+20px)] right-[calc(16.67%+20px)] h-px" style={{ background: "var(--ea-bdr)" }} />
             {[
               { num: "01", icon: BarChart3, title: "Get your Q-Score", desc: "A 10-minute assessment scores your startup across 6 investor-critical dimensions. You see exactly where you stand and what to fix first." },
               { num: "02", icon: Bot, title: "Work with your advisers", desc: "9 specialist AI agents help you close gaps, build assets, and strengthen every part of your business — with full context of your startup." },
@@ -598,14 +598,14 @@ export default function LandingPage() {
                   viewport={{ once: true }}
                   transition={{ delay: i * 0.12 }}
                 >
-                  <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl mb-5 relative" style={{ background: "#F0EDE6", border: "1px solid #E2DDD5" }}>
-                    <Icon className="h-6 w-6" style={{ color: "#8A867C" }} />
-                    <div className="absolute -top-2.5 -right-2.5 h-5 w-5 rounded-full flex items-center justify-center text-[9px] font-mono" style={{ background: "#18160F", color: "#F9F7F2" }}>
+                  <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl mb-5 relative" style={{ background: "var(--ea-surf)", border: "1px solid #E2DDD5" }}>
+                    <Icon className="h-6 w-6" style={{ color: "var(--ea-muted)" }} />
+                    <div className="absolute -top-2.5 -right-2.5 h-5 w-5 rounded-full flex items-center justify-center text-[9px] font-mono" style={{ background: "var(--ea-ink)", color: "var(--ea-bg)" }}>
                       {step.num}
                     </div>
                   </div>
-                  <h3 className="text-[15px] font-medium mb-2.5" style={{ color: "#18160F" }}>{step.title}</h3>
-                  <p className="text-[13px] font-light leading-relaxed" style={{ color: "#8A867C" }}>{step.desc}</p>
+                  <h3 className="text-[15px] font-medium mb-2.5" style={{ color: "var(--ea-ink)" }}>{step.title}</h3>
+                  <p className="text-[13px] font-light leading-relaxed" style={{ color: "var(--ea-muted)" }}>{step.desc}</p>
                 </motion.div>
               );
             })}
@@ -632,7 +632,7 @@ export default function LandingPage() {
             </div>
           </motion.div>
 
-          <div className="divide-y" style={{ borderTop: "1px solid #E2DDD5", borderColor: "#E2DDD5" }}>
+          <div className="divide-y" style={{ borderTop: "1px solid #E2DDD5", borderColor: "var(--ea-bdr)" }}>
             {pillars.map((p, i) => {
               const Icon = p.icon;
               return (
@@ -648,17 +648,17 @@ export default function LandingPage() {
                   style={{ borderRadius: 8, transition: "background 0.2s" }}
                 >
                   <div className="hidden md:block md:col-span-1">
-                    <span className="text-[12px] font-mono" style={{ color: "#C8C3BB" }}>{p.num}</span>
+                    <span className="text-[12px] font-mono" style={{ color: "var(--ea-dim)" }}>{p.num}</span>
                   </div>
                   <div className="md:col-span-2 flex items-center md:items-start gap-2">
                     <motion.div
                       className="h-8 w-8 rounded flex items-center justify-center shrink-0 transition-colors"
-                      style={{ background: "#F0EDE6", border: "1px solid #E2DDD5" }}
+                      style={{ background: "var(--ea-surf)", border: "1px solid #E2DDD5" }}
                       whileHover={{ scale: 1.1 }}
                     >
-                      <Icon className="h-4 w-4" style={{ color: "#8A867C" }} />
+                      <Icon className="h-4 w-4" style={{ color: "var(--ea-muted)" }} />
                     </motion.div>
-                    <span className="text-[11px] uppercase tracking-[0.14em] font-medium mt-2" style={{ color: "#8A867C" }}>{p.label}</span>
+                    <span className="text-[11px] uppercase tracking-[0.14em] font-medium mt-2" style={{ color: "var(--ea-muted)" }}>{p.label}</span>
                     {p.locked && (
                       <div className="flex items-center gap-1 px-2 py-0.5 rounded-full mt-2 ml-1"
                         style={{ background: "#F5EDD8", border: "1px solid #E8D9B8" }}>
@@ -668,21 +668,21 @@ export default function LandingPage() {
                     )}
                   </div>
                   <div className="md:col-span-4">
-                    <h3 className="text-[17px] leading-snug mb-2" style={{ fontWeight: 300, color: "#18160F" }}>{p.title}</h3>
-                    <p className="text-[13px] font-light leading-relaxed" style={{ color: "#8A867C" }}>{p.body}</p>
+                    <h3 className="text-[17px] leading-snug mb-2" style={{ fontWeight: 300, color: "var(--ea-ink)" }}>{p.title}</h3>
+                    <p className="text-[13px] font-light leading-relaxed" style={{ color: "var(--ea-muted)" }}>{p.body}</p>
                   </div>
                   <div className="md:col-span-4">
                     <ul className="space-y-2">
                       {p.bullets.map((b) => (
-                        <li key={b} className="flex items-center gap-2 text-[13px] font-light" style={{ color: "#8A867C" }}>
-                          <div className="h-1 w-1 rounded-full shrink-0" style={{ background: "#C8C3BB" }} />
+                        <li key={b} className="flex items-center gap-2 text-[13px] font-light" style={{ color: "var(--ea-muted)" }}>
+                          <div className="h-1 w-1 rounded-full shrink-0" style={{ background: "var(--ea-dim)" }} />
                           {b}
                         </li>
                       ))}
                     </ul>
                   </div>
                   <div className="hidden md:flex md:col-span-1 items-center justify-end">
-                    <ArrowUpRight className="h-4 w-4 transition-all group-hover:translate-x-0.5 group-hover:-translate-y-0.5" style={{ color: "#C8C3BB" }} />
+                    <ArrowUpRight className="h-4 w-4 transition-all group-hover:translate-x-0.5 group-hover:-translate-y-0.5" style={{ color: "var(--ea-dim)" }} />
                   </div>
                 </motion.div>
               );
@@ -692,7 +692,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── AI AGENTS ─────────────────────────────────────────────────────── */}
-      <section className="py-16 sm:py-28 px-4 sm:px-6" style={{ background: "#F0EDE6" }}>
+      <section className="py-16 sm:py-28 px-4 sm:px-6" style={{ background: "var(--ea-surf)" }}>
         <div className="mx-auto max-w-7xl">
           <div className="grid lg:grid-cols-2 gap-10 lg:gap-20 items-start">
             <motion.div initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
@@ -703,7 +703,7 @@ export default function LandingPage() {
               <h2 className="text-3xl sm:text-4xl tracking-tight leading-tight mb-7" style={{ fontWeight: 300, color: "var(--ea-ink)" }}>
                 Expert advisers.<br /><em className="font-display not-italic">No office hours.</em>
               </h2>
-              <p className="text-[15px] font-light leading-relaxed mb-10 max-w-md" style={{ color: "#8A867C" }}>
+              <p className="text-[15px] font-light leading-relaxed mb-10 max-w-md" style={{ color: "var(--ea-muted)" }}>
                 Each agent carries deep domain expertise and full context of your business. Not generic advice — they know your numbers, your market, and exactly where you&apos;re falling short.
               </p>
 
@@ -721,10 +721,10 @@ export default function LandingPage() {
                     viewport={{ once: true }}
                     transition={{ delay: i * 0.1 }}
                   >
-                    <div className="h-1.5 w-1.5 rounded-full shrink-0 mt-2" style={{ background: "#C8C3BB" }} />
+                    <div className="h-1.5 w-1.5 rounded-full shrink-0 mt-2" style={{ background: "var(--ea-dim)" }} />
                     <div>
-                      <p className="text-[14px] font-medium mb-0.5" style={{ color: "#18160F" }}>{title}</p>
-                      <p className="text-[13px] font-light leading-relaxed" style={{ color: "#8A867C" }}>{desc}</p>
+                      <p className="text-[14px] font-medium mb-0.5" style={{ color: "var(--ea-ink)" }}>{title}</p>
+                      <p className="text-[13px] font-light leading-relaxed" style={{ color: "var(--ea-muted)" }}>{desc}</p>
                     </div>
                   </motion.div>
                 ))}
@@ -733,7 +733,7 @@ export default function LandingPage() {
               <button
                 onClick={() => go("/founder/onboarding")}
                 className="inline-flex items-center gap-2 text-[14px] font-medium px-6 py-3 rounded-full transition-all hover:opacity-80 hover:scale-[1.02] active:scale-[0.98]"
-                style={{ background: "#18160F", color: "#F9F7F2" }}
+                style={{ background: "var(--ea-ink)", color: "var(--ea-bg)" }}
               >
                 Meet your advisers <ArrowRight className="h-4 w-4" />
               </button>
@@ -742,7 +742,7 @@ export default function LandingPage() {
             {/* agent list with auto-cycling active highlight */}
             <motion.div
               className="divide-y rounded-2xl overflow-hidden"
-              style={{ background: "#FDFCFA", border: "1px solid #E2DDD5", borderColor: "#E2DDD5" }}
+              style={{ background: "#FDFCFA", border: "1px solid #E2DDD5", borderColor: "var(--ea-bdr)" }}
               initial={{ opacity: 0, y: 16 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
@@ -767,20 +767,20 @@ export default function LandingPage() {
                       layoutId="agent-active-bar"
                       style={{
                         position: "absolute", left: 0, top: 0, bottom: 0,
-                        width: 3, background: "#18160F",
+                        width: 3, background: "var(--ea-ink)",
                         borderRadius: "0 2px 2px 0",
                       }}
                       transition={{ type: "spring", stiffness: 300, damping: 30 }}
                     />
                   )}
                   <div className="flex items-center gap-4">
-                    <span className="text-[11px] font-mono w-5" style={{ color: "#C8C3BB" }}>{a.num}</span>
+                    <span className="text-[11px] font-mono w-5" style={{ color: "var(--ea-dim)" }}>{a.num}</span>
                     <div>
-                      <p className="text-[14px] font-medium" style={{ color: "#18160F" }}>{a.name} Adviser</p>
-                      <p className="text-[12px] font-light mt-0.5" style={{ color: "#8A867C" }}>{a.desc}</p>
+                      <p className="text-[14px] font-medium" style={{ color: "var(--ea-ink)" }}>{a.name} Adviser</p>
+                      <p className="text-[12px] font-light mt-0.5" style={{ color: "var(--ea-muted)" }}>{a.desc}</p>
                     </div>
                   </div>
-                  <ArrowUpRight className="h-3.5 w-3.5 transition-all group-hover:translate-x-0.5 group-hover:-translate-y-0.5" style={{ color: "#C8C3BB" }} />
+                  <ArrowUpRight className="h-3.5 w-3.5 transition-all group-hover:translate-x-0.5 group-hover:-translate-y-0.5" style={{ color: "var(--ea-dim)" }} />
                 </motion.button>
               ))}
             </motion.div>
@@ -809,7 +809,7 @@ export default function LandingPage() {
             </div>
           </motion.div>
 
-          <p className="text-[12px] font-light mb-6" style={{ color: "#B5B0A8" }}>Examples from our verified investor network</p>
+          <p className="text-[12px] font-light mb-6" style={{ color: "var(--ea-faint)" }}>Examples from our verified investor network</p>
 
           {/* table */}
           <motion.div
@@ -822,10 +822,10 @@ export default function LandingPage() {
             <div className="overflow-x-auto">
             <table className="w-full min-w-[480px]">
               <thead>
-                <tr style={{ background: "#F0EDE6", borderBottom: "1px solid #E2DDD5" }}>
+                <tr style={{ background: "var(--ea-surf)", borderBottom: "1px solid #E2DDD5" }}>
                   {["Investor", "Check size", "Stages", "Match"].map((h, i) => (
                     <th key={h} className={`text-left py-3.5 px-5 text-[10px] uppercase tracking-[0.16em] font-medium ${i === 1 ? "hidden sm:table-cell" : ""} ${i === 2 ? "hidden md:table-cell" : ""}`}
-                      style={{ color: "#B5B0A8" }}>
+                      style={{ color: "var(--ea-faint)" }}>
                       {h}
                     </th>
                   ))}
@@ -848,23 +848,23 @@ export default function LandingPage() {
                     <td className="py-4 px-5">
                       <div className="flex items-center gap-3">
                         <div className="h-8 w-8 rounded flex items-center justify-center text-[10px] font-bold shrink-0"
-                          style={{ background: "#F0EDE6", color: "#18160F", border: "1px solid #E2DDD5" }}>
+                          style={{ background: "var(--ea-surf)", color: "var(--ea-ink)", border: "1px solid #E2DDD5" }}>
                           {inv.logo}
                         </div>
                         <div>
-                          <p className="text-[13px] font-medium" style={{ color: "#18160F" }}>{inv.name}</p>
-                          <p className="text-[11px] font-light" style={{ color: "#B5B0A8" }}>{inv.type}</p>
+                          <p className="text-[13px] font-medium" style={{ color: "var(--ea-ink)" }}>{inv.name}</p>
+                          <p className="text-[11px] font-light" style={{ color: "var(--ea-faint)" }}>{inv.type}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="py-4 px-5 hidden sm:table-cell text-[13px] font-light" style={{ color: "#8A867C" }}>{inv.check}</td>
-                    <td className="py-4 px-5 hidden md:table-cell text-[13px] font-light" style={{ color: "#8A867C" }}>{inv.stages}</td>
+                    <td className="py-4 px-5 hidden sm:table-cell text-[13px] font-light" style={{ color: "var(--ea-muted)" }}>{inv.check}</td>
+                    <td className="py-4 px-5 hidden md:table-cell text-[13px] font-light" style={{ color: "var(--ea-muted)" }}>{inv.stages}</td>
                     <td className="py-4 px-5">
                       <MatchBar value={inv.match} />
                     </td>
                     <td className="py-4 px-5 text-right">
                       <button className="inline-flex items-center gap-1.5 text-[12px] font-medium transition-opacity hover:opacity-60"
-                        style={{ color: "#8A867C" }}>
+                        style={{ color: "var(--ea-muted)" }}>
                         <Mail className="h-3.5 w-3.5" /> Connect
                       </button>
                     </td>
@@ -874,9 +874,9 @@ export default function LandingPage() {
             </table>
             </div>
             <div className="px-5 py-4 flex items-center justify-between" style={{ background: "#F5F2EC", borderTop: "1px solid #E2DDD5" }}>
-              <span className="text-[12px] font-light" style={{ color: "#B5B0A8" }}>Showing 6 of 500+ investors</span>
+              <span className="text-[12px] font-light" style={{ color: "var(--ea-faint)" }}>Showing 6 of 500+ investors</span>
               <button className="text-[12px] font-medium inline-flex items-center gap-1 transition-opacity hover:opacity-70"
-                style={{ color: "#18160F" }} onClick={() => go("/founder/onboarding")}>
+                style={{ color: "var(--ea-ink)" }} onClick={() => go("/founder/onboarding")}>
                 Unlock full marketplace <ChevronRight className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -956,7 +956,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── FOR INVESTORS ─────────────────────────────────────────────────── */}
-      <section id="for-investors" className="py-16 sm:py-28 px-4 sm:px-6" style={{ background: "#F0EDE6" }}>
+      <section id="for-investors" className="py-16 sm:py-28 px-4 sm:px-6" style={{ background: "var(--ea-surf)" }}>
         <div className="mx-auto max-w-7xl">
           <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-start">
             <motion.div initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
@@ -967,7 +967,7 @@ export default function LandingPage() {
               <h2 className="text-3xl sm:text-4xl tracking-tight leading-tight mb-6" style={{ fontWeight: 300, color: "var(--ea-ink)" }}>
                 Better deal flow.<br /><em className="font-display not-italic">Less noise.</em>
               </h2>
-              <p className="text-[15px] font-light leading-relaxed mb-8 max-w-md" style={{ color: "#8A867C" }}>
+              <p className="text-[15px] font-light leading-relaxed mb-8 max-w-md" style={{ color: "var(--ea-muted)" }}>
                 Every founder in the marketplace has been scored algorithmically across six dimensions. You see pre-qualified, thesis-matched startups — not cold inbound.
               </p>
               <ul className="space-y-3 mb-8">
@@ -975,13 +975,13 @@ export default function LandingPage() {
                   <motion.li
                     key={f}
                     className="flex items-start gap-3 text-[14px] font-light"
-                    style={{ color: "#8A867C" }}
+                    style={{ color: "var(--ea-muted)" }}
                     initial={{ opacity: 0, x: -10 }}
                     whileInView={{ opacity: 1, x: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: i * 0.09 }}
                   >
-                    <CheckCircle className="h-4 w-4 shrink-0 mt-0.5" style={{ color: "#C8C3BB" }} />
+                    <CheckCircle className="h-4 w-4 shrink-0 mt-0.5" style={{ color: "var(--ea-dim)" }} />
                     {f}
                   </motion.li>
                 ))}
@@ -989,7 +989,7 @@ export default function LandingPage() {
               <button
                 onClick={() => go("/investor/onboarding")}
                 className="inline-flex items-center gap-2 text-[14px] font-medium px-6 py-3 rounded-full transition-all hover:opacity-80 hover:scale-[1.02] active:scale-[0.98]"
-                style={{ background: "#18160F", color: "#F9F7F2" }}
+                style={{ background: "var(--ea-ink)", color: "var(--ea-bg)" }}
               >
                 Join as an investor <ArrowRight className="h-4 w-4" />
               </button>
@@ -1019,24 +1019,24 @@ export default function LandingPage() {
                   whileHover={{ backgroundColor: "#F5F2EC" }}
                 >
                   <div>
-                    <p className="text-[14px] font-medium" style={{ color: "#18160F" }}>{d.name}</p>
-                    <p className="text-[12px] font-light mt-0.5" style={{ color: "#B5B0A8" }}>{d.tag}</p>
+                    <p className="text-[14px] font-medium" style={{ color: "var(--ea-ink)" }}>{d.name}</p>
+                    <p className="text-[12px] font-light mt-0.5" style={{ color: "var(--ea-faint)" }}>{d.tag}</p>
                   </div>
                   <div className="flex items-center gap-4 sm:gap-6">
                     <div className="text-left sm:text-right">
-                      <p className="text-[10px] uppercase tracking-[0.12em] font-medium mb-0.5" style={{ color: "#C8C3BB" }}>Q-Score</p>
-                      <p className="text-[14px] font-medium" style={{ color: "#18160F" }}>{d.score}</p>
+                      <p className="text-[10px] uppercase tracking-[0.12em] font-medium mb-0.5" style={{ color: "var(--ea-dim)" }}>Q-Score</p>
+                      <p className="text-[14px] font-medium" style={{ color: "var(--ea-ink)" }}>{d.score}</p>
                     </div>
                     <div className="text-left sm:text-right">
-                      <p className="text-[10px] uppercase tracking-[0.12em] font-medium mb-0.5" style={{ color: "#C8C3BB" }}>Match</p>
-                      <p className="text-[14px] font-medium" style={{ color: "#18160F" }}>{d.match}%</p>
+                      <p className="text-[10px] uppercase tracking-[0.12em] font-medium mb-0.5" style={{ color: "var(--ea-dim)" }}>Match</p>
+                      <p className="text-[14px] font-medium" style={{ color: "var(--ea-ink)" }}>{d.match}%</p>
                     </div>
-                    <ArrowUpRight className="h-4 w-4 hidden sm:block" style={{ color: "#C8C3BB" }} />
+                    <ArrowUpRight className="h-4 w-4 hidden sm:block" style={{ color: "var(--ea-dim)" }} />
                   </div>
                 </motion.div>
               ))}
               <div className="px-6 py-3.5 text-center" style={{ background: "#F5F2EC", borderTop: "1px solid #E2DDD5" }}>
-                <p className="text-[12px] font-light" style={{ color: "#B5B0A8" }}>
+                <p className="text-[12px] font-light" style={{ color: "var(--ea-faint)" }}>
                   <motion.span
                     animate={{ opacity: [0.5, 1, 0.5] }}
                     transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
@@ -1053,7 +1053,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── PRICING ───────────────────────────────────────────────────────── */}
-      <section id="pricing" className="py-16 sm:py-28 px-4 sm:px-6" style={{ background: "#F0EDE6" }}>
+      <section id="pricing" className="py-16 sm:py-28 px-4 sm:px-6" style={{ background: "var(--ea-surf)" }}>
         <div className="mx-auto max-w-4xl">
           <motion.div className="text-center mb-10 sm:mb-14" initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
             <div className="flex items-center gap-3 justify-center mb-5">
@@ -1098,13 +1098,13 @@ export default function LandingPage() {
             {/* Pro */}
             <div className="p-8 sm:p-10" style={{ background: "var(--ea-ink)" }}>
               <div className="flex items-center justify-between">
-                <span className="font-ea-mono text-[10px] tracking-[0.22em] uppercase" style={{ color: "#8A867C" }}>Pro</span>
+                <span className="font-ea-mono text-[10px] tracking-[0.22em] uppercase" style={{ color: "var(--ea-muted)" }}>Pro</span>
                 <span className="font-ea-mono text-[9px] tracking-[0.1em] uppercase px-2.5 py-1 rounded-full" style={{ background: "rgba(255,255,255,0.08)", color: "var(--ea-dim)" }}>Most popular</span>
               </div>
               <div className="font-ea-mono text-5xl sm:text-6xl mt-4 mb-1 tracking-tight" style={{ fontWeight: 400, color: "var(--ea-bg)" }}>
                 $49<span className="text-[24px]">/mo</span>
               </div>
-              <p className="font-ea-mono text-[11px] mb-8" style={{ color: "#8A867C" }}>Cancel anytime</p>
+              <p className="font-ea-mono text-[11px] mb-8" style={{ color: "var(--ea-muted)" }}>Cancel anytime</p>
               <ul className="mb-8" style={{ borderTop: "1px solid rgba(255,255,255,0.1)" }}>
                 {["Everything in Free", "All 9 AI advisers", "Investor marketplace (unlocks at Q-Score 70)", "Academy cohort access", "Priority support"].map((f) => (
                   <li key={f} className="flex items-start gap-3 text-[13px] font-light py-3" style={{ color: "var(--ea-dim)", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
@@ -1158,9 +1158,9 @@ export default function LandingPage() {
                   className="w-full py-5 flex items-start justify-between gap-4 text-left"
                   onClick={() => setFaqOpen(faqOpen === i ? null : i)}
                 >
-                  <span className="text-[15px] font-light" style={{ color: "#18160F" }}>{item.q}</span>
+                  <span className="text-[15px] font-light" style={{ color: "var(--ea-ink)" }}>{item.q}</span>
                   <motion.div animate={{ rotate: faqOpen === i ? 180 : 0 }} transition={{ duration: 0.2 }} style={{ flexShrink: 0 }}>
-                    <ChevronDown className="h-4 w-4 mt-0.5" style={{ color: "#8A867C" }} />
+                    <ChevronDown className="h-4 w-4 mt-0.5" style={{ color: "var(--ea-muted)" }} />
                   </motion.div>
                 </button>
                 <AnimatePresence>
@@ -1172,7 +1172,7 @@ export default function LandingPage() {
                       transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
                       style={{ overflow: "hidden" }}
                     >
-                      <p className="pb-5 text-[14px] font-light leading-relaxed" style={{ color: "#8A867C" }}>{item.a}</p>
+                      <p className="pb-5 text-[14px] font-light leading-relaxed" style={{ color: "var(--ea-muted)" }}>{item.a}</p>
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -1183,24 +1183,24 @@ export default function LandingPage() {
       </section>
 
       {/* ── KNOWLEDGE LIBRARY ──────────────────────────────────────────────── */}
-      <section className="py-16 sm:py-24 px-4 sm:px-6" style={{ background: "#F9F7F2", borderTop: "1px solid #E2DDD5" }}>
+      <section className="py-16 sm:py-24 px-4 sm:px-6" style={{ background: "var(--ea-bg)", borderTop: "1px solid #E2DDD5" }}>
         <div className="mx-auto max-w-7xl">
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-12">
             <div>
-              <span className="font-ea-mono text-[10px] tracking-[0.28em] uppercase block mb-3" style={{ color: "#8A867C" }}>
+              <span className="font-ea-mono text-[10px] tracking-[0.28em] uppercase block mb-3" style={{ color: "var(--ea-muted)" }}>
                 Free resource
               </span>
-              <h2 className="text-3xl sm:text-4xl tracking-tight" style={{ fontWeight: 300, color: "#18160F" }}>
+              <h2 className="text-3xl sm:text-4xl tracking-tight" style={{ fontWeight: 300, color: "var(--ea-ink)" }}>
                 Startup Playbook Library
               </h2>
-              <p className="mt-3 text-base font-light max-w-xl" style={{ color: "#8A867C" }}>
+              <p className="mt-3 text-base font-light max-w-xl" style={{ color: "var(--ea-muted)" }}>
                 60+ curated frameworks from YC, a16z, Bessemer, and HBR — surfaced by your AI team when you need them. Free to browse.
               </p>
             </div>
             <a
               href="/library"
               className="shrink-0 inline-flex items-center gap-2 text-[13px] font-medium px-5 py-2.5 rounded-full transition-all hover:scale-[1.03]"
-              style={{ background: "#18160F", color: "#F9F7F2" }}
+              style={{ background: "var(--ea-ink)", color: "var(--ea-bg)" }}
             >
               Browse library →
             </a>
@@ -1220,7 +1220,7 @@ export default function LandingPage() {
                 key={r.title}
                 href="/library"
                 className="block p-5 rounded-xl transition-all hover:scale-[1.01] hover:shadow-sm"
-                style={{ background: "#F0EDE6", border: "1px solid #E2DDD5", textDecoration: "none" }}
+                style={{ background: "var(--ea-surf)", border: "1px solid #E2DDD5", textDecoration: "none" }}
               >
                 <div className="flex items-start gap-3">
                   <div className="text-2xl mt-0.5">{r.icon}</div>
@@ -1229,10 +1229,10 @@ export default function LandingPage() {
                       <span className="text-[10px] font-medium px-2 py-0.5 rounded" style={{ background: r.color + "20", color: r.color }}>
                         {r.fn}
                       </span>
-                      <span className="text-[10px]" style={{ color: "#B5B0A8" }}>{r.type}</span>
+                      <span className="text-[10px]" style={{ color: "var(--ea-faint)" }}>{r.type}</span>
                     </div>
-                    <p className="text-[14px] font-medium leading-snug mb-1" style={{ color: "#18160F" }}>{r.title}</p>
-                    <p className="text-[12px] font-light" style={{ color: "#8A867C" }}>{r.source}</p>
+                    <p className="text-[14px] font-medium leading-snug mb-1" style={{ color: "var(--ea-ink)" }}>{r.title}</p>
+                    <p className="text-[12px] font-light" style={{ color: "var(--ea-muted)" }}>{r.source}</p>
                   </div>
                 </div>
               </a>
@@ -1271,17 +1271,17 @@ export default function LandingPage() {
       </section>
 
       {/* ── FOOTER ────────────────────────────────────────────────────────── */}
-      <footer className="py-10 sm:py-12 px-4 sm:px-6" style={{ borderTop: "1px solid #E2DDD5", background: "#F0EDE6" }}>
+      <footer className="py-10 sm:py-12 px-4 sm:px-6" style={{ borderTop: "1px solid #E2DDD5", background: "var(--ea-surf)" }}>
         <div className="mx-auto max-w-7xl">
           <div className="grid grid-cols-2 md:grid-cols-5 gap-8 sm:gap-10 mb-10">
             <div className="col-span-2 md:col-span-2">
               <div className="flex items-center gap-2.5 mb-4">
-                <div className="h-7 w-7 rounded-md flex items-center justify-center" style={{ background: "#18160F" }}>
-                  <span className="font-bold text-[8px]" style={{ color: "#F9F7F2" }}>EA</span>
+                <div className="h-7 w-7 rounded-md flex items-center justify-center" style={{ background: "var(--ea-ink)" }}>
+                  <span className="font-bold text-[8px]" style={{ color: "var(--ea-bg)" }}>EA</span>
                 </div>
-                <span className="font-medium text-[15px]" style={{ color: "#18160F" }}>Edge Alpha</span>
+                <span className="font-medium text-[15px]" style={{ color: "var(--ea-ink)" }}>Edge Alpha</span>
               </div>
-              <p className="text-[13px] font-light leading-relaxed max-w-[220px]" style={{ color: "#8A867C" }}>
+              <p className="text-[13px] font-light leading-relaxed max-w-[220px]" style={{ color: "var(--ea-muted)" }}>
                 AI-powered advisers and investor marketplace for ambitious founders.
               </p>
             </div>
@@ -1306,18 +1306,18 @@ export default function LandingPage() {
               ]},
             ].map((col) => (
               <div key={col.title}>
-                <p className="text-[10px] uppercase tracking-[0.18em] font-medium mb-4" style={{ color: "#B5B0A8" }}>{col.title}</p>
+                <p className="text-[10px] uppercase tracking-[0.18em] font-medium mb-4" style={{ color: "var(--ea-faint)" }}>{col.title}</p>
                 <ul className="space-y-2.5">
                   {col.links.map((l) => (
-                    <li key={l.label}><a href={l.href} className="text-[13px] font-light transition-opacity hover:opacity-60" style={{ color: "#8A867C" }}>{l.label}</a></li>
+                    <li key={l.label}><a href={l.href} className="text-[13px] font-light transition-opacity hover:opacity-60" style={{ color: "var(--ea-muted)" }}>{l.label}</a></li>
                   ))}
                 </ul>
               </div>
             ))}
           </div>
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8" style={{ borderTop: "1px solid #E2DDD5" }}>
-            <p className="text-[12px] font-light" style={{ color: "#B5B0A8" }}>&copy; 2026 Edge Alpha. All rights reserved.</p>
-            <div className="flex items-center gap-5 text-[11px] font-light" style={{ color: "#C8C3BB", letterSpacing: "0.1em" }}>
+            <p className="text-[12px] font-light" style={{ color: "var(--ea-faint)" }}>&copy; 2026 Edge Alpha. All rights reserved.</p>
+            <div className="flex items-center gap-5 text-[11px] font-light" style={{ color: "var(--ea-dim)", letterSpacing: "0.1em" }}>
               <span>SECURE</span><span>PRIVATE</span><span>AI-POWERED</span>
             </div>
           </div>

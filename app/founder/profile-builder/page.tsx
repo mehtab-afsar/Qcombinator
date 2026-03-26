@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@supabase/supabase-js'
-import { shouldTriggerUpload, getInitialQuestion } from '@/lib/profile-builder/question-engine'
+import { createClient } from '@/lib/supabase/client'
+import { shouldTriggerUpload, getInitialQuestion, PITCH_SECTION_QUESTION } from '@/lib/profile-builder/question-engine'
 import type { FounderProfile } from '@/lib/profile-builder/question-engine'
 
 // ── palette ──────────────────────────────────────────────────────────────────
@@ -14,6 +14,19 @@ const ink   = '#18160F'
 const muted = '#8A867C'
 const blue  = '#2563EB'
 const green = '#16A34A'
+const amber = '#D97706'
+
+// Score impact per section upload
+const UPLOAD_IMPACT: Record<number, { dim: string; pts: number }> = {
+  1: { dim: 'Traction',  pts: 12 },
+  2: { dim: 'Market',    pts: 8  },
+  3: { dim: 'Product',   pts: 10 },
+  4: { dim: 'Team',      pts: 6  },
+  5: { dim: 'Financial', pts: 18 },
+}
+
+// Step order — includes pitch section between documents and market validation
+const STEP_ORDER: Array<number | 'pitch'> = [0, 'pitch', 1, 2, 3, 4, 5, 6]
 
 // ── types ────────────────────────────────────────────────────────────────────
 interface Message { role: 'agent' | 'user'; text: string }
@@ -28,8 +41,9 @@ interface SectionState {
   isComplete: boolean
 }
 
-const SECTION_LABELS: Record<number, string> = {
+const SECTION_LABELS: Record<number | string, string> = {
   0: 'Documents',
+  pitch: 'The Pitch',
   1: 'Market Validation',
   2: 'Market & Competition',
   3: 'IP & Technology',
@@ -38,8 +52,9 @@ const SECTION_LABELS: Record<number, string> = {
   6: 'Review & Submit',
 }
 
-const SECTION_DESCRIPTIONS: Record<number, string> = {
+const SECTION_DESCRIPTIONS: Record<number | string, string> = {
   0: 'Optional — upload pitch decks, financial models, and other documents',
+  pitch: "YC's first question — explain what you do in 2-3 clear sentences",
   1: 'P1 — Market Readiness: customers, pilots, and willingness to pay',
   2: 'P2 — Market Potential: size, urgency, competition',
   3: 'P3 — IP & Defensibility: patents, technical depth, build complexity',
@@ -56,11 +71,21 @@ function initSection(): SectionState {
   }
 }
 
+interface PreviewData {
+  projectedScore: number
+  grade: string
+  dimensions: Record<string, number>
+  boostActions: Array<{ action: string; impact: number }>
+  marketplaceUnlocked: boolean
+  sectionsComplete: number
+}
+
 // ── main component ────────────────────────────────────────────────────────────
 export default function ProfileBuilderPage() {
   const router = useRouter()
-  const [currentStep, setCurrentStep] = useState(0)  // 0=docs, 1-5=sections, 6=review
-  const [sections, setSections] = useState<Record<number, SectionState>>({
+  const [currentStep, setCurrentStep] = useState<number | 'pitch'>(0)
+  const [sections, setSections] = useState<Record<number | string, SectionState>>({
+    pitch: initSection(),
     1: initSection(), 2: initSection(), 3: initSection(),
     4: initSection(), 5: initSection(),
   })
@@ -70,6 +95,8 @@ export default function ProfileBuilderPage() {
   const [token, setToken] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitResult, setSubmitResult] = useState<{ score: number; grade: string } | null>(null)
+  const [previewData, setPreviewData] = useState<PreviewData | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
 
   // Section chat state
   const [input, setInput] = useState('')
@@ -78,14 +105,11 @@ export default function ProfileBuilderPage() {
   const chatEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploadLoading, setUploadLoading] = useState(false)
-  const [uploadedFiles, setUploadedFiles] = useState<Array<{ name: string; section: number; fields: number }>>([])
+  const [uploadedFiles, setUploadedFiles] = useState<Array<{ name: string; section: number | string; fields: number }>>([])
 
   // On mount: get session + load draft
   useEffect(() => {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
+    const supabase = createClient()
     supabase.auth.getSession().then(async ({ data }) => {
       if (!data.session) { router.replace('/founder/onboarding'); return }
       const tok = data.session.access_token
@@ -138,20 +162,23 @@ export default function ProfileBuilderPage() {
   }, [sections, isTyping])
 
   // Start a section by sending the initial question
-  const startSection = useCallback((sectionNum: number) => {
+  const startSection = useCallback((sectionKey: number | 'pitch') => {
     if (!founderProfile) return
-    const initialQ = getInitialQuestion(sectionNum, founderProfile)
+    const initialQ = sectionKey === 'pitch'
+      ? PITCH_SECTION_QUESTION
+      : getInitialQuestion(sectionKey, founderProfile)
     setSections(prev => ({
       ...prev,
-      [sectionNum]: {
-        ...prev[sectionNum],
-        messages: [{ role: 'agent', text: initialQ }],
+      [sectionKey]: {
+        ...prev[sectionKey],
+        messages: [{ role: 'agent' as const, text: initialQ }],
       },
     }))
   }, [founderProfile])
 
   useEffect(() => {
-    if (currentStep >= 1 && currentStep <= 5) {
+    const isConversationalStep = currentStep === 'pitch' || (typeof currentStep === 'number' && currentStep >= 1 && currentStep <= 5)
+    if (isConversationalStep) {
       const sec = sections[currentStep]
       if (sec && sec.messages.length === 0 && !sec.isComplete) {
         startSection(currentStep)
@@ -159,7 +186,20 @@ export default function ProfileBuilderPage() {
     }
   }, [currentStep, startSection, sections])
 
-  const saveSection = useCallback(async (sectionNum: number, state: SectionState, tok: string) => {
+  // Load preview data when reaching step 6
+  useEffect(() => {
+    if (currentStep !== 6 || !token) return
+    setPreviewLoading(true)
+    fetch('/api/profile-builder/preview', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => setPreviewData(data))
+      .catch(() => { /* non-blocking */ })
+      .finally(() => setPreviewLoading(false))
+  }, [currentStep, token])
+
+  const saveSection = useCallback(async (sectionNum: number | 'pitch', state: SectionState, tok: string) => {
+    // pitch section is UI-only — no DB save needed (not scored)
+    if (sectionNum === 'pitch') return
     await fetch('/api/profile-builder/save', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok}` },
@@ -186,13 +226,41 @@ export default function ProfileBuilderPage() {
       ...prev,
       [sectionNum]: {
         ...prev[sectionNum],
-        messages: [...prev[sectionNum].messages, { role: 'user', text: userText }],
+        messages: [...prev[sectionNum].messages, { role: 'user' as const, text: userText }],
         conversation: prev[sectionNum].conversation + `\nFounder: ${userText}`,
       },
     }))
 
-    // Check upload trigger
-    const uploadPrompt = shouldTriggerUpload(userText, sectionNum)
+    // Pitch section: evaluate clarity locally, no scored extraction needed
+    if (sectionNum === 'pitch') {
+      setIsTyping(true)
+      await new Promise(r => setTimeout(r, 600))
+      const words = userText.split(' ').length
+      const hasProblem = /problem|issue|struggle|pain|hard|difficult|broken|fail/i.test(userText)
+      const hasWho = /founder|startup|company|we |our |team/i.test(userText) || words > 10
+      const hasNow = /now|today|recent|2020|2021|2022|2023|2024|2025|pandemic|ai|llm|remote|cloud/i.test(userText)
+      const clarityScore = Math.min(100, (words > 20 ? 40 : words > 10 ? 25 : 10) + (hasProblem ? 20 : 0) + (hasWho ? 20 : 0) + (hasNow ? 20 : 0))
+      const isGoodPitch = clarityScore >= 60
+
+      const reply = isGoodPitch
+        ? (hasNow ? "That's a clear pitch — problem, audience, and timing are all present. Move on to the next section." : "Good clarity on the problem and customer. What changed in the world recently that makes this the right time to build this?")
+        : "Help me understand better — who specifically has this problem, and what happens to them if they don't solve it?"
+
+      setSections(prev => ({
+        ...prev,
+        pitch: {
+          ...prev['pitch'],
+          messages: [...prev['pitch'].messages, { role: 'agent' as const, text: reply }],
+          completionScore: clarityScore,
+          isComplete: isGoodPitch && hasNow,
+        },
+      }))
+      setIsTyping(false)
+      return
+    }
+
+    // Check upload trigger for numeric sections
+    const uploadPrompt = typeof sectionNum === 'number' ? shouldTriggerUpload(userText, sectionNum) : null
     if (uploadPrompt) setUploadTrigger(uploadPrompt)
 
     setIsTyping(true)
@@ -259,10 +327,8 @@ export default function ProfileBuilderPage() {
         const data = await res.json()
         const fieldsFound = data.extractedPreview?.length ?? 0
 
-        setUploadedFiles(prev => [...prev, { name: file.name, section: currentStep, fields: fieldsFound }])
-
         // Merge extracted fields into section
-        if (data.extractedFields && currentStep >= 1) {
+        if (data.extractedFields && currentStep !== 0 && currentStep !== 'pitch') {
           setSections(prev => {
             const sec = prev[currentStep]
             const newUploadedDocs = [
@@ -294,11 +360,10 @@ export default function ProfileBuilderPage() {
             saveSection(currentStep, newState, token)
             return { ...prev, [currentStep]: newState }
           })
-        } else if (currentStep === 0) {
-          // Doc upload step — just track
-          setUploadedFiles(prev => [...prev, { name: file.name, section: 0, fields: fieldsFound }])
         }
 
+        // Track in uploaded files list (once, regardless of step)
+        setUploadedFiles(prev => [...prev, { name: file.name, section: currentStep, fields: fieldsFound }])
         setUploadTrigger(null)
       }
     } catch (e) {
@@ -328,8 +393,8 @@ export default function ProfileBuilderPage() {
     }
   }
 
-  const completedSectionsCount = Object.entries(sections)
-    .filter(([, s]) => s.isComplete).length
+  const completedSectionsCount = [1, 2, 3, 4, 5]
+    .filter(n => sections[n]?.isComplete).length
 
   const canSubmit = completedSectionsCount >= 3
 
@@ -346,12 +411,14 @@ export default function ProfileBuilderPage() {
         <div style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 12, paddingLeft: 4 }}>
           Profile Builder
         </div>
-        {[0, 1, 2, 3, 4, 5, 6].map(step => {
+        {STEP_ORDER.map((step, idx) => {
           const isActive = step === currentStep
-          const isDone = step >= 1 && step <= 5 ? sections[step]?.isComplete : false
+          const isConvo = step === 'pitch' || (typeof step === 'number' && step >= 1 && step <= 5)
+          const isDone = isConvo ? (sections[step]?.isComplete ?? false) : false
+          const dotLabel = isDone ? '✓' : step === 6 ? '★' : step === 0 ? '↑' : step === 'pitch' ? 'P' : String(step)
           return (
             <button
-              key={step}
+              key={String(step)}
               onClick={() => setCurrentStep(step)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 10,
@@ -368,10 +435,10 @@ export default function ProfileBuilderPage() {
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 11, fontWeight: 700, color: isDone || isActive ? '#fff' : muted,
               }}>
-                {isDone ? '✓' : step === 6 ? '★' : step === 0 ? '↑' : step}
+                {dotLabel}
               </div>
               <span style={{ fontWeight: isActive ? 600 : 400 }}>{SECTION_LABELS[step]}</span>
-              {step >= 1 && step <= 5 && (
+              {isConvo && (
                 <span style={{ marginLeft: 'auto', fontSize: 11, color: muted }}>
                   {sections[step]?.completionScore ?? 0}%
                 </span>
@@ -414,12 +481,6 @@ export default function ProfileBuilderPage() {
                 <div style={{ fontSize: 13, color: blue, marginTop: 8 }}>Uploading…</div>
               )}
             </div>
-            <input
-              ref={fileInputRef} type="file" style={{ display: 'none' }}
-              accept=".pdf,.pptx,.xlsx,.csv,.png,.jpg,.jpeg,.webp"
-              onChange={e => { if (e.target.files?.[0]) handleFileUpload(e.target.files[0]) }}
-            />
-
             {uploadedFiles.length > 0 && (
               <div>
                 <div style={{ fontSize: 13, fontWeight: 600, color: ink, marginBottom: 8 }}>Uploaded documents</div>
@@ -454,9 +515,14 @@ export default function ProfileBuilderPage() {
           </div>
         )}
 
-        {/* ── STEPS 1-5 — Conversational Sections ── */}
-        {currentStep >= 1 && currentStep <= 5 && (() => {
+        {/* ── PITCH + STEPS 1-5 — Conversational Sections ── */}
+        {(currentStep === 'pitch' || (typeof currentStep === 'number' && currentStep >= 1 && currentStep <= 5)) && (() => {
           const sec = sections[currentStep]
+          const stepNum = typeof currentStep === 'number' ? currentStep : 0
+          const impact = UPLOAD_IMPACT[stepNum]
+          const prevScore = typeof currentStep === 'number' ? (previewData?.dimensions as Record<string, number> | undefined)?.[['market','product','gtm','financial','team','traction'][currentStep - 1] ?? ''] : undefined
+          const projectedScore = prevScore != null && impact ? Math.min(100, prevScore + impact.pts) : null
+          const stripeCardVisible = currentStep === 5 && !uploadLoading && sec.uploadedDocuments.length === 0 && /\$[\d,]+|\d+k\s*mrr|\d+\s*k\s*month/i.test(sec.conversation)
           return (
             <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: 16 }}>
               {/* Completion bar */}
@@ -507,23 +573,58 @@ export default function ProfileBuilderPage() {
                 <div ref={chatEndRef} />
               </div>
 
-              {/* Upload trigger */}
+              {/* Upload trigger with score impact */}
               {uploadTrigger && (
                 <div style={{
                   padding: '12px 16px', borderRadius: 8, background: '#FFF7ED',
                   border: '1px solid #FED7AA', display: 'flex', alignItems: 'center', gap: 12,
                 }}>
-                  <span style={{ fontSize: 18 }}>📎</span>
-                  <div style={{ flex: 1, fontSize: 13, color: '#92400E' }}>{uploadTrigger}</div>
+                  <span style={{ fontSize: 18 }}>📊</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, color: '#92400E' }}>{uploadTrigger}</div>
+                    {impact && (
+                      <div style={{ fontSize: 11, color: amber, marginTop: 2, fontWeight: 600 }}>
+                        Verify this claim → boost {impact.dim}
+                        {projectedScore != null && prevScore != null
+                          ? ` ${prevScore} → ${projectedScore}`
+                          : ` +${impact.pts} pts`}
+                      </div>
+                    )}
+                  </div>
                   <button
                     onClick={() => fileInputRef.current?.click()}
                     style={{
                       padding: '6px 14px', borderRadius: 6, border: 'none',
-                      background: '#D97706', color: '#fff', fontSize: 12,
+                      background: amber, color: '#fff', fontSize: 12,
                       fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
                     }}
                   >
                     Upload
+                  </button>
+                </div>
+              )}
+
+              {/* Stripe connect card — Section 5 when revenue mentioned but no doc uploaded */}
+              {stripeCardVisible && (
+                <div style={{
+                  border: `1px solid ${bdr}`, borderRadius: 10, padding: 14,
+                  background: surf, display: 'flex', gap: 12, alignItems: 'center',
+                }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: ink }}>Connect Stripe for 1.0× multiplier</div>
+                    <div style={{ fontSize: 12, color: muted, marginTop: 2 }}>
+                      Verified MRR = highest data credibility (+18 pts vs self-reported)
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => router.push('/founder/cxo?agent=felix')}
+                    style={{
+                      padding: '8px 12px', borderRadius: 6, border: `1px solid ${bdr}`,
+                      background: 'transparent', fontSize: 12, color: blue,
+                      cursor: 'pointer', fontWeight: 500, fontFamily: 'inherit', whiteSpace: 'nowrap',
+                    }}
+                  >
+                    Connect via Felix →
                   </button>
                 </div>
               )}
@@ -569,10 +670,23 @@ export default function ProfileBuilderPage() {
                 </div>
               </div>
 
+              {/* Pitch clarity warning */}
+              {currentStep === 'pitch' && sec.completionScore > 0 && sec.completionScore < 60 && (
+                <div style={{
+                  padding: '10px 14px', borderRadius: 8, background: '#FFFBEB',
+                  border: '1px solid #FDE68A', fontSize: 13, color: '#92400E',
+                }}>
+                  ⚠️ Investors need to understand you immediately. Your pitch needs to clearly name the customer, the problem, and why now. Refine before continuing.
+                </div>
+              )}
+
               {/* Section nav */}
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
                 <button
-                  onClick={() => setCurrentStep(p => p - 1)}
+                  onClick={() => {
+                    const idx = STEP_ORDER.indexOf(currentStep)
+                    if (idx > 0) setCurrentStep(STEP_ORDER[idx - 1])
+                  }}
                   style={{
                     padding: '8px 20px', borderRadius: 8, border: `1.5px solid ${bdr}`,
                     background: 'transparent', fontSize: 13, color: ink, cursor: 'pointer', fontFamily: 'inherit',
@@ -582,8 +696,8 @@ export default function ProfileBuilderPage() {
                 </button>
                 <button
                   onClick={() => {
-                    if (currentStep < 5) setCurrentStep(p => p + 1)
-                    else setCurrentStep(6)
+                    const idx = STEP_ORDER.indexOf(currentStep)
+                    if (idx < STEP_ORDER.length - 1) setCurrentStep(STEP_ORDER[idx + 1])
                   }}
                   style={{
                     padding: '8px 20px', borderRadius: 8, border: 'none',
@@ -591,7 +705,7 @@ export default function ProfileBuilderPage() {
                     fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
                   }}
                 >
-                  {currentStep < 5 ? 'Next section →' : 'Review & Submit →'}
+                  {currentStep === 5 ? 'Review & Submit →' : 'Next section →'}
                 </button>
               </div>
             </div>
@@ -614,9 +728,80 @@ export default function ProfileBuilderPage() {
               </div>
             ) : (
               <>
+                {/* Live Score Preview Panel */}
+                {previewLoading && (
+                  <div style={{ padding: 24, borderRadius: 12, background: surf, border: `1px solid ${bdr}`, textAlign: 'center', fontSize: 13, color: muted }}>
+                    Calculating projected score…
+                  </div>
+                )}
+                {!previewLoading && previewData && (
+                  <div style={{ borderRadius: 14, border: `1px solid ${bdr}`, background: surf, overflow: 'hidden' }}>
+                    {/* Score header */}
+                    <div style={{ padding: '24px 24px 16px', borderBottom: `1px solid ${bdr}`, display: 'flex', alignItems: 'center', gap: 20 }}>
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: 56, fontWeight: 800, color: previewData.projectedScore >= 65 ? blue : previewData.projectedScore >= 45 ? amber : muted, lineHeight: 1 }}>
+                          {previewData.projectedScore}
+                        </div>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: ink, marginTop: 2 }}>Grade {previewData.grade}</div>
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: ink, marginBottom: 4 }}>Projected Q-Score</div>
+                        <div style={{ fontSize: 12, color: muted, marginBottom: 8 }}>
+                          {previewData.marketplaceUnlocked
+                            ? '✅ Investor Marketplace unlocked (≥65)'
+                            : `🔒 ${65 - previewData.projectedScore} pts to unlock Investor Marketplace`}
+                        </div>
+                        <div style={{ fontSize: 11, color: muted }}>{previewData.sectionsComplete}/5 sections at 70%+</div>
+                      </div>
+                    </div>
+
+                    {/* Dimension bars */}
+                    <div style={{ padding: '16px 24px', borderBottom: `1px solid ${bdr}` }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: muted, marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Dimension Breakdown</div>
+                      {[
+                        { key: 'market', label: 'Market' },
+                        { key: 'product', label: 'Product' },
+                        { key: 'gtm', label: 'Go-to-Market' },
+                        { key: 'financial', label: 'Financial' },
+                        { key: 'team', label: 'Team' },
+                        { key: 'traction', label: 'Traction' },
+                      ].map(({ key, label }) => {
+                        const score = previewData.dimensions[key] ?? 0
+                        const barColor = score >= 70 ? green : score >= 50 ? blue : amber
+                        return (
+                          <div key={key} style={{ marginBottom: 8 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                              <span style={{ fontSize: 12, color: ink }}>{label}</span>
+                              <span style={{ fontSize: 12, color: muted, fontWeight: 600 }}>{score}</span>
+                            </div>
+                            <div style={{ height: 5, background: bdr, borderRadius: 3, overflow: 'hidden' }}>
+                              <div style={{ height: '100%', width: `${score}%`, background: barColor, borderRadius: 3, transition: 'width 0.6s ease' }} />
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    {/* Boost actions */}
+                    {previewData.boostActions.length > 0 && (
+                      <div style={{ padding: '16px 24px' }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: muted, marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Top Score Boosts</div>
+                        {previewData.boostActions.map((a, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                            <div style={{ width: 32, height: 20, borderRadius: 4, background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: blue }}>
+                              +{a.impact}
+                            </div>
+                            <span style={{ fontSize: 13, color: ink }}>{a.action}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div style={{ fontSize: 14, color: muted }}>
                   {completedSectionsCount}/5 sections complete.{' '}
-                  {canSubmit ? 'You\'re ready to calculate your Q-Score.' : 'Complete at least 3 sections (70%+) to submit.'}
+                  {canSubmit ? 'Ready to calculate your final Q-Score.' : 'Complete at least 3 sections (70%+) to submit.'}
                 </div>
 
                 {/* Section summary cards */}
@@ -656,12 +841,9 @@ export default function ProfileBuilderPage() {
                   )
                 })}
 
-                {/* Uploads summary */}
                 {uploadedFiles.length > 0 && (
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: ink, marginBottom: 8 }}>
-                      {uploadedFiles.length} document{uploadedFiles.length !== 1 ? 's' : ''} attached
-                    </div>
+                  <div style={{ fontSize: 13, color: muted }}>
+                    {uploadedFiles.length} document{uploadedFiles.length !== 1 ? 's' : ''} attached
                   </div>
                 )}
 

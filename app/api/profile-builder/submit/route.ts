@@ -51,27 +51,27 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // 30-day cooldown — first submission is always free; subsequent submissions
-    // are rate-limited to prevent gaming (tweaking answers for a better score).
-    const cooldownCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+    // 24-hour rate limit — prevents gaming but lets founders resubmit as they make real progress.
     const { data: recentSubmission } = await supabase
       .from('qscore_history')
       .select('id, calculated_at')
       .eq('user_id', userId)
       .eq('data_source', 'profile_builder')
-      .gte('calculated_at', cooldownCutoff)
       .order('calculated_at', { ascending: false })
       .limit(1)
       .single()
 
     if (recentSubmission) {
-      const retakeAvailableAt = new Date(
-        new Date(recentSubmission.calculated_at).getTime() + 30 * 24 * 60 * 60 * 1000
-      ).toISOString()
-      return NextResponse.json(
-        { error: 'Assessment locked for 30 days. Use your AI advisors to improve your score in the meantime.', retakeAvailableAt },
-        { status: 429 }
-      )
+      const hoursSince = (Date.now() - new Date(recentSubmission.calculated_at).getTime()) / 3_600_000
+      if (hoursSince < 24) {
+        const retakeAvailableAt = new Date(
+          new Date(recentSubmission.calculated_at).getTime() + 24 * 60 * 60 * 1000
+        ).toISOString()
+        return NextResponse.json(
+          { error: 'You can recalculate once per 24 hours.', retakeAvailableAt },
+          { status: 429 }
+        )
+      }
     }
 
     // 2. Build section map for data-merger

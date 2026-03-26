@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/features/auth/hooks/useAuth";
+import { createClient } from "@/lib/supabase/client";
 import { useQScore } from "@/features/qscore/hooks/useQScore";
 import { useMetrics } from "@/features/founder/hooks/useFounderData";
 import { useDashboardData } from "@/features/founder/hooks/useDashboardData";
@@ -345,41 +346,25 @@ export default function FounderDashboard() {
   // Check profile_builder_completed
   useEffect(() => {
     if (!user) return
-    import("@supabase/supabase-js").then(async ({ createClient }) => {
-      try {
-        const supabase = createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-        )
-        const { data } = await supabase
-          .from("founder_profiles")
-          .select("profile_builder_completed")
-          .eq("user_id", user.id)
-          .single()
-        setProfileBuilderCompleted(data?.profile_builder_completed ?? false)
-      } catch {
-        setProfileBuilderCompleted(true) // don't block on error
-      }
-    })
+    const supabase = createClient()
+    void supabase
+      .from("founder_profiles")
+      .select("profile_builder_completed")
+      .eq("user_id", user.id)
+      .single()
+      .then(({ data }) => setProfileBuilderCompleted(data?.profile_builder_completed ?? false))
   }, [user])
 
   // Fetch public_slug for share button
   useEffect(() => {
     if (!user) return;
-    import("@supabase/supabase-js").then(async ({ createClient }) => {
-      try {
-        const supabase = createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-        );
-        const { data } = await supabase
-          .from("founder_profiles")
-          .select("public_slug")
-          .eq("user_id", user.id)
-          .single();
-        setPublicSlug(data?.public_slug ?? null);
-      } catch { /* non-critical */ }
-    });
+    const supabase = createClient();
+    void supabase
+      .from("founder_profiles")
+      .select("public_slug")
+      .eq("user_id", user.id)
+      .single()
+      .then(({ data }) => setPublicSlug(data?.public_slug ?? null));
   }, [user]);
 
   // Load existing stripe status on mount

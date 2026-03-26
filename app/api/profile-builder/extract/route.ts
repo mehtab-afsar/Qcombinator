@@ -82,8 +82,9 @@ export async function POST(req: NextRequest) {
     }
     mergeDeep(merged, extractedFields)
 
-    const completionScore = getSectionCompletionPct(merged, section)
-    const missingFields = getMissingFields(merged, section)
+    const stage = founderProfile?.stage ?? 'pre-product'
+    const completionScore = getSectionCompletionPct(merged, section, stage)
+    const missingFields = getMissingFields(merged, section, stage)
 
     // Generate follow-up question for missing fields
     let followUpQuestion: string | null = null
@@ -116,7 +117,8 @@ export async function POST(req: NextRequest) {
       followUpQuestion,
     })
   } catch (err) {
-    console.error('[profile-builder/extract]', err)
-    return NextResponse.json({ error: 'Extraction failed' }, { status: 500 })
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('[profile-builder/extract]', msg)
+    return NextResponse.json({ error: 'Extraction failed', detail: msg }, { status: 500 })
   }
 }

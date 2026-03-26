@@ -18,7 +18,9 @@
       "Bash(find /Users/mohammedmehtabafsar/Desktop/Qcombinator -path ./node_modules -prune -o -type f \\\\\\(-name *.ts -o -name *.tsx \\\\\\) -size 0 -print)",
       "Bash(find /Users/mohammedmehtabafsar/Desktop/Qcombinator -path */node_modules -prune -o -type f \\\\\\(-name *.ts -o -name *.tsx \\\\\\) -size -200c -print)",
       "Bash(find /Users/mohammedmehtabafsar/Desktop/Qcombinator/components -type f \\\\\\(-name *.ts -o -name *.tsx \\\\\\))",
-      "Bash(head -20 grep \"ADD COLUMN\\\\|founder_name\\\\|company_name\\\\|revenue_status\\\\|team_size\\\\|years_on_problem\\\\|prior_experience\\\\|registration_completed\\\\|profile_builder_completed\\\\|cofounder_count\\\\|funding_status\" /Users/mohammedmehtabafsar/Desktop/Qcombinator/supabase/migrations/20260325000002_profile_builder.sql)"
+      "Bash(head -20 grep \"ADD COLUMN\\\\|founder_name\\\\|company_name\\\\|revenue_status\\\\|team_size\\\\|years_on_problem\\\\|prior_experience\\\\|registration_completed\\\\|profile_builder_completed\\\\|cofounder_count\\\\|funding_status\" /Users/mohammedmehtabafsar/Desktop/Qcombinator/supabase/migrations/20260325000002_profile_builder.sql)",
+      "Read(//Users/mohammedmehtabafsar/Desktop/Qcombinator/**)",
+      "Bash(SUPABASE_DB_PASSWORD='Mehtabafsar@1' supabase db push)"
     ],
     "additionalDirectories": [
       "/Users/mohammedmehtabafsar/Desktop/Qcombinator/app/founder/cxo",

@@ -12,6 +12,14 @@ export interface FounderProfile {
   companyName?: string
 }
 
+// ── Pitch section questions ───────────────────────────────────────────────────
+
+export const PITCH_SECTION_QUESTION =
+  "In 2-3 sentences: what is your company, who is it for, and why does it need to exist now?"
+
+export const PITCH_FOLLOWUP_QUESTION =
+  "What changed in the world in the last 2-3 years that makes this possible or urgent?"
+
 // ── Initial questions per section, adapted by stage ──────────────────────────
 
 const INITIAL_QUESTIONS: Record<number, Record<string, string>> = {
@@ -63,18 +71,47 @@ export function getInitialQuestion(section: number, profile: FounderProfile): st
   return stageMap['default'] ?? `Tell me about your progress on this dimension.`
 }
 
-// ── Required fields per section — 70%+ needed to complete ────────────────────
+// ── Stage-adaptive required fields — 70%+ needed to complete ─────────────────
 
-const REQUIRED_FIELDS: Record<number, string[]> = {
-  1: ['customerCommitment', 'hasPayingCustomers', 'salesCycleLength', 'hasRetention', 'largestContractUsd'],
-  2: ['p2.tamDescription', 'p2.marketUrgency', 'p2.valuePool', 'p2.expansionPotential', 'p2.competitorDensityContext'],
-  3: ['p3.hasPatent', 'p3.technicalDepth', 'p3.knowHowDensity', 'p3.buildComplexity', 'p3.replicationCostUsd'],
-  4: ['p4.domainYears', 'p4.founderMarketFit', 'p4.priorExits', 'p4.teamCoverage', 'p4.teamCohesionMonths'],
-  5: ['financial.mrr', 'financial.monthlyBurn', 'financial.runway', 'p5.climateLeverage', 'p5.revenueImpactLink'],
+export function getRequiredFields(section: number, stage: string): string[] {
+  const lower = stage.toLowerCase()
+  const isPreRevenue = ['idea', 'pre-product', 'mvp', 'pre-revenue'].some(s => lower.includes(s))
+  const isGrowth = ['growing', 'scaling', 'growth', 'series'].some(s => lower.includes(s))
+
+  const FIELDS: Record<number, { base: string[]; revenueOnly?: string[]; growthOnly?: string[] }> = {
+    1: {
+      base: ['customerCommitment', 'hasPayingCustomers'],
+      revenueOnly: ['salesCycleLength', 'hasRetention', 'largestContractUsd'],
+    },
+    2: {
+      base: ['p2.tamDescription', 'p2.marketUrgency', 'p2.valuePool'],
+      growthOnly: ['p2.expansionPotential', 'p2.competitorDensityContext'],
+    },
+    3: {
+      base: ['p3.hasPatent', 'p3.buildComplexity'],
+      growthOnly: ['p3.technicalDepth', 'p3.knowHowDensity', 'p3.replicationCostUsd'],
+    },
+    4: {
+      base: ['p4.domainYears', 'p4.founderMarketFit'],
+      growthOnly: ['p4.priorExits', 'p4.teamCoverage', 'p4.teamCohesionMonths'],
+    },
+    5: {
+      base: ['financial.monthlyBurn', 'financial.runway'],
+      revenueOnly: ['financial.mrr'],
+      growthOnly: ['p5.climateLeverage', 'p5.revenueImpactLink'],
+    },
+  }
+
+  const def = FIELDS[section]
+  if (!def) return []
+  const fields = [...def.base]
+  if (!isPreRevenue && def.revenueOnly) fields.push(...def.revenueOnly)
+  if (isGrowth && def.growthOnly) fields.push(...def.growthOnly)
+  return fields
 }
 
-export function isSectionComplete(extractedFields: Record<string, unknown>, section: number): boolean {
-  const required = REQUIRED_FIELDS[section] ?? []
+export function isSectionComplete(extractedFields: Record<string, unknown>, section: number, stage = 'pre-product'): boolean {
+  const required = getRequiredFields(section, stage)
   if (required.length === 0) return false
   let filled = 0
   for (const field of required) {
@@ -84,8 +121,8 @@ export function isSectionComplete(extractedFields: Record<string, unknown>, sect
   return (filled / required.length) >= 0.70
 }
 
-export function getSectionCompletionPct(extractedFields: Record<string, unknown>, section: number): number {
-  const required = REQUIRED_FIELDS[section] ?? []
+export function getSectionCompletionPct(extractedFields: Record<string, unknown>, section: number, stage = 'pre-product'): number {
+  const required = getRequiredFields(section, stage)
   if (required.length === 0) return 0
   let filled = 0
   for (const field of required) {
@@ -95,8 +132,8 @@ export function getSectionCompletionPct(extractedFields: Record<string, unknown>
   return Math.round((filled / required.length) * 100)
 }
 
-export function getMissingFields(extractedFields: Record<string, unknown>, section: number): string[] {
-  const required = REQUIRED_FIELDS[section] ?? []
+export function getMissingFields(extractedFields: Record<string, unknown>, section: number, stage = 'pre-product'): string[] {
+  const required = getRequiredFields(section, stage)
   return required.filter(field => {
     const val = getNestedValue(extractedFields, field)
     return val === null || val === undefined
