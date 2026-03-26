@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from '@/lib/supabase/client'
 import {
   Monitor, CreditCard, Heart, BookOpen, Leaf, Brain,
   ShoppingBag, ArrowLeftRight, Sprout, Cpu, Link2, Plus,
@@ -200,7 +200,7 @@ export default function OnboardingPage() {
     setForm(f => ({ ...f, [key]: v }))
 
   useEffect(() => {
-    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+    const sb = createClient()
     sb.auth.getSession().then(({ data }) => { if (data.session) router.replace('/founder/dashboard') })
   }, [router])
 
@@ -229,7 +229,7 @@ export default function OnboardingPage() {
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Sign up failed.'); setLoading(false); return }
-      const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+      const sb = createClient()
       const { error: signInErr } = await sb.auth.signInWithPassword({ email: form.email.trim(), password: form.password })
       if (signInErr) { setError('Account created but sign-in failed. Please log in.'); setLoading(false); return }
       if (form.linkedinUrl) {

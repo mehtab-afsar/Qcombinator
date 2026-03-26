@@ -134,14 +134,13 @@ export async function POST(request: NextRequest) {
     });
     if (qscoreErr) console.error('Failed to insert initial qscore row:', qscoreErr);
 
-    // Initialize subscription usage limits for free tier
+    // Initialize subscription usage limits — fire-and-forget, non-blocking
     const featureLimits = [
-      { feature: 'agent_chat', usage_count: 0, limit_count: 50 }, // 50 agent chats/month
-      { feature: 'qscore_recalc', usage_count: 0, limit_count: 2 }, // 2 recalcs/month
-      { feature: 'investor_connection', usage_count: 0, limit_count: 3 }, // 3 connections/month
+      { feature: 'agent_chat', usage_count: 0, limit_count: 50 },
+      { feature: 'qscore_recalc', usage_count: 0, limit_count: 2 },
+      { feature: 'investor_connection', usage_count: 0, limit_count: 3 },
     ];
-
-    await Promise.all(featureLimits.map(limit =>
+    Promise.all(featureLimits.map(limit =>
       supabaseAdmin.from('subscription_usage').insert({
         user_id: authData.user.id,
         feature: limit.feature,
@@ -149,7 +148,7 @@ export async function POST(request: NextRequest) {
         limit_count: limit.limit_count,
         reset_at: getNextMonthDate(),
       })
-    ));
+    )).catch(e => console.error('subscription_usage insert failed (non-fatal):', e));
 
     return NextResponse.json({
       message: 'Account created successfully',

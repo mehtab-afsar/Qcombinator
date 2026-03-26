@@ -60,6 +60,7 @@ const PUBLIC_PATHS = [
   '/login',
   '/signup',
   '/founder/onboarding',
+  '/founder/profile-builder',
   '/investor/onboarding',
 ]
 
