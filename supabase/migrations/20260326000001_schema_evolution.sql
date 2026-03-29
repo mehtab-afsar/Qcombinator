@@ -1,3 +1,31 @@
+-- ============================================================
+-- Consolidates:
+--   20260326000001_public_portfolio.sql
+--   20260326000002_qscore_knowledge_chunks.sql
+--   20260326000003_expand_constraints.sql
+--   20260326000004_sector_weights_spec_alignment.sql
+--   20260326000005_relax_stage_constraint.sql
+--   20260329000001_relax_funding_constraint.sql
+-- ============================================================
+
+-- ============================================================
+-- SOURCE: 20260326000001_public_portfolio.sql
+-- ============================================================
+
+-- Add public portfolio fields to founder_profiles
+ALTER TABLE founder_profiles
+  ADD COLUMN IF NOT EXISTS is_public   BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS public_slug TEXT    UNIQUE;
+
+-- Index for fast slug lookup
+CREATE INDEX IF NOT EXISTS idx_founder_profiles_public_slug
+  ON founder_profiles (public_slug)
+  WHERE public_slug IS NOT NULL;
+
+-- ============================================================
+-- SOURCE: 20260326000002_qscore_knowledge_chunks.sql
+-- ============================================================
+
 -- ──────────────────────────────────────────────────────────────────────────────
 -- Q-Score Knowledge Chunks
 -- DB-backed knowledge base for the RAG scoring pipeline.
@@ -317,3 +345,94 @@ on conflict (id) do update set
   title      = excluded.title,
   metadata   = excluded.metadata,
   updated_at = now();
+
+-- ============================================================
+-- SOURCE: 20260326000003_expand_constraints.sql
+-- ============================================================
+
+-- Expand agent_artifacts.artifact_type CHECK to all 14 supported types
+ALTER TABLE public.agent_artifacts
+  DROP CONSTRAINT IF EXISTS agent_artifacts_artifact_type_check;
+
+ALTER TABLE public.agent_artifacts
+  ADD CONSTRAINT agent_artifacts_artifact_type_check CHECK (artifact_type IN (
+    'icp_document','outreach_sequence','battle_card','gtm_playbook',
+    'financial_summary','competitive_matrix','hiring_plan','pmf_survey',
+    'brand_messaging','sales_script','strategic_plan','interview_notes',
+    'legal_checklist','legal_documents'
+  ));
+
+-- Expand qscore_history.data_source CHECK to all supported source values
+ALTER TABLE public.qscore_history
+  DROP CONSTRAINT IF EXISTS qscore_history_data_source_check;
+
+ALTER TABLE public.qscore_history
+  ADD CONSTRAINT qscore_history_data_source_check CHECK (data_source IN (
+    'registration','profile_builder','agent_completion','agent_artifact',
+    'manual','onboarding','assessment','combined'
+  ));
+
+-- ============================================================
+-- SOURCE: 20260326000004_sector_weights_spec_alignment.sql
+-- ============================================================
+
+-- ──────────────────────────────────────────────────────────────────────────────
+-- Align sector weights with docs/scoring-stages.md spec.
+-- The TypeScript fallback (PRD_WEIGHTS) uses goToMarket: 0.17 but the spec
+-- says SaaS B2B should be 0.25 — GTM is the primary moat for SaaS companies.
+-- All weights within a sector must sum to 1.0.
+--
+-- Changes:
+--   saas_b2b:  goToMarket 0.17 → 0.25, market 0.20 → 0.18, team 0.15 → 0.12
+--   saas_b2c:  goToMarket 0.17 → 0.22, traction 0.12 → 0.15
+--   biotech_deeptech: product 0.18 → 0.22, goToMarket 0.17 → 0.12
+-- ──────────────────────────────────────────────────────────────────────────────
+
+-- SaaS B2B: GTM is the primary competitive signal — raise to 0.25
+update qscore_dimension_weights set weight = 0.25 where sector = 'saas_b2b' and dimension = 'goToMarket';
+update qscore_dimension_weights set weight = 0.18 where sector = 'saas_b2b' and dimension = 'market';
+update qscore_dimension_weights set weight = 0.12 where sector = 'saas_b2b' and dimension = 'team';
+-- market(0.18) + product(0.18) + goToMarket(0.25) + financial(0.18) + team(0.12) + traction(0.09) = 1.00
+update qscore_dimension_weights set weight = 0.09 where sector = 'saas_b2b' and dimension = 'traction';
+
+-- SaaS B2C: Traction / viral growth matters more; GTM also important
+update qscore_dimension_weights set weight = 0.22 where sector = 'saas_b2c' and dimension = 'goToMarket';
+update qscore_dimension_weights set weight = 0.15 where sector = 'saas_b2c' and dimension = 'traction';
+update qscore_dimension_weights set weight = 0.13 where sector = 'saas_b2c' and dimension = 'team';
+-- market(0.20) + product(0.18) + goToMarket(0.22) + financial(0.12) + team(0.13) + traction(0.15) = 1.00
+update qscore_dimension_weights set weight = 0.12 where sector = 'saas_b2c' and dimension = 'financial';
+
+-- Biotech/DeepTech: Product/IP and Team credentials dominate; GTM less important pre-commercialization
+update qscore_dimension_weights set weight = 0.22 where sector in ('biotech_deeptech','deeptech','healthtech') and dimension = 'product';
+update qscore_dimension_weights set weight = 0.22 where sector in ('biotech_deeptech','deeptech','healthtech') and dimension = 'team';
+update qscore_dimension_weights set weight = 0.12 where sector in ('biotech_deeptech','deeptech','healthtech') and dimension = 'goToMarket';
+update qscore_dimension_weights set weight = 0.20 where sector in ('biotech_deeptech','deeptech','healthtech') and dimension = 'market';
+update qscore_dimension_weights set weight = 0.16 where sector in ('biotech_deeptech','deeptech','healthtech') and dimension = 'financial';
+update qscore_dimension_weights set weight = 0.08 where sector in ('biotech_deeptech','deeptech','healthtech') and dimension = 'traction';
+-- 0.22 + 0.22 + 0.12 + 0.20 + 0.16 + 0.08 = 1.00
+
+-- Invalidate the 1h weight cache so next scoring run picks up new values immediately
+-- (The cache is in-process memory — a deploy clears it automatically.
+--  For zero-downtime: the cache key includes a hash; updating the DB rows breaks the cache naturally.)
+
+-- ============================================================
+-- SOURCE: 20260326000005_relax_stage_constraint.sql
+-- ============================================================
+
+-- Drop the legacy stage CHECK constraint so all onboarding stage values are valid.
+-- The API maps new values (pre-product, beta, growing) to legacy equivalents,
+-- but removing the constraint future-proofs the column.
+
+ALTER TABLE founder_profiles
+  DROP CONSTRAINT IF EXISTS founder_profiles_stage_check;
+
+-- ============================================================
+-- SOURCE: 20260329000001_relax_funding_constraint.sql
+-- ============================================================
+
+-- Drop the legacy funding CHECK constraint.
+-- Onboarding form sends values like 'friends-and-family' and 'series-a-plus'
+-- which the old constraint rejects. The API maps these to legacy values,
+-- but dropping the constraint future-proofs the column.
+ALTER TABLE founder_profiles
+  DROP CONSTRAINT IF EXISTS founder_profiles_funding_check;
