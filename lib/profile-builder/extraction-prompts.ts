@@ -34,8 +34,12 @@ export const EXTRACTION_PROMPTS: Record<number, string> = {
 Extract the following fields from the founder's answers. Return ONLY valid JSON.
 Never invent data. Use null for any field where clear evidence is absent.
 
+First, add this field to your output:
+"startup_document": true if this text is clearly about a real business or startup (pitch deck, business plan, financial report, investor memo, founder profile, product roadmap, customer contracts). Set to false if it is a novel, book, article, essay, academic paper, or otherwise unrelated text. If false, return ONLY {"startup_document": false} and nothing else.
+
 Fields to extract:
 {
+  "startup_document": true,
   "customerCommitment": "string — LOIs, pilots, signed trials mentioned (names, stages)",
   "conversationCount": number — how many customer conversations/pilots mentioned,
   "customerList": ["string"] — named companies or customers mentioned,
@@ -73,8 +77,12 @@ Confidence rules (include in a separate "confidence" object with same keys):
 
 Extract the following fields. Return ONLY valid JSON. Null for missing fields.
 
+First, add this field to your output:
+"startup_document": true if this text is clearly about a real business or startup (pitch deck, business plan, financial report, investor memo, founder profile, product roadmap). Set to false if it is a novel, book, article, essay, or unrelated text. If false, return ONLY {"startup_document": false} and nothing else.
+
 Fields to extract:
 {
+  "startup_document": true,
   "p2": {
     "tamDescription": "string — market size estimate with reasoning",
     "marketUrgency": "string — why this is urgent, what happens without a solution",
@@ -98,8 +106,12 @@ Confidence rules (include "confidence" object with same nested keys):
 
 Extract the following fields. Return ONLY valid JSON. Null for missing fields.
 
+First, add this field to your output:
+"startup_document": true if this text is clearly about a real business or startup (pitch deck, technical spec, patent filing, business plan, investor memo). Set to false if it is a novel, book, article, essay, or unrelated text. If false, return ONLY {"startup_document": false} and nothing else.
+
 Fields to extract:
 {
+  "startup_document": true,
   "p3": {
     "hasPatent": boolean,
     "patentDescription": "string — what the patent covers, filing status",
@@ -121,8 +133,12 @@ Confidence rules (include "confidence" object):
 
 Extract the following fields. Return ONLY valid JSON. Null for missing fields.
 
+First, add this field to your output:
+"startup_document": true if this text is clearly about a real business or startup (team bio, founder profile, pitch deck, resume/CV, business plan). Set to false if it is a novel, book, article, essay, or unrelated text. If false, return ONLY {"startup_document": false} and nothing else.
+
 Fields to extract:
 {
+  "startup_document": true,
   "p4": {
     "domainYears": number | null,
     "founderMarketFit": "string — why this founder for this problem",
@@ -146,8 +162,12 @@ Confidence rules (include "confidence" object):
 
 Extract the following fields. Return ONLY valid JSON. Null for missing fields.
 
+First, add this field to your output:
+"startup_document": true if this text is clearly about a real business or startup (financial model, pitch deck, business plan, revenue report, investor memo, spreadsheet). Set to false if it is a novel, book, article, essay, or unrelated text. If false, return ONLY {"startup_document": false} and nothing else.
+
 Fields to extract:
 {
+  "startup_document": true,
   "financial": {
     "mrr": number | null,
     "arr": number | null,

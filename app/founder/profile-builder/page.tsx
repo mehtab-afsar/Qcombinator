@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
-import { shouldTriggerUpload, getInitialQuestion, PITCH_SECTION_QUESTION } from '@/lib/profile-builder/question-engine'
+import { shouldTriggerUpload, getInitialQuestion, getMissingFields, PITCH_SECTION_QUESTION } from '@/lib/profile-builder/question-engine'
 import type { FounderProfile } from '@/lib/profile-builder/question-engine'
 import { generateSmartQuestions } from '@/lib/profile-builder/smart-questions'
 import type { SmartQuestion } from '@/lib/profile-builder/smart-questions'
@@ -17,6 +17,26 @@ const blue  = '#2563EB'
 const green = '#16A34A'
 const amber = '#D97706'
 const red   = '#DC2626'
+
+const MISSING_FIELD_LABELS: Record<string, string> = {
+  customerCommitment: 'customer commitments (LOIs, pilots)',
+  conversationCount: 'number of customer conversations',
+  hasPayingCustomers: 'whether you have paying customers',
+  hasRetention: 'retention / renewal data',
+  salesCycleLength: 'typical sales cycle length',
+  'p2.tamDescription': 'market size estimate (TAM)',
+  'p2.marketUrgency': '"why now" catalyst',
+  'p2.competitorDensityContext': 'competitive differentiation',
+  'p3.hasPatent': 'patent / trade secret status',
+  'p3.buildComplexity': 'how long to replicate your tech',
+  'p3.technicalDepth': 'technical complexity details',
+  'p4.domainYears': 'years of domain experience',
+  'p4.founderMarketFit': 'founder-market fit narrative',
+  'p4.teamCoverage': 'team function coverage',
+  'financial.mrr': 'monthly revenue (MRR)',
+  'financial.monthlyBurn': 'monthly burn rate',
+  'financial.runway': 'runway in months',
+}
 
 const UPLOAD_IMPACT: Record<number, { dim: string; pts: number }> = {
   1: { dim: 'Traction',  pts: 12 },
@@ -209,9 +229,27 @@ export default function ProfileBuilderPage() {
     const sec = sections[sectionKey]
     if (!sec || sec.messages.length > 0) return  // already has messages (draft or started)
 
-    const initialQ = currentStep === 'pitch'
-      ? PITCH_SECTION_QUESTION
-      : getInitialQuestion(currentStep, founderProfile)
+    let initialQ: string
+    if (currentStep === 'pitch') {
+      initialQ = PITCH_SECTION_QUESTION
+    } else {
+      const hasExtracted = Object.keys(sec.extractedFields ?? {}).length > 0
+      if (hasExtracted) {
+        // Build context-aware question using what's already known vs what's missing
+        const missing = getMissingFields(sec.extractedFields, currentStep, founderProfile.stage ?? 'pre-product')
+        const missingLabels = missing
+          .map(f => MISSING_FIELD_LABELS[f])
+          .filter(Boolean)
+          .slice(0, 3)
+        if (missingLabels.length === 0) {
+          initialQ = `I already have everything I need for this section from your documents. Feel free to add anything or move on.`
+        } else {
+          initialQ = `I extracted some info from your documents, but still need a few things: ${missingLabels.join(', ')}. Can you fill in the gaps?`
+        }
+      } else {
+        initialQ = getInitialQuestion(currentStep, founderProfile)
+      }
+    }
 
     setSections(prev => ({
       ...prev,
@@ -743,9 +781,29 @@ export default function ProfileBuilderPage() {
               <h2 style={{ fontSize: 24, fontWeight: 700, color: ink, margin: '0 0 8px', letterSpacing: '-0.02em' }}>
                 Upload documents
               </h2>
-              <p style={{ fontSize: 14, color: muted, margin: 0, lineHeight: 1.6 }}>
-                Optional — pitch decks, financial models, anything you have. We&apos;ll extract the data automatically.
+              <p style={{ fontSize: 14, color: muted, margin: '0 0 16px', lineHeight: 1.6 }}>
+                We&apos;ll extract data automatically and pre-fill your profile. The more specific your docs, the higher your score.
               </p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
+                {[
+                  { icon: '📊', label: 'Pitch deck', note: 'Best for market + team' },
+                  { icon: '💰', label: 'Financial model', note: 'MRR, burn, runway' },
+                  { icon: '📋', label: 'Business plan', note: 'Full coverage' },
+                  { icon: '🤝', label: 'LOI / contracts', note: 'Customer traction' },
+                  { icon: '👥', label: 'Team bios / CV', note: 'Team section' },
+                  { icon: '🔬', label: 'Technical spec', note: 'IP + defensibility' },
+                ].map(({ icon, label, note }) => (
+                  <div key={label} style={{
+                    display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px',
+                    borderRadius: 20, border: `1px solid ${bdr}`, background: '#fafafa',
+                    fontSize: 12, color: ink,
+                  }}>
+                    <span>{icon}</span>
+                    <span style={{ fontWeight: 600 }}>{label}</span>
+                    <span style={{ color: muted }}>— {note}</span>
+                  </div>
+                ))}
+              </div>
             </div>
 
             <div

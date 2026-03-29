@@ -195,6 +195,9 @@ export async function POST(req: NextRequest) {
       )
       for (const result of results) {
         if (result.status === 'fulfilled') {
+          // Skip if LLM flagged this as a non-startup document
+          if (result.value.fields['startup_document'] === false) continue
+          delete result.value.fields['startup_document']
           mergeDeepFields(extractedFields, result.value.fields)
           for (const [k, v] of Object.entries(result.value.conf)) {
             if (!(k in confidenceMap)) confidenceMap[k] = v
@@ -261,7 +264,7 @@ export async function POST(req: NextRequest) {
     if (section === 0 && Object.keys(extractedFields).length > 0) {
       for (const secNum of [1, 2, 3, 4, 5] as const) {
         const sectionFields = getSectionRelevantFields(extractedFields, secNum)
-        const completionScore = getSectionCompletionPct(sectionFields, secNum, founderStage)
+        const completionScore = getSectionCompletionPct(sectionFields, secNum, founderStage, confidenceMap)
         const missing = getMissingFields(sectionFields, secNum, founderStage)
 
         // Build human-readable snippets for the UI

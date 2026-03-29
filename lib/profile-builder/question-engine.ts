@@ -121,13 +121,26 @@ export function isSectionComplete(extractedFields: Record<string, unknown>, sect
   return (filled / required.length) >= 0.70
 }
 
-export function getSectionCompletionPct(extractedFields: Record<string, unknown>, section: number, stage = 'pre-product'): number {
+export function getSectionCompletionPct(
+  extractedFields: Record<string, unknown>,
+  section: number,
+  stage = 'pre-product',
+  confidenceMap: Record<string, number> = {}
+): number {
   const required = getRequiredFields(section, stage)
   if (required.length === 0) return 0
   let filled = 0
+  const hasConfidenceData = Object.keys(confidenceMap).length > 0
   for (const field of required) {
     const val = getNestedValue(extractedFields, field)
-    if (val !== null && val !== undefined) filled++
+    if (val === null || val === undefined) continue
+    if (hasConfidenceData) {
+      // Use leaf key for confidence lookup (e.g. "p3.hasPatent" → "hasPatent")
+      const leafKey = field.includes('.') ? field.split('.').pop()! : field
+      const conf = confidenceMap[leafKey] ?? confidenceMap[field] ?? 0
+      if (conf < 0.45) continue  // skip low-confidence / hallucinated values
+    }
+    filled++
   }
   return Math.round((filled / required.length) * 100)
 }
