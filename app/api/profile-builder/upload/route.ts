@@ -161,65 +161,65 @@ export async function POST(req: NextRequest) {
       .single()
     const founderStage: string = fp?.stage ?? 'pre-product'
 
-    // Run LLM extraction — for step-0 uploads use a combined prompt covering all sections
     let extractedFields: Record<string, unknown> = {}
     let confidenceMap: Record<string, number> = {}
 
-    // For step-0 global upload, use section 1 prompt as the primary extraction
-    // (covers most common fields: customers, revenue, market, team, financials)
-    const promptSection = section === 0 ? 1 : section
-    const sectionPrompt = EXTRACTION_PROMPTS[promptSection]
-
-    if (sectionPrompt && parsed.text.length > 50) {
-      try {
-        const raw = await callOpenRouter([
-          { role: 'system', content: sectionPrompt },
-          { role: 'user', content: `Document text:\n\n${parsed.text}` },
-        ], { maxTokens: 1200, temperature: 0.1 })
-
-        const jsonMatch = raw.match(/\{[\s\S]*\}/)
-        if (jsonMatch) {
-          const parsed2 = JSON.parse(jsonMatch[0])
-          const { confidence: conf, ...rest } = parsed2
-          extractedFields = rest
-          confidenceMap = conf ?? {}
-          for (const key of Object.keys(confidenceMap)) {
-            if (typeof confidenceMap[key] === 'number') {
-              confidenceMap[key] = Math.min(1, confidenceMap[key] + 0.10)
-            }
-          }
+    function mergeDeepFields(target: Record<string, unknown>, source: Record<string, unknown>) {
+      for (const [k, v] of Object.entries(source)) {
+        if (v === null || v === undefined) continue
+        if (typeof v === 'object' && !Array.isArray(v) && typeof target[k] === 'object' && target[k] !== null) {
+          mergeDeepFields(target[k] as Record<string, unknown>, v as Record<string, unknown>)
+        } else {
+          target[k] = v
         }
-      } catch (e) {
-        console.warn('LLM extraction failed for upload:', e)
       }
     }
 
-    // Also run section-5 extraction for financials if not already covered
     if (section === 0 && parsed.text.length > 50) {
-      try {
-        const fin = EXTRACTION_PROMPTS[5]
-        if (fin) {
-          const raw2 = await callOpenRouter([
-            { role: 'system', content: fin },
-            { role: 'user', content: `Document text:\n\n${parsed.text}` },
-          ], { maxTokens: 800, temperature: 0.1 })
-          const jm = raw2.match(/\{[\s\S]*\}/)
-          if (jm) {
-            const p2 = JSON.parse(jm[0])
-            const { confidence: conf2, ...rest2 } = p2
-            // Merge — don't overwrite existing fields
-            for (const [k, v] of Object.entries(rest2)) {
-              if (!(k in extractedFields) && v !== null && v !== undefined) {
-                extractedFields[k] = v
-              }
-            }
-            for (const [k, v] of Object.entries(conf2 ?? {})) {
-              if (!(k in confidenceMap)) confidenceMap[k] = v as number
-            }
+      // Run all 5 section prompts in parallel so every sidebar section gets populated
+      const docUserMsg = `Document text:\n\n${parsed.text.slice(0, 6000)}`
+      const results = await Promise.allSettled(
+        [1, 2, 3, 4, 5].map(sec =>
+          callOpenRouter(
+            [{ role: 'system', content: EXTRACTION_PROMPTS[sec] },
+             { role: 'user', content: docUserMsg }],
+            { maxTokens: 800, temperature: 0.1 }
+          ).then(raw => {
+            const m = raw.match(/\{[\s\S]*\}/)
+            if (!m) return { fields: {}, conf: {} }
+            const parsed2 = JSON.parse(m[0])
+            const { confidence: conf, ...rest } = parsed2
+            return { fields: rest as Record<string, unknown>, conf: (conf ?? {}) as Record<string, number> }
+          })
+        )
+      )
+      for (const result of results) {
+        if (result.status === 'fulfilled') {
+          mergeDeepFields(extractedFields, result.value.fields)
+          for (const [k, v] of Object.entries(result.value.conf)) {
+            if (!(k in confidenceMap)) confidenceMap[k] = v
           }
         }
-      } catch (e) {
-        console.warn('LLM section-5 extraction failed (non-blocking):', e)
+      }
+    } else if (parsed.text.length > 50) {
+      // Per-section upload: run only that section's prompt
+      const sectionPrompt = EXTRACTION_PROMPTS[section]
+      if (sectionPrompt) {
+        try {
+          const raw = await callOpenRouter([
+            { role: 'system', content: sectionPrompt },
+            { role: 'user', content: `Document text:\n\n${parsed.text}` },
+          ], { maxTokens: 1200, temperature: 0.1 })
+          const jsonMatch = raw.match(/\{[\s\S]*\}/)
+          if (jsonMatch) {
+            const parsed2 = JSON.parse(jsonMatch[0])
+            const { confidence: conf, ...rest } = parsed2
+            extractedFields = rest
+            confidenceMap = conf ?? {}
+          }
+        } catch (e) {
+          console.warn('LLM extraction failed for upload:', e)
+        }
       }
     }
 

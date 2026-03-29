@@ -407,7 +407,9 @@ export default function ProfileBuilderPage() {
             for (const [k, v] of Object.entries(data.extractedFields)) {
               if (v !== null && v !== undefined) merged[k] = v
             }
-            next[secKey] = { ...sec, extractedFields: merged }
+            const summary = (data.sectionSummaries as SectionSummary[] ?? []).find(s => s.sectionKey === secKey)
+            const pct = summary?.completionPct ?? sec.completionScore
+            next[secKey] = { ...sec, extractedFields: merged, completionScore: pct, isComplete: pct >= 70 }
           }
           return next
         })

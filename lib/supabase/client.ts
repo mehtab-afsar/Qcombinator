@@ -15,5 +15,9 @@ export function createClient() {
     throw new Error('Supabase not configured. Please check .env.local and SUPABASE_SETUP.md')
   }
 
-  return createBrowserClient(supabaseUrl, supabaseAnonKey)
+  return createBrowserClient(supabaseUrl, supabaseAnonKey, {
+    realtime: {
+      params: { eventsPerSecond: -1 },  // disable auto WebSocket — app doesn't use Realtime subscriptions
+    },
+  })
 }
