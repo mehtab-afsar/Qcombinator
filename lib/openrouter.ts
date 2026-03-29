@@ -131,7 +131,7 @@ export async function callOpenRouter(
             'X-Title': 'Edge Alpha Agents',
           },
           body: JSON.stringify({
-            model: 'meta-llama/llama-3.1-8b-instruct:free',
+            model: 'mistralai/mistral-7b-instruct:free',
             messages,
             temperature,
             max_tokens: maxTokens,
@@ -236,7 +236,7 @@ export async function streamOpenRouter(
             'X-Title': 'Edge Alpha Agents',
           },
           body: JSON.stringify({
-            model: 'meta-llama/llama-3.1-8b-instruct:free',
+            model: 'mistralai/mistral-7b-instruct:free',
             messages,
             temperature,
             max_tokens: maxTokens,
