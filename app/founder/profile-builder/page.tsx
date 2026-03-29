@@ -210,6 +210,10 @@ export default function ProfileBuilderPage() {
               return next
             })
           }
+          // Restore the uploaded files list so it survives refresh
+          if (draft.uploadedFiles && draft.uploadedFiles.length > 0) {
+            setUploadedFiles(draft.uploadedFiles)
+          }
         }
       } catch { /* non-blocking */ }
     })

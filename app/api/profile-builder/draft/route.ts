@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
 
     const { data, error } = await supabase
       .from('profile_builder_data')
-      .select('section, extracted_fields, confidence_map, completion_score, completed_at, raw_conversation')
+      .select('section, extracted_fields, confidence_map, completion_score, completed_at, raw_conversation, uploaded_documents')
       .eq('user_id', userId)
       .order('section', { ascending: true })
 
@@ -36,6 +36,7 @@ export async function GET(req: NextRequest) {
 
     // Map to keyed object { [section]: data }
     const sections: Record<number, unknown> = {}
+    const uploadedFilesMap: Record<string, number> = {}  // filename → fields count (deduped)
     for (const row of data ?? []) {
       sections[row.section] = {
         extractedFields: row.extracted_fields ?? {},
@@ -44,9 +45,16 @@ export async function GET(req: NextRequest) {
         completedAt: row.completed_at,
         hasConversation: !!row.raw_conversation,
       }
+      for (const doc of (row.uploaded_documents ?? []) as Array<{ filename: string; fields: number }>) {
+        if (doc.filename && !(doc.filename in uploadedFilesMap)) {
+          uploadedFilesMap[doc.filename] = doc.fields ?? 0
+        }
+      }
     }
 
-    return NextResponse.json({ sections, totalSections: Object.keys(sections).length })
+    const uploadedFiles = Object.entries(uploadedFilesMap).map(([name, fields]) => ({ name, fields }))
+
+    return NextResponse.json({ sections, totalSections: Object.keys(sections).length, uploadedFiles })
   } catch (err) {
     console.error('[profile-builder/draft]', err)
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
