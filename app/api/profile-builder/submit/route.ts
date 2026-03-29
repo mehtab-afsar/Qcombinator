@@ -149,7 +149,7 @@ export async function POST(req: NextRequest) {
     applyReconciliationFlags(allIndicators, reconciliationResults)
 
     // 10. Benchmark percentiles (non-blocking)
-    let percentileMap = new Map<string, { percentile: number | null; label: string; sampleSize: number }>()
+    const percentileMap = new Map<string, { percentile: number | null; label: string; sampleSize: number }>()
     try {
       const rawPercentiles = await getAllIndicatorPercentiles(supabase, allIndicators, sector, stage)
       rawPercentiles.forEach((v, k) => percentileMap.set(k, { percentile: v.percentile, label: v.label, sampleSize: v.sampleSize }))

@@ -18,7 +18,7 @@ function clamp(v: number, min = 1.0, max = 5.0): number {
   return Math.min(max, Math.max(min, v))
 }
 
-function defaultDQ(confidence = 0.6): DataQuality {
+function _defaultDQ(confidence = 0.6): DataQuality {
   return { source: 'founder_claim', verificationLevel: 'unverified', confidence, reasons: [] }
 }
 

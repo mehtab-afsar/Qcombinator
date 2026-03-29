@@ -23,31 +23,31 @@ function defaultDQ(confidence = 0.6): DataQuality {
 
 // ── Rubric tables ──────────────────────────────────────────────────────────────
 
-const RUBRIC_1_1: Record<ScoreStage, Record<number, string>> = {
+const _RUBRIC_1_1: Record<ScoreStage, Record<number, string>> = {
   early:  { 1: 'No customer conversations', 2: '1–2 informal chats', 3: '3–9 structured conversations', 4: '10–24 structured conversations', 5: '25+ structured conversations or signed LOI' },
   mid:    { 1: 'No customers engaged', 2: '<5 paid pilots', 3: '5–19 conversations + 1 paid pilot', 4: '20–49 paying or LOI', 5: '50+ paying or strong LOI portfolio' },
   growth: { 1: '<50 customers', 2: '50–199', 3: '200–499', 4: '500–999', 5: '1000+ paying customers' },
 }
 
-const RUBRIC_1_2: Record<ScoreStage, Record<number, string>> = {
+const _RUBRIC_1_2: Record<ScoreStage, Record<number, string>> = {
   early:  { 1: 'No willingness-to-pay evidence', 2: 'Vague verbal intent', 3: 'Specific price mentioned in conversation', 4: 'Pilot paid or LOI with price', 5: 'Signed contract with price or prepayment received' },
   mid:    { 1: 'Free users only, no conversion', 2: 'Some free-to-paid conversion <5%', 3: '5–15% free-to-paid or $0–1K MRR', 4: '$1K–10K MRR or consistent paid renewals', 5: '$10K+ MRR or enterprise deal signed' },
   growth: { 1: 'Revenue declining or stalled', 2: '<5% MoM growth', 3: '5–15% MoM', 4: '15–30% MoM', 5: '30%+ MoM or multi-year contracts' },
 }
 
-const RUBRIC_1_3: Record<ScoreStage, Record<number, string>> = {
+const _RUBRIC_1_3: Record<ScoreStage, Record<number, string>> = {
   early:  { 1: 'No pipeline', 2: '1–2 informal conversations in progress', 3: '3–5 active prospects', 4: '6–10 active prospects + 1 near-close', 5: '10+ active pipeline, formal sales process' },
   mid:    { 1: 'No active sales motion', 2: 'Founder-only selling, no structure', 3: 'Defined ICP, 3–5 active deals', 4: 'Repeatable 1–4 week sales cycle', 5: 'Predictable pipeline, <1 week close time' },
   growth: { 1: 'Sales cycle >3 months', 2: '1–3 months cycle', 3: '2–4 week cycle', 4: '1–2 week cycle', 5: '<1 week cycle, self-serve or PLG' },
 }
 
-const RUBRIC_1_4: Record<ScoreStage, Record<number, string>> = {
+const _RUBRIC_1_4: Record<ScoreStage, Record<number, string>> = {
   early:  { 1: 'No repeat engagement', 2: '1 returning user/prospect', 3: '2–3 returning or referral from early user', 4: 'Pilot customer wants to expand', 5: 'Expansion or referral from paying customer' },
   mid:    { 1: 'High churn, no renewals', 2: '>40% annual churn', 3: '20–40% annual churn', 4: '10–20% annual churn', 5: '<10% annual churn, net revenue retention >100%' },
   growth: { 1: 'NRR <80%', 2: 'NRR 80–90%', 3: 'NRR 91–100%', 4: 'NRR 101–110%', 5: 'NRR 111%+' },
 }
 
-const RUBRIC_1_5: Record<ScoreStage, Record<number, string>> = {
+const _RUBRIC_1_5: Record<ScoreStage, Record<number, string>> = {
   early:  { 1: 'Single niche, no expansion narrative', 2: 'One segment identified', 3: 'Primary ICP + 1 adjacent segment described', 4: 'Clear beachhead + expansion map', 5: 'Beachhead validated + 2+ confirmed adjacent markets' },
   mid:    { 1: 'No expansion plan', 2: 'Vague second segment', 3: 'One adjacent market in pilots', 4: 'Two segments with revenue', 5: 'Three+ segments or international expansion live' },
   growth: { 1: 'Single market, plateau risk', 2: 'Second market planned', 3: 'Second market live, <20% revenue', 4: 'Second market >20% revenue', 5: 'Platform model, multi-market with compounding network effects' },

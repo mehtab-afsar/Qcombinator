@@ -91,7 +91,7 @@ export async function GET(req: NextRequest) {
     const sectionsComplete = rows.filter(r => (r.completion_score ?? 0) >= 70).length
 
     // Benchmark percentiles (non-blocking)
-    let percentileMap = new Map<string, { percentile: number | null; label: string }>()
+    const percentileMap = new Map<string, { percentile: number | null; label: string }>()
     try {
       const rawPercentiles = await getAllIndicatorPercentiles(supabase, allIndicators, sector, stage)
       rawPercentiles.forEach((v, k) => percentileMap.set(k, { percentile: v.percentile, label: v.label }))

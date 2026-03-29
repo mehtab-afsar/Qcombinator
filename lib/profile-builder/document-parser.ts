@@ -3,6 +3,7 @@
  * Extracts text from uploaded files before LLM extraction.
  * Uses pdf-parse for PDFs and adm-zip for PPTX/XLSX.
  */
+import AdmZip from 'adm-zip'
 
 export interface ParseResult {
   text: string
@@ -53,7 +54,6 @@ function parsePDFFallback(buffer: Buffer): ParseResult {
 // PPTX is a ZIP containing XML files — must unzip first
 export function parsePPTX(buffer: Buffer): ParseResult {
   try {
-    const AdmZip = require('adm-zip')
     const zip = new AdmZip(buffer)
     const entries = zip.getEntries()
 
@@ -86,7 +86,6 @@ export function parsePPTX(buffer: Buffer): ParseResult {
 // XLSX is also a ZIP — extract sharedStrings.xml + sheet data
 export function parseXLSX(buffer: Buffer): ParseResult {
   try {
-    const AdmZip = require('adm-zip')
     const zip = new AdmZip(buffer)
 
     // Read shared strings (all text values in the workbook)

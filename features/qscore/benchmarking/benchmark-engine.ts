@@ -39,7 +39,6 @@ async function fetchBenchmark(
   sector: string,
   stage: string
 ): Promise<BenchmarkRow | null> {
-  const cacheKey = `${indicatorId}:${sector}:${stage}`
   const cached = getCachedBenchmark<BenchmarkRow>(indicatorId, sector, stage)
   if (cached) return cached
 

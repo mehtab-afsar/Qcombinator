@@ -10,8 +10,6 @@ import { generateSmartQuestions } from '@/lib/profile-builder/smart-questions'
 import type { SmartQuestion } from '@/lib/profile-builder/smart-questions'
 
 // ── palette ───────────────────────────────────────────────────────────────────
-const bg    = '#F9F7F2'
-const surf  = '#F0EDE6'
 const bdr   = '#E2DDD5'
 const ink   = '#18160F'
 const muted = '#8A867C'
@@ -137,6 +135,8 @@ export default function ProfileBuilderPage() {
   const [uploadLoading, setUploadLoading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [uploadedFiles, setUploadedFiles] = useState<Array<{ name: string; fields: number }>>([])
+  const [recalcLoading, setRecalcLoading] = useState(false)
+  const [recalcResult, setRecalcResult] = useState<{ finalIQ: number; grade: string } | null>(null)
 
   const chatEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -369,119 +369,123 @@ export default function ProfileBuilderPage() {
     }
   }
 
-  // ── handle file upload ────────────────────────────────────────────────────
-  async function handleFileUpload(file: File) {
-    if (!token) return
-    setUploadLoading(true)
-    setUploadError(null)
-
+  // ── handle file upload (single file — called in a loop for multiple) ──────
+  async function uploadOneFile(file: File): Promise<void> {
     const formData = new FormData()
     formData.append('file', file)
-    // Upload with section 0 so server parses + stores the file
     formData.append('section', String(typeof currentStep === 'number' ? currentStep : 0))
 
-    try {
-      const res = await fetch('/api/profile-builder/upload', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      })
+    const res = await fetch('/api/profile-builder/upload', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token!}` },
+      body: formData,
+    })
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err.error ?? `Upload failed (${res.status})`)
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.error ?? `Upload failed (${res.status})`)
+    }
+
+    const data = await res.json()
+    const fieldsFound: number = data.extractedPreview?.length ?? 0
+    const docText: string = data.parsedText ?? ''
+
+    // ── Step 0: distribute doc text + trigger smart flow ──
+    if (currentStep === 0) {
+      if (docText) setGlobalDocText(prev => prev + '\n\n' + docText)
+
+      if (data.extractedFields && Object.keys(data.extractedFields).length > 0) {
+        setSections(prev => {
+          const next = { ...prev }
+          for (const secKey of ['1', '2', '3', '4', '5']) {
+            const sec = next[secKey] ?? initSection()
+            const merged = { ...sec.extractedFields }
+            for (const [k, v] of Object.entries(data.extractedFields)) {
+              if (v !== null && v !== undefined) merged[k] = v
+            }
+            next[secKey] = { ...sec, extractedFields: merged }
+          }
+          return next
+        })
       }
 
-      const data = await res.json()
-      const fieldsFound: number = data.extractedPreview?.length ?? 0
-      const docText: string = data.parsedText ?? ''
-
-      // ── Step 0: distribute doc text + trigger smart flow ──
-      if (currentStep === 0) {
-        if (docText) setGlobalDocText(prev => prev + '\n\n' + docText)
-
-        // If the server extracted structured fields, merge them into section state
-        if (data.extractedFields && Object.keys(data.extractedFields).length > 0) {
-          setSections(prev => {
-            const next = { ...prev }
-            for (const secKey of ['1', '2', '3', '4', '5']) {
-              const sec = next[secKey] ?? initSection()
-              const merged = { ...sec.extractedFields }
-              for (const [k, v] of Object.entries(data.extractedFields)) {
-                if (v !== null && v !== undefined) merged[k] = v
-              }
-              next[secKey] = { ...sec, extractedFields: merged }
-            }
-            return next
-          })
+      if (data.sectionSummaries && data.sectionSummaries.length > 0) {
+        setExtractionSummary(data.sectionSummaries)
+        const extractedBySections: Record<string, Record<string, unknown>> = {}
+        for (const s of data.sectionSummaries as SectionSummary[]) {
+          extractedBySections[s.sectionKey] = data.extractedFields ?? {}
         }
-
-        // If server returned per-section summaries, activate smart flow
-        if (data.sectionSummaries && data.sectionSummaries.length > 0) {
-          setExtractionSummary(data.sectionSummaries)
-          // Build extractedBySections map for question generator
-          const extractedBySections: Record<string, Record<string, unknown>> = {}
-          for (const s of data.sectionSummaries as SectionSummary[]) {
-            extractedBySections[s.sectionKey] = data.extractedFields ?? {}
-          }
-          const qs = generateSmartQuestions(extractedBySections, founderProfile.stage ?? 'mid')
-          setSmartQuestions(qs)
-          setSmartQaIndex(0)
-          setFlowMode('fast')
-        }
-
-        setUploadedFiles(prev => [...prev, { name: file.name, fields: fieldsFound }])
-        setUploadTrigger(null)
-        return
+        const qs = generateSmartQuestions(extractedBySections, founderProfile.stage ?? 'mid')
+        setSmartQuestions(qs)
+        setSmartQaIndex(0)
+        setFlowMode('fast')
       }
-
-      // ── Sections 1-5: merge into current section + add agent message ──
-      const secKey = String(currentStep)
-      setSections(prev => {
-        const sec = prev[secKey] ?? initSection()
-        const merged = { ...sec.extractedFields }
-        if (data.extractedFields) {
-          const mergeDeep = (t: Record<string, unknown>, s: Record<string, unknown>) => {
-            for (const [k, v] of Object.entries(s)) {
-              if (v === null || v === undefined) continue
-              if (typeof v === 'object' && !Array.isArray(v) && typeof t[k] === 'object' && t[k] !== null) {
-                mergeDeep(t[k] as Record<string, unknown>, v as Record<string, unknown>)
-              } else { t[k] = v }
-            }
-          }
-          mergeDeep(merged, data.extractedFields)
-        }
-
-        const agentMsg: Message = {
-          role: 'agent',
-          text: fieldsFound > 0
-            ? `I've reviewed "${file.name}" and extracted ${fieldsFound} data points. ${data.summary ?? ''} You can continue the conversation or move on.`
-            : `I've received "${file.name}" — I couldn't automatically extract structured data from it, but I'll use it as context for your answers. Continue the conversation below.`,
-        }
-
-        const updated: SectionState = {
-          ...sec,
-          messages: [...sec.messages, agentMsg],
-          extractedFields: merged,
-          confidenceMap: { ...sec.confidenceMap, ...(data.confidenceMap ?? {}) },
-          uploadedDocuments: [
-            ...sec.uploadedDocuments,
-            { uploadId: data.uploadId ?? '', filename: file.name, fields: fieldsFound },
-          ],
-        }
-        saveSection(secKey, updated, token)
-        return { ...prev, [secKey]: updated }
-      })
 
       setUploadedFiles(prev => [...prev, { name: file.name, fields: fieldsFound }])
       setUploadTrigger(null)
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Upload failed'
-      setUploadError(msg)
-    } finally {
-      setUploadLoading(false)
-      if (fileInputRef.current) fileInputRef.current.value = ''
+      return
     }
+
+    // ── Sections 1-5: merge into current section + add agent message ──
+    const secKey = String(currentStep)
+    setSections(prev => {
+      const sec = prev[secKey] ?? initSection()
+      const merged = { ...sec.extractedFields }
+      if (data.extractedFields) {
+        const mergeDeep = (t: Record<string, unknown>, s: Record<string, unknown>) => {
+          for (const [k, v] of Object.entries(s)) {
+            if (v === null || v === undefined) continue
+            if (typeof v === 'object' && !Array.isArray(v) && typeof t[k] === 'object' && t[k] !== null) {
+              mergeDeep(t[k] as Record<string, unknown>, v as Record<string, unknown>)
+            } else { t[k] = v }
+          }
+        }
+        mergeDeep(merged, data.extractedFields)
+      }
+
+      const agentMsg: Message = {
+        role: 'agent',
+        text: fieldsFound > 0
+          ? `I've reviewed "${file.name}" and extracted ${fieldsFound} data points. ${data.summary ?? ''} You can continue the conversation or move on.`
+          : `I've received "${file.name}" — I couldn't automatically extract structured data from it, but I'll use it as context for your answers. Continue the conversation below.`,
+      }
+
+      const updated: SectionState = {
+        ...sec,
+        messages: [...sec.messages, agentMsg],
+        extractedFields: merged,
+        confidenceMap: { ...sec.confidenceMap, ...(data.confidenceMap ?? {}) },
+        uploadedDocuments: [
+          ...sec.uploadedDocuments,
+          { uploadId: data.uploadId ?? '', filename: file.name, fields: fieldsFound },
+        ],
+      }
+      saveSection(secKey, updated, token!)
+      return { ...prev, [secKey]: updated }
+    })
+
+    setUploadedFiles(prev => [...prev, { name: file.name, fields: fieldsFound }])
+    setUploadTrigger(null)
+  }
+
+  // ── handle one or many files sequentially ────────────────────────────────
+  async function handleFileUpload(files: FileList | File[]) {
+    if (!token) return
+    const fileArr = Array.from(files)
+    if (fileArr.length === 0) return
+    setUploadLoading(true)
+    setUploadError(null)
+    const errors: string[] = []
+    for (const file of fileArr) {
+      try {
+        await uploadOneFile(file)
+      } catch (e) {
+        errors.push(`${file.name}: ${e instanceof Error ? e.message : 'failed'}`)
+      }
+    }
+    if (errors.length > 0) setUploadError(errors.join(' · '))
+    setUploadLoading(false)
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   // ── submit ────────────────────────────────────────────────────────────────
@@ -505,6 +509,25 @@ export default function ProfileBuilderPage() {
       setSubmitError('Network error — please try again')
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  // ── recalculate live score after upload ──────────────────────────────────
+  async function handleRecalculate() {
+    if (!token) return
+    setRecalcLoading(true)
+    setRecalcResult(null)
+    try {
+      const res = await fetch('/api/profile-builder/preview', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) throw new Error('Preview failed')
+      const data = await res.json()
+      setRecalcResult({ finalIQ: data.finalIQ ?? data.projectedScore ?? 0, grade: data.grade ?? '–' })
+    } catch {
+      // silent — button just goes back to idle
+    } finally {
+      setRecalcLoading(false)
     }
   }
 
@@ -715,7 +738,7 @@ export default function ProfileBuilderPage() {
                 Upload documents
               </h2>
               <p style={{ fontSize: 14, color: muted, margin: 0, lineHeight: 1.6 }}>
-                Optional — pitch decks, financial models, anything you have. We'll extract the data automatically.
+                Optional — pitch decks, financial models, anything you have. We&apos;ll extract the data automatically.
               </p>
             </div>
 
@@ -733,7 +756,7 @@ export default function ProfileBuilderPage() {
               <div style={{ fontSize: 15, fontWeight: 600, color: ink, marginBottom: 6 }}>
                 {uploadLoading ? 'Uploading and extracting…' : 'Drop files or click to upload'}
               </div>
-              <div style={{ fontSize: 13, color: muted }}>PDF, PPTX, XLSX, CSV, PNG, JPG — max 10 MB</div>
+              <div style={{ fontSize: 13, color: muted }}>PDF, PPTX, XLSX, CSV, PNG, JPG — max 10 MB each · multiple files supported</div>
             </div>
 
             {uploadError && (
@@ -761,6 +784,31 @@ export default function ProfileBuilderPage() {
                     <span style={{ fontSize: 13, color: green }}>✓</span>
                   </div>
                 ))}
+
+                {/* Recalculate score after upload */}
+                <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <button
+                    onClick={handleRecalculate}
+                    disabled={recalcLoading}
+                    style={{
+                      padding: '8px 16px', borderRadius: 8, border: `1.5px solid ${bdr}`,
+                      background: recalcLoading ? bdr : '#fff', color: ink,
+                      fontSize: 13, fontWeight: 500, cursor: recalcLoading ? 'not-allowed' : 'pointer',
+                      fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6,
+                    }}
+                  >
+                    {recalcLoading ? '⏳ Calculating…' : '⚡ Preview score impact'}
+                  </button>
+                  {recalcResult && (
+                    <div style={{
+                      padding: '6px 12px', borderRadius: 8,
+                      background: '#F0FDF4', border: `1px solid #A7F3D0`,
+                      fontSize: 13, fontWeight: 600, color: green,
+                    }}>
+                      IQ {recalcResult.finalIQ} · {recalcResult.grade}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -894,6 +942,33 @@ export default function ProfileBuilderPage() {
                 </div>
               )}
 
+              {/* Recalculate after section doc upload */}
+              {sec.uploadedDocuments.length > 0 && (
+                <div style={{ margin: '8px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <button
+                    onClick={handleRecalculate}
+                    disabled={recalcLoading}
+                    style={{
+                      padding: '6px 14px', borderRadius: 7, border: `1.5px solid ${bdr}`,
+                      background: '#fff', color: ink, fontSize: 12, fontWeight: 500,
+                      cursor: recalcLoading ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
+                      display: 'flex', alignItems: 'center', gap: 5,
+                    }}
+                  >
+                    {recalcLoading ? '⏳' : '⚡'} {recalcLoading ? 'Calculating…' : 'Preview score impact'}
+                  </button>
+                  {recalcResult && (
+                    <span style={{
+                      padding: '4px 10px', borderRadius: 6,
+                      background: '#F0FDF4', border: `1px solid #A7F3D0`,
+                      fontSize: 12, fontWeight: 600, color: green,
+                    }}>
+                      IQ {recalcResult.finalIQ} · {recalcResult.grade}
+                    </span>
+                  )}
+                </div>
+              )}
+
               {/* Stripe card */}
               {stripeVisible && (
                 <div style={{
@@ -952,7 +1027,14 @@ export default function ProfileBuilderPage() {
                     >{isTyping ? '…' : 'Send'}</button>
                     <button
                       onClick={() => fileInputRef.current?.click()}
-                      title="Upload document"
+                      title={
+                        currentStep === 1 ? 'Upload CRM export, pilot agreement, or LOI'
+                        : currentStep === 2 ? 'Upload market research or competitor analysis'
+                        : currentStep === 3 ? 'Upload patent filings, technical spec, or architecture doc'
+                        : currentStep === 4 ? 'Upload team CVs or org chart'
+                        : currentStep === 5 ? 'Upload financial model, P&L, or Stripe export'
+                        : 'Upload supporting document'
+                      }
                       style={{
                         padding: '8px 14px', borderRadius: 8,
                         border: `1.5px solid ${bdr}`, background: '#fafafa',
@@ -994,7 +1076,7 @@ export default function ProfileBuilderPage() {
           <div style={{ maxWidth: 600, margin: '0 auto', width: '100%', padding: '48px 24px 60px', display: 'flex', flexDirection: 'column', gap: 20 }}>
             <div style={{ textAlign: 'center', marginBottom: 4 }}>
               <h2 style={{ fontSize: 24, fontWeight: 700, color: ink, margin: '0 0 8px', letterSpacing: '-0.02em' }}>
-                Here's what we found
+                Here&apos;s what we found
               </h2>
               <p style={{ fontSize: 14, color: muted, margin: 0, lineHeight: 1.6 }}>
                 {extractionSummary.reduce((s, x) => s + x.extractedCount, 0)} fields auto-filled across {extractionSummary.filter(x => x.completionPct > 0).length} sections
@@ -1366,11 +1448,11 @@ export default function ProfileBuilderPage() {
       <input
         ref={fileInputRef}
         type="file"
+        multiple
         style={{ display: 'none' }}
         accept=".pdf,.pptx,.xlsx,.csv,.png,.jpg,.jpeg,.webp"
         onChange={e => {
-          const file = e.target.files?.[0]
-          if (file) handleFileUpload(file)
+          if (e.target.files && e.target.files.length > 0) handleFileUpload(e.target.files)
         }}
       />
 

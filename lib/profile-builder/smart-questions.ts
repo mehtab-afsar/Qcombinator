@@ -101,7 +101,7 @@ const FIELD_QUESTIONS: Record<string, QuestionDef> = {
   'p2.marketUrgency': {
     sectionKey: '2', priority: 9,
     text: 'What changed recently that makes this possible or urgent now?',
-    getContext: (e) => {
+    getContext: (_e) => {
       const industry = ''
       return industry ? `You're targeting the ${industry} market` : ''
     },

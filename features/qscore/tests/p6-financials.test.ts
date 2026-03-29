@@ -4,7 +4,7 @@
  */
 
 import { scoreP6, getP6Exclusions } from '../calculators/parameters/p6-financials'
-import type { AssessmentData, ScoreStage } from '../types/qscore.types'
+import type { AssessmentData } from '../types/qscore.types'
 
 function baseData(): AssessmentData {
   return {
