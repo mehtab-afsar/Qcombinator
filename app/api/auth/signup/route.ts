@@ -42,6 +42,14 @@ export async function POST(request: NextRequest) {
     };
     const dbStage = STAGE_MAP[stage] ?? stage ?? 'idea';
 
+    // Map onboarding funding values to DB-accepted values
+    const FUNDING_MAP: Record<string, string> = {
+      'friends-and-family': 'pre-seed',
+      'series-a-plus':      'series-a',
+    };
+    const rawFunding = fundingStatus || funding || null;
+    const dbFunding = rawFunding ? (FUNDING_MAP[rawFunding] ?? rawFunding) : null;
+
     // Attempt to create user directly — handle duplicate email via error response
     // (avoids fetching all users just to check existence)
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
@@ -88,7 +96,7 @@ export async function POST(request: NextRequest) {
         startup_name: companyName || startupName || null,
         industry: industry || null,
         stage: dbStage,
-        funding: fundingStatus || funding || null,
+        funding: dbFunding,
         time_commitment: timeCommitment || null,
         role: 'founder',
         subscription_tier: 'free',
@@ -101,7 +109,7 @@ export async function POST(request: NextRequest) {
         incorporation_type: incorporationType || null,
         description: description || null,
         revenue_status: revenueStatus || null,
-        funding_status: fundingStatus || funding || null,
+        funding_status: dbFunding,
         team_size: teamSize || null,
         founder_name: founderName || fullName,
         linkedin_url: linkedinUrl || null,

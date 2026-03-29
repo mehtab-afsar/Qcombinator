@@ -14,15 +14,16 @@ export interface ParseResult {
 // ── PDF ───────────────────────────────────────────────────────────────────────
 export async function parsePDF(buffer: Buffer): Promise<ParseResult> {
   try {
+    // pdf-parse v2 exports a named class PDFParse — not a default function.
+    // Pass { data: buffer } in the constructor; it auto-converts Buffer → Uint8Array.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { PDFParse } = await import('pdf-parse') as any
-    const parser = new PDFParse({ data: new Uint8Array(buffer), verbosity: 0 })
+    const { PDFParse } = await import('pdf-parse' as any)
+    const parser = new PDFParse({ data: buffer })
     const result = await parser.getText()
-    await parser.destroy().catch(() => {})
     const text = (result.text ?? '').replace(/\s+/g, ' ').trim().slice(0, 8000)
     return { text, confidence: text.length > 200 ? 0.85 : 0.5 }
   } catch (e) {
-    console.warn('[parsePDF] PDFParse failed, falling back to raw extraction:', e)
+    console.warn('[parsePDF] failed, falling back to raw extraction:', e)
     return parsePDFFallback(buffer)
   }
 }

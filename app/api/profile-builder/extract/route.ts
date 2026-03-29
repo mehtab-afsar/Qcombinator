@@ -86,6 +86,9 @@ export async function POST(req: NextRequest) {
     const completionScore = getSectionCompletionPct(merged, section, stage)
     const missingFields = getMissingFields(merged, section, stage)
 
+    // Brief pause before second LLM call — avoids back-to-back rate limit on free-tier models
+    await new Promise(r => setTimeout(r, 1500))
+
     // Generate follow-up question for missing fields
     let followUpQuestion: string | null = null
     if (missingFields.length > 0 && founderProfile) {

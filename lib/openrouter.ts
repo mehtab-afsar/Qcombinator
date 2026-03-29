@@ -1,9 +1,9 @@
 /**
- * Shared OpenRouter helper.
- * - AbortController timeout: 30s for non-streaming, 60s for streaming
- * - 429 rate-limit retry: reads Retry-After header, waits up to 15s, retries once
- * - 402 credit exhaustion: retries with OPENROUTER_API_KEY_FALLBACK
- * - Typed OpenRouterError with statusCode + isTimeout
+ * Groq LLM helper (drop-in replacement for OpenRouter).
+ * Groq is OpenAI-compatible — same request/response format.
+ * - AbortController timeout: 30s non-streaming, 60s streaming
+ * - 429 rate-limit retry: reads Retry-After header, waits up to 15s, retries up to 3 times
+ * - Typed OpenRouterError kept for backward compatibility with callers
  */
 
 export interface OpenRouterMessage {
@@ -22,7 +22,9 @@ export class OpenRouterError extends Error {
   }
 }
 
-const TIMEOUT_MS = 30_000;
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const MODEL    = 'llama-3.3-70b-versatile';
+const TIMEOUT_MS        = 30_000;
 const STREAM_TIMEOUT_MS = 60_000;
 
 function makeAbortController(timeoutMs: number): { controller: AbortController; clear: () => void } {
@@ -31,7 +33,6 @@ function makeAbortController(timeoutMs: number): { controller: AbortController; 
   return { controller, clear: () => clearTimeout(timer) };
 }
 
-/** Waits Retry-After seconds (capped at 15s) before resolving */
 async function waitForRateLimit(res: Response): Promise<void> {
   const retryAfter = res.headers.get('Retry-After');
   const waitMs = retryAfter ? Math.min(parseFloat(retryAfter) * 1000, 15_000) : 5_000;
@@ -44,26 +45,18 @@ export async function callOpenRouter(
 ): Promise<string> {
   const { maxTokens = 500, temperature = 0.7 } = options;
 
-  const primaryKey  = process.env.OPENROUTER_API_KEY;
-  const fallbackKey = process.env.OPENROUTER_API_KEY_FALLBACK;
-  if (!primaryKey && !fallbackKey) throw new OpenRouterError('No OpenRouter API key configured', 0);
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) throw new OpenRouterError('No Groq API key configured (GROQ_API_KEY)', 0);
 
-  const makeRequest = (key: string, signal: AbortSignal) =>
-    fetch('https://openrouter.ai/api/v1/chat/completions', {
+  const makeRequest = (signal: AbortSignal) =>
+    fetch(GROQ_URL, {
       method: 'POST',
       signal,
       headers: {
-        Authorization: `Bearer ${key}`,
+        Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://edgealpha.ai',
-        'X-Title': 'Edge Alpha Agents',
       },
-      body: JSON.stringify({
-        model: 'anthropic/claude-3.5-haiku',
-        messages,
-        temperature,
-        max_tokens: maxTokens,
-      }),
+      body: JSON.stringify({ model: MODEL, messages, temperature, max_tokens: maxTokens }),
     });
 
   const { controller, clear } = makeAbortController(TIMEOUT_MS);
@@ -71,87 +64,40 @@ export async function callOpenRouter(
   try {
     let res: Response;
     try {
-      res = await makeRequest(primaryKey ?? fallbackKey!, controller.signal);
+      res = await makeRequest(controller.signal);
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'AbortError') {
-        throw new OpenRouterError('OpenRouter request timed out after 30s', 0, true);
+        throw new OpenRouterError('Groq request timed out after 30s', 0, true);
       }
       throw err;
     }
 
-    // 429 — rate limited: wait then retry once
-    if (res.status === 429) {
-      console.warn('[openrouter] rate limited (429) — waiting before retry');
+    // 429 — rate limited: retry up to 3 times with backoff
+    let retryCount = 0;
+    while (res.status === 429 && retryCount < 3) {
+      retryCount++;
+      console.warn(`[groq] rate limited (429) — retry ${retryCount}/3`);
       await waitForRateLimit(res);
-      const { controller: c2, clear: clear2 } = makeAbortController(TIMEOUT_MS);
+      const { controller: cR, clear: clearR } = makeAbortController(TIMEOUT_MS);
       try {
-        res = await makeRequest(primaryKey ?? fallbackKey!, c2.signal);
+        res = await makeRequest(cR.signal);
       } catch (err: unknown) {
         if (err instanceof Error && err.name === 'AbortError') {
-          throw new OpenRouterError('OpenRouter retry timed out after 30s', 429, true);
+          throw new OpenRouterError('Groq retry timed out after 30s', 429, true);
         }
         throw err;
       } finally {
-        clear2();
-      }
-      if (res.status === 429) {
-        throw new OpenRouterError('OpenRouter rate limit exceeded — please try again later', 429);
+        clearR();
       }
     }
-
-    // 402 — primary key hit credit limit: retry with fallback key
-    if (res.status === 402 && fallbackKey && primaryKey) {
-      console.warn('[openrouter] primary key hit limit — switching to fallback');
-      const { controller: c3, clear: clear3 } = makeAbortController(TIMEOUT_MS);
-      try {
-        res = await makeRequest(fallbackKey, c3.signal);
-      } catch (err: unknown) {
-        if (err instanceof Error && err.name === 'AbortError') {
-          throw new OpenRouterError('OpenRouter fallback request timed out after 30s', 0, true);
-        }
-        throw err;
-      } finally {
-        clear3();
-      }
-    }
-
-    // 402 on all paid keys — retry with a free model as last resort
-    if (res.status === 402) {
-      console.warn('[openrouter] all paid keys exhausted — falling back to free model');
-      const freeKey = primaryKey ?? fallbackKey!;
-      const { controller: c4, clear: clear4 } = makeAbortController(TIMEOUT_MS);
-      try {
-        res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          signal: c4.signal,
-          headers: {
-            Authorization: `Bearer ${freeKey}`,
-            'Content-Type': 'application/json',
-            'HTTP-Referer': 'https://edgealpha.ai',
-            'X-Title': 'Edge Alpha Agents',
-          },
-          body: JSON.stringify({
-            model: 'mistralai/mistral-7b-instruct:free',
-            messages,
-            temperature,
-            max_tokens: maxTokens,
-          }),
-        });
-      } catch (err: unknown) {
-        if (err instanceof Error && err.name === 'AbortError') {
-          throw new OpenRouterError('OpenRouter free-model request timed out after 30s', 0, true);
-        }
-        throw err;
-      } finally {
-        clear4();
-      }
+    if (res.status === 429) {
+      throw new OpenRouterError('Groq rate limit exceeded — please try again later', 429);
     }
 
     if (!res.ok) {
       const errText = await res.text();
-      console.error('[openrouter] error:', res.status, errText);
-      if (res.status === 402) throw new OpenRouterError('OpenRouter: insufficient credits on all keys', 402);
-      throw new OpenRouterError(`OpenRouter error: ${res.status} ${res.statusText}`, res.status);
+      console.error('[groq] error:', res.status, errText);
+      throw new OpenRouterError(`Groq error: ${res.status} ${res.statusText}`, res.status);
     }
 
     const data = await res.json();
@@ -167,100 +113,56 @@ export async function streamOpenRouter(
 ): Promise<Response> {
   const { maxTokens = 1000, temperature = 0.7 } = options;
 
-  const primaryKey  = process.env.OPENROUTER_API_KEY;
-  const fallbackKey = process.env.OPENROUTER_API_KEY_FALLBACK;
-  if (!primaryKey && !fallbackKey) throw new OpenRouterError('No OpenRouter API key configured', 0);
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) throw new OpenRouterError('No Groq API key configured (GROQ_API_KEY)', 0);
 
-  const key = primaryKey ?? fallbackKey!;
   const { controller, clear } = makeAbortController(STREAM_TIMEOUT_MS);
 
-  const makeRequest = (k: string) =>
-    fetch('https://openrouter.ai/api/v1/chat/completions', {
+  const makeRequest = () =>
+    fetch(GROQ_URL, {
       method: 'POST',
       signal: controller.signal,
       headers: {
-        Authorization: `Bearer ${k}`,
+        Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://edgealpha.ai',
-        'X-Title': 'Edge Alpha Agents',
       },
-      body: JSON.stringify({
-        model: 'anthropic/claude-3.5-haiku',
-        messages,
-        temperature,
-        max_tokens: maxTokens,
-        stream: true,
-      }),
+      body: JSON.stringify({ model: MODEL, messages, temperature, max_tokens: maxTokens, stream: true }),
     });
 
   try {
     let res: Response;
     try {
-      res = await makeRequest(key);
+      res = await makeRequest();
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'AbortError') {
-        throw new OpenRouterError('OpenRouter stream timed out after 60s', 0, true);
+        throw new OpenRouterError('Groq stream timed out after 60s', 0, true);
       }
       throw err;
     }
 
-    // 429 — rate limited: wait then retry once
+    // 429 — rate limited: wait then retry
     if (res.status === 429) {
-      console.warn('[openrouter] stream rate limited (429) — waiting before retry');
+      console.warn('[groq] stream rate limited (429) — waiting before retry');
       await waitForRateLimit(res);
       try {
-        res = await makeRequest(key);
+        res = await makeRequest();
       } catch (err: unknown) {
         if (err instanceof Error && err.name === 'AbortError') {
-          throw new OpenRouterError('OpenRouter stream retry timed out', 429, true);
+          throw new OpenRouterError('Groq stream retry timed out', 429, true);
         }
         throw err;
       }
       if (res.status === 429) {
-        throw new OpenRouterError('OpenRouter rate limit exceeded — please try again later', 429);
-      }
-    }
-
-    // 402 — credits exhausted: retry stream with free model
-    if (res.status === 402) {
-      console.warn('[openrouter] stream credits exhausted — falling back to free model');
-      const { controller: c2, clear: clear2 } = makeAbortController(STREAM_TIMEOUT_MS);
-      try {
-        res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          signal: c2.signal,
-          headers: {
-            Authorization: `Bearer ${key}`,
-            'Content-Type': 'application/json',
-            'HTTP-Referer': 'https://edgealpha.ai',
-            'X-Title': 'Edge Alpha Agents',
-          },
-          body: JSON.stringify({
-            model: 'mistralai/mistral-7b-instruct:free',
-            messages,
-            temperature,
-            max_tokens: maxTokens,
-            stream: true,
-          }),
-        });
-      } catch (err: unknown) {
-        if (err instanceof Error && err.name === 'AbortError') {
-          throw new OpenRouterError('OpenRouter free-model stream timed out after 60s', 0, true);
-        }
-        throw err;
-      } finally {
-        clear2();
+        throw new OpenRouterError('Groq rate limit exceeded — please try again later', 429);
       }
     }
 
     if (!res.ok) {
       const errText = await res.text();
-      console.error('[openrouter] stream error:', res.status, errText);
-      throw new OpenRouterError(`OpenRouter stream error: ${res.status} ${res.statusText}`, res.status);
+      console.error('[groq] stream error:', res.status, errText);
+      throw new OpenRouterError(`Groq stream error: ${res.status} ${res.statusText}`, res.status);
     }
 
-    // Note: clear() NOT called here — stream is still open; caller must consume it
-    // AbortController will fire after 60s if the stream hasn't resolved
     return res;
   } catch (err) {
     clear();

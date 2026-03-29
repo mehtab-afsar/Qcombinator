@@ -51,24 +51,21 @@ async function callOpenRouterWithTools(
     tools?: ToolDefinition[];
   },
 ): Promise<LLMChatResponse> {
-  const primaryKey = process.env.OPENROUTER_API_KEY;
-  const fallbackKey = process.env.OPENROUTER_API_KEY_FALLBACK;
-  if (!primaryKey && !fallbackKey) throw new OpenRouterError('No OpenRouter API key configured', 0);
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) throw new OpenRouterError('No Groq API key configured (GROQ_API_KEY)', 0);
 
   const hasTools = options.tools && options.tools.length > 0;
 
-  const makeRequest = (key: string, signal: AbortSignal) =>
-    fetch('https://openrouter.ai/api/v1/chat/completions', {
+  const makeRequest = (signal: AbortSignal) =>
+    fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       signal,
       headers: {
-        Authorization: `Bearer ${key}`,
+        Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://edgealpha.ai',
-        'X-Title': 'Edge Alpha Agents',
       },
       body: JSON.stringify({
-        model: 'anthropic/claude-3.5-haiku',
+        model: 'llama-3.3-70b-versatile',
         messages,
         temperature: options.temperature,
         max_tokens: options.maxTokens,
@@ -81,55 +78,38 @@ async function callOpenRouterWithTools(
   try {
     let res: Response;
     try {
-      res = await makeRequest(primaryKey ?? fallbackKey!, controller.signal);
+      res = await makeRequest(controller.signal);
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'AbortError') {
-        throw new OpenRouterError('OpenRouter request timed out after 30s', 0, true);
+        throw new OpenRouterError('Groq request timed out after 30s', 0, true);
       }
       throw err;
     }
 
     // 429 — rate limited: wait then retry once
     if (res.status === 429) {
-      console.warn('[llm/provider] rate limited (429) — waiting before retry');
+      console.warn('[llm/provider] Groq rate limited (429) — waiting before retry');
       await waitForRateLimit(res);
       const { controller: c2, clear: clear2 } = makeAbortController(TIMEOUT_MS);
       try {
-        res = await makeRequest(primaryKey ?? fallbackKey!, c2.signal);
+        res = await makeRequest(c2.signal);
       } catch (err: unknown) {
         if (err instanceof Error && err.name === 'AbortError') {
-          throw new OpenRouterError('OpenRouter retry timed out after 30s', 429, true);
+          throw new OpenRouterError('Groq retry timed out after 30s', 429, true);
         }
         throw err;
       } finally {
         clear2();
       }
       if (res.status === 429) {
-        throw new OpenRouterError('OpenRouter rate limit exceeded — please try again later', 429);
-      }
-    }
-
-    // 402 — primary key hit credit limit: retry with fallback
-    if (res.status === 402 && fallbackKey && primaryKey) {
-      console.warn('[llm/provider] primary key hit limit — switching to fallback');
-      const { controller: c3, clear: clear3 } = makeAbortController(TIMEOUT_MS);
-      try {
-        res = await makeRequest(fallbackKey, c3.signal);
-      } catch (err: unknown) {
-        if (err instanceof Error && err.name === 'AbortError') {
-          throw new OpenRouterError('OpenRouter fallback request timed out after 30s', 0, true);
-        }
-        throw err;
-      } finally {
-        clear3();
+        throw new OpenRouterError('Groq rate limit exceeded — please try again later', 429);
       }
     }
 
     if (!res.ok) {
       const errText = await res.text();
-      console.error('[llm/provider] error:', res.status, errText);
-      if (res.status === 402) throw new OpenRouterError('OpenRouter: insufficient credits on all keys', 402);
-      throw new OpenRouterError(`OpenRouter error: ${res.status} ${res.statusText}`, res.status);
+      console.error('[llm/provider] Groq error:', res.status, errText);
+      throw new OpenRouterError(`Groq error: ${res.status} ${res.statusText}`, res.status);
     }
 
     const data = await res.json();

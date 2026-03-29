@@ -328,7 +328,11 @@ export default function ProfileBuilderPage() {
         }),
       })
 
-      if (!res.ok) throw new Error(`Extract failed: ${res.status}`)
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}))
+        console.error('[extract 500 detail]', errBody)
+        throw new Error(`Extract failed: ${res.status} — ${errBody.detail ?? errBody.error ?? ''}`)
+      }
       const extracted = await res.json()
 
       const pct: number = extracted.completionScore ?? 0
