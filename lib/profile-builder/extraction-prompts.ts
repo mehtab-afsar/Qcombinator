@@ -45,8 +45,22 @@ Fields to extract:
   "hasRetention": boolean,
   "retentionDetail": "string — renewals, expansions, repeat engagements",
   "largestContractUsd": number | null,
-  "p1EarlySignalScore": number — your estimate 1-5 based on evidence strength
+  "p1EarlySignalScore": number — your estimate 1-5 based on evidence strength,
+  "subScores": {
+    "earlySignal": number,
+    "willingnessToPay": number,
+    "speed": number,
+    "durability": number,
+    "scale": number
+  }
 }
+
+Sub-score rules (1.0–5.0 in 0.5 steps):
+- earlySignal: 1=no conversations, 3=5-20 conversations, 5=25+ or signed LOI
+- willingnessToPay: 1=verbal only, 3=pilot paid or $1-10K MRR, 5=$10K+ MRR or contract
+- speed: 1=no pipeline, 3=1-4 week cycle, 5=<1 week or self-serve
+- durability: 1=no repeat, 3=renewals/low churn, 5=NRR 110%+ or expansion
+- scale: 1=single niche, 3=beachhead + 1 adjacent, 5=multi-market with network effects
 
 Confidence rules (include in a separate "confidence" object with same keys):
 - Evidence named specific company + signed document mentioned: 0.85
@@ -127,7 +141,7 @@ Confidence rules (include "confidence" object):
 - Named prior exits or companies: 0.85
 - General capability claims: 0.50`,
 
-  // ── Section 5 — Financials & Impact (P1 revenue + P5) ─────────────────────
+  // ── Section 5 — Financials & Impact (P6 revenue + P5 structural impact) ───
   5: `You are a structured data extractor for a startup assessment platform.
 
 Extract the following fields. Return ONLY valid JSON. Null for missing fields.
@@ -144,13 +158,31 @@ Fields to extract:
     "averageDealSize": number | null
   },
   "p5": {
-    "climateLeverage": "string | null",
-    "socialImpact": "string | null",
-    "revenueImpactLink": "string | null",
-    "scalingMechanism": "string | null",
-    "viksitBharatAlignment": "string | null"
+    "climateLeverage": "string | null — climate impact claim with measurability",
+    "socialImpact": "string | null — social/resource efficiency impact",
+    "revenueImpactLink": "string | null — development relevance, SDG alignment",
+    "scalingMechanism": "string | null — business model impact alignment",
+    "viksitBharatAlignment": "string | null — strategic relevance to India development goals",
+    "resourceEfficiency": "string | null",
+    "developmentRelevance": "string | null",
+    "businessModelAlignment": "string | null",
+    "strategicRelevance": "string | null"
+  },
+  "subScores": {
+    "revenueScale": number,
+    "burnEfficiency": number,
+    "runway": number,
+    "unitEconomics": number,
+    "grossMargin": number
   }
 }
+
+Sub-score rules (1.0–5.0 in 0.5 steps):
+- revenueScale: 1=pre-revenue, 3=MRR $1K-10K, 5=MRR $200K+
+- burnEfficiency: 1=burn >10x revenue, 3=burn 2x revenue, 5=revenue covers burn
+- runway: 1=<3 months, 3=12-18 months, 5=24+ months
+- unitEconomics: 1=LTV/CAC<1, 3=LTV/CAC 3-5x, 5=LTV/CAC 8x+
+- grossMargin: 1=<20%, 3=50-70%, 5=>85%
 
 Confidence rules (include "confidence" object):
 - Numbers from uploaded financial document: 0.85

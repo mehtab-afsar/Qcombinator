@@ -192,16 +192,105 @@ export interface AssessmentData {
     priorExits?: number;           // 4.3 Successful exits or companies built before
     teamCoverage?: string[];       // 4.4 Leadership functions covered (e.g. ['tech','sales','product'])
     teamCohesionMonths?: number;   // 4.5 How long the core team has worked together
+    teamChurnRecent?: boolean;     // IQ v2: recent team churn flag
   };
 
   // ── P5: Structural Impact sub-indicators ──────────────────────────────────
   p5?: {
-    climateLeverage?: string;      // 5.1 Climate/environmental impact claim
-    socialImpact?: string;         // 5.2 Broader social or community impact
-    revenueImpactLink?: string;    // 5.3 How the impact is directly tied to the revenue model
-    scalingMechanism?: string;     // 5.4 How impact grows proportionally with revenue
-    viksitBharatAlignment?: string; // 5.5 Alignment with India's development priorities (sector + product)
+    climateLeverage?: string;       // 5.1 Climate/environmental impact claim
+    socialImpact?: string;          // 5.2 Resource efficiency / social impact
+    revenueImpactLink?: string;     // 5.3 Development relevance
+    scalingMechanism?: string;      // 5.4 Business model alignment to impact
+    viksitBharatAlignment?: string; // 5.5 Strategic relevance (Viksit Bharat / India priority)
+    // IQ v2 extended
+    resourceEfficiency?: string;
+    developmentRelevance?: string;
+    businessModelAlignment?: string;
+    strategicRelevance?: string;
   };
+
+  // ── IQ v2: additional fields ───────────────────────────────────────────────
+  hasPayingCustomers?: boolean;
+  payingCustomerDetail?: string;
+  salesCycleLength?: string;
+  hasRetention?: boolean;
+  retentionDetail?: string;
+  largestContractUsd?: number;
+  p1EarlySignalScore?: number;
+  replicationTimeMonths?: number;
+  teamChurnRecent?: boolean;
+  /** IQ v2 score version tag */
+  scoreVersion?: 'v1_prd' | 'v2_iq';
+}
+
+// ============================================================================
+// EDGE ALPHA IQ SCORE v2 TYPES (30 indicators, constant denominator 150)
+// ============================================================================
+
+import type { DataQuality } from './data-quality.types'
+
+/** Score stage tiers for rubric selection */
+export type ScoreStage = 'early' | 'mid' | 'growth'
+
+/** Startup track determines P5 scoring */
+export type StartupTrack = 'commercial' | 'impact'
+
+/** Per-indicator result */
+export interface IndicatorScore {
+  id: string             // e.g. '1.1', '3.4', '6.2'
+  name: string
+  rawScore: number       // 0.0–5.0 in 0.5 increments; 0 = excluded
+  excluded: boolean
+  exclusionReason?: string
+  dataQuality: DataQuality
+  vcAlert?: string       // Set by reconciliation engine (flag only, never overrides rawScore)
+  subScore?: number      // LLM-extracted qualitative sub-score (1.0–5.0)
+}
+
+/** Per-parameter rollup (P1–P6) */
+export interface ParameterScore {
+  id: string             // 'p1' through 'p6'
+  name: string
+  weight: number         // Sector + stage blended weight
+  indicators: IndicatorScore[]
+  /** Weighted contribution to finalIQ = Σ(rawScores) for this parameter's indicators */
+  rawSum: number
+  /** Average rawScore for non-excluded indicators (display only) */
+  averageScore: number
+}
+
+/** Full IQ Score result */
+export interface IQScoreResult {
+  /** Final score: Σ(all 30 rawScores) / 150 × 100 */
+  finalIQ: number
+  /** Score from non-excluded indicators only: Σ(non-excluded) / (N_active × 5) × 100 */
+  availableIQ: number
+  grade: PRDQScore['grade']
+  parameters: ParameterScore[]
+  indicatorsActive: number     // non-excluded count
+  indicatorsExcluded: number
+  track: StartupTrack
+  sector: string
+  stage: ScoreStage
+  reconciliationFlags: string[]
+  validationWarnings: string[]
+  calculatedAt: Date
+}
+
+// ── P5 new fields (add to AssessmentData.p5) ──────────────────────────────────
+// Extended p5 fields already on AssessmentData; keeping backward compat.
+// New fields for the IQ v2 impact track indicators:
+export interface P5DataV2 {
+  climateLeverage?: string
+  socialImpact?: string
+  revenueImpactLink?: string
+  scalingMechanism?: string
+  viksitBharatAlignment?: string
+  // v2 additions
+  resourceEfficiency?: string
+  developmentRelevance?: string
+  businessModelAlignment?: string
+  strategicRelevance?: string
 }
 
 // ============================================================================

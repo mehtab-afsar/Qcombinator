@@ -13,21 +13,22 @@ import { fetchDimensionWeights } from '@/features/qscore/services/threshold-conf
  * Caps: no single dimension can exceed 100, and the boost is conservative
  * (max +6 pts) — the real assessment drives meaningful score changes.
  */
-// Canonical dimension mappings — aligned with docs/scoring-stages.md
-const ARTIFACT_BOOST: Record<string, { dbColumn: string; label: string; points: number }> = {
-  [ARTIFACT_TYPES.ICP_DOCUMENT]:       { dbColumn: DIMENSION_DB_COLUMN.gtm,      label: 'Go-to-Market', points: 5 },
-  [ARTIFACT_TYPES.OUTREACH_SEQUENCE]:  { dbColumn: DIMENSION_DB_COLUMN.gtm,      label: 'Go-to-Market', points: 3 },
-  [ARTIFACT_TYPES.BATTLE_CARD]:        { dbColumn: DIMENSION_DB_COLUMN.market,   label: 'Market',       points: 4 },
-  [ARTIFACT_TYPES.GTM_PLAYBOOK]:       { dbColumn: DIMENSION_DB_COLUMN.gtm,      label: 'Go-to-Market', points: 6 },
-  [ARTIFACT_TYPES.SALES_SCRIPT]:       { dbColumn: DIMENSION_DB_COLUMN.traction, label: 'Traction',     points: 4 },
-  [ARTIFACT_TYPES.BRAND_MESSAGING]:    { dbColumn: DIMENSION_DB_COLUMN.product,  label: 'Product',      points: 3 },
-  [ARTIFACT_TYPES.FINANCIAL_SUMMARY]:  { dbColumn: DIMENSION_DB_COLUMN.financial,label: 'Financial',    points: 6 },
-  [ARTIFACT_TYPES.LEGAL_CHECKLIST]:    { dbColumn: DIMENSION_DB_COLUMN.team,     label: 'Team',         points: 3 },
-  [ARTIFACT_TYPES.HIRING_PLAN]:        { dbColumn: DIMENSION_DB_COLUMN.team,     label: 'Team',         points: 5 },
-  [ARTIFACT_TYPES.PMF_SURVEY]:         { dbColumn: DIMENSION_DB_COLUMN.traction, label: 'Traction',     points: 5 },
-  [ARTIFACT_TYPES.INTERVIEW_NOTES]:    { dbColumn: DIMENSION_DB_COLUMN.product,  label: 'Product',      points: 3 },
-  [ARTIFACT_TYPES.COMPETITIVE_MATRIX]: { dbColumn: DIMENSION_DB_COLUMN.market,   label: 'Market',       points: 5 },
-  [ARTIFACT_TYPES.STRATEGIC_PLAN]:     { dbColumn: DIMENSION_DB_COLUMN.market,   label: 'Market',       points: 4 },
+// Canonical dimension mappings — remapped to IQ Score v2 P1–P6 parameter labels
+// dbColumn kept as legacy for backward compat (qscore_history legacy rows)
+const ARTIFACT_BOOST: Record<string, { dbColumn: string; label: string; paramId: string; points: number }> = {
+  [ARTIFACT_TYPES.ICP_DOCUMENT]:       { dbColumn: DIMENSION_DB_COLUMN.gtm,      label: 'P2: Market Potential',    paramId: 'p2', points: 5 },
+  [ARTIFACT_TYPES.OUTREACH_SEQUENCE]:  { dbColumn: DIMENSION_DB_COLUMN.gtm,      label: 'P1: Market Readiness',    paramId: 'p1', points: 3 },
+  [ARTIFACT_TYPES.BATTLE_CARD]:        { dbColumn: DIMENSION_DB_COLUMN.market,   label: 'P2: Market Potential',    paramId: 'p2', points: 4 },
+  [ARTIFACT_TYPES.GTM_PLAYBOOK]:       { dbColumn: DIMENSION_DB_COLUMN.gtm,      label: 'P1: Market Readiness',    paramId: 'p1', points: 6 },
+  [ARTIFACT_TYPES.SALES_SCRIPT]:       { dbColumn: DIMENSION_DB_COLUMN.traction, label: 'P1: Market Readiness',    paramId: 'p1', points: 4 },
+  [ARTIFACT_TYPES.BRAND_MESSAGING]:    { dbColumn: DIMENSION_DB_COLUMN.product,  label: 'P2: Market Potential',    paramId: 'p2', points: 3 },
+  [ARTIFACT_TYPES.FINANCIAL_SUMMARY]:  { dbColumn: DIMENSION_DB_COLUMN.financial,label: 'P6: Financials',          paramId: 'p6', points: 6 },
+  [ARTIFACT_TYPES.LEGAL_CHECKLIST]:    { dbColumn: DIMENSION_DB_COLUMN.team,     label: 'P3: IP / Defensibility',  paramId: 'p3', points: 3 },
+  [ARTIFACT_TYPES.HIRING_PLAN]:        { dbColumn: DIMENSION_DB_COLUMN.team,     label: 'P4: Founder / Team',      paramId: 'p4', points: 5 },
+  [ARTIFACT_TYPES.PMF_SURVEY]:         { dbColumn: DIMENSION_DB_COLUMN.traction, label: 'P1: Market Readiness',    paramId: 'p1', points: 5 },
+  [ARTIFACT_TYPES.INTERVIEW_NOTES]:    { dbColumn: DIMENSION_DB_COLUMN.product,  label: 'P1: Market Readiness',    paramId: 'p1', points: 3 },
+  [ARTIFACT_TYPES.COMPETITIVE_MATRIX]: { dbColumn: DIMENSION_DB_COLUMN.market,   label: 'P2: Market Potential',    paramId: 'p2', points: 5 },
+  [ARTIFACT_TYPES.STRATEGIC_PLAN]:     { dbColumn: DIMENSION_DB_COLUMN.market,   label: 'P2: Market Potential',    paramId: 'p2', points: 4 },
 };
 
 interface SignalResult {
@@ -152,6 +153,7 @@ export async function applyAgentScoreSignal(
   ));
 
   // Insert new history row (linked via previous_score_id for delta tracking)
+  // score_version = 'v1_prd' — agent boosts are minor nudges on legacy scores
   const { error } = await supabase
     .from('qscore_history')
     .insert({
@@ -163,6 +165,7 @@ export async function applyAgentScoreSignal(
       grade:                calculateGrade(newOverall),
       data_source:          'agent_completion',
       source_artifact_type: artifactType,
+      score_version:        'v1_prd',
       ...scores,
     });
 

@@ -20,12 +20,25 @@
       "Bash(find /Users/mohammedmehtabafsar/Desktop/Qcombinator/components -type f \\\\\\(-name *.ts -o -name *.tsx \\\\\\))",
       "Bash(head -20 grep \"ADD COLUMN\\\\|founder_name\\\\|company_name\\\\|revenue_status\\\\|team_size\\\\|years_on_problem\\\\|prior_experience\\\\|registration_completed\\\\|profile_builder_completed\\\\|cofounder_count\\\\|funding_status\" /Users/mohammedmehtabafsar/Desktop/Qcombinator/supabase/migrations/20260325000002_profile_builder.sql)",
       "Read(//Users/mohammedmehtabafsar/Desktop/Qcombinator/**)",
-      "Bash(SUPABASE_DB_PASSWORD='Mehtabafsar@1' supabase db push)"
+      "Bash(SUPABASE_DB_PASSWORD='Mehtabafsar@1' supabase db push)",
+      "Bash(node -e \"require\\(''pdf-parse''\\)\")",
+      "Bash(node -e \"require\\(''pdfjs-dist''\\)\")",
+      "Bash(node -e \"require\\(''adm-zip''\\)\")",
+      "Bash(node -e \"require\\(''''pdfjs-dist''''\\)\")",
+      "Bash(psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -c \"SELECT 1\")",
+      "Bash(psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -f supabase/migrations/20260327000001_iq_score_version.sql)",
+      "Bash(psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -f supabase/migrations/20260327000002_sector_weight_profiles.sql)",
+      "Bash(psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -f supabase/migrations/20260327000003_qscore_benchmarks.sql)",
+      "Bash(psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -f supabase/migrations/20260327000004_qscore_reconciliation_log.sql)",
+      "Bash(psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -f supabase/migrations/20260327000005_iq_score_v2_history_columns.sql)",
+      "Bash(psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -c \":*)",
+      "Bash(psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -c \"\\\\dt public.*profile_builder*\")"
     ],
     "additionalDirectories": [
       "/Users/mohammedmehtabafsar/Desktop/Qcombinator/app/founder/cxo",
       "/Users/mohammedmehtabafsar/Desktop/Qcombinator/app/startup",
-      "/Users/mohammedmehtabafsar/Desktop/Qcombinator/supabase/migrations"
+      "/Users/mohammedmehtabafsar/Desktop/Qcombinator/supabase/migrations",
+      "/Users/mohammedmehtabafsar/Desktop/Qcombinator/qcombinator-backend"
     ]
   }
 }

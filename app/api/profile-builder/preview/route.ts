@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { mergeToAssessmentData } from '@/lib/profile-builder/data-merger'
-import { calculatePRDQScore } from '@/features/qscore/calculators/prd-aligned-qscore'
+import { calculateIQScore, inferStage, normalizeSector } from '@/features/qscore/calculators/iq-score-calculator'
+import { validateConsistency } from '@/features/qscore/validators/consistency-validator'
+import { getAllIndicatorPercentiles } from '@/features/qscore/benchmarking/benchmark-engine'
 import type { SectionData } from '@/lib/profile-builder/data-merger'
 
 function getAdminClient() {
@@ -23,21 +25,6 @@ async function getUserId(req: NextRequest): Promise<string | null> {
   return data.user?.id ?? null
 }
 
-function getBoostActions(dimensions: Record<string, number>): Array<{ action: string; impact: number }> {
-  const actions: Array<{ action: string; impact: number }> = []
-  if ((dimensions.financial ?? 0) < 70)
-    actions.push({ action: 'Connect Stripe or upload financial model', impact: 18 })
-  if ((dimensions.traction ?? 0) < 65)
-    actions.push({ action: 'Upload customer list or LOIs', impact: 12 })
-  if ((dimensions.market ?? 0) < 65)
-    actions.push({ action: 'Upload competitive analysis or market research', impact: 8 })
-  if ((dimensions.team ?? 0) < 70)
-    actions.push({ action: 'Add LinkedIn URL or team bio document', impact: 6 })
-  if ((dimensions.product ?? 0) < 65)
-    actions.push({ action: 'Share customer interview notes or feedback', impact: 7 })
-  return actions.sort((a, b) => b.impact - a.impact).slice(0, 3)
-}
-
 export async function GET(req: NextRequest) {
   try {
     const userId = await getUserId(req)
@@ -57,11 +44,15 @@ export async function GET(req: NextRequest) {
     if (!rows || rows.length === 0) {
       return NextResponse.json({
         projectedScore: 0,
+        finalIQ: 0,
+        availableIQ: 0,
         grade: 'F',
-        dimensions: { market: 0, product: 0, gtm: 0, financial: 0, team: 0, traction: 0 },
+        iqBreakdown: [],
+        validationWarnings: [],
         boostActions: [],
         marketplaceUnlocked: false,
         sectionsComplete: 0,
+        scoreVersion: 'v2_iq',
       })
     }
 
@@ -74,31 +65,94 @@ export async function GET(req: NextRequest) {
     }
 
     const { assessmentData } = mergeToAssessmentData(sections)
-    const qScore = calculatePRDQScore(assessmentData)
 
-    const dimensions = {
-      market: Math.round(qScore.breakdown.market?.score ?? 0),
-      product: Math.round(qScore.breakdown.product?.score ?? 0),
-      gtm: Math.round(qScore.breakdown.goToMarket?.score ?? 0),
-      financial: Math.round(qScore.breakdown.financial?.score ?? 0),
-      team: Math.round(qScore.breakdown.team?.score ?? 0),
-      traction: Math.round(qScore.breakdown.traction?.score ?? 0),
-    }
+    // Load founder profile for stage/sector
+    const { data: fp } = await supabase
+      .from('founder_profiles')
+      .select('industry, stage, is_impact_focused')
+      .eq('user_id', userId)
+      .single()
+
+    const sector = normalizeSector(fp?.industry ?? 'default')
+    const stage = inferStage(fp?.stage ?? 'mid')
+    const isImpactFocused = fp?.is_impact_focused ?? false
+
+    const iqResult = calculateIQScore(
+      assessmentData,
+      stage,
+      sector,
+      isImpactFocused ? 'impact' : undefined
+    )
+
+    // Validation warnings (non-blocking in preview)
+    const allIndicators = iqResult.parameters.flatMap(p => p.indicators)
+    const validation = validateConsistency(allIndicators, assessmentData)
 
     const sectionsComplete = rows.filter(r => (r.completion_score ?? 0) >= 70).length
-    const projectedScore = Math.round(qScore.overall)
-    const boostActions = getBoostActions(dimensions)
+
+    // Benchmark percentiles (non-blocking)
+    let percentileMap = new Map<string, { percentile: number | null; label: string }>()
+    try {
+      const rawPercentiles = await getAllIndicatorPercentiles(supabase, allIndicators, sector, stage)
+      rawPercentiles.forEach((v, k) => percentileMap.set(k, { percentile: v.percentile, label: v.label }))
+    } catch {
+      // non-blocking
+    }
+
+    // Boost actions per parameter
+    const boostActions = iqResult.parameters
+      .filter(p => p.averageScore < 3.0)
+      .sort((a, b) => a.averageScore - b.averageScore)
+      .slice(0, 3)
+      .map(p => ({
+        parameter: p.name,
+        action: getBoostAction(p.id),
+        currentScore: Math.round(p.averageScore * 10) / 10,
+      }))
 
     return NextResponse.json({
-      projectedScore,
-      grade: qScore.grade,
-      dimensions,
+      projectedScore: Math.round(iqResult.finalIQ),
+      finalIQ: iqResult.finalIQ,
+      availableIQ: iqResult.availableIQ,
+      grade: iqResult.grade,
+      iqBreakdown: iqResult.parameters.map(p => ({
+        id: p.id,
+        name: p.name,
+        averageScore: Math.round(p.averageScore * 10) / 10,
+        weight: Math.round(p.weight * 100),
+        indicatorsActive: p.indicators.filter(i => !i.excluded).length,
+        indicators: p.indicators.map(ind => ({
+          id: ind.id,
+          name: ind.name,
+          rawScore: ind.rawScore,
+          excluded: ind.excluded,
+          exclusionReason: ind.exclusionReason,
+          vcAlert: ind.vcAlert,
+          percentile: percentileMap.get(ind.id)?.percentile ?? null,
+          percentileLabel: percentileMap.get(ind.id)?.label ?? null,
+        })),
+      })),
+      validationWarnings: validation.warnings.map(w => w.message),
       boostActions,
-      marketplaceUnlocked: projectedScore >= 65,
+      marketplaceUnlocked: iqResult.finalIQ >= 45,
       sectionsComplete,
+      track: iqResult.track,
+      scoreVersion: 'v2_iq',
     })
   } catch (err) {
     console.error('[profile-builder/preview]', err)
     return NextResponse.json({ error: 'Preview failed' }, { status: 500 })
   }
+}
+
+function getBoostAction(paramId: string): string {
+  const actions: Record<string, string> = {
+    p1: 'Upload LOIs or customer contracts to strengthen market readiness',
+    p2: 'Add market size research or competitive analysis document',
+    p3: 'Document IP claims, patents, or technical architecture',
+    p4: 'Upload team bios or LinkedIn profiles to strengthen team credibility',
+    p5: 'Add impact metrics or alignment with development goals',
+    p6: 'Connect Stripe or upload financial model/spreadsheet',
+  }
+  return actions[paramId] ?? 'Complete more section questions to improve your score'
 }

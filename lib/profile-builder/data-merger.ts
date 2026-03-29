@@ -79,6 +79,14 @@ export function mergeToAssessmentData(sections: Partial<Record<number, SectionDa
     conversationCount:     num(s1.conversationCount),
     customerList:          arr(s1.customerList),
 
+    // ── IQ v2: Section 1 additional fields ─────────────────────────────────
+    hasPayingCustomers:    bool(s1.hasPayingCustomers),
+    payingCustomerDetail:  str(s1.payingCustomerDetail),
+    salesCycleLength:      str(s1.salesCycleLength),
+    hasRetention:          bool(s1.hasRetention) || undefined,
+    retentionDetail:       str(s1.retentionDetail),
+    largestContractUsd:    num(s1.largestContractUsd) || undefined,
+
     // ── Product/learning (placeholder — profile builder collects via IP section) ──
     failedBelief:          '',
     failedReasoning:       '',
@@ -147,7 +155,11 @@ export function mergeToAssessmentData(sections: Partial<Record<number, SectionDa
       priorExits:         num(p4.priorExits),
       teamCoverage:       arr(p4.teamCoverage),
       teamCohesionMonths: num(p4.teamCohesionMonths) || undefined,
+      teamChurnRecent:    bool(p4.teamChurnRecent) || undefined,
     } : undefined,
+
+    // ── IQ v2: additional top-level fields ─────────────────────────────────
+    replicationTimeMonths: num(p3?.replicationTimeMonths) || undefined,
 
     // ── P5: Structural Impact (Section 5) ──────────────────────────────────
     p5: p5 ? {
@@ -156,6 +168,11 @@ export function mergeToAssessmentData(sections: Partial<Record<number, SectionDa
       revenueImpactLink:        str(p5.revenueImpactLink) || undefined,
       scalingMechanism:         str(p5.scalingMechanism) || undefined,
       viksitBharatAlignment:    str(p5.viksitBharatAlignment) || undefined,
+      // IQ v2 extended P5
+      resourceEfficiency:       str(p5.resourceEfficiency) || undefined,
+      developmentRelevance:     str(p5.developmentRelevance) || undefined,
+      businessModelAlignment:   str(p5.businessModelAlignment) || undefined,
+      strategicRelevance:       str(p5.strategicRelevance) || undefined,
     } : undefined,
   }
 

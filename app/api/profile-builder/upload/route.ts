@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { parseDocument } from '@/lib/profile-builder/document-parser'
 import { EXTRACTION_PROMPTS } from '@/lib/profile-builder/extraction-prompts'
 import { callOpenRouter } from '@/lib/openrouter'
+import { getSectionCompletionPct, getMissingFields } from '@/lib/profile-builder/question-engine'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
 const ALLOWED_TYPES = [
@@ -15,6 +16,66 @@ const ALLOWED_TYPES = [
   'image/webp',
 ]
 const ALLOWED_EXTS = ['.pdf', '.pptx', '.xlsx', '.csv', '.png', '.jpg', '.jpeg', '.webp']
+
+const SECTION_LABELS: Record<number, string> = {
+  1: 'Market Validation',
+  2: 'Market & Competition',
+  3: 'IP & Technology',
+  4: 'Team',
+  5: 'Financials & Impact',
+}
+
+// Human-readable labels for field paths shown in extraction summary
+const FIELD_LABELS: Record<string, string> = {
+  customerCommitment: 'Customer commitment',
+  conversationCount: 'Conversation count',
+  hasPayingCustomers: 'Paying customers',
+  payingCustomerDetail: 'Customer details',
+  salesCycleLength: 'Sales cycle',
+  hasRetention: 'Retention data',
+  retentionDetail: 'Retention details',
+  largestContractUsd: 'Largest contract',
+  'p2.tamDescription': 'TAM description',
+  'p2.marketUrgency': 'Market urgency',
+  'p2.valuePool': 'Value pool',
+  'p2.competitorCount': 'Competitor count',
+  'p2.competitorDensityContext': 'Competitive context',
+  'p3.hasPatent': 'Patent status',
+  'p3.buildComplexity': 'Build complexity',
+  'p3.technicalDepth': 'Technical depth',
+  'p3.knowHowDensity': 'Know-how density',
+  'p3.replicationCostUsd': 'Replication cost',
+  'p4.domainYears': 'Domain experience',
+  'p4.founderMarketFit': 'Founder-market fit',
+  'p4.teamCoverage': 'Team coverage',
+  'p4.priorExits': 'Prior exits',
+  'p4.teamCohesionMonths': 'Team cohesion',
+  'financial.mrr': 'MRR',
+  'financial.arr': 'ARR',
+  'financial.monthlyBurn': 'Monthly burn',
+  'financial.runway': 'Runway',
+  'financial.grossMargin': 'Gross margin',
+}
+
+const MISSING_FIELD_LABELS: Record<string, string> = {
+  customerCommitment: 'Customer commitments',
+  conversationCount: 'Customer conversation count',
+  hasPayingCustomers: 'Paying customers',
+  hasRetention: 'Retention / NDR',
+  salesCycleLength: 'Sales cycle length',
+  'p2.tamDescription': 'TAM / market size',
+  'p2.marketUrgency': '"Why now?" catalyst',
+  'p2.competitorDensityContext': 'Competitive differentiation',
+  'p3.hasPatent': 'Patents / trade secrets',
+  'p3.buildComplexity': 'Replication difficulty',
+  'p3.technicalDepth': 'Technical complexity',
+  'p4.domainYears': 'Years of domain experience',
+  'p4.founderMarketFit': 'Founder-market fit narrative',
+  'p4.teamCoverage': 'Team function coverage',
+  'financial.mrr': 'Monthly revenue (MRR)',
+  'financial.monthlyBurn': 'Monthly burn rate',
+  'financial.runway': 'Runway (months)',
+}
 
 function getSupabase() {
   return createClient(
@@ -33,6 +94,30 @@ async function getUserId(req: NextRequest): Promise<string | null> {
   )
   const { data } = await supabase.auth.getUser(token)
   return data.user?.id ?? null
+}
+
+// Slice only fields relevant to a given section from the full extracted object
+function getSectionRelevantFields(all: Record<string, unknown>, section: number): Record<string, unknown> {
+  const picks: Record<number, string[]> = {
+    1: ['customerCommitment', 'conversationCount', 'hasPayingCustomers', 'payingCustomerDetail', 'salesCycleLength', 'hasRetention', 'retentionDetail', 'largestContractUsd'],
+    2: ['p2', 'targetCustomers', 'lifetimeValue'],
+    3: ['p3'],
+    4: ['p4', 'problemStory', 'advantages', 'hardshipStory'],
+    5: ['financial', 'p5'],
+  }
+  return Object.fromEntries(
+    (picks[section] ?? []).filter(k => k in all).map(k => [k, all[k]])
+  )
+}
+
+// Get a human-readable snippet value for extracted field preview
+function snippetValue(value: unknown): string {
+  if (value === null || value === undefined) return ''
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No'
+  if (typeof value === 'number') return value.toLocaleString()
+  if (Array.isArray(value)) return value.slice(0, 3).join(', ')
+  if (typeof value === 'string') return value.slice(0, 60) + (value.length > 60 ? '…' : '')
+  return String(value).slice(0, 60)
 }
 
 export async function POST(req: NextRequest) {
@@ -54,20 +139,36 @@ export async function POST(req: NextRequest) {
     if (!isAllowedType) return NextResponse.json({ error: 'File type not allowed' }, { status: 400 })
 
     const buffer = Buffer.from(await file.arrayBuffer())
-    const parsed = parseDocument(buffer, filename, mimeType)
+    const parsed = await parseDocument(buffer, filename, mimeType)
 
-    // Store file in Supabase Storage
+    // Store file in Supabase Storage — ensure bucket exists first
     const supabase = getSupabase()
+    await supabase.storage.createBucket('uploads', { public: false }).catch(() => {
+      // Bucket likely already exists — ignore
+    })
     const storagePath = `profile-builder/${userId}/${Date.now()}-${filename}`
-    await supabase.storage.from('uploads').upload(storagePath, buffer, {
+    const { error: storageErr } = await supabase.storage.from('uploads').upload(storagePath, buffer, {
       contentType: mimeType,
       upsert: false,
-    }).catch(e => console.warn('Storage upload failed (non-blocking):', e))
+    })
+    if (storageErr) console.warn('Storage upload failed (non-blocking):', storageErr.message)
 
-    // Run LLM extraction with the section prompt
+    // Read founder stage for completion scoring
+    const { data: fp } = await supabase
+      .from('founder_profiles')
+      .select('stage')
+      .eq('user_id', userId)
+      .single()
+    const founderStage: string = fp?.stage ?? 'pre-product'
+
+    // Run LLM extraction — for step-0 uploads use a combined prompt covering all sections
     let extractedFields: Record<string, unknown> = {}
     let confidenceMap: Record<string, number> = {}
-    const sectionPrompt = EXTRACTION_PROMPTS[section]
+
+    // For step-0 global upload, use section 1 prompt as the primary extraction
+    // (covers most common fields: customers, revenue, market, team, financials)
+    const promptSection = section === 0 ? 1 : section
+    const sectionPrompt = EXTRACTION_PROMPTS[promptSection]
 
     if (sectionPrompt && parsed.text.length > 50) {
       try {
@@ -76,14 +177,12 @@ export async function POST(req: NextRequest) {
           { role: 'user', content: `Document text:\n\n${parsed.text}` },
         ], { maxTokens: 1200, temperature: 0.1 })
 
-        // Extract JSON from response
         const jsonMatch = raw.match(/\{[\s\S]*\}/)
         if (jsonMatch) {
           const parsed2 = JSON.parse(jsonMatch[0])
           const { confidence: conf, ...rest } = parsed2
           extractedFields = rest
           confidenceMap = conf ?? {}
-          // Boost confidence for doc-extracted fields
           for (const key of Object.keys(confidenceMap)) {
             if (typeof confidenceMap[key] === 'number') {
               confidenceMap[key] = Math.min(1, confidenceMap[key] + 0.10)
@@ -95,9 +194,38 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Also run section-5 extraction for financials if not already covered
+    if (section === 0 && parsed.text.length > 50) {
+      try {
+        const fin = EXTRACTION_PROMPTS[5]
+        if (fin) {
+          const raw2 = await callOpenRouter([
+            { role: 'system', content: fin },
+            { role: 'user', content: `Document text:\n\n${parsed.text}` },
+          ], { maxTokens: 800, temperature: 0.1 })
+          const jm = raw2.match(/\{[\s\S]*\}/)
+          if (jm) {
+            const p2 = JSON.parse(jm[0])
+            const { confidence: conf2, ...rest2 } = p2
+            // Merge — don't overwrite existing fields
+            for (const [k, v] of Object.entries(rest2)) {
+              if (!(k in extractedFields) && v !== null && v !== undefined) {
+                extractedFields[k] = v
+              }
+            }
+            for (const [k, v] of Object.entries(conf2 ?? {})) {
+              if (!(k in confidenceMap)) confidenceMap[k] = v as number
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('LLM section-5 extraction failed (non-blocking):', e)
+      }
+    }
+
     // If XLSX had structuredData, merge it
     if (parsed.structuredData) {
-      Object.assign(extractedFields, { financial: { ...parsed.structuredData } })
+      Object.assign(extractedFields, { financial: { ...(extractedFields.financial as object ?? {}), ...parsed.structuredData } })
     }
 
     // Save upload record
@@ -116,28 +244,92 @@ export async function POST(req: NextRequest) {
       .select('id')
       .single()
 
+    const uploadId = uploadRecord?.id ?? null
+
+    // ── Step-0: auto-save extracted fields into profile_builder_data per section ──
+    type SectionSummary = {
+      sectionKey: string
+      label: string
+      completionPct: number
+      extractedCount: number
+      extractedSnippets: Array<{ label: string; value: string }>
+      missingLabels: string[]
+    }
+
+    const sectionSummaries: SectionSummary[] = []
+
+    if (section === 0 && Object.keys(extractedFields).length > 0) {
+      for (const secNum of [1, 2, 3, 4, 5] as const) {
+        const sectionFields = getSectionRelevantFields(extractedFields, secNum)
+        const completionScore = getSectionCompletionPct(sectionFields, secNum, founderStage)
+        const missing = getMissingFields(sectionFields, secNum, founderStage)
+
+        // Build human-readable snippets for the UI
+        const snippets: Array<{ label: string; value: string }> = []
+        const flatField = (obj: Record<string, unknown>, prefix = '') => {
+          for (const [k, v] of Object.entries(obj)) {
+            const fullKey = prefix ? `${prefix}.${k}` : k
+            if (v !== null && v !== undefined) {
+              if (typeof v === 'object' && !Array.isArray(v)) {
+                flatField(v as Record<string, unknown>, fullKey)
+              } else {
+                const label = FIELD_LABELS[fullKey] ?? fullKey
+                snippets.push({ label, value: snippetValue(v) })
+              }
+            }
+          }
+        }
+        flatField(sectionFields)
+
+        sectionSummaries.push({
+          sectionKey: String(secNum),
+          label: SECTION_LABELS[secNum],
+          completionPct: completionScore,
+          extractedCount: snippets.length,
+          extractedSnippets: snippets.slice(0, 5),
+          missingLabels: missing.map(f => MISSING_FIELD_LABELS[f] ?? f),
+        })
+
+        // Upsert into profile_builder_data so submission can count it
+        if (Object.keys(sectionFields).length > 0) {
+          const { error: upsertErr } = await supabase.from('profile_builder_data').upsert({
+            user_id: userId,
+            section: secNum,
+            raw_conversation: '',
+            extracted_fields: sectionFields,
+            confidence_map: confidenceMap,
+            completion_score: completionScore,
+            uploaded_documents: [{ uploadId, filename, fields: snippets.length }],
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'user_id,section' })
+          if (upsertErr) console.warn(`[upload] upsert section ${secNum} failed:`, upsertErr.message)
+        }
+      }
+    }
+
     // Build extraction preview for UI
     const preview: Array<{ field: string; value: unknown; confidence: number }> = []
-    const flatten = (obj: unknown, prefix = '') => {
+    const flattenPreview = (obj: unknown, prefix = '') => {
       if (typeof obj !== 'object' || obj === null) return
       for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
         const fullKey = prefix ? `${prefix}.${k}` : k
         if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
-          flatten(v, fullKey)
+          flattenPreview(v, fullKey)
         } else if (v !== null && v !== undefined) {
           preview.push({ field: fullKey, value: v, confidence: (confidenceMap[k] ?? parsed.confidence) })
         }
       }
     }
-    flatten(extractedFields)
+    flattenPreview(extractedFields)
 
     return NextResponse.json({
-      uploadId: uploadRecord?.id ?? null,
+      uploadId,
       extractedPreview: preview.slice(0, 20),
       extractedFields,
       confidenceMap,
       parsedText: parsed.text.slice(0, 500),
       summary: `Extracted ${preview.length} fields from ${filename}`,
+      sectionSummaries,  // populated only for step-0 uploads
     })
   } catch (err) {
     console.error('[profile-builder/upload]', err)

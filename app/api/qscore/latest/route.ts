@@ -31,7 +31,7 @@ export async function GET(_request: NextRequest) {
       console.warn('qscore_with_delta view error, falling back to direct query:', viewError.message);
       const { data: directData, error: directError } = await supabase
         .from('qscore_history')
-        .select('id, user_id, overall_score, percentile, grade, market_score, product_score, gtm_score, financial_score, team_score, traction_score, calculated_at, ai_actions, data_source, source_artifact_type')
+        .select('id, user_id, overall_score, percentile, grade, market_score, product_score, gtm_score, financial_score, team_score, traction_score, calculated_at, ai_actions, data_source, source_artifact_type, score_version, iq_breakdown, available_iq, track')
         .eq('user_id', user.id)
         .order('calculated_at', { ascending: false })
         .limit(1)
@@ -84,6 +84,11 @@ export async function GET(_request: NextRequest) {
     const dataPenalty = hasVerifiedData ? 0.7 : 1.0;
     const scoreRange = Math.max(2, Math.round(10 * (1 - ragConf) * dataPenalty));
 
+    const scoreVersion = (latest.score_version as string) ?? 'v1_prd'
+    const iqBreakdown = (latest.iq_breakdown as Record<string, unknown>) ?? null
+    const availableIQ = (latest.available_iq as number) ?? null
+    const track = (latest.track as string) ?? null
+
     const qScore = {
       overall: effectiveOverall,
       rawOverall,
@@ -94,6 +99,10 @@ export async function GET(_request: NextRequest) {
       grade: latest.grade,
       change: num(latest.overall_change),
       ragMetadata,
+      scoreVersion,
+      iqBreakdown,
+      availableIQ,
+      track,
       breakdown: {
         market: {
           score: latest.market_score,

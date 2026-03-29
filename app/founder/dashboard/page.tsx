@@ -55,6 +55,14 @@ const DEMO_QSCORE = {
 };
 
 const DIMENSION_META: Record<string, { label: string; weight: number }> = {
+  // IQ Score v2 parameters (P1–P6)
+  p1:         { label: "Market Readiness",   weight: 20 },
+  p2:         { label: "Market Potential",   weight: 20 },
+  p3:         { label: "IP / Defensibility", weight: 17 },
+  p4:         { label: "Founder / Team",     weight: 18 },
+  p5:         { label: "Structural Impact",  weight: 8  },
+  p6:         { label: "Financials",         weight: 17 },
+  // Legacy v1_prd dimensions (kept for backward compat with old score rows)
   market:     { label: "Market",    weight: 20 },
   product:    { label: "Product",   weight: 18 },
   goToMarket: { label: "GTM",       weight: 17 },
@@ -82,8 +90,16 @@ const DIM_BOOSTS: Record<string, { agent: string; artifact: string; pts: number 
   traction:   [{ agent: "susi",   artifact: "outreach_sequence",  pts: 4 }, { agent: "susi",   artifact: "sales_script",   pts: 4 }],
 };
 
-// Maps each Q-Score dimension to the best agent to challenge it
+// Maps each IQ Score v2 parameter (and legacy dimension) to the best agent to challenge it
 const DIMENSION_AGENT: Record<string, { agentId: string; agentName: string; label: string }> = {
+  // IQ v2 P1–P6
+  p1:         { agentId: "patel",  agentName: "Patel",  label: "GTM Playbook"         },
+  p2:         { agentId: "atlas",  agentName: "Atlas",  label: "Competitive Analysis" },
+  p3:         { agentId: "leo",    agentName: "Leo",    label: "Legal Checklist"      },
+  p4:         { agentId: "harper", agentName: "Harper", label: "Hiring Plan"          },
+  p5:         { agentId: "sage",   agentName: "Sage",   label: "Strategic Plan"       },
+  p6:         { agentId: "felix",  agentName: "Felix",  label: "Financial Summary"    },
+  // Legacy v1_prd keys
   market:     { agentId: "atlas",  agentName: "Atlas",  label: "Competitive Analysis" },
   product:    { agentId: "nova",   agentName: "Nova",   label: "PMF Research Kit"     },
   goToMarket: { agentId: "patel",  agentName: "Patel",  label: "GTM Playbook"         },
@@ -135,6 +151,10 @@ const DIM_COLORS: Record<string, string> = {
   traction:  "#0891B2",
 };
 const DIM_LABELS: Record<string, string> = {
+  // IQ v2 P1–P6
+  p1: "Market Readiness", p2: "Market Potential", p3: "IP / Defensibility",
+  p4: "Founder / Team",  p5: "Impact",            p6: "Financials",
+  // Legacy v1_prd
   market: "Market", product: "Product", gtm: "GTM",
   financial: "Financial", team: "Team", traction: "Traction",
 };
@@ -467,7 +487,19 @@ export default function FounderDashboard() {
     : DEMO_QSCORE;
 
   const isDemo = !realQScore;
-  const sortedDims = Object.entries(qs.breakdown).sort(([, a], [, b]) => a.score - b.score);
+  const scoreVersion = (realQScore as unknown as { scoreVersion?: string })?.scoreVersion ?? 'v1_prd'
+  const isIQv2 = scoreVersion === 'v2_iq'
+
+  // For v2_iq scores use P1–P6 parameters; for v1_prd use legacy breakdown
+  type IQParam = { id: string; name: string; averageScore: number; weight: number; indicatorsActive: number }
+  const iqParams: IQParam[] = isIQv2
+    ? (((realQScore as unknown as { iqBreakdown?: IQParam[] })?.iqBreakdown as IQParam[]) ?? [])
+    : []
+
+  // Build the display breakdown: for v2 map iqParams → score bars; for v1 use legacy
+  const sortedDims = isIQv2
+    ? [...iqParams].sort((a, b) => a.averageScore - b.averageScore).map(p => [p.id, { score: Math.round(p.averageScore * 20), change: 0, trend: 'neutral' as const }] as [string, { score: number; change: number; trend: 'up' | 'down' | 'neutral' }])
+    : Object.entries(qs.breakdown).sort(([, a], [, b]) => a.score - b.score);
 
   // Score freshness
   const lastScoreDate = scoreHistory.length > 0 ? new Date(scoreHistory[scoreHistory.length - 1].date) : null;
@@ -789,7 +821,9 @@ export default function FounderDashboard() {
               </svg>
               <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
                 <span style={{ fontSize: 38, fontWeight: 600, color: "#F9F7F2", lineHeight: 1 }}>{qs.overall}</span>
-                <span style={{ fontSize: 10, color: "rgba(249,247,242,0.5)", marginTop: 3, textTransform: "uppercase", letterSpacing: "0.12em" }}>Q-Score</span>
+                <span style={{ fontSize: 10, color: "rgba(249,247,242,0.5)", marginTop: 3, textTransform: "uppercase", letterSpacing: "0.12em" }}>
+                  {isIQv2 ? "IQ Score" : "Q-Score"}
+                </span>
               </div>
             </div>
             <div style={{ textAlign: "center" }}>
@@ -809,8 +843,26 @@ export default function FounderDashboard() {
                   Score reduced from {realQScore.rawOverall} — reassess to restore
                 </p>
               )}
+              {/* IQ v2: available IQ + track */}
+              {isIQv2 && !isDemo && (
+                <>
+                  {(realQScore as unknown as { availableIQ?: number })?.availableIQ != null && (
+                    <p style={{ fontSize: 9, marginTop: 4, color: "rgba(249,247,242,0.45)", fontWeight: 500 }}>
+                      Available: {(realQScore as unknown as { availableIQ?: number }).availableIQ?.toFixed(1)}/100
+                    </p>
+                  )}
+                  {(realQScore as unknown as { track?: string })?.track && (
+                    <p style={{
+                      fontSize: 9, marginTop: 3, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em",
+                      color: (realQScore as unknown as { track?: string }).track === 'impact' ? "#16A34A" : "rgba(249,247,242,0.35)",
+                    }}>
+                      {(realQScore as unknown as { track?: string }).track} track
+                    </p>
+                  )}
+                </>
+              )}
               {/* RAG scoring method indicator */}
-              {realQScore?.ragMetadata?.scoringMethod && realQScore.ragMetadata.scoringMethod !== 'heuristic' && (
+              {!isIQv2 && realQScore?.ragMetadata?.scoringMethod && realQScore.ragMetadata.scoringMethod !== 'heuristic' && (
                 <p style={{
                   fontSize: 9, marginTop: 4,
                   color: "rgba(37,99,235,0.7)",
@@ -847,11 +899,24 @@ export default function FounderDashboard() {
               display: "flex", flexDirection: "column", justifyContent: "space-between",
             }}
           >
-            <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", color: muted, fontWeight: 600, marginBottom: 20 }}>
-              6-dimension breakdown
-            </p>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20 }}>
+              <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", color: muted, fontWeight: 600, margin: 0 }}>
+                {isIQv2 ? "IQ Matrix — P1–P6" : "6-dimension breakdown"}
+              </p>
+              {!isDemo && (
+                <span style={{
+                  fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 999,
+                  background: isIQv2 ? "#EFF6FF" : "#F5F5F0",
+                  color: isIQv2 ? blue : muted,
+                  border: `1px solid ${isIQv2 ? blue + "33" : bdr}`,
+                  textTransform: "uppercase", letterSpacing: "0.1em",
+                }}>
+                  {isIQv2 ? "IQ v2" : "Legacy"}
+                </span>
+              )}
+            </div>
             <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: 4 }}>
-              {Object.entries(qs.breakdown).map(([key, dim], i) => {
+              {sortedDims.map(([key, dim], i) => {
                 const meta = DIMENSION_META[key];
                 const TrendIcon = dim.trend === "up" ? TrendingUp : dim.trend === "down" ? TrendingDown : Minus;
                 const trendColor = dim.trend === "up" ? green : dim.trend === "down" ? red : muted;

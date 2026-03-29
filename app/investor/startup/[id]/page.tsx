@@ -90,13 +90,8 @@ interface StartupData {
     lastActiveAt: string | null
     lastActiveDays: number | null
   }
-  iqScore?: {
-    normalizedScore: number
-    grade: string
-    scoringMethod: string
-    indicatorsUsed: number
-    calculatedAt: string
-  } | null
+  iqBreakdown?: Array<{ id: string; name: string; weight: number; averageScore: number }> | null
+  scoreVersion?: string
 }
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -597,9 +592,7 @@ export default function StartupDeepDive({ params }: { params: { id: string } }) 
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <span style={{ fontSize: 20, fontWeight: 700, color: qColor(s.qScore) }}>{s.qScore || '—'}</span>
-                        {s.iqScore && (
-                          <span style={{ fontSize: 10, color: muted, fontWeight: 500 }}>±{Math.max(2, Math.round(10 * (1 - (s.iqScore.normalizedScore / 100))))}</span>
-                        )}
+                        {s.scoreVersion === 'v2_iq' && <span style={{ fontSize: 9, padding: "2px 7px", background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 999, color: blue, fontWeight: 600 }}>IQ v2</span>}
                         {s.qScoreGrade && s.qScoreGrade !== '—' && <span style={{ fontSize: 11, padding: "2px 8px", background: surf, border: `1px solid ${bdr}`, borderRadius: 999, color: muted }}>{s.qScoreGrade}</span>}
                       </div>
                     </div>
@@ -640,31 +633,29 @@ export default function StartupDeepDive({ params }: { params: { id: string } }) 
                     </div>
                   )}
 
-                  {/* IQ Score — data confidence signal */}
-                  {s.iqScore && (
+                  {/* IQ Score v2 — P1-P6 parameter breakdown */}
+                  {s.iqBreakdown && s.iqBreakdown.length > 0 && (
                     <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 18, overflow: "hidden" }}>
-                      <div style={{ padding: "14px 20px", borderBottom: `1px solid ${bdr}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <div>
-                          <p style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: "uppercase", letterSpacing: "0.14em" }}>Data Confidence</p>
-                          <p style={{ fontSize: 10, color: muted, marginTop: 2 }}>IQ Score — 25 investment-readiness indicators</p>
-                        </div>
-                        <span style={{ fontSize: 20, fontWeight: 700, color: s.iqScore.normalizedScore >= 65 ? green : s.iqScore.normalizedScore >= 40 ? amber : red }}>
-                          {s.iqScore.normalizedScore}
-                        </span>
+                      <div style={{ padding: "14px 20px", borderBottom: `1px solid ${bdr}` }}>
+                        <p style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: "uppercase", letterSpacing: "0.14em" }}>IQ Score Breakdown</p>
+                        <p style={{ fontSize: 10, color: muted, marginTop: 2 }}>30 indicators across 6 parameters</p>
                       </div>
-                      <div style={{ padding: "14px 20px" }}>
-                        <div style={{ height: 5, background: surf, border: `1px solid ${bdr}`, borderRadius: 999, overflow: "hidden", marginBottom: 10 }}>
-                          <motion.div
-                            style={{ height: "100%", borderRadius: 999, background: s.iqScore.normalizedScore >= 65 ? green : s.iqScore.normalizedScore >= 40 ? amber : red }}
-                            initial={{ width: 0 }}
-                            animate={{ width: `${s.iqScore.normalizedScore}%` }}
-                            transition={{ duration: 0.8, ease: "easeOut" }}
-                          />
-                        </div>
-                        <div style={{ display: "flex", justifyContent: "space-between" }}>
-                          <span style={{ fontSize: 10, color: muted }}>Grade {s.iqScore.grade} · {s.iqScore.indicatorsUsed} indicators</span>
-                          <span style={{ fontSize: 10, color: muted, textTransform: "capitalize" }}>{s.iqScore.scoringMethod}</span>
-                        </div>
+                      <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
+                        {s.iqBreakdown.map((p, i) => {
+                          const s100 = Math.round(p.averageScore * 20)
+                          return (
+                            <motion.div key={p.id} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.06 }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+                                <span style={{ fontSize: 12, color: ink, fontWeight: 500 }}>{p.name}</span>
+                                <span style={{ fontSize: 11, color: muted }}>{s100}/100</span>
+                              </div>
+                              <div style={{ height: 4, background: surf, border: `1px solid ${bdr}`, borderRadius: 999, overflow: "hidden" }}>
+                                <motion.div style={{ height: "100%", borderRadius: 999, background: scoreColor(s100) }} initial={{ width: 0 }} animate={{ width: `${s100}%` }} transition={{ delay: 0.2 + i * 0.06, duration: 0.6, ease: "easeOut" }} />
+                              </div>
+                              <p style={{ fontSize: 9, color: muted, marginTop: 2 }}>Weight: {Math.round(p.weight * 100)}%</p>
+                            </motion.div>
+                          )
+                        })}
                       </div>
                     </div>
                   )}

@@ -70,6 +70,86 @@ interface DimensionDef {
 }
 
 const DIMENSIONS: DimensionDef[] = [
+  // ── IQ Score v2 parameters (P1–P6) ────────────────────────────────────────
+  {
+    key: "p1",
+    name: "Market Readiness",
+    weight: 20,
+    agentId: "patel",
+    agentName: "Patel",
+    recommendations: [
+      "Upload LOIs, signed pilots, or customer contracts",
+      "Increase structured customer conversations to 25+",
+      "Document paying customer evidence and pricing",
+      "Show retention and expansion signals from existing customers",
+    ],
+  },
+  {
+    key: "p2",
+    name: "Market Potential",
+    weight: 20,
+    agentId: "atlas",
+    agentName: "Atlas",
+    recommendations: [
+      "Refine SAM with bottom-up calculation and real data sources",
+      "Document market urgency — regulatory, tech, or social trigger",
+      "Quantify the economic waste or inefficiency being solved",
+      "Map adjacent markets and expansion paths with phasing",
+    ],
+  },
+  {
+    key: "p3",
+    name: "IP / Defensibility",
+    weight: 17,
+    agentId: "leo",
+    agentName: "Leo",
+    recommendations: [
+      "File or document patents, trade secrets, or proprietary methods",
+      "Describe technical depth — what makes this hard to replicate",
+      "Estimate replication cost and time for a funded competitor",
+      "Document build complexity and key tacit knowledge held by team",
+    ],
+  },
+  {
+    key: "p4",
+    name: "Founder / Team",
+    weight: 18,
+    agentId: "harper",
+    agentName: "Harper",
+    recommendations: [
+      "Articulate specific domain years and why you're uniquely suited",
+      "Document prior exits, companies built, or operator experience",
+      "Ensure leadership coverage across tech, sales, and product",
+      "Build team cohesion — document how long the core team has worked together",
+    ],
+  },
+  {
+    key: "p5",
+    name: "Structural Impact",
+    weight: 8,
+    agentId: "sage",
+    agentName: "Sage",
+    recommendations: [
+      "Quantify climate or resource efficiency claims with metrics",
+      "Link revenue model directly to impact outcomes",
+      "Identify which UN SDGs your product materially addresses",
+      "Document alignment with India development priorities if applicable",
+    ],
+  },
+  {
+    key: "p6",
+    name: "Financials",
+    weight: 17,
+    agentId: "felix",
+    agentName: "Felix",
+    recommendations: [
+      "Connect Stripe or upload financial spreadsheet to verify MRR",
+      "Build 12-month model with burn and runway projections",
+      "Calculate LTV/CAC ratio and document unit economics",
+      "Show gross margin trajectory and path to profitability",
+    ],
+  },
+  // ── Legacy v1_prd dimensions (kept for older score rows) ──────────────────
   {
     key: "market",
     name: "Market",
@@ -79,8 +159,6 @@ const DIMENSIONS: DimensionDef[] = [
     recommendations: [
       "Refine your TAM/SAM/SOM calculations with real data sources",
       "Research and document market growth trends and timing",
-      "Identify key competitors and map your differentiators",
-      "Validate market timing — why now?",
     ],
   },
   {
@@ -91,8 +169,6 @@ const DIMENSIONS: DimensionDef[] = [
     agentName: "Nova",
     recommendations: [
       "Get more customer validation and testimonials",
-      "Increase iteration speed — ship weekly",
-      "Document customer feedback loops and learnings",
       "Show clear product-market fit signals (retention, NPS)",
     ],
   },
@@ -105,8 +181,6 @@ const DIMENSIONS: DimensionDef[] = [
     recommendations: [
       "Build a 12-month financial model with clear assumptions",
       "Calculate unit economics (LTV, CAC, margins)",
-      "Track monthly burn rate and runway",
-      "Document revenue model and pricing strategy",
     ],
   },
   {
@@ -117,8 +191,6 @@ const DIMENSIONS: DimensionDef[] = [
     agentName: "Patel",
     recommendations: [
       "Define your ICP (Ideal Customer Profile) clearly",
-      "Test at least 2–3 acquisition channels",
-      "Document messaging and value proposition",
       "Calculate and optimise Customer Acquisition Cost",
     ],
   },
@@ -131,8 +203,6 @@ const DIMENSIONS: DimensionDef[] = [
     recommendations: [
       "Demonstrate deep domain expertise",
       "Show complementary skills across the team",
-      "Document resilience — hardest moments and how you adapted",
-      "Highlight key advisor or mentor relationships",
     ],
   },
   {
@@ -142,10 +212,8 @@ const DIMENSIONS: DimensionDef[] = [
     agentId: "susi",
     agentName: "Susi",
     recommendations: [
-      "Increase volume of customer conversations",
       "Get more paying customers or letters of intent",
       "Show consistent month-over-month growth",
-      "Document key traction milestones on a timeline",
     ],
   },
 ];
@@ -176,18 +244,18 @@ interface Challenge {
 }
 
 const CHALLENGES: Challenge[] = [
-  { type: "gtm_playbook",       label: "GTM Playbook",         icon: BookOpen,   dimension: "Go-to-Market", agentId: "patel",  agentName: "Patel",  points: 6, color: "#D97706" },
-  { type: "financial_summary",  label: "Financial Summary",    icon: DollarSign, dimension: "Financial",    agentId: "felix",  agentName: "Felix",  points: 6, color: green     },
-  { type: "icp_document",       label: "ICP Document",         icon: FileText,   dimension: "Go-to-Market", agentId: "patel",  agentName: "Patel",  points: 5, color: blue      },
-  { type: "competitive_matrix", label: "Competitive Analysis", icon: Search,     dimension: "Market",       agentId: "atlas",  agentName: "Atlas",  points: 5, color: "#DC2626" },
-  { type: "pmf_survey",         label: "PMF Research Kit",     icon: BarChart3,  dimension: "Product",      agentId: "nova",   agentName: "Nova",   points: 5, color: "#7C3AED" },
-  { type: "hiring_plan",        label: "Hiring Plan",          icon: Users,      dimension: "Team",         agentId: "harper", agentName: "Harper", points: 5, color: blue      },
-  { type: "outreach_sequence",  label: "Outreach Sequence",    icon: Mail,       dimension: "Traction",     agentId: "patel",  agentName: "Patel",  points: 4, color: green     },
-  { type: "battle_card",        label: "Battle Card",          icon: Swords,     dimension: "Market",       agentId: "patel",  agentName: "Patel",  points: 4, color: "#DC2626" },
-  { type: "sales_script",       label: "Sales Script",         icon: Zap,        dimension: "Traction",     agentId: "susi",   agentName: "Susi",   points: 4, color: green     },
-  { type: "brand_messaging",    label: "Brand Messaging",      icon: Sparkles,   dimension: "Go-to-Market", agentId: "maya",   agentName: "Maya",   points: 4, color: "#7C3AED" },
-  { type: "strategic_plan",     label: "Strategic Plan",       icon: Compass,    dimension: "Product",      agentId: "sage",   agentName: "Sage",   points: 4, color: blue      },
-  { type: "legal_checklist",    label: "Legal Checklist",      icon: Scale,      dimension: "Financial",    agentId: "leo",    agentName: "Leo",    points: 3, color: "#D97706" },
+  { type: "gtm_playbook",       label: "GTM Playbook",         icon: BookOpen,   dimension: "P1: Market Readiness",  agentId: "patel",  agentName: "Patel",  points: 6, color: "#D97706" },
+  { type: "financial_summary",  label: "Financial Summary",    icon: DollarSign, dimension: "P6: Financials",         agentId: "felix",  agentName: "Felix",  points: 6, color: green     },
+  { type: "icp_document",       label: "ICP Document",         icon: FileText,   dimension: "P2: Market Potential",   agentId: "patel",  agentName: "Patel",  points: 5, color: blue      },
+  { type: "competitive_matrix", label: "Competitive Analysis", icon: Search,     dimension: "P2: Market Potential",   agentId: "atlas",  agentName: "Atlas",  points: 5, color: "#DC2626" },
+  { type: "pmf_survey",         label: "PMF Research Kit",     icon: BarChart3,  dimension: "P1: Market Readiness",   agentId: "nova",   agentName: "Nova",   points: 5, color: "#7C3AED" },
+  { type: "hiring_plan",        label: "Hiring Plan",          icon: Users,      dimension: "P4: Founder / Team",     agentId: "harper", agentName: "Harper", points: 5, color: blue      },
+  { type: "outreach_sequence",  label: "Outreach Sequence",    icon: Mail,       dimension: "P1: Market Readiness",   agentId: "patel",  agentName: "Patel",  points: 4, color: green     },
+  { type: "battle_card",        label: "Battle Card",          icon: Swords,     dimension: "P2: Market Potential",   agentId: "patel",  agentName: "Patel",  points: 4, color: "#DC2626" },
+  { type: "sales_script",       label: "Sales Script",         icon: Zap,        dimension: "P1: Market Readiness",   agentId: "susi",   agentName: "Susi",   points: 4, color: green     },
+  { type: "brand_messaging",    label: "Brand Messaging",      icon: Sparkles,   dimension: "P2: Market Potential",   agentId: "maya",   agentName: "Maya",   points: 4, color: "#7C3AED" },
+  { type: "strategic_plan",     label: "Strategic Plan",       icon: Compass,    dimension: "P5: Structural Impact",  agentId: "sage",   agentName: "Sage",   points: 4, color: blue      },
+  { type: "legal_checklist",    label: "Legal Checklist",      icon: Scale,      dimension: "P3: IP / Defensibility", agentId: "leo",    agentName: "Leo",    points: 3, color: "#D97706" },
 ];
 
 // ─── component ────────────────────────────────────────────────────────────────
@@ -327,18 +395,31 @@ export default function ImproveQScorePage() {
   const pointsNeeded = Math.max(0, targetScore - overall);
   const progressPct = Math.min((overall / targetScore) * 100, 100);
 
+  // Detect IQ v2 score
+  const scoreVersion = (qScore as unknown as { scoreVersion?: string })?.scoreVersion ?? 'v1_prd'
+  const isIQv2 = scoreVersion === 'v2_iq'
+  type IQParam = { id: string; name: string; averageScore: number; weight: number; indicatorsActive?: number }
+  const iqBreakdown = (qScore as unknown as { iqBreakdown?: IQParam[] })?.iqBreakdown ?? []
+  const availableIQ = (qScore as unknown as { availableIQ?: number })?.availableIQ ?? null
+  const track = (qScore as unknown as { track?: string })?.track ?? null
+
   // Build dimension scores from qScore breakdown or fallback
-  const dimScores: Record<string, number> = {
-    market:     qScore?.breakdown?.market?.score ?? 54,
-    product:    qScore?.breakdown?.product?.score ?? 58,
-    financial:  qScore?.breakdown?.financial?.score ?? 42,
-    goToMarket: qScore?.breakdown?.goToMarket?.score ?? 35,
-    team:       qScore?.breakdown?.team?.score ?? 72,
-    traction:   qScore?.breakdown?.traction?.score ?? 48,
-  };
+  const dimScores: Record<string, number> = isIQv2
+    ? Object.fromEntries(iqBreakdown.map((p: IQParam) => [p.id, Math.round(p.averageScore * 20)]))
+    : {
+        market:     qScore?.breakdown?.market?.score ?? 54,
+        product:    qScore?.breakdown?.product?.score ?? 58,
+        financial:  qScore?.breakdown?.financial?.score ?? 42,
+        goToMarket: qScore?.breakdown?.goToMarket?.score ?? 35,
+        team:       qScore?.breakdown?.team?.score ?? 72,
+        traction:   qScore?.breakdown?.traction?.score ?? 48,
+      };
+
+  // Only show P1-P6 for v2, legacy dims for v1
+  const activeDimensions = DIMENSIONS.filter(d => isIQv2 ? d.key.startsWith('p') : !d.key.startsWith('p'))
 
   // Sort dimensions by lowest score first
-  const sorted = [...DIMENSIONS].sort((a, b) => (dimScores[a.key] ?? 0) - (dimScores[b.key] ?? 0));
+  const sorted = [...activeDimensions].sort((a, b) => (dimScores[a.key] ?? 0) - (dimScores[b.key] ?? 0));
   const topThree = sorted.slice(0, 3);
 
   const potentialGain = (dim: DimensionDef) => {
@@ -425,11 +506,25 @@ export default function ImproveQScorePage() {
           <ArrowLeft size={14} /> Back to Dashboard
         </Link>
 
-        <h1 style={{ fontSize: 28, fontWeight: 300, letterSpacing: "-0.03em", margin: 0 }}>
-          Improve Your Q-Score
-        </h1>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <h1 style={{ fontSize: 28, fontWeight: 300, letterSpacing: "-0.03em", margin: 0 }}>
+            {isIQv2 ? "Improve Your IQ Score" : "Improve Your Q-Score"}
+          </h1>
+          {isIQv2 && (
+            <span style={{
+              fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 999,
+              background: "#EFF6FF", color: blue, border: `1px solid ${blue}33`,
+              textTransform: "uppercase", letterSpacing: "0.1em",
+            }}>
+              IQ v2 · {track ? `${track} track` : "30 indicators"}
+            </span>
+          )}
+        </div>
         <p style={{ fontSize: 14, color: muted, marginTop: 6 }}>
-          Unlock the investor marketplace by reaching Q-Score 65+
+          {isIQv2
+            ? `Unlock the investor marketplace by reaching IQ Score 45+${availableIQ ? ` · Available: ${availableIQ.toFixed(1)}/100` : ""}`
+            : "Unlock the investor marketplace by reaching Q-Score 65+"
+          }
         </p>
       </div>
 
@@ -766,7 +861,7 @@ export default function ImproveQScorePage() {
         </div>
 
         {/* ── GTM Diagnostics ─────────────────────────────────── */}
-        {gtmDiag && (dimScores.goToMarket ?? 100) < 70 && (
+        {gtmDiag && !isIQv2 && (dimScores.goToMarket ?? 100) < 70 && (
           <div style={{ marginBottom: 36 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
               <Target size={16} style={{ color: amber }} />
@@ -855,7 +950,7 @@ export default function ImproveQScorePage() {
             {/* weight badges for active sector */}
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16, paddingBottom: 16, borderBottom: `1px solid ${bdr}` }}>
               {Object.entries(sectorWeights).map(([k, w]) => {
-                const dim = DIMENSIONS.find(d => d.key === k);
+                const dim = activeDimensions.find(d => d.key === k) ?? DIMENSIONS.find(d => d.key === k);
                 const stdW = SIM_WEIGHTS[k] ?? 0;
                 const delta = Math.round((w - stdW) * 100);
                 return (
@@ -877,7 +972,7 @@ export default function ImproveQScorePage() {
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              {DIMENSIONS.map((dim) => {
+              {activeDimensions.map((dim) => {
                 const actual  = dimScores[dim.key] ?? 0;
                 const current = sim[dim.key] ?? actual;
                 const w = sectorWeights[dim.key as keyof typeof sectorWeights] ?? SIM_WEIGHTS[dim.key] ?? 0;

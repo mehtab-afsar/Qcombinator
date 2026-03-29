@@ -2,11 +2,14 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
 import { shouldTriggerUpload, getInitialQuestion, PITCH_SECTION_QUESTION } from '@/lib/profile-builder/question-engine'
 import type { FounderProfile } from '@/lib/profile-builder/question-engine'
+import { generateSmartQuestions } from '@/lib/profile-builder/smart-questions'
+import type { SmartQuestion } from '@/lib/profile-builder/smart-questions'
 
-// ── palette ──────────────────────────────────────────────────────────────────
+// ── palette ───────────────────────────────────────────────────────────────────
 const bg    = '#F9F7F2'
 const surf  = '#F0EDE6'
 const bdr   = '#E2DDD5'
@@ -15,8 +18,8 @@ const muted = '#8A867C'
 const blue  = '#2563EB'
 const green = '#16A34A'
 const amber = '#D97706'
+const red   = '#DC2626'
 
-// Score impact per section upload
 const UPLOAD_IMPACT: Record<number, { dim: string; pts: number }> = {
   1: { dim: 'Traction',  pts: 12 },
   2: { dim: 'Market',    pts: 8  },
@@ -25,10 +28,10 @@ const UPLOAD_IMPACT: Record<number, { dim: string; pts: number }> = {
   5: { dim: 'Financial', pts: 18 },
 }
 
-// Step order — includes pitch section between documents and market validation
-const STEP_ORDER: Array<number | 'pitch'> = [0, 'pitch', 1, 2, 3, 4, 5, 6]
+const STEP_ORDER_FULL: Array<number | 'pitch' | 'extract-results' | 'smart-qa'> = [0, 'pitch', 1, 2, 3, 4, 5, 6]
+const STEP_ORDER_FAST: Array<number | 'pitch' | 'extract-results' | 'smart-qa'> = [0, 'extract-results', 'smart-qa', 6]
 
-// ── types ────────────────────────────────────────────────────────────────────
+// ── types ─────────────────────────────────────────────────────────────────────
 interface Message { role: 'agent' | 'user'; text: string }
 
 interface SectionState {
@@ -41,26 +44,49 @@ interface SectionState {
   isComplete: boolean
 }
 
-const SECTION_LABELS: Record<number | string, string> = {
-  0: 'Documents',
-  pitch: 'The Pitch',
-  1: 'Market Validation',
-  2: 'Market & Competition',
-  3: 'IP & Technology',
-  4: 'Team',
-  5: 'Financials & Impact',
-  6: 'Review & Submit',
+interface PreviewData {
+  projectedScore: number
+  finalIQ: number
+  availableIQ: number
+  grade: string
+  iqBreakdown: Array<{ id: string; name: string; averageScore: number; weight: number; indicatorsActive: number }>
+  boostActions: Array<{ parameter: string; action: string; currentScore: number }>
+  validationWarnings: string[]
+  marketplaceUnlocked: boolean
+  sectionsComplete: number
+  track?: string
+  scoreVersion: string
 }
 
-const SECTION_DESCRIPTIONS: Record<number | string, string> = {
-  0: 'Optional — upload pitch decks, financial models, and other documents',
-  pitch: "YC's first question — explain what you do in 2-3 clear sentences",
-  1: 'P1 — Market Readiness: customers, pilots, and willingness to pay',
-  2: 'P2 — Market Potential: size, urgency, competition',
-  3: 'P3 — IP & Defensibility: patents, technical depth, build complexity',
-  4: 'P4 — Founder & Team: domain expertise, experience, cohesion',
-  5: 'P5 — Financials & Structural Impact: revenue, burn, and ESG signals',
-  6: 'Review your profile and calculate your Q-Score',
+interface SectionSummary {
+  sectionKey: string
+  label: string
+  completionPct: number
+  extractedCount: number
+  extractedSnippets: Array<{ label: string; value: string }>
+  missingLabels: string[]
+}
+
+const SECTION_LABELS: Record<string, string> = {
+  '0': 'Documents',
+  'pitch': 'The Pitch',
+  '1': 'Market Validation',
+  '2': 'Market & Competition',
+  '3': 'IP & Technology',
+  '4': 'Team',
+  '5': 'Financials & Impact',
+  '6': 'Review & Submit',
+}
+
+const SECTION_DESCRIPTIONS: Record<string, string> = {
+  '0': 'Optional — upload pitch decks, financial models, and other documents',
+  'pitch': "What does your company do, who is it for, and why now?",
+  '1': 'Customers, pilots, and willingness to pay',
+  '2': 'Market size, urgency, and competitive landscape',
+  '3': 'Patents, technical depth, and build complexity',
+  '4': 'Domain expertise, team composition, and experience',
+  '5': 'Revenue, burn rate, runway, and impact signals',
+  '6': 'Review your profile and calculate your Q-Score',
 }
 
 function initSection(): SectionState {
@@ -71,43 +97,51 @@ function initSection(): SectionState {
   }
 }
 
-interface PreviewData {
-  projectedScore: number
-  grade: string
-  dimensions: Record<string, number>
-  boostActions: Array<{ action: string; impact: number }>
-  marketplaceUnlocked: boolean
-  sectionsComplete: number
-}
-
 // ── main component ────────────────────────────────────────────────────────────
 export default function ProfileBuilderPage() {
   const router = useRouter()
-  const [currentStep, setCurrentStep] = useState<number | 'pitch'>(0)
-  const [sections, setSections] = useState<Record<number | string, SectionState>>({
+  const [currentStep, setCurrentStep] = useState<number | 'pitch' | 'extract-results' | 'smart-qa'>(0)
+
+  const [sections, setSections] = useState<Record<string, SectionState>>({
     pitch: initSection(),
-    1: initSection(), 2: initSection(), 3: initSection(),
-    4: initSection(), 5: initSection(),
+    '1': initSection(), '2': initSection(), '3': initSection(),
+    '4': initSection(), '5': initSection(),
   })
+
   const [founderProfile, setFounderProfile] = useState<FounderProfile>({
     stage: 'pre-product', industry: 'general', revenueStatus: 'pre-revenue',
   })
+
+  // Extracted text from step-0 doc upload — shared across all sections
+  const [globalDocText, setGlobalDocText] = useState<string>('')
+
   const [token, setToken] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitResult, setSubmitResult] = useState<{ score: number; grade: string } | null>(null)
+  const [submitError, setSubmitError] = useState<string | null>(null)
   const [previewData, setPreviewData] = useState<PreviewData | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
 
-  // Section chat state
+  // Smart upload flow
+  const [flowMode, setFlowMode] = useState<'fast' | 'full'>('full')
+  const [extractionSummary, setExtractionSummary] = useState<SectionSummary[]>([])
+  const [smartQuestions, setSmartQuestions] = useState<SmartQuestion[]>([])
+  const [smartQaIndex, setSmartQaIndex] = useState(0)
+  const [smartInput, setSmartInput] = useState('')
+  const [smartProcessing, setSmartProcessing] = useState(false)
+
   const [input, setInput] = useState('')
   const [isTyping, setIsTyping] = useState(false)
   const [uploadTrigger, setUploadTrigger] = useState<string | null>(null)
+  const [uploadLoading, setUploadLoading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [uploadedFiles, setUploadedFiles] = useState<Array<{ name: string; fields: number }>>([])
+
   const chatEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [uploadLoading, setUploadLoading] = useState(false)
-  const [uploadedFiles, setUploadedFiles] = useState<Array<{ name: string; section: number | string; fields: number }>>([])
 
-  // On mount: get session + load draft
+  // ── on mount: session + founder profile + draft ───────────────────────────
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getSession().then(async ({ data }) => {
@@ -115,7 +149,6 @@ export default function ProfileBuilderPage() {
       const tok = data.session.access_token
       setToken(tok)
 
-      // Load founder profile for adaptive questions
       const { data: fp } = await supabase
         .from('founder_profiles')
         .select('stage, industry, revenue_status, company_name')
@@ -130,191 +163,222 @@ export default function ProfileBuilderPage() {
         })
       }
 
-      // Load draft data
-      const draftRes = await fetch('/api/profile-builder/draft', {
-        headers: { Authorization: `Bearer ${tok}` }
-      })
-      if (draftRes.ok) {
-        const draft = await draftRes.json()
-        if (draft.sections && Object.keys(draft.sections).length > 0) {
-          setSections(prev => {
-            const next = { ...prev }
-            for (const [sec, data] of Object.entries(draft.sections)) {
-              const sNum = parseInt(sec, 10)
-              const d = data as { extractedFields: Record<string, unknown>; confidenceMap: Record<string, number>; completionScore: number }
-              next[sNum] = {
-                ...initSection(),
-                extractedFields: d.extractedFields ?? {},
-                confidenceMap: d.confidenceMap ?? {},
-                completionScore: d.completionScore ?? 0,
-                isComplete: (d.completionScore ?? 0) >= 70,
+      // Load draft
+      try {
+        const draftRes = await fetch('/api/profile-builder/draft', {
+          headers: { Authorization: `Bearer ${tok}` },
+        })
+        if (draftRes.ok) {
+          const draft = await draftRes.json()
+          if (draft.sections && Object.keys(draft.sections).length > 0) {
+            setSections(prev => {
+              const next = { ...prev }
+              for (const [sec, rawData] of Object.entries(draft.sections)) {
+                const d = rawData as {
+                  extractedFields?: Record<string, unknown>
+                  confidenceMap?: Record<string, number>
+                  completionScore?: number
+                }
+                next[sec] = {
+                  ...initSection(),
+                  extractedFields: d.extractedFields ?? {},
+                  confidenceMap: d.confidenceMap ?? {},
+                  completionScore: d.completionScore ?? 0,
+                  isComplete: (d.completionScore ?? 0) >= 70,
+                }
               }
-            }
-            return next
-          })
+              return next
+            })
+          }
         }
-      }
+      } catch { /* non-blocking */ }
     })
   }, [router])
 
+  // ── auto-scroll ───────────────────────────────────────────────────────────
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [sections, isTyping])
+  }, [sections, isTyping, currentStep])
 
-  // Start a section by sending the initial question
-  const startSection = useCallback((sectionKey: number | 'pitch') => {
-    if (!founderProfile) return
-    const initialQ = sectionKey === 'pitch'
+  // ── fire initial question when entering a section ─────────────────────────
+  const sectionKey = String(currentStep)
+  useEffect(() => {
+    const isConvo = currentStep === 'pitch' ||
+      (typeof currentStep === 'number' && currentStep >= 1 && currentStep <= 5)
+    if (!isConvo) return
+    const sec = sections[sectionKey]
+    if (!sec || sec.messages.length > 0) return  // already has messages (draft or started)
+
+    const initialQ = currentStep === 'pitch'
       ? PITCH_SECTION_QUESTION
-      : getInitialQuestion(sectionKey, founderProfile)
+      : getInitialQuestion(currentStep, founderProfile)
+
     setSections(prev => ({
       ...prev,
-      [sectionKey]: {
-        ...prev[sectionKey],
-        messages: [{ role: 'agent' as const, text: initialQ }],
-      },
+      [sectionKey]: { ...prev[sectionKey], messages: [{ role: 'agent', text: initialQ }] },
     }))
-  }, [founderProfile])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep, sectionKey])
 
+  // ── redirect from smart-qa if no questions remain ────────────────────────
   useEffect(() => {
-    const isConversationalStep = currentStep === 'pitch' || (typeof currentStep === 'number' && currentStep >= 1 && currentStep <= 5)
-    if (isConversationalStep) {
-      const sec = sections[currentStep]
-      if (sec && sec.messages.length === 0 && !sec.isComplete) {
-        startSection(currentStep)
-      }
+    if (currentStep === 'smart-qa' && smartQuestions.length > 0 && smartQaIndex >= smartQuestions.length) {
+      setCurrentStep(6)
     }
-  }, [currentStep, startSection, sections])
+  }, [currentStep, smartQaIndex, smartQuestions.length])
 
-  // Load preview data when reaching step 6
+  // ── preview data for step 6 ───────────────────────────────────────────────
   useEffect(() => {
     if (currentStep !== 6 || !token) return
     setPreviewLoading(true)
     fetch('/api/profile-builder/preview', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
-      .then(data => setPreviewData(data))
-      .catch(() => { /* non-blocking */ })
+      .then(setPreviewData)
+      .catch(() => {})
       .finally(() => setPreviewLoading(false))
   }, [currentStep, token])
 
-  const saveSection = useCallback(async (sectionNum: number | 'pitch', state: SectionState, tok: string) => {
-    // pitch section is UI-only — no DB save needed (not scored)
-    if (sectionNum === 'pitch') return
+  // ── save section to DB ────────────────────────────────────────────────────
+  const saveSection = useCallback(async (secNum: string, state: SectionState, tok: string) => {
+    if (secNum === 'pitch') return
     await fetch('/api/profile-builder/save', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok}` },
       body: JSON.stringify({
-        section: sectionNum,
+        section: parseInt(secNum, 10),
         rawConversation: state.conversation,
         extractedFields: state.extractedFields,
         confidenceMap: state.confidenceMap,
         completionScore: state.completionScore,
         uploadedDocuments: state.uploadedDocuments,
       }),
-    })
+    }).catch(() => {})
   }, [])
 
+  // ── handle user message ───────────────────────────────────────────────────
   async function handleSend() {
-    if (!input.trim() || !token) return
-    const sectionNum = currentStep
+    if (!input.trim() || !token || isTyping) return
+    const key = String(currentStep)
     const userText = input.trim()
     setInput('')
     setUploadTrigger(null)
 
-    // Add user message
+    // Append user message immediately
     setSections(prev => ({
       ...prev,
-      [sectionNum]: {
-        ...prev[sectionNum],
-        messages: [...prev[sectionNum].messages, { role: 'user' as const, text: userText }],
-        conversation: prev[sectionNum].conversation + `\nFounder: ${userText}`,
+      [key]: {
+        ...prev[key],
+        messages: [...(prev[key]?.messages ?? []), { role: 'user' as const, text: userText }],
+        conversation: (prev[key]?.conversation ?? '') + `\nFounder: ${userText}`,
       },
     }))
 
-    // Pitch section: evaluate clarity locally, no scored extraction needed
-    if (sectionNum === 'pitch') {
+    // Pitch: local clarity evaluation
+    if (currentStep === 'pitch') {
       setIsTyping(true)
-      await new Promise(r => setTimeout(r, 600))
-      const words = userText.split(' ').length
-      const hasProblem = /problem|issue|struggle|pain|hard|difficult|broken|fail/i.test(userText)
-      const hasWho = /founder|startup|company|we |our |team/i.test(userText) || words > 10
-      const hasNow = /now|today|recent|2020|2021|2022|2023|2024|2025|pandemic|ai|llm|remote|cloud/i.test(userText)
-      const clarityScore = Math.min(100, (words > 20 ? 40 : words > 10 ? 25 : 10) + (hasProblem ? 20 : 0) + (hasWho ? 20 : 0) + (hasNow ? 20 : 0))
-      const isGoodPitch = clarityScore >= 60
-
-      const reply = isGoodPitch
-        ? (hasNow ? "That's a clear pitch — problem, audience, and timing are all present. Move on to the next section." : "Good clarity on the problem and customer. What changed in the world recently that makes this the right time to build this?")
-        : "Help me understand better — who specifically has this problem, and what happens to them if they don't solve it?"
+      await new Promise(r => setTimeout(r, 500))
+      const words = userText.split(/\s+/).length
+      const hasProblem = /problem|pain|issue|struggle|hard|broken|fail|challenge/i.test(userText)
+      const hasWho = /we |our |company|startup|for |customer|user|team|built/i.test(userText) || words > 8
+      const hasNow = /now|today|2020|2021|2022|2023|2024|2025|ai|llm|remote|cloud|pandemic|recent/i.test(userText)
+      const clarity = Math.min(100,
+        (words > 20 ? 40 : words > 10 ? 25 : 10) +
+        (hasProblem ? 20 : 0) + (hasWho ? 20 : 0) + (hasNow ? 20 : 0)
+      )
+      const done = clarity >= 60 && hasNow
+      const reply = done
+        ? "Clear pitch — problem, customer, and timing are all present. Move on to Market Validation."
+        : !hasNow
+          ? "Good start. What changed in the world recently that makes this the right moment to build this?"
+          : "Help me understand: who exactly has this problem, and what happens to them if they don't solve it?"
 
       setSections(prev => ({
         ...prev,
         pitch: {
           ...prev['pitch'],
-          messages: [...prev['pitch'].messages, { role: 'agent' as const, text: reply }],
-          completionScore: clarityScore,
-          isComplete: isGoodPitch && hasNow,
+          messages: [...(prev['pitch']?.messages ?? []), { role: 'agent' as const, text: reply }],
+          completionScore: clarity,
+          isComplete: done,
         },
       }))
       setIsTyping(false)
       return
     }
 
-    // Check upload trigger for numeric sections
-    const uploadPrompt = typeof sectionNum === 'number' ? shouldTriggerUpload(userText, sectionNum) : null
+    // Check upload trigger
+    const uploadPrompt = typeof currentStep === 'number' ? shouldTriggerUpload(userText, currentStep) : null
     if (uploadPrompt) setUploadTrigger(uploadPrompt)
 
     setIsTyping(true)
 
     try {
-      const sec = sections[sectionNum]
-      const newConversation = sec.conversation + `\nFounder: ${userText}`
+      // Build conversation from current state (includes the message we just added)
+      const currentSec = sections[key] ?? initSection()
+      const conversation = currentSec.conversation + `\nFounder: ${userText}`
 
       const res = await fetch('/api/profile-builder/extract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          section: sectionNum,
-          conversationText: newConversation,
+          section: parseInt(key, 10),
+          conversationText: conversation,
+          uploadedDocumentText: globalDocText || undefined,
           founderProfile,
-          existingExtracted: sec.extractedFields,
+          existingExtracted: currentSec.extractedFields,
         }),
       })
 
-      if (res.ok) {
-        const extracted = await res.json()
-        const newState: SectionState = {
+      if (!res.ok) throw new Error(`Extract failed: ${res.status}`)
+      const extracted = await res.json()
+
+      const pct: number = extracted.completionScore ?? 0
+      const agentReply: string =
+        extracted.followUpQuestion ??
+        (pct >= 70
+          ? "I have what I need for this section. Feel free to add more detail or move to the next section."
+          : "Tell me more — the more specific you are, the higher your score.")
+
+      setSections(prev => {
+        const sec = prev[key] ?? initSection()
+        const updated: SectionState = {
           ...sec,
-          messages: [...sec.messages, { role: 'user', text: userText }],
           extractedFields: extracted.mergedFields ?? sec.extractedFields,
-          confidenceMap: { ...sec.confidenceMap, ...extracted.confidenceMap },
-          completionScore: extracted.completionScore ?? sec.completionScore,
-          conversation: newConversation,
-          isComplete: (extracted.completionScore ?? 0) >= 70,
+          confidenceMap: { ...sec.confidenceMap, ...(extracted.confidenceMap ?? {}) },
+          completionScore: pct,
+          conversation,
+          isComplete: pct >= 70,
+          messages: [...sec.messages, { role: 'agent' as const, text: agentReply }],
         }
-
-        // Add follow-up question if any
-        const agentReply = extracted.followUpQuestion ?? (extracted.completionScore >= 70 ? 'Great — I have enough information for this section. Feel free to add more or move on.' : null)
-        if (agentReply) {
-          newState.messages = [...newState.messages, { role: 'agent', text: agentReply }]
-        }
-
-        setSections(prev => ({ ...prev, [sectionNum]: newState }))
-        await saveSection(sectionNum, newState, token)
-      }
+        saveSection(key, updated, token)
+        return { ...prev, [key]: updated }
+      })
     } catch (e) {
-      console.error('Extract error:', e)
+      const msg = e instanceof Error ? e.message : 'Something went wrong'
+      setSections(prev => ({
+        ...prev,
+        [key]: {
+          ...prev[key],
+          messages: [
+            ...(prev[key]?.messages ?? []),
+            { role: 'agent' as const, text: `Sorry, I had trouble processing that (${msg}). Try again.` },
+          ],
+        },
+      }))
     } finally {
       setIsTyping(false)
     }
   }
 
+  // ── handle file upload ────────────────────────────────────────────────────
   async function handleFileUpload(file: File) {
     if (!token) return
     setUploadLoading(true)
+    setUploadError(null)
 
     const formData = new FormData()
     formData.append('file', file)
-    formData.append('section', String(currentStep))
+    // Upload with section 0 so server parses + stores the file
+    formData.append('section', String(typeof currentStep === 'number' ? currentStep : 0))
 
     try {
       const res = await fetch('/api/profile-builder/upload', {
@@ -323,249 +387,482 @@ export default function ProfileBuilderPage() {
         body: formData,
       })
 
-      if (res.ok) {
-        const data = await res.json()
-        const fieldsFound = data.extractedPreview?.length ?? 0
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error ?? `Upload failed (${res.status})`)
+      }
 
-        // Merge extracted fields into section
-        if (data.extractedFields && currentStep !== 0 && currentStep !== 'pitch') {
+      const data = await res.json()
+      const fieldsFound: number = data.extractedPreview?.length ?? 0
+      const docText: string = data.parsedText ?? ''
+
+      // ── Step 0: distribute doc text + trigger smart flow ──
+      if (currentStep === 0) {
+        if (docText) setGlobalDocText(prev => prev + '\n\n' + docText)
+
+        // If the server extracted structured fields, merge them into section state
+        if (data.extractedFields && Object.keys(data.extractedFields).length > 0) {
           setSections(prev => {
-            const sec = prev[currentStep]
-            const newUploadedDocs = [
-              ...sec.uploadedDocuments,
-              { uploadId: data.uploadId ?? '', filename: file.name, fields: fieldsFound },
-            ]
-            const mergedExtracted = { ...sec.extractedFields }
-            const mergeDeep = (target: Record<string, unknown>, source: Record<string, unknown>) => {
-              for (const [k, v] of Object.entries(source)) {
-                if (v === null || v === undefined) continue
-                if (typeof v === 'object' && !Array.isArray(v) && typeof target[k] === 'object') {
-                  mergeDeep(target[k] as Record<string, unknown>, v as Record<string, unknown>)
-                } else { target[k] = v }
+            const next = { ...prev }
+            for (const secKey of ['1', '2', '3', '4', '5']) {
+              const sec = next[secKey] ?? initSection()
+              const merged = { ...sec.extractedFields }
+              for (const [k, v] of Object.entries(data.extractedFields)) {
+                if (v !== null && v !== undefined) merged[k] = v
               }
+              next[secKey] = { ...sec, extractedFields: merged }
             }
-            mergeDeep(mergedExtracted, data.extractedFields)
-
-            const agentMsg: Message = {
-              role: 'agent',
-              text: `I've reviewed "${file.name}" and extracted ${fieldsFound} fields. ${data.summary ?? ''}`,
-            }
-            const newState: SectionState = {
-              ...sec,
-              messages: [...sec.messages, agentMsg],
-              extractedFields: mergedExtracted,
-              confidenceMap: { ...sec.confidenceMap, ...data.confidenceMap },
-              uploadedDocuments: newUploadedDocs,
-            }
-            saveSection(currentStep, newState, token)
-            return { ...prev, [currentStep]: newState }
+            return next
           })
         }
 
-        // Track in uploaded files list (once, regardless of step)
-        setUploadedFiles(prev => [...prev, { name: file.name, section: currentStep, fields: fieldsFound }])
+        // If server returned per-section summaries, activate smart flow
+        if (data.sectionSummaries && data.sectionSummaries.length > 0) {
+          setExtractionSummary(data.sectionSummaries)
+          // Build extractedBySections map for question generator
+          const extractedBySections: Record<string, Record<string, unknown>> = {}
+          for (const s of data.sectionSummaries as SectionSummary[]) {
+            extractedBySections[s.sectionKey] = data.extractedFields ?? {}
+          }
+          const qs = generateSmartQuestions(extractedBySections, founderProfile.stage ?? 'mid')
+          setSmartQuestions(qs)
+          setSmartQaIndex(0)
+          setFlowMode('fast')
+        }
+
+        setUploadedFiles(prev => [...prev, { name: file.name, fields: fieldsFound }])
         setUploadTrigger(null)
+        return
       }
+
+      // ── Sections 1-5: merge into current section + add agent message ──
+      const secKey = String(currentStep)
+      setSections(prev => {
+        const sec = prev[secKey] ?? initSection()
+        const merged = { ...sec.extractedFields }
+        if (data.extractedFields) {
+          const mergeDeep = (t: Record<string, unknown>, s: Record<string, unknown>) => {
+            for (const [k, v] of Object.entries(s)) {
+              if (v === null || v === undefined) continue
+              if (typeof v === 'object' && !Array.isArray(v) && typeof t[k] === 'object' && t[k] !== null) {
+                mergeDeep(t[k] as Record<string, unknown>, v as Record<string, unknown>)
+              } else { t[k] = v }
+            }
+          }
+          mergeDeep(merged, data.extractedFields)
+        }
+
+        const agentMsg: Message = {
+          role: 'agent',
+          text: fieldsFound > 0
+            ? `I've reviewed "${file.name}" and extracted ${fieldsFound} data points. ${data.summary ?? ''} You can continue the conversation or move on.`
+            : `I've received "${file.name}" — I couldn't automatically extract structured data from it, but I'll use it as context for your answers. Continue the conversation below.`,
+        }
+
+        const updated: SectionState = {
+          ...sec,
+          messages: [...sec.messages, agentMsg],
+          extractedFields: merged,
+          confidenceMap: { ...sec.confidenceMap, ...(data.confidenceMap ?? {}) },
+          uploadedDocuments: [
+            ...sec.uploadedDocuments,
+            { uploadId: data.uploadId ?? '', filename: file.name, fields: fieldsFound },
+          ],
+        }
+        saveSection(secKey, updated, token)
+        return { ...prev, [secKey]: updated }
+      })
+
+      setUploadedFiles(prev => [...prev, { name: file.name, fields: fieldsFound }])
+      setUploadTrigger(null)
     } catch (e) {
-      console.error('Upload error:', e)
+      const msg = e instanceof Error ? e.message : 'Upload failed'
+      setUploadError(msg)
     } finally {
       setUploadLoading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
 
+  // ── submit ────────────────────────────────────────────────────────────────
   async function handleSubmit() {
     if (!token) return
     setIsSubmitting(true)
+    setSubmitError(null)
     try {
       const res = await fetch('/api/profile-builder/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       })
-      if (res.ok) {
-        const data = await res.json()
-        setSubmitResult({ score: data.score, grade: data.grade })
-        setTimeout(() => router.push('/founder/dashboard'), 3000)
+      const data = await res.json()
+      if (!res.ok) {
+        setSubmitError(data.error ?? 'Submission failed')
+        return
       }
-    } catch (e) {
-      console.error('Submit error:', e)
+      setSubmitResult({ score: data.score, grade: data.grade })
+      setTimeout(() => router.push('/founder/dashboard'), 3000)
+    } catch {
+      setSubmitError('Network error — please try again')
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  const completedSectionsCount = [1, 2, 3, 4, 5]
-    .filter(n => sections[n]?.isComplete).length
+  const completedCount = ['1','2','3','4','5'].filter(k => sections[k]?.isComplete).length
+  const canSubmit = completedCount >= 3
 
-  const canSubmit = completedSectionsCount >= 3
+  const STEP_ORDER = flowMode === 'fast' ? STEP_ORDER_FAST : STEP_ORDER_FULL
+  const stepIdx = STEP_ORDER.indexOf(currentStep)
+  const prevStep = stepIdx > 0 ? STEP_ORDER[stepIdx - 1] : null
+  const nextStep = stepIdx < STEP_ORDER.length - 1 ? STEP_ORDER[stepIdx + 1] : null
+
+  // Progress dots reflect active flow
+  const PROGRESS_STEPS = STEP_ORDER
+  const progressIdx = PROGRESS_STEPS.indexOf(currentStep)
 
   // ── render ────────────────────────────────────────────────────────────────
   return (
-    <div style={{ minHeight: '100vh', background: bg, display: 'flex' }}>
+    <div style={{ minHeight: '100vh', background: '#ffffff', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
 
-      {/* Left sidebar — section nav */}
-      <div style={{
-        width: 220, flexShrink: 0, background: surf, borderRight: `1px solid ${bdr}`,
-        padding: '24px 16px', display: 'flex', flexDirection: 'column', gap: 4,
-        position: 'sticky', top: 0, height: '100vh', overflowY: 'auto',
+      {/* ── Minimal fixed header ── */}
+      <header style={{
+        position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50,
+        borderBottom: `1px solid ${bdr}`, background: 'rgba(255,255,255,0.94)',
+        backdropFilter: 'blur(8px)', height: 52,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '0 24px',
       }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 12, paddingLeft: 4 }}>
-          Profile Builder
-        </div>
-        {STEP_ORDER.map((step, idx) => {
-          const isActive = step === currentStep
-          const isConvo = step === 'pitch' || (typeof step === 'number' && step >= 1 && step <= 5)
-          const isDone = isConvo ? (sections[step]?.isComplete ?? false) : false
-          const dotLabel = isDone ? '✓' : step === 6 ? '★' : step === 0 ? '↑' : step === 'pitch' ? 'P' : String(step)
-          return (
-            <button
-              key={String(step)}
-              onClick={() => setCurrentStep(step)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                padding: '8px 10px', borderRadius: 8, border: 'none', cursor: 'pointer',
-                background: isActive ? '#EFF6FF' : 'transparent',
-                color: isActive ? blue : ink, fontSize: 13,
-                fontFamily: 'inherit', textAlign: 'left', width: '100%',
-                transition: 'background 0.15s',
-              }}
-            >
-              <div style={{
-                width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
-                background: isDone ? green : isActive ? blue : bdr,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 11, fontWeight: 700, color: isDone || isActive ? '#fff' : muted,
-              }}>
-                {dotLabel}
-              </div>
-              <span style={{ fontWeight: isActive ? 600 : 400 }}>{SECTION_LABELS[step]}</span>
-              {isConvo && (
-                <span style={{ marginLeft: 'auto', fontSize: 11, color: muted }}>
-                  {sections[step]?.completionScore ?? 0}%
-                </span>
-              )}
-            </button>
-          )
-        })}
-      </div>
+        <span style={{ fontSize: 15, fontWeight: 700, color: ink, letterSpacing: '-0.01em' }}>
+          Edge Alpha
+        </span>
 
-      {/* Main content */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', maxWidth: 720, margin: '0 auto', padding: '32px 24px' }}>
+        {/* Progress dots — centered */}
+        {progressIdx >= 0 && (
+          <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            {PROGRESS_STEPS.map((step) => {
+              const key = String(step)
+              const isDone = (
+                step === 'pitch' ? (sections['pitch']?.isComplete ?? false)
+                : typeof step === 'number' && step >= 1 && step <= 5 ? (sections[key]?.isComplete ?? false)
+                : step === 'extract-results' ? extractionSummary.length > 0
+                : step === 'smart-qa' ? smartQaIndex >= smartQuestions.length && smartQuestions.length > 0
+                : false
+              )
+              const isActive = step === currentStep
+              return (
+                <button
+                  key={key}
+                  onClick={() => setCurrentStep(step as number | 'pitch' | 'extract-results' | 'smart-qa')}
+                  title={SECTION_LABELS[key] ?? key}
+                  style={{
+                    height: 6, borderRadius: 3, border: 'none', cursor: 'pointer', padding: 0,
+                    transition: 'all 0.25s ease',
+                    width: isActive ? 24 : 6,
+                    background: isDone ? green : isActive ? blue : bdr,
+                  }}
+                />
+              )
+            })}
+          </div>
+        )}
 
-        {/* Section header */}
-        <div style={{ marginBottom: 24 }}>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: ink, margin: 0 }}>
-            {SECTION_LABELS[currentStep]}
-          </h1>
-          <p style={{ fontSize: 13, color: muted, margin: '6px 0 0' }}>
-            {SECTION_DESCRIPTIONS[currentStep]}
-          </p>
-        </div>
+        <button
+          onClick={() => router.push('/founder/dashboard')}
+          style={{
+            fontSize: 13, color: muted, background: 'none', border: 'none',
+            cursor: 'pointer', fontFamily: 'inherit', padding: '4px 8px',
+          }}
+        >
+          Save & Exit
+        </button>
+      </header>
 
-        {/* ── STEP 0 — Document Upload ── */}
-        {currentStep === 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <div style={{
-              border: `2px dashed ${bdr}`, borderRadius: 12, padding: 40,
-              textAlign: 'center', background: surf, cursor: 'pointer',
-            }}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <div style={{ fontSize: 32 }}>📁</div>
-              <div style={{ fontSize: 15, fontWeight: 600, color: ink, marginTop: 8 }}>
-                Drop files or click to upload
-              </div>
-              <div style={{ fontSize: 13, color: muted, marginTop: 4 }}>
-                PDF, PPTX, XLSX, CSV, PNG, JPG — max 10 MB each
-              </div>
-              {uploadLoading && (
-                <div style={{ fontSize: 13, color: blue, marginTop: 8 }}>Uploading…</div>
-              )}
+      {/* ── Main layout (offset by header) ── */}
+      <div style={{ paddingTop: 52, minHeight: '100vh', display: 'flex' }}>
+
+        {/* ── Collapsible left sidebar ── */}
+        <div style={{
+          width: sidebarOpen ? 220 : 0,
+          minWidth: sidebarOpen ? 220 : 0,
+          overflow: 'hidden',
+          transition: 'width 0.25s ease, min-width 0.25s ease',
+          borderRight: `1px solid ${bdr}`,
+          background: '#fafafa',
+          position: 'sticky',
+          top: 52,
+          height: 'calc(100vh - 52px)',
+          display: 'flex',
+          flexDirection: 'column',
+        }}>
+          <div style={{ padding: '24px 16px 16px', opacity: sidebarOpen ? 1 : 0, transition: 'opacity 0.15s', whiteSpace: 'nowrap', overflow: 'hidden', flex: 1 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 16 }}>Sections</div>
+            {[
+              { key: '0',               label: 'Documents',          icon: '📁' },
+              ...(flowMode === 'fast' ? [
+                { key: 'extract-results', label: 'Extraction Results', icon: '📊' },
+                { key: 'smart-qa',        label: 'Quick Questions',   icon: '💬' },
+              ] : [
+                { key: 'pitch',           label: 'Your Pitch',         icon: '🎯' },
+              ]),
+              { key: '1',     label: 'Market & Customers', icon: '👥' },
+              { key: '2',     label: 'Market Potential',   icon: '📈' },
+              { key: '3',     label: 'IP & Defensibility', icon: '🔒' },
+              { key: '4',     label: 'Founder & Team',     icon: '🧑‍💼' },
+              { key: '5',     label: 'Financials',         icon: '💰' },
+              { key: '6',     label: 'Review & Submit',    icon: '✅' },
+            ].map(({ key, label, icon }) => {
+              const isActive = String(currentStep) === key
+              const sec = sections[key]
+              const pct = (key === '0' || key === 'pitch' || key === '6' || key === 'extract-results' || key === 'smart-qa') ? null : (sec?.completionScore ?? 0)
+              const isDone = pct !== null && pct >= 70
+              return (
+                <button
+                  key={key}
+                  onClick={() => {
+                    if (key === '0') setCurrentStep(0)
+                    else if (key === 'pitch') setCurrentStep('pitch')
+                    else if (key === 'extract-results') setCurrentStep('extract-results')
+                    else if (key === 'smart-qa') setCurrentStep('smart-qa')
+                    else if (key === '6') setCurrentStep(6)
+                    else setCurrentStep(parseInt(key, 10))
+                  }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    width: '100%', padding: '8px 10px', borderRadius: 8,
+                    border: 'none', cursor: 'pointer', textAlign: 'left',
+                    background: isActive ? '#EFF6FF' : 'transparent',
+                    marginBottom: 2, transition: 'background 0.15s',
+                  }}
+                  onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = '#f0f0f0' }}
+                  onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent' }}
+                >
+                  <span style={{ fontSize: 14 }}>{icon}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: isActive ? 600 : 400, color: isActive ? blue : ink, lineHeight: 1.3 }}>{label}</div>
+                    {pct !== null && (
+                      <div style={{ marginTop: 4 }}>
+                        <div style={{ height: 3, background: bdr, borderRadius: 2, overflow: 'hidden' }}>
+                          <div style={{ height: '100%', width: `${pct}%`, background: isDone ? green : blue, borderRadius: 2, transition: 'width 0.4s ease' }} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  {isDone && <span style={{ fontSize: 11, color: green, fontWeight: 700 }}>✓</span>}
+                </button>
+              )
+            })}
+
+            <div style={{ marginTop: 20, paddingTop: 16, borderTop: `1px solid ${bdr}` }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 12 }}>Parameters</div>
+              {[
+                { label: 'P1 Market Readiness',  key: '1' },
+                { label: 'P2 Market Potential',  key: '2' },
+                { label: 'P3 IP & Moat',         key: '3' },
+                { label: 'P4 Founder / Team',    key: '4' },
+                { label: 'P5 Impact',            key: '5' },
+                { label: 'P6 Financials',        key: '5' },
+              ].map(({ label, key }, i) => {
+                const pct = (sections[key]?.completionScore ?? 0)
+                return (
+                  <div key={i} style={{ marginBottom: 8 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                      <span style={{ fontSize: 11, color: muted }}>{label}</span>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: pct >= 70 ? green : ink }}>{pct}%</span>
+                    </div>
+                    <div style={{ height: 3, background: bdr, borderRadius: 2, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${pct}%`, background: pct >= 70 ? green : amber, borderRadius: 2, transition: 'width 0.4s ease' }} />
+                    </div>
+                  </div>
+                )
+              })}
             </div>
+          </div>
+        </div>
+
+        {/* ── Toggle sidebar button ── */}
+        <button
+          onClick={() => setSidebarOpen(o => !o)}
+          style={{
+            position: 'fixed', top: 62, left: sidebarOpen ? 208 : 8,
+            zIndex: 40, width: 24, height: 24, borderRadius: '50%',
+            border: `1px solid ${bdr}`, background: '#fff',
+            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 10, color: muted, transition: 'left 0.25s ease',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+          }}
+        >
+          {sidebarOpen ? '‹' : '›'}
+        </button>
+
+        {/* ── Main content ── */}
+        <main style={{ flex: 1, minHeight: 'calc(100vh - 52px)', display: 'flex', flexDirection: 'column' }}>
+      <AnimatePresence mode="wait">
+      <motion.div
+        key={String(currentStep)}
+        initial={{ opacity: 0, x: 16, filter: 'blur(3px)' }}
+        animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
+        exit={{ opacity: 0, x: -16, filter: 'blur(3px)' }}
+        transition={{ duration: 0.22, ease: 'easeOut' }}
+        style={{ flex: 1, display: 'flex', flexDirection: 'column' }}
+      >
+
+        {/* ── STEP 0: Document Upload ── */}
+        {currentStep === 0 && (
+          <div style={{ maxWidth: 560, margin: '0 auto', width: '100%', padding: '56px 24px 40px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+            <div style={{ textAlign: 'center', marginBottom: 12 }}>
+              <h2 style={{ fontSize: 24, fontWeight: 700, color: ink, margin: '0 0 8px', letterSpacing: '-0.02em' }}>
+                Upload documents
+              </h2>
+              <p style={{ fontSize: 14, color: muted, margin: 0, lineHeight: 1.6 }}>
+                Optional — pitch decks, financial models, anything you have. We'll extract the data automatically.
+              </p>
+            </div>
+
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              style={{
+                border: `2px dashed ${bdr}`, borderRadius: 16, padding: '48px 32px',
+                textAlign: 'center', background: '#fafafa', cursor: 'pointer',
+                transition: 'all 0.15s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = blue; e.currentTarget.style.background = '#EFF6FF' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = bdr; e.currentTarget.style.background = '#fafafa' }}
+            >
+              <div style={{ fontSize: 32, marginBottom: 12 }}>{uploadLoading ? '⏳' : '📁'}</div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: ink, marginBottom: 6 }}>
+                {uploadLoading ? 'Uploading and extracting…' : 'Drop files or click to upload'}
+              </div>
+              <div style={{ fontSize: 13, color: muted }}>PDF, PPTX, XLSX, CSV, PNG, JPG — max 10 MB</div>
+            </div>
+
+            {uploadError && (
+              <div style={{ padding: '10px 14px', borderRadius: 8, background: '#FEF2F2', border: `1px solid #FECACA`, fontSize: 13, color: red }}>
+                {uploadError}
+              </div>
+            )}
+
             {uploadedFiles.length > 0 && (
               <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: ink, marginBottom: 8 }}>Uploaded documents</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Uploaded</div>
                 {uploadedFiles.map((f, i) => (
                   <div key={i} style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '10px 14px', borderRadius: 8, background: '#fff',
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    padding: '10px 14px', borderRadius: 10, background: '#fafafa',
                     border: `1px solid ${bdr}`, marginBottom: 6,
                   }}>
                     <span style={{ fontSize: 18 }}>📄</span>
-                    <div>
+                    <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 13, fontWeight: 600, color: ink }}>{f.name}</div>
-                      <div style={{ fontSize: 11, color: muted }}>{f.fields} fields extracted</div>
+                      <div style={{ fontSize: 11, color: f.fields > 0 ? green : muted, marginTop: 2 }}>
+                        {f.fields > 0 ? `${f.fields} fields extracted` : 'Stored as context'}
+                      </div>
                     </div>
+                    <span style={{ fontSize: 13, color: green }}>✓</span>
                   </div>
                 ))}
               </div>
             )}
 
-            <div style={{ textAlign: 'center' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
               <button
-                onClick={() => setCurrentStep(1)}
+                onClick={() => setCurrentStep(flowMode === 'fast' && uploadedFiles.length > 0 ? 'extract-results' : 'pitch')}
                 style={{
-                  padding: '12px 28px', borderRadius: 8, border: 'none',
+                  padding: '12px 28px', borderRadius: 10, border: 'none',
                   background: blue, color: '#fff', fontSize: 14, fontWeight: 600,
                   cursor: 'pointer', fontFamily: 'inherit',
                 }}
               >
-                {uploadedFiles.length > 0 ? 'Continue with documents →' : 'Skip — answer questions instead →'}
+                {flowMode === 'fast' && uploadedFiles.length > 0
+                  ? 'See what we found →'
+                  : uploadedFiles.length > 0 ? 'Continue →' : 'Skip, answer questions →'
+                }
               </button>
             </div>
           </div>
         )}
 
-        {/* ── PITCH + STEPS 1-5 — Conversational Sections ── */}
+        {/* ── PITCH + SECTIONS 1-5: Chat ── */}
         {(currentStep === 'pitch' || (typeof currentStep === 'number' && currentStep >= 1 && currentStep <= 5)) && (() => {
-          const sec = sections[currentStep]
-          const stepNum = typeof currentStep === 'number' ? currentStep : 0
-          const impact = UPLOAD_IMPACT[stepNum]
-          const prevScore = typeof currentStep === 'number' ? (previewData?.dimensions as Record<string, number> | undefined)?.[['market','product','gtm','financial','team','traction'][currentStep - 1] ?? ''] : undefined
-          const projectedScore = prevScore != null && impact ? Math.min(100, prevScore + impact.pts) : null
-          const stripeCardVisible = currentStep === 5 && !uploadLoading && sec.uploadedDocuments.length === 0 && /\$[\d,]+|\d+k\s*mrr|\d+\s*k\s*month/i.test(sec.conversation)
+          const key = String(currentStep)
+          const sec = sections[key] ?? initSection()
+          const impact = typeof currentStep === 'number' ? UPLOAD_IMPACT[currentStep] : undefined
+          const isSection5 = currentStep === 5
+          const mentionsRevenue = isSection5 && /\$[\d,]+|\d+k?\s*mrr|\d+\s*k\s*per\s*month/i.test(sec.conversation)
+          const stripeVisible = isSection5 && mentionsRevenue && sec.uploadedDocuments.length === 0
+
           return (
-            <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: 16 }}>
-              {/* Completion bar */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ flex: 1, height: 6, background: bdr, borderRadius: 3, overflow: 'hidden' }}>
-                  <div style={{
-                    height: '100%', borderRadius: 3, transition: 'width 0.5s ease',
-                    width: `${sec.completionScore}%`,
-                    background: sec.completionScore >= 70 ? green : blue,
-                  }} />
-                </div>
-                <span style={{ fontSize: 12, color: muted, flexShrink: 0 }}>
-                  {sec.completionScore}% complete {sec.completionScore >= 70 ? '✓' : ''}
-                </span>
+            <div style={{ maxWidth: 640, margin: '0 auto', width: '100%', padding: '48px 24px 0', display: 'flex', flexDirection: 'column', flex: 1 }}>
+
+              {/* Section heading */}
+              <div style={{ textAlign: 'center', marginBottom: 28 }}>
+                <h2 style={{ fontSize: 22, fontWeight: 700, color: ink, margin: '0 0 6px', letterSpacing: '-0.02em' }}>
+                  {SECTION_LABELS[key]}
+                </h2>
+                <p style={{ fontSize: 14, color: muted, margin: 0 }}>
+                  {SECTION_DESCRIPTIONS[key]}
+                </p>
               </div>
+
+              {/* Completion bar — subtle, sections 1-5 only */}
+              {currentStep !== 'pitch' && sec.completionScore > 0 && (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                    <span style={{ fontSize: 12, color: muted }}>Section completion</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: sec.completionScore >= 70 ? green : muted }}>
+                      {sec.completionScore}%{sec.completionScore >= 70 ? ' · Complete ✓' : ''}
+                    </span>
+                  </div>
+                  <div style={{ height: 3, background: bdr, borderRadius: 2, overflow: 'hidden' }}>
+                    <div style={{
+                      height: '100%', borderRadius: 2, transition: 'width 0.5s ease',
+                      width: `${sec.completionScore}%`,
+                      background: sec.completionScore >= 70 ? green : blue,
+                    }} />
+                  </div>
+                </div>
+              )}
+
+              {/* Pitch warning */}
+              {currentStep === 'pitch' && sec.completionScore > 0 && sec.completionScore < 60 && (
+                <div style={{
+                  marginBottom: 16, padding: '10px 14px', borderRadius: 8,
+                  background: '#FFFBEB', border: '1px solid #FDE68A', fontSize: 13, color: '#92400E',
+                }}>
+                  Name the customer, the problem, and why now — investors need all three.
+                </div>
+              )}
 
               {/* Chat messages */}
               <div style={{
                 flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column',
-                gap: 12, minHeight: 300, maxHeight: 460, padding: '4px 0',
+                gap: 12, minHeight: 260, maxHeight: 400, padding: '4px 0',
               }}>
+                {sec.messages.length === 0 && (
+                  <div style={{ textAlign: 'center', padding: 32, color: muted, fontSize: 14 }}>
+                    Loading question…
+                  </div>
+                )}
                 {sec.messages.map((msg, i) => (
-                  <div key={i} style={{
-                    display: 'flex',
-                    justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                  }}>
+                  <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
                     <div style={{
-                      maxWidth: '80%', padding: '10px 14px', borderRadius: 12,
-                      fontSize: 14, lineHeight: 1.5,
-                      background: msg.role === 'user' ? blue : surf,
+                      maxWidth: '82%', padding: '11px 15px',
+                      fontSize: 14, lineHeight: 1.65,
+                      background: msg.role === 'user' ? blue : '#f5f5f5',
                       color: msg.role === 'user' ? '#fff' : ink,
-                      border: msg.role === 'agent' ? `1px solid ${bdr}` : 'none',
+                      borderRadius: msg.role === 'user' ? '14px 4px 14px 14px' : '4px 14px 14px 14px',
                     }}>
                       {msg.text}
                     </div>
                   </div>
                 ))}
                 {isTyping && (
-                  <div style={{ display: 'flex', gap: 4, padding: '10px 14px', width: 60 }}>
-                    {[0, 1, 2].map(i => (
+                  <div style={{ display: 'flex', gap: 5, padding: '12px 14px', width: 64,
+                    background: '#f5f5f5', borderRadius: '4px 14px 14px 14px' }}>
+                    {[0,1,2].map(i => (
                       <div key={i} style={{
-                        width: 6, height: 6, borderRadius: '50%', background: muted,
-                        animation: `bounce 0.6s ${i * 0.1}s infinite`,
+                        width: 7, height: 7, borderRadius: '50%', background: '#ccc',
+                        animation: `bounce 0.6s ${i * 0.15}s infinite`,
                       }} />
                     ))}
                   </div>
@@ -573,225 +870,414 @@ export default function ProfileBuilderPage() {
                 <div ref={chatEndRef} />
               </div>
 
-              {/* Upload trigger with score impact */}
+              {/* Upload trigger */}
               {uploadTrigger && (
                 <div style={{
-                  padding: '12px 16px', borderRadius: 8, background: '#FFF7ED',
-                  border: '1px solid #FED7AA', display: 'flex', alignItems: 'center', gap: 12,
+                  margin: '12px 0', padding: '12px 16px', borderRadius: 10,
+                  background: '#FFF7ED', border: '1px solid #FED7AA',
+                  display: 'flex', alignItems: 'center', gap: 12,
                 }}>
-                  <span style={{ fontSize: 18 }}>📊</span>
+                  <span style={{ fontSize: 16 }}>📊</span>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, color: '#92400E' }}>{uploadTrigger}</div>
                     {impact && (
                       <div style={{ fontSize: 11, color: amber, marginTop: 2, fontWeight: 600 }}>
-                        Verify this claim → boost {impact.dim}
-                        {projectedScore != null && prevScore != null
-                          ? ` ${prevScore} → ${projectedScore}`
-                          : ` +${impact.pts} pts`}
+                        Upload to verify → boost {impact.dim} +{impact.pts} pts
                       </div>
                     )}
                   </div>
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    style={{
-                      padding: '6px 14px', borderRadius: 6, border: 'none',
-                      background: amber, color: '#fff', fontSize: 12,
-                      fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-                    }}
-                  >
-                    Upload
-                  </button>
+                  <button onClick={() => fileInputRef.current?.click()} style={{
+                    padding: '6px 14px', borderRadius: 6, border: 'none',
+                    background: amber, color: '#fff', fontSize: 12,
+                    fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                  }}>Upload</button>
                 </div>
               )}
 
-              {/* Stripe connect card — Section 5 when revenue mentioned but no doc uploaded */}
-              {stripeCardVisible && (
+              {/* Stripe card */}
+              {stripeVisible && (
                 <div style={{
-                  border: `1px solid ${bdr}`, borderRadius: 10, padding: 14,
-                  background: surf, display: 'flex', gap: 12, alignItems: 'center',
+                  margin: '8px 0', border: `1px solid ${bdr}`, borderRadius: 10, padding: '12px 16px',
+                  background: '#fafafa', display: 'flex', gap: 12, alignItems: 'center',
                 }}>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: ink }}>Connect Stripe for 1.0× multiplier</div>
-                    <div style={{ fontSize: 12, color: muted, marginTop: 2 }}>
-                      Verified MRR = highest data credibility (+18 pts vs self-reported)
-                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: ink }}>Connect Stripe for verified MRR</div>
+                    <div style={{ fontSize: 12, color: muted, marginTop: 2 }}>Highest data credibility — +18 pts vs self-reported</div>
                   </div>
-                  <button
-                    onClick={() => router.push('/founder/cxo?agent=felix')}
-                    style={{
-                      padding: '8px 12px', borderRadius: 6, border: `1px solid ${bdr}`,
-                      background: 'transparent', fontSize: 12, color: blue,
-                      cursor: 'pointer', fontWeight: 500, fontFamily: 'inherit', whiteSpace: 'nowrap',
-                    }}
-                  >
-                    Connect via Felix →
-                  </button>
+                  <button onClick={() => router.push('/founder/cxo?agent=felix')} style={{
+                    padding: '7px 12px', borderRadius: 6, border: `1px solid ${bdr}`,
+                    background: 'transparent', fontSize: 12, color: blue,
+                    cursor: 'pointer', fontWeight: 500, fontFamily: 'inherit', whiteSpace: 'nowrap',
+                  }}>Connect →</button>
                 </div>
               )}
 
               {/* Input area */}
-              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-                <textarea
-                  value={input}
-                  onChange={e => setInput(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
-                  placeholder="Type your answer… (Enter to send, Shift+Enter for new line)"
-                  rows={3}
-                  style={{
-                    flex: 1, padding: '10px 14px', borderRadius: 10,
-                    border: `1.5px solid ${bdr}`, background: '#fff', fontSize: 14,
-                    color: ink, resize: 'none', fontFamily: 'inherit', outline: 'none',
-                  }}
-                />
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <button
-                    onClick={handleSend}
-                    disabled={!input.trim() || isTyping}
-                    style={{
-                      padding: '10px 18px', borderRadius: 8, border: 'none',
-                      background: (!input.trim() || isTyping) ? bdr : blue,
-                      color: '#fff', fontWeight: 600, cursor: 'pointer',
-                      fontFamily: 'inherit', fontSize: 14,
+              <div style={{ padding: '16px 0 20px', borderTop: `1px solid ${bdr}`, marginTop: 8 }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                  <textarea
+                    value={input}
+                    onChange={e => setInput(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
                     }}
-                  >
-                    Send
-                  </button>
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    title="Upload document"
+                    placeholder={
+                      currentStep === 'pitch'
+                        ? "Describe your company in 2-3 sentences…"
+                        : "Type your answer… (Enter to send, Shift+Enter for new line)"
+                    }
+                    rows={3}
+                    disabled={isTyping}
                     style={{
-                      padding: '8px 14px', borderRadius: 8, border: `1.5px solid ${bdr}`,
-                      background: 'transparent', cursor: 'pointer', fontFamily: 'inherit',
-                      fontSize: 13, color: muted,
+                      flex: 1, padding: '11px 14px', borderRadius: 10,
+                      border: `1.5px solid ${bdr}`, background: '#fff',
+                      fontSize: 14, color: ink, resize: 'none', fontFamily: 'inherit',
+                      outline: 'none', transition: 'border-color 0.15s',
+                      opacity: isTyping ? 0.7 : 1,
                     }}
-                  >
-                    📎
-                  </button>
+                    onFocus={e => (e.target.style.borderColor = blue)}
+                    onBlur={e => (e.target.style.borderColor = bdr)}
+                  />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <button
+                      onClick={handleSend}
+                      disabled={!input.trim() || isTyping}
+                      style={{
+                        padding: '11px 20px', borderRadius: 8, border: 'none',
+                        background: (!input.trim() || isTyping) ? bdr : blue,
+                        color: '#fff', fontWeight: 600,
+                        cursor: (!input.trim() || isTyping) ? 'not-allowed' : 'pointer',
+                        fontFamily: 'inherit', fontSize: 14,
+                      }}
+                    >{isTyping ? '…' : 'Send'}</button>
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      title="Upload document"
+                      style={{
+                        padding: '8px 14px', borderRadius: 8,
+                        border: `1.5px solid ${bdr}`, background: '#fafafa',
+                        cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, color: muted,
+                      }}
+                    >📎</button>
+                  </div>
                 </div>
+                <p style={{ margin: '8px 0 0', fontSize: 12, color: muted }}>
+                  Enter to send · Shift+Enter for new line
+                </p>
               </div>
 
-              {/* Pitch clarity warning */}
-              {currentStep === 'pitch' && sec.completionScore > 0 && sec.completionScore < 60 && (
-                <div style={{
-                  padding: '10px 14px', borderRadius: 8, background: '#FFFBEB',
-                  border: '1px solid #FDE68A', fontSize: 13, color: '#92400E',
-                }}>
-                  ⚠️ Investors need to understand you immediately. Your pitch needs to clearly name the customer, the problem, and why now. Refine before continuing.
-                </div>
-              )}
-
-              {/* Section nav */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
+              {/* Back / Next */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 40 }}>
                 <button
-                  onClick={() => {
-                    const idx = STEP_ORDER.indexOf(currentStep)
-                    if (idx > 0) setCurrentStep(STEP_ORDER[idx - 1])
-                  }}
+                  onClick={() => { if (prevStep !== null) setCurrentStep(prevStep) }}
                   style={{
-                    padding: '8px 20px', borderRadius: 8, border: `1.5px solid ${bdr}`,
-                    background: 'transparent', fontSize: 13, color: ink, cursor: 'pointer', fontFamily: 'inherit',
+                    padding: '10px 22px', borderRadius: 8, border: `1.5px solid ${bdr}`,
+                    background: 'transparent', fontSize: 13, color: ink,
+                    cursor: 'pointer', fontFamily: 'inherit',
                   }}
-                >
-                  ← Back
-                </button>
+                >← Back</button>
                 <button
-                  onClick={() => {
-                    const idx = STEP_ORDER.indexOf(currentStep)
-                    if (idx < STEP_ORDER.length - 1) setCurrentStep(STEP_ORDER[idx + 1])
-                  }}
+                  onClick={() => { if (nextStep !== null) setCurrentStep(nextStep) }}
                   style={{
-                    padding: '8px 20px', borderRadius: 8, border: 'none',
+                    padding: '10px 22px', borderRadius: 8, border: 'none',
                     background: blue, color: '#fff', fontSize: 13,
                     fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
                   }}
+                >{currentStep === 5 ? 'Review & Submit →' : 'Next →'}</button>
+              </div>
+            </div>
+          )
+        })()}
+
+        {/* ── EXTRACT RESULTS ── */}
+        {currentStep === 'extract-results' && (
+          <div style={{ maxWidth: 600, margin: '0 auto', width: '100%', padding: '48px 24px 60px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <div style={{ textAlign: 'center', marginBottom: 4 }}>
+              <h2 style={{ fontSize: 24, fontWeight: 700, color: ink, margin: '0 0 8px', letterSpacing: '-0.02em' }}>
+                Here's what we found
+              </h2>
+              <p style={{ fontSize: 14, color: muted, margin: 0, lineHeight: 1.6 }}>
+                {extractionSummary.reduce((s, x) => s + x.extractedCount, 0)} fields auto-filled across {extractionSummary.filter(x => x.completionPct > 0).length} sections
+              </p>
+            </div>
+
+            {extractionSummary.map(s => {
+              const isDone = s.completionPct >= 70
+              return (
+                <div key={s.sectionKey} style={{
+                  borderRadius: 12, border: `1px solid ${isDone ? green + '55' : bdr}`,
+                  background: isDone ? '#F0FDF4' : '#fafafa', padding: '16px 20px',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: ink }}>{s.label}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: isDone ? green : muted }}>{s.completionPct}%</span>
+                      {isDone && <span style={{ fontSize: 12, color: green, fontWeight: 700 }}>Complete ✓</span>}
+                    </div>
+                  </div>
+                  <div style={{ height: 4, background: bdr, borderRadius: 2, overflow: 'hidden', marginBottom: 10 }}>
+                    <div style={{ height: '100%', width: `${s.completionPct}%`, background: isDone ? green : blue, borderRadius: 2, transition: 'width 0.5s ease' }} />
+                  </div>
+                  {s.extractedSnippets.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: s.missingLabels.length > 0 ? 8 : 0 }}>
+                      {s.extractedSnippets.map((snip, i) => (
+                        <span key={i} style={{
+                          fontSize: 11, padding: '3px 8px', borderRadius: 20,
+                          background: '#D1FAE5', color: '#065F46', fontWeight: 500,
+                        }}>✓ {snip.label}: {snip.value}</span>
+                      ))}
+                    </div>
+                  )}
+                  {s.missingLabels.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {s.missingLabels.map((m, i) => (
+                        <span key={i} style={{
+                          fontSize: 11, padding: '3px 8px', borderRadius: 20,
+                          background: '#FEF3C7', color: '#92400E', fontWeight: 500,
+                        }}>⚠ {m}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+
+            {smartQuestions.length > 0 && (
+              <div style={{ padding: '16px 20px', borderRadius: 12, background: '#EFF6FF', border: `1px solid ${blue}22` }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: blue, marginBottom: 4 }}>
+                  {smartQuestions.length} quick {smartQuestions.length === 1 ? 'question' : 'questions'} to fill the gaps
+                </div>
+                <div style={{ fontSize: 13, color: muted }}>Estimated time: 3–5 minutes</div>
+              </div>
+            )}
+            {smartQuestions.length === 0 && (
+              <div style={{ padding: '16px 20px', borderRadius: 12, background: '#F0FDF4', border: `1px solid ${green}44` }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: green }}>All critical fields covered from your documents!</div>
+                <div style={{ fontSize: 13, color: muted, marginTop: 2 }}>You can go straight to review & submit.</div>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'space-between' }}>
+              <button onClick={() => { setFlowMode('full'); setCurrentStep('pitch') }} style={{
+                padding: '10px 20px', borderRadius: 8, border: `1px solid ${bdr}`,
+                background: 'transparent', fontSize: 13, color: muted,
+                cursor: 'pointer', fontFamily: 'inherit',
+              }}>Explore sections manually</button>
+              <button onClick={() => setCurrentStep(smartQuestions.length > 0 ? 'smart-qa' : 6)} style={{
+                padding: '12px 28px', borderRadius: 10, border: 'none',
+                background: blue, color: '#fff', fontSize: 14, fontWeight: 600,
+                cursor: 'pointer', fontFamily: 'inherit',
+              }}>
+                {smartQuestions.length > 0 ? `Answer ${smartQuestions.length} questions →` : 'Review & Submit →'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── SMART Q&A ── */}
+        {currentStep === 'smart-qa' && (() => {
+          const q = smartQuestions[smartQaIndex]
+          // If no questions remain, redirect to review — done via useEffect, render null here
+          if (!q) return null
+          const isLast = smartQaIndex === smartQuestions.length - 1
+          const progressPct = Math.round(((smartQaIndex) / smartQuestions.length) * 100)
+
+          const handleSmartNext = async () => {
+            if (!smartInput.trim() || !token) return
+            setSmartProcessing(true)
+            try {
+              const res = await fetch('/api/profile-builder/extract', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({
+                  section: parseInt(q.sectionKey, 10),
+                  conversationText: `${q.text}\n\nAnswer: ${smartInput}`,
+                  founderProfile,
+                  existingExtracted: sections[q.sectionKey]?.extractedFields ?? {},
+                }),
+              })
+              if (res.ok) {
+                const data = await res.json()
+                const secKey = q.sectionKey
+                setSections(prev => {
+                  const sec = prev[secKey] ?? initSection()
+                  const updated: SectionState = {
+                    ...sec,
+                    extractedFields: data.mergedFields ?? sec.extractedFields,
+                    completionScore: data.completionScore ?? sec.completionScore,
+                    isComplete: (data.completionScore ?? sec.completionScore) >= 70,
+                    conversation: (sec.conversation ? sec.conversation + '\n' : '') + `Q: ${q.text}\nA: ${smartInput}`,
+                  }
+                  if (token) saveSection(secKey, updated, token)
+                  return { ...prev, [secKey]: updated }
+                })
+              }
+            } catch (e) {
+              console.warn('smart-qa extract failed:', e)
+            } finally {
+              setSmartProcessing(false)
+              setSmartInput('')
+              if (isLast) setCurrentStep(6)
+              else setSmartQaIndex(i => i + 1)
+            }
+          }
+
+          return (
+            <div style={{ maxWidth: 560, margin: '0 auto', width: '100%', padding: '48px 24px 60px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+              {/* Progress */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <span style={{ fontSize: 12, color: muted }}>Question {smartQaIndex + 1} of {smartQuestions.length}</span>
+                  <span style={{ fontSize: 12, color: muted }}>{progressPct}%</span>
+                </div>
+                <div style={{ height: 4, background: bdr, borderRadius: 2, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${progressPct}%`, background: blue, borderRadius: 2, transition: 'width 0.3s ease' }} />
+                </div>
+              </div>
+
+              {/* Section badge */}
+              <div>
+                <span style={{
+                  display: 'inline-block', fontSize: 11, fontWeight: 600,
+                  padding: '3px 10px', borderRadius: 20,
+                  background: '#EFF6FF', color: blue,
+                }}>{q.sectionLabel}</span>
+              </div>
+
+              {/* Question */}
+              <h2 style={{ fontSize: 20, fontWeight: 700, color: ink, margin: 0, lineHeight: 1.4, letterSpacing: '-0.01em' }}>
+                {q.text}
+              </h2>
+
+              {/* Context hint */}
+              {q.contextHint && (
+                <div style={{
+                  padding: '10px 14px', borderRadius: 8,
+                  background: '#EFF6FF', fontSize: 13, color: '#1D4ED8',
+                }}>
+                  {q.contextHint}
+                </div>
+              )}
+
+              {/* Answer textarea */}
+              <textarea
+                value={smartInput}
+                onChange={e => setSmartInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSmartNext() } }}
+                placeholder="Type your answer…"
+                rows={4}
+                style={{
+                  width: '100%', padding: '12px 14px', borderRadius: 10,
+                  border: `1.5px solid ${bdr}`, background: '#fafafa',
+                  fontSize: 14, color: ink, fontFamily: 'inherit',
+                  resize: 'vertical', outline: 'none', boxSizing: 'border-box',
+                  lineHeight: 1.6,
+                }}
+                onFocus={e => { e.target.style.borderColor = blue }}
+                onBlur={e => { e.target.style.borderColor = bdr }}
+              />
+
+              {/* Help text */}
+              {q.helpText && (
+                <p style={{ fontSize: 12, color: muted, margin: 0, fontStyle: 'italic', lineHeight: 1.5 }}>
+                  💡 {q.helpText}
+                </p>
+              )}
+
+              {/* Navigation */}
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <button
+                  onClick={() => {
+                    if (smartQaIndex === 0) setCurrentStep('extract-results')
+                    else setSmartQaIndex(i => i - 1)
+                  }}
+                  style={{
+                    padding: '10px 20px', borderRadius: 8, border: `1px solid ${bdr}`,
+                    background: 'transparent', fontSize: 13, color: muted,
+                    cursor: 'pointer', fontFamily: 'inherit',
+                  }}
+                >← Back</button>
+                <button
+                  onClick={handleSmartNext}
+                  disabled={!smartInput.trim() || smartProcessing}
+                  style={{
+                    padding: '12px 28px', borderRadius: 10, border: 'none',
+                    background: (!smartInput.trim() || smartProcessing) ? bdr : blue,
+                    color: '#fff', fontSize: 14, fontWeight: 600,
+                    cursor: (!smartInput.trim() || smartProcessing) ? 'not-allowed' : 'pointer',
+                    fontFamily: 'inherit', opacity: (!smartInput.trim() || smartProcessing) ? 0.6 : 1,
+                  }}
                 >
-                  {currentStep === 5 ? 'Review & Submit →' : 'Next section →'}
+                  {smartProcessing ? 'Saving…' : isLast ? 'Finish →' : 'Next →'}
                 </button>
               </div>
             </div>
           )
         })()}
 
-        {/* ── STEP 6 — Review & Submit ── */}
+        {/* ── STEP 6: Review & Submit ── */}
         {currentStep === 6 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div style={{ maxWidth: 560, margin: '0 auto', width: '100%', padding: '48px 24px 60px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+
             {submitResult ? (
-              <div style={{
-                textAlign: 'center', padding: 40, borderRadius: 16,
-                background: surf, border: `1px solid ${bdr}`,
-              }}>
-                <div style={{ fontSize: 64, fontWeight: 800, color: blue }}>{submitResult.score}</div>
-                <div style={{ fontSize: 22, fontWeight: 700, color: ink }}>Grade {submitResult.grade}</div>
-                <div style={{ fontSize: 14, color: muted, marginTop: 8 }}>
-                  Your Q-Score is calculated. Redirecting to dashboard…
+              <div style={{ textAlign: 'center', padding: 56 }}>
+                <div style={{ fontSize: 80, fontWeight: 800, color: blue, lineHeight: 1, letterSpacing: '-0.04em' }}>
+                  {submitResult.score}
+                </div>
+                <div style={{ fontSize: 24, fontWeight: 700, color: ink, marginTop: 8 }}>Grade {submitResult.grade}</div>
+                <div style={{ fontSize: 14, color: muted, marginTop: 10 }}>
+                  IQ Score calculated — redirecting to dashboard…
                 </div>
               </div>
             ) : (
               <>
-                {/* Live Score Preview Panel */}
+                <div style={{ textAlign: 'center' }}>
+                  <h2 style={{ fontSize: 24, fontWeight: 700, color: ink, margin: '0 0 8px', letterSpacing: '-0.02em' }}>
+                    Review & Submit
+                  </h2>
+                  <p style={{ fontSize: 14, color: muted, margin: 0 }}>
+                    {completedCount}/5 sections complete.{' '}
+                    {canSubmit ? 'Ready to calculate your IQ Score.' : 'Complete at least 3 sections (70%+) to submit.'}
+                  </p>
+                </div>
+                {/* Live preview panel */}
                 {previewLoading && (
-                  <div style={{ padding: 24, borderRadius: 12, background: surf, border: `1px solid ${bdr}`, textAlign: 'center', fontSize: 13, color: muted }}>
+                  <div style={{ padding: 24, borderRadius: 12, background: '#fafafa', border: `1px solid ${bdr}`, textAlign: 'center', fontSize: 13, color: muted }}>
                     Calculating projected score…
                   </div>
                 )}
                 {!previewLoading && previewData && (
-                  <div style={{ borderRadius: 14, border: `1px solid ${bdr}`, background: surf, overflow: 'hidden' }}>
-                    {/* Score header */}
-                    <div style={{ padding: '24px 24px 16px', borderBottom: `1px solid ${bdr}`, display: 'flex', alignItems: 'center', gap: 20 }}>
-                      <div style={{ textAlign: 'center' }}>
-                        <div style={{ fontSize: 56, fontWeight: 800, color: previewData.projectedScore >= 65 ? blue : previewData.projectedScore >= 45 ? amber : muted, lineHeight: 1 }}>
+                  <div style={{ borderRadius: 14, border: `1px solid ${bdr}`, background: '#fafafa', overflow: 'hidden' }}>
+                    <div style={{ padding: '28px 28px 24px', display: 'flex', alignItems: 'center', gap: 24 }}>
+                      <div style={{ textAlign: 'center', minWidth: 80 }}>
+                        <div style={{
+                          fontSize: 64, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.04em',
+                          color: previewData.projectedScore >= 65 ? blue : previewData.projectedScore >= 45 ? amber : muted,
+                        }}>
                           {previewData.projectedScore}
                         </div>
-                        <div style={{ fontSize: 14, fontWeight: 600, color: ink, marginTop: 2 }}>Grade {previewData.grade}</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: ink, marginTop: 4 }}>Grade {previewData.grade}</div>
                       </div>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: ink, marginBottom: 4 }}>Projected Q-Score</div>
-                        <div style={{ fontSize: 12, color: muted, marginBottom: 8 }}>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: ink, marginBottom: 6 }}>Projected IQ Score</div>
+                        <div style={{ fontSize: 13, color: previewData.marketplaceUnlocked ? green : muted, marginBottom: 4, lineHeight: 1.4 }}>
                           {previewData.marketplaceUnlocked
-                            ? '✅ Investor Marketplace unlocked (≥65)'
-                            : `🔒 ${65 - previewData.projectedScore} pts to unlock Investor Marketplace`}
+                            ? 'Investor Marketplace unlocks at submission'
+                            : `Need ${45 - previewData.projectedScore} more pts to unlock Marketplace`}
                         </div>
-                        <div style={{ fontSize: 11, color: muted }}>{previewData.sectionsComplete}/5 sections at 70%+</div>
+                        <div style={{ fontSize: 12, color: muted }}>{previewData.sectionsComplete}/5 sections at 70%+</div>
                       </div>
                     </div>
-
-                    {/* Dimension bars */}
-                    <div style={{ padding: '16px 24px', borderBottom: `1px solid ${bdr}` }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: muted, marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Dimension Breakdown</div>
-                      {[
-                        { key: 'market', label: 'Market' },
-                        { key: 'product', label: 'Product' },
-                        { key: 'gtm', label: 'Go-to-Market' },
-                        { key: 'financial', label: 'Financial' },
-                        { key: 'team', label: 'Team' },
-                        { key: 'traction', label: 'Traction' },
-                      ].map(({ key, label }) => {
-                        const score = previewData.dimensions[key] ?? 0
-                        const barColor = score >= 70 ? green : score >= 50 ? blue : amber
-                        return (
-                          <div key={key} style={{ marginBottom: 8 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                              <span style={{ fontSize: 12, color: ink }}>{label}</span>
-                              <span style={{ fontSize: 12, color: muted, fontWeight: 600 }}>{score}</span>
-                            </div>
-                            <div style={{ height: 5, background: bdr, borderRadius: 3, overflow: 'hidden' }}>
-                              <div style={{ height: '100%', width: `${score}%`, background: barColor, borderRadius: 3, transition: 'width 0.6s ease' }} />
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-
-                    {/* Boost actions */}
                     {previewData.boostActions.length > 0 && (
-                      <div style={{ padding: '16px 24px' }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: muted, marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Top Score Boosts</div>
-                        {previewData.boostActions.map((a, i) => (
-                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                            <div style={{ width: 32, height: 20, borderRadius: 4, background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: blue }}>
-                              +{a.impact}
+                      <div style={{ padding: '0 28px 24px' }}>
+                        <div style={{ height: 1, background: bdr, marginBottom: 16 }} />
+                        <div style={{ fontSize: 11, fontWeight: 600, color: muted, marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Weakest parameters</div>
+                        {previewData.boostActions.slice(0, 3).map((a, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 8 }}>
+                            <div style={{ minWidth: 40, padding: '2px 6px', borderRadius: 4, background: '#EFF6FF', textAlign: 'center', fontSize: 11, fontWeight: 700, color: blue, flexShrink: 0 }}>
+                              {Math.round(a.currentScore * 20)}/100
                             </div>
-                            <span style={{ fontSize: 13, color: ink }}>{a.action}</span>
+                            <span style={{ fontSize: 12, color: ink, lineHeight: 1.4 }}>{a.action}</span>
                           </div>
                         ))}
                       </div>
@@ -799,51 +1285,46 @@ export default function ProfileBuilderPage() {
                   </div>
                 )}
 
-                <div style={{ fontSize: 14, color: muted }}>
-                  {completedSectionsCount}/5 sections complete.{' '}
-                  {canSubmit ? 'Ready to calculate your final Q-Score.' : 'Complete at least 3 sections (70%+) to submit.'}
-                </div>
-
-                {/* Section summary cards */}
-                {[1, 2, 3, 4, 5].map(sNum => {
-                  const sec = sections[sNum]
+                {/* Section cards */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {['1','2','3','4','5'].map(k => {
+                  const sec = sections[k]
                   const pct = sec?.completionScore ?? 0
                   return (
-                    <div key={sNum} style={{
-                      display: 'flex', alignItems: 'center', gap: 16,
-                      padding: '14px 18px', borderRadius: 10,
-                      background: '#fff', border: `1.5px solid ${pct >= 70 ? green : bdr}`,
+                    <div key={k} style={{
+                      display: 'flex', alignItems: 'center', gap: 14,
+                      padding: '12px 16px', borderRadius: 10,
+                      background: '#fafafa', border: `1px solid ${pct >= 70 ? green + '55' : bdr}`,
                     }}>
                       <div style={{
-                        width: 36, height: 36, borderRadius: '50%',
-                        background: pct >= 70 ? '#DCFCE7' : surf,
+                        width: 28, height: 28, borderRadius: '50%',
+                        background: pct >= 70 ? '#DCFCE7' : '#f0f0f0',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 16, fontWeight: 700,
+                        fontSize: 13, fontWeight: 700,
                         color: pct >= 70 ? green : muted,
+                        flexShrink: 0,
                       }}>
-                        {pct >= 70 ? '✓' : sNum}
+                        {pct >= 70 ? '✓' : k}
                       </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 14, fontWeight: 600, color: ink }}>{SECTION_LABELS[sNum]}</div>
-                        <div style={{ fontSize: 12, color: muted }}>{pct}% complete</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: ink }}>{SECTION_LABELS[k]}</div>
+                        <div style={{ fontSize: 12, color: pct >= 70 ? green : muted }}>{pct}% complete</div>
                       </div>
-                      <button
-                        onClick={() => setCurrentStep(sNum)}
-                        style={{
-                          padding: '6px 14px', borderRadius: 6, border: `1px solid ${bdr}`,
-                          background: 'transparent', fontSize: 12, color: muted,
-                          cursor: 'pointer', fontFamily: 'inherit',
-                        }}
-                      >
-                        Edit
+                      <button onClick={() => setCurrentStep(parseInt(k, 10))} style={{
+                        padding: '5px 12px', borderRadius: 6, border: `1px solid ${bdr}`,
+                        background: 'transparent', fontSize: 12, color: muted,
+                        cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
+                      }}>
+                        {pct >= 70 ? 'Edit' : 'Complete'}
                       </button>
                     </div>
                   )
                 })}
+                </div>
 
-                {uploadedFiles.length > 0 && (
-                  <div style={{ fontSize: 13, color: muted }}>
-                    {uploadedFiles.length} document{uploadedFiles.length !== 1 ? 's' : ''} attached
+                {submitError && (
+                  <div style={{ padding: '10px 14px', borderRadius: 8, background: '#FEF2F2', border: `1px solid #FECACA`, fontSize: 13, color: red }}>
+                    {submitError}
                   </div>
                 )}
 
@@ -855,33 +1336,43 @@ export default function ProfileBuilderPage() {
                     background: (!canSubmit || isSubmitting) ? bdr : blue,
                     color: '#fff', fontSize: 16, fontWeight: 700,
                     cursor: (!canSubmit || isSubmitting) ? 'not-allowed' : 'pointer',
-                    fontFamily: 'inherit', textAlign: 'center',
-                    opacity: (!canSubmit || isSubmitting) ? 0.6 : 1,
+                    fontFamily: 'inherit', opacity: (!canSubmit || isSubmitting) ? 0.6 : 1,
                   }}
                 >
-                  {isSubmitting ? 'Calculating your Q-Score…' : 'Calculate My Q-Score →'}
+                  {isSubmitting ? 'Calculating IQ Score…' : 'Calculate My IQ Score →'}
+                </button>
+
+                <button
+                  onClick={() => setCurrentStep(5)}
+                  style={{
+                    padding: '8px 20px', borderRadius: 8, border: `1.5px solid ${bdr}`,
+                    background: 'transparent', fontSize: 13, color: ink,
+                    cursor: 'pointer', fontFamily: 'inherit', alignSelf: 'flex-start',
+                  }}
+                >
+                  ← Back
                 </button>
               </>
             )}
-
-            <button
-              onClick={() => setCurrentStep(5)}
-              style={{
-                padding: '8px 20px', borderRadius: 8, border: `1.5px solid ${bdr}`,
-                background: 'transparent', fontSize: 13, color: ink, cursor: 'pointer', fontFamily: 'inherit',
-              }}
-            >
-              ← Back
-            </button>
           </div>
         )}
 
-        <input
-          ref={fileInputRef} type="file" style={{ display: 'none' }}
-          accept=".pdf,.pptx,.xlsx,.csv,.png,.jpg,.jpeg,.webp"
-          onChange={e => { if (e.target.files?.[0]) handleFileUpload(e.target.files[0]) }}
-        />
+      </motion.div>
+      </AnimatePresence>
+        </main>
       </div>
+
+      {/* hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        style={{ display: 'none' }}
+        accept=".pdf,.pptx,.xlsx,.csv,.png,.jpg,.jpeg,.webp"
+        onChange={e => {
+          const file = e.target.files?.[0]
+          if (file) handleFileUpload(file)
+        }}
+      />
 
       <style>{`
         @keyframes bounce {

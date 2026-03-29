@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { createClient as createAdminClient } from '@supabase/supabase-js'
 
 // GET /api/investor/startup/:id
 // Returns a full founder profile for the investor deep-dive page.
@@ -38,7 +37,7 @@ export async function GET(
 
       supabase
         .from('qscore_history')
-        .select('overall_score, percentile, grade, market_score, product_score, gtm_score, financial_score, team_score, traction_score, calculated_at, assessment_data')
+        .select('overall_score, percentile, grade, market_score, product_score, gtm_score, financial_score, team_score, traction_score, calculated_at, assessment_data, score_version, iq_breakdown')
         .eq('user_id', founderId)
         .order('calculated_at', { ascending: false })
         .limit(1)
@@ -67,33 +66,6 @@ export async function GET(
 
     if (profileError || !profile) {
       return NextResponse.json({ error: 'Founder not found' }, { status: 404 })
-    }
-
-    // Fetch IQ Score via admin client (bypasses RLS — investor can see founder's IQ score)
-    let iqScore: { normalizedScore: number; grade: string; scoringMethod: string; indicatorsUsed: number; calculatedAt: string } | null = null
-    try {
-      const admin = createAdminClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      )
-      const { data: iqRow } = await admin
-        .from('iq_scores')
-        .select('normalized_score, grade, scoring_method, indicators_used, calculated_at')
-        .eq('user_id', founderId)
-        .order('calculated_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      if (iqRow) {
-        iqScore = {
-          normalizedScore: iqRow.normalized_score,
-          grade:           iqRow.grade,
-          scoringMethod:   iqRow.scoring_method,
-          indicatorsUsed:  iqRow.indicators_used,
-          calculatedAt:    iqRow.calculated_at,
-        }
-      }
-    } catch {
-      // IQ Score not critical — silently skip
     }
 
     // Pick the most recent artifact per type
@@ -135,39 +107,64 @@ export async function GET(
       'series-b': 'Series B', bootstrapped: 'Bootstrapped',
     }
 
-    // Build Q-Score breakdown for sidebar
-    const qScoreBreakdown = qrow ? [
-      { category: 'Market',   score: qrow.market_score ?? 0,    weight: '20%' },
-      { category: 'Product',  score: qrow.product_score ?? 0,   weight: '20%' },
-      { category: 'GTM',      score: qrow.gtm_score ?? 0,       weight: '15%' },
-      { category: 'Team',     score: qrow.team_score ?? 0,      weight: '20%' },
-      { category: 'Financial',score: qrow.financial_score ?? 0, weight: '15%' },
-      { category: 'Traction', score: qrow.traction_score ?? 0,  weight: '10%' },
-    ] : []
+    // IQ v2 parameters from iq_breakdown JSONB
+    type IQParam = { id: string; name: string; weight: number; averageScore: number; indicatorCount?: number }
+    const iqParams: IQParam[] = (qrow?.score_version === 'v2_iq' && Array.isArray((qrow?.iq_breakdown as Record<string, unknown> | null)?.parameters))
+      ? ((qrow!.iq_breakdown as Record<string, unknown>).parameters as IQParam[])
+      : []
 
-    // Derive AI analysis from scores
+    // Build Q-Score breakdown for sidebar — P1-P6 when v2, legacy dims otherwise
+    const qScoreBreakdown = qrow
+      ? (iqParams.length > 0
+        ? iqParams.map(p => ({
+            category: p.name,
+            score: Math.round(p.averageScore * 20),   // 0–5 → 0–100
+            weight: `${Math.round(p.weight * 100)}%`,
+          }))
+        : [
+            { category: 'Market',   score: qrow.market_score ?? 0,    weight: '20%' },
+            { category: 'Product',  score: qrow.product_score ?? 0,   weight: '20%' },
+            { category: 'GTM',      score: qrow.gtm_score ?? 0,       weight: '15%' },
+            { category: 'Team',     score: qrow.team_score ?? 0,      weight: '20%' },
+            { category: 'Financial',score: qrow.financial_score ?? 0, weight: '15%' },
+            { category: 'Traction', score: qrow.traction_score ?? 0,  weight: '10%' },
+          ])
+      : []
+
+    // Derive AI analysis from scores — P1-P6 labels when v2, legacy dims otherwise
     const strengths: string[] = []
     const risks: string[] = []
     if (qrow) {
-      if ((qrow.team_score ?? 0) >= 70)     strengths.push(`Strong team score (${qrow.team_score}/100) — founders have relevant domain expertise`)
-      if ((qrow.market_score ?? 0) >= 70)   strengths.push(`Well-defined market opportunity with clear TAM (market score ${qrow.market_score}/100)`)
-      if ((qrow.traction_score ?? 0) >= 70) strengths.push(`Solid traction signals — customers + revenue evidence verified (${qrow.traction_score}/100)`)
-      if ((qrow.product_score ?? 0) >= 70)  strengths.push(`Product differentiation validated — clear PMF signals (${qrow.product_score}/100)`)
-      if ((qrow.gtm_score ?? 0) >= 70)      strengths.push(`Go-to-market strategy is structured with defined channels (${qrow.gtm_score}/100)`)
-      if ((qrow.financial_score ?? 0) >= 70)strengths.push(`Financial model shows healthy unit economics (${qrow.financial_score}/100)`)
+      if (iqParams.length > 0) {
+        for (const p of iqParams) {
+          const s100 = Math.round(p.averageScore * 20)
+          if (s100 >= 70) strengths.push(`${p.name} strength (${s100}/100) — top-quartile signal`)
+          if (s100 < 60)  risks.push(`${p.name} below benchmark (${s100}/100) — needs further evidence`)
+        }
+      } else {
+        if ((qrow.team_score ?? 0) >= 70)     strengths.push(`Strong team score (${qrow.team_score}/100) — founders have relevant domain expertise`)
+        if ((qrow.market_score ?? 0) >= 70)   strengths.push(`Well-defined market opportunity with clear TAM (market score ${qrow.market_score}/100)`)
+        if ((qrow.traction_score ?? 0) >= 70) strengths.push(`Solid traction signals — customers + revenue evidence verified (${qrow.traction_score}/100)`)
+        if ((qrow.product_score ?? 0) >= 70)  strengths.push(`Product differentiation validated — clear PMF signals (${qrow.product_score}/100)`)
+        if ((qrow.gtm_score ?? 0) >= 70)      strengths.push(`Go-to-market strategy is structured with defined channels (${qrow.gtm_score}/100)`)
+        if ((qrow.financial_score ?? 0) >= 70)strengths.push(`Financial model shows healthy unit economics (${qrow.financial_score}/100)`)
 
-      if ((qrow.team_score ?? 0) < 60)      risks.push(`Team score (${qrow.team_score}/100) below benchmark — key hires or advisor gaps`)
-      if ((qrow.market_score ?? 0) < 60)    risks.push(`Market sizing may need more rigorous validation (${qrow.market_score}/100)`)
-      if ((qrow.traction_score ?? 0) < 60)  risks.push(`Traction is early-stage — limited customer or revenue evidence (${qrow.traction_score}/100)`)
-      if ((qrow.financial_score ?? 0) < 60) risks.push(`Financial projections need more supporting data (${qrow.financial_score}/100)`)
-      if ((qrow.gtm_score ?? 0) < 60)       risks.push(`GTM strategy lacks specificity — CAC/LTV and channel mix unclear (${qrow.gtm_score}/100)`)
+        if ((qrow.team_score ?? 0) < 60)      risks.push(`Team score (${qrow.team_score}/100) below benchmark — key hires or advisor gaps`)
+        if ((qrow.market_score ?? 0) < 60)    risks.push(`Market sizing may need more rigorous validation (${qrow.market_score}/100)`)
+        if ((qrow.traction_score ?? 0) < 60)  risks.push(`Traction is early-stage — limited customer or revenue evidence (${qrow.traction_score}/100)`)
+        if ((qrow.financial_score ?? 0) < 60) risks.push(`Financial projections need more supporting data (${qrow.financial_score}/100)`)
+        if ((qrow.gtm_score ?? 0) < 60)       risks.push(`GTM strategy lacks specificity — CAC/LTV and channel mix unclear (${qrow.gtm_score}/100)`)
+      }
     }
     if (strengths.length === 0) strengths.push('Assessment data not yet available — ask founder to complete Q-Score interview')
     if (risks.length === 0)     risks.push('No significant risk flags from Q-Score assessment')
 
+    const weakestDim = iqParams.length > 0
+      ? iqParams.slice().sort((a, b) => a.averageScore - b.averageScore)[0]?.name ?? 'overall'
+      : weakest(qrow)
     const recommendations = [
       `Q-Score of ${qrow?.overall_score ?? 0} puts this founder in the ${qrow?.percentile ?? 0}th percentile`,
-      `Review the ${weakest(qrow)} dimension before proceeding to a call`,
+      `Review the ${weakestDim} dimension before proceeding to a call`,
       'Schedule a 30-min intro call to validate the assessment findings',
       `Check agent deliverables for GTM and financial model depth`,
     ]
@@ -269,7 +266,8 @@ export async function GET(
           lastActiveDays,
         }
       })(),
-      iqScore,
+      iqBreakdown: iqParams.length > 0 ? iqParams : null,
+      scoreVersion: qrow?.score_version ?? 'v1_prd',
     }
 
     return NextResponse.json({ startup: result })

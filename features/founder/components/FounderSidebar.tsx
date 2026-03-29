@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import {
   Bell, Brain, Building2, ChevronsUpDown,
-  GraduationCap, Home, LogOut, MessageSquare,
+  ClipboardList, GraduationCap, Home, LogOut, MessageSquare,
   Settings, Target, UserCircle,
 } from "lucide-react";
 import Link from "next/link";
@@ -25,11 +25,12 @@ const blue  = "#2563EB";
 
 // ─── nav items ────────────────────────────────────────────────────────────────
 const BASE_NAV = [
-  { name: "Dashboard",         href: "/founder/dashboard", icon: Home,          badge: null    },
-  { name: "CXO Suite",         href: "/founder/cxo",       icon: Brain,         badge: "9"     },
-  { name: "Investor Matching", href: "/founder/matching",  icon: Target,        badge: "Smart" },
-  { name: "Academy",           href: "/founder/academy",   icon: GraduationCap, badge: "NEW"   },
-  { name: "Messages",          href: "/founder/messages",  icon: MessageSquare, badge: null    },
+  { name: "Dashboard",         href: "/founder/dashboard",       icon: Home,          badge: null    },
+  { name: "Profile Builder",   href: "/founder/profile-builder", icon: ClipboardList, badge: null    },
+  { name: "CXO Suite",         href: "/founder/cxo",             icon: Brain,         badge: "9"     },
+  { name: "Investor Matching", href: "/founder/matching",        icon: Target,        badge: "Smart" },
+  { name: "Academy",           href: "/founder/academy",         icon: GraduationCap, badge: "NEW"   },
+  { name: "Messages",          href: "/founder/messages",        icon: MessageSquare, badge: null    },
 ];
 
 const BADGE: Record<string, { bg: string; color: string }> = {
