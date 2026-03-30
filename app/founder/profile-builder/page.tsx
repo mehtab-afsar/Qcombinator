@@ -239,16 +239,20 @@ export default function ProfileBuilderPage() {
     } else {
       const hasExtracted = Object.keys(sec.extractedFields ?? {}).length > 0
       if (hasExtracted) {
-        // Build context-aware question using what's already known vs what's missing
-        const missing = getMissingFields(sec.extractedFields, currentStep, founderProfile.stage ?? 'pre-product')
-        const missingLabels = missing
-          .map(f => MISSING_FIELD_LABELS[f])
-          .filter(Boolean)
-          .slice(0, 3)
-        if (missingLabels.length === 0) {
-          initialQ = `I already have everything I need for this section from your documents. Feel free to add anything or move on.`
+        if (sec.completionScore >= 70) {
+          initialQ = `I extracted this section from your documents and it looks complete (${sec.completionScore}%). Feel free to add more detail or move on.`
         } else {
-          initialQ = `I extracted some info from your documents, but still need a few things: ${missingLabels.join(', ')}. Can you fill in the gaps?`
+          // Build context-aware question using what's already known vs what's missing
+          const missing = getMissingFields(sec.extractedFields, currentStep, founderProfile.stage ?? 'pre-product')
+          const missingLabels = missing
+            .map(f => MISSING_FIELD_LABELS[f])
+            .filter(Boolean)
+            .slice(0, 3)
+          if (missingLabels.length > 0) {
+            initialQ = `I extracted some info from your documents, but still need a few things: ${missingLabels.join(', ')}. Can you fill in the gaps?`
+          } else {
+            initialQ = getInitialQuestion(currentStep, founderProfile)
+          }
         }
       } else {
         initialQ = getInitialQuestion(currentStep, founderProfile)
