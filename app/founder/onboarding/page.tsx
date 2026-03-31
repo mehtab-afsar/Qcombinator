@@ -4,11 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
-import {
-  Monitor, CreditCard, Heart, BookOpen, Leaf, Brain,
-  ShoppingBag, ArrowLeftRight, Sprout, Cpu, Link2, Plus,
-  Check, ChevronRight,
-} from 'lucide-react'
+import { Check, ChevronRight } from 'lucide-react'
 
 // ── palette ───────────────────────────────────────────────────────────────────
 const bg   = '#F9F7F2'
@@ -18,67 +14,38 @@ const ink  = '#18160F'
 const muted = '#8A867C'
 const blue = '#2563EB'
 
-// ── industry data with Lucide icons ───────────────────────────────────────────
-type IndustryOption = { value: string; label: string; Icon: React.ElementType }
-
-const INDUSTRIES: IndustryOption[] = [
-  { value: 'saas',        label: 'SaaS / Software',    Icon: Monitor       },
-  { value: 'fintech',     label: 'FinTech',             Icon: CreditCard    },
-  { value: 'healthtech',  label: 'HealthTech',          Icon: Heart         },
-  { value: 'edtech',      label: 'EdTech',              Icon: BookOpen      },
-  { value: 'climate',     label: 'CleanTech',           Icon: Leaf          },
-  { value: 'ai',          label: 'Deep Tech / AI',      Icon: Brain         },
-  { value: 'consumer',    label: 'Consumer',            Icon: ShoppingBag   },
-  { value: 'marketplace', label: 'Marketplace',         Icon: ArrowLeftRight},
-  { value: 'agritech',    label: 'AgriTech',            Icon: Sprout        },
-  { value: 'hardware',    label: 'Hardware / IoT',      Icon: Cpu           },
-  { value: 'web3',        label: 'Web3 / Crypto',       Icon: Link2         },
-  { value: 'other',       label: 'Other',               Icon: Plus          },
+// ── option data ───────────────────────────────────────────────────────────────
+const INDUSTRIES = [
+  { value: 'medtech-biotech',  label: 'Medtech / Biotech'    },
+  { value: 'ai-software',      label: 'AI & Software'         },
+  { value: 'robotics-hardware',label: 'Robotics & Hardware'   },
+  { value: 'agri-foodtech',    label: 'Agri- & Foodtech'      },
+  { value: 'clean-tech',       label: 'Clean Tech'            },
 ]
 
 const STAGES = [
-  { value: 'pre-product', label: 'Pre-Product',  sub: 'Idea or research phase'      },
-  { value: 'mvp',         label: 'MVP',           sub: 'Built, testing with users'   },
-  { value: 'beta',        label: 'Beta',          sub: 'Limited release underway'    },
-  { value: 'launched',    label: 'Launched',      sub: 'Public — early revenue'      },
-  { value: 'growing',     label: 'Growing',       sub: 'Scaling revenue & team'      },
+  { value: 'product-development', label: 'Product Development', sub: 'Building or validating the product' },
+  { value: 'commercial',          label: 'Commercial',           sub: 'Early customers or pilots underway'  },
+  { value: 'growth-scaling',      label: 'Growth / Scaling',     sub: 'Scaling revenue and team'            },
 ]
 
 const REVENUE = [
-  { value: 'pre-revenue',   label: 'Pre-revenue',        sub: 'No paying customers yet' },
-  { value: 'first-revenue', label: 'First revenue',      sub: 'Under $10K MRR'          },
-  { value: '10k-100k',      label: '$10K–$100K MRR',     sub: ''                        },
-  { value: '100k-plus',     label: '$100K+ MRR',         sub: 'Strong traction'         },
-]
-
-const FUNDING = [
-  { value: 'bootstrapped',       label: 'Bootstrapped'     },
-  { value: 'friends-and-family', label: 'Friends & Family' },
-  { value: 'pre-seed',           label: 'Pre-Seed'         },
-  { value: 'seed',               label: 'Seed'             },
-  { value: 'series-a-plus',      label: 'Series A+'        },
+  { value: 'pre-revenue',  label: 'Pre-revenue',                    sub: 'No paying customers yet'      },
+  { value: 'early-revenue',label: 'Early revenue (pilots)',         sub: 'First paying customers'        },
+  { value: 'recurring',    label: 'Recurring revenues',             sub: 'Signed contracts or SaaS MRR'  },
 ]
 
 const TEAM = [
-  { value: 'solo',  label: 'Solo',  sub: 'Just you'            },
-  { value: '2',     label: '2',     sub: 'You + 1 co-founder'  },
-  { value: '3-5',   label: '3–5',   sub: 'Small founding team' },
-  { value: '6-15',  label: '6–15',  sub: 'Growing team'        },
-  { value: '16+',   label: '16+',   sub: 'Scaled up'           },
+  { value: '1-5',  label: '1–5'   },
+  { value: '5-10', label: '5–10'  },
+  { value: '10+',  label: '10+'   },
 ]
 
-const PRIOR_EXP = [
-  { value: 'first-time',      label: 'First-time founder',       sub: 'New to this journey'       },
-  { value: 'founded-no-exit', label: 'Founded — didn\'t scale',  sub: 'Built something, moved on' },
-  { value: 'exited',          label: 'Founded and exited',       sub: 'Had a successful outcome'  },
-  { value: 'serial',          label: 'Serial founder',           sub: '2+ companies built'        },
-]
-
-const YEARS = [
-  { value: 'less-than-1', label: 'Under 1 year' },
-  { value: '1-2',         label: '1–2 years'    },
-  { value: '3-5',         label: '3–5 years'    },
-  { value: '5-plus',      label: '5+ years'     },
+const FUNDING = [
+  { value: 'bootstrapped',    label: 'Bootstrapped'      },
+  { value: 'friends-family',  label: 'Friends & family'  },
+  { value: 'angel',           label: 'Angel investors'   },
+  { value: 'vc',              label: 'VC'                },
 ]
 
 // ── animation ─────────────────────────────────────────────────────────────────
@@ -127,7 +94,7 @@ function Pill({ label, active, onClick }: { label: string; active: boolean; onCl
     <button
       onClick={onClick}
       style={{
-        padding: '7px 15px', borderRadius: 7, cursor: 'pointer',
+        padding: '8px 16px', borderRadius: 7, cursor: 'pointer',
         border: `1.5px solid ${active ? blue : bdr}`,
         background: active ? `${blue}12` : surf,
         fontSize: 13, fontWeight: active ? 600 : 400,
@@ -172,29 +139,27 @@ function OptionCard({ label, sub, active, onClick }: {
 
 // ── form state ────────────────────────────────────────────────────────────────
 interface FormData {
-  companyName: string; website: string; industry: string; description: string
-  stage: string; revenueStatus: string; fundingStatus: string; teamSize: string
-  founderName: string; linkedinUrl: string; yearsOnProblem: string; priorExperience: string
-  email: string; password: string
+  companyName: string; website: string; industry: string; stage: string
+  revenueStatus: string; fundingStatus: string; teamSize: string
+  founderName: string; email: string; password: string
 }
 
 const EMPTY: FormData = {
-  companyName: '', website: '', industry: '', description: '',
-  stage: '', revenueStatus: '', fundingStatus: '', teamSize: '',
-  founderName: '', linkedinUrl: '', yearsOnProblem: '', priorExperience: '',
-  email: '', password: '',
+  companyName: '', website: '', industry: '', stage: '',
+  revenueStatus: '', fundingStatus: '', teamSize: '',
+  founderName: '', email: '', password: '',
 }
 
-const STEP_LABELS = ['Company', 'Journey', 'You']
+const STEP_LABELS = ['Your Startup', 'Account']
 
 // ── main ──────────────────────────────────────────────────────────────────────
 export default function OnboardingPage() {
   const router = useRouter()
-  const [page, setPage]   = useState(1)
-  const [dir, setDir]     = useState(1)
-  const [form, setForm]   = useState<FormData>(EMPTY)
+  const [page, setPage]     = useState(1)
+  const [dir, setDir]       = useState(1)
+  const [form, setForm]     = useState<FormData>(EMPTY)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError]   = useState('')
 
   const set = (key: keyof FormData) => (v: string) =>
     setForm(f => ({ ...f, [key]: v }))
@@ -204,16 +169,14 @@ export default function OnboardingPage() {
     sb.auth.getSession().then(({ data }) => { if (data.session) router.replace('/founder/dashboard') })
   }, [router])
 
-  const canNext1 = form.companyName.trim() && form.industry && form.description.trim()
-  const canNext2 = form.stage && form.revenueStatus && form.fundingStatus && form.teamSize
-  const canSubmit = form.founderName.trim() && form.yearsOnProblem &&
-    form.priorExperience && form.email.trim() && form.password.length >= 8
+  const canNext1 = form.companyName.trim() && form.industry && form.stage
+  const canSubmit = form.revenueStatus && form.fundingStatus && form.teamSize &&
+    form.founderName.trim() && form.email.trim() && form.password.length >= 8
 
   function go(next: number) { setDir(next > page ? 1 : -1); setPage(next); setError('') }
 
   async function handleSubmit() {
     setLoading(true); setError('')
-    const cofounderCount = form.teamSize === 'solo' ? 0 : form.teamSize === '2' ? 1 : form.teamSize === '3-5' ? 2 : 3
     try {
       const res = await fetch('/api/auth/signup', {
         method: 'POST',
@@ -221,10 +184,9 @@ export default function OnboardingPage() {
         body: JSON.stringify({
           email: form.email.trim(), password: form.password, fullName: form.founderName.trim(),
           companyName: form.companyName, website: form.website, industry: form.industry,
-          description: form.description, stage: form.stage, revenueStatus: form.revenueStatus,
+          stage: form.stage, revenueStatus: form.revenueStatus,
           fundingStatus: form.fundingStatus, teamSize: form.teamSize,
-          founderName: form.founderName, linkedinUrl: form.linkedinUrl,
-          cofounderCount, yearsOnProblem: form.yearsOnProblem, priorExperience: form.priorExperience,
+          founderName: form.founderName,
         }),
       })
       const data = await res.json()
@@ -232,11 +194,6 @@ export default function OnboardingPage() {
       const sb = createClient()
       const { error: signInErr } = await sb.auth.signInWithPassword({ email: form.email.trim(), password: form.password })
       if (signInErr) { setError('Account created but sign-in failed. Please log in.'); setLoading(false); return }
-      if (form.linkedinUrl) {
-        const { data: sd } = await sb.auth.getSession()
-        const tok = sd.session?.access_token
-        if (tok) fetch('/api/profile-builder/linkedin-enrich', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok}` }, body: JSON.stringify({ linkedinUrl: form.linkedinUrl }) }).catch(() => {})
-      }
       router.push('/founder/profile-builder')
     } catch { setError('Something went wrong. Please try again.'); setLoading(false) }
   }
@@ -304,18 +261,16 @@ export default function OnboardingPage() {
             {/* Page title */}
             <div style={{ marginBottom: 28 }}>
               <h1 style={{ fontSize: 19, fontWeight: 700, color: ink, margin: 0, letterSpacing: '-0.3px', lineHeight: 1.3 }}>
-                {page === 1 && 'Tell us about your company'}
-                {page === 2 && 'Where are you in your journey?'}
-                {page === 3 && 'Create your account'}
+                {page === 1 && 'Tell us about your startup'}
+                {page === 2 && 'Create your account'}
               </h1>
               <p style={{ fontSize: 13, color: muted, margin: '5px 0 0', lineHeight: 1.5 }}>
-                {page === 1 && 'This calibrates your Q-Score accurately from day one.'}
+                {page === 1 && 'This calibrates your IQ Score accurately from day one.'}
                 {page === 2 && 'Honest answers give you a more useful baseline — no judgment.'}
-                {page === 3 && 'Your profile will be ready immediately after sign up.'}
               </p>
             </div>
 
-            {/* ── PAGE 1 ── */}
+            {/* ── PAGE 1 — Startup ── */}
             {page === 1 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
                 <div>
@@ -324,123 +279,84 @@ export default function OnboardingPage() {
                 </div>
 
                 <div>
-                  <Label>Industry</Label>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-                    {INDUSTRIES.map(({ value, label, Icon }) => {
-                      const active = form.industry === value
-                      return (
-                        <button
-                          key={value}
-                          onClick={() => set('industry')(value)}
-                          style={{
-                            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                            gap: 7, padding: '13px 8px', borderRadius: 9, cursor: 'pointer',
-                            border: `1.5px solid ${active ? blue : bdr}`,
-                            background: active ? `${blue}0D` : bg,
-                            fontFamily: 'inherit', transition: 'all 0.14s',
-                          }}
-                        >
-                          <Icon size={17} color={active ? blue : muted} strokeWidth={1.75} />
-                          <span style={{ fontSize: 11, fontWeight: active ? 600 : 400, color: active ? blue : ink, lineHeight: 1.2, textAlign: 'center' }}>{label}</span>
-                        </button>
-                      )
-                    })}
+                  <Label>Industry / Sector</Label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                    {INDUSTRIES.map(o => (
+                      <OptionCard
+                        key={o.value}
+                        label={o.label}
+                        active={form.industry === o.value}
+                        onClick={() => set('industry')(o.value)}
+                      />
+                    ))}
                   </div>
-                </div>
-
-                <div>
-                  <Label>One-liner</Label>
-                  <TextInput
-                    value={form.description}
-                    onChange={v => set('description')(v.slice(0, 100))}
-                    placeholder="We help [who] do [what] without [pain]"
-                  />
-                  <div style={{ textAlign: 'right', fontSize: 11, color: muted, marginTop: 5 }}>{form.description.length}/100</div>
                 </div>
 
                 <div>
                   <Label optional>Website</Label>
                   <TextInput value={form.website} onChange={set('website')} placeholder="https://" />
                 </div>
+
+                <div>
+                  <Label>Stage</Label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                    {STAGES.map(o => (
+                      <OptionCard
+                        key={o.value}
+                        label={o.label}
+                        sub={o.sub}
+                        active={form.stage === o.value}
+                        onClick={() => set('stage')(o.value)}
+                      />
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
 
-            {/* ── PAGE 2 ── */}
+            {/* ── PAGE 2 — Account ── */}
             {page === 2 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
                 <div>
-                  <Label>Current stage</Label>
+                  <Label>Revenue</Label>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-                    {STAGES.map(o => <OptionCard key={o.value} label={o.label} sub={o.sub} active={form.stage === o.value} onClick={() => set('stage')(o.value)} />)}
+                    {REVENUE.map(o => (
+                      <OptionCard
+                        key={o.value}
+                        label={o.label}
+                        sub={o.sub}
+                        active={form.revenueStatus === o.value}
+                        onClick={() => set('revenueStatus')(o.value)}
+                      />
+                    ))}
                   </div>
                 </div>
 
                 <div>
-                  <Label>Revenue status</Label>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7 }}>
-                    {REVENUE.map(o => <OptionCard key={o.value} label={o.label} sub={o.sub || undefined} active={form.revenueStatus === o.value} onClick={() => set('revenueStatus')(o.value)} />)}
+                  <Label>Team size</Label>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {TEAM.map(o => (
+                      <Pill
+                        key={o.value}
+                        label={o.label}
+                        active={form.teamSize === o.value}
+                        onClick={() => set('teamSize')(o.value)}
+                      />
+                    ))}
                   </div>
                 </div>
 
                 <div>
                   <Label>Funding status</Label>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
-                    {FUNDING.map(o => <Pill key={o.value} label={o.label} active={form.fundingStatus === o.value} onClick={() => set('fundingStatus')(o.value)} />)}
-                  </div>
-                </div>
-
-                <div>
-                  <Label>Team size <span style={{ fontWeight: 400, fontSize: 10, marginLeft: 4 }}>including yourself</span></Label>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 7 }}>
-                    {TEAM.map(o => {
-                      const active = form.teamSize === o.value
-                      return (
-                        <button
-                          key={o.value}
-                          onClick={() => set('teamSize')(o.value)}
-                          style={{
-                            display: 'flex', flexDirection: 'column', alignItems: 'center',
-                            gap: 4, padding: '11px 8px', borderRadius: 9, cursor: 'pointer',
-                            border: `1.5px solid ${active ? blue : bdr}`,
-                            background: active ? `${blue}0D` : bg,
-                            fontFamily: 'inherit', transition: 'all 0.14s',
-                          }}
-                        >
-                          <span style={{ fontSize: 14, fontWeight: 700, color: active ? blue : ink }}>{o.label}</span>
-                          <span style={{ fontSize: 10, color: muted, lineHeight: 1.2, textAlign: 'center' }}>{o.sub}</span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* ── PAGE 3 ── */}
-            {page === 3 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                  <div>
-                    <Label>Full name</Label>
-                    <TextInput value={form.founderName} onChange={set('founderName')} placeholder="Jane Smith" autoFocus />
-                  </div>
-                  <div>
-                    <Label optional>LinkedIn</Label>
-                    <TextInput value={form.linkedinUrl} onChange={set('linkedinUrl')} placeholder="linkedin.com/in/…" />
-                  </div>
-                </div>
-
-                <div>
-                  <Label>Time working on this problem</Label>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
-                    {YEARS.map(o => <Pill key={o.value} label={o.label} active={form.yearsOnProblem === o.value} onClick={() => set('yearsOnProblem')(o.value)} />)}
-                  </div>
-                </div>
-
-                <div>
-                  <Label>Prior startup experience</Label>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7 }}>
-                    {PRIOR_EXP.map(o => <OptionCard key={o.value} label={o.label} sub={o.sub} active={form.priorExperience === o.value} onClick={() => set('priorExperience')(o.value)} />)}
+                    {FUNDING.map(o => (
+                      <Pill
+                        key={o.value}
+                        label={o.label}
+                        active={form.fundingStatus === o.value}
+                        onClick={() => set('fundingStatus')(o.value)}
+                      />
+                    ))}
                   </div>
                 </div>
 
@@ -449,6 +365,11 @@ export default function OnboardingPage() {
                   <div style={{ flex: 1, height: 1, background: bdr }} />
                   <span style={{ fontSize: 11, color: muted, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>Create account</span>
                   <div style={{ flex: 1, height: 1, background: bdr }} />
+                </div>
+
+                <div>
+                  <Label>Full name</Label>
+                  <TextInput value={form.founderName} onChange={set('founderName')} placeholder="Jane Smith" />
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
@@ -488,17 +409,17 @@ export default function OnboardingPage() {
             </a>
           )}
 
-          {page < 3 ? (
+          {page < 2 ? (
             <button
               onClick={() => go(page + 1)}
-              disabled={(page === 1 && !canNext1) || (page === 2 && !canNext2)}
+              disabled={!canNext1}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6,
                 padding: '9px 20px', borderRadius: 8, border: 'none',
-                background: ((page === 1 && !canNext1) || (page === 2 && !canNext2)) ? bdr : blue,
-                color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                background: !canNext1 ? bdr : blue,
+                color: '#fff', fontSize: 13, fontWeight: 600, cursor: !canNext1 ? 'not-allowed' : 'pointer',
                 fontFamily: 'inherit', transition: 'opacity 0.15s',
-                opacity: ((page === 1 && !canNext1) || (page === 2 && !canNext2)) ? 0.45 : 1,
+                opacity: !canNext1 ? 0.45 : 1,
               }}
             >
               Continue <ChevronRight size={14} />

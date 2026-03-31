@@ -17,11 +17,10 @@ export async function POST(request: NextRequest) {
 
     // Get signup data from request
     const {
-      email, password, fullName, startupName, industry, stage, funding, timeCommitment,
-      // Registration fields (new)
-      companyName, website, foundedDate, incorporationType, description,
-      revenueStatus, fundingStatus, teamSize, founderName, linkedinUrl,
-      cofounderCount, yearsOnProblem, priorExperience,
+      email, password, fullName, startupName,
+      // Registration fields
+      companyName, website, industry, stage,
+      revenueStatus, fundingStatus, teamSize, founderName,
     } = await request.json();
 
     // Validate required fields
@@ -32,23 +31,47 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Map onboarding stage values to DB-accepted values (CHECK constraint uses legacy set)
+    // Map new stage values to DB-accepted values (CHECK constraint: idea|mvp|launched|scaling)
     const STAGE_MAP: Record<string, string> = {
+      'product-development': 'mvp',
+      'commercial':          'launched',
+      'growth-scaling':      'scaling',
+      // legacy fallbacks
       'pre-product': 'idea',
       'mvp':         'mvp',
       'beta':        'mvp',
       'launched':    'launched',
       'growing':     'scaling',
     };
-    const dbStage = STAGE_MAP[stage] ?? stage ?? 'idea';
+    const dbStage = STAGE_MAP[stage] ?? 'idea';
 
-    // Map onboarding funding values to DB-accepted values
+    // Map industry to normalizeSector keys used by IQ Score calculator
+    const INDUSTRY_MAP: Record<string, string> = {
+      'medtech-biotech':     'biotech',
+      'ai-software':         'ai_ml',
+      'robotics-hardware':   'hardware',
+      'agri-foodtech':       'default',
+      'clean-tech':          'climate',
+    };
+    const dbIndustry = INDUSTRY_MAP[industry] ?? industry ?? null;
+
+    // Map funding values
     const FUNDING_MAP: Record<string, string> = {
+      'friends-family':     'pre-seed',
+      'angel':              'pre-seed',
+      'vc':                 'seed',
+      // legacy fallbacks
       'friends-and-family': 'pre-seed',
       'series-a-plus':      'series-a',
     };
-    const rawFunding = fundingStatus || funding || null;
-    const dbFunding = rawFunding ? (FUNDING_MAP[rawFunding] ?? rawFunding) : null;
+    const dbFunding = fundingStatus ? (FUNDING_MAP[fundingStatus] ?? fundingStatus) : null;
+
+    // Map revenue values
+    const REVENUE_MAP: Record<string, string> = {
+      'early-revenue': 'first-revenue',
+      'recurring':     'mrr-10k-100k',
+    };
+    const dbRevenue = revenueStatus ? (REVENUE_MAP[revenueStatus] ?? revenueStatus) : null;
 
     // Attempt to create user directly — handle duplicate email via error response
     // (avoids fetching all users just to check existence)
@@ -94,28 +117,19 @@ export async function POST(request: NextRequest) {
         user_id: authData.user.id,
         full_name: fullName,
         startup_name: companyName || startupName || null,
-        industry: industry || null,
+        industry: dbIndustry,
         stage: dbStage,
         funding: dbFunding,
-        time_commitment: timeCommitment || null,
         role: 'founder',
         subscription_tier: 'free',
         onboarding_completed: true,
         assessment_completed: false,
-        // New registration columns
         company_name: companyName || startupName || null,
         website: website || null,
-        founded_date: foundedDate || null,
-        incorporation_type: incorporationType || null,
-        description: description || null,
-        revenue_status: revenueStatus || null,
-        funding_status: dbFunding,
+        revenue_status: dbRevenue,
+        funding_status: fundingStatus || null,
         team_size: teamSize || null,
         founder_name: founderName || fullName,
-        linkedin_url: linkedinUrl || null,
-        cofounder_count: cofounderCount ?? null,
-        years_on_problem: yearsOnProblem || null,
-        prior_experience: priorExperience || null,
         registration_completed: true,
         profile_builder_completed: false,
       })

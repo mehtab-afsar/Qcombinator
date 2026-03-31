@@ -231,6 +231,27 @@ export async function POST(req: NextRequest) {
       Object.assign(extractedFields, { financial: { ...(extractedFields.financial as object ?? {}), ...parsed.structuredData } })
     }
 
+    // Idempotency: skip insert if same file was uploaded within the last 60 seconds
+    const { data: recentUpload } = await supabase
+      .from('profile_builder_uploads')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('section', section)
+      .eq('filename', filename)
+      .gte('created_at', new Date(Date.now() - 60_000).toISOString())
+      .maybeSingle()
+
+    if (recentUpload) {
+      // Duplicate detected — return success silently so the UI doesn't show an error
+      return NextResponse.json({
+        message: 'Already processed',
+        extractedPreview: [],
+        parsedText: parsed.text,
+        extractedFields,
+        sectionSummaries: [],
+      })
+    }
+
     // Save upload record
     const { data: uploadRecord } = await supabase
       .from('profile_builder_uploads')

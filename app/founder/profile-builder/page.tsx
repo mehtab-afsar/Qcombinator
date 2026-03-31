@@ -135,7 +135,13 @@ export default function ProfileBuilderPage() {
 
   const [token, setToken] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [submitResult, setSubmitResult] = useState<{ score: number; grade: string } | null>(null)
+  const [submitResult, setSubmitResult] = useState<{
+    score: number
+    grade: string
+    availableIQ: number
+    track?: string
+    iqBreakdown: Array<{ id: string; name: string; averageScore: number; weight: number; indicatorsActive: number }>
+  } | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [previewData, setPreviewData] = useState<PreviewData | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
@@ -555,8 +561,14 @@ export default function ProfileBuilderPage() {
         setSubmitError(data.error ?? 'Submission failed')
         return
       }
-      setSubmitResult({ score: data.score, grade: data.grade })
-      setTimeout(() => router.push('/founder/dashboard'), 3000)
+      setSubmitResult({
+        score: data.score,
+        grade: data.grade,
+        availableIQ: data.availableIQ ?? data.score,
+        track: data.track,
+        iqBreakdown: data.iqBreakdown ?? [],
+      })
+      setTimeout(() => router.push('/founder/dashboard'), 8000)
     } catch {
       setSubmitError('Network error — please try again')
     } finally {
@@ -815,10 +827,10 @@ export default function ProfileBuilderPage() {
             </div>
 
             <div
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => { if (!uploadLoading) fileInputRef.current?.click() }}
               style={{
                 border: `2px dashed ${bdr}`, borderRadius: 16, padding: '48px 32px',
-                textAlign: 'center', background: '#fafafa', cursor: 'pointer',
+                textAlign: 'center', background: '#fafafa', cursor: uploadLoading ? 'not-allowed' : 'pointer',
                 transition: 'all 0.15s',
               }}
               onMouseEnter={e => { e.currentTarget.style.borderColor = blue; e.currentTarget.style.background = '#EFF6FF' }}
@@ -1006,10 +1018,10 @@ export default function ProfileBuilderPage() {
                       </div>
                     )}
                   </div>
-                  <button onClick={() => fileInputRef.current?.click()} style={{
+                  <button onClick={() => { if (!uploadLoading) fileInputRef.current?.click() }} disabled={uploadLoading} style={{
                     padding: '6px 14px', borderRadius: 6, border: 'none',
-                    background: amber, color: '#fff', fontSize: 12,
-                    fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                    background: uploadLoading ? bdr : amber, color: '#fff', fontSize: 12,
+                    fontWeight: 600, cursor: uploadLoading ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
                   }}>Upload</button>
                 </div>
               )}
@@ -1098,7 +1110,8 @@ export default function ProfileBuilderPage() {
                       }}
                     >{isTyping ? '…' : 'Send'}</button>
                     <button
-                      onClick={() => fileInputRef.current?.click()}
+                      onClick={() => { if (!uploadLoading) fileInputRef.current?.click() }}
+                      disabled={uploadLoading}
                       title={
                         currentStep === 1 ? 'Upload CRM export, pilot agreement, or LOI'
                         : currentStep === 2 ? 'Upload market research or competitor analysis'
@@ -1374,14 +1387,59 @@ export default function ProfileBuilderPage() {
           <div style={{ maxWidth: 560, margin: '0 auto', width: '100%', padding: '48px 24px 60px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
             {submitResult ? (
-              <div style={{ textAlign: 'center', padding: 56 }}>
-                <div style={{ fontSize: 80, fontWeight: 800, color: blue, lineHeight: 1, letterSpacing: '-0.04em' }}>
-                  {submitResult.score}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {/* Score hero */}
+                <div style={{ textAlign: 'center', padding: '40px 24px 24px' }}>
+                  <div style={{ fontSize: 80, fontWeight: 800, color: blue, lineHeight: 1, letterSpacing: '-0.04em' }}>
+                    {submitResult.score}
+                  </div>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: ink, marginTop: 6 }}>Grade {submitResult.grade}</div>
+                  {submitResult.track && (
+                    <div style={{ marginTop: 8, display: 'inline-block', padding: '3px 12px', borderRadius: 999, background: '#EFF6FF', border: `1px solid ${blue}33`, fontSize: 12, color: blue, fontWeight: 600 }}>
+                      {submitResult.track} track
+                    </div>
+                  )}
+                  <div style={{ fontSize: 13, color: muted, marginTop: 10 }}>
+                    Redirecting to dashboard in a moment…
+                  </div>
                 </div>
-                <div style={{ fontSize: 24, fontWeight: 700, color: ink, marginTop: 8 }}>Grade {submitResult.grade}</div>
-                <div style={{ fontSize: 14, color: muted, marginTop: 10 }}>
-                  IQ Score calculated — redirecting to dashboard…
-                </div>
+
+                {/* P1–P6 breakdown */}
+                {submitResult.iqBreakdown.length > 0 && (
+                  <div style={{ borderRadius: 14, border: `1px solid ${bdr}`, background: '#fafafa', overflow: 'hidden' }}>
+                    <div style={{ padding: '14px 20px', borderBottom: `1px solid ${bdr}` }}>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Why you scored this</div>
+                    </div>
+                    <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                      {submitResult.iqBreakdown.map(p => {
+                        const s100 = Math.round(p.averageScore * 20)
+                        const barColor = s100 >= 70 ? green : s100 >= 45 ? amber : red
+                        return (
+                          <div key={p.id}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                              <span style={{ fontSize: 13, fontWeight: 600, color: ink }}>{p.name}</span>
+                              <span style={{ fontSize: 12, color: muted }}>{s100}/100 · {Math.round(p.weight * 100)}%</span>
+                            </div>
+                            <div style={{ height: 6, background: '#F0EDE6', border: `1px solid ${bdr}`, borderRadius: 999, overflow: 'hidden' }}>
+                              <div style={{ height: '100%', width: `${s100}%`, borderRadius: 999, background: barColor, transition: 'width 0.6s ease' }} />
+                            </div>
+                            <div style={{ fontSize: 11, color: muted, marginTop: 3 }}>
+                              {p.indicatorsActive} indicator{p.indicatorsActive !== 1 ? 's' : ''} scored
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                <button onClick={() => router.push('/founder/dashboard')} style={{
+                  padding: '12px 28px', borderRadius: 10, border: 'none',
+                  background: blue, color: '#fff', fontSize: 14, fontWeight: 700,
+                  cursor: 'pointer', fontFamily: 'inherit',
+                }}>
+                  Go to Dashboard →
+                </button>
               </div>
             ) : (
               <>

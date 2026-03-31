@@ -11,6 +11,12 @@ export interface SettingsProfile {
   startupName: string
   industry: string
   description: string
+  // Startup profile (from signup / profile builder)
+  stage: string
+  revenueStatus: string
+  teamSize: string
+  fundingStatus: string
+  website: string
   notificationPreferences: {
     emailNotifications: boolean
     qScoreUpdates: boolean
@@ -28,7 +34,7 @@ export async function loadSettings(): Promise<SettingsProfile | null> {
 
   const { data } = await supabase
     .from('founder_profiles')
-    .select('full_name, startup_name, industry, description, notification_preferences')
+    .select('full_name, startup_name, industry, description, notification_preferences, stage, revenue_status, team_size, funding_status, website')
     .eq('user_id', user.id)
     .single()
 
@@ -36,10 +42,15 @@ export async function loadSettings(): Promise<SettingsProfile | null> {
 
   return {
     email:        user.email ?? '',
-    fullName:     data?.full_name    ?? '',
-    startupName:  data?.startup_name ?? '',
-    industry:     data?.industry     ?? '',
-    description:  data?.description  ?? '',
+    fullName:     data?.full_name      ?? '',
+    startupName:  data?.startup_name   ?? '',
+    industry:     data?.industry       ?? '',
+    description:  data?.description    ?? '',
+    stage:        data?.stage          ?? '',
+    revenueStatus:data?.revenue_status ?? '',
+    teamSize:     data?.team_size      ?? '',
+    fundingStatus:data?.funding_status ?? '',
+    website:      data?.website        ?? '',
     notificationPreferences: {
       emailNotifications: prefs.emailNotifications !== false,
       qScoreUpdates:      prefs.qScoreUpdates      !== false,
@@ -72,6 +83,20 @@ export async function saveCompanySettings(
   const { error } = await supabase
     .from('founder_profiles')
     .update({ startup_name: startupName, industry, description })
+    .eq('user_id', user.id)
+  if (error) throw error
+}
+
+/** Saves startup profile fields (Stage, Revenue, Team Size, Funding, Website). */
+export async function saveStartupProfileSettings(
+  stage: string, revenueStatus: string, teamSize: string, fundingStatus: string, website: string
+): Promise<void> {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not authenticated')
+  const { error } = await supabase
+    .from('founder_profiles')
+    .update({ stage, revenue_status: revenueStatus, team_size: teamSize, funding_status: fundingStatus, website: website || null })
     .eq('user_id', user.id)
   if (error) throw error
 }
