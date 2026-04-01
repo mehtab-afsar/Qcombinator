@@ -4,6 +4,7 @@ import { parseDocument } from '@/lib/profile-builder/document-parser'
 import { EXTRACTION_PROMPTS } from '@/lib/profile-builder/extraction-prompts'
 import { callOpenRouter } from '@/lib/openrouter'
 import { getSectionCompletionPct, getMissingFields } from '@/lib/profile-builder/question-engine'
+import { flattenConfidence } from '@/lib/profile-builder/utils'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
 const ALLOWED_TYPES = [
@@ -75,20 +76,6 @@ const MISSING_FIELD_LABELS: Record<string, string> = {
   'financial.mrr': 'Monthly revenue (MRR)',
   'financial.monthlyBurn': 'Monthly burn rate',
   'financial.runway': 'Runway (months)',
-}
-
-// Flatten nested confidence map { p2: { tamDescription: 0.8 } } → { tamDescription: 0.8 }
-// so leaf-key lookups in getSectionCompletionPct always work
-function flattenConfidence(conf: Record<string, unknown>): Record<string, number> {
-  const flat: Record<string, number> = {}
-  function recurse(obj: Record<string, unknown>) {
-    for (const [k, v] of Object.entries(obj)) {
-      if (typeof v === 'number') flat[k] = v
-      else if (typeof v === 'object' && v !== null && !Array.isArray(v)) recurse(v as Record<string, unknown>)
-    }
-  }
-  recurse(conf)
-  return flat
 }
 
 function getSupabase() {

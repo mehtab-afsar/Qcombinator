@@ -140,7 +140,25 @@ export default function ProfileBuilderPage() {
     grade: string
     availableIQ: number
     track?: string
-    iqBreakdown: Array<{ id: string; name: string; averageScore: number; weight: number; indicatorsActive: number }>
+    iqBreakdown: Array<{
+      id: string
+      name: string
+      averageScore: number
+      weight: number
+      indicatorsActive: number
+      indicators: Array<{
+        id: string
+        name: string
+        rawScore: number
+        excluded: boolean
+        exclusionReason?: string
+        vcAlert?: string
+        percentile: number | null
+        percentileLabel?: string
+      }>
+    }>
+    reconciliationFlags: Array<{ indicatorId: string; alert: string; severity: string }>
+    validationWarnings: string[]
   } | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [previewData, setPreviewData] = useState<PreviewData | null>(null)
@@ -156,6 +174,8 @@ export default function ProfileBuilderPage() {
   const [smartProcessing, setSmartProcessing] = useState(false)
 
   const [input, setInput] = useState('')
+  const [inputFocused, setInputFocused] = useState(false)
+  const [smartInputFocused, setSmartInputFocused] = useState(false)
   const [isTyping, setIsTyping] = useState(false)
   const [uploadTrigger, setUploadTrigger] = useState<string | null>(null)
   const [uploadLoading, setUploadLoading] = useState(false)
@@ -678,6 +698,8 @@ export default function ProfileBuilderPage() {
         availableIQ: data.availableIQ ?? data.score,
         track: data.track,
         iqBreakdown: data.iqBreakdown ?? [],
+        reconciliationFlags: data.reconciliationFlags ?? [],
+        validationWarnings: data.validationWarnings ?? [],
       })
       saveFlowState(null)  // profile submitted — clear persisted fast-flow state
       setTimeout(() => router.push('/founder/dashboard'), 8000)
@@ -718,6 +740,54 @@ export default function ProfileBuilderPage() {
   // Progress dots reflect active flow
   const PROGRESS_STEPS = STEP_ORDER
   const progressIdx = PROGRESS_STEPS.indexOf(currentStep)
+
+  // ── score narrative (deterministic, no LLM) ──────────────────────────────
+  function buildScoreNarrative(
+    params: NonNullable<typeof submitResult>['iqBreakdown'],
+    score: number,
+    grade: string,
+    flags: NonNullable<typeof submitResult>['reconciliationFlags']
+  ): { overall: string; perParam: Record<string, string> } {
+    const s100 = (avg: number) => Math.round(avg * 20)
+    const sorted = [...params].sort((a, b) => b.averageScore - a.averageScore)
+    const strongest = sorted[0]
+    const weakest = sorted[sorted.length - 1]
+
+    const overall = [
+      'Your IQ Score of ' + score + ' (Grade ' + grade + ') reflects ' +
+        (score >= 70 ? 'a well-evidenced startup with strong fundamentals.'
+          : score >= 50 ? 'a startup with solid foundations but meaningful gaps to close before a Series A.'
+          : score >= 35 ? 'an early-stage startup where key signals still need to be validated.'
+          : 'a very early stage — most scoring dimensions need more evidence.'),
+      strongest && s100(strongest.averageScore) >= 60
+        ? 'Your strongest dimension is ' + strongest.name + ' (' + s100(strongest.averageScore) + '/100).'
+        : null,
+      weakest && s100(weakest.averageScore) < 50
+        ? 'The biggest opportunity to improve is ' + weakest.name + ' (' + s100(weakest.averageScore) + '/100).'
+        : null,
+      flags.length > 0
+        ? 'Note: ' + flags.length + ' indicator' + (flags.length > 1 ? 's' : '') + ' flagged a data quality concern that investors may scrutinise.'
+        : null,
+    ].filter(Boolean).join(' ')
+
+    const perParam: Record<string, string> = {}
+    for (const p of params) {
+      const s = s100(p.averageScore)
+      const activeInds = (p.indicators ?? []).filter(i => !i.excluded)
+      const strongInds = activeInds.filter(i => i.rawScore >= 4.0).map(i => i.name)
+      const weakInds = activeInds.filter(i => i.rawScore > 0 && i.rawScore < 2.5).map(i => i.name)
+      const alerts = (p.indicators ?? []).filter(i => i.vcAlert)
+      perParam[p.id] = [
+        s >= 75 ? p.name + ' is a clear strength.'
+          : s >= 50 ? p.name + ' shows promise but has room to grow.'
+          : p.name + ' needs attention — this is a common investor ask.',
+        strongInds.length > 0 ? 'Strong signals: ' + strongInds.slice(0, 2).join(', ') + '.' : null,
+        weakInds.length > 0 ? 'Gaps to address: ' + weakInds.slice(0, 2).join(', ') + '.' : null,
+        alerts.length > 0 ? '⚠ Data flag on: ' + alerts.map(a => a.name).join(', ') + '.' : null,
+      ].filter(Boolean).join(' ')
+    }
+    return { overall, perParam }
+  }
 
   // ── render ────────────────────────────────────────────────────────────────
   return (
@@ -1184,63 +1254,63 @@ export default function ProfileBuilderPage() {
               )}
 
               {/* Input area */}
-              <div style={{ padding: '16px 0 20px', borderTop: `1px solid ${bdr}`, marginTop: 8 }}>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+              <div style={{ paddingTop: 14, borderTop: `1px solid ${bdr}`, marginTop: 8 }}>
+                <div style={{
+                  display: 'flex', alignItems: 'flex-end',
+                  border: `1.5px solid ${inputFocused ? blue : bdr}`,
+                  borderRadius: 16, background: isTyping ? '#fafafa' : '#fff',
+                  padding: '6px 6px 6px 4px', transition: 'border-color 0.15s',
+                }}>
+                  {/* Upload */}
+                  <button
+                    onClick={() => { if (!uploadLoading) fileInputRef.current?.click() }}
+                    disabled={uploadLoading}
+                    title={
+                      currentStep === 1 ? 'Upload LOI, pilot agreement, or CRM export'
+                      : currentStep === 2 ? 'Upload pitch deck or market research'
+                      : currentStep === 3 ? 'Upload patent filing or technical spec'
+                      : currentStep === 4 ? 'Upload team CV or LinkedIn export'
+                      : currentStep === 5 ? 'Upload financial model or Stripe export'
+                      : 'Upload supporting document'
+                    }
+                    style={{
+                      width: 34, height: 34, borderRadius: 9, border: 'none',
+                      background: 'transparent', cursor: uploadLoading ? 'not-allowed' : 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 15, color: muted, flexShrink: 0, opacity: uploadLoading ? 0.4 : 1,
+                    }}
+                  >📎</button>
+                  {/* Textarea */}
                   <textarea
                     value={input}
                     onChange={e => setInput(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
-                    }}
-                    placeholder={
-                      currentStep === 'pitch'
-                        ? "Describe your company in 2-3 sentences…"
-                        : "Type your answer… (Enter to send, Shift+Enter for new line)"
-                    }
-                    rows={3}
+                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
+                    onFocus={() => setInputFocused(true)}
+                    onBlur={() => setInputFocused(false)}
+                    placeholder={currentStep === 'pitch' ? 'Describe your company in 2-3 sentences…' : 'Type your answer…'}
+                    rows={2}
                     disabled={isTyping}
                     style={{
-                      flex: 1, padding: '11px 14px', borderRadius: 10,
-                      border: `1.5px solid ${bdr}`, background: '#fff',
+                      flex: 1, padding: '7px 8px', border: 'none', background: 'transparent',
                       fontSize: 14, color: ink, resize: 'none', fontFamily: 'inherit',
-                      outline: 'none', transition: 'border-color 0.15s',
-                      opacity: isTyping ? 0.7 : 1,
+                      outline: 'none', lineHeight: 1.55, opacity: isTyping ? 0.55 : 1,
                     }}
-                    onFocus={e => (e.target.style.borderColor = blue)}
-                    onBlur={e => (e.target.style.borderColor = bdr)}
                   />
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <button
-                      onClick={handleSend}
-                      disabled={!input.trim() || isTyping}
-                      style={{
-                        padding: '11px 20px', borderRadius: 8, border: 'none',
-                        background: (!input.trim() || isTyping) ? bdr : blue,
-                        color: '#fff', fontWeight: 600,
-                        cursor: (!input.trim() || isTyping) ? 'not-allowed' : 'pointer',
-                        fontFamily: 'inherit', fontSize: 14,
-                      }}
-                    >{isTyping ? '…' : 'Send'}</button>
-                    <button
-                      onClick={() => { if (!uploadLoading) fileInputRef.current?.click() }}
-                      disabled={uploadLoading}
-                      title={
-                        currentStep === 1 ? 'Upload CRM export, pilot agreement, or LOI'
-                        : currentStep === 2 ? 'Upload market research or competitor analysis'
-                        : currentStep === 3 ? 'Upload patent filings, technical spec, or architecture doc'
-                        : currentStep === 4 ? 'Upload team CVs or org chart'
-                        : currentStep === 5 ? 'Upload financial model, P&L, or Stripe export'
-                        : 'Upload supporting document'
-                      }
-                      style={{
-                        padding: '8px 14px', borderRadius: 8,
-                        border: `1.5px solid ${bdr}`, background: '#fafafa',
-                        cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, color: muted,
-                      }}
-                    >📎</button>
-                  </div>
+                  {/* Send */}
+                  <button
+                    onClick={handleSend}
+                    disabled={!input.trim() || isTyping}
+                    style={{
+                      width: 34, height: 34, borderRadius: 10, border: 'none',
+                      background: (input.trim() && !isTyping) ? blue : bdr,
+                      color: '#fff', fontSize: 16, fontWeight: 700,
+                      cursor: (input.trim() && !isTyping) ? 'pointer' : 'not-allowed',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      flexShrink: 0, transition: 'background 0.15s',
+                    }}
+                  >{isTyping ? '·' : '↑'}</button>
                 </div>
-                <p style={{ margin: '8px 0 0', fontSize: 12, color: muted }}>
+                <p style={{ margin: '5px 0 0 4px', fontSize: 11, color: muted, opacity: 0.7 }}>
                   Enter to send · Shift+Enter for new line
                 </p>
               </div>
@@ -1444,23 +1514,40 @@ export default function ProfileBuilderPage() {
                 </div>
               )}
 
-              {/* Answer textarea */}
-              <textarea
-                value={smartInput}
-                onChange={e => setSmartInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSmartNext() } }}
-                placeholder="Type your answer…"
-                rows={4}
-                style={{
-                  width: '100%', padding: '12px 14px', borderRadius: 10,
-                  border: `1.5px solid ${bdr}`, background: '#fafafa',
-                  fontSize: 14, color: ink, fontFamily: 'inherit',
-                  resize: 'vertical', outline: 'none', boxSizing: 'border-box',
-                  lineHeight: 1.6,
-                }}
-                onFocus={e => { e.target.style.borderColor = blue }}
-                onBlur={e => { e.target.style.borderColor = bdr }}
-              />
+              {/* Answer input */}
+              <div style={{
+                display: 'flex', alignItems: 'flex-end',
+                border: `1.5px solid ${smartInputFocused ? blue : bdr}`,
+                borderRadius: 16, background: '#fff',
+                padding: '6px 6px 6px 12px', transition: 'border-color 0.15s',
+              }}>
+                <textarea
+                  value={smartInput}
+                  onChange={e => setSmartInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSmartNext() } }}
+                  onFocus={() => setSmartInputFocused(true)}
+                  onBlur={() => setSmartInputFocused(false)}
+                  placeholder="Type your answer…"
+                  rows={3}
+                  style={{
+                    flex: 1, padding: '6px 0', border: 'none', background: 'transparent',
+                    fontSize: 14, color: ink, fontFamily: 'inherit',
+                    resize: 'none', outline: 'none', lineHeight: 1.6,
+                  }}
+                />
+                <button
+                  onClick={handleSmartNext}
+                  disabled={!smartInput.trim() || smartProcessing}
+                  style={{
+                    width: 36, height: 36, borderRadius: 10, border: 'none',
+                    background: (smartInput.trim() && !smartProcessing) ? blue : bdr,
+                    color: '#fff', fontSize: 16, fontWeight: 700,
+                    cursor: (smartInput.trim() && !smartProcessing) ? 'pointer' : 'not-allowed',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0, transition: 'background 0.15s', marginBottom: 1,
+                  }}
+                >{smartProcessing ? '·' : '↑'}</button>
+              </div>
 
               {/* Help text */}
               {q.helpText && (
@@ -1470,31 +1557,19 @@ export default function ProfileBuilderPage() {
               )}
 
               {/* Navigation */}
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <button
                   onClick={() => {
                     if (smartQaIndex === 0) setCurrentStep('extract-results')
                     else setSmartQaIndex(i => i - 1)
                   }}
                   style={{
-                    padding: '10px 20px', borderRadius: 8, border: `1px solid ${bdr}`,
-                    background: 'transparent', fontSize: 13, color: muted,
+                    padding: '8px 16px', borderRadius: 8, border: `1px solid ${bdr}`,
+                    background: 'transparent', fontSize: 12, color: muted,
                     cursor: 'pointer', fontFamily: 'inherit',
                   }}
                 >← Back</button>
-                <button
-                  onClick={handleSmartNext}
-                  disabled={!smartInput.trim() || smartProcessing}
-                  style={{
-                    padding: '12px 28px', borderRadius: 10, border: 'none',
-                    background: (!smartInput.trim() || smartProcessing) ? bdr : blue,
-                    color: '#fff', fontSize: 14, fontWeight: 600,
-                    cursor: (!smartInput.trim() || smartProcessing) ? 'not-allowed' : 'pointer',
-                    fontFamily: 'inherit', opacity: (!smartInput.trim() || smartProcessing) ? 0.6 : 1,
-                  }}
-                >
-                  {smartProcessing ? 'Saving…' : isLast ? 'Finish →' : 'Next →'}
-                </button>
+                <span style={{ fontSize: 11, color: muted }}>Enter to submit</span>
               </div>
             </div>
           )
@@ -1550,6 +1625,125 @@ export default function ProfileBuilderPage() {
                     </div>
                   </div>
                 )}
+
+                {/* ── Result Memo ─────────────────────────────────── */}
+                {submitResult.iqBreakdown.length > 0 && (() => {
+                  const narrative = buildScoreNarrative(
+                    submitResult.iqBreakdown, submitResult.score, submitResult.grade, submitResult.reconciliationFlags
+                  )
+                  const s100 = (avg: number) => Math.round(avg * 20)
+                  return (
+                    <div className="result-memo" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+                      {/* Section 1 — Score Evidence */}
+                      <div style={{ borderRadius: 14, border: `1px solid ${bdr}`, background: '#fafafa', overflow: 'hidden' }}>
+                        <div style={{ padding: '14px 20px', borderBottom: `1px solid ${bdr}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Score Evidence</div>
+                          <button
+                            onClick={() => window.print()}
+                            style={{ padding: '5px 14px', borderRadius: 6, border: `1px solid ${bdr}`, background: 'white', fontSize: 12, color: muted, cursor: 'pointer', fontFamily: 'inherit' }}
+                          >
+                            Download PDF
+                          </button>
+                        </div>
+                        <div style={{ padding: '4px 0' }}>
+                          {submitResult.iqBreakdown.map((p, pi) => {
+                            const ps = s100(p.averageScore)
+                            const psColor = ps >= 70 ? green : ps >= 45 ? amber : red
+                            return (
+                              <div key={p.id} style={{ borderBottom: pi < submitResult.iqBreakdown.length - 1 ? `1px solid ${bdr}` : 'none' }}>
+                                {/* Parameter header */}
+                                <div style={{ padding: '12px 20px 8px', display: 'flex', alignItems: 'center', gap: 10, background: '#f5f4f1' }}>
+                                  <span style={{ fontSize: 12, fontWeight: 700, color: ink }}>{p.name}</span>
+                                  <span style={{ fontSize: 12, fontWeight: 700, color: psColor }}>{ps}/100</span>
+                                  <span style={{ fontSize: 11, color: muted }}>· {Math.round(p.weight * 100)}% weight</span>
+                                  <span style={{ marginLeft: 'auto', fontSize: 11, color: muted }}>{p.indicatorsActive} active</span>
+                                </div>
+                                {/* Indicator rows */}
+                                <div style={{ padding: '4px 20px 10px' }}>
+                                  {(p.indicators ?? []).map(ind => {
+                                    const excluded = ind.excluded
+                                    const score5 = ind.rawScore
+                                    const badgeBg = excluded ? '#f0f0f0'
+                                      : score5 >= 4.0 ? '#DCFCE7'
+                                      : score5 >= 2.5 ? '#FEF3C7'
+                                      : score5 > 0 ? '#FEE2E2'
+                                      : '#f0f0f0'
+                                    const badgeColor = excluded ? muted
+                                      : score5 >= 4.0 ? green
+                                      : score5 >= 2.5 ? amber
+                                      : score5 > 0 ? red
+                                      : muted
+                                    return (
+                                      <div key={ind.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0', borderBottom: `1px solid #f5f4f1` }}>
+                                        {/* Score badge */}
+                                        <div style={{ minWidth: 36, padding: '2px 6px', borderRadius: 5, background: badgeBg, textAlign: 'center', fontSize: 11, fontWeight: 700, color: badgeColor, flexShrink: 0 }}>
+                                          {excluded ? '—' : score5 === 0 ? '0' : score5.toFixed(1)}
+                                        </div>
+                                        {/* Name */}
+                                        <span style={{ fontSize: 12, color: excluded ? muted : ink, flex: 1, fontStyle: excluded ? 'italic' : 'normal' }}>{ind.name}</span>
+                                        {/* Percentile chip */}
+                                        {ind.percentileLabel && !excluded && (
+                                          <span style={{ fontSize: 10, fontWeight: 600, color: blue, background: '#EFF6FF', padding: '2px 7px', borderRadius: 999, flexShrink: 0 }}>
+                                            {ind.percentileLabel}
+                                          </span>
+                                        )}
+                                        {/* Status chip */}
+                                        {excluded && (
+                                          <span style={{ fontSize: 10, color: muted, background: '#f0f0f0', padding: '2px 7px', borderRadius: 999, flexShrink: 0 }}>
+                                            {ind.exclusionReason ?? 'Not applicable'}
+                                          </span>
+                                        )}
+                                        {ind.vcAlert && !excluded && (
+                                          <span style={{ fontSize: 10, color: amber, background: '#FEF3C7', padding: '2px 7px', borderRadius: 999, flexShrink: 0 }}>
+                                            ⚠ VC flag
+                                          </span>
+                                        )}
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Section 2 — Why this score */}
+                      <div style={{ borderRadius: 14, border: `1px solid ${bdr}`, background: '#fafafa', overflow: 'hidden' }}>
+                        <div style={{ padding: '14px 20px', borderBottom: `1px solid ${bdr}` }}>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Why this score</div>
+                        </div>
+                        <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                          {/* Overall narrative */}
+                          <p style={{ margin: 0, fontSize: 13, color: ink, lineHeight: 1.65 }}>{narrative.overall}</p>
+                          <div style={{ height: 1, background: bdr }} />
+                          {/* Per-parameter narrative */}
+                          {submitResult.iqBreakdown.map(p => (
+                            <div key={p.id} style={{ display: 'flex', gap: 10 }}>
+                              <div style={{ minWidth: 28, height: 28, borderRadius: '50%', background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: blue, flexShrink: 0 }}>
+                                {p.id.toUpperCase()}
+                              </div>
+                              <div>
+                                <div style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 2 }}>{p.name}</div>
+                                <div style={{ fontSize: 12, color: muted, lineHeight: 1.55 }}>{narrative.perParam[p.id]}</div>
+                              </div>
+                            </div>
+                          ))}
+                          {/* Validation warnings */}
+                          {submitResult.validationWarnings.length > 0 && (
+                            <div style={{ marginTop: 4, padding: '10px 14px', borderRadius: 8, background: '#FFFBEB', border: `1px solid ${amber}44` }}>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: amber, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Consistency notes</div>
+                              {submitResult.validationWarnings.map((w, i) => (
+                                <div key={i} style={{ fontSize: 12, color: ink, lineHeight: 1.5 }}>· {w}</div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })()}
 
                 <button onClick={() => router.push('/founder/dashboard')} style={{
                   padding: '12px 28px', borderRadius: 10, border: 'none',
@@ -1708,6 +1902,10 @@ export default function ProfileBuilderPage() {
         @keyframes bounce {
           0%, 100% { transform: translateY(0); }
           50% { transform: translateY(-4px); }
+        }
+        @media print {
+          body > * { display: none !important; }
+          .result-memo { display: flex !important; flex-direction: column; gap: 16px; }
         }
       `}</style>
     </div>

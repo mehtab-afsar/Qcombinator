@@ -3,19 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { EXTRACTION_PROMPTS, FOLLOW_UP_PROMPT } from '@/lib/profile-builder/extraction-prompts'
 import { getSectionCompletionPct, getMissingFields, FounderProfile } from '@/lib/profile-builder/question-engine'
 import { callOpenRouter } from '@/lib/openrouter'
-
-// Flatten nested confidence { p2: { tamDescription: 0.8 } } → { tamDescription: 0.8 }
-function flattenConfidence(conf: Record<string, unknown>): Record<string, number> {
-  const flat: Record<string, number> = {}
-  function recurse(obj: Record<string, unknown>) {
-    for (const [k, v] of Object.entries(obj)) {
-      if (typeof v === 'number') flat[k] = v
-      else if (typeof v === 'object' && v !== null && !Array.isArray(v)) recurse(v as Record<string, unknown>)
-    }
-  }
-  recurse(conf)
-  return flat
-}
+import { flattenConfidence } from '@/lib/profile-builder/utils'
 
 async function getUserId(req: NextRequest): Promise<string | null> {
   const token = req.headers.get('authorization')?.replace('Bearer ', '')
