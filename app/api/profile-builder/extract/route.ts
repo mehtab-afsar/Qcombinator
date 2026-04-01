@@ -4,6 +4,19 @@ import { EXTRACTION_PROMPTS, FOLLOW_UP_PROMPT } from '@/lib/profile-builder/extr
 import { getSectionCompletionPct, getMissingFields, FounderProfile } from '@/lib/profile-builder/question-engine'
 import { callOpenRouter } from '@/lib/openrouter'
 
+// Flatten nested confidence { p2: { tamDescription: 0.8 } } → { tamDescription: 0.8 }
+function flattenConfidence(conf: Record<string, unknown>): Record<string, number> {
+  const flat: Record<string, number> = {}
+  function recurse(obj: Record<string, unknown>) {
+    for (const [k, v] of Object.entries(obj)) {
+      if (typeof v === 'number') flat[k] = v
+      else if (typeof v === 'object' && v !== null && !Array.isArray(v)) recurse(v as Record<string, unknown>)
+    }
+  }
+  recurse(conf)
+  return flat
+}
+
 async function getUserId(req: NextRequest): Promise<string | null> {
   const token = req.headers.get('authorization')?.replace('Bearer ', '')
   if (!token) return null
@@ -27,12 +40,14 @@ export async function POST(req: NextRequest) {
       uploadedDocumentText,
       founderProfile,
       existingExtracted,
+      existingConfidenceMap,
     }: {
       section: number
       conversationText: string
       uploadedDocumentText?: string
       founderProfile?: FounderProfile
       existingExtracted?: Record<string, unknown>
+      existingConfidenceMap?: Record<string, number>
     } = body
 
     if (!section || !conversationText) {
@@ -54,15 +69,15 @@ export async function POST(req: NextRequest) {
     ], { maxTokens: 1500, temperature: 0.1 })
 
     let extractedFields: Record<string, unknown> = {}
-    let confidenceMap: Record<string, number> = {}
+    let newConfidenceMap: Record<string, number> = {}
 
     const jsonMatch = raw.match(/\{[\s\S]*\}/)
     if (jsonMatch) {
       try {
         const parsed = JSON.parse(jsonMatch[0])
-        const { confidence: conf, ...rest } = parsed
+        const { confidence: rawConf, ...rest } = parsed
         extractedFields = rest
-        confidenceMap = conf ?? {}
+        newConfidenceMap = rawConf ? flattenConfidence(rawConf as Record<string, unknown>) : {}
       } catch {
         // Return empty if parse fails
       }
@@ -82,9 +97,12 @@ export async function POST(req: NextRequest) {
     }
     mergeDeep(merged, extractedFields)
 
+    // Merge confidence: existing PDF confidence is baseline; new conversation confidence overwrites
+    const confidenceMap: Record<string, number> = { ...(existingConfidenceMap ?? {}), ...newConfidenceMap }
+
     const stage = founderProfile?.stage ?? 'pre-product'
-    const completionScore = getSectionCompletionPct(merged, section, stage)
-    const missingFields = getMissingFields(merged, section, stage)
+    const completionScore = getSectionCompletionPct(merged, section, stage, confidenceMap)
+    const missingFields = getMissingFields(merged, section, stage, confidenceMap)
 
     // Brief pause before second LLM call — avoids back-to-back rate limit on free-tier models
     await new Promise(r => setTimeout(r, 1500))
@@ -115,7 +133,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       extractedFields,
       mergedFields: merged,
-      confidenceMap,
+      confidenceMap,        // merged (existing PDF + new conversation confidence)
       completionScore,
       missingFields,
       followUpQuestion,

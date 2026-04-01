@@ -301,7 +301,8 @@ export default function ProfileBuilderPage() {
           initialQ = `I extracted this section from your documents and it looks complete (${sec.completionScore}%). Feel free to add more detail or move on.`
         } else {
           // Build context-aware question using what's already known vs what's missing
-          const missing = getMissingFields(sec.extractedFields, currentStep, founderProfile.stage ?? 'pre-product')
+          // Pass confidence map so low-confidence fields are also surfaced as gaps
+          const missing = getMissingFields(sec.extractedFields, currentStep, founderProfile.stage ?? 'pre-product', sec.confidenceMap ?? {})
           const missingLabels = missing
             .map(f => MISSING_FIELD_LABELS[f])
             .filter(Boolean)
@@ -445,6 +446,7 @@ export default function ProfileBuilderPage() {
           uploadedDocumentText: globalDocText || undefined,
           founderProfile,
           existingExtracted: currentSec.extractedFields,
+          existingConfidenceMap: currentSec.confidenceMap,
         }),
       })
 

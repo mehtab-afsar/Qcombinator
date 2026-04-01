@@ -145,11 +145,23 @@ export function getSectionCompletionPct(
   return Math.round((filled / required.length) * 100)
 }
 
-export function getMissingFields(extractedFields: Record<string, unknown>, section: number, stage = 'pre-product'): string[] {
+export function getMissingFields(
+  extractedFields: Record<string, unknown>,
+  section: number,
+  stage = 'pre-product',
+  confidenceMap: Record<string, number> = {}
+): string[] {
   const required = getRequiredFields(section, stage)
+  const hasConf = Object.keys(confidenceMap).length > 0
   return required.filter(field => {
     const val = getNestedValue(extractedFields, field)
-    return val === null || val === undefined
+    if (val === null || val === undefined) return true  // definitely missing
+    if (hasConf) {
+      const leafKey = field.includes('.') ? field.split('.').pop()! : field
+      const conf = confidenceMap[leafKey] ?? confidenceMap[field] ?? 0
+      if (conf < 0.45) return true  // present but low-confidence — re-ask for specifics
+    }
+    return false
   })
 }
 
