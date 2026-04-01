@@ -164,6 +164,29 @@ export default function ProfileBuilderPage() {
   const [recalcLoading, setRecalcLoading] = useState(false)
   const [recalcResult, setRecalcResult] = useState<{ finalIQ: number; grade: string } | null>(null)
 
+  // ── animated sidebar scores — smoothly tick toward actual completionScores ──
+  const [animatedScores, setAnimatedScores] = useState<Record<string, number>>({})
+  useEffect(() => {
+    const targets: Record<string, number> = {}
+    for (const [k, s] of Object.entries(sections)) targets[k] = s.completionScore
+    const timer = setInterval(() => {
+      setAnimatedScores(prev => {
+        let changed = false
+        const next = { ...prev }
+        for (const [k, target] of Object.entries(targets)) {
+          const cur = prev[k] ?? 0
+          if (cur !== target) {
+            next[k] = cur < target ? Math.min(cur + 3, target) : Math.max(cur - 3, target)
+            changed = true
+          }
+        }
+        if (!changed) clearInterval(timer)
+        return next
+      })
+    }, 25)
+    return () => clearInterval(timer)
+  }, [sections])
+
   const chatEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -177,7 +200,7 @@ export default function ProfileBuilderPage() {
 
       const { data: fp } = await supabase
         .from('founder_profiles')
-        .select('stage, industry, revenue_status, company_name')
+        .select('stage, industry, revenue_status, company_name, profile_builder_flow')
         .eq('user_id', data.session.user.id)
         .single()
       if (fp) {
@@ -187,6 +210,25 @@ export default function ProfileBuilderPage() {
           revenueStatus: fp.revenue_status ?? 'pre-revenue',
           companyName: fp.company_name ?? undefined,
         })
+        // Restore fast-flow state if the founder was mid-way through smart questions
+        if (fp.profile_builder_flow) {
+          const flow = fp.profile_builder_flow as {
+            flowMode?: 'fast' | 'full'
+            smartQuestions?: SmartQuestion[]
+            smartQaIndex?: number
+            extractionSummary?: SectionSummary[]
+          }
+          if (flow.flowMode === 'fast') {
+            setFlowMode('fast')
+            if (flow.smartQuestions?.length)    setSmartQuestions(flow.smartQuestions)
+            if (flow.smartQaIndex != null)      setSmartQaIndex(flow.smartQaIndex)
+            if (flow.extractionSummary?.length) setExtractionSummary(flow.extractionSummary)
+            const idx   = flow.smartQaIndex ?? 0
+            const total = flow.smartQuestions?.length ?? 0
+            if (total > 0 && idx < total) setCurrentStep('smart-qa')
+            else if (flow.extractionSummary?.length) setCurrentStep('extract-results')
+          }
+        }
       }
 
       // Load draft
@@ -204,6 +246,15 @@ export default function ProfileBuilderPage() {
                   extractedFields?: Record<string, unknown>
                   confidenceMap?: Record<string, number>
                   completionScore?: number
+                  rawConversation?: string
+                }
+                // Restore chat messages from saved raw_conversation
+                const msgs: Message[] = []
+                if (d.rawConversation) {
+                  for (const line of d.rawConversation.split('\n')) {
+                    if (line.startsWith('Q: ')) msgs.push({ role: 'agent', text: line.slice(3) })
+                    else if (line.startsWith('A: ')) msgs.push({ role: 'user', text: line.slice(3) })
+                  }
                 }
                 next[sec] = {
                   ...initSection(),
@@ -211,6 +262,7 @@ export default function ProfileBuilderPage() {
                   confidenceMap: d.confidenceMap ?? {},
                   completionScore: d.completionScore ?? 0,
                   isComplete: (d.completionScore ?? 0) >= 70,
+                  messages: msgs,
                 }
               }
               return next
@@ -307,6 +359,19 @@ export default function ProfileBuilderPage() {
     }).catch(() => {})
   }, [])
 
+  // ── persist fast-flow state to DB (fire-and-forget) ──────────────────────
+  const saveFlowState = useCallback((state: object | null) => {
+    const supabase = createClient()
+    supabase.auth.getSession().then(({ data }) => {
+      if (!data.session) return
+      supabase
+        .from('founder_profiles')
+        .update({ profile_builder_flow: state })
+        .eq('user_id', data.session.user.id)
+        .then(() => {})
+    })
+  }, [])
+
   // ── handle user message ───────────────────────────────────────────────────
   async function handleSend() {
     if (!input.trim() || !token || isTyping) return
@@ -332,17 +397,20 @@ export default function ProfileBuilderPage() {
       const words = userText.split(/\s+/).length
       const hasProblem = /problem|pain|issue|struggle|hard|broken|fail|challenge/i.test(userText)
       const hasWho = /we |our |company|startup|for |customer|user|team|built/i.test(userText) || words > 8
-      const hasNow = /now|today|2020|2021|2022|2023|2024|2025|ai|llm|remote|cloud|pandemic|recent/i.test(userText)
+      const hasNow = /now|today|2020|2021|2022|2023|2024|2025|ai|llm|remote|cloud|pandemic|recent|money|wealth|economic|market|funding|capital|growth|trend|income|consumer|spend|inflation|rate|interest|regul|tech|shift|change|new|emerg|opport|rise|grow/i.test(userText)
       const clarity = Math.min(100,
         (words > 20 ? 40 : words > 10 ? 25 : 10) +
         (hasProblem ? 20 : 0) + (hasWho ? 20 : 0) + (hasNow ? 20 : 0)
       )
       const done = clarity >= 60 && hasNow
+      const isRepeat = (sections['pitch']?.messages?.length ?? 0) > 2
       const reply = done
         ? "Clear pitch — problem, customer, and timing are all present. Move on to Market Validation."
-        : !hasNow
+        : !hasNow && !isRepeat
           ? "Good start. What changed in the world recently that makes this the right moment to build this?"
-          : "Help me understand: who exactly has this problem, and what happens to them if they don't solve it?"
+          : !hasNow && isRepeat
+            ? "Got it. Can you be more specific about the timing — what's shifted in the market or world in the last 1–2 years that creates this opening?"
+            : "Help me understand: who exactly has this problem, and what happens to them if they don't solve it?"
 
       setSections(prev => ({
         ...prev,
@@ -469,14 +537,50 @@ export default function ProfileBuilderPage() {
 
       if (data.sectionSummaries && data.sectionSummaries.length > 0) {
         setExtractionSummary(data.sectionSummaries)
-        const extractedBySections: Record<string, Record<string, unknown>> = {}
-        for (const s of data.sectionSummaries as SectionSummary[]) {
-          extractedBySections[s.sectionKey] = data.extractedFields ?? {}
+
+        // Build section-scoped, confidence-gated fields for smart question generation.
+        // Each section only sees its own relevant top-level keys, and fields with
+        // confidence < 0.45 are treated as missing so questions ARE generated for them.
+        const allExtracted: Record<string, unknown> = data.extractedFields ?? {}
+        const confMap: Record<string, number> = data.confidenceMap ?? {}
+        const hasConf = Object.keys(confMap).length > 0
+        const SECTION_PICKS: Record<string, string[]> = {
+          '1': ['customerCommitment','conversationCount','hasPayingCustomers','payingCustomerDetail','salesCycleLength','hasRetention','retentionDetail','largestContractUsd'],
+          '2': ['p2','targetCustomers','lifetimeValue'],
+          '3': ['p3'],
+          '4': ['p4','problemStory','advantages','hardshipStory'],
+          '5': ['financial','p5'],
         }
+        // Recursively drop leaf values whose confidence key is < 0.45
+        function dropLowConf(obj: Record<string, unknown>): Record<string, unknown> {
+          const out: Record<string, unknown> = {}
+          for (const [k, v] of Object.entries(obj)) {
+            if (v === null || v === undefined) continue
+            if (typeof v === 'object' && !Array.isArray(v)) {
+              const nested = dropLowConf(v as Record<string, unknown>)
+              if (Object.keys(nested).length) out[k] = nested
+            } else {
+              const c = hasConf ? (confMap[k] ?? 0) : 1
+              if (c >= 0.45) out[k] = v
+            }
+          }
+          return out
+        }
+        const filteredExtracted = hasConf ? dropLowConf(allExtracted) : allExtracted
+        const extractedBySections: Record<string, Record<string, unknown>> = {}
+        for (const secKey of ['1','2','3','4','5']) {
+          const slice: Record<string, unknown> = {}
+          for (const pk of SECTION_PICKS[secKey] ?? []) {
+            if (pk in filteredExtracted) slice[pk] = filteredExtracted[pk]
+          }
+          extractedBySections[secKey] = slice
+        }
+
         const qs = generateSmartQuestions(extractedBySections, founderProfile.stage ?? 'mid')
         setSmartQuestions(qs)
         setSmartQaIndex(0)
         setFlowMode('fast')
+        saveFlowState({ flowMode: 'fast', smartQuestions: qs, smartQaIndex: 0, extractionSummary: data.sectionSummaries })
       }
 
       setUploadedFiles(prev => [...prev, { name: file.name, fields: fieldsFound }])
@@ -558,7 +662,12 @@ export default function ProfileBuilderPage() {
       })
       const data = await res.json()
       if (!res.ok) {
-        setSubmitError(data.error ?? 'Submission failed')
+        if (res.status === 429 && data.retakeAvailableAt) {
+          const available = new Date(data.retakeAvailableAt)
+          setSubmitError(`Score locked — you can recalculate again at ${available.toLocaleString()}`)
+        } else {
+          setSubmitError(data.error ?? 'Submission failed')
+        }
         return
       }
       setSubmitResult({
@@ -568,6 +677,7 @@ export default function ProfileBuilderPage() {
         track: data.track,
         iqBreakdown: data.iqBreakdown ?? [],
       })
+      saveFlowState(null)  // profile submitted — clear persisted fast-flow state
       setTimeout(() => router.push('/founder/dashboard'), 8000)
     } catch {
       setSubmitError('Network error — please try again')
@@ -700,7 +810,7 @@ export default function ProfileBuilderPage() {
             ].map(({ key, label, icon }) => {
               const isActive = String(currentStep) === key
               const sec = sections[key]
-              const pct = (key === '0' || key === 'pitch' || key === '6' || key === 'extract-results' || key === 'smart-qa') ? null : (sec?.completionScore ?? 0)
+              const pct = (key === '0' || key === 'pitch' || key === '6' || key === 'extract-results' || key === 'smart-qa') ? null : (animatedScores[key] ?? sec?.completionScore ?? 0)
               const isDone = pct !== null && pct >= 70
               return (
                 <button
@@ -749,12 +859,12 @@ export default function ProfileBuilderPage() {
                 { label: 'P5 Impact',            key: '5' },
                 { label: 'P6 Financials',        key: '5' },
               ].map(({ label, key }, i) => {
-                const pct = (sections[key]?.completionScore ?? 0)
+                const pct = (animatedScores[key] ?? sections[key]?.completionScore ?? 0)
                 return (
                   <div key={i} style={{ marginBottom: 8 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
                       <span style={{ fontSize: 11, color: muted }}>{label}</span>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: pct >= 70 ? green : ink }}>{pct}%</span>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: pct >= 70 ? green : ink }}>{Math.round(pct)}%</span>
                     </div>
                     <div style={{ height: 3, background: bdr, borderRadius: 2, overflow: 'hidden' }}>
                       <div style={{ height: '100%', width: `${pct}%`, background: pct >= 70 ? green : amber, borderRadius: 2, transition: 'width 0.4s ease' }} />
@@ -942,13 +1052,13 @@ export default function ProfileBuilderPage() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
                     <span style={{ fontSize: 12, color: muted }}>Section completion</span>
                     <span style={{ fontSize: 12, fontWeight: 600, color: sec.completionScore >= 70 ? green : muted }}>
-                      {sec.completionScore}%{sec.completionScore >= 70 ? ' · Complete ✓' : ''}
+                      {Math.round(animatedScores[key] ?? sec.completionScore)}%{sec.completionScore >= 70 ? ' · Complete ✓' : ''}
                     </span>
                   </div>
                   <div style={{ height: 3, background: bdr, borderRadius: 2, overflow: 'hidden' }}>
                     <div style={{
-                      height: '100%', borderRadius: 2, transition: 'width 0.5s ease',
-                      width: `${sec.completionScore}%`,
+                      height: '100%', borderRadius: 2,
+                      width: `${animatedScores[key] ?? sec.completionScore}%`,
                       background: sec.completionScore >= 70 ? green : blue,
                     }} />
                   </div>
@@ -1284,8 +1394,14 @@ export default function ProfileBuilderPage() {
             } finally {
               setSmartProcessing(false)
               setSmartInput('')
-              if (isLast) setCurrentStep(6)
-              else setSmartQaIndex(i => i + 1)
+              if (isLast) {
+                setCurrentStep(6)
+                saveFlowState(null)  // flow complete — clear persisted state
+              } else {
+                const nextIdx = smartQaIndex + 1
+                setSmartQaIndex(nextIdx)
+                saveFlowState({ flowMode: 'fast', smartQuestions, smartQaIndex: nextIdx, extractionSummary })
+              }
             }
           }
 
@@ -1501,7 +1617,7 @@ export default function ProfileBuilderPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {['1','2','3','4','5'].map(k => {
                   const sec = sections[k]
-                  const pct = sec?.completionScore ?? 0
+                  const pct = animatedScores[k] ?? sec?.completionScore ?? 0
                   return (
                     <div key={k} style={{
                       display: 'flex', alignItems: 'center', gap: 14,

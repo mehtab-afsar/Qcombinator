@@ -217,6 +217,6 @@ export function generateSmartQuestions(
     }
   }
 
-  // Sort by priority desc, limit to 7
-  return questions.sort((a, b) => b.priority - a.priority).slice(0, 7)
+  // Sort by priority desc, limit to 9 (3 per missing section × up to 3 sections)
+  return questions.sort((a, b) => b.priority - a.priority).slice(0, 9)
 }

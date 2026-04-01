@@ -44,6 +44,7 @@ export async function GET(req: NextRequest) {
         completionScore: row.completion_score ?? 0,
         completedAt: row.completed_at,
         hasConversation: !!row.raw_conversation,
+        rawConversation: row.raw_conversation ?? '',
       }
       for (const doc of (row.uploaded_documents ?? []) as Array<{ filename: string; fields: number }>) {
         if (doc.filename && !(doc.filename in uploadedFilesMap)) {
