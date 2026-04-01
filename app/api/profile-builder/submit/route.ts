@@ -224,7 +224,10 @@ export async function POST(req: NextRequest) {
         validation_warnings: warningMessages,
       })
 
-    if (insertErr) console.error('[submit] qscore insert error:', insertErr)
+    if (insertErr) {
+      console.error('[submit] qscore insert error:', insertErr)
+      return NextResponse.json({ error: `Score save failed: ${insertErr.message}` }, { status: 500 })
+    }
 
     // 15. Log reconciliation results for observability
     const loggable = reconciliationResults.filter(r => r.applied || r.error)

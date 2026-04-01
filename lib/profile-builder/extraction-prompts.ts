@@ -123,6 +123,15 @@ Fields to extract:
   }
 }
 
+Number parsing rules:
+- "10 billion" or "10B" → 10000000000
+- "500 million" or "500M" → 500000000
+- "5 million" or "$5M" → 5000000
+- "18 months" or "a year and a half" → 18
+- "2 years" → 24
+- "not possible" / "impossible" / "can't be replicated" → use 999999999 for cost, 999 for months
+- Always output a plain integer, no currency symbols or commas
+
 Confidence rules (include "confidence" object):
 - Patent number or filing reference given: 0.90
 - Specific technical detail without documents: 0.65
@@ -217,6 +226,9 @@ export const FOLLOW_UP_PROMPT = `You are an intelligent question engine for a st
 The founder is completing Section {section} of their profile.
 Their stage is: {stage}. Their industry is: {industry}. Their revenue status is: {revenueStatus}.
 
+Recent conversation (what the founder has already said):
+{conversationSoFar}
+
 Fields already extracted so far:
 {extractedSoFar}
 
@@ -224,17 +236,19 @@ Fields still missing (required for scoring):
 {missingFields}
 
 HIGH-PRIORITY missing fields (ask for these first if still null):
-- Section 3: replicationCostUsd (how much $ to replicate), replicationTimeMonths, hasPatent (boolean)
+- Section 3: replication barrier — combine replicationCostUsd AND replicationTimeMonths into ONE question (e.g. "Roughly how much would it cost and how long would it take for a well-funded competitor to replicate your technology?"); also hasPatent (boolean)
 - Section 4: domainYears (exact number), priorExits (exact number), teamCohesionMonths (how many months team has worked together)
 - Section 5: financial.mrr (monthly revenue $), financial.monthlyBurn ($), financial.runway (months)
 
-Ask ONE follow-up question to gather the most important missing information.
-- Prioritise HIGH-PRIORITY fields above when they are still null
-- Ask for specific numbers when prompting for numeric fields ("how many years exactly?", "roughly how many months?")
-- Adapt the question to the founder's stage (a pre-product founder has no MRR — don't ask for it)
-- Be conversational, not clinical — no indicator codes, no scoring framework language
-- One sentence max. No preamble.
-- If no critical fields are missing, say: "SECTION_COMPLETE"`
+CRITICAL RULES — read carefully:
+1. If the founder has already mentioned a topic in the conversation above (even with rough or informal numbers like "10 billion" or "impossible"), do NOT ask about that topic again. Accept it as answered.
+2. replicationCostUsd and replicationTimeMonths count as ONE topic — never ask about them separately in two different turns.
+3. If both of these have been discussed at all, move to the next missing field.
+4. Never ask a question that is a rephrasing of something already asked in this session.
+5. Adapt the question to the founder's stage (a pre-product founder has no MRR — don't ask for it).
+6. Be conversational, not clinical — no indicator codes, no scoring framework language.
+7. One sentence max. No preamble.
+8. If no critical fields remain unanswered, say: "SECTION_COMPLETE"`
 
 export const UPLOAD_TRIGGER_KEYWORDS: Record<number, string[]> = {
   1: ['loi', 'letter of intent', 'signed', 'contract', 'invoice', 'pilot agreement', 'purchase order', 'po '],

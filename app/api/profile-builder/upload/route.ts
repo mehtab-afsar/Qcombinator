@@ -238,7 +238,7 @@ export async function POST(req: NextRequest) {
       .eq('user_id', userId)
       .eq('section', section)
       .eq('filename', filename)
-      .gte('created_at', new Date(Date.now() - 60_000).toISOString())
+      .gte('uploaded_at', new Date(Date.now() - 60_000).toISOString())
       .maybeSingle()
 
     if (recentUpload) {
@@ -326,7 +326,12 @@ export async function POST(req: NextRequest) {
             uploaded_documents: [{ uploadId, filename, fields: snippets.length }],
             updated_at: new Date().toISOString(),
           }, { onConflict: 'user_id,section' })
-          if (upsertErr) console.warn(`[upload] upsert section ${secNum} failed:`, upsertErr.message)
+          if (upsertErr) {
+            console.error(`[upload] upsert section ${secNum} failed:`, upsertErr)
+            return NextResponse.json({
+              error: `Failed to save extracted data (section ${secNum}): ${upsertErr.message}`,
+            }, { status: 500 })
+          }
         }
       }
     }

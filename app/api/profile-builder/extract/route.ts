@@ -97,6 +97,7 @@ export async function POST(req: NextRequest) {
         .replace('{stage}', founderProfile.stage ?? 'unknown')
         .replace('{industry}', founderProfile.industry ?? 'general')
         .replace('{revenueStatus}', founderProfile.revenueStatus ?? 'unknown')
+        .replace('{conversationSoFar}', conversationText.slice(-1500))
         .replace('{extractedSoFar}', JSON.stringify(merged, null, 2).slice(0, 1000))
         .replace('{missingFields}', missingFields.join(', '))
 
