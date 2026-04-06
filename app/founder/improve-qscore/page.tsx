@@ -1110,7 +1110,7 @@ export default function ImproveQScorePage() {
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                       <span style={{ fontSize: 14, fontWeight: 600 }}>{dim.name}</span>
                       {/* Evidence badge from RAG pipeline */}
-                      {qScore?.ragMetadata && ((): React.ReactNode => {
+                      {qScore?.ragMetadata ? ((): React.ReactNode => {
                         const ragMeta = qScore.ragMetadata as { evidenceSummary?: string[] } | null;
                         const summary: string[] = ragMeta?.evidenceSummary ?? [];
                         const hasCorroboration = summary.some((s: string) => s.includes(dim.key) || s.startsWith('✓'));
@@ -1130,7 +1130,7 @@ export default function ImproveQScorePage() {
                             Unverified
                           </span>
                         );
-                      })()}
+                      })() : null}
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                       {benchmarks && benchmarks[dim.key] !== undefined && (() => {
