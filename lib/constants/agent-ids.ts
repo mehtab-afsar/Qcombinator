@@ -13,6 +13,8 @@ export const AGENT_IDS = {
   NOVA:   'nova',
   ATLAS:  'atlas',
   SAGE:   'sage',
+  CARTER: 'carter',
+  RILEY:  'riley',
 } as const;
 
 export type AgentId = typeof AGENT_IDS[keyof typeof AGENT_IDS];

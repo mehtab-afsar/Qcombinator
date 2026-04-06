@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { parseDocument } from '@/lib/profile-builder/document-parser'
 import { EXTRACTION_PROMPTS } from '@/lib/profile-builder/extraction-prompts'
-import { callOpenRouter } from '@/lib/openrouter'
+import { routedText } from '@/lib/llm/router'
 import { getSectionCompletionPct, getMissingFields } from '@/lib/profile-builder/question-engine'
 import { flattenConfidence } from '@/lib/profile-builder/utils'
 
@@ -181,10 +181,10 @@ export async function POST(req: NextRequest) {
       const docUserMsg = `Document text:\n\n${parsed.text.slice(0, 6000)}`
       const results = await Promise.allSettled(
         [1, 2, 3, 4, 5].map(sec =>
-          callOpenRouter(
+          routedText('extraction',
             [{ role: 'system', content: EXTRACTION_PROMPTS[sec] },
              { role: 'user', content: docUserMsg }],
-            { maxTokens: 800, temperature: 0.1 }
+            { maxTokens: 800 }
           ).then(raw => {
             const m = raw.match(/\{[\s\S]*\}/)
             if (!m) return { fields: {}, conf: {} }
@@ -206,15 +206,28 @@ export async function POST(req: NextRequest) {
           }
         }
       }
+    // Auto-derive p3.buildComplexity from replicationTimeMonths if LLM missed it
+    if (extractedFields.p3) {
+      const p3 = extractedFields.p3 as Record<string, unknown>
+      if (p3.replicationTimeMonths != null && !p3.buildComplexity) {
+        const months = Number(p3.replicationTimeMonths)
+        p3.buildComplexity =
+          months < 1 ? '<1 month' :
+          months <= 3 ? '1-3 months' :
+          months <= 6 ? '3-6 months' :
+          months <= 12 ? '6-12 months' : '12+ months'
+      }
+    }
+
     } else if (parsed.text.length > 50) {
       // Per-section upload: run only that section's prompt
       const sectionPrompt = EXTRACTION_PROMPTS[section]
       if (sectionPrompt) {
         try {
-          const raw = await callOpenRouter([
+          const raw = await routedText('extraction', [
             { role: 'system', content: sectionPrompt },
             { role: 'user', content: `Document text:\n\n${parsed.text}` },
-          ], { maxTokens: 1200, temperature: 0.1 })
+          ], { maxTokens: 1200 })
           const jsonMatch = raw.match(/\{[\s\S]*\}/)
           if (jsonMatch) {
             const parsed2 = JSON.parse(jsonMatch[0])

@@ -2,11 +2,11 @@
  * LLM Semantic Matcher
  *
  * Replaces pgvector cosine similarity for Layer 2 evidence cross-reference.
- * Uses a single OpenRouter LLM call to check whether a founder's agent artifacts
+ * Uses a single Groq LLM call to check whether a founder's agent artifacts
  * corroborate or conflict with their assessment claims.
  *
  * Advantages over vector embeddings:
- *  - No OPENAI_API_KEY required — uses existing OPENROUTER_API_KEY
+ *  - No OPENAI_API_KEY required — uses existing GROQ_API_KEY
  *  - More accurate for numeric comparisons ("$50K MRR" vs "monthly revenue of fifty thousand")
  *  - Works from day one — no backfill of existing artifacts needed
  *  - No pgvector infra or artifact_embeddings table required

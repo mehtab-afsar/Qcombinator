@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { generateMatchRationale } from '@/features/matching/services/match-rationale'
+import { FF_AI_INVESTOR_MATCHING } from '@/lib/feature-flags'
 
 // GET /api/investor/deal-flow
 // Returns founders with completed onboarding and a Q-Score, sorted by score desc.
@@ -163,7 +165,7 @@ export async function GET() {
     const [{ data: investorProfile }, { data: investorWeights }] = await Promise.all([
       supabase
         .from('investor_profiles')
-        .select('ai_personalization')
+        .select('ai_personalization, firm_name, thesis, focus_sectors, focus_stages, portfolio_companies, full_name')
         .eq('user_id', user.id)
         .single(),
       supabase
@@ -217,8 +219,46 @@ export async function GET() {
       return b.matchScore - a.matchScore || b.qScore - a.qScore;
     });
 
+    // ── AI Match Summaries for top 5 founders (economy-tier, gated) ──────────
+    type FounderWithSummary = (typeof visible)[0] & { aiMatchSummary: string | null }
+    const foundersWithSummary: FounderWithSummary[] = visible.map(f => ({ ...f, aiMatchSummary: null }))
+
+    if (FF_AI_INVESTOR_MATCHING && investorProfile) {
+      const ip = investorProfile as Record<string, unknown>
+      const investorName = (ip.full_name as string) ?? 'Investor'
+      const investorFirm = (ip.firm_name as string) ?? ''
+      const investorThesis = (ip.thesis as string) ?? ''
+      const investorSectors = (ip.focus_sectors as string[]) ?? []
+      const investorStages = (ip.focus_stages as string[]) ?? []
+      const investorPortfolio = (ip.portfolio_companies as string[]) ?? []
+
+      const top5 = foundersWithSummary.slice(0, 5)
+      const rationaleResults = await Promise.allSettled(
+        top5.map(f =>
+          generateMatchRationale({
+            investorName,
+            investorFirm,
+            investorThesis,
+            investorSectors,
+            investorStages,
+            investorPortfolio,
+            matchScore: f.matchScore,
+            founderSector: f.sector,
+            founderStage: f.stage,
+            founderQScore: f.qScore,
+            startupOneLiner: f.tagline || undefined,
+          })
+        )
+      )
+      rationaleResults.forEach((result, i) => {
+        if (result.status === 'fulfilled') {
+          foundersWithSummary[i] = { ...foundersWithSummary[i], aiMatchSummary: result.value }
+        }
+      })
+    }
+
     return NextResponse.json({
-      founders: visible,
+      founders: foundersWithSummary,
       meta: { totalFounders: withMatch.length, gated: withMatch.length - visible.length },
     })
   } catch (err) {

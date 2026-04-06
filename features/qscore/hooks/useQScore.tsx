@@ -3,11 +3,27 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/features/auth/hooks/useAuth';
-import { PRDQScore } from '@/features/qscore/types/qscore.types';
 import { toast } from 'sonner';
 
+// Shape returned by /api/qscore/latest — superset of v2_iq fields
+interface QScoreData {
+  overall: number;
+  percentile: number | null;
+  grade: string;
+  scoreVersion?: string;
+  iqBreakdown?: unknown;
+  availableIQ?: number;
+  track?: string;
+  decayApplied?: boolean;
+  rawOverall?: number;
+  daysSince?: number;
+  breakdown?: Record<string, { score: number; weight: number; change: number; trend: string; rawPoints?: number; maxPoints?: number }>;
+  calculatedAt?: Date;
+  [key: string]: unknown;
+}
+
 interface QScoreContextType {
-  qScore: PRDQScore | null;
+  qScore: QScoreData | null;
   loading: boolean;
   refetch: () => Promise<void>;
 }
@@ -24,7 +40,7 @@ export function useQScore() {
 
 export function QScoreProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
-  const [qScore, setQScore] = useState<PRDQScore | null>(null);
+  const [qScore, setQScore] = useState<QScoreData | null>(null);
   const [loading, setLoading] = useState(true);
   const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null);
 
@@ -97,7 +113,7 @@ export function QScoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Simple local Q-Score calculation
-  const calculateLocalQScore = (assessment: Record<string, unknown>): PRDQScore => {
+  const calculateLocalQScore = (assessment: Record<string, unknown>): QScoreData => {
     // Basic scoring logic (simplified)
     const targetCustomers = (assessment.targetCustomers as number) || 0;
     const conversationCount = (assessment.conversationCount as number) || 0;

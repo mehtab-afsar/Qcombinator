@@ -2,7 +2,7 @@
  * Lightweight operation tracer.
  *
  * Wraps async operations with timing, error capture, and optional structured logging.
- * Designed to be used around: executeTool(), runRAGScoring(), calculatePRDQScore(),
+ * Designed to be used around: executeTool(), runRAGScoring(), calculateIQScore(),
  * executeAction(), and any other critical async paths.
  *
  * Usage:

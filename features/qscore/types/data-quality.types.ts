@@ -1,8 +1,10 @@
 /**
  * Edge Alpha IQ Score v2 — Data Quality Types
  *
- * DataQuality is METADATA ONLY. It is NEVER multiplied into rawScore.
- * It drives the DataQuality badge on the UI and adjusts vcAlert text only.
+ * DataQuality.confidence is applied as a multiplier in the finalIQ formula:
+ *   effectiveScore = rawScore × clamp(confidence / 0.90, 0.50, 1.00)
+ * Verified data (≥0.90) → 1.0×; self-reported (≤0.45) → 0.50×.
+ * DataQuality also drives the DataQuality badge on the UI and adjusts vcAlert text.
  */
 
 export type VerificationLevel = 'unverified' | 'doc_supported' | 'verified'
@@ -16,7 +18,7 @@ export type DataSource =
 export interface DataQuality {
   source: DataSource
   verificationLevel: VerificationLevel
-  /** 0.0–1.0. Display only — never touches rawScore */
+  /** 0.0–1.0. Applied as multiplier in finalIQ: clamp(confidence/0.90, 0.50, 1.00) */
   confidence: number
   reasons: string[]
 }

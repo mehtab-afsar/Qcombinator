@@ -84,7 +84,7 @@ export async function GET(_request: NextRequest) {
     const dataPenalty = hasVerifiedData ? 0.7 : 1.0;
     const scoreRange = Math.max(2, Math.round(10 * (1 - ragConf) * dataPenalty));
 
-    const scoreVersion = (latest.score_version as string) ?? 'v1_prd'
+    const scoreVersion = (latest.score_version as string) ?? 'v2_iq'
     const iqBreakdown = (latest.iq_breakdown as Record<string, unknown>) ?? null
     const availableIQ = (latest.available_iq as number) ?? null
     const track = (latest.track as string) ?? null
@@ -93,6 +93,7 @@ export async function GET(_request: NextRequest) {
       overall: effectiveOverall,
       rawOverall,
       decayApplied,
+      decayFactor,
       daysSince,
       scoreRange, // ±N — consumers show as "72 ±5"
       percentile: latest.percentile,

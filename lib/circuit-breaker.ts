@@ -18,7 +18,11 @@ export type ServiceId =
   | 'tavily'
   | 'netlify'
   | 'resend'
-  | 'openai_embeddings';
+  | 'openai_embeddings'
+  | 'apollo_io'
+  | 'posthog'
+  | 'calendly'
+  | 'vapi';
 
 interface CircuitState {
   failures: number;

@@ -44,14 +44,21 @@ export async function GET(_request: NextRequest) {
       return NextResponse.json({ actions: [] });
     }
 
-    // Return cached actions if they exist (skip rag_eval object stored there)
-    const cachedActions = Array.isArray(latest.ai_actions)
-      ? latest.ai_actions
-      : Array.isArray(latest.ai_actions?.actions)
-      ? latest.ai_actions.actions
+    // Return cached actions + unlock cards if they exist
+    const aiActions = latest.ai_actions as Record<string, unknown> | null
+    const cachedActions = Array.isArray(aiActions)
+      ? aiActions
+      : Array.isArray((aiActions as Record<string, unknown> | null)?.actions)
+      ? (aiActions as Record<string, unknown>).actions as unknown[]
       : null;
-    if (cachedActions && cachedActions.length > 0) {
-      return NextResponse.json({ actions: cachedActions });
+    const cachedUnlockCards = (aiActions as Record<string, unknown> | null)?.unlockCards ?? null
+    const cachedReadinessSummary = (aiActions as Record<string, unknown> | null)?.readinessSummary ?? null
+    if (cachedActions && (cachedActions as unknown[]).length > 0) {
+      return NextResponse.json({
+        actions: cachedActions,
+        unlockCards: cachedUnlockCards ?? [],
+        readinessSummary: cachedReadinessSummary ?? '',
+      });
     }
 
     // ── Generate personalized actions via LLM + RAG ────────────────────────
@@ -168,19 +175,26 @@ Return ONLY valid JSON. No markdown, no explanation.`;
       return NextResponse.json({ actions: [] });
     }
 
-    // Cache to DB (preserve any existing rag_eval stored in ai_actions)
+    // Cache to DB (preserve rag_eval, unlockCards, readinessSummary)
     if (actions.length > 0) {
-      const existingRagEval =
-        latest.ai_actions && !Array.isArray(latest.ai_actions)
-          ? { rag_eval: latest.ai_actions.rag_eval }
-          : {};
+      const existingAI = (latest.ai_actions && !Array.isArray(latest.ai_actions))
+        ? latest.ai_actions as Record<string, unknown>
+        : {}
+      const preserve: Record<string, unknown> = {}
+      if (existingAI.rag_eval)        preserve.rag_eval        = existingAI.rag_eval
+      if (existingAI.unlockCards)     preserve.unlockCards     = existingAI.unlockCards
+      if (existingAI.readinessSummary) preserve.readinessSummary = existingAI.readinessSummary
       await supabase
         .from('qscore_history')
-        .update({ ai_actions: { ...existingRagEval, actions } })
+        .update({ ai_actions: { ...preserve, actions } })
         .eq('id', latest.id);
     }
 
-    return NextResponse.json({ actions });
+    return NextResponse.json({
+      actions,
+      unlockCards: (aiActions as Record<string, unknown> | null)?.unlockCards ?? [],
+      readinessSummary: (aiActions as Record<string, unknown> | null)?.readinessSummary ?? '',
+    });
 
   } catch (error) {
     console.error('Q-Score actions error:', error);

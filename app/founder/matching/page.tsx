@@ -34,9 +34,37 @@ export default function InvestorMatching() {
   const [selectedFocus,    setSelectedFocus]    = useState('all')
   const [selectedInvestor, setSelectedInvestor] = useState<Investor | null>(null)
   const [isModalOpen,      setIsModalOpen]      = useState(false)
+  const [rationaleMap,     setRationaleMap]     = useState<Record<string, string | 'loading'>>({})
+
+  const fetchRationale = async (investor: Investor) => {
+    if (rationaleMap[investor.id] || isLocked) return
+    setRationaleMap(prev => ({ ...prev, [investor.id]: 'loading' }))
+    try {
+      const res = await fetch('/api/connections/rationale', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          investorName:    investor.name,
+          investorFirm:    investor.firm,
+          investorThesis:  investor.thesis,
+          investorSectors: investor.investmentFocus,
+          investorStages:  [],
+          investorPortfolio: investor.portfolio,
+          matchScore:      investor.matchScore,
+          founderSector,
+          founderStage,
+          founderQScore,
+        }),
+      })
+      const data = await res.json() as { rationale?: string }
+      setRationaleMap(prev => ({ ...prev, [investor.id]: data.rationale || '' }))
+    } catch {
+      setRationaleMap(prev => ({ ...prev, [investor.id]: '' }))
+    }
+  }
   const { qScore } = useQScore()
   const founderQScore = qScore?.overall ?? 62   // use 62 as demo default so gate is visible
-  const isLocked = founderQScore < 65
+  const isLocked = founderQScore < 70
 
   const {
     investors, setInvestors,
@@ -48,6 +76,7 @@ export default function InvestorMatching() {
     if (isLocked) return
     setSelectedInvestor(investor)
     setIsModalOpen(true)
+    fetchRationale(investor)
   }
 
   const handleConnectionSubmit = async (message: string) => {
@@ -170,10 +199,10 @@ export default function InvestorMatching() {
                     <Lock style={{ height: 20, width: 20, color: muted }} />
                   </div>
                   <h3 style={{ fontSize: 18, fontWeight: 300, letterSpacing: "-0.02em", color: ink, marginBottom: 8 }}>
-                    Marketplace unlocks at Q-Score 65
+                    Marketplace unlocks at Q-Score 70
                   </h3>
                   <p style={{ fontSize: 13, color: muted, marginBottom: 20, lineHeight: 1.6 }}>
-                    You&apos;re at {founderQScore}. Just {65 - founderQScore} more points to access 500+ verified investors.
+                    You&apos;re at {founderQScore}. Just {70 - founderQScore} more points to access 500+ verified investors.
                   </p>
                   <Link href="/founder/assessment"
                     style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "12px 24px", background: ink, color: bg, borderRadius: 999, fontSize: 14, fontWeight: 500, textDecoration: "none" }}
@@ -200,6 +229,7 @@ export default function InvestorMatching() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05 }}
               style={{ borderBottom: `1px solid ${bdr}` }}
+              onMouseEnter={() => fetchRationale(investor)}
             >
               <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 110px 120px 110px", gap: 12, padding: "16px 0", alignItems: "center" }}>
 
@@ -266,8 +296,18 @@ export default function InvestorMatching() {
 
               </div>
 
-              {/* expandable thesis */}
-              <p style={{ fontSize: 12, color: muted, paddingBottom: 12, paddingLeft: 0, lineHeight: 1.5, maxWidth: 480 }}>{investor.thesis}</p>
+              {/* thesis + AI rationale */}
+              <div style={{ paddingBottom: 12 }}>
+                <p style={{ fontSize: 12, color: muted, lineHeight: 1.5, maxWidth: 480, margin: 0 }}>{investor.thesis}</p>
+                {!isLocked && rationaleMap[investor.id] && rationaleMap[investor.id] !== 'loading' && (
+                  <p style={{ fontSize: 12, color: blue, lineHeight: 1.55, maxWidth: 520, margin: "6px 0 0", fontStyle: "italic" }}>
+                    {rationaleMap[investor.id]}
+                  </p>
+                )}
+                {!isLocked && rationaleMap[investor.id] === 'loading' && (
+                  <p style={{ fontSize: 11, color: muted, margin: "6px 0 0" }}>Analysing match…</p>
+                )}
+              </div>
             </motion.div>
           ))}
 
@@ -314,7 +354,11 @@ export default function InvestorMatching() {
             `Sector: ${founderSector}`,
             `Match score: ${selectedInvestor.matchScore}%`,
           ]}
-          matchReason={`${selectedInvestor.name} invests in ${selectedInvestor.investmentFocus.slice(0, 2).join(' and ')} at ${selectedInvestor.firm}. Response rate: ${selectedInvestor.responseRate}%. Match score: ${selectedInvestor.matchScore}%.`}
+          matchReason={
+            (rationaleMap[selectedInvestor.id] && rationaleMap[selectedInvestor.id] !== 'loading')
+              ? rationaleMap[selectedInvestor.id] as string
+              : `${selectedInvestor.name} invests in ${selectedInvestor.investmentFocus.slice(0, 2).join(' and ')} at ${selectedInvestor.firm}. Response rate: ${selectedInvestor.responseRate}%. Match score: ${selectedInvestor.matchScore}%.`
+          }
         />
       )}
     </div>

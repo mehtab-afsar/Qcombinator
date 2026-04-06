@@ -33,12 +33,28 @@ const BUILD_COMPLEXITY_RE =
 
 // ── Build complexity string → numeric months ──────────────────────────────────
 
+const BUILD_COMPLEXITY_MAP: Record<string, number> = {
+  '<1 month': 0.5, 'less than one month': 0.5, 'less than 1 month': 0.5,
+  'under 1 month': 0.5, 'under one month': 0.5, '<1': 0.5, 'under 1': 0.5,
+  '1-3 months': 2, 'one to three months': 2, '1 to 3 months': 2, '1-3': 2,
+  '3-6 months': 4.5, 'three to six months': 4.5, '3 to 6 months': 4.5, '3-6': 4.5,
+  '6-12 months': 9, 'six to twelve months': 9, '6 to 12 months': 9, '6-12': 9,
+  '12+ months': 18, 'more than a year': 18, 'over a year': 18, 'over 12 months': 18,
+  '12+ ': 18, '12 months+': 18, '12 months': 18, 'year': 18,
+}
+
 function buildComplexityToMonths(s: string): number | null {
-  if (s.includes('<1') || s.includes('under 1')) return 0.5
-  if (s.includes('1-3')) return 2
-  if (s.includes('3-6')) return 4.5
-  if (s.includes('6-12')) return 9
-  if (s.includes('12+') || s.includes('12 months') || s.includes('year')) return 18
+  const normalised = s.trim().toLowerCase()
+  // Exact map lookup first
+  if (BUILD_COMPLEXITY_MAP[normalised] !== undefined) return BUILD_COMPLEXITY_MAP[normalised]
+  // Substring fallbacks for LLM free-text variations
+  if (normalised.includes('less than') && (normalised.includes('month') || normalised.includes('1'))) return 0.5
+  if (normalised.includes('<1') || normalised.includes('under 1')) return 0.5
+  if (normalised.includes('1-3') || (normalised.includes('one') && normalised.includes('three'))) return 2
+  if (normalised.includes('3-6') || (normalised.includes('three') && normalised.includes('six'))) return 4.5
+  if (normalised.includes('6-12') || (normalised.includes('six') && normalised.includes('twelve'))) return 9
+  if (normalised.includes('12+') || normalised.includes('more than a year') || normalised.includes('over a year')) return 18
+  if (normalised.includes('12 month') || normalised.includes('year')) return 18
   return null
 }
 

@@ -55,8 +55,8 @@ export function getP6Exclusions(stage: ScoreStage, data: AssessmentData): Set<st
   // Unit Economics: requires 10+ customers (meaningful LTV/CAC signal)
   if (!hasPayingCustomers || conversationCount < 10) excl.add('6.4')
 
-  // Gross Margin: requires COGS or deal size data
-  if (!cogs && !averageDealSize) excl.add('6.5')
+  // Gross Margin: requires COGS, deal size, OR an MRR signal (pure SaaS → 80% default)
+  if (!cogs && !averageDealSize && !mrr) excl.add('6.5')
 
   return excl
 }
@@ -250,8 +250,11 @@ function score_6_5_GrossMargin(data: AssessmentData, _stage: ScoreStage, exclude
   }
 
   const mrr = data.financial?.mrr ?? 0
-  const cogs = data.financial?.cogs ?? 0
+  const rawCogs = data.financial?.cogs
+  // When COGS is absent but MRR exists, apply 80% SaaS default (common for pure-software products)
+  const cogs = rawCogs ?? (mrr > 0 ? mrr * 0.20 : 0)
   const grossMargin = mrr > 0 ? (mrr - cogs) / mrr : undefined
+  const usedSaasDefault = rawCogs === undefined && mrr > 0
 
   let raw: number
   if (grossMargin === undefined || grossMargin === null) raw = 2.0
@@ -268,10 +271,16 @@ function score_6_5_GrossMargin(data: AssessmentData, _stage: ScoreStage, exclude
   else raw = 5.0  // >85% is SaaS-tier
 
   const dq: DataQuality = {
-    source: grossMargin !== undefined ? 'founder_claim' : 'founder_claim',
-    verificationLevel: grossMargin !== undefined ? 'doc_supported' : 'unverified',
-    confidence: grossMargin !== undefined ? 0.65 : 0.45,
-    reasons: [grossMargin !== undefined ? `GM: ${Math.round((grossMargin ?? 0) * 100)}%` : 'gross margin not provided'],
+    source: usedSaasDefault ? 'founder_claim' : 'founder_claim',
+    verificationLevel: usedSaasDefault ? 'unverified' : grossMargin !== undefined ? 'doc_supported' : 'unverified',
+    confidence: usedSaasDefault ? 0.50 : grossMargin !== undefined ? 0.65 : 0.45,
+    reasons: [
+      usedSaasDefault
+        ? `GM: 80% (SaaS default — no COGS provided; add COGS to improve accuracy)`
+        : grossMargin !== undefined
+          ? `GM: ${Math.round((grossMargin ?? 0) * 100)}%`
+          : 'gross margin not provided',
+    ],
   }
 
   return { id: '6.5', name: 'Gross Margin', rawScore: snap(clamp(raw)), excluded: false, dataQuality: dq }

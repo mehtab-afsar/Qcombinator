@@ -84,6 +84,8 @@ const AGENT_PRIMARY_DIMENSION: Record<AgentId, CXOConfig['primaryDimension']> = 
   nova:   'product',
   atlas:  'market',
   sage:   'market',
+  carter: 'traction',
+  riley:  'goToMarket',
 };
 
 /** Hex accent colour per agent (matches existing cxo/page.tsx palette). */
@@ -97,6 +99,8 @@ const AGENT_COLOURS: Record<AgentId, string> = {
   nova:   '#DB2777',
   atlas:  '#059669',
   sage:   '#7C3AED',
+  carter: '#EC4899',
+  riley:  '#F59E0B',
 };
 
 /** Human-readable label per action ID. */
@@ -169,6 +173,16 @@ const AGENT_RESOURCES: Record<AgentId, CXOResource[]> = {
     { title: 'Good Strategy Bad Strategy',  source: 'Richard Rumelt',            url: 'https://www.amazon.com/dp/0307886239' },
     { title: '7 Powers',                    source: 'Hamilton Helmer',           url: 'https://www.amazon.com/dp/0998116319' },
     { title: 'Zero to One',                 source: 'Peter Thiel',               url: 'https://www.amazon.com/dp/0804139296' },
+  ],
+  carter: [
+    { title: 'The Customer Success Economy', source: 'Nick Mehta',              url: 'https://www.amazon.com/dp/1119572819' },
+    { title: 'NPS Primer',                   source: 'Bain & Company',           url: 'https://www.netpromoter.com/know' },
+    { title: 'Expansion Revenue Playbook',   source: 'OpenView Partners',        url: 'https://openviewpartners.com/blog/expansion-revenue' },
+  ],
+  riley: [
+    { title: 'Hacking Growth',              source: 'Sean Ellis',                url: 'https://www.amazon.com/dp/0385347421' },
+    { title: 'Reforge Growth Series',        source: 'Reforge',                  url: 'https://www.reforge.com/growth-series' },
+    { title: 'Andrew Chen on Growth',        source: 'Andrew Chen',              url: 'https://andrewchen.com' },
   ],
 };
 

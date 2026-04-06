@@ -1,7 +1,6 @@
 /**
  * Canonical Q-Score dimension string literals.
- * Values match the DB column prefix (e.g. DIMENSIONS.GTM → gtm_score column)
- * and match the keys in PRDQScore.breakdown (after renaming goToMarket → gtm).
+ * Values match the DB column prefix (e.g. DIMENSIONS.GTM → gtm_score column).
  */
 export const DIMENSIONS = {
   MARKET:    'market',

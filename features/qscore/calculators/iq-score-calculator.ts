@@ -1,12 +1,12 @@
 /**
  * Edge Alpha IQ Score v2 — Orchestrator
  *
- * Core formula: Final IQ = Σ(rawScore_i for all 30 indicators) ÷ (30 × 5) × 100
- *                        = Σ(all rawScores) / 150 × 100
+ * Core formula: Final IQ = Σ(confidence-adjusted rawScores) / (activeCount × 5) × 100
+ *   effectiveScore = rawScore × clamp(confidence / 0.90, 0.50, 1.00)
  *
- * Denominator is ALWAYS 150 — constant regardless of exclusions.
- * Excluded indicators contribute rawScore=0 to the numerator.
- * Confidence is METADATA ONLY — never touches rawScore.
+ * Denominator is DYNAMIC — based on non-excluded indicator count only.
+ * Excluded indicators are omitted from both numerator and denominator.
+ * Sparsity penalty: −0.5 pts per indicator below 20 active (max −5 pts).
  * AI reconciliation = flags only (vcAlert string) — never overrides rawScore.
  */
 
@@ -66,7 +66,7 @@ function blendAndNormalizeWeights(
   const multipliers = STAGE_MULTIPLIER[stage]
   const raw = base.map((w, i) => w * multipliers[i])
   const sum = raw.reduce((a, b) => a + b, 0)
-  return raw.map(w => Math.max(0, w / sum))
+  return raw.map(w => Math.max(0, Math.round((w / sum) * 10000) / 10000))
 }
 
 function getSectorWeights(sector: string, stage: ScoreStage): number[] {
@@ -116,18 +116,31 @@ export function calculateIQScore(
     averageScore: parameterAverage(indicators),
   }))
 
-  // Core formula: Σ(all 30 rawScores) / 150 × 100
-  // Denominator is ALWAYS 150, regardless of exclusions
-  const totalRaw = parameters.reduce((s, p) => s + p.rawSum, 0)
-  const DENOMINATOR = 30 * 5  // 150 — constant
-  const finalIQ = Math.round((totalRaw / DENOMINATOR) * 100 * 10) / 10
-
-  // Available IQ: how high could this startup score with current data (non-excluded only)
+  // Core formula: Σ(confidence-adjusted rawScores) / (activeCount × 5) × 100
+  // Denominator is DYNAMIC — only non-excluded indicators count
+  // Confidence multiplier: clamp(confidence / 0.90, 0.50, 1.00)
+  // Verified data (≥0.90) → 1.0×; self-reported (≤0.45) → 0.50×
   const activeIndicators = parameters.flatMap(p => p.indicators).filter(i => !i.excluded)
-  const activeRaw = activeIndicators.reduce((s, i) => s + i.rawScore, 0)
+  const activeRaw = activeIndicators.reduce((s, i) => {
+    const conf = i.dataQuality?.confidence ?? 0.60
+    const multiplier = Math.min(1.0, Math.max(0.50, conf / 0.90))
+    return s + i.rawScore * multiplier
+  }, 0)
   const activeDenominator = activeIndicators.length * 5
+
+  // Sparsity penalty: −0.5 pts per indicator below 20 active (max −5 pts)
+  const sparsityPenalty = activeIndicators.length < 20
+    ? Math.min(5, (20 - activeIndicators.length) * 0.5)
+    : 0
+
+  const rawIQ = activeDenominator > 0
+    ? Math.round(((activeRaw / activeDenominator) * 100 - sparsityPenalty) * 10) / 10
+    : 0
+  const finalIQ = Math.max(0, rawIQ)
+
+  // Available IQ: the ceiling if all active indicators scored perfectly
   const availableIQ = activeDenominator > 0
-    ? Math.round((activeRaw / activeDenominator) * 100 * 10) / 10
+    ? Math.round((activeDenominator / (30 * 5)) * 100 * 10) / 10
     : 0
 
   const indicatorsActive = activeIndicators.length

@@ -30,7 +30,7 @@ const EXPANSION_RE =
 
 // ── 2.1 Market Size (AI-flagged indicator) ─────────────────────────────────────
 
-export function score_2_1_MarketSize(data: AssessmentData, _stage: ScoreStage): IndicatorScore {
+export function score_2_1_MarketSize(data: AssessmentData, stage: ScoreStage): IndicatorScore {
   const tamText = (data.p2?.tamDescription ?? '').toLowerCase()
   const hasNumber = /\$[\d,.]+[mbt]?|\d+[\s,]*(million|billion|trillion)/.test(tamText)
   const hasReasoning = /\b(because|since|based on|assuming|estimate|research|data|report|ibis|gartner|forrester|bottom.up|sam|som)\b/.test(tamText)
@@ -72,7 +72,9 @@ export function score_2_1_MarketSize(data: AssessmentData, _stage: ScoreStage): 
     if (statedMatch) {
       const mult: Record<string, number> = { m: 1e6, b: 1e9, t: 1e12 }
       const statedTam = parseFloat(statedMatch[1]) * (mult[statedMatch[2]] ?? 1e6)
-      if (statedTam > impliedTam * 100 && impliedTam > 0) {
+      // Only cap at mid/growth — early-stage founders have few customers by definition,
+      // so implied TAM from customers × LTV severely understates their actual market
+      if (stage !== 'early' && statedTam > impliedTam * 100 && impliedTam > 0) {
         raw = Math.min(raw, 3.0) // cap when >100× implied — classic top-down inflation
       }
     }
@@ -238,19 +240,3 @@ export function scoreP2(
   ]
 }
 
-// ── Legacy export (used by prd-aligned-qscore.ts — kept for backward compat) ──
-/** @deprecated Use scoreP2() in the new IQ Score v2 pipeline */
-export function scoreP2MarketPotential(
-  data: AssessmentData
-): { score: number; rawPoints: number; maxPoints: number; sub: Record<string, number> } {
-  const indicators = scoreP2(data, 'mid')
-  const sub: Record<string, number> = {}
-  let totalRaw = 0
-  for (const ind of indicators) {
-    const pct = ((ind.rawScore / 5) * 20)
-    sub[ind.id] = Math.round(pct)
-    totalRaw += pct
-  }
-  const score = Math.round(Math.min(100, totalRaw))
-  return { score, rawPoints: Math.round(totalRaw), maxPoints: 100, sub }
-}

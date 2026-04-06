@@ -16,7 +16,7 @@
  * Caching: 24h per indicatorId × userId
  */
 
-import { callOpenRouter } from '../openrouter'
+import { routedText } from '../llm/router'
 import {
   getCachedReconciliation,
   setCachedReconciliation,
@@ -137,7 +137,7 @@ async function reconcileOne(
 
   try {
     const raw = await Promise.race([
-      callOpenRouter(
+      routedText('reasoning',
         [
           { role: 'system', content: prompt.systemPrompt },
           { role: 'user', content: prompt.userContent },

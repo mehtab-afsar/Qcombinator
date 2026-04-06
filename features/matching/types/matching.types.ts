@@ -33,6 +33,7 @@ export interface MatchingInvestor {
   responseRate: number
   thesis: string
   connectionStatus: ConnectionStatus
+  matchRationale?: string
 }
 
 export interface DBInvestor {

@@ -23,35 +23,7 @@ export interface RAGMetadata {
   evidenceSummary: string[];
 }
 
-export interface PRDQScore {
-  overall: number; // 0-100 weighted average (decay-adjusted when stale)
-  rawOverall?: number; // Stored score before decay
-  decayApplied?: boolean; // true when score is older than 90 days
-  daysSince?: number; // Days since last assessment
-  percentile: number | null; // Percentile ranking vs cohort
-  grade: 'A+' | 'A' | 'B+' | 'B' | 'C+' | 'C' | 'D' | 'F';
-  breakdown: {
-    market: DimensionScore;
-    product: DimensionScore;
-    goToMarket: DimensionScore;
-    financial: DimensionScore;
-    team: DimensionScore;
-    traction: DimensionScore;
-  };
-  calculatedAt: Date;
-  /** RAG scoring metadata (available when score was calculated with enhanced pipeline) */
-  ragMetadata?: RAGMetadata | null;
-}
-
-// PRD Weight Configuration
-export const PRD_WEIGHTS = {
-  market: 0.20,      // 20% - Market opportunity and timing
-  product: 0.18,     // 18% - Product quality and validation
-  goToMarket: 0.17,  // 17% - GTM strategy and execution
-  financial: 0.18,   // 18% - Financial health and projections
-  team: 0.15,        // 15% - Team strength and experience
-  traction: 0.12     // 12% - Traction and growth
-} as const;
+export type Grade = 'A+' | 'A' | 'B+' | 'B' | 'C+' | 'C' | 'D' | 'F';
 
 // Grade thresholds
 export const GRADE_THRESHOLDS = {
@@ -66,7 +38,7 @@ export const GRADE_THRESHOLDS = {
 } as const;
 
 // Helper function to calculate grade
-export function calculateGrade(score: number): PRDQScore['grade'] {
+export function calculateGrade(score: number): Grade {
   if (score >= GRADE_THRESHOLDS['A+']) return 'A+';
   if (score >= GRADE_THRESHOLDS['A']) return 'A';
   if (score >= GRADE_THRESHOLDS['B+']) return 'B+';
@@ -116,7 +88,7 @@ export interface AssessmentData {
 
   // Learning Velocity (for Product dimension)
   tested: string;
-  buildTime: number;
+  buildTime?: number;
   measurement: string;
   results: string;
   learned: string;
@@ -265,7 +237,7 @@ export interface IQScoreResult {
   finalIQ: number
   /** Score from non-excluded indicators only: Σ(non-excluded) / (N_active × 5) × 100 */
   availableIQ: number
-  grade: PRDQScore['grade']
+  grade: Grade
   parameters: ParameterScore[]
   indicatorsActive: number     // non-excluded count
   indicatorsExcluded: number

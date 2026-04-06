@@ -208,7 +208,53 @@ export const agents: Agent[] = [
     improvesScore: 'market',
     color: 'purple',
     artifactType: ARTIFACT_TYPES.STRATEGIC_PLAN,
-  }
+  },
+
+  // ============================================================================
+  // PILLAR 4: CUSTOMER & GROWTH (NEW)
+  // ============================================================================
+  {
+    id: AGENT_IDS.CARTER,
+    name: 'Carter',
+    cxoTitle: 'Chief Customer Officer',
+    pillar: 'operations-finance',
+    specialty: 'Customer Success & Retention',
+    avatar: 'C',
+    description: 'Post-sale customer success engine. Carter monitors account health, prevents churn before it happens, drives expansion revenue, and makes every customer successful — automatically.',
+    suggestedPrompts: [
+      'Which of my customers are at risk of churning?',
+      'Build an onboarding sequence for new customers',
+      'How do I improve my net revenue retention?',
+      'Prepare a QBR for my top 5 accounts',
+      'What expansion opportunities do I have?',
+      'How do I build a health score for my accounts?',
+      'Design a churn prevention playbook',
+    ],
+    improvesScore: DIMENSIONS.TRACTION,
+    color: 'pink',
+    artifactType: ARTIFACT_TYPES.CUSTOMER_HEALTH_REPORT,
+  },
+  {
+    id: AGENT_IDS.RILEY,
+    name: 'Riley',
+    cxoTitle: 'Chief Growth Officer',
+    pillar: 'sales-marketing',
+    specialty: 'Growth & Demand Generation',
+    avatar: 'R',
+    description: 'Paid acquisition, viral growth, and demand generation engine. Riley runs the experiments, manages ad campaigns, builds referral programs, and finds the fastest path to more customers.',
+    suggestedPrompts: [
+      'What growth channels should I prioritize?',
+      'Help me build a referral program',
+      'Launch a paid acquisition campaign',
+      'Design a Product Hunt launch strategy',
+      'What growth experiments should I run next?',
+      'How do I reduce my CAC?',
+      'Build a viral loop into my product',
+    ],
+    improvesScore: DIMENSIONS.TRACTION,
+    color: 'amber',
+    artifactType: ARTIFACT_TYPES.GROWTH_MODEL,
+  },
 ];
 
 /**

@@ -41,12 +41,12 @@ Fields to extract:
 {
   "startup_document": true,
   "customerCommitment": "string — LOIs, pilots, signed trials mentioned (names, stages)",
-  "conversationCount": number — how many customer conversations/pilots mentioned,
+  "conversationCount": number — how many customer conversations/pilots mentioned; 0 if explicitly none, null only if not addressed at all,
   "customerList": ["string"] — named companies or customers mentioned,
-  "hasPayingCustomers": boolean,
+  "hasPayingCustomers": boolean — ALWAYS set to true or false, NEVER null; false if no paying customers mentioned,
   "payingCustomerDetail": "string — who paid, how much, how often",
   "salesCycleLength": "string — <1 week | 1-4 weeks | 1-3 months | 3+ months | unknown",
-  "hasRetention": boolean,
+  "hasRetention": boolean — ALWAYS set to true or false, NEVER null; false if no retention data mentioned,
   "retentionDetail": "string — renewals, expansions, repeat engagements",
   "largestContractUsd": number | null,
   "p1EarlySignalScore": number — your estimate 1-5 based on evidence strength,
@@ -65,6 +65,15 @@ Sub-score rules (1.0–5.0 in 0.5 steps):
 - speed: 1=no pipeline, 3=1-4 week cycle, 5=<1 week or self-serve
 - durability: 1=no repeat, 3=renewals/low churn, 5=NRR 110%+ or expansion
 - scale: 1=single niche, 3=beachhead + 1 adjacent, 5=multi-market with network effects
+
+Number parsing rules:
+- "5 million" or "$5M" → 5000000
+- "1 crore" or "one crore" or "1cr" → 10000000
+- "50 lakh" or "50 lakhs" or "fifty lakh" → 5000000
+- "1 lakh" or "one lakh" or "1L" → 100000
+- "X lakh" → X × 100000 (e.g. "5 lakh" → 500000)
+- "X crore" → X × 10000000 (e.g. "2 crore" → 20000000)
+- Always output a plain integer, no currency symbols or commas
 
 Confidence rules (include in a separate "confidence" object with same keys):
 - Evidence named specific company + signed document mentioned: 0.85
@@ -113,20 +122,27 @@ Fields to extract:
 {
   "startup_document": true,
   "p3": {
-    "hasPatent": boolean,
+    "hasPatent": boolean — ALWAYS true or false, NEVER null; false if patents not mentioned,
     "patentDescription": "string — what the patent covers, filing status",
     "technicalDepth": "string — why this is hard to build",
     "knowHowDensity": "string — proprietary knowledge the team holds",
-    "buildComplexity": "string — <1 month | 1-3 months | 3-6 months | 6-12 months | 12+ months",
+    "buildComplexity": "string — MUST fill if replication time is mentioned: <1 month | 1-3 months | 3-6 months | 6-12 months | 12+ months",
     "replicationCostUsd": number | null,
-    "replicationTimeMonths": number | null
+    "replicationTimeMonths": number | null — extract the lower bound of any range (e.g. '18-36 months' → 18)
   }
 }
+
+IMPORTANT: If the founder mentions any replication time (even a range), you MUST fill BOTH replicationTimeMonths AND buildComplexity. Example: '18-36 months' → replicationTimeMonths: 18, buildComplexity: '12+ months'.
 
 Number parsing rules:
 - "10 billion" or "10B" → 10000000000
 - "500 million" or "500M" → 500000000
 - "5 million" or "$5M" → 5000000
+- "1 crore" or "one crore" or "1cr" → 10000000
+- "50 lakh" or "50 lakhs" or "fifty lakh" → 5000000
+- "1 lakh" or "one lakh" or "1L" → 100000
+- "X lakh" → X × 100000 (e.g. "5 lakh" → 500000, "25 lakh" → 2500000)
+- "X crore" → X × 10000000 (e.g. "2 crore" → 20000000)
 - "18 months" or "a year and a half" → 18
 - "2 years" → 24
 - "not possible" / "impossible" / "can't be replicated" → use 999999999 for cost, 999 for months
@@ -213,6 +229,17 @@ Sub-score rules (1.0–5.0 in 0.5 steps):
 - unitEconomics: 1=LTV/CAC<1, 3=LTV/CAC 3-5x, 5=LTV/CAC 8x+
 - grossMargin: 1=<20%, 3=50-70%, 5=>85%
 
+Number parsing rules:
+- "10 billion" or "10B" → 10000000000
+- "500 million" or "500M" → 500000000
+- "5 million" or "$5M" → 5000000
+- "1 crore" or "one crore" or "1cr" → 10000000
+- "50 lakh" or "50 lakhs" or "fifty lakh" → 5000000
+- "1 lakh" or "one lakh" or "1L" → 100000
+- "X lakh" → X × 100000 (e.g. "5 lakh" → 500000, "25 lakh" → 2500000)
+- "X crore" → X × 10000000 (e.g. "2 crore" → 20000000)
+- Always output a plain integer, no currency symbols or commas
+
 Confidence rules (include "confidence" object):
 - Numbers from uploaded financial document: 0.85
 - Specific numbers stated by founder: 0.55
@@ -241,10 +268,10 @@ HIGH-PRIORITY missing fields (ask for these first if still null):
 - Section 5: financial.mrr (monthly revenue $), financial.monthlyBurn ($), financial.runway (months)
 
 CRITICAL RULES — read carefully:
-1. If the founder has already mentioned a topic in the conversation above (even with rough or informal numbers like "10 billion" or "impossible"), do NOT ask about that topic again. Accept it as answered.
-2. replicationCostUsd and replicationTimeMonths count as ONE topic — never ask about them separately in two different turns.
-3. If both of these have been discussed at all, move to the next missing field.
-4. Never ask a question that is a rephrasing of something already asked in this session.
+1. If the founder has already mentioned a topic in the conversation above (even with rough or informal numbers like "10 billion", "impossible", or a time range like "18-36 months"), do NOT ask about that topic again. Accept it as answered.
+2. replicationCostUsd, replicationTimeMonths, and buildComplexity all count as ONE topic — if the founder gave ANY time estimate (e.g. "18 months", "1-2 years"), treat the whole replication barrier as answered and move on.
+3. Never ask a question that is a rephrasing of something already discussed.
+4. If missingFields contains ONLY fields that were clearly addressed in the conversation (even roughly), return "SECTION_COMPLETE".
 5. Adapt the question to the founder's stage (a pre-product founder has no MRR — don't ask for it).
 6. Be conversational, not clinical — no indicator codes, no scoring framework language.
 7. One sentence max. No preamble.

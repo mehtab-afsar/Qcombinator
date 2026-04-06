@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { EXTRACTION_PROMPTS, FOLLOW_UP_PROMPT } from '@/lib/profile-builder/extraction-prompts'
 import { getSectionCompletionPct, getMissingFields, FounderProfile } from '@/lib/profile-builder/question-engine'
-import { callOpenRouter } from '@/lib/openrouter'
+import { routedText } from '@/lib/llm/router'
 import { flattenConfidence } from '@/lib/profile-builder/utils'
 
 async function getUserId(req: NextRequest): Promise<string | null> {
@@ -45,16 +45,35 @@ export async function POST(req: NextRequest) {
     const sectionPrompt = EXTRACTION_PROMPTS[section]
     if (!sectionPrompt) return NextResponse.json({ error: 'Invalid section' }, { status: 400 })
 
+    // Section compaction: long conversations are summarised before extraction.
+    // Keeps the extraction model focused on signal, not transcript noise.
+    // Threshold: 4000 chars (~1000 tokens) → compact to ~200-token summary.
+    let effectiveConversation = conversationText
+    if (conversationText.length > 4000) {
+      try {
+        effectiveConversation = await routedText('summarisation', [
+          {
+            role: 'system',
+            content: 'You are a precise summariser. Condense the following founder Q&A conversation into a 150–200 word factual summary. Preserve all specific numbers, dates, names, and concrete claims. Do not add interpretation.',
+          },
+          { role: 'user', content: conversationText },
+        ])
+      } catch {
+        // On error keep the original — extraction still works, just costs more tokens
+        effectiveConversation = conversationText
+      }
+    }
+
     // Build the user message: combine conversation + any document text
-    let userMessage = `Founder's answer:\n\n${conversationText}`
+    let userMessage = `Founder's answer:\n\n${effectiveConversation}`
     if (uploadedDocumentText) {
       userMessage += `\n\n---\nUploaded document text:\n\n${uploadedDocumentText.slice(0, 4000)}`
     }
 
-    const raw = await callOpenRouter([
+    const raw = await routedText('extraction', [
       { role: 'system', content: sectionPrompt },
       { role: 'user', content: userMessage },
-    ], { maxTokens: 1500, temperature: 0.1 })
+    ])
 
     let extractedFields: Record<string, unknown> = {}
     let newConfidenceMap: Record<string, number> = {}
@@ -85,15 +104,25 @@ export async function POST(req: NextRequest) {
     }
     mergeDeep(merged, extractedFields)
 
+    // Auto-derive p3.buildComplexity from replicationTimeMonths if not already set
+    if (section === 3) {
+      const p3 = merged.p3 as Record<string, unknown> | undefined
+      if (p3 && p3.replicationTimeMonths != null && !p3.buildComplexity) {
+        const months = Number(p3.replicationTimeMonths)
+        p3.buildComplexity =
+          months < 1 ? '<1 month' :
+          months <= 3 ? '1-3 months' :
+          months <= 6 ? '3-6 months' :
+          months <= 12 ? '6-12 months' : '12+ months'
+      }
+    }
+
     // Merge confidence: existing PDF confidence is baseline; new conversation confidence overwrites
     const confidenceMap: Record<string, number> = { ...(existingConfidenceMap ?? {}), ...newConfidenceMap }
 
     const stage = founderProfile?.stage ?? 'pre-product'
     const completionScore = getSectionCompletionPct(merged, section, stage, confidenceMap)
     const missingFields = getMissingFields(merged, section, stage, confidenceMap)
-
-    // Brief pause before second LLM call — avoids back-to-back rate limit on free-tier models
-    await new Promise(r => setTimeout(r, 1500))
 
     // Generate follow-up question for missing fields
     let followUpQuestion: string | null = null
@@ -108,10 +137,10 @@ export async function POST(req: NextRequest) {
         .replace('{missingFields}', missingFields.join(', '))
 
       try {
-        const followUpRaw = await callOpenRouter([
+        const followUpRaw = await routedText('classification', [
           { role: 'system', content: followUpPrompt },
           { role: 'user', content: 'Generate the next question.' },
-        ], { maxTokens: 200, temperature: 0.4 })
+        ])
         followUpQuestion = followUpRaw.trim() === 'SECTION_COMPLETE' ? null : followUpRaw.trim()
       } catch {
         // non-blocking

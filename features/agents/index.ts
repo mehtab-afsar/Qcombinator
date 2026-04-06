@@ -12,3 +12,5 @@ export { harperSystemPrompt } from './harper/prompts/system-prompt';
 export { novaSystemPrompt } from './nova/prompts/system-prompt';
 export { atlasSystemPrompt } from './atlas/prompts/system-prompt';
 export { sageSystemPrompt } from './sage/prompts/system-prompt';
+export { CARTER_SYSTEM_PROMPT as carterSystemPrompt } from './carter/prompts/system-prompt';
+export { RILEY_SYSTEM_PROMPT as rileySystemPrompt } from './riley/prompts/system-prompt';

@@ -2,10 +2,10 @@
  * Evidence Context Assembler
  *
  * Cross-references founder assessment claims against their own agent artifacts
- * using an LLM (OpenRouter) for semantic matching instead of pgvector embeddings.
+ * using an LLM (Groq) for semantic matching instead of pgvector embeddings.
  *
  * This replaces the previous OpenAI text-embedding-3-small approach so that
- * no OPENAI_API_KEY is required — only OPENROUTER_API_KEY.
+ * no OPENAI_API_KEY is required — only GROQ_API_KEY.
  *
  * Cold start: returns empty context with confidence=0 when user has no artifacts.
  */

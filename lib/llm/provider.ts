@@ -255,3 +255,125 @@ export async function llmChat(params: {
 
   return callOpenRouterWithTools(messages, { maxTokens, temperature, tools });
 }
+
+/**
+ * Stream the LLM response token-by-token via an async generator.
+ * Yields text delta chunks while accumulating any tool call in the background.
+ * After the stream ends, emits a final { done: true, toolCall? } event.
+ *
+ * Callers should pipe chunks to an SSE response as they arrive.
+ */
+export async function* llmStream(params: {
+  messages: Array<{ role: string; content: string }>;
+  maxTokens?: number;
+  temperature?: number;
+  tools?: ToolDefinition[];
+}): AsyncGenerator<{ type: 'delta'; text: string } | { type: 'done'; toolCall: LLMChatResponse['toolCall'] }> {
+  const { messages, maxTokens = 900, temperature = 0.7, tools } = params;
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) throw new OpenRouterError('No Groq API key configured (GROQ_API_KEY)', 0);
+
+  const hasTools = tools && tools.length > 0;
+
+  const { controller, clear } = makeAbortController(60_000);
+
+  let res: Response;
+  try {
+    res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages,
+        temperature,
+        max_tokens: maxTokens,
+        stream: true,
+        ...(hasTools ? { tools: tools!.map(t => ({ type: 'function' as const, function: { name: t.name, description: t.description, parameters: t.parameters } })), tool_choice: 'auto' } : {}),
+      }),
+    });
+  } catch (err) {
+    clear();
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new OpenRouterError('Groq stream timed out', 0, true);
+    }
+    throw err;
+  }
+
+  if (res.status === 429) {
+    clear();
+    throw new OpenRouterError('Groq rate limit exceeded — please try again later', 429);
+  }
+  if (!res.ok) {
+    clear();
+    const errText = await res.text();
+    throw new OpenRouterError(`Groq stream error: ${res.status}`, res.status);
+    void errText;
+  }
+
+  // Accumulate tool call fragments across stream chunks
+  let toolCallName = '';
+  let toolCallArgs = '';
+  let toolCallId = '';
+
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() ?? '';  // keep incomplete line for next chunk
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const data = line.slice(6).trim();
+        if (data === '[DONE]') break;
+
+        try {
+          const chunk = JSON.parse(data);
+          const delta = chunk.choices?.[0]?.delta;
+          if (!delta) continue;
+
+          // Text delta
+          if (delta.content) {
+            yield { type: 'delta', text: delta.content };
+          }
+
+          // Tool call delta (incremental)
+          if (delta.tool_calls?.[0]) {
+            const tc = delta.tool_calls[0];
+            if (tc.id) toolCallId = tc.id;
+            if (tc.function?.name) toolCallName += tc.function.name;
+            if (tc.function?.arguments) toolCallArgs += tc.function.arguments;
+          }
+        } catch {
+          // Malformed SSE chunk — skip
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+    clear();
+  }
+
+  // Reconstruct tool call if present
+  let toolCall: LLMChatResponse['toolCall'] = null;
+  if (toolCallName && toolCallArgs) {
+    try {
+      toolCall = { name: toolCallName, args: JSON.parse(toolCallArgs) };
+    } catch {
+      console.warn('[llm/stream] failed to parse tool call args:', toolCallArgs);
+    }
+  }
+  void toolCallId;
+
+  yield { type: 'done', toolCall };
+}

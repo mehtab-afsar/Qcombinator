@@ -18,7 +18,8 @@ import type { ArtifactData } from "@/features/agents/types/agent.types";
 
 // ─── page-local types ────────────────────────────────────────────────────────
 interface FileUploadData { id: string; name: string; size: number; mimeType: string; status: "uploading" | "done" | "error"; }
-interface UiMessage  { role: "agent" | "user"; text: string; fileUpload?: FileUploadData; }
+interface ToolActivity  { toolName: string; label: string; status: "running" | "done"; summary?: string; }
+interface UiMessage  { role: "agent" | "user" | "tool"; text: string; fileUpload?: FileUploadData; toolActivity?: ToolActivity; }
 interface ApiMessage { role: "user" | "assistant"; content: string; }
 
 // Challenge dimension labels
@@ -58,6 +59,7 @@ export default function AgentChat() {
   const [_showQuickGen, setShowQuickGen] = useState(false);
   const [quickAnswers, setQuickAnswers] = useState<string[]>(["", "", "", "", ""]);
   const [isQuickGenerating, setIsQuickGenerating] = useState(false);
+  const [quickGenStep, setQuickGenStep] = useState<string | null>(null);
   const [actionItems,     setActionItems]     = useState<{ id: string; action_text: string; priority: string; status: string; action_type?: string; cta_label?: string }[]>([]);
   const [extractingActions, setExtractingActions] = useState(false);
   const [showActions,     setShowActions]     = useState(false);
@@ -145,8 +147,6 @@ export default function AgentChat() {
   // ── call AI ────────────────────────────────────────────────────────────────
   const callAI = useCallback(async (history: ApiMessage[], convId: string | null) => {
     setTyping(true);
-    const isPatel = agentId === "patel";
-
     try {
       const res = await fetch("/api/agents/chat", {
         method: "POST",
@@ -157,7 +157,7 @@ export default function AgentChat() {
           conversationHistory: history.slice(0, -1),
           userId:         userId ?? undefined,
           conversationId: convId  ?? undefined,
-          stream:         !isPatel,  // Patel needs 2-pass artifact generation
+          stream:         true,
         }),
       });
 
@@ -170,8 +170,8 @@ export default function AgentChat() {
         return;
       }
 
-      // ── Streaming path (non-Patel) ─────────────────────────────────────
-      if (!isPatel && res.headers.get("content-type")?.includes("text/event-stream")) {
+      // ── Streaming path ─────────────────────────────────────────────────
+      if (res.headers.get("content-type")?.includes("text/event-stream")) {
         setUiMessages((p) => [...p, { role: "agent", text: "" }]);
         let fullText = "";
         const reader = res.body?.getReader();
@@ -193,11 +193,67 @@ export default function AgentChat() {
             if (payload === "[DONE]") continue;
             try {
               const parsed = JSON.parse(payload);
-              // Final meta event from our server
-              if (parsed.conversationId !== undefined) {
-                if (!convId) setConversationId(parsed.conversationId);
+
+              // Text delta
+              if (parsed.type === "delta" && parsed.text) {
+                fullText += parsed.text;
+                setUiMessages((p) => {
+                  const updated = [...p];
+                  updated[updated.length - 1] = { role: "agent", text: fullText };
+                  return updated;
+                });
                 continue;
               }
+
+              // Tool started — insert activity bubble
+              if (parsed.type === "tool_start") {
+                setUiMessages((p) => [
+                  ...p,
+                  { role: "tool", text: "", toolActivity: { toolName: parsed.toolName as string, label: parsed.label as string, status: "running" } },
+                ]);
+                continue;
+              }
+
+              // Tool finished — mark as done with summary
+              if (parsed.type === "tool_done") {
+                setUiMessages((p) => {
+                  const updated = [...p];
+                  const idx = [...updated].reverse().findIndex(m => m.role === "tool" && m.toolActivity?.toolName === parsed.toolName && m.toolActivity?.status === "running");
+                  if (idx !== -1) {
+                    const realIdx = updated.length - 1 - idx;
+                    updated[realIdx] = { ...updated[realIdx], toolActivity: { ...updated[realIdx].toolActivity!, status: "done", summary: parsed.summary as string | undefined } };
+                  }
+                  return updated;
+                });
+                continue;
+              }
+
+              // Artifact from SSE — show panel
+              if (parsed.type === "artifact" && parsed.artifact) {
+                const a = parsed.artifact as { id: string; type: string; title: string; content: Record<string, unknown> };
+                const newArtifact: ArtifactData = { id: a.id, type: a.type as ArtifactData["type"], title: a.title, content: a.content };
+                setArtifactHistory(prev => [...prev, newArtifact]);
+                setActiveArtifact(newArtifact);
+                setGeneratingArtifact(false);
+                continue;
+              }
+
+              // Final done event
+              if (parsed.type === "done") {
+                if (parsed.conversationId && !convId) setConversationId(parsed.conversationId);
+                continue;
+              }
+
+              if (parsed.type === "error") {
+                setUiMessages((p) => {
+                  const updated = [...p];
+                  updated[updated.length - 1] = { role: "agent", text: "Connection issue — please try again." };
+                  return updated;
+                });
+                continue;
+              }
+
+              // Fallback: raw Groq SSE format (backward compat)
               const token = parsed.choices?.[0]?.delta?.content ?? "";
               if (token) {
                 fullText += token;
@@ -215,7 +271,7 @@ export default function AgentChat() {
         return;
       }
 
-      // ── Non-streaming path (Patel or fallback) ─────────────────────────
+      // ── Non-streaming fallback ──────────────────────────────────────────
       const data = await res.json();
       const reply: string = data.response ?? data.content ?? "Sorry, I couldn't respond right now. Please try again.";
       if (data.conversationId && !convId) setConversationId(data.conversationId);
@@ -363,8 +419,8 @@ export default function AgentChat() {
     if (!hasAnyAnswer) return;
 
     setIsQuickGenerating(true);
+    setQuickGenStep("Extracting context…");
     try {
-      // Build synthetic conversation from Q&A
       const qaPairs = questions
         .map((q, i) => `Q: ${q}\nA: ${quickAnswers[i]?.trim() || "(not provided)"}`)
         .join("\n\n");
@@ -385,13 +441,56 @@ export default function AgentChat() {
         }),
       });
       if (!res.ok) throw new Error("Quick generate failed");
-      const data = await res.json();
+      const data = await res.json() as {
+        artifact?: { id: string; type: string; title: string; content: Record<string, unknown> };
+        scoreSignal?: { boosted: boolean; pointsAdded: number; dimensionLabel: string };
+        jobId?: string;
+        status?: string;
+      };
+
+      // Async path — poll until complete
+      if (data.jobId && data.status === 'pending') {
+        setQuickGenStep("Building artifact…");
+        let attempts = 0;
+        const maxAttempts = 60; // 2s × 60 = 2 min max
+        while (attempts < maxAttempts) {
+          await new Promise(r => setTimeout(r, 2000));
+          attempts++;
+          const pollRes = await fetch(`/api/agents/generate/status?jobId=${data.jobId}`);
+          const poll = await pollRes.json() as {
+            status: string;
+            artifact?: { id: string; type: string; title: string; content: Record<string, unknown> };
+            scoreSignal?: { boosted: boolean; pointsAdded: number; dimensionLabel: string };
+          };
+          if (poll.status === 'completed' && poll.artifact) {
+            setQuickGenStep("Done!");
+            const newArtifact: ArtifactData = {
+              id: poll.artifact.id, type: poll.artifact.type as ArtifactData['type'],
+              title: poll.artifact.title, content: poll.artifact.content,
+            };
+            setArtifactHistory(prev => [...prev, newArtifact]);
+            setActiveArtifact(newArtifact);
+            setShowQuickGen(false);
+            setQuickAnswers(["", "", "", "", ""]);
+            if (poll.scoreSignal?.boosted) {
+              setScoreBoost({ points: poll.scoreSignal.pointsAdded, dimension: poll.scoreSignal.dimensionLabel });
+              setTimeout(() => setScoreBoost(null), 4000);
+            }
+            break;
+          }
+          if (poll.status === 'failed') break;
+          if (attempts === 15) setQuickGenStep("Researching competitors…");
+          if (attempts === 30) setQuickGenStep("Finalising artifact…");
+        }
+        return;
+      }
+
+      // Sync path (flag off)
       if (data.artifact) {
+        setQuickGenStep("Done!");
         const newArtifact: ArtifactData = {
-          id: data.artifact.id,
-          type: data.artifact.type,
-          title: data.artifact.title,
-          content: data.artifact.content,
+          id: data.artifact.id, type: data.artifact.type as ArtifactData['type'],
+          title: data.artifact.title, content: data.artifact.content,
         };
         setArtifactHistory(prev => [...prev, newArtifact]);
         setActiveArtifact(newArtifact);
@@ -406,6 +505,7 @@ export default function AgentChat() {
       // silently fail
     } finally {
       setIsQuickGenerating(false);
+      setQuickGenStep(null);
     }
   }, [agent, agentId, isQuickGenerating, quickAnswers, userId, conversationId]);
 
@@ -776,7 +876,39 @@ export default function AgentChat() {
                 )}
 
                 {/* file upload card */}
-                {msg.fileUpload ? (
+                {/* tool activity bubble */}
+                {msg.role === "tool" && msg.toolActivity && (
+                  <motion.div
+                    initial={{ opacity: 0, x: -4 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 8,
+                      padding: "7px 12px",
+                      background: surf,
+                      border: `1px solid ${bdr}`,
+                      borderRadius: 10,
+                      fontSize: 12, color: muted,
+                      maxWidth: "72%",
+                    }}
+                  >
+                    {msg.toolActivity.status === "running" ? (
+                      <motion.div
+                        style={{ height: 8, width: 8, borderRadius: "50%", border: `2px solid ${muted}`, borderTopColor: "transparent", flexShrink: 0 }}
+                        animate={{ rotate: 360 }}
+                        transition={{ repeat: Infinity, duration: 0.7, ease: "linear" }}
+                      />
+                    ) : (
+                      <CheckCircle2 style={{ height: 12, width: 12, color: green, flexShrink: 0 }} />
+                    )}
+                    <span style={{ fontWeight: 500 }}>
+                      {msg.toolActivity.status === "running"
+                        ? msg.toolActivity.label
+                        : msg.toolActivity.summary || msg.toolActivity.label}
+                    </span>
+                  </motion.div>
+                )}
+
+                {msg.role !== "tool" && msg.fileUpload ? (
                   <div style={{
                     display: "flex", alignItems: "center", gap: 10,
                     padding: "10px 14px",
@@ -821,7 +953,7 @@ export default function AgentChat() {
                       </div>
                     )}
                   </div>
-                ) : (
+                ) : msg.role !== "tool" ? (
                   /* regular text bubble */
                   <div style={{
                     maxWidth: "78%",
@@ -836,7 +968,7 @@ export default function AgentChat() {
                   }}>
                     {msg.text}
                   </div>
-                )}
+                ) : null}
               </motion.div>
             ))}
 
@@ -859,8 +991,10 @@ export default function AgentChat() {
                       transition={{ repeat: Infinity, duration: 0.8, delay: d }}
                     />
                   ))}
-                  {generatingArtifact && (
-                    <span style={{ marginLeft: 8, fontSize: 11, color: muted }}>Generating deliverable…</span>
+                  {(generatingArtifact || isQuickGenerating) && (
+                    <span style={{ marginLeft: 8, fontSize: 11, color: muted }}>
+                      {quickGenStep ?? "Generating deliverable…"}
+                    </span>
                   )}
                 </div>
               </motion.div>

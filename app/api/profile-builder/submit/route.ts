@@ -12,6 +12,7 @@ import {
 import { calculateGrade } from '@/features/qscore/types/qscore.types'
 import { getCachedSectorWeights, setCachedSectorWeights } from '@/lib/cache/qscore-cache'
 import { getAllIndicatorPercentiles } from '@/features/qscore/benchmarking/benchmark-engine'
+import { generateScoreIntelligence, type ScoreIntelligence } from '@/features/qscore/services/score-intelligence'
 import type { SectionData } from '@/lib/profile-builder/data-merger'
 
 function getAdminClient() {
@@ -140,7 +141,7 @@ export async function POST(req: NextRequest) {
       assessmentData,
       stage,
       sector,
-      isImpactFocused ? 'impact' : undefined,
+      isImpactFocused ? 'impact' : 'commercial',
       customWeights
     )
 
@@ -148,14 +149,23 @@ export async function POST(req: NextRequest) {
     const allIndicators = iqResult.parameters.flatMap(p => p.indicators)
     applyReconciliationFlags(allIndicators, reconciliationResults)
 
-    // 10. Benchmark percentiles (non-blocking)
+    // 10. Benchmark percentiles + Score Intelligence (parallel, both non-blocking)
     const percentileMap = new Map<string, { percentile: number | null; label: string; sampleSize: number }>()
-    try {
-      const rawPercentiles = await getAllIndicatorPercentiles(supabase, allIndicators, sector, stage)
-      rawPercentiles.forEach((v, k) => percentileMap.set(k, { percentile: v.percentile, label: v.label, sampleSize: v.sampleSize }))
-    } catch {
-      // non-blocking
-    }
+    let scoreIntelligence: ScoreIntelligence | null = null
+
+    const grade = calculateGrade(Math.round(iqResult.finalIQ))
+    await Promise.allSettled([
+      getAllIndicatorPercentiles(supabase, allIndicators, sector, stage).then(rawPercentiles => {
+        rawPercentiles.forEach((v, k) => percentileMap.set(k, { percentile: v.percentile, label: v.label, sampleSize: v.sampleSize }))
+      }),
+      generateScoreIntelligence(
+        iqResult.parameters,
+        Math.round(iqResult.finalIQ),
+        grade,
+        sector,
+        stage,
+      ).then(si => { scoreIntelligence = si }),
+    ])
 
     // 11. Cross-indicator validation
     const validation = validateConsistency(allIndicators, assessmentData)
@@ -181,10 +191,10 @@ export async function POST(req: NextRequest) {
     }
     finalScore = Math.max(1, Math.min(100, finalScore))
 
-    // 12. Get previous score for chain
+    // 12. Get previous score for chain + milestone detection
     const { data: prevScore } = await supabase
       .from('qscore_history')
-      .select('id')
+      .select('id, overall_score')
       .eq('user_id', userId)
       .order('calculated_at', { ascending: false })
       .limit(1)
@@ -192,6 +202,7 @@ export async function POST(req: NextRequest) {
 
     // 13. Build breakdown objects from parameters
     const paramMap = Object.fromEntries(iqResultWithWarnings.parameters.map(p => [p.id, p]))
+    const finalGrade = calculateGrade(finalScore)
 
     // 14. INSERT qscore_history with score_version='v2_iq'
     const { error: insertErr } = await supabase
@@ -206,8 +217,9 @@ export async function POST(req: NextRequest) {
         financial_score:Math.round((paramMap['p6']?.averageScore ?? 0) * 20),
         team_score:     Math.round((paramMap['p4']?.averageScore ?? 0) * 20),
         traction_score: Math.round((paramMap['p1']?.averageScore ?? 0) * 20),
-        grade: calculateGrade(finalScore),
+        grade: finalGrade,
         data_source: 'profile_builder',
+        ai_actions: (scoreIntelligence as ScoreIntelligence | null) ?? null,
         assessment_data: { ...assessmentData, scoreVersion: 'v2_iq' },
         previous_score_id: prevScore?.id ?? null,
         // v2 specific
@@ -260,6 +272,58 @@ export async function POST(req: NextRequest) {
       })
       .eq('user_id', userId)
 
+    // 17. Score milestone check — notify when crossing 70 for the first time
+    const prevOverallScore = (prevScore as { id: string; overall_score: number } | null)?.overall_score ?? 0
+    const crossedMarketplace = finalScore >= 70 && prevOverallScore < 70
+    if (crossedMarketplace) {
+      // Fire-and-forget: activity event + email notification
+      void (async () => {
+        try {
+          await supabase.from('agent_activity').insert({
+            user_id: userId,
+            agent_id: 'system',
+            action_type: 'score_milestone',
+            description: `IQ Score crossed 70 — Investor Marketplace now unlocked (${finalScore}/100)`,
+            metadata: { previousScore: prevOverallScore, newScore: finalScore, milestone: 70 },
+          })
+
+          // Fetch founder email for Resend
+          const { data: fp } = await supabase
+            .from('founder_profiles')
+            .select('full_name, email')
+            .eq('user_id', userId)
+            .single()
+
+          const RESEND_KEY = process.env.RESEND_API_KEY
+          if (RESEND_KEY && fp?.email) {
+            const name = fp.full_name?.split(' ')[0] ?? 'Founder'
+            await fetch('https://api.resend.com/emails', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${RESEND_KEY}`,
+              },
+              body: JSON.stringify({
+                from: 'Edge Alpha <scores@edgealpha.io>',
+                to: fp.email,
+                subject: `You hit 70 — Investor Marketplace is now live`,
+                html: `<p>Hi ${name},</p>
+<p>Your IQ Score just crossed <strong>70/100</strong> — your profile is now visible to investors in the Marketplace.</p>
+<p>Your current score: <strong>${finalScore}/100 (Grade ${finalGrade})</strong></p>
+<p>To keep improving:<br>
+• Use your AI agents to build deliverables that boost your weakest parameters<br>
+• Each completed deliverable adds verified evidence to your score<br>
+• Retake the assessment in 24 hours to lock in your progress</p>
+<p>— Edge Alpha</p>`,
+              }),
+            })
+          }
+        } catch (milestoneErr) {
+          console.warn('[submit] milestone notification failed:', milestoneErr)
+        }
+      })()
+    }
+
     // Build IQ breakdown summary for response (with per-indicator percentile)
     const iqBreakdown = iqResultWithWarnings.parameters.map(p => ({
       id: p.id,
@@ -281,7 +345,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       score: finalScore,
-      grade: calculateGrade(finalScore),
+      grade: finalGrade,
       finalIQ: iqResultWithWarnings.finalIQ,
       availableIQ: iqResultWithWarnings.availableIQ,
       iqBreakdown,
@@ -289,6 +353,8 @@ export async function POST(req: NextRequest) {
       reconciliationFlags: iqResultWithWarnings.reconciliationFlags,
       validationWarnings: warningMessages,
       scoreVersion: 'v2_iq',
+      unlockCards: (scoreIntelligence as ScoreIntelligence | null)?.unlockCards ?? [],
+      readinessSummary: (scoreIntelligence as ScoreIntelligence | null)?.readinessSummary ?? '',
     })
   } catch (err) {
     console.error('[profile-builder/submit]', err)

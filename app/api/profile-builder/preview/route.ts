@@ -134,7 +134,7 @@ export async function GET(req: NextRequest) {
       })),
       validationWarnings: validation.warnings.map(w => w.message),
       boostActions,
-      marketplaceUnlocked: iqResult.finalIQ >= 45,
+      marketplaceUnlocked: iqResult.finalIQ >= 70,
       sectionsComplete,
       track: iqResult.track,
       scoreVersion: 'v2_iq',

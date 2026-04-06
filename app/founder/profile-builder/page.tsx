@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
@@ -8,8 +8,17 @@ import { shouldTriggerUpload, getInitialQuestion, getMissingFields, PITCH_SECTIO
 import type { FounderProfile } from '@/lib/profile-builder/question-engine'
 import { generateSmartQuestions } from '@/lib/profile-builder/smart-questions'
 import type { SmartQuestion } from '@/lib/profile-builder/smart-questions'
+import {
+  FolderOpen, BarChart2, MessageSquare, Target, Users, TrendingUp,
+  Shield, User, DollarSign, CheckCircle2, Check, UploadCloud,
+  FileText, Paperclip, ArrowUp, Loader2, Zap, BarChart,
+  Lightbulb, AlertTriangle, Globe, Bot, RefreshCw, X as XIcon,
+} from 'lucide-react'
 
 // ── palette ───────────────────────────────────────────────────────────────────
+const bg    = '#F9F7F2'   // warm cream — page background
+const surf  = '#F0EDE6'   // warm sand — card / surface
+const surf2 = '#EAE7E0'   // deeper sand — agent bubbles, hover
 const bdr   = '#E2DDD5'
 const ink   = '#18160F'
 const muted = '#8A867C'
@@ -29,6 +38,7 @@ const MISSING_FIELD_LABELS: Record<string, string> = {
   'p2.competitorDensityContext': 'competitive differentiation',
   'p3.hasPatent': 'patent / trade secret status',
   'p3.buildComplexity': 'how long to replicate your tech',
+  'p3.replicationTimeMonths': 'how many months to replicate your tech',
   'p3.technicalDepth': 'technical complexity details',
   'p4.domainYears': 'years of domain experience',
   'p4.founderMarketFit': 'founder-market fit narrative',
@@ -159,8 +169,15 @@ export default function ProfileBuilderPage() {
     }>
     reconciliationFlags: Array<{ indicatorId: string; alert: string; severity: string }>
     validationWarnings: string[]
+    unlockCards: Array<{
+      indicatorId: string; indicatorName: string; parameterId: string
+      currentScore: number; targetScore: number; estimatedPointGain: number
+      action: string; agentId?: string
+    }>
+    readinessSummary: string
   } | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [rateLimitUntil, setRateLimitUntil] = useState<Date | null>(null)
   const [previewData, setPreviewData] = useState<PreviewData | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -230,7 +247,8 @@ export default function ProfileBuilderPage() {
           revenueStatus: fp.revenue_status ?? 'pre-revenue',
           companyName: fp.company_name ?? undefined,
         })
-        // Restore fast-flow state if the founder was mid-way through smart questions
+        // Restore flow state — fast mode: full restore including smart-qa position
+        //                      full mode: restore extractionSummary only
         if (fp.profile_builder_flow) {
           const flow = fp.profile_builder_flow as {
             flowMode?: 'fast' | 'full'
@@ -247,6 +265,9 @@ export default function ProfileBuilderPage() {
             const total = flow.smartQuestions?.length ?? 0
             if (total > 0 && idx < total) setCurrentStep('smart-qa')
             else if (flow.extractionSummary?.length) setCurrentStep('extract-results')
+          } else if (flow.extractionSummary?.length) {
+            // Full mode — restore extraction results so they survive page refresh
+            setExtractionSummary(flow.extractionSummary)
           }
         }
       }
@@ -268,12 +289,17 @@ export default function ProfileBuilderPage() {
                   completionScore?: number
                   rawConversation?: string
                 }
-                // Restore chat messages from saved raw_conversation
+                // Restore chat messages + LLM conversation text from saved raw_conversation
                 const msgs: Message[] = []
+                let restoredConversation = ''
                 if (d.rawConversation) {
                   for (const line of d.rawConversation.split('\n')) {
                     if (line.startsWith('Q: ')) msgs.push({ role: 'agent', text: line.slice(3) })
-                    else if (line.startsWith('A: ')) msgs.push({ role: 'user', text: line.slice(3) })
+                    else if (line.startsWith('A: ')) {
+                      const text = line.slice(3)
+                      msgs.push({ role: 'user', text })
+                      restoredConversation += `\nFounder: ${text}`
+                    }
                   }
                 }
                 next[sec] = {
@@ -283,6 +309,7 @@ export default function ProfileBuilderPage() {
                   completionScore: d.completionScore ?? 0,
                   isComplete: (d.completionScore ?? 0) >= 70,
                   messages: msgs,
+                  conversation: restoredConversation,
                 }
               }
               return next
@@ -340,7 +367,11 @@ export default function ProfileBuilderPage() {
 
     setSections(prev => ({
       ...prev,
-      [sectionKey]: { ...prev[sectionKey], messages: [{ role: 'agent', text: initialQ }] },
+      [sectionKey]: {
+        ...prev[sectionKey],
+        messages: [{ role: 'agent', text: initialQ }],
+        conversation: `Agent: ${initialQ}`,
+      },
     }))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStep, sectionKey])
@@ -366,12 +397,16 @@ export default function ProfileBuilderPage() {
   // ── save section to DB ────────────────────────────────────────────────────
   const saveSection = useCallback(async (secNum: string, state: SectionState, tok: string) => {
     if (secNum === 'pitch') return
+    // Serialize messages as Q:/A: so draft loader can restore them exactly
+    const rawConversation = state.messages
+      .map(m => m.role === 'agent' ? `Q: ${m.text}` : `A: ${m.text}`)
+      .join('\n')
     await fetch('/api/profile-builder/save', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok}` },
       body: JSON.stringify({
         section: parseInt(secNum, 10),
-        rawConversation: state.conversation,
+        rawConversation,
         extractedFields: state.extractedFields,
         confidenceMap: state.confidenceMap,
         completionScore: state.completionScore,
@@ -491,7 +526,7 @@ export default function ProfileBuilderPage() {
           extractedFields: extracted.mergedFields ?? sec.extractedFields,
           confidenceMap: { ...sec.confidenceMap, ...(extracted.confidenceMap ?? {}) },
           completionScore: pct,
-          conversation,
+          conversation: conversation + '\nAgent: ' + agentReply,
           isComplete: pct >= 70,
           messages: [...sec.messages, { role: 'agent' as const, text: agentReply }],
         }
@@ -540,6 +575,16 @@ export default function ProfileBuilderPage() {
     if (currentStep === 0) {
       if (docText) setGlobalDocText(prev => prev + '\n\n' + docText)
 
+      // Hoist SECTION_PICKS + confMap so they're available in both setSections and smart-question blocks
+      const SECTION_PICKS: Record<string, string[]> = {
+        '1': ['customerCommitment','conversationCount','hasPayingCustomers','payingCustomerDetail','salesCycleLength','hasRetention','retentionDetail','largestContractUsd'],
+        '2': ['p2','targetCustomers','lifetimeValue'],
+        '3': ['p3'],
+        '4': ['p4','problemStory','advantages','hardshipStory'],
+        '5': ['financial','p5'],
+      }
+      const globalConf: Record<string, number> = data.confidenceMap ?? {}
+
       if (data.extractedFields && Object.keys(data.extractedFields).length > 0) {
         setSections(prev => {
           const next = { ...prev }
@@ -550,29 +595,60 @@ export default function ProfileBuilderPage() {
               if (v !== null && v !== undefined) merged[k] = v
             }
             const summary = (data.sectionSummaries as SectionSummary[] ?? []).find(s => s.sectionKey === secKey)
-            const pct = summary?.completionPct ?? sec.completionScore
-            next[secKey] = { ...sec, extractedFields: merged, completionScore: pct, isComplete: pct >= 70 }
+            // Always keep the best score seen — a second doc shouldn't lower a score from the first
+            const pct = Math.max(summary?.completionPct ?? 0, sec.completionScore)
+            // Build section-scoped confidence map from the global one
+            const sectionConf: Record<string, number> = { ...sec.confidenceMap }
+            for (const [k, v] of Object.entries(globalConf)) {
+              const pickedKeys = SECTION_PICKS[secKey] ?? []
+              if (pickedKeys.some(pk => k === pk || k.startsWith(pk + '.'))) {
+                sectionConf[k] = v
+              }
+            }
+            next[secKey] = { ...sec, extractedFields: merged, confidenceMap: sectionConf, completionScore: pct, isComplete: pct >= 70 }
           }
           return next
         })
       }
 
+      // Always add the file to the uploaded list, even if no fields were extracted.
+      // The block below used to be inside the extractedFields guard, so files that
+      // uploaded successfully but extracted 0 fields were silently dropped from the UI.
+      const newFile = { name: file.name, fields: fieldsFound }
+
       if (data.sectionSummaries && data.sectionSummaries.length > 0) {
-        setExtractionSummary(data.sectionSummaries)
+        // Merge with previous extraction results — keep best completionPct per section
+        setExtractionSummary(prev => {
+          const merged = [...prev]
+          for (const incoming of data.sectionSummaries as SectionSummary[]) {
+            const idx = merged.findIndex(s => s.sectionKey === incoming.sectionKey)
+            if (idx === -1) {
+              merged.push(incoming)
+            } else if (incoming.completionPct > merged[idx].completionPct) {
+              // New doc gave a better extraction — use it but keep snippets from both
+              merged[idx] = {
+                ...incoming,
+                extractedSnippets: [...merged[idx].extractedSnippets, ...incoming.extractedSnippets],
+              }
+            } else {
+              // Existing is better — just add any new snippets
+              merged[idx] = {
+                ...merged[idx],
+                extractedSnippets: [...merged[idx].extractedSnippets, ...incoming.extractedSnippets],
+              }
+            }
+          }
+          // Persist for full-mode refresh survival
+          saveFlowState({ extractionSummary: merged })
+          return merged
+        })
 
         // Build section-scoped, confidence-gated fields for smart question generation.
         // Each section only sees its own relevant top-level keys, and fields with
         // confidence < 0.45 are treated as missing so questions ARE generated for them.
         const allExtracted: Record<string, unknown> = data.extractedFields ?? {}
-        const confMap: Record<string, number> = data.confidenceMap ?? {}
+        const confMap: Record<string, number> = globalConf
         const hasConf = Object.keys(confMap).length > 0
-        const SECTION_PICKS: Record<string, string[]> = {
-          '1': ['customerCommitment','conversationCount','hasPayingCustomers','payingCustomerDetail','salesCycleLength','hasRetention','retentionDetail','largestContractUsd'],
-          '2': ['p2','targetCustomers','lifetimeValue'],
-          '3': ['p3'],
-          '4': ['p4','problemStory','advantages','hardshipStory'],
-          '5': ['financial','p5'],
-        }
         // Recursively drop leaf values whose confidence key is < 0.45
         function dropLowConf(obj: Record<string, unknown>): Record<string, unknown> {
           const out: Record<string, unknown> = {}
@@ -602,10 +678,22 @@ export default function ProfileBuilderPage() {
         setSmartQuestions(qs)
         setSmartQaIndex(0)
         setFlowMode('fast')
-        saveFlowState({ flowMode: 'fast', smartQuestions: qs, smartQaIndex: 0, extractionSummary: data.sectionSummaries })
+        // setUploadedFiles is now called unconditionally below — don't duplicate here
+        setUploadedFiles(prev => {
+          const next = [...prev, newFile]
+          saveFlowState({ flowMode: 'fast', smartQuestions: qs, smartQaIndex: 0, extractionSummary: data.sectionSummaries, uploadedFiles: next })
+          return next
+        })
+        setUploadTrigger(null)
+        return
       }
 
-      setUploadedFiles(prev => [...prev, { name: file.name, fields: fieldsFound }])
+      // No sectionSummaries (e.g. image, CSV with no structure) — still show the file
+      setUploadedFiles(prev => {
+        const next = [...prev, newFile]
+        saveFlowState({ flowMode: flowMode === 'fast' ? 'fast' : undefined, smartQuestions, smartQaIndex, extractionSummary, uploadedFiles: next })
+        return next
+      })
       setUploadTrigger(null)
       return
     }
@@ -648,7 +736,11 @@ export default function ProfileBuilderPage() {
       return { ...prev, [secKey]: updated }
     })
 
-    setUploadedFiles(prev => [...prev, { name: file.name, fields: fieldsFound }])
+    setUploadedFiles(prev => {
+      const next = [...prev, { name: file.name, fields: fieldsFound }]
+      saveFlowState({ flowMode, smartQuestions, smartQaIndex, extractionSummary, uploadedFiles: next })
+      return next
+    })
     setUploadTrigger(null)
   }
 
@@ -685,8 +777,7 @@ export default function ProfileBuilderPage() {
       const data = await res.json()
       if (!res.ok) {
         if (res.status === 429 && data.retakeAvailableAt) {
-          const available = new Date(data.retakeAvailableAt)
-          setSubmitError(`Score locked — you can recalculate again at ${available.toLocaleString()}`)
+          setRateLimitUntil(new Date(data.retakeAvailableAt))
         } else {
           setSubmitError(data.error ?? 'Submission failed')
         }
@@ -700,14 +791,25 @@ export default function ProfileBuilderPage() {
         iqBreakdown: data.iqBreakdown ?? [],
         reconciliationFlags: data.reconciliationFlags ?? [],
         validationWarnings: data.validationWarnings ?? [],
+        unlockCards: data.unlockCards ?? [],
+        readinessSummary: data.readinessSummary ?? '',
       })
       saveFlowState(null)  // profile submitted — clear persisted fast-flow state
-      setTimeout(() => router.push('/founder/dashboard'), 8000)
     } catch {
       setSubmitError('Network error — please try again')
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  // ── remove an uploaded file by index ─────────────────────────────────────
+  function handleRemoveFile(index: number) {
+    setUploadedFiles(prev => {
+      const next = prev.filter((_, i) => i !== index)
+      // Persist so it stays deleted after refresh
+      saveFlowState({ flowMode: flowMode === 'fast' ? 'fast' : undefined, smartQuestions, smartQaIndex, extractionSummary, uploadedFiles: next })
+      return next
+    })
   }
 
   // ── recalculate live score after upload ──────────────────────────────────
@@ -783,7 +885,7 @@ export default function ProfileBuilderPage() {
           : p.name + ' needs attention — this is a common investor ask.',
         strongInds.length > 0 ? 'Strong signals: ' + strongInds.slice(0, 2).join(', ') + '.' : null,
         weakInds.length > 0 ? 'Gaps to address: ' + weakInds.slice(0, 2).join(', ') + '.' : null,
-        alerts.length > 0 ? '⚠ Data flag on: ' + alerts.map(a => a.name).join(', ') + '.' : null,
+        alerts.length > 0 ? 'Data flag on: ' + alerts.map(a => a.name).join(', ') + '.' : null,
       ].filter(Boolean).join(' ')
     }
     return { overall, perParam }
@@ -791,99 +893,64 @@ export default function ProfileBuilderPage() {
 
   // ── render ────────────────────────────────────────────────────────────────
   return (
-    <div style={{ minHeight: '100vh', background: '#ffffff', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: bg, fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+      <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
 
-      {/* ── Minimal fixed header ── */}
-      <header style={{
-        position: 'fixed', top: 0, left: 0, right: 0, zIndex: 50,
-        borderBottom: `1px solid ${bdr}`, background: 'rgba(255,255,255,0.94)',
-        backdropFilter: 'blur(8px)', height: 52,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0 24px',
-      }}>
-        <span style={{ fontSize: 15, fontWeight: 700, color: ink, letterSpacing: '-0.01em' }}>
-          Edge Alpha
-        </span>
+      {/* ── Floating Save & Exit ── */}
+      <button
+        onClick={() => router.push('/founder/dashboard')}
+        style={{
+          position: 'fixed', top: 20, right: 24, zIndex: 50,
+          padding: '9px 18px', borderRadius: 10,
+          border: `1px solid ${bdr}`, background: 'rgba(249,247,242,0.95)',
+          backdropFilter: 'blur(10px)',
+          fontSize: 13, fontWeight: 500, color: ink,
+          cursor: 'pointer', fontFamily: 'inherit',
+          boxShadow: '0 2px 12px rgba(24,22,15,0.10)',
+          transition: 'box-shadow 0.15s',
+        }}
+        onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 20px rgba(24,22,15,0.16)' }}
+        onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 2px 12px rgba(24,22,15,0.10)' }}
+      >
+        Save &amp; Exit
+      </button>
 
-        {/* Progress dots — centered */}
-        {progressIdx >= 0 && (
-          <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 6 }}>
-            {PROGRESS_STEPS.map((step) => {
-              const key = String(step)
-              const isDone = (
-                step === 'pitch' ? (sections['pitch']?.isComplete ?? false)
-                : typeof step === 'number' && step >= 1 && step <= 5 ? (sections[key]?.isComplete ?? false)
-                : step === 'extract-results' ? extractionSummary.length > 0
-                : step === 'smart-qa' ? smartQaIndex >= smartQuestions.length && smartQuestions.length > 0
-                : false
-              )
-              const isActive = step === currentStep
-              return (
-                <button
-                  key={key}
-                  onClick={() => setCurrentStep(step as number | 'pitch' | 'extract-results' | 'smart-qa')}
-                  title={SECTION_LABELS[key] ?? key}
-                  style={{
-                    height: 6, borderRadius: 3, border: 'none', cursor: 'pointer', padding: 0,
-                    transition: 'all 0.25s ease',
-                    width: isActive ? 24 : 6,
-                    background: isDone ? green : isActive ? blue : bdr,
-                  }}
-                />
-              )
-            })}
-          </div>
-        )}
-
-        <button
-          onClick={() => router.push('/founder/dashboard')}
-          style={{
-            fontSize: 13, color: muted, background: 'none', border: 'none',
-            cursor: 'pointer', fontFamily: 'inherit', padding: '4px 8px',
-          }}
-        >
-          Save & Exit
-        </button>
-      </header>
-
-      {/* ── Main layout (offset by header) ── */}
-      <div style={{ paddingTop: 52, minHeight: '100vh', display: 'flex' }}>
+      {/* ── Main layout (full height, no header offset) ── */}
+      <div style={{ minHeight: '100vh', display: 'flex' }}>
 
         {/* ── Collapsible left sidebar ── */}
         <div style={{
-          width: sidebarOpen ? 220 : 0,
-          minWidth: sidebarOpen ? 220 : 0,
+          width: sidebarOpen ? 224 : 0,
+          minWidth: sidebarOpen ? 224 : 0,
           overflow: 'hidden',
           transition: 'width 0.25s ease, min-width 0.25s ease',
           borderRight: `1px solid ${bdr}`,
-          background: '#fafafa',
+          background: surf,
           position: 'sticky',
-          top: 52,
-          height: 'calc(100vh - 52px)',
+          top: 0,
+          height: '100vh',
           display: 'flex',
           flexDirection: 'column',
         }}>
-          <div style={{ padding: '24px 16px 16px', opacity: sidebarOpen ? 1 : 0, transition: 'opacity 0.15s', whiteSpace: 'nowrap', overflow: 'hidden', flex: 1 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 16 }}>Sections</div>
-            {[
-              { key: '0',               label: 'Documents',          icon: '📁' },
+          <div style={{ padding: '20px 16px 16px', opacity: sidebarOpen ? 1 : 0, transition: 'opacity 0.15s', whiteSpace: 'nowrap', overflow: 'hidden', flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+
+            {/* Brand */}
+            <div style={{ marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${bdr}` }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: ink, letterSpacing: '-0.01em' }}>Edge Alpha</div>
+            </div>
+
+            {/* Setup items */}
+            <div style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Setup</div>
+            {([
+              { key: '0', label: 'Documents', Icon: FolderOpen },
               ...(flowMode === 'fast' ? [
-                { key: 'extract-results', label: 'Extraction Results', icon: '📊' },
-                { key: 'smart-qa',        label: 'Quick Questions',   icon: '💬' },
+                { key: 'extract-results', label: 'Extraction Results', Icon: BarChart2 },
+                { key: 'smart-qa',        label: 'Quick Questions',   Icon: MessageSquare },
               ] : [
-                { key: 'pitch',           label: 'Your Pitch',         icon: '🎯' },
+                { key: 'pitch', label: 'Your Pitch', Icon: Target },
               ]),
-              { key: '1',     label: 'Market & Customers', icon: '👥' },
-              { key: '2',     label: 'Market Potential',   icon: '📈' },
-              { key: '3',     label: 'IP & Defensibility', icon: '🔒' },
-              { key: '4',     label: 'Founder & Team',     icon: '🧑‍💼' },
-              { key: '5',     label: 'Financials',         icon: '💰' },
-              { key: '6',     label: 'Review & Submit',    icon: '✅' },
-            ].map(({ key, label, icon }) => {
+            ] as Array<{ key: string; label: string; Icon: React.ElementType }>).map(({ key, label, Icon }) => {
               const isActive = String(currentStep) === key
-              const sec = sections[key]
-              const pct = (key === '0' || key === 'pitch' || key === '6' || key === 'extract-results' || key === 'smart-qa') ? null : (animatedScores[key] ?? sec?.completionScore ?? 0)
-              const isDone = pct !== null && pct >= 70
               return (
                 <button
                   key={key}
@@ -892,59 +959,88 @@ export default function ProfileBuilderPage() {
                     else if (key === 'pitch') setCurrentStep('pitch')
                     else if (key === 'extract-results') setCurrentStep('extract-results')
                     else if (key === 'smart-qa') setCurrentStep('smart-qa')
-                    else if (key === '6') setCurrentStep(6)
-                    else setCurrentStep(parseInt(key, 10))
                   }}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 10,
-                    width: '100%', padding: '8px 10px', borderRadius: 8,
+                    width: '100%', padding: '7px 10px', borderRadius: 8,
                     border: 'none', cursor: 'pointer', textAlign: 'left',
-                    background: isActive ? '#EFF6FF' : 'transparent',
-                    marginBottom: 2, transition: 'background 0.15s',
+                    background: isActive ? surf2 : 'transparent',
+                    marginBottom: 1, transition: 'background 0.15s',
                   }}
-                  onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = '#f0f0f0' }}
+                  onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = bdr }}
                   onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent' }}
                 >
-                  <span style={{ fontSize: 14 }}>{icon}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: isActive ? 600 : 400, color: isActive ? blue : ink, lineHeight: 1.3 }}>{label}</div>
-                    {pct !== null && (
-                      <div style={{ marginTop: 4 }}>
-                        <div style={{ height: 3, background: bdr, borderRadius: 2, overflow: 'hidden' }}>
-                          <div style={{ height: '100%', width: `${pct}%`, background: isDone ? green : blue, borderRadius: 2, transition: 'width 0.4s ease' }} />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  {isDone && <span style={{ fontSize: 11, color: green, fontWeight: 700 }}>✓</span>}
+                  <Icon size={14} color={isActive ? blue : muted} strokeWidth={isActive ? 2.5 : 1.75} style={{ flexShrink: 0 }} />
+                  <div style={{ fontSize: 12, fontWeight: isActive ? 600 : 400, color: isActive ? blue : ink, lineHeight: 1.3 }}>{label}</div>
                 </button>
               )
             })}
 
-            <div style={{ marginTop: 20, paddingTop: 16, borderTop: `1px solid ${bdr}` }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 12 }}>Parameters</div>
-              {[
-                { label: 'P1 Market Readiness',  key: '1' },
-                { label: 'P2 Market Potential',  key: '2' },
-                { label: 'P3 IP & Moat',         key: '3' },
-                { label: 'P4 Founder / Team',    key: '4' },
-                { label: 'P5 Impact',            key: '5' },
-                { label: 'P6 Financials',        key: '5' },
-              ].map(({ label, key }, i) => {
-                const pct = (animatedScores[key] ?? sections[key]?.completionScore ?? 0)
-                return (
-                  <div key={i} style={{ marginBottom: 8 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                      <span style={{ fontSize: 11, color: muted }}>{label}</span>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: pct >= 70 ? green : ink }}>{Math.round(pct)}%</span>
-                    </div>
-                    <div style={{ height: 3, background: bdr, borderRadius: 2, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${pct}%`, background: pct >= 70 ? green : amber, borderRadius: 2, transition: 'width 0.4s ease' }} />
+            {/* Parameters */}
+            <div style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: 'uppercase', letterSpacing: '0.07em', marginTop: 16, marginBottom: 8 }}>Parameters</div>
+            {([
+              { key: '1', label: 'Market & Customers', Icon: Users },
+              { key: '2', label: 'Market Potential',   Icon: TrendingUp },
+              { key: '3', label: 'IP & Defensibility', Icon: Shield },
+              { key: '4', label: 'Founder & Team',     Icon: User },
+              { key: '5', label: 'Financials',         Icon: DollarSign },
+            ] as Array<{ key: string; label: string; Icon: React.ElementType }>).map(({ key, label, Icon }) => {
+              const isActive = String(currentStep) === key
+              const sec = sections[key]
+              const pct = animatedScores[key] ?? sec?.completionScore ?? 0
+              const isDone = pct >= 70
+              return (
+                <button
+                  key={key}
+                  onClick={() => setCurrentStep(parseInt(key, 10))}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    width: '100%', padding: '7px 10px', borderRadius: 8,
+                    border: 'none', cursor: 'pointer', textAlign: 'left',
+                    background: isActive ? surf2 : 'transparent',
+                    marginBottom: 1, transition: 'background 0.15s',
+                  }}
+                  onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = bdr }}
+                  onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent' }}
+                >
+                  <Icon size={14} color={isActive ? blue : muted} strokeWidth={isActive ? 2.5 : 1.75} style={{ flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: isActive ? 600 : 400, color: isActive ? blue : ink, lineHeight: 1.3 }}>{label}</div>
+                    <div style={{ marginTop: 3 }}>
+                      <div style={{ height: 2, background: bdr, borderRadius: 2, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${pct}%`, background: isDone ? green : blue, borderRadius: 2, transition: 'width 0.4s ease' }} />
+                      </div>
                     </div>
                   </div>
+                  {isDone && <Check size={12} color={green} strokeWidth={2.5} style={{ flexShrink: 0 }} />}
+                </button>
+              )
+            })}
+
+            {/* Review */}
+            <div style={{ marginTop: 16 }}>
+              {(() => {
+                const isActive = String(currentStep) === '6'
+                return (
+                  <button
+                    onClick={() => setCurrentStep(6)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      width: '100%', padding: '7px 10px', borderRadius: 8,
+                      border: 'none', cursor: 'pointer', textAlign: 'left',
+                      background: isActive ? surf2 : 'transparent',
+                      marginBottom: 1, transition: 'background 0.15s',
+                    }}
+                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = bdr }}
+                    onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent' }}
+                  >
+                    <CheckCircle2 size={14} color={isActive ? blue : muted} strokeWidth={isActive ? 2.5 : 1.75} style={{ flexShrink: 0 }} />
+                    <div style={{ fontSize: 12, fontWeight: isActive ? 600 : 400, color: isActive ? blue : ink, lineHeight: 1.3 }}>Review & Submit</div>
+                  </button>
                 )
-              })}
+              })()}
             </div>
+
           </div>
         </div>
 
@@ -952,19 +1048,19 @@ export default function ProfileBuilderPage() {
         <button
           onClick={() => setSidebarOpen(o => !o)}
           style={{
-            position: 'fixed', top: 62, left: sidebarOpen ? 208 : 8,
+            position: 'fixed', top: 20, left: sidebarOpen ? 212 : 8,
             zIndex: 40, width: 24, height: 24, borderRadius: '50%',
-            border: `1px solid ${bdr}`, background: '#fff',
+            border: `1px solid ${bdr}`, background: bg,
             cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 10, color: muted, transition: 'left 0.25s ease',
-            boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+            boxShadow: '0 1px 4px rgba(24,22,15,0.08)',
           }}
         >
           {sidebarOpen ? '‹' : '›'}
         </button>
 
         {/* ── Main content ── */}
-        <main style={{ flex: 1, minHeight: 'calc(100vh - 52px)', display: 'flex', flexDirection: 'column' }}>
+        <main style={{ flex: 1, minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <AnimatePresence mode="wait">
       <motion.div
         key={String(currentStep)}
@@ -977,7 +1073,7 @@ export default function ProfileBuilderPage() {
 
         {/* ── STEP 0: Document Upload ── */}
         {currentStep === 0 && (
-          <div style={{ maxWidth: 560, margin: '0 auto', width: '100%', padding: '56px 24px 40px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div style={{ maxWidth: 720, margin: '0 auto', width: '100%', padding: '56px 40px 40px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
             <div style={{ textAlign: 'center', marginBottom: 12 }}>
               <h2 style={{ fontSize: 24, fontWeight: 700, color: ink, margin: '0 0 8px', letterSpacing: '-0.02em' }}>
@@ -988,21 +1084,21 @@ export default function ProfileBuilderPage() {
               </p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
                 {[
-                  { icon: '📊', label: 'Pitch deck', note: 'Best for market + team' },
-                  { icon: '💰', label: 'Financial model', note: 'MRR, burn, runway' },
-                  { icon: '📋', label: 'Business plan', note: 'Full coverage' },
-                  { icon: '🤝', label: 'LOI / contracts', note: 'Customer traction' },
-                  { icon: '👥', label: 'Team bios / CV', note: 'Team section' },
-                  { icon: '🔬', label: 'Technical spec', note: 'IP + defensibility' },
-                ].map(({ icon, label, note }) => (
+                  { label: 'Pitch deck', note: 'Market + team' },
+                  { label: 'Financial model', note: 'MRR, burn, runway' },
+                  { label: 'Business plan', note: 'Full coverage' },
+                  { label: 'LOI / contracts', note: 'Customer traction' },
+                  { label: 'Team bios', note: 'Team section' },
+                  { label: 'Technical spec', note: 'IP + defensibility' },
+                ].map(({ label, note }) => (
                   <div key={label} style={{
-                    display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px',
-                    borderRadius: 20, border: `1px solid ${bdr}`, background: '#fafafa',
+                    display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px',
+                    borderRadius: 20, border: `1px solid ${bdr}`, background: surf,
                     fontSize: 12, color: ink,
                   }}>
-                    <span>{icon}</span>
-                    <span style={{ fontWeight: 600 }}>{label}</span>
-                    <span style={{ color: muted }}>— {note}</span>
+                    <FileText size={11} color={muted} strokeWidth={1.75} />
+                    <span style={{ fontWeight: 500 }}>{label}</span>
+                    <span style={{ color: muted, fontSize: 11 }}>· {note}</span>
                   </div>
                 ))}
               </div>
@@ -1012,13 +1108,17 @@ export default function ProfileBuilderPage() {
               onClick={() => { if (!uploadLoading) fileInputRef.current?.click() }}
               style={{
                 border: `2px dashed ${bdr}`, borderRadius: 16, padding: '48px 32px',
-                textAlign: 'center', background: '#fafafa', cursor: uploadLoading ? 'not-allowed' : 'pointer',
-                transition: 'all 0.15s',
+                textAlign: 'center', background: surf, cursor: uploadLoading ? 'not-allowed' : 'pointer',
+                transition: 'all 0.2s', boxShadow: 'inset 0 1px 3px rgba(24,22,15,0.04)',
               }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = blue; e.currentTarget.style.background = '#EFF6FF' }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = bdr; e.currentTarget.style.background = '#fafafa' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = amber; e.currentTarget.style.background = '#FFF7ED'; e.currentTarget.style.boxShadow = '0 2px 12px rgba(217,119,6,0.08)' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = bdr; e.currentTarget.style.background = surf; e.currentTarget.style.boxShadow = 'inset 0 1px 3px rgba(24,22,15,0.04)' }}
             >
-              <div style={{ fontSize: 32, marginBottom: 12 }}>{uploadLoading ? '⏳' : '📁'}</div>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
+                {uploadLoading
+                  ? <Loader2 size={36} color={blue} strokeWidth={1.5} style={{ animation: 'spin 1s linear infinite' }} />
+                  : <UploadCloud size={36} color={muted} strokeWidth={1.25} />}
+              </div>
               <div style={{ fontSize: 15, fontWeight: 600, color: ink, marginBottom: 6 }}>
                 {uploadLoading ? 'Uploading and extracting…' : 'Drop files or click to upload'}
               </div>
@@ -1037,17 +1137,32 @@ export default function ProfileBuilderPage() {
                 {uploadedFiles.map((f, i) => (
                   <div key={i} style={{
                     display: 'flex', alignItems: 'center', gap: 12,
-                    padding: '10px 14px', borderRadius: 10, background: '#fafafa',
+                    padding: '10px 14px', borderRadius: 10, background: bg,
                     border: `1px solid ${bdr}`, marginBottom: 6,
+                    boxShadow: '0 1px 3px rgba(24,22,15,0.05)',
                   }}>
-                    <span style={{ fontSize: 18 }}>📄</span>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: ink }}>{f.name}</div>
+                    <div style={{ width: 32, height: 32, borderRadius: 8, background: surf2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <FileText size={15} color={muted} strokeWidth={1.75} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</div>
                       <div style={{ fontSize: 11, color: f.fields > 0 ? green : muted, marginTop: 2 }}>
                         {f.fields > 0 ? `${f.fields} fields extracted` : 'Stored as context'}
                       </div>
                     </div>
-                    <span style={{ fontSize: 13, color: green }}>✓</span>
+                    <Check size={14} color={green} strokeWidth={2.5} style={{ flexShrink: 0 }} />
+                    <button
+                      onClick={() => handleRemoveFile(i)}
+                      title="Remove file"
+                      style={{
+                        width: 22, height: 22, borderRadius: '50%', border: `1px solid ${bdr}`,
+                        background: bg, color: muted, fontSize: 13, lineHeight: 1,
+                        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        padding: 0, fontFamily: 'inherit', flexShrink: 0,
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = '#FEF2F2'; e.currentTarget.style.borderColor = '#FECACA' }}
+                      onMouseLeave={e => { e.currentTarget.style.background = bg; e.currentTarget.style.borderColor = bdr }}
+                    ><XIcon size={11} color={muted} strokeWidth={2} /></button>
                   </div>
                 ))}
 
@@ -1058,12 +1173,14 @@ export default function ProfileBuilderPage() {
                     disabled={recalcLoading}
                     style={{
                       padding: '8px 16px', borderRadius: 8, border: `1.5px solid ${bdr}`,
-                      background: recalcLoading ? bdr : '#fff', color: ink,
+                      background: recalcLoading ? bdr : bg, color: ink,
                       fontSize: 13, fontWeight: 500, cursor: recalcLoading ? 'not-allowed' : 'pointer',
                       fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6,
                     }}
                   >
-                    {recalcLoading ? '⏳ Calculating…' : '⚡ Preview score impact'}
+                    {recalcLoading
+                      ? <><Loader2 size={13} strokeWidth={2} style={{ animation: 'spin 1s linear infinite' }} /> Calculating…</>
+                      : <><Zap size={13} strokeWidth={2} /> Preview score impact</>}
                   </button>
                   {recalcResult && (
                     <div style={{
@@ -1106,7 +1223,7 @@ export default function ProfileBuilderPage() {
           const stripeVisible = isSection5 && mentionsRevenue && sec.uploadedDocuments.length === 0
 
           return (
-            <div style={{ maxWidth: 640, margin: '0 auto', width: '100%', padding: '48px 24px 0', display: 'flex', flexDirection: 'column', flex: 1 }}>
+            <div style={{ maxWidth: 880, width: '100%', margin: '0 auto', padding: '48px 40px 0', display: 'flex', flexDirection: 'column', flex: 1 }}>
 
               {/* Section heading */}
               <div style={{ textAlign: 'center', marginBottom: 28 }}>
@@ -1120,18 +1237,19 @@ export default function ProfileBuilderPage() {
 
               {/* Completion bar — subtle, sections 1-5 only */}
               {currentStep !== 'pitch' && sec.completionScore > 0 && (
-                <div style={{ marginBottom: 20 }}>
+                <div style={{ marginBottom: 20, maxWidth: 480, margin: '0 auto 20px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
                     <span style={{ fontSize: 12, color: muted }}>Section completion</span>
                     <span style={{ fontSize: 12, fontWeight: 600, color: sec.completionScore >= 70 ? green : muted }}>
-                      {Math.round(animatedScores[key] ?? sec.completionScore)}%{sec.completionScore >= 70 ? ' · Complete ✓' : ''}
+                      {Math.round(animatedScores[key] ?? sec.completionScore)}%{sec.completionScore >= 70 ? ' · Complete' : ''}
                     </span>
                   </div>
-                  <div style={{ height: 3, background: bdr, borderRadius: 2, overflow: 'hidden' }}>
+                  <div style={{ height: 4, background: bdr, borderRadius: 2, overflow: 'hidden' }}>
                     <div style={{
                       height: '100%', borderRadius: 2,
                       width: `${animatedScores[key] ?? sec.completionScore}%`,
                       background: sec.completionScore >= 70 ? green : blue,
+                      transition: 'width 0.4s ease',
                     }} />
                   </div>
                 </div>
@@ -1162,9 +1280,10 @@ export default function ProfileBuilderPage() {
                     <div style={{
                       maxWidth: '82%', padding: '11px 15px',
                       fontSize: 14, lineHeight: 1.65,
-                      background: msg.role === 'user' ? blue : '#f5f5f5',
+                      background: msg.role === 'user' ? blue : surf2,
                       color: msg.role === 'user' ? '#fff' : ink,
                       borderRadius: msg.role === 'user' ? '14px 4px 14px 14px' : '4px 14px 14px 14px',
+                      boxShadow: msg.role === 'user' ? '0 2px 8px rgba(37,99,235,0.18)' : '0 1px 3px rgba(24,22,15,0.06)',
                     }}>
                       {msg.text}
                     </div>
@@ -1172,10 +1291,10 @@ export default function ProfileBuilderPage() {
                 ))}
                 {isTyping && (
                   <div style={{ display: 'flex', gap: 5, padding: '12px 14px', width: 64,
-                    background: '#f5f5f5', borderRadius: '4px 14px 14px 14px' }}>
+                    background: surf2, borderRadius: '4px 14px 14px 14px' }}>
                     {[0,1,2].map(i => (
                       <div key={i} style={{
-                        width: 7, height: 7, borderRadius: '50%', background: '#ccc',
+                        width: 7, height: 7, borderRadius: '50%', background: '#B5AFA7',
                         animation: `bounce 0.6s ${i * 0.15}s infinite`,
                       }} />
                     ))}
@@ -1191,7 +1310,9 @@ export default function ProfileBuilderPage() {
                   background: '#FFF7ED', border: '1px solid #FED7AA',
                   display: 'flex', alignItems: 'center', gap: 12,
                 }}>
-                  <span style={{ fontSize: 16 }}>📊</span>
+                  <div style={{ width: 32, height: 32, borderRadius: 8, background: surf2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <BarChart size={15} color={amber} strokeWidth={1.75} />
+                  </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, color: '#92400E' }}>{uploadTrigger}</div>
                     {impact && (
@@ -1216,12 +1337,14 @@ export default function ProfileBuilderPage() {
                     disabled={recalcLoading}
                     style={{
                       padding: '6px 14px', borderRadius: 7, border: `1.5px solid ${bdr}`,
-                      background: '#fff', color: ink, fontSize: 12, fontWeight: 500,
+                      background: bg, color: ink, fontSize: 12, fontWeight: 500,
                       cursor: recalcLoading ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
                       display: 'flex', alignItems: 'center', gap: 5,
                     }}
                   >
-                    {recalcLoading ? '⏳' : '⚡'} {recalcLoading ? 'Calculating…' : 'Preview score impact'}
+                    {recalcLoading
+                      ? <><Loader2 size={12} strokeWidth={2} style={{ animation: 'spin 1s linear infinite' }} /> Calculating…</>
+                      : <><Zap size={12} strokeWidth={2} /> Preview score impact</>}
                   </button>
                   {recalcResult && (
                     <span style={{
@@ -1239,7 +1362,7 @@ export default function ProfileBuilderPage() {
               {stripeVisible && (
                 <div style={{
                   margin: '8px 0', border: `1px solid ${bdr}`, borderRadius: 10, padding: '12px 16px',
-                  background: '#fafafa', display: 'flex', gap: 12, alignItems: 'center',
+                  background: surf, display: 'flex', gap: 12, alignItems: 'center',
                 }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: ink }}>Connect Stripe for verified MRR</div>
@@ -1254,14 +1377,15 @@ export default function ProfileBuilderPage() {
               )}
 
               {/* Input area */}
-              <div style={{ paddingTop: 14, borderTop: `1px solid ${bdr}`, marginTop: 8 }}>
+              <div style={{ paddingTop: 16, borderTop: `1px solid ${bdr}`, marginTop: 'auto' }}>
                 <div style={{
-                  display: 'flex', alignItems: 'flex-end',
+                  display: 'flex', alignItems: 'flex-end', gap: 0,
                   border: `1.5px solid ${inputFocused ? blue : bdr}`,
-                  borderRadius: 16, background: isTyping ? '#fafafa' : '#fff',
-                  padding: '6px 6px 6px 4px', transition: 'border-color 0.15s',
+                  borderRadius: 14, background: isTyping ? surf : bg,
+                  transition: 'border-color 0.15s, box-shadow 0.15s',
+                  boxShadow: inputFocused ? '0 0 0 3px rgba(37,99,235,0.08)' : '0 1px 4px rgba(24,22,15,0.06)',
                 }}>
-                  {/* Upload */}
+                  {/* Attach */}
                   <button
                     onClick={() => { if (!uploadLoading) fileInputRef.current?.click() }}
                     disabled={uploadLoading}
@@ -1274,43 +1398,60 @@ export default function ProfileBuilderPage() {
                       : 'Upload supporting document'
                     }
                     style={{
-                      width: 34, height: 34, borderRadius: 9, border: 'none',
+                      width: 44, minHeight: 48, borderRadius: '14px 0 0 14px', border: 'none',
                       background: 'transparent', cursor: uploadLoading ? 'not-allowed' : 'pointer',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 15, color: muted, flexShrink: 0, opacity: uploadLoading ? 0.4 : 1,
+                      display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+                      paddingBottom: 12, flexShrink: 0, opacity: uploadLoading ? 0.35 : 1,
+                      transition: 'opacity 0.15s',
                     }}
-                  >📎</button>
+                  >
+                    <Paperclip size={17} color={muted} strokeWidth={1.75} />
+                  </button>
+                  {/* Divider */}
+                  <div style={{ width: 1, background: bdr, alignSelf: 'stretch', margin: '8px 0' }} />
                   {/* Textarea */}
                   <textarea
                     value={input}
-                    onChange={e => setInput(e.target.value)}
+                    onChange={e => {
+                      setInput(e.target.value)
+                      // auto-grow
+                      e.target.style.height = 'auto'
+                      e.target.style.height = Math.min(e.target.scrollHeight, 160) + 'px'
+                    }}
                     onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
                     onFocus={() => setInputFocused(true)}
                     onBlur={() => setInputFocused(false)}
                     placeholder={currentStep === 'pitch' ? 'Describe your company in 2-3 sentences…' : 'Type your answer…'}
-                    rows={2}
+                    rows={1}
                     disabled={isTyping}
                     style={{
-                      flex: 1, padding: '7px 8px', border: 'none', background: 'transparent',
+                      flex: 1, padding: '14px 10px', border: 'none', background: 'transparent',
                       fontSize: 14, color: ink, resize: 'none', fontFamily: 'inherit',
-                      outline: 'none', lineHeight: 1.55, opacity: isTyping ? 0.55 : 1,
+                      outline: 'none', lineHeight: 1.6, opacity: isTyping ? 0.5 : 1,
+                      minHeight: 48, maxHeight: 160, overflowY: 'auto',
                     }}
                   />
                   {/* Send */}
-                  <button
-                    onClick={handleSend}
-                    disabled={!input.trim() || isTyping}
-                    style={{
-                      width: 34, height: 34, borderRadius: 10, border: 'none',
-                      background: (input.trim() && !isTyping) ? blue : bdr,
-                      color: '#fff', fontSize: 16, fontWeight: 700,
-                      cursor: (input.trim() && !isTyping) ? 'pointer' : 'not-allowed',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      flexShrink: 0, transition: 'background 0.15s',
-                    }}
-                  >{isTyping ? '·' : '↑'}</button>
+                  <div style={{ display: 'flex', alignItems: 'flex-end', padding: '8px 8px 8px 0', flexShrink: 0 }}>
+                    <button
+                      onClick={handleSend}
+                      disabled={!input.trim() || isTyping}
+                      style={{
+                        width: 32, height: 32, borderRadius: 9, border: 'none',
+                        background: (input.trim() && !isTyping) ? blue : bdr,
+                        color: '#fff',
+                        cursor: (input.trim() && !isTyping) ? 'pointer' : 'not-allowed',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        flexShrink: 0, transition: 'background 0.15s',
+                      }}
+                    >
+                      {isTyping
+                        ? <Loader2 size={14} strokeWidth={2} style={{ animation: 'spin 1s linear infinite' }} />
+                        : <ArrowUp size={15} strokeWidth={2.5} />}
+                    </button>
+                  </div>
                 </div>
-                <p style={{ margin: '5px 0 0 4px', fontSize: 11, color: muted, opacity: 0.7 }}>
+                <p style={{ margin: '5px 0 0 6px', fontSize: 11, color: muted, opacity: 0.6 }}>
                   Enter to send · Shift+Enter for new line
                 </p>
               </div>
@@ -1340,82 +1481,199 @@ export default function ProfileBuilderPage() {
 
         {/* ── EXTRACT RESULTS ── */}
         {currentStep === 'extract-results' && (
-          <div style={{ maxWidth: 600, margin: '0 auto', width: '100%', padding: '48px 24px 60px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <div style={{ textAlign: 'center', marginBottom: 4 }}>
-              <h2 style={{ fontSize: 24, fontWeight: 700, color: ink, margin: '0 0 8px', letterSpacing: '-0.02em' }}>
-                Here&apos;s what we found
+          <div style={{ maxWidth: 880, margin: '0 auto', width: '100%', padding: '48px 40px 60px', display: 'flex', flexDirection: 'column', gap: 28 }}>
+
+            {/* ── Hero summary ── */}
+            <div style={{ textAlign: 'center' }}>
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '4px 12px', borderRadius: 20,
+                background: '#EFF6FF', border: `1px solid ${blue}33`,
+                fontSize: 11, fontWeight: 600, color: blue, letterSpacing: '0.04em',
+                textTransform: 'uppercase', marginBottom: 16,
+              }}>
+                <BarChart size={11} strokeWidth={2.5} /> Document analysis complete
+              </div>
+              <h2 style={{ fontSize: 26, fontWeight: 700, color: ink, margin: '0 0 10px', letterSpacing: '-0.02em', lineHeight: 1.25 }}>
+                We pre-filled your profile
               </h2>
-              <p style={{ fontSize: 14, color: muted, margin: 0, lineHeight: 1.6 }}>
-                {extractionSummary.reduce((s, x) => s + x.extractedCount, 0)} fields auto-filled across {extractionSummary.filter(x => x.completionPct > 0).length} sections
+              <p style={{ fontSize: 14, color: muted, margin: '0 0 28px', lineHeight: 1.6, maxWidth: 480, marginLeft: 'auto', marginRight: 'auto' }}>
+                Your documents gave us a head start. The fields we extracted directly raise your IQ Score — the more complete your profile, the higher your investor match rate.
               </p>
+
+              {/* Stats row */}
+              {(() => {
+                const _tf = extractionSummary.reduce((s, x) => s + x.extractedCount, 0)
+                const _avg = extractionSummary.length > 0 ? Math.round(extractionSummary.reduce((s, x) => s + x.completionPct, 0) / extractionSummary.length) : 0
+                const _done = extractionSummary.filter(x => x.completionPct >= 70).length
+                return (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, maxWidth: 480, margin: '0 auto' }}>
+                {[
+                  { value: String(_tf), label: 'Fields extracted', color: blue },
+                  { value: `${_avg}%`, label: 'Avg. coverage', color: _avg >= 60 ? green : amber },
+                  { value: `${_done}/${extractionSummary.length}`, label: 'Sections ready', color: _done > 0 ? green : muted },
+                ].map(({ value, label, color }) => (
+                  <div key={label} style={{
+                    padding: '14px 12px', borderRadius: 12,
+                    background: surf, border: `1px solid ${bdr}`,
+                    textAlign: 'center',
+                  }}>
+                    <div style={{ fontSize: 22, fontWeight: 800, color, letterSpacing: '-0.02em', lineHeight: 1 }}>{value}</div>
+                    <div style={{ fontSize: 11, color: muted, marginTop: 4, fontWeight: 500 }}>{label}</div>
+                  </div>
+                ))}
+              </div>
+                )
+              })()}
             </div>
 
-            {extractionSummary.map(s => {
-              const isDone = s.completionPct >= 70
-              return (
-                <div key={s.sectionKey} style={{
-                  borderRadius: 12, border: `1px solid ${isDone ? green + '55' : bdr}`,
-                  background: isDone ? '#F0FDF4' : '#fafafa', padding: '16px 20px',
+            {/* ── Section-by-section breakdown ── */}
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 12 }}>
+                Parameter breakdown
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {extractionSummary.map(s => {
+                  const isDone = s.completionPct >= 70
+                  const isPartial = s.completionPct > 0 && s.completionPct < 70
+                  const _sectionIcons: Record<string, React.ElementType> = { '1': Users, '2': TrendingUp, '3': Shield, '4': User, '5': DollarSign }
+                  const SIcon = _sectionIcons[s.sectionKey] ?? BarChart2
+                  const barColor = isDone ? green : isPartial ? blue : bdr
+                  const statusLabel = isDone ? 'Ready' : isPartial ? 'Partial' : 'Needs input'
+                  const statusBg = isDone ? '#F0FDF4' : isPartial ? '#EFF6FF' : surf2
+                  const statusColor = isDone ? green : isPartial ? blue : muted
+
+                  return (
+                    <div key={s.sectionKey} style={{
+                      borderRadius: 14, border: `1px solid ${isDone ? green + '40' : bdr}`,
+                      background: isDone ? '#FAFFFE' : bg,
+                      overflow: 'hidden',
+                    }}>
+                      {/* Card header */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px 10px' }}>
+                        <div style={{
+                          width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+                          background: isDone ? '#DCFCE7' : surf2,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          <SIcon size={15} color={isDone ? green : muted} strokeWidth={1.75} />
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: ink }}>{s.label}</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{
+                                fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20,
+                                background: statusBg, color: statusColor, letterSpacing: '0.03em',
+                              }}>{statusLabel}</span>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: statusColor, minWidth: 36, textAlign: 'right' }}>{s.completionPct}%</span>
+                            </div>
+                          </div>
+                          {/* Progress bar */}
+                          <div style={{ height: 3, background: bdr, borderRadius: 2, overflow: 'hidden', marginTop: 6 }}>
+                            <div style={{ height: '100%', width: `${s.completionPct}%`, background: barColor, borderRadius: 2, transition: 'width 0.6s ease' }} />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Extracted + missing chips */}
+                      {(s.extractedSnippets.length > 0 || s.missingLabels.length > 0) && (
+                        <div style={{ padding: '0 18px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          {s.extractedSnippets.length > 0 && (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                              {s.extractedSnippets.map((snip, i) => (
+                                <span key={i} style={{
+                                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                                  fontSize: 11, padding: '3px 9px', borderRadius: 20,
+                                  background: '#D1FAE5', color: '#065F46', fontWeight: 500,
+                                }}>
+                                  <Check size={9} strokeWidth={3} style={{ flexShrink: 0 }} />
+                                  {snip.label}: <span style={{ fontWeight: 700 }}>{snip.value}</span>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {s.missingLabels.length > 0 && (
+                            <div>
+                              <div style={{ fontSize: 10, color: muted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
+                                Still needed to improve score
+                              </div>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                                {s.missingLabels.map((m, i) => (
+                                  <span key={i} style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                                    fontSize: 11, padding: '3px 9px', borderRadius: 20,
+                                    background: surf2, color: muted, fontWeight: 500,
+                                    border: `1px dashed ${bdr}`,
+                                  }}>
+                                    <AlertTriangle size={9} strokeWidth={2} style={{ flexShrink: 0, color: amber }} />{m}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* ── Next step callout ── */}
+            {smartQuestions.length > 0 ? (
+              <div style={{
+                borderRadius: 14, border: `1px solid ${blue}33`,
+                background: '#F0F5FF', padding: '20px 24px',
+                display: 'flex', alignItems: 'center', gap: 16,
+              }}>
+                <div style={{
+                  width: 40, height: 40, borderRadius: 10, background: blue,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: ink }}>{s.label}</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: isDone ? green : muted }}>{s.completionPct}%</span>
-                      {isDone && <span style={{ fontSize: 12, color: green, fontWeight: 700 }}>Complete ✓</span>}
-                    </div>
-                  </div>
-                  <div style={{ height: 4, background: bdr, borderRadius: 2, overflow: 'hidden', marginBottom: 10 }}>
-                    <div style={{ height: '100%', width: `${s.completionPct}%`, background: isDone ? green : blue, borderRadius: 2, transition: 'width 0.5s ease' }} />
-                  </div>
-                  {s.extractedSnippets.length > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: s.missingLabels.length > 0 ? 8 : 0 }}>
-                      {s.extractedSnippets.map((snip, i) => (
-                        <span key={i} style={{
-                          fontSize: 11, padding: '3px 8px', borderRadius: 20,
-                          background: '#D1FAE5', color: '#065F46', fontWeight: 500,
-                        }}>✓ {snip.label}: {snip.value}</span>
-                      ))}
-                    </div>
-                  )}
-                  {s.missingLabels.length > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                      {s.missingLabels.map((m, i) => (
-                        <span key={i} style={{
-                          fontSize: 11, padding: '3px 8px', borderRadius: 20,
-                          background: '#FEF3C7', color: '#92400E', fontWeight: 500,
-                        }}>⚠ {m}</span>
-                      ))}
-                    </div>
-                  )}
+                  <MessageSquare size={18} color='#fff' strokeWidth={1.75} />
                 </div>
-              )
-            })}
-
-            {smartQuestions.length > 0 && (
-              <div style={{ padding: '16px 20px', borderRadius: 12, background: '#EFF6FF', border: `1px solid ${blue}22` }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: blue, marginBottom: 4 }}>
-                  {smartQuestions.length} quick {smartQuestions.length === 1 ? 'question' : 'questions'} to fill the gaps
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: ink, marginBottom: 2 }}>
+                    {smartQuestions.length} targeted {smartQuestions.length === 1 ? 'question' : 'questions'} to unlock a higher score
+                  </div>
+                  <div style={{ fontSize: 12, color: muted, lineHeight: 1.5 }}>
+                    These fill the specific gaps that affect your IQ Score most. Takes 3–5 minutes.
+                  </div>
                 </div>
-                <div style={{ fontSize: 13, color: muted }}>Estimated time: 3–5 minutes</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: blue, flexShrink: 0 }}>~{smartQuestions.length * 45}s</div>
               </div>
-            )}
-            {smartQuestions.length === 0 && (
-              <div style={{ padding: '16px 20px', borderRadius: 12, background: '#F0FDF4', border: `1px solid ${green}44` }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: green }}>All critical fields covered from your documents!</div>
-                <div style={{ fontSize: 13, color: muted, marginTop: 2 }}>You can go straight to review & submit.</div>
+            ) : (
+              <div style={{
+                borderRadius: 14, border: `1px solid ${green}44`,
+                background: '#F0FDF4', padding: '20px 24px',
+                display: 'flex', alignItems: 'center', gap: 16,
+              }}>
+                <div style={{
+                  width: 40, height: 40, borderRadius: 10, background: green,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                }}>
+                  <CheckCircle2 size={18} color='#fff' strokeWidth={1.75} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: ink, marginBottom: 2 }}>All critical fields covered</div>
+                  <div style={{ fontSize: 12, color: muted }}>Your documents gave us everything we need. Ready to calculate your IQ Score.</div>
+                </div>
               </div>
             )}
 
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'space-between' }}>
+            {/* ── CTAs ── */}
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'space-between', alignItems: 'center' }}>
               <button onClick={() => { setFlowMode('full'); setCurrentStep('pitch') }} style={{
-                padding: '10px 20px', borderRadius: 8, border: `1px solid ${bdr}`,
+                padding: '10px 18px', borderRadius: 8, border: `1px solid ${bdr}`,
                 background: 'transparent', fontSize: 13, color: muted,
                 cursor: 'pointer', fontFamily: 'inherit',
-              }}>Explore sections manually</button>
+              }}>Explore manually</button>
               <button onClick={() => setCurrentStep(smartQuestions.length > 0 ? 'smart-qa' : 6)} style={{
-                padding: '12px 28px', borderRadius: 10, border: 'none',
+                padding: '13px 32px', borderRadius: 10, border: 'none',
                 background: blue, color: '#fff', fontSize: 14, fontWeight: 600,
                 cursor: 'pointer', fontFamily: 'inherit',
+                boxShadow: `0 4px 14px ${blue}40`,
               }}>
                 {smartQuestions.length > 0 ? `Answer ${smartQuestions.length} questions →` : 'Review & Submit →'}
               </button>
@@ -1440,9 +1698,10 @@ export default function ProfileBuilderPage() {
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                 body: JSON.stringify({
                   section: parseInt(q.sectionKey, 10),
-                  conversationText: `${q.text}\n\nAnswer: ${smartInput}`,
+                  conversationText: (sections[q.sectionKey]?.conversation ?? '') + `\nAgent: ${q.text}\nFounder: ${smartInput}`,
                   founderProfile,
                   existingExtracted: sections[q.sectionKey]?.extractedFields ?? {},
+                  existingConfidenceMap: sections[q.sectionKey]?.confidenceMap ?? {},
                 }),
               })
               if (res.ok) {
@@ -1450,12 +1709,26 @@ export default function ProfileBuilderPage() {
                 const secKey = q.sectionKey
                 setSections(prev => {
                   const sec = prev[secKey] ?? initSection()
+                  // Also append to messages so the section chatbot sees this Q&A
+                  // and doesn't re-ask the same question when user navigates to that section
+                  const newMessages: Message[] = [
+                    ...sec.messages,
+                    { role: 'agent' as const, text: q.text },
+                    { role: 'user' as const, text: smartInput },
+                  ]
+                  // If section is now complete, add a completion acknowledgement
+                  const newScore = data.completionScore ?? sec.completionScore
+                  if (newScore >= 70 && sec.completionScore < 70) {
+                    newMessages.push({ role: 'agent' as const, text: `Got it — this section is looking good (${newScore}%). You can add more detail or move on.` })
+                  }
                   const updated: SectionState = {
                     ...sec,
                     extractedFields: data.mergedFields ?? sec.extractedFields,
-                    completionScore: data.completionScore ?? sec.completionScore,
-                    isComplete: (data.completionScore ?? sec.completionScore) >= 70,
-                    conversation: (sec.conversation ? sec.conversation + '\n' : '') + `Q: ${q.text}\nA: ${smartInput}`,
+                    confidenceMap: { ...sec.confidenceMap, ...(data.confidenceMap ?? {}) },
+                    completionScore: newScore,
+                    isComplete: newScore >= 70,
+                    messages: newMessages,
+                    conversation: (sec.conversation ?? '') + `\nAgent: ${q.text}\nFounder: ${smartInput}`,
                   }
                   if (token) saveSection(secKey, updated, token)
                   return { ...prev, [secKey]: updated }
@@ -1478,7 +1751,8 @@ export default function ProfileBuilderPage() {
           }
 
           return (
-            <div style={{ maxWidth: 560, margin: '0 auto', width: '100%', padding: '48px 24px 60px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '48px 40px 60px' }}>
+            <div style={{ maxWidth: 880, width: '100%', display: 'flex', flexDirection: 'column', gap: 20 }}>
               {/* Progress */}
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
@@ -1518,8 +1792,9 @@ export default function ProfileBuilderPage() {
               <div style={{
                 display: 'flex', alignItems: 'flex-end',
                 border: `1.5px solid ${smartInputFocused ? blue : bdr}`,
-                borderRadius: 16, background: '#fff',
+                borderRadius: 16, background: bg,
                 padding: '6px 6px 6px 12px', transition: 'border-color 0.15s',
+                boxShadow: smartInputFocused ? '0 0 0 3px rgba(37,99,235,0.08)' : '0 1px 4px rgba(24,22,15,0.06)',
               }}>
                 <textarea
                   value={smartInput}
@@ -1551,9 +1826,10 @@ export default function ProfileBuilderPage() {
 
               {/* Help text */}
               {q.helpText && (
-                <p style={{ fontSize: 12, color: muted, margin: 0, fontStyle: 'italic', lineHeight: 1.5 }}>
-                  💡 {q.helpText}
-                </p>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7, padding: '8px 12px', borderRadius: 8, background: surf, border: `1px solid ${bdr}` }}>
+                  <Lightbulb size={13} color={amber} strokeWidth={1.75} style={{ flexShrink: 0, marginTop: 1 }} />
+                  <p style={{ fontSize: 12, color: muted, margin: 0, lineHeight: 1.55 }}>{q.helpText}</p>
+                </div>
               )}
 
               {/* Navigation */}
@@ -1572,186 +1848,207 @@ export default function ProfileBuilderPage() {
                 <span style={{ fontSize: 11, color: muted }}>Enter to submit</span>
               </div>
             </div>
+            </div>
           )
         })()}
 
         {/* ── STEP 6: Review & Submit ── */}
         {currentStep === 6 && (
-          <div style={{ maxWidth: 560, margin: '0 auto', width: '100%', padding: '48px 24px 60px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div style={{ maxWidth: 720, margin: '0 auto', width: '100%', padding: '48px 40px 60px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
             {submitResult ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {/* Score hero */}
-                <div style={{ textAlign: 'center', padding: '40px 24px 24px' }}>
-                  <div style={{ fontSize: 80, fontWeight: 800, color: blue, lineHeight: 1, letterSpacing: '-0.04em' }}>
-                    {submitResult.score}
-                  </div>
-                  <div style={{ fontSize: 20, fontWeight: 700, color: ink, marginTop: 6 }}>Grade {submitResult.grade}</div>
-                  {submitResult.track && (
-                    <div style={{ marginTop: 8, display: 'inline-block', padding: '3px 12px', borderRadius: 999, background: '#EFF6FF', border: `1px solid ${blue}33`, fontSize: 12, color: blue, fontWeight: 600 }}>
-                      {submitResult.track} track
-                    </div>
-                  )}
-                  <div style={{ fontSize: 13, color: muted, marginTop: 10 }}>
-                    Redirecting to dashboard in a moment…
-                  </div>
-                </div>
-
-                {/* P1–P6 breakdown */}
-                {submitResult.iqBreakdown.length > 0 && (
-                  <div style={{ borderRadius: 14, border: `1px solid ${bdr}`, background: '#fafafa', overflow: 'hidden' }}>
-                    <div style={{ padding: '14px 20px', borderBottom: `1px solid ${bdr}` }}>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Why you scored this</div>
-                    </div>
-                    <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-                      {submitResult.iqBreakdown.map(p => {
-                        const s100 = Math.round(p.averageScore * 20)
-                        const barColor = s100 >= 70 ? green : s100 >= 45 ? amber : red
-                        return (
-                          <div key={p.id}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-                              <span style={{ fontSize: 13, fontWeight: 600, color: ink }}>{p.name}</span>
-                              <span style={{ fontSize: 12, color: muted }}>{s100}/100 · {Math.round(p.weight * 100)}%</span>
-                            </div>
-                            <div style={{ height: 6, background: '#F0EDE6', border: `1px solid ${bdr}`, borderRadius: 999, overflow: 'hidden' }}>
-                              <div style={{ height: '100%', width: `${s100}%`, borderRadius: 999, background: barColor, transition: 'width 0.6s ease' }} />
-                            </div>
-                            <div style={{ fontSize: 11, color: muted, marginTop: 3 }}>
-                              {p.indicatorsActive} indicator{p.indicatorsActive !== 1 ? 's' : ''} scored
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* ── Result Memo ─────────────────────────────────── */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
                 {submitResult.iqBreakdown.length > 0 && (() => {
                   const narrative = buildScoreNarrative(
                     submitResult.iqBreakdown, submitResult.score, submitResult.grade, submitResult.reconciliationFlags
                   )
-                  const s100 = (avg: number) => Math.round(avg * 20)
-                  return (
-                    <div className="result-memo" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  const toS100 = (avg: number) => Math.round(avg * 20)
+                  const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+                  const companyLabel = founderProfile.companyName || 'Your Startup'
 
-                      {/* Section 1 — Score Evidence */}
-                      <div style={{ borderRadius: 14, border: `1px solid ${bdr}`, background: '#fafafa', overflow: 'hidden' }}>
-                        <div style={{ padding: '14px 20px', borderBottom: `1px solid ${bdr}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Score Evidence</div>
-                          <button
-                            onClick={() => window.print()}
-                            style={{ padding: '5px 14px', borderRadius: 6, border: `1px solid ${bdr}`, background: 'white', fontSize: 12, color: muted, cursor: 'pointer', fontFamily: 'inherit' }}
-                          >
-                            Download PDF
+                  function generateMemoPDF() {
+                    const rows = submitResult!.iqBreakdown.map(p => {
+                      const ps = toS100(p.averageScore)
+                      const inds = (p.indicators ?? []).map(ind => {
+                        const sc = ind.excluded ? '—' : ind.rawScore === 0 ? '0.0' : ind.rawScore.toFixed(1)
+                        const flag = ind.vcAlert && !ind.excluded ? ' ⚑' : ''
+                        const ex = ind.excluded ? ` (${ind.exclusionReason ?? 'N/A'})` : ''
+                        return `<tr style="border-bottom:1px solid #E8E3D8"><td style="padding:6px 12px;font-size:11px;color:#6B6760">${ind.name}${ex}</td><td style="padding:6px 12px;font-size:11px;font-weight:700;color:${ind.excluded ? '#aaa' : ind.rawScore >= 4 ? '#16A34A' : ind.rawScore >= 2.5 ? '#D97706' : '#DC2626'};text-align:center">${sc}${flag}</td></tr>`
+                      }).join('')
+                      return `<div style="margin-bottom:20px;border:1px solid #E8E3D8;border-radius:10px;overflow:hidden"><div style="background:#F5F1E8;padding:10px 16px;display:flex;justify-content:space-between;align-items:center"><span style="font-size:13px;font-weight:700;color:#2A2826">${p.name}</span><span style="font-size:13px;font-weight:800;color:${ps >= 70 ? '#16A34A' : ps >= 45 ? '#D97706' : '#DC2626'}">${ps}/100</span></div><div style="padding:8px 0"><div style="height:4px;background:#E8E3D8;margin:0 16px 10px"><div style="height:100%;width:${ps}%;background:${ps >= 70 ? '#16A34A' : ps >= 45 ? '#D97706' : '#DC2626'}"></div></div><table style="width:100%;border-collapse:collapse">${inds}</table></div>${narrative.perParam[p.id] ? `<div style="padding:10px 16px;background:#FAF8F3;border-top:1px solid #E8E3D8;font-size:12px;color:#6B6760;line-height:1.6">${narrative.perParam[p.id]}</div>` : ''}</div>`
+                    }).join('')
+
+                    const unlocks = submitResult!.unlockCards.map(c => `<div style="display:flex;gap:14px;padding:12px 14px;border:1px solid #E8E3D8;border-radius:8px;margin-bottom:10px"><div style="min-width:44px;text-align:center;padding-top:4px"><div style="font-size:20px;font-weight:800;color:#2563EB">+${c.estimatedPointGain}</div><div style="font-size:9px;color:#6B6760;text-transform:uppercase;letter-spacing:0.06em">pts</div></div><div><div style="font-size:12px;font-weight:700;color:#2A2826;margin-bottom:3px">${c.indicatorName}</div><div style="font-size:11px;color:#6B6760;margin-bottom:5px">${c.currentScore.toFixed(1)}/5 → target ${c.targetScore}/5${c.agentId ? ` · ${c.agentId.charAt(0).toUpperCase() + c.agentId.slice(1)} can help` : ''}</div><div style="font-size:12px;color:#2A2826;line-height:1.55">${c.action}</div></div></div>`).join('')
+
+                    const warnings = submitResult!.validationWarnings.length > 0
+                      ? `<div style="margin:16px 0;padding:12px 16px;background:#FFFBEB;border:1px solid #D97706;border-radius:8px"><div style="font-size:11px;font-weight:700;color:#D97706;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px">Consistency Notes</div>${submitResult!.validationWarnings.map(w => `<div style="font-size:12px;color:#2A2826;line-height:1.5">· ${w}</div>`).join('')}</div>` : ''
+
+                    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>IQ Score Memo — ${companyLabel}</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#FAF8F3;color:#2A2826}@media print{body{background:white}.no-print{display:none!important}@page{margin:18mm 14mm;size:A4}}</style></head><body><div style="max-width:720px;margin:0 auto;padding:48px 40px 60px"><div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:24px;border-bottom:2px solid #2A2826;margin-bottom:32px"><div><div style="font-size:11px;font-weight:700;color:#6B6760;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px">Edge Alpha · IQ Score Memo</div><div style="font-size:24px;font-weight:800;color:#2A2826;letter-spacing:-0.02em">${companyLabel}</div><div style="font-size:12px;color:#6B6760;margin-top:4px">${dateStr}</div></div><div style="text-align:right"><div style="font-size:56px;font-weight:800;color:#2563EB;line-height:1;letter-spacing:-0.04em">${submitResult!.score}</div><div style="font-size:14px;font-weight:700;color:#2A2826">Grade ${submitResult!.grade}</div>${submitResult!.track ? `<div style="font-size:11px;color:#2563EB;margin-top:2px">${submitResult!.track} track</div>` : ''}</div></div><div style="margin-bottom:32px"><div style="font-size:11px;font-weight:700;color:#6B6760;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:14px">Parameter Overview</div>${submitResult!.iqBreakdown.map(p => { const ps = toS100(p.averageScore); return `<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px"><div style="width:150px;font-size:12px;color:#2A2826;font-weight:600;flex-shrink:0">${p.name}</div><div style="flex:1;height:6px;background:#E8E3D8;border-radius:3px;overflow:hidden"><div style="height:100%;width:${ps}%;background:${ps >= 70 ? '#16A34A' : ps >= 45 ? '#D97706' : '#DC2626'}"></div></div><div style="width:48px;text-align:right;font-size:12px;font-weight:800;color:${ps >= 70 ? '#16A34A' : ps >= 45 ? '#D97706' : '#DC2626'}">${ps}/100</div></div>` }).join('')}</div><div style="margin-bottom:32px;padding:20px 24px;background:#F5F1E8;border-left:3px solid #2563EB;border-radius:0 8px 8px 0"><div style="font-size:11px;font-weight:700;color:#6B6760;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px">Assessment Summary</div><p style="font-size:13px;color:#2A2826;line-height:1.7">${narrative.overall}</p></div><div style="margin-bottom:32px"><div style="font-size:11px;font-weight:700;color:#6B6760;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:14px">Indicator Detail</div>${rows}</div>${warnings}${submitResult!.unlockCards.length > 0 ? `<div style="margin-bottom:32px"><div style="font-size:11px;font-weight:700;color:#6B6760;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:14px">Top Score Unlocks</div>${unlocks}</div>` : ''}${submitResult!.readinessSummary ? `<div style="padding:18px 20px;background:#F5F1E8;border:1px solid #E8E3D8;border-radius:8px;margin-bottom:32px"><div style="font-size:11px;font-weight:700;color:#6B6760;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Investor Readiness Summary</div><p style="font-size:13px;color:#2A2826;line-height:1.7;font-style:italic">${submitResult!.readinessSummary}</p></div>` : ''}<div style="padding-top:20px;border-top:1px solid #E8E3D8;display:flex;justify-content:space-between;align-items:center"><div style="font-size:11px;color:#6B6760">Confidential · Generated by Edge Alpha</div><div style="font-size:11px;color:#6B6760">edgealpha.com</div></div></div><script>window.onload=function(){window.print()}<\/script></body></html>`
+
+                    const win = window.open('', '_blank')
+                    if (win) { win.document.write(html); win.document.close() }
+                  }
+
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+
+                      {/* Memo Header */}
+                      <div style={{ padding: '32px 0 28px', borderBottom: `1px solid ${bdr}`, marginBottom: 28 }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 20 }}>
+                          <div>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 6 }}>
+                              Edge Alpha · IQ Score Memo
+                            </div>
+                            <div style={{ fontSize: 28, fontWeight: 800, color: ink, letterSpacing: '-0.02em', lineHeight: 1.1, marginBottom: 6 }}>
+                              {companyLabel}
+                            </div>
+                            <div style={{ fontSize: 12, color: muted }}>{dateStr}</div>
+                          </div>
+                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                            <div style={{ fontSize: 64, fontWeight: 900, color: blue, lineHeight: 1, letterSpacing: '-0.04em' }}>{submitResult.score}</div>
+                            <div style={{ fontSize: 15, fontWeight: 700, color: ink, marginTop: 2 }}>Grade {submitResult.grade}</div>
+                            {submitResult.track && <div style={{ marginTop: 4, fontSize: 11, fontWeight: 600, color: blue }}>{submitResult.track} track</div>}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
+                          <button onClick={() => router.push('/founder/dashboard')} style={{ padding: '10px 22px', borderRadius: 9, border: 'none', background: blue, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', boxShadow: `0 2px 10px ${blue}33` }}>Go to Dashboard →</button>
+                          <button onClick={() => router.push('/founder/improve-qscore')} style={{ padding: '10px 22px', borderRadius: 9, border: `1px solid ${bdr}`, background: 'transparent', color: ink, fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>Improve my score</button>
+                          <button onClick={generateMemoPDF} style={{ padding: '10px 18px', borderRadius: 9, border: `1px solid ${bdr}`, background: 'transparent', color: muted, fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
+                            <FileText size={13} strokeWidth={1.75} /> Download PDF
                           </button>
                         </div>
-                        <div style={{ padding: '4px 0' }}>
-                          {submitResult.iqBreakdown.map((p, pi) => {
-                            const ps = s100(p.averageScore)
-                            const psColor = ps >= 70 ? green : ps >= 45 ? amber : red
+                      </div>
+
+                      {/* Parameter overview */}
+                      <div style={{ marginBottom: 28 }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 14 }}>Parameter Overview</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          {submitResult.iqBreakdown.map(p => {
+                            const ps = toS100(p.averageScore)
+                            const bc = ps >= 70 ? green : ps >= 45 ? amber : red
                             return (
-                              <div key={p.id} style={{ borderBottom: pi < submitResult.iqBreakdown.length - 1 ? `1px solid ${bdr}` : 'none' }}>
-                                {/* Parameter header */}
-                                <div style={{ padding: '12px 20px 8px', display: 'flex', alignItems: 'center', gap: 10, background: '#f5f4f1' }}>
-                                  <span style={{ fontSize: 12, fontWeight: 700, color: ink }}>{p.name}</span>
-                                  <span style={{ fontSize: 12, fontWeight: 700, color: psColor }}>{ps}/100</span>
-                                  <span style={{ fontSize: 11, color: muted }}>· {Math.round(p.weight * 100)}% weight</span>
-                                  <span style={{ marginLeft: 'auto', fontSize: 11, color: muted }}>{p.indicatorsActive} active</span>
+                              <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                                <div style={{ width: 160, fontSize: 12, fontWeight: 600, color: ink, flexShrink: 0 }}>{p.name}</div>
+                                <div style={{ flex: 1, height: 6, background: bdr, borderRadius: 3, overflow: 'hidden' }}>
+                                  <div style={{ height: '100%', width: `${ps}%`, background: bc, borderRadius: 3, transition: 'width 0.6s ease' }} />
                                 </div>
-                                {/* Indicator rows */}
-                                <div style={{ padding: '4px 20px 10px' }}>
-                                  {(p.indicators ?? []).map(ind => {
-                                    const excluded = ind.excluded
-                                    const score5 = ind.rawScore
-                                    const badgeBg = excluded ? '#f0f0f0'
-                                      : score5 >= 4.0 ? '#DCFCE7'
-                                      : score5 >= 2.5 ? '#FEF3C7'
-                                      : score5 > 0 ? '#FEE2E2'
-                                      : '#f0f0f0'
-                                    const badgeColor = excluded ? muted
-                                      : score5 >= 4.0 ? green
-                                      : score5 >= 2.5 ? amber
-                                      : score5 > 0 ? red
-                                      : muted
-                                    return (
-                                      <div key={ind.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0', borderBottom: `1px solid #f5f4f1` }}>
-                                        {/* Score badge */}
-                                        <div style={{ minWidth: 36, padding: '2px 6px', borderRadius: 5, background: badgeBg, textAlign: 'center', fontSize: 11, fontWeight: 700, color: badgeColor, flexShrink: 0 }}>
-                                          {excluded ? '—' : score5 === 0 ? '0' : score5.toFixed(1)}
-                                        </div>
-                                        {/* Name */}
-                                        <span style={{ fontSize: 12, color: excluded ? muted : ink, flex: 1, fontStyle: excluded ? 'italic' : 'normal' }}>{ind.name}</span>
-                                        {/* Percentile chip */}
-                                        {ind.percentileLabel && !excluded && (
-                                          <span style={{ fontSize: 10, fontWeight: 600, color: blue, background: '#EFF6FF', padding: '2px 7px', borderRadius: 999, flexShrink: 0 }}>
-                                            {ind.percentileLabel}
-                                          </span>
-                                        )}
-                                        {/* Status chip */}
-                                        {excluded && (
-                                          <span style={{ fontSize: 10, color: muted, background: '#f0f0f0', padding: '2px 7px', borderRadius: 999, flexShrink: 0 }}>
-                                            {ind.exclusionReason ?? 'Not applicable'}
-                                          </span>
-                                        )}
-                                        {ind.vcAlert && !excluded && (
-                                          <span style={{ fontSize: 10, color: amber, background: '#FEF3C7', padding: '2px 7px', borderRadius: 999, flexShrink: 0 }}>
-                                            ⚠ VC flag
-                                          </span>
-                                        )}
-                                      </div>
-                                    )
-                                  })}
-                                </div>
+                                <div style={{ width: 52, textAlign: 'right', fontSize: 12, fontWeight: 800, color: bc }}>{ps}/100</div>
+                                <div style={{ width: 80, fontSize: 11, color: muted, textAlign: 'right' }}>{p.indicatorsActive} active · {Math.round(p.weight * 100)}% wt</div>
                               </div>
                             )
                           })}
                         </div>
                       </div>
 
-                      {/* Section 2 — Why this score */}
-                      <div style={{ borderRadius: 14, border: `1px solid ${bdr}`, background: '#fafafa', overflow: 'hidden' }}>
-                        <div style={{ padding: '14px 20px', borderBottom: `1px solid ${bdr}` }}>
-                          <div style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Why this score</div>
-                        </div>
-                        <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-                          {/* Overall narrative */}
-                          <p style={{ margin: 0, fontSize: 13, color: ink, lineHeight: 1.65 }}>{narrative.overall}</p>
-                          <div style={{ height: 1, background: bdr }} />
-                          {/* Per-parameter narrative */}
-                          {submitResult.iqBreakdown.map(p => (
-                            <div key={p.id} style={{ display: 'flex', gap: 10 }}>
-                              <div style={{ minWidth: 28, height: 28, borderRadius: '50%', background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: blue, flexShrink: 0 }}>
-                                {p.id.toUpperCase()}
+                      <div style={{ height: 1, background: bdr, marginBottom: 28 }} />
+
+                      {/* Assessment narrative */}
+                      <div style={{ marginBottom: 28, padding: '18px 20px', background: surf, borderLeft: `3px solid ${blue}`, borderRadius: '0 10px 10px 0', border: `1px solid ${bdr}`, borderLeftColor: blue }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>Assessment Summary</div>
+                        <p style={{ margin: 0, fontSize: 13, color: ink, lineHeight: 1.7 }}>{narrative.overall}</p>
+                      </div>
+
+                      {/* Indicator detail */}
+                      <div style={{ marginBottom: 28 }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 14 }}>Indicator Detail</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                          {submitResult.iqBreakdown.map(p => {
+                            const ps = toS100(p.averageScore)
+                            const psColor = ps >= 70 ? green : ps >= 45 ? amber : red
+                            return (
+                              <div key={p.id} style={{ borderRadius: 12, border: `1px solid ${bdr}`, overflow: 'hidden', background: bg }}>
+                                <div style={{ padding: '10px 16px', background: surf2, display: 'flex', alignItems: 'center', gap: 10, borderBottom: `1px solid ${bdr}` }}>
+                                  <div style={{ width: 24, height: 24, borderRadius: 6, background: psColor + '22', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 800, color: psColor, flexShrink: 0 }}>{p.id.toUpperCase()}</div>
+                                  <span style={{ fontSize: 13, fontWeight: 700, color: ink, flex: 1 }}>{p.name}</span>
+                                  <span style={{ fontSize: 14, fontWeight: 800, color: psColor }}>{ps}</span>
+                                  <span style={{ fontSize: 11, color: muted }}>/100</span>
+                                </div>
+                                <div>
+                                  {(p.indicators ?? []).map((ind, ii) => {
+                                    const score5 = ind.rawScore
+                                    const excl = ind.excluded
+                                    const dotColor = excl ? muted : score5 >= 4 ? green : score5 >= 2.5 ? amber : score5 > 0 ? red : muted
+                                    const scoreLabel = excl ? '—' : score5 === 0 ? '0.0' : score5.toFixed(1)
+                                    return (
+                                      <div key={ind.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 16px', borderBottom: ii < (p.indicators ?? []).length - 1 ? `1px solid ${bdr}` : 'none' }}>
+                                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: dotColor, flexShrink: 0 }} />
+                                        <span style={{ flex: 1, fontSize: 12, color: excl ? muted : ink, fontStyle: excl ? 'italic' : 'normal', lineHeight: 1.4 }}>{ind.name}</span>
+                                        {ind.percentileLabel && !excl && <span style={{ fontSize: 10, fontWeight: 600, color: blue, background: '#EFF6FF', padding: '1px 7px', borderRadius: 20, flexShrink: 0 }}>{ind.percentileLabel}</span>}
+                                        {ind.vcAlert && !excl && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, color: amber, background: '#FEF3C7', padding: '1px 7px', borderRadius: 20, flexShrink: 0 }}><AlertTriangle size={8} strokeWidth={2} />VC flag</span>}
+                                        {excl && <span style={{ fontSize: 10, color: muted, background: surf2, padding: '1px 7px', borderRadius: 20, flexShrink: 0 }}>{ind.exclusionReason ?? 'N/A'}</span>}
+                                        <div style={{ minWidth: 32, padding: '2px 6px', borderRadius: 5, background: excl ? surf2 : score5 >= 4 ? '#DCFCE7' : score5 >= 2.5 ? '#FEF3C7' : score5 > 0 ? '#FEE2E2' : surf2, textAlign: 'center', fontSize: 11, fontWeight: 700, color: dotColor, flexShrink: 0 }}>{scoreLabel}</div>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                                {narrative.perParam[p.id] && (
+                                  <div style={{ padding: '10px 16px', borderTop: `1px solid ${bdr}`, background: surf, fontSize: 12, color: muted, lineHeight: 1.6 }}>{narrative.perParam[p.id]}</div>
+                                )}
                               </div>
-                              <div>
-                                <div style={{ fontSize: 12, fontWeight: 700, color: ink, marginBottom: 2 }}>{p.name}</div>
-                                <div style={{ fontSize: 12, color: muted, lineHeight: 1.55 }}>{narrative.perParam[p.id]}</div>
-                              </div>
-                            </div>
-                          ))}
-                          {/* Validation warnings */}
-                          {submitResult.validationWarnings.length > 0 && (
-                            <div style={{ marginTop: 4, padding: '10px 14px', borderRadius: 8, background: '#FFFBEB', border: `1px solid ${amber}44` }}>
-                              <div style={{ fontSize: 11, fontWeight: 700, color: amber, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Consistency notes</div>
-                              {submitResult.validationWarnings.map((w, i) => (
-                                <div key={i} style={{ fontSize: 12, color: ink, lineHeight: 1.5 }}>· {w}</div>
-                              ))}
-                            </div>
-                          )}
+                            )
+                          })}
                         </div>
                       </div>
+
+                      {/* Validation warnings */}
+                      {submitResult.validationWarnings.length > 0 && (
+                        <div style={{ marginBottom: 28, padding: '14px 18px', borderRadius: 10, background: '#FFFBEB', border: `1px solid ${amber}55` }}>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: amber, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Consistency Notes</div>
+                          {submitResult.validationWarnings.map((w, i) => <div key={i} style={{ fontSize: 12, color: ink, lineHeight: 1.55, marginBottom: 3 }}>· {w}</div>)}
+                        </div>
+                      )}
+
+                      {/* Top unlock cards */}
+                      {submitResult.unlockCards.length > 0 && (
+                        <div style={{ marginBottom: 28 }}>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 14 }}>Top Score Unlocks</div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            {submitResult.unlockCards.map((card, ci) => (
+                              <div key={ci} style={{ display: 'flex', gap: 16, padding: '14px 16px', borderRadius: 10, border: `1px solid ${bdr}`, background: surf }}>
+                                <div style={{ textAlign: 'center', minWidth: 44, flexShrink: 0, paddingTop: 2 }}>
+                                  <div style={{ fontSize: 20, fontWeight: 900, color: blue, lineHeight: 1, letterSpacing: '-0.02em' }}>+{card.estimatedPointGain}</div>
+                                  <div style={{ fontSize: 9, fontWeight: 700, color: muted, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 2 }}>pts</div>
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                  <div style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 3 }}>{card.indicatorName}</div>
+                                  <div style={{ fontSize: 11, color: muted, marginBottom: 6 }}>{card.currentScore.toFixed(1)}/5 → target {card.targetScore}/5{card.agentId && <span style={{ marginLeft: 8, color: blue }}>· {card.agentId.charAt(0).toUpperCase() + card.agentId.slice(1)} can help</span>}</div>
+                                  <div style={{ fontSize: 12, color: ink, lineHeight: 1.55 }}>{card.action}</div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Readiness summary */}
+                      {submitResult.readinessSummary && (
+                        <div style={{ marginBottom: 28, padding: '16px 20px', borderRadius: 10, background: surf, border: `1px solid ${bdr}` }}>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>Investor Readiness Summary</div>
+                          <p style={{ margin: 0, fontSize: 13, color: ink, lineHeight: 1.7, fontStyle: 'italic' }}>{submitResult.readinessSummary}</p>
+                        </div>
+                      )}
+
+                      {/* What's next */}
+                      <div style={{ padding: '18px 20px', borderRadius: 10, background: '#F0FDF4', border: `1px solid ${green}44` }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: green, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>What&apos;s next</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          {[
+                            { Icon: Globe, text: 'Your score is live on the Investor Portal — visible to matched investors' },
+                            { Icon: Bot, text: 'Use AI agents to build deliverables that boost your weakest dimensions' },
+                            { Icon: RefreshCw, text: 'Retake the assessment in 24 hours to improve your score' },
+                          ].map(({ Icon, text }, i) => (
+                            <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                              <Icon size={13} color={green} strokeWidth={1.75} style={{ flexShrink: 0, marginTop: 1 }} />
+                              <span style={{ fontSize: 12, color: '#166534', lineHeight: 1.55 }}>{text}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
                     </div>
                   )
                 })()}
 
-                <button onClick={() => router.push('/founder/dashboard')} style={{
-                  padding: '12px 28px', borderRadius: 10, border: 'none',
-                  background: blue, color: '#fff', fontSize: 14, fontWeight: 700,
-                  cursor: 'pointer', fontFamily: 'inherit',
-                }}>
-                  Go to Dashboard →
-                </button>
               </div>
             ) : (
               <>
@@ -1766,12 +2063,12 @@ export default function ProfileBuilderPage() {
                 </div>
                 {/* Live preview panel */}
                 {previewLoading && (
-                  <div style={{ padding: 24, borderRadius: 12, background: '#fafafa', border: `1px solid ${bdr}`, textAlign: 'center', fontSize: 13, color: muted }}>
+                  <div style={{ padding: 24, borderRadius: 12, background: surf, border: `1px solid ${bdr}`, textAlign: 'center', fontSize: 13, color: muted }}>
                     Calculating projected score…
                   </div>
                 )}
                 {!previewLoading && previewData && (
-                  <div style={{ borderRadius: 14, border: `1px solid ${bdr}`, background: '#fafafa', overflow: 'hidden' }}>
+                  <div style={{ borderRadius: 14, border: `1px solid ${bdr}`, background: surf, overflow: 'hidden' }}>
                     <div style={{ padding: '28px 28px 24px', display: 'flex', alignItems: 'center', gap: 24 }}>
                       <div style={{ textAlign: 'center', minWidth: 80 }}>
                         <div style={{
@@ -1787,7 +2084,7 @@ export default function ProfileBuilderPage() {
                         <div style={{ fontSize: 13, color: previewData.marketplaceUnlocked ? green : muted, marginBottom: 4, lineHeight: 1.4 }}>
                           {previewData.marketplaceUnlocked
                             ? 'Investor Marketplace unlocks at submission'
-                            : `Need ${45 - previewData.projectedScore} more pts to unlock Marketplace`}
+                            : `Need ${70 - previewData.projectedScore} more pts to unlock Marketplace`}
                         </div>
                         <div style={{ fontSize: 12, color: muted }}>{previewData.sectionsComplete}/5 sections at 70%+</div>
                       </div>
@@ -1818,17 +2115,17 @@ export default function ProfileBuilderPage() {
                     <div key={k} style={{
                       display: 'flex', alignItems: 'center', gap: 14,
                       padding: '12px 16px', borderRadius: 10,
-                      background: '#fafafa', border: `1px solid ${pct >= 70 ? green + '55' : bdr}`,
+                      background: surf, border: `1px solid ${pct >= 70 ? green + '55' : bdr}`,
                     }}>
                       <div style={{
                         width: 28, height: 28, borderRadius: '50%',
-                        background: pct >= 70 ? '#DCFCE7' : '#f0f0f0',
+                        background: pct >= 70 ? '#DCFCE7' : surf2,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         fontSize: 13, fontWeight: 700,
                         color: pct >= 70 ? green : muted,
                         flexShrink: 0,
                       }}>
-                        {pct >= 70 ? '✓' : k}
+                        {pct >= 70 ? <Check size={13} strokeWidth={2.5} color={green} /> : k}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 13, fontWeight: 600, color: ink }}>{SECTION_LABELS[k]}</div>
@@ -1846,7 +2143,30 @@ export default function ProfileBuilderPage() {
                 })}
                 </div>
 
-                {submitError && (
+                {rateLimitUntil && (
+                  <div style={{ padding: '16px 20px', borderRadius: 10, background: '#FFFBEB', border: `1px solid ${amber}44` }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: amber, marginBottom: 4 }}>Score locked</div>
+                    <div style={{ fontSize: 13, color: '#92400E', lineHeight: 1.5 }}>
+                      You can recalculate your score again on{' '}
+                      <strong>{rateLimitUntil.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</strong>
+                      {' '}at{' '}
+                      <strong>{rateLimitUntil.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</strong>.
+                    </div>
+                    <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
+                      <button onClick={() => router.push('/founder/improve-qscore')} style={{
+                        padding: '8px 16px', borderRadius: 8, border: 'none',
+                        background: amber, color: '#fff', fontSize: 12, fontWeight: 600,
+                        cursor: 'pointer', fontFamily: 'inherit',
+                      }}>Use this time to improve →</button>
+                      <button onClick={() => router.push('/founder/dashboard')} style={{
+                        padding: '8px 16px', borderRadius: 8, border: `1px solid ${bdr}`,
+                        background: bg, color: ink, fontSize: 12,
+                        cursor: 'pointer', fontFamily: 'inherit',
+                      }}>Back to Dashboard</button>
+                    </div>
+                  </div>
+                )}
+                {submitError && !rateLimitUntil && (
                   <div style={{ padding: '10px 14px', borderRadius: 8, background: '#FEF2F2', border: `1px solid #FECACA`, fontSize: 13, color: red }}>
                     {submitError}
                   </div>

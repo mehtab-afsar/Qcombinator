@@ -3,8 +3,9 @@
  * 5 indicators: Climate Leverage (AI flag), Resource Efficiency,
  *               Development Relevance, Business Model Alignment, Strategic Relevance
  *
- * Commercial track → all 5 indicators rawScore=0 (excluded from numerator)
- * Denominator always 150 regardless.
+ * Commercial track → P5.1–P5.3 excluded (impact-specific metrics)
+ *                  → P5.4 Business Model Alignment scored for all tracks
+ *                  → P5.5 Strategic Relevance scored for all tracks
  * Impact track → all 5 indicators scored normally.
  *
  * rawScore: 1.0–5.0 in 0.5 increments (0 = excluded)
@@ -24,7 +25,7 @@ function clamp(v: number, min = 1.0, max = 5.0): number {
 function excludedIndicator(id: string, name: string): IndicatorScore {
   return {
     id, name, rawScore: 0, excluded: true,
-    exclusionReason: 'commercial track — P5 not scored',
+    exclusionReason: 'commercial track — impact-specific metric not scored',
     dataQuality: { source: 'founder_claim', verificationLevel: 'unverified', confidence: 0, reasons: [] },
   }
 }
@@ -165,13 +166,14 @@ export function scoreP5(
   track: StartupTrack
 ): IndicatorScore[] {
   if (track === 'commercial') {
-    // Commercial track: all P5 rawScore=0, still in denominator (150 stays constant)
+    // P5.1–P5.3 are impact-specific — exclude for commercial track
+    // P5.4 Business Model Alignment and P5.5 Strategic Relevance apply to all startups
     return [
       excludedIndicator('5.1', 'Climate Leverage'),
       excludedIndicator('5.2', 'Resource Efficiency'),
       excludedIndicator('5.3', 'Development Relevance'),
-      excludedIndicator('5.4', 'Business Model Alignment'),
-      excludedIndicator('5.5', 'Strategic Relevance'),
+      score_5_4_BusinessModelAlignment(data, stage),
+      score_5_5_StrategicRelevance(data, stage),
     ]
   }
 
@@ -185,9 +187,6 @@ export function scoreP5(
 }
 
 /** Determine track from founder profile data */
-export function determineTrack(data: AssessmentData, isImpactFocused?: boolean): StartupTrack {
-  if (isImpactFocused) return 'impact'
-  const p5 = data.p5 ?? {}
-  const hasImpact = Object.values(p5).some(v => typeof v === 'string' && v.length > 20)
-  return hasImpact ? 'impact' : 'commercial'
+export function determineTrack(_data: AssessmentData, isImpactFocused?: boolean): StartupTrack {
+  return isImpactFocused ? 'impact' : 'commercial'
 }

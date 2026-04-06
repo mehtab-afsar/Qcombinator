@@ -7,6 +7,7 @@ import { ARTIFACT_META } from '../constants/artifact-meta'
 import { computeQualityScore, artifactToText } from '../utils'
 import { CopyBtn } from './CopyBtn'
 import { ShareModal } from './ShareModal'
+import type { ArtifactCritiqueMetadata } from '../../types/agent.types'
 import { ICPRenderer } from '../../patel/components/ICPRenderer'
 import { OutreachRenderer } from '../../patel/components/OutreachRenderer'
 import { BattleCardRenderer } from '../../patel/components/BattleCardRenderer'
@@ -45,7 +46,10 @@ export function DeliverablePanel({
   const [selectedText,      setSelectedText]      = useState("");
   const [reviseInstruction, setReviseInstruction] = useState("");
   const [showShare,         setShowShare]         = useState(false);
+  const [showCritique,      setShowCritique]      = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
+
+  const critique = artifact.critiqueMetadata as ArtifactCritiqueMetadata | undefined;
 
   const meta    = ARTIFACT_META[artifact.type];
   const Icon    = meta?.icon || FileText;
@@ -374,6 +378,47 @@ export function DeliverablePanel({
                 Missing: {quality.missing.slice(0, 3).join(", ")}{quality.missing.length > 3 ? ` +${quality.missing.length - 3} more` : ""}
                 {" — "}<span style={{ color: blue }}>ask {agentName} to complete it</span>
               </p>
+            )}
+
+            {/* Quality Review (from self-critique pass) */}
+            {critique && (
+              <div style={{ marginTop: 8 }}>
+                <button
+                  onClick={() => setShowCritique(v => !v)}
+                  style={{
+                    fontSize: 10, fontWeight: 600, color: blue,
+                    background: "none", border: "none", padding: 0,
+                    cursor: "pointer", textDecoration: "underline", fontFamily: "inherit",
+                  }}
+                >
+                  {showCritique ? "Hide" : "Show"} Quality Review
+                  {critique.overallRating === 'excellent' ? ' ✓' : critique.overallRating === 'needs_improvement' ? ' ⚠' : ''}
+                </button>
+                {showCritique && (
+                  <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, background: surf, border: `1px solid ${bdr}` }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
+                      AI Quality Review · {critique.overallRating.replace(/_/g, ' ')}
+                    </div>
+                    {critique.sections.map(s => (
+                      <div key={s.section} style={{ display: "flex", gap: 8, marginBottom: 5, alignItems: "flex-start" }}>
+                        <span style={{
+                          fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 4, flexShrink: 0,
+                          background: s.rating === 'complete' ? '#DCFCE7' : s.rating === 'adequate' ? '#EFF6FF' : s.rating === 'weak' ? '#FEF3C7' : '#FEE2E2',
+                          color: s.rating === 'complete' ? green : s.rating === 'adequate' ? blue : s.rating === 'weak' ? amber : red,
+                        }}>
+                          {s.rating.toUpperCase()}
+                        </span>
+                        <div>
+                          <span style={{ fontSize: 11, fontWeight: 600, color: ink }}>{s.section}</span>
+                          {s.improvement && (
+                            <div style={{ fontSize: 11, color: muted, marginTop: 1, lineHeight: 1.4 }}>{s.improvement}</div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
           </>
         </div>

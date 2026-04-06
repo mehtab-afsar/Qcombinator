@@ -62,13 +62,6 @@ const DIMENSION_META: Record<string, { label: string; weight: number }> = {
   p4:         { label: "Founder / Team",     weight: 18 },
   p5:         { label: "Structural Impact",  weight: 8  },
   p6:         { label: "Financials",         weight: 17 },
-  // Legacy v1_prd dimensions (kept for backward compat with old score rows)
-  market:     { label: "Market",    weight: 20 },
-  product:    { label: "Product",   weight: 18 },
-  goToMarket: { label: "GTM",       weight: 17 },
-  financial:  { label: "Financial", weight: 18 },
-  team:       { label: "Team",      weight: 15 },
-  traction:   { label: "Traction",  weight: 12 },
 };
 
 // ─── dimension inline panel data ──────────────────────────────────────────────
@@ -99,13 +92,6 @@ const DIMENSION_AGENT: Record<string, { agentId: string; agentName: string; labe
   p4:         { agentId: "harper", agentName: "Harper", label: "Hiring Plan"          },
   p5:         { agentId: "sage",   agentName: "Sage",   label: "Strategic Plan"       },
   p6:         { agentId: "felix",  agentName: "Felix",  label: "Financial Summary"    },
-  // Legacy v1_prd keys
-  market:     { agentId: "atlas",  agentName: "Atlas",  label: "Competitive Analysis" },
-  product:    { agentId: "nova",   agentName: "Nova",   label: "PMF Research Kit"     },
-  goToMarket: { agentId: "patel",  agentName: "Patel",  label: "GTM Playbook"         },
-  financial:  { agentId: "felix",  agentName: "Felix",  label: "Financial Summary"    },
-  team:       { agentId: "harper", agentName: "Harper", label: "Hiring Plan"          },
-  traction:   { agentId: "susi",   agentName: "Susi",   label: "Sales Script"         },
 };
 
 // Pick the next upcoming workshop by date (relative to today)
@@ -151,12 +137,8 @@ const DIM_COLORS: Record<string, string> = {
   traction:  "#0891B2",
 };
 const DIM_LABELS: Record<string, string> = {
-  // IQ v2 P1–P6
   p1: "Market Readiness", p2: "Market Potential", p3: "IP / Defensibility",
   p4: "Founder / Team",  p5: "Impact",            p6: "Financials",
-  // Legacy v1_prd
-  market: "Market", product: "Product", gtm: "GTM",
-  financial: "Financial", team: "Team", traction: "Traction",
 };
 
 function ScoreChart({ points }: { points: ScorePoint[] }) {
@@ -472,34 +454,19 @@ export default function FounderDashboard() {
   }
 
   const qs = realQScore
-    ? {
-        overall:    realQScore.overall,
-        percentile: realQScore.percentile ?? 41,
-        breakdown: {
-          market:     { score: realQScore.breakdown.market.score,     change: realQScore.breakdown.market.change ?? 0,     trend: realQScore.breakdown.market.trend ?? "neutral"     as const },
-          product:    { score: realQScore.breakdown.product.score,    change: realQScore.breakdown.product.change ?? 0,    trend: realQScore.breakdown.product.trend ?? "neutral"    as const },
-          goToMarket: { score: realQScore.breakdown.goToMarket.score, change: realQScore.breakdown.goToMarket.change ?? 0, trend: realQScore.breakdown.goToMarket.trend ?? "neutral" as const },
-          financial:  { score: realQScore.breakdown.financial.score,  change: realQScore.breakdown.financial.change ?? 0,  trend: realQScore.breakdown.financial.trend ?? "neutral"  as const },
-          team:       { score: realQScore.breakdown.team.score,       change: realQScore.breakdown.team.change ?? 0,       trend: realQScore.breakdown.team.trend ?? "neutral"       as const },
-          traction:   { score: realQScore.breakdown.traction.score,   change: realQScore.breakdown.traction.change ?? 0,   trend: realQScore.breakdown.traction.trend ?? "neutral"   as const },
-        },
-      }
+    ? { overall: realQScore.overall, percentile: realQScore.percentile ?? 41 }
     : DEMO_QSCORE;
 
   const isDemo = !realQScore;
-  const scoreVersion = (realQScore as unknown as { scoreVersion?: string })?.scoreVersion ?? 'v1_prd'
-  const isIQv2 = scoreVersion === 'v2_iq'
 
-  // For v2_iq scores use P1–P6 parameters; for v1_prd use legacy breakdown
+  // Always v2_iq — use P1–P6 IQ parameters for display
   type IQParam = { id: string; name: string; averageScore: number; weight: number; indicatorsActive: number }
-  const iqParams: IQParam[] = isIQv2
-    ? (((realQScore as unknown as { iqBreakdown?: IQParam[] })?.iqBreakdown as IQParam[]) ?? [])
-    : []
+  const iqBreakdownObj = realQScore?.iqBreakdown as { parameters?: IQParam[] } | undefined
+  const iqParams: IQParam[] = iqBreakdownObj?.parameters ?? []
 
-  // Build the display breakdown: for v2 map iqParams → score bars; for v1 use legacy
-  const sortedDims = isIQv2
-    ? [...iqParams].sort((a, b) => a.averageScore - b.averageScore).map(p => [p.id, { score: Math.round(p.averageScore * 20), change: 0, trend: 'neutral' as const }] as [string, { score: number; change: number; trend: 'up' | 'down' | 'neutral' }])
-    : Object.entries(qs.breakdown).sort(([, a], [, b]) => a.score - b.score);
+  const sortedDims = [...iqParams]
+    .sort((a, b) => a.averageScore - b.averageScore)
+    .map(p => [p.id, { score: Math.round(p.averageScore * 20), change: 0, trend: 'neutral' as const }] as [string, { score: number; change: number; trend: 'up' | 'down' | 'neutral' }]);
 
   // Score freshness
   const lastScoreDate = scoreHistory.length > 0 ? new Date(scoreHistory[scoreHistory.length - 1].date) : null;
@@ -525,11 +492,11 @@ export default function FounderDashboard() {
     {
       label: "Investor outreach",
       value: investorMatches !== null ? String(investorMatches) : "—",
-      sub: investorMatches !== null ? (investorMatches === 0 ? "connect at 65+ Q-Score" : `connection${investorMatches !== 1 ? "s" : ""} sent`) : "loading…",
+      sub: investorMatches !== null ? (investorMatches === 0 ? "connect at IQ 70+" : `connection${investorMatches !== 1 ? "s" : ""} sent`) : "loading…",
       icon: Users, positive: true,
     },
     { label: "Score percentile",   value: `${qs.percentile}th`, sub: "of all founders", icon: BarChart3, positive: null  },
-    { label: "Next milestone",     value: isDemo ? "65" : String(Math.max(65, Math.ceil(qs.overall / 10) * 10)), sub: "target Q-Score", icon: Zap, positive: null },
+    { label: "Next milestone",     value: isDemo ? "70" : String(Math.max(70, Math.ceil(qs.overall / 10) * 10)), sub: "target IQ Score", icon: Zap, positive: null },
   ];
 
   return (
@@ -822,7 +789,7 @@ export default function FounderDashboard() {
               <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
                 <span style={{ fontSize: 38, fontWeight: 600, color: "#F9F7F2", lineHeight: 1 }}>{qs.overall}</span>
                 <span style={{ fontSize: 10, color: "rgba(249,247,242,0.5)", marginTop: 3, textTransform: "uppercase", letterSpacing: "0.12em" }}>
-                  {isIQv2 ? "IQ Score" : "Q-Score"}
+                  {"IQ Score"}
                 </span>
               </div>
             </div>
@@ -840,38 +807,26 @@ export default function FounderDashboard() {
               )}
               {realQScore?.decayApplied && realQScore.rawOverall && realQScore.rawOverall !== realQScore.overall && (
                 <p style={{ fontSize: 9, marginTop: 3, color: "#FCA5A5", fontWeight: 600 }}>
-                  Score reduced from {realQScore.rawOverall} — reassess to restore
+                  Score reflects {realQScore.daysSince}d-old data ({Math.round((1 - (realQScore.decayFactor as number)) * 100)}% reduction) — reassess to restore
                 </p>
               )}
               {/* IQ v2: available IQ + track */}
-              {isIQv2 && !isDemo && (
+              {!isDemo && (
                 <>
-                  {(realQScore as unknown as { availableIQ?: number })?.availableIQ != null && (
+                  {realQScore?.availableIQ != null && (
                     <p style={{ fontSize: 9, marginTop: 4, color: "rgba(249,247,242,0.45)", fontWeight: 500 }}>
-                      Available: {(realQScore as unknown as { availableIQ?: number }).availableIQ?.toFixed(1)}/100
+                      Ceiling: {Math.round(realQScore.availableIQ as number)}/100 — complete more sections to raise it
                     </p>
                   )}
-                  {(realQScore as unknown as { track?: string })?.track && (
+                  {realQScore?.track && (
                     <p style={{
                       fontSize: 9, marginTop: 3, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em",
-                      color: (realQScore as unknown as { track?: string }).track === 'impact' ? "#16A34A" : "rgba(249,247,242,0.35)",
+                      color: realQScore.track === 'impact' ? "#16A34A" : "rgba(249,247,242,0.35)",
                     }}>
-                      {(realQScore as unknown as { track?: string }).track} track
+                      {realQScore.track as string} track
                     </p>
                   )}
                 </>
-              )}
-              {/* RAG scoring method indicator */}
-              {!isIQv2 && realQScore?.ragMetadata?.scoringMethod && realQScore.ragMetadata.scoringMethod !== 'heuristic' && (
-                <p style={{
-                  fontSize: 9, marginTop: 4,
-                  color: "rgba(37,99,235,0.7)",
-                  fontWeight: 600,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.1em",
-                }}>
-                  RAG-enhanced
-                </p>
               )}
             </div>
             <Link href={isDemo ? "/founder/assessment" : "/founder/improve-qscore"}
@@ -901,17 +856,17 @@ export default function FounderDashboard() {
           >
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20 }}>
               <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", color: muted, fontWeight: 600, margin: 0 }}>
-                {isIQv2 ? "IQ Matrix — P1–P6" : "6-dimension breakdown"}
+                {"IQ Matrix — P1–P6"}
               </p>
               {!isDemo && (
                 <span style={{
                   fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 999,
-                  background: isIQv2 ? "#EFF6FF" : "#F5F5F0",
-                  color: isIQv2 ? blue : muted,
-                  border: `1px solid ${isIQv2 ? blue + "33" : bdr}`,
+                  background: "#EFF6FF",
+                  color: blue,
+                  border: `1px solid ${blue}33`,
                   textTransform: "uppercase", letterSpacing: "0.1em",
                 }}>
-                  {isIQv2 ? "IQ v2" : "Legacy"}
+                  {"IQ v2"}
                 </span>
               )}
             </div>
@@ -1219,8 +1174,9 @@ export default function FounderDashboard() {
               {topActions.map(([key, dim], i) => {
                 const meta = DIMENSION_META[key];
                 const dimAgents = agents.filter((a) => {
-                  const map: Record<string, string> = { market: "market", product: "product", goToMarket: "goToMarket", financial: "financial", team: "team", traction: "traction" };
-                  return a.improvesScore === map[key];
+                  // Map P1–P6 IQ parameter keys → agent improvesScore dimension
+                  const IQ_TO_DIM: Record<string, string> = { p1: 'gtm', p2: 'market', p3: 'product', p4: 'team', p5: 'traction', p6: 'financial' };
+                  return a.improvesScore === IQ_TO_DIM[key];
                 });
                 const agent = dimAgents[0];
                 const potentialGain = Math.round((80 - dim.score) * (meta.weight / 100) * 2.5);
@@ -1497,7 +1453,7 @@ export default function FounderDashboard() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5 }}
           >
-            {qs.overall >= 65 ? (
+            {qs.overall >= 45 ? (
               <Link href="/founder/matching" style={{ textDecoration: "none", display: "block", height: "100%" }}>
                 <div
                   style={{
@@ -1538,10 +1494,10 @@ export default function FounderDashboard() {
                 </p>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
                   <Lock style={{ height: 13, width: 13, color: muted }} />
-                  <p style={{ fontSize: 14, fontWeight: 500, color: ink }}>Locked — need {65 - qs.overall} more pts</p>
+                  <p style={{ fontSize: 14, fontWeight: 500, color: ink }}>Locked — need {45 - qs.overall} more pts</p>
                 </div>
                 <p style={{ fontSize: 11, color: muted, marginBottom: 14 }}>
-                  Reach Q-Score 65 to access 500+ investors.
+                  Reach IQ Score 45 to access 500+ investors.
                 </p>
                 <Link href="/founder/assessment" style={{
                   display: "inline-flex", alignItems: "center", gap: 6,
@@ -1598,103 +1554,6 @@ export default function FounderDashboard() {
 
       </div>
 
-        {/* ── CXO Workspace layer ───────────────────────────────── */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6 }}
-          style={{ marginTop: 32 }}
-        >
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-            <div>
-              <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", color: muted, fontWeight: 600, marginBottom: 3 }}>
-                CXO Workspace
-              </p>
-              <p style={{ fontSize: 16, fontWeight: 400, color: ink }}>Your executive team&apos;s work</p>
-            </div>
-            <Link href="/founder/cxo" style={{ fontSize: 12, color: muted, textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}>
-              View all <ArrowRight style={{ height: 10, width: 10 }} />
-            </Link>
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }} className="cxo-grid">
-            {[
-              { id: "patel",  title: "Patel",  role: "CMO",                  dim: "goToMarket", color: "#2563EB" },
-              { id: "felix",  title: "Felix",  role: "CFO",                  dim: "financial",  color: "#16A34A" },
-              { id: "nova",   title: "Nova",   role: "CPO",                  dim: "product",    color: "#7C3AED" },
-              { id: "atlas",  title: "Atlas",  role: "Chief Strategy Officer",dim: "market",    color: "#0891B2" },
-              { id: "harper", title: "Harper", role: "Chief People Officer",  dim: "team",      color: "#EA580C" },
-              { id: "susi",   title: "Susi",   role: "CRO",                  dim: "traction",   color: "#DC2626" },
-            ].map(exec => {
-              const dimScore = (qs.breakdown as Record<string, { score: number }>)[exec.dim]?.score ?? 0;
-              const isDone = usedAgentIds.has(exec.id);
-              return (
-                <Link
-                  key={exec.id}
-                  href={`/founder/cxo/${exec.id}`}
-                  style={{ textDecoration: "none" }}
-                >
-                  <div
-                    style={{
-                      background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "14px 16px",
-                      cursor: "pointer", transition: "border-color .15s, background .15s",
-                    }}
-                    onMouseEnter={e => {
-                      (e.currentTarget as HTMLElement).style.borderColor = exec.color;
-                      (e.currentTarget as HTMLElement).style.background = bg;
-                    }}
-                    onMouseLeave={e => {
-                      (e.currentTarget as HTMLElement).style.borderColor = bdr;
-                      (e.currentTarget as HTMLElement).style.background = surf;
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <div style={{
-                          height: 30, width: 30, borderRadius: 8,
-                          background: isDone ? "#F0FDF4" : bg,
-                          border: `1.5px solid ${isDone ? "#16A34A" : exec.color}`,
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          fontSize: 12, fontWeight: 700, color: isDone ? "#16A34A" : exec.color,
-                          flexShrink: 0,
-                        }}>
-                          {exec.title[0]}
-                        </div>
-                        <div>
-                          <p style={{ fontSize: 13, fontWeight: 600, color: ink, lineHeight: 1 }}>{exec.title}</p>
-                          <p style={{ fontSize: 10, color: exec.color, fontWeight: 600 }}>{exec.role}</p>
-                        </div>
-                      </div>
-                      {isDone && (
-                        <div style={{ height: 6, width: 6, borderRadius: "50%", background: "#16A34A" }} />
-                      )}
-                    </div>
-
-                    {/* dimension score bar */}
-                    <div style={{ marginBottom: 8 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-                        <span style={{ fontSize: 9, color: muted, textTransform: "uppercase", letterSpacing: "0.1em" }}>
-                          {DIMENSION_META[exec.dim]?.label ?? exec.dim} score
-                        </span>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: dimScore >= 70 ? "#16A34A" : dimScore >= 50 ? "#D97706" : "#DC2626" }}>
-                          {dimScore}
-                        </span>
-                      </div>
-                      <div style={{ height: 4, background: bdr, borderRadius: 99, overflow: "hidden" }}>
-                        <div style={{ height: "100%", borderRadius: 99, width: `${dimScore}%`, background: exec.color, transition: "width .6s ease" }} />
-                      </div>
-                    </div>
-
-                    <p style={{ fontSize: 11, color: muted }}>
-                      {isDone ? "Deliverable built · Open to update" : "No deliverable yet · Start a session"}
-                    </p>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        </motion.div>
-
       {/* responsive styles */}
       <style>{`
         @media (max-width: 900px) {
@@ -1703,10 +1562,6 @@ export default function FounderDashboard() {
         }
         @media (max-width: 600px) {
           .dashboard-bottom { grid-template-columns: 1fr !important; }
-          .cxo-grid { grid-template-columns: 1fr 1fr !important; }
-        }
-        @media (max-width: 420px) {
-          .cxo-grid { grid-template-columns: 1fr !important; }
         }
       `}</style>
     </div>

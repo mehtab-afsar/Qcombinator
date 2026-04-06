@@ -131,12 +131,41 @@ export async function getIndicatorPercentile(
   }
 }
 
+/**
+ * Pre-warm the benchmark cache for a sector+stage combination.
+ * Fetches all rows in ONE query, populating the LRU cache so that
+ * subsequent per-indicator calls are served from memory (no DB burst).
+ */
+async function prewarmBenchmarkCache(
+  supabase: SupabaseClient,
+  sector: string,
+  stage: ScoreStage
+): Promise<void> {
+  // Check if any cached entry already exists for this sector+stage — if so, skip
+  const sentinel = getCachedBenchmark<BenchmarkRow>('1.1', sector, stage)
+  if (sentinel) return  // cache already warm for this combination
+
+  const { data } = await supabase
+    .from('qscore_benchmarks')
+    .select('*')
+    .in('sector', [sector, 'default'])
+    .in('stage', [stage, 'mid'])
+
+  if (!data) return
+  for (const row of data as BenchmarkRow[]) {
+    setCachedBenchmark(row.indicator_id, row.sector, row.stage, row)
+  }
+}
+
 export async function getAllIndicatorPercentiles(
   supabase: SupabaseClient,
   indicatorScores: Array<{ id: string; rawScore: number; excluded: boolean }>,
   sector: string,
   stage: ScoreStage
 ): Promise<Map<string, PercentileResult>> {
+  // Pre-warm on first call — single DB query instead of up to 30 individual fetches
+  await prewarmBenchmarkCache(supabase, sector, stage).catch(() => {})
+
   const results = await Promise.allSettled(
     indicatorScores
       .filter(i => !i.excluded && i.rawScore > 0)

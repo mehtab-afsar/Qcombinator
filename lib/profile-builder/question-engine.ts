@@ -78,8 +78,10 @@ export function getRequiredFields(section: number, stage: string): string[] {
   const isPreRevenue = ['idea', 'pre-product', 'mvp', 'pre-revenue'].some(s => lower.includes(s))
   const isGrowth = ['growing', 'scaling', 'growth', 'series'].some(s => lower.includes(s))
 
-  const FIELDS: Record<number, { base: string[]; revenueOnly?: string[]; growthOnly?: string[] }> = {
+  const FIELDS: Record<number, { base: string[]; preRevenueBase?: string[]; revenueOnly?: string[]; growthOnly?: string[] }> = {
     1: {
+      // Pre-revenue founders cannot have customerCommitment (LOIs/contracts) — use conversationCount instead
+      preRevenueBase: ['conversationCount', 'hasPayingCustomers'],
       base: ['customerCommitment', 'hasPayingCustomers'],
       revenueOnly: ['salesCycleLength', 'hasRetention', 'largestContractUsd'],
     },
@@ -88,7 +90,9 @@ export function getRequiredFields(section: number, stage: string): string[] {
       growthOnly: ['p2.expansionPotential', 'p2.competitorDensityContext'],
     },
     3: {
-      base: ['p3.hasPatent', 'p3.buildComplexity'],
+      // replicationTimeMonths is what the LLM actually extracts from "18-36 months" answers;
+      // buildComplexity is a categorical bucket that often stays null even when the question is answered
+      base: ['p3.hasPatent', 'p3.replicationTimeMonths'],
       growthOnly: ['p3.technicalDepth', 'p3.knowHowDensity', 'p3.replicationCostUsd'],
     },
     4: {
@@ -104,7 +108,9 @@ export function getRequiredFields(section: number, stage: string): string[] {
 
   const def = FIELDS[section]
   if (!def) return []
-  const fields = [...def.base]
+  // Pre-revenue founders get a relaxed base field set (conversations instead of commitments)
+  const baseFields = (isPreRevenue && def.preRevenueBase) ? def.preRevenueBase : def.base
+  const fields = [...baseFields]
   if (!isPreRevenue && def.revenueOnly) fields.push(...def.revenueOnly)
   if (isGrowth && def.growthOnly) fields.push(...def.growthOnly)
   return fields
@@ -121,6 +127,35 @@ export function isSectionComplete(extractedFields: Record<string, unknown>, sect
   return (filled / required.length) >= 0.70
 }
 
+// ── Field-type-aware confidence thresholds ────────────────────────────────────
+// Numeric fields require higher confidence (0.65) before being treated as present.
+// Boolean/categorical fields use the standard 0.45 threshold.
+
+const FIELD_CONFIDENCE_THRESHOLDS: Record<string, number> = {
+  // Numeric — moderate threshold (was 0.65, lowered so approximate answers still count)
+  'financial.mrr':         0.45,
+  'financial.arr':         0.45,
+  'financial.monthlyBurn': 0.45,
+  'financial.runway':      0.45,
+  'financial.grossMargin': 0.45,
+  'largestContractUsd':    0.45,
+  'p3.replicationCostUsd':   0.45,
+  'p3.replicationTimeMonths': 0.45,
+  'p4.domainYears':        0.45,
+  'p4.teamCohesionMonths': 0.45,
+  'conversationCount':     0.45,
+  // Boolean / categorical — standard threshold
+  'p3.hasPatent':          0.45,
+  'p4.founderMarketFit':   0.45,
+  'p4.teamCoverage':       0.45,
+  'hasPayingCustomers':    0.45,
+  'hasRetention':          0.45,
+}
+
+function getConfidenceThreshold(field: string): number {
+  return FIELD_CONFIDENCE_THRESHOLDS[field] ?? 0.45
+}
+
 export function getSectionCompletionPct(
   extractedFields: Record<string, unknown>,
   section: number,
@@ -134,11 +169,15 @@ export function getSectionCompletionPct(
   for (const field of required) {
     const val = getNestedValue(extractedFields, field)
     if (val === null || val === undefined) continue
-    if (hasConfidenceData) {
-      // Use leaf key for confidence lookup (e.g. "p3.hasPatent" → "hasPatent")
+    // Boolean false and numeric 0 are explicit "none" answers — count them regardless of confidence.
+    // Only apply confidence gating to positive/string values where low confidence means
+    // the LLM was guessing rather than extracting a stated fact.
+    const isExplicitNone = val === false || val === 0
+    if (hasConfidenceData && !isExplicitNone) {
       const leafKey = field.includes('.') ? field.split('.').pop()! : field
       const conf = confidenceMap[leafKey] ?? confidenceMap[field] ?? 0
-      if (conf < 0.45) continue  // skip low-confidence / hallucinated values
+      const threshold = getConfidenceThreshold(field)
+      if (conf < threshold) continue
     }
     filled++
   }
@@ -155,11 +194,14 @@ export function getMissingFields(
   const hasConf = Object.keys(confidenceMap).length > 0
   return required.filter(field => {
     const val = getNestedValue(extractedFields, field)
-    if (val === null || val === undefined) return true  // definitely missing
-    if (hasConf) {
+    if (val === null || val === undefined) return true
+    // Boolean false and numeric 0 are explicit "none" answers — never treat them as missing
+    const isExplicitNone = val === false || val === 0
+    if (hasConf && !isExplicitNone) {
       const leafKey = field.includes('.') ? field.split('.').pop()! : field
       const conf = confidenceMap[leafKey] ?? confidenceMap[field] ?? 0
-      if (conf < 0.45) return true  // present but low-confidence — re-ask for specifics
+      const threshold = getConfidenceThreshold(field)
+      if (conf < threshold) return true
     }
     return false
   })

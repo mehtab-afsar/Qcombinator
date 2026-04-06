@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useRef } from "react";
 import {
-  motion, AnimatePresence, useInView, useScroll, useTransform,
+  motion, AnimatePresence, useInView,
 } from "framer-motion";
 import {
   ArrowRight, ArrowUpRight, BarChart3, Bot, CheckCircle,
-  ChevronDown, ChevronRight, Lock, Mail, Menu, Send,
+  ChevronDown, ChevronRight, Lock, Mail, Menu,
   TrendingUp, Users, X, Star, Zap,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -21,14 +21,8 @@ const C = {
   ember:    "#D97757",
   sage:     "#8B9A7A",
   midnight: "#1A1816",
-  goldL:    "#F7EFD9",
   gold:     "#C9A961",
   goldD:    "#9A7B3C",
-  ink:      "#18160F",
-  muted:    "#8A867C",
-  bg:       "#F9F7F2",
-  surf:     "#F0EDE6",
-  bdr:      "#E2DDD5",
   dim:      "#B8B4AC",
   faint:    "#C4C0B8",
 };
@@ -72,11 +66,11 @@ const stats = [
 
 const pressLogos = ["TechCrunch", "Forbes", "Bloomberg", "The Verge", "WIRED", "Fast Company", "Inc.", "Fortune"];
 
-const dimensions = [
-  { label: "Team",       score: 82, color: "#8B9A7A", low: false },
-  { label: "Market",     score: 71, color: "#2563EB", low: false },
-  { label: "Traction",   score: 58, color: "#D97757", low: true  },
-  { label: "Financials", score: 63, color: "#D97706", low: false },
+const mockDimensions = [
+  { label: "Team",       score: 82, delta: "+4" },
+  { label: "Market",     score: 78, delta: "+6" },
+  { label: "Traction",   score: 71, delta: "+12" },
+  { label: "Financials", score: 65, delta: "-2" },
 ];
 
 const avatarData = [
@@ -117,7 +111,7 @@ function MatchBar({ value }: { value: number }) {
   const inView = useInView(ref, { once: true });
   return (
     <div ref={ref} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      <div style={{ height: 4, width: 56, borderRadius: 999, background: C.taupe, overflow: "hidden" }}>
+      <div style={{ height: 3, width: 56, borderRadius: 999, background: C.taupe, overflow: "hidden" }}>
         <motion.div
           style={{ height: "100%", borderRadius: 999, background: `linear-gradient(90deg, ${C.ember}, ${C.gold})` }}
           initial={{ width: 0 }}
@@ -130,35 +124,11 @@ function MatchBar({ value }: { value: number }) {
   );
 }
 
-// ─── MagneticButton ───────────────────────────────────────────────────────────
-function MagneticButton({ children, onClick, style, className }: {
-  children: React.ReactNode; onClick?: () => void; style?: React.CSSProperties; className?: string;
-}) {
-  const [pos, setPos] = useState({ x: 0, y: 0 });
-  return (
-    <motion.button
-      className={className}
-      style={style}
-      onClick={onClick}
-      onMouseMove={(e) => {
-        const r = e.currentTarget.getBoundingClientRect();
-        setPos({ x: (e.clientX - r.left - r.width / 2) * 0.12, y: (e.clientY - r.top - r.height / 2) * 0.12 });
-      }}
-      onMouseLeave={() => setPos({ x: 0, y: 0 })}
-      animate={{ x: pos.x, y: pos.y }}
-      transition={{ type: "spring", stiffness: 150, damping: 15 }}
-      whileTap={{ scale: 0.97 }}
-    >
-      {children}
-    </motion.button>
-  );
-}
-
 // ─── GetStartedDropdown ───────────────────────────────────────────────────────
 function GetStartedDropdown({
-  label, className, style, align = "center",
+  label, style, align = "center", dark = false,
 }: {
-  label: React.ReactNode; className?: string; style?: React.CSSProperties; align?: "left" | "center" | "right";
+  label: React.ReactNode; style?: React.CSSProperties; align?: "left" | "center" | "right"; dark?: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -176,9 +146,19 @@ function GetStartedDropdown({
     { left: "50%", transform: "translateX(-50%)" };
   return (
     <div ref={ref} style={{ position: "relative", display: "inline-flex" }}>
-      <MagneticButton onClick={() => setOpen((v) => !v)} className={className} style={style}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          display: "inline-flex", alignItems: "center", gap: 6,
+          fontSize: 15, fontWeight: 500, padding: "14px 28px", borderRadius: 6,
+          background: dark ? C.charcoal : C.ember,
+          color: "#fff", border: "none", cursor: "pointer",
+          transition: "opacity 0.15s ease",
+          ...style,
+        }}
+      >
         {label}
-      </MagneticButton>
+      </button>
       <AnimatePresence>
         {open && (
           <motion.div
@@ -188,7 +168,7 @@ function GetStartedDropdown({
             transition={{ duration: 0.14 }}
             style={{
               position: "absolute", top: "calc(100% + 10px)", ...alignStyle,
-              background: C.cream, border: `1px solid ${C.taupe}`, borderRadius: 14,
+              background: C.cream, border: `1px solid ${C.taupe}`, borderRadius: 12,
               overflow: "hidden", minWidth: 210,
               boxShadow: "0 16px 48px rgba(24,22,15,0.14)", zIndex: 200,
             }}
@@ -219,200 +199,198 @@ function GetStartedDropdown({
   );
 }
 
-// ─── ScoreRing ────────────────────────────────────────────────────────────────
-function ScoreRing({ score, size = 110 }: { score: number; size?: number }) {
-  const svgRef = useRef<SVGSVGElement>(null);
-  const inView = useInView(svgRef, { once: true });
-  const r = 40;
-  const circ = 2 * Math.PI * r;
-  const offset = circ * (1 - score / 100);
-  return (
-    <svg ref={svgRef} width={size} height={size} viewBox="0 0 100 100">
-      <defs>
-        <linearGradient id="sg" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor={C.ember} />
-          <stop offset="100%" stopColor={C.gold} />
-        </linearGradient>
-      </defs>
-      <circle cx="50" cy="50" r={r} fill="none" stroke={C.taupe} strokeWidth="7" />
-      <motion.circle
-        cx="50" cy="50" r={r} fill="none" stroke="url(#sg)" strokeWidth="7"
-        strokeLinecap="round"
-        strokeDasharray={circ}
-        initial={{ strokeDashoffset: circ }}
-        animate={inView ? { strokeDashoffset: offset } : { strokeDashoffset: circ }}
-        transform="rotate(-90 50 50)"
-        transition={{ duration: 1.6, delay: 0.3, ease }}
-      />
-    </svg>
-  );
-}
-
 // ─── ProductMock ──────────────────────────────────────────────────────────────
 function ProductMock() {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true, amount: 0.3 });
   return (
-    <motion.div ref={ref} style={{ position: "relative" }}>
-      {/* glow */}
+    <motion.div
+      ref={ref}
+      initial={{ opacity: 0, y: 24 }}
+      animate={inView ? { opacity: 1, y: 0 } : {}}
+      transition={{ duration: 0.8, delay: 0.6, ease }}
+      style={{
+        background: "white",
+        borderRadius: 12,
+        border: `1px solid ${C.taupe}`,
+        boxShadow: "0 1px 2px rgba(42,40,38,0.04), 0 8px 24px rgba(42,40,38,0.06), 0 32px 64px rgba(42,40,38,0.06)",
+        overflow: "hidden",
+      }}
+    >
+      {/* Window chrome */}
       <div style={{
-        position: "absolute", inset: -30, borderRadius: 32, pointerEvents: "none",
-        background: `radial-gradient(ellipse at 60% 40%, rgba(217,119,87,0.13) 0%, transparent 70%)`,
-      }} />
-
-      <motion.div
-        initial={{ opacity: 0, y: 28, scale: 0.97 }}
-        animate={inView ? { opacity: 1, y: 0, scale: 1 } : {}}
-        transition={{ duration: 0.9, ease }}
-        style={{
-          background: "#FDFCFA", border: `1px solid ${C.taupe}`, borderRadius: 20,
-          overflow: "hidden", boxShadow: "0 4px 48px rgba(42,40,38,0.08)",
-        }}
-      >
-        {/* Window bar */}
-        <div style={{
-          display: "flex", alignItems: "center", gap: 6,
-          padding: "11px 16px", borderBottom: `1px solid ${C.taupe}`, background: C.sand,
+        padding: "12px 16px",
+        borderBottom: `1px solid ${C.taupe}`,
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        background: "#FAFAF9",
+      }}>
+        <div style={{ width: 10, height: 10, borderRadius: "50%", background: C.taupe }} />
+        <div style={{ width: 10, height: 10, borderRadius: "50%", background: C.taupe }} />
+        <div style={{ width: 10, height: 10, borderRadius: "50%", background: C.taupe }} />
+        <span style={{
+          marginLeft: "auto",
+          fontFamily: "monospace",
+          fontSize: 11,
+          color: C.dim,
+          letterSpacing: "0.04em",
         }}>
-          <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#E8C4B8" }} />
-          <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#E8DDB8" }} />
-          <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#B8E8C4" }} />
-          <span style={{ marginLeft: 8, fontSize: 11, color: C.stone, fontWeight: 500 }}>Q-Score Dashboard</span>
-          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 5 }}>
-            <motion.div
-              animate={{ opacity: [0.4, 1, 0.4] }}
-              transition={{ duration: 2, repeat: Infinity }}
-              style={{ width: 6, height: 6, borderRadius: "50%", background: "#22C55E" }}
-            />
-            <span style={{ fontSize: 10, color: C.stone }}>Live</span>
-          </div>
-        </div>
+          edgealpha.co/dashboard
+        </span>
+      </div>
 
-        {/* Score row */}
-        <div style={{ padding: "22px 22px 14px", display: "flex", alignItems: "center", gap: 18 }}>
-          <div style={{ position: "relative", flexShrink: 0 }}>
-            <ScoreRing score={74} size={100} />
-            <div style={{
-              position: "absolute", inset: 0, display: "flex", flexDirection: "column",
-              alignItems: "center", justifyContent: "center",
-            }}>
-              <span style={{ fontSize: 24, fontWeight: 600, color: C.charcoal, lineHeight: 1 }}>74</span>
-              <span style={{ fontSize: 9, color: C.stone, marginTop: 2, letterSpacing: "0.1em" }}>/ 100</span>
-            </div>
-          </div>
+      {/* Content */}
+      <div style={{ padding: 24 }}>
+        {/* Score header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
           <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
-              <span style={{ fontSize: 26, fontWeight: 300, color: C.charcoal, lineHeight: 1 }}>B+</span>
-              <span style={{
-                fontSize: 10, padding: "3px 8px", borderRadius: 5,
-                background: "rgba(139,154,122,0.15)", color: "#3A6A3A", fontWeight: 600,
-              }}>Top 34%</span>
+            <div style={{
+              fontSize: 11,
+              color: C.dim,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              marginBottom: 4,
+              fontFamily: "monospace",
+            }}>
+              Q-Score
             </div>
-            <p style={{ fontSize: 12, color: C.charcoal, fontWeight: 500, marginBottom: 3 }}>Investment Ready</p>
-            <p style={{ fontSize: 11, color: C.stone }}>3 dimensions to strengthen</p>
+            <div style={{
+              fontFamily: "monospace",
+              fontSize: 48,
+              fontWeight: 300,
+              color: C.charcoal,
+              lineHeight: 1,
+              letterSpacing: "-0.02em",
+            }}>
+              74
+              <span style={{ fontSize: 20, color: C.dim }}>/100</span>
+            </div>
+          </div>
+          <div style={{
+            background: "#FFF8F5",
+            border: "1px solid #F5E8E2",
+            borderRadius: 8,
+            padding: "12px 16px",
+            textAlign: "center",
+          }}>
+            <div style={{
+              fontFamily: "monospace",
+              fontSize: 28,
+              fontWeight: 400,
+              color: C.ember,
+              lineHeight: 1,
+            }}>B+</div>
+            <div style={{
+              fontSize: 10,
+              color: C.dim,
+              marginTop: 4,
+              letterSpacing: "0.04em",
+              fontFamily: "monospace",
+            }}>Top 34%</div>
           </div>
         </div>
 
-        {/* Dimension bars */}
-        <div style={{ padding: "0 22px 18px" }}>
-          {dimensions.map((d, i) => (
-            <div key={d.label} style={{ marginBottom: i < dimensions.length - 1 ? 10 : 0 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
-                <span style={{ fontSize: 11, color: C.stone, display: "flex", alignItems: "center", gap: 6 }}>
-                  {d.label}
-                  {d.low && (
-                    <span style={{
-                      fontSize: 9, padding: "1px 6px", borderRadius: 3,
-                      background: "rgba(217,119,87,0.12)", color: C.ember, fontWeight: 600,
-                    }}>↑ Focus</span>
-                  )}
-                </span>
-                <span style={{ fontSize: 11, fontWeight: 600, color: d.low ? C.ember : C.charcoal }}>{d.score}</span>
-              </div>
-              <div style={{ height: 4, borderRadius: 999, background: C.taupe, overflow: "hidden" }}>
-                <motion.div
-                  style={{
-                    height: "100%", borderRadius: 999,
-                    background: d.low
-                      ? `linear-gradient(90deg, ${C.ember}, #C46A4A)`
-                      : d.color,
-                    opacity: d.low ? 1 : 0.65,
-                  }}
-                  initial={{ width: 0 }}
-                  animate={inView ? { width: `${d.score}%` } : { width: 0 }}
-                  transition={{ duration: 1.2, delay: 0.5 + i * 0.1, ease }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* AI adviser bubble */}
-        <div style={{ borderTop: `1px solid ${C.taupe}`, padding: "14px 16px", background: C.cream }}>
-          <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-            <div style={{
-              width: 26, height: 26, borderRadius: 6, background: C.charcoal,
-              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1,
-            }}>
-              <Bot style={{ width: 13, height: 13, color: C.cream }} />
-            </div>
-            <div style={{
-              background: C.sand, border: `1px solid ${C.taupe}`,
-              borderRadius: "4px 12px 12px 12px", padding: "10px 14px", flex: 1,
-            }}>
-              <p style={{ fontSize: 12, color: C.charcoal, lineHeight: 1.65 }}>
-                Your retention score is the key gap. Let&apos;s build a{" "}
-                <strong>habit-forming trigger</strong> for week 2 — this alone reduces early churn by 20–35%.
-              </p>
-            </div>
+        {/* Progress bar */}
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ height: 4, background: C.taupe, borderRadius: 2, overflow: "hidden" }}>
+            <motion.div
+              initial={{ width: 0 }}
+              animate={inView ? { width: "74%" } : { width: 0 }}
+              transition={{ duration: 1.2, delay: 0.8, ease }}
+              style={{
+                height: "100%",
+                background: `linear-gradient(90deg, ${C.ember}, ${C.gold})`,
+                borderRadius: 2,
+              }}
+            />
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
+            <span style={{ fontSize: 10, color: C.dim, fontFamily: "monospace" }}>0</span>
+            <span style={{ fontSize: 10, color: C.sage, fontFamily: "monospace" }}>↑ 70 investor threshold</span>
+            <span style={{ fontSize: 10, color: C.dim, fontFamily: "monospace" }}>100</span>
           </div>
         </div>
 
-        {/* Score strip */}
+        {/* Dimension rows */}
+        {mockDimensions.map((dim) => (
+          <div key={dim.label} style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            marginBottom: 10,
+          }}>
+            <span style={{
+              fontSize: 12,
+              color: C.stone,
+              width: 72,
+              flexShrink: 0,
+            }}>
+              {dim.label}
+            </span>
+            <div style={{
+              flex: 1,
+              height: 3,
+              background: C.taupe,
+              borderRadius: 2,
+              overflow: "hidden",
+            }}>
+              <motion.div
+                initial={{ width: 0 }}
+                animate={inView ? { width: `${dim.score}%` } : { width: 0 }}
+                transition={{ duration: 0.8, delay: 1.0, ease }}
+                style={{
+                  height: "100%",
+                  background: C.charcoal,
+                  borderRadius: 2,
+                  opacity: 0.15 + (dim.score / 100) * 0.85,
+                }}
+              />
+            </div>
+            <span style={{
+              fontFamily: "monospace",
+              fontSize: 11,
+              color: C.charcoal,
+              width: 24,
+              textAlign: "right",
+            }}>
+              {dim.score}
+            </span>
+            <span style={{
+              fontFamily: "monospace",
+              fontSize: 10,
+              color: dim.delta.startsWith("+") ? C.sage : C.ember,
+              width: 28,
+              textAlign: "right",
+            }}>
+              {dim.delta}
+            </span>
+          </div>
+        ))}
+
+        {/* Action item */}
         <div style={{
-          padding: "10px 16px", display: "flex", alignItems: "center", justifyContent: "space-between",
-          borderTop: `1px solid ${C.taupe}`, background: C.sand,
-        }}>
-          <span style={{ fontSize: 11, color: C.stone }}>This session is improving your Q-Score</span>
-          <div style={{ display: "flex", alignItems: "center", gap: 4, color: C.ember, fontSize: 11, fontWeight: 600 }}>
-            <TrendingUp style={{ width: 12, height: 12 }} /> +3 pts
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Floating badge — top right */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.8, y: 6 }}
-        animate={inView ? { opacity: 1, scale: 1, y: 0 } : {}}
-        transition={{ delay: 0.9, duration: 0.45 }}
-        style={{
-          position: "absolute", top: -14, right: -14,
-          background: C.midnight, borderRadius: 12, padding: "8px 14px",
-          display: "flex", alignItems: "center", gap: 7,
-          border: "1px solid rgba(255,255,255,0.07)",
-          boxShadow: "0 8px 28px rgba(0,0,0,0.22)",
-        }}
-      >
-        <TrendingUp style={{ width: 13, height: 13, color: "#22C55E" }} />
-        <span style={{ fontSize: 11, fontWeight: 600, color: C.cream }}>+8 pts this week</span>
-      </motion.div>
-
-      {/* Floating badge — bottom left */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.8, y: -6 }}
-        animate={inView ? { opacity: 1, scale: 1, y: 0 } : {}}
-        transition={{ delay: 1.1, duration: 0.45 }}
-        style={{
-          position: "absolute", bottom: -14, left: -14,
-          background: C.cream, borderRadius: 12, padding: "8px 14px",
-          display: "flex", alignItems: "center", gap: 7,
+          marginTop: 16,
+          padding: 12,
+          background: C.cream,
+          borderRadius: 6,
           border: `1px solid ${C.taupe}`,
-          boxShadow: "0 8px 28px rgba(42,40,38,0.1)",
-        }}
-      >
-        <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#22C55E" }} />
-        <span style={{ fontSize: 11, color: C.charcoal, fontWeight: 500 }}>3 investors matched</span>
-      </motion.div>
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+        }}>
+          <div style={{
+            width: 6,
+            height: 6,
+            borderRadius: "50%",
+            background: C.ember,
+            flexShrink: 0,
+          }} />
+          <span style={{ fontSize: 12, color: C.stone, lineHeight: 1.4 }}>
+            Improve Financials score by adding a 24-month model
+          </span>
+        </div>
+      </div>
     </motion.div>
   );
 }
@@ -463,14 +441,12 @@ function BillingToggle({ annual, onChange }: { annual: boolean; onChange: (v: bo
       padding: "6px 6px 6px 14px", borderRadius: 999,
       background: C.sand, border: `1px solid ${C.taupe}`,
     }}>
-      <span style={{ fontSize: 12, color: annual ? C.dim : C.charcoal, fontWeight: annual ? 300 : 500 }}>
-        Monthly
-      </span>
+      <span style={{ fontSize: 12, color: annual ? C.dim : C.charcoal, fontWeight: annual ? 300 : 500 }}>Monthly</span>
       <button
         onClick={() => onChange(!annual)}
         style={{
           width: 40, height: 22, borderRadius: 999,
-          background: annual ? C.ember : C.faint,
+          background: annual ? C.charcoal : C.faint,
           border: "none", cursor: "pointer", position: "relative",
           transition: "background 0.25s",
         }}
@@ -485,9 +461,7 @@ function BillingToggle({ annual, onChange }: { annual: boolean; onChange: (v: bo
           }}
         />
       </button>
-      <span style={{ fontSize: 12, color: annual ? C.charcoal : C.dim, fontWeight: annual ? 500 : 300 }}>
-        Annual
-      </span>
+      <span style={{ fontSize: 12, color: annual ? C.charcoal : C.dim, fontWeight: annual ? 500 : 300 }}>Annual</span>
       <AnimatePresence>
         {annual && (
           <motion.span
@@ -514,17 +488,10 @@ export default function LandingPage() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [activeAgent, setActiveAgent] = useState(0);
   const [faqOpen, setFaqOpen]       = useState<number | null>(null);
-  const [showSticky, setShowSticky] = useState(false);
   const [annual, setAnnual]         = useState(false);
 
-  const { scrollYProgress } = useScroll();
-  const heroY = useTransform(scrollYProgress, [0, 0.3], [0, -40]);
-
   useEffect(() => {
-    const fn = () => {
-      setScrolled(window.scrollY > 40);
-      setShowSticky(window.scrollY > 600);
-    };
+    const fn = () => setScrolled(window.scrollY > 40);
     window.addEventListener("scroll", fn);
     return () => window.removeEventListener("scroll", fn);
   }, []);
@@ -539,105 +506,80 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen antialiased" style={{ background: C.cream, color: C.charcoal }}>
 
-      {/* ── SCROLL PROGRESS ──────────────────────────────────────────────── */}
-      <motion.div
-        style={{
-          position: "fixed", top: 0, left: 0, right: 0, height: 3, zIndex: 9999,
-          background: `linear-gradient(90deg, ${C.ember}, ${C.gold})`,
-          scaleX: scrollYProgress, transformOrigin: "0%",
-        }}
-      />
-
-      {/* ── STICKY BOTTOM CTA ────────────────────────────────────────────── */}
-      <AnimatePresence>
-        {showSticky && (
-          <motion.div
-            initial={{ y: 80, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 80, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 200, damping: 25 }}
-            style={{
-              position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
-              zIndex: 100, display: "flex", alignItems: "center", gap: 12,
-              padding: "10px 10px 10px 18px", borderRadius: 999,
-              background: C.midnight, border: `1px solid rgba(255,255,255,0.06)`,
-              boxShadow: "0 8px 40px rgba(0,0,0,0.3)",
-            }}
-          >
-            <div style={{ width: 7, height: 7, borderRadius: "50%", background: C.sage, flexShrink: 0 }} />
-            <span style={{ fontSize: 13, color: "rgba(255,255,255,0.65)", fontWeight: 300 }}>
-              Build your fundable business
-            </span>
-            <MagneticButton
-              onClick={() => go("/founder/onboarding")}
-              style={{
-                padding: "8px 20px", borderRadius: 999,
-                background: `linear-gradient(135deg, ${C.ember}, #C46A4A)`,
-                color: "#fff", fontSize: 13, fontWeight: 600, border: "none", cursor: "pointer",
-                boxShadow: `0 2px 12px rgba(217,119,87,0.4)`,
-              }}
-            >
-              Start free →
-            </MagneticButton>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* ── NAV ──────────────────────────────────────────────────────────── */}
       <motion.header
         className="fixed inset-x-0 top-0 z-50"
         style={{
-          background: scrolled ? "rgba(250,248,243,0.85)" : "transparent",
-          backdropFilter: scrolled ? "blur(20px) saturate(180%)" : "none",
-          borderBottom: scrolled ? `1px solid rgba(232,227,216,0.5)` : "1px solid transparent",
-          boxShadow: scrolled ? "0 4px 24px rgba(42,40,38,0.05)" : "none",
-          transition: "all 0.3s ease",
+          height: 56,
+          display: "flex",
+          alignItems: "center",
+          background: scrolled ? "rgba(250,248,243,0.92)" : "transparent",
+          backdropFilter: scrolled ? "blur(12px)" : "none",
+          borderBottom: scrolled ? `1px solid ${C.taupe}` : "1px solid transparent",
+          transition: "all 0.2s ease",
         }}
-        initial={{ y: -64 }}
+        initial={{ y: -56 }}
         animate={{ y: 0 }}
         transition={{ duration: 0.4 }}
       >
-        <div className="mx-auto max-w-7xl px-6 lg:px-8 h-16 flex items-center justify-between">
-          <button onClick={() => go("/")} className="flex items-center gap-2.5">
-            <div className="h-7 w-7 rounded-md flex items-center justify-center" style={{ background: C.charcoal }}>
-              <span className="font-bold text-[8px] tracking-tight" style={{ color: C.cream }}>EA</span>
-            </div>
-            <span className="font-medium tracking-tight text-[15px]" style={{ color: C.charcoal }}>Edge Alpha</span>
+        <div className="mx-auto max-w-7xl px-6 lg:px-8 w-full flex items-center justify-between">
+          <button
+            onClick={() => go("/")}
+            style={{
+              fontFamily: "monospace",
+              fontSize: 14,
+              fontWeight: 500,
+              color: C.charcoal,
+              letterSpacing: "-0.01em",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+            }}
+          >
+            Edge Alpha
           </button>
 
-          <nav className="hidden md:flex items-center gap-8">
+          <nav className="hidden md:flex items-center gap-6">
             {[
               { label: "How it works", href: "#how-it-works" },
               { label: "Pricing",      href: "#pricing" },
-              { label: "For investors", href: "#for-investors" },
               { label: "Library",      href: "/library" },
             ].map((l) => (
               <a key={l.label} href={l.href}
-                className="text-[13px] font-light transition-opacity hover:opacity-60"
-                style={{ color: C.stone }}>
+                style={{
+                  fontSize: 14,
+                  color: C.stone,
+                  textDecoration: "none",
+                  transition: "color 0.15s",
+                }}>
                 {l.label}
               </a>
             ))}
             <button
               onClick={() => go("/login")}
-              className="text-[13px] font-medium transition-opacity hover:opacity-70"
-              style={{ color: C.stone }}
+              style={{ fontSize: 14, color: C.stone, background: "none", border: "none", cursor: "pointer" }}
             >
               Sign in
             </button>
-            <GetStartedDropdown
-              label="Get started"
-              className="text-[13px] font-semibold px-5 py-2 rounded-full"
+            <button
+              onClick={() => go("/founder/onboarding")}
               style={{
-                background: `linear-gradient(135deg, ${C.ember}, #C46A4A)`,
-                color: "#fff", border: "none", cursor: "pointer",
-                boxShadow: `0 2px 12px rgba(217,119,87,0.3)`,
+                background: C.charcoal,
+                color: "white",
+                padding: "8px 16px",
+                borderRadius: 6,
+                fontSize: 13,
+                fontWeight: 500,
+                border: "none",
+                cursor: "pointer",
+                transition: "opacity 0.15s",
               }}
-              align="right"
-            />
+            >
+              Get started
+            </button>
           </nav>
 
-          <button className="md:hidden" onClick={() => setMobileOpen(!mobileOpen)} style={{ color: C.stone }}>
+          <button className="md:hidden" onClick={() => setMobileOpen(!mobileOpen)} style={{ color: C.stone, background: "none", border: "none", cursor: "pointer" }}>
             {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
         </div>
@@ -648,183 +590,219 @@ export default function LandingPage() {
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
-              className="md:hidden px-6 py-5 space-y-4"
-              style={{ background: C.cream, borderTop: `1px solid ${C.taupe}` }}
+              style={{
+                position: "absolute",
+                top: 56,
+                left: 0,
+                right: 0,
+                background: C.cream,
+                borderTop: `1px solid ${C.taupe}`,
+                padding: "20px 24px",
+                display: "flex",
+                flexDirection: "column",
+                gap: 16,
+              }}
             >
-              {["#how-it-works", "#pricing", "#for-investors", "/library"].map((href, i) => (
-                <a key={href} href={href}
-                  className="block text-sm font-light"
-                  style={{ color: C.stone }}
+              {[{ label: "How it works", href: "#how-it-works" }, { label: "Pricing", href: "#pricing" }, { label: "Library", href: "/library" }].map((l) => (
+                <a key={l.label} href={l.href}
+                  style={{ fontSize: 14, color: C.stone, textDecoration: "none" }}
                   onClick={() => setMobileOpen(false)}>
-                  {["How it works", "Pricing", "For investors", "Library"][i]}
+                  {l.label}
                 </a>
               ))}
-              <GetStartedDropdown
-                label="Get started free"
-                className="w-full text-sm font-semibold py-3 rounded-full"
+              <button
+                onClick={() => { go("/founder/onboarding"); setMobileOpen(false); }}
                 style={{
-                  background: `linear-gradient(135deg, ${C.ember}, #C46A4A)`,
-                  color: "#fff", border: "none", cursor: "pointer",
+                  background: C.ember, color: "white",
+                  padding: "12px", borderRadius: 6,
+                  fontSize: 14, fontWeight: 500,
+                  border: "none", cursor: "pointer",
                 }}
-                align="center"
-              />
+              >
+                Get started free
+              </button>
             </motion.div>
           )}
         </AnimatePresence>
       </motion.header>
 
       {/* ── HERO ─────────────────────────────────────────────────────────── */}
-      <section className="pt-28 sm:pt-36 pb-20 sm:pb-32 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-        {/* Gradient mesh */}
+      <section className="pt-36 sm:pt-44 pb-24 sm:pb-32 px-6 lg:px-8 relative overflow-hidden">
+        {/* Single subtle background glow — no blobs */}
         <div style={{
-          position: "absolute", inset: 0, pointerEvents: "none",
-          background: `radial-gradient(at 15% 25%, rgba(217,119,87,0.09) 0%, transparent 55%),
-                       radial-gradient(at 85% 75%, rgba(139,154,122,0.07) 0%, transparent 55%),
-                       radial-gradient(at 60% 10%, rgba(201,169,97,0.06) 0%, transparent 45%)`,
-        }} />
-        {/* Morphing blob */}
-        <motion.div
-          animate={{ scale: [1, 1.15, 1], rotate: [0, 70, 0], borderRadius: ["30% 70% 70% 30%", "70% 30% 30% 70%", "30% 70% 70% 30%"] }}
-          transition={{ duration: 22, repeat: Infinity, ease: "linear" }}
-          style={{
-            position: "absolute", top: "5%", right: "-8%",
-            width: 520, height: 520,
-            background: `linear-gradient(135deg, ${C.goldL}, ${C.taupe})`,
-            opacity: 0.22, filter: "blur(64px)", pointerEvents: "none",
-          }}
-        />
-        {/* Dot grid */}
-        <div style={{
-          position: "absolute", inset: 0,
-          backgroundImage: `radial-gradient(${C.taupe} 1px, transparent 1px)`,
-          backgroundSize: "28px 28px", opacity: 0.4, pointerEvents: "none",
-        }} />
-        <div style={{
-          position: "absolute", inset: 0,
-          background: `linear-gradient(to bottom, rgba(250,248,243,0.2) 0%, rgba(250,248,243,0.75) 60%, ${C.cream} 100%)`,
+          position: "absolute",
+          inset: 0,
+          background: "radial-gradient(ellipse at 60% 0%, rgba(217,119,87,0.05) 0%, transparent 55%)",
           pointerEvents: "none",
         }} />
 
-        <div className="mx-auto max-w-7xl grid lg:grid-cols-2 gap-12 lg:gap-16 items-center relative">
-          {/* copy */}
-          <motion.div style={{ y: heroY }}>
+        <div className="mx-auto max-w-7xl grid lg:grid-cols-2 gap-16 items-center relative">
+          {/* Left: copy */}
+          <div>
             <motion.div
-              initial={{ opacity: 0, y: 16 }}
+              initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className="flex items-center gap-3 mb-8"
+              transition={{ duration: 0.5, delay: 0.1 }}
+              style={{ marginBottom: 32 }}
             >
-              <div style={{ height: 1, width: 20, background: C.charcoal }} />
-              <span className="font-ea-mono text-[10px] tracking-[0.22em] uppercase" style={{ color: C.stone }}>
-                Edge Alpha · Est. 2024
+              <span style={{
+                fontFamily: "monospace",
+                fontSize: 11,
+                letterSpacing: "0.12em",
+                textTransform: "uppercase",
+                color: C.ember,
+                fontWeight: 500,
+              }}>
+                Investment readiness platform
               </span>
             </motion.div>
 
-            <h1 className="text-[2.3rem] sm:text-5xl md:text-6xl xl:text-[4.25rem] leading-[1.02] tracking-tight mb-6 sm:mb-7" style={{ fontWeight: 300 }}>
-              {[
-                { text: "Build a fundable", serif: true },
-                { text: "business.",        serif: true },
-                { text: "Then raise.",      serif: false, muted: true },
-              ].map((line, i) => (
-                <motion.span
-                  key={i}
-                  style={{ display: "block", color: line.muted ? C.stone : C.charcoal }}
-                  initial={{ opacity: 0, y: 32 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 + i * 0.16, duration: 0.75, ease }}
-                >
-                  {line.serif ? <em className="font-display not-italic">{line.text}</em> : line.text}
-                </motion.span>
-              ))}
-            </h1>
+            <motion.h1
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7, delay: 0.2, ease }}
+              style={{
+                fontSize: "clamp(44px, 6vw, 80px)",
+                fontWeight: 300,
+                letterSpacing: "-0.035em",
+                lineHeight: 1.0,
+                color: C.charcoal,
+                marginBottom: 24,
+              }}
+            >
+              Build a fundable<br />
+              <em style={{ fontStyle: "italic" }}>business.</em>
+              <span style={{ color: C.ember }}> Then raise.</span>
+            </motion.h1>
 
             <motion.p
-              className="text-[15px] sm:text-[17px] font-light leading-relaxed max-w-md mb-8 sm:mb-10"
-              style={{ color: C.stone }}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.72, duration: 0.6 }}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.4 }}
+              style={{
+                fontSize: 17,
+                lineHeight: 1.65,
+                color: C.stone,
+                maxWidth: 480,
+                marginBottom: 40,
+                fontWeight: 400,
+              }}
             >
-              9 AI expert advisers. One investor-readiness score. 500+ verified investors waiting when you hit the bar.
+              Nine AI advisers evaluate your company across six dimensions
+              and give you an investor-readiness score. Raise when you hit 70.
             </motion.p>
 
             <motion.div
-              className="flex flex-wrap items-center gap-3 sm:gap-4 mb-6"
-              initial={{ opacity: 0, y: 10 }}
+              initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.88, duration: 0.5 }}
+              transition={{ duration: 0.5, delay: 0.55 }}
+              style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 16 }}
             >
               <GetStartedDropdown
-                label={<>Start free <ArrowRight className="h-4 w-4" /></>}
-                className="inline-flex items-center gap-2 text-[14px] font-semibold px-7 py-3.5 rounded-full"
-                style={{
-                  background: `linear-gradient(135deg, ${C.ember} 0%, #C46A4A 100%)`,
-                  color: "#fff", border: "none", cursor: "pointer",
-                  boxShadow: `0 4px 24px rgba(217,119,87,0.38)`,
-                }}
+                label={<>Start free <ArrowRight size={15} strokeWidth={2} /></>}
                 align="left"
               />
               <button
                 onClick={() => document.getElementById("how-it-works")?.scrollIntoView({ behavior: "smooth" })}
-                className="text-[14px] font-light inline-flex items-center gap-1.5 transition-opacity hover:opacity-60"
-                style={{ color: C.stone }}
+                style={{
+                  fontSize: 15,
+                  color: C.stone,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  transition: "color 0.15s",
+                }}
               >
-                See how it works
-                <ChevronRight className="h-4 w-4" />
+                How it works
               </button>
             </motion.div>
 
             <motion.p
-              className="text-[11px] font-light mb-8"
-              style={{ color: C.dim }}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ delay: 1.0, duration: 0.4 }}
+              transition={{ delay: 0.7, duration: 0.4 }}
+              style={{ fontSize: 12, color: C.dim, marginBottom: 40, fontFamily: "monospace" }}
             >
               10-minute setup · No credit card needed
             </motion.p>
 
-            {/* Avatar + stat strip */}
+            {/* Social proof */}
             <motion.div
-              className="flex flex-col sm:flex-row sm:items-center gap-5 pt-7"
-              style={{ borderTop: `1px solid ${C.taupe}` }}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ delay: 1.05, duration: 0.5 }}
+              transition={{ delay: 0.8, duration: 0.5 }}
+              style={{
+                paddingTop: 32,
+                borderTop: `1px solid ${C.taupe}`,
+                display: "flex",
+                alignItems: "center",
+                gap: 32,
+              }}
             >
-              <AvatarStack />
-              <div style={{ height: 1, width: 1, background: C.taupe, display: "none" }} className="sm:block sm:h-8 sm:w-px" />
-              <div className="flex items-center gap-5">
-                {[["$2.3B", "raised"], ["500+", "investors"]].map(([n, l], i) => (
-                  <div key={l} className="flex items-center gap-4">
-                    {i > 0 && <div style={{ height: 12, width: 1, background: C.taupe }} />}
-                    <span className="font-ea-mono text-[11px]" style={{ color: C.stone }}>
-                      <span style={{ color: C.charcoal, fontWeight: 600 }}>{n}</span> {l}
-                    </span>
+              {[
+                { value: "$2.3B", label: "raised" },
+                { value: "10k+", label: "founders" },
+                { value: "500+", label: "investors" },
+              ].map(stat => (
+                <div key={stat.label}>
+                  <div style={{
+                    fontFamily: "monospace",
+                    fontSize: 20,
+                    fontWeight: 400,
+                    color: C.charcoal,
+                    letterSpacing: "-0.02em",
+                  }}>
+                    {stat.value}
                   </div>
-                ))}
-              </div>
+                  <div style={{
+                    fontSize: 12,
+                    color: C.stone,
+                    marginTop: 2,
+                    letterSpacing: "0.04em",
+                  }}>
+                    {stat.label}
+                  </div>
+                </div>
+              ))}
             </motion.div>
-          </motion.div>
+          </div>
 
-          {/* product mock */}
-          <div className="lg:pl-4">
+          {/* Right: product mock */}
+          <div className="hidden lg:block">
             <ProductMock />
           </div>
         </div>
       </section>
 
       {/* ── PRESS STRIP ──────────────────────────────────────────────────── */}
-      <div className="py-7 sm:py-9" style={{ borderTop: `1px solid ${C.taupe}`, borderBottom: `1px solid ${C.taupe}` }}>
-        <p className="font-ea-mono text-[9px] tracking-[0.28em] text-center mb-5 uppercase" style={{ color: C.dim }}>
+      <div style={{ borderTop: `1px solid ${C.taupe}`, borderBottom: `1px solid ${C.taupe}`, paddingTop: 28, paddingBottom: 28 }}>
+        <p style={{
+          fontFamily: "monospace",
+          fontSize: 9,
+          letterSpacing: "0.28em",
+          textAlign: "center",
+          marginBottom: 20,
+          textTransform: "uppercase",
+          color: C.dim,
+        }}>
           Founders featured in
         </p>
         <div className="mq-wrap overflow-hidden relative">
           <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 80, background: `linear-gradient(to right, ${C.cream}, transparent)`, zIndex: 1, pointerEvents: "none" }} />
           <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 80, background: `linear-gradient(to left, ${C.cream}, transparent)`, zIndex: 1, pointerEvents: "none" }} />
-          <div className="mq-inner-l" style={{ "--mq-speed": "40s" } as React.CSSProperties}>
+          <div className="mq-inner-l" style={{ "--mq-speed": "50s" } as React.CSSProperties}>
             {[...pressLogos, ...pressLogos].map((n, i) => (
-              <span key={i} className="font-ea-mono mx-10" style={{ fontSize: 13, color: C.dim, whiteSpace: "nowrap", letterSpacing: "0.02em" }}>
+              <span key={i} style={{
+                fontFamily: "monospace",
+                fontSize: 13,
+                color: C.dim,
+                whiteSpace: "nowrap",
+                letterSpacing: "0.06em",
+                margin: "0 40px",
+              }}>
                 {n}
               </span>
             ))}
@@ -833,91 +811,148 @@ export default function LandingPage() {
       </div>
 
       {/* ── HOW IT WORKS ─────────────────────────────────────────────────── */}
-      <section id="how-it-works" className="py-20 sm:py-28 px-4 sm:px-6" style={{ background: C.sand }}>
-        <div className="mx-auto max-w-5xl">
-          <motion.div className="text-center mb-16" initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
-            <div className="flex items-center gap-3 justify-center mb-5">
-              <div style={{ height: 1, width: 16, background: C.taupe }} />
-              <span className="font-ea-mono text-[9px] tracking-[0.3em] uppercase" style={{ color: C.stone }}>How it works</span>
-              <div style={{ height: 1, width: 16, background: C.taupe }} />
+      <section id="how-it-works" style={{ background: C.cream, padding: "128px 24px" }}>
+        <div style={{ maxWidth: 680, margin: "0 auto" }}>
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            style={{ marginBottom: 64 }}
+          >
+            <div style={{
+              fontFamily: "monospace",
+              fontSize: 11,
+              letterSpacing: "0.1em",
+              color: C.ember,
+              textTransform: "uppercase",
+              marginBottom: 16,
+            }}>
+              How it works
             </div>
-            <h2 className="text-3xl sm:text-4xl tracking-tight leading-tight" style={{ fontWeight: 300 }}>
-              Three steps from idea{" "}
-              <em className="font-display not-italic">to raise.</em>
+            <h2 style={{
+              fontSize: "clamp(32px, 4vw, 48px)",
+              fontWeight: 400,
+              letterSpacing: "-0.025em",
+              lineHeight: 1.15,
+              color: C.charcoal,
+            }}>
+              From assessment<br />to investment.
             </h2>
           </motion.div>
 
-          <div className="grid md:grid-cols-3 gap-6 relative">
-            {/* connector line */}
-            <div className="hidden md:block absolute top-10 left-[calc(16.67%+16px)] right-[calc(16.67%+16px)] h-px"
-              style={{ background: `repeating-linear-gradient(90deg, ${C.taupe} 0px, ${C.taupe} 6px, transparent 6px, transparent 14px)` }} />
-            {[
-              { num: "01", icon: BarChart3, title: "Get your Q-Score", desc: "A 10-minute assessment scores your startup across 6 investor-critical dimensions. Know exactly where you stand and what to fix first." },
-              { num: "02", icon: Bot, title: "Work with your advisers", desc: "9 specialist AI agents close gaps, build assets, and strengthen every part of your business — with full context of your startup." },
-              { num: "03", icon: Users, title: "Match with investors", desc: "When your Q-Score hits 70, the marketplace opens. Thesis-matched introductions to 500+ verified investors actively deploying." },
-            ].map((step, i) => {
-              const Icon = step.icon;
-              return (
-                <motion.div key={step.num} className="relative"
-                  initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.13 }}>
-                  {/* ghost number */}
-                  <div style={{
-                    position: "absolute", top: -8, left: -4,
-                    fontSize: 100, fontWeight: 800, color: C.taupe,
-                    lineHeight: 1, letterSpacing: "-0.05em", pointerEvents: "none",
-                    fontFamily: "monospace", userSelect: "none", zIndex: 0,
-                  }}>
-                    {step.num}
-                  </div>
-                  <div className="relative z-10 pt-10 pl-1">
-                    <div className="inline-flex items-center justify-center h-12 w-12 rounded-xl mb-5"
-                      style={{
-                        background: i === 0 ? `rgba(217,119,87,0.1)` : i === 1 ? `rgba(37,99,235,0.08)` : `rgba(22,163,74,0.08)`,
-                        border: `1px solid ${i === 0 ? "rgba(217,119,87,0.2)" : i === 1 ? "rgba(37,99,235,0.15)" : "rgba(22,163,74,0.15)"}`,
-                      }}>
-                      <Icon className="h-5 w-5" style={{ color: i === 0 ? C.ember : i === 1 ? "#2563EB" : "#16A34A" }} />
-                    </div>
-                    <h3 className="text-[15px] font-semibold mb-2">{step.title}</h3>
-                    <p className="text-[13px] font-light leading-relaxed" style={{ color: C.stone }}>{step.desc}</p>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </div>
+          {[
+            {
+              number: "01",
+              title: "Get your Q-Score",
+              body: "Complete a 10-minute assessment. Six dimensions. One honest number that tells you exactly where you stand.",
+            },
+            {
+              number: "02",
+              title: "Work with your advisers",
+              body: "Nine AI specialists — strategy, marketing, finance, legal — guide your improvement with full context of your business.",
+            },
+            {
+              number: "03",
+              title: "Raise when you hit 70",
+              body: "At Q-Score ≥ 70, your company matches with verified investors who fit your thesis, stage, and check size.",
+            },
+          ].map((step, i) => (
+            <motion.div
+              key={step.number}
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-80px" }}
+              transition={{ duration: 0.5, delay: i * 0.1, ease }}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "48px 1fr",
+                gap: "0 24px",
+                paddingBottom: 48,
+                borderBottom: i < 2 ? `1px solid ${C.taupe}` : "none",
+                marginBottom: i < 2 ? 48 : 0,
+              }}
+            >
+              <div style={{
+                fontFamily: "monospace",
+                fontSize: 12,
+                color: C.dim,
+                paddingTop: 4,
+                letterSpacing: "0.04em",
+              }}>
+                {step.number}
+              </div>
+              <div>
+                <h3 style={{
+                  fontSize: 20,
+                  fontWeight: 500,
+                  color: C.charcoal,
+                  letterSpacing: "-0.015em",
+                  marginBottom: 8,
+                }}>
+                  {step.title}
+                </h3>
+                <p style={{
+                  fontSize: 16,
+                  lineHeight: 1.65,
+                  color: C.stone,
+                }}>
+                  {step.body}
+                </p>
+              </div>
+            </motion.div>
+          ))}
         </div>
       </section>
 
       {/* ── THREE PILLARS ─────────────────────────────────────────────────── */}
-      <section className="py-16 sm:py-28 px-4 sm:px-6">
+      <section style={{ background: C.sand, padding: "128px 24px" }}>
         <div className="mx-auto max-w-7xl">
-          <motion.div className="mb-10 sm:mb-16" initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
-            <div className="flex items-center gap-3 mb-5">
-              <div style={{ height: 1, width: 16, background: C.taupe }} />
-              <span className="font-ea-mono text-[9px] tracking-[0.3em] uppercase" style={{ color: C.stone }}>Platform</span>
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            style={{ marginBottom: 64 }}
+          >
+            <div style={{
+              fontFamily: "monospace",
+              fontSize: 11,
+              letterSpacing: "0.1em",
+              color: C.stone,
+              textTransform: "uppercase",
+              marginBottom: 16,
+            }}>
+              Platform
             </div>
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-              <h2 className="text-3xl sm:text-4xl tracking-tight max-w-lg leading-tight" style={{ fontWeight: 300 }}>
-                Three tools that{" "}<em className="font-display not-italic">work together.</em>
+              <h2 style={{
+                fontSize: "clamp(28px, 4vw, 44px)",
+                fontWeight: 400,
+                letterSpacing: "-0.025em",
+                lineHeight: 1.15,
+                color: C.charcoal,
+                maxWidth: 480,
+              }}>
+                Three tools that work together.
               </h2>
-              <p className="text-[14px] font-light max-w-xs leading-relaxed" style={{ color: C.stone }}>
+              <p style={{ fontSize: 14, color: C.stone, maxWidth: 280, lineHeight: 1.6, fontWeight: 400 }}>
                 Strengthen your business, prove it with data, then unlock funding.
               </p>
             </div>
           </motion.div>
 
-          <div className="divide-y" style={{ borderTop: `1px solid ${C.taupe}` }}>
+          <div style={{ borderTop: `1px solid ${C.taupe}` }}>
             {[
               {
                 num: "01", icon: BarChart3, label: "Q-Score", accent: C.ember,
                 title: "Algorithmic investment readiness scoring",
-                body: "A precise, multi-dimensional score across team, market, traction, and financials. Know exactly where you stand — and what moves the needle.",
+                body: "A precise, multi-dimensional score across team, market, traction, and financials. Know exactly where you stand and what moves the needle.",
                 bullets: ["Scored across 6 dimensions", "Live percentile ranking", "Prioritised improvement plan"],
               },
               {
                 num: "02", icon: Bot, label: "AI Agents", accent: "#2563EB",
                 title: "Expert advisers across every function",
                 body: "Strategy, marketing, sales, HR, finance — each agent has deep domain knowledge of your business and is available the moment you need it.",
-                bullets: ["Specialised, context-aware", "Available 24 / 7, on demand", "Every session feeds your Q-Score"],
+                bullets: ["Specialised, context-aware", "Available 24/7, on demand", "Every session feeds your Q-Score"],
               },
               {
                 num: "03", icon: Users, label: "Marketplace", accent: C.goldD, locked: true,
@@ -930,22 +965,26 @@ export default function LandingPage() {
               return (
                 <motion.div
                   key={p.num}
-                  className="grid md:grid-cols-12 gap-4 sm:gap-6 py-7 sm:py-10 group cursor-pointer relative"
+                  className="grid md:grid-cols-12 gap-6 group cursor-pointer"
                   initial={{ opacity: 0, y: 16 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
                   transition={{ delay: i * 0.07 }}
-                  whileHover={{ backgroundColor: "rgba(245,241,232,0.6)" }}
                   onClick={() => go("/founder/onboarding")}
-                  style={{ borderRadius: 10, transition: "background 0.2s", paddingLeft: 12, paddingRight: 12 }}
+                  style={{
+                    padding: "40px 16px",
+                    borderBottom: i < 2 ? `1px solid ${C.taupe}` : "none",
+                    position: "relative",
+                    transition: "background 0.2s",
+                  }}
+                  whileHover={{ backgroundColor: "rgba(250,248,243,0.6)" }}
                 >
-                  {/* accent bar on hover */}
                   <motion.div
-                    className="absolute left-0 top-0 bottom-0 w-0.5 rounded-full opacity-0 group-hover:opacity-100"
-                    style={{ background: p.accent, transition: "opacity 0.2s" }}
+                    className="absolute left-0 top-0 bottom-0 opacity-0 group-hover:opacity-100"
+                    style={{ width: 2, background: p.accent, transition: "opacity 0.2s" }}
                   />
                   <div className="hidden md:block md:col-span-1">
-                    <span className="text-[12px] font-mono" style={{ color: C.dim }}>{p.num}</span>
+                    <span style={{ fontSize: 12, fontFamily: "monospace", color: C.dim }}>{p.num}</span>
                   </div>
                   <div className="md:col-span-2 flex items-start gap-3">
                     <div className="h-8 w-8 rounded flex items-center justify-center shrink-0 mt-0.5"
@@ -953,37 +992,36 @@ export default function LandingPage() {
                       <Icon className="h-4 w-4" style={{ color: p.accent }} />
                     </div>
                     <div>
-                      <span className="text-[11px] uppercase tracking-[0.14em] font-semibold block mt-1.5" style={{ color: p.accent }}>
+                      <span style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.14em", fontWeight: 600, display: "block", marginTop: 6, color: p.accent }}>
                         {p.label}
                       </span>
                       {p.locked && (
-                        <motion.div
-                          animate={{ opacity: [0.8, 1, 0.8] }}
-                          transition={{ duration: 2, repeat: Infinity }}
-                          className="flex items-center gap-1 mt-1"
-                        >
+                        <div className="flex items-center gap-1 mt-1">
                           <Lock className="h-2.5 w-2.5" style={{ color: C.goldD }} />
-                          <span className="text-[9px] font-semibold" style={{ color: C.goldD, letterSpacing: "0.06em" }}>UNLOCKS AT 70</span>
-                        </motion.div>
+                          <span style={{ fontSize: 9, fontWeight: 600, color: C.goldD, letterSpacing: "0.06em", fontFamily: "monospace" }}>UNLOCKS AT 70</span>
+                        </div>
                       )}
                     </div>
                   </div>
                   <div className="md:col-span-4">
-                    <h3 className="text-[17px] leading-snug mb-2" style={{ fontWeight: 300 }}>{p.title}</h3>
-                    <p className="text-[13px] font-light leading-relaxed" style={{ color: C.stone }}>{p.body}</p>
+                    <h3 style={{ fontSize: 17, lineHeight: 1.35, marginBottom: 8, fontWeight: 400, color: C.charcoal }}>{p.title}</h3>
+                    <p style={{ fontSize: 14, lineHeight: 1.65, color: C.stone, fontWeight: 400 }}>{p.body}</p>
                   </div>
                   <div className="md:col-span-4">
-                    <ul className="space-y-2.5">
+                    <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
                       {p.bullets.map((b) => (
-                        <li key={b} className="flex items-center gap-2.5 text-[13px] font-light" style={{ color: C.stone }}>
-                          <div className="h-1 w-1 rounded-full shrink-0" style={{ background: p.accent, opacity: 0.6 }} />
+                        <li key={b} style={{
+                          display: "flex", alignItems: "center", gap: 10,
+                          fontSize: 14, color: C.stone, fontWeight: 400, padding: "6px 0",
+                        }}>
+                          <div style={{ width: 4, height: 4, borderRadius: "50%", background: p.accent, opacity: 0.6, flexShrink: 0 }} />
                           {b}
                         </li>
                       ))}
                     </ul>
                   </div>
                   <div className="hidden md:flex md:col-span-1 items-center justify-end">
-                    <ArrowUpRight className="h-4 w-4 transition-all group-hover:translate-x-0.5 group-hover:-translate-y-0.5" style={{ color: C.dim }} />
+                    <ArrowUpRight className="h-4 w-4" style={{ color: C.dim }} />
                   </div>
                 </motion.div>
               );
@@ -993,94 +1031,151 @@ export default function LandingPage() {
       </section>
 
       {/* ── AI AGENTS ─────────────────────────────────────────────────────── */}
-      <section className="py-16 sm:py-28 px-4 sm:px-6" style={{ background: C.sand }}>
+      <section style={{ background: C.cream, padding: "128px 24px" }}>
         <div className="mx-auto max-w-7xl">
-          <div className="grid lg:grid-cols-2 gap-10 lg:gap-20 items-start">
+          <div className="grid lg:grid-cols-2 gap-16 items-start">
             <motion.div initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
-              <div className="flex items-center gap-3 mb-5">
-                <div style={{ height: 1, width: 16, background: C.taupe }} />
-                <span className="font-ea-mono text-[9px] tracking-[0.3em] uppercase" style={{ color: C.stone }}>AI Agents</span>
+              <div style={{
+                fontFamily: "monospace",
+                fontSize: 11,
+                letterSpacing: "0.1em",
+                color: C.stone,
+                textTransform: "uppercase",
+                marginBottom: 16,
+              }}>
+                AI Agents
               </div>
-              <h2 className="text-3xl sm:text-4xl tracking-tight leading-tight mb-7" style={{ fontWeight: 300 }}>
-                Expert advisers.<br /><em className="font-display not-italic">No office hours.</em>
+              <h2 style={{
+                fontSize: "clamp(28px, 4vw, 44px)",
+                fontWeight: 400,
+                letterSpacing: "-0.025em",
+                lineHeight: 1.15,
+                color: C.charcoal,
+                marginBottom: 24,
+              }}>
+                Expert advisers.<br />No office hours.
               </h2>
-              <p className="text-[15px] font-light leading-relaxed mb-10 max-w-md" style={{ color: C.stone }}>
+              <p style={{ fontSize: 15, lineHeight: 1.7, color: C.stone, maxWidth: 440, marginBottom: 40, fontWeight: 400 }}>
                 Each agent carries deep domain expertise and full context of your business. Not generic advice — they know your numbers, your market, and exactly where you&apos;re falling short.
               </p>
-              <div className="space-y-5 mb-10">
+              <div style={{ marginBottom: 40 }}>
                 {[
-                  { icon: Zap, title: "On demand, any time", desc: "At 2 am before a pitch, mid-sprint, or while building your model — your advisers are always ready." },
+                  { icon: Zap, title: "On demand, any time", desc: "At 2am before a pitch, mid-sprint, or while building your model — your advisers are always ready." },
                   { icon: Bot, title: "Context-aware by default", desc: "Every agent is pre-loaded with your profile, Q-Score data, and the full history of previous sessions." },
                   { icon: TrendingUp, title: "Progress that compounds", desc: "Conversations translate to actions. Actions move your Q-Score. Score unlocks the investor marketplace." },
                 ].map(({ icon: Icon, title, desc }, i) => (
-                  <motion.div key={title} className="flex gap-4"
-                    initial={{ opacity: 0, x: -12 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}>
-                    <div className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5"
-                      style={{ background: `rgba(217,119,87,0.1)`, border: `1px solid rgba(217,119,87,0.15)` }}>
-                      <Icon className="h-3.5 w-3.5" style={{ color: C.ember }} />
+                  <motion.div
+                    key={title}
+                    style={{ display: "flex", gap: 16, marginBottom: 24 }}
+                    initial={{ opacity: 0, x: -12 }}
+                    whileInView={{ opacity: 1, x: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: i * 0.1 }}
+                  >
+                    <div style={{
+                      height: 32, width: 32, borderRadius: 8, flexShrink: 0, marginTop: 2,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      background: "rgba(42,40,38,0.06)", border: `1px solid rgba(42,40,38,0.08)`,
+                    }}>
+                      <Icon className="h-3.5 w-3.5" style={{ color: C.charcoal }} />
                     </div>
                     <div>
-                      <p className="text-[14px] font-semibold mb-0.5">{title}</p>
-                      <p className="text-[13px] font-light leading-relaxed" style={{ color: C.stone }}>{desc}</p>
+                      <p style={{ fontSize: 14, fontWeight: 500, marginBottom: 4, color: C.charcoal }}>{title}</p>
+                      <p style={{ fontSize: 13, lineHeight: 1.65, color: C.stone, fontWeight: 400 }}>{desc}</p>
                     </div>
                   </motion.div>
                 ))}
               </div>
-              <MagneticButton
+              <button
                 onClick={() => go("/founder/onboarding")}
                 style={{
                   display: "inline-flex", alignItems: "center", gap: 8,
-                  fontSize: 14, fontWeight: 600, padding: "12px 24px", borderRadius: 999,
+                  fontSize: 14, fontWeight: 500, padding: "12px 24px", borderRadius: 6,
                   background: C.charcoal, color: C.cream, border: "none", cursor: "pointer",
+                  transition: "opacity 0.15s",
                 }}
               >
                 Meet your advisers <ArrowRight className="h-4 w-4" />
-              </MagneticButton>
+              </button>
             </motion.div>
 
-            {/* agent list */}
+            {/* Agent list */}
             <motion.div
-              className="rounded-2xl overflow-hidden"
-              style={{ background: "#FDFCFA", border: `1px solid ${C.taupe}`, boxShadow: "0 4px 24px rgba(42,40,38,0.05)" }}
-              initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.1 }}>
+              style={{
+                borderRadius: 12,
+                overflow: "hidden",
+                background: "white",
+                border: `1px solid ${C.taupe}`,
+                boxShadow: "0 1px 4px rgba(42,40,38,0.04)",
+              }}
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.1 }}
+            >
               {agentRoles.map((a, i) => (
-                <motion.button key={a.num}
-                  className="w-full text-left px-5 py-4 flex items-center justify-between group relative overflow-hidden"
-                  style={{ borderBottom: i < agentRoles.length - 1 ? `1px solid ${C.taupe}` : "none" }}
-                  animate={{ backgroundColor: i === activeAgent ? `rgba(245,241,232,0.8)` : "rgba(253,252,250,0)" }}
-                  whileHover={{ backgroundColor: `rgba(245,241,232,0.6)` }}
+                <motion.button
+                  key={a.num}
+                  className="w-full text-left flex items-center justify-between group"
+                  style={{
+                    padding: "16px 20px",
+                    borderBottom: i < agentRoles.length - 1 ? `1px solid ${C.taupe}` : "none",
+                    position: "relative",
+                    overflow: "hidden",
+                    background: "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                    borderBottomStyle: i < agentRoles.length - 1 ? "solid" : "none",
+                    borderBottomWidth: i < agentRoles.length - 1 ? 1 : 0,
+                    borderBottomColor: i < agentRoles.length - 1 ? C.taupe : "transparent",
+                  }}
+                  animate={{ backgroundColor: i === activeAgent ? "rgba(245,241,232,0.8)" : "rgba(255,255,255,0)" }}
+                  whileHover={{ backgroundColor: "rgba(245,241,232,0.6)" }}
                   transition={{ type: "spring", stiffness: 300, damping: 25 }}
                   onClick={() => go("/founder/onboarding")}
                 >
                   {i === activeAgent && (
-                    <motion.div layoutId="agent-active-bar" style={{
-                      position: "absolute", left: 0, top: 0, bottom: 0, width: 3,
-                      background: `linear-gradient(180deg, ${C.ember}, ${C.gold})`,
-                      borderRadius: "0 2px 2px 0",
-                    }} transition={{ type: "spring", stiffness: 300, damping: 30 }} />
+                    <motion.div
+                      layoutId="agent-active-bar"
+                      style={{
+                        position: "absolute", left: 0, top: 0, bottom: 0, width: 2,
+                        background: a.color,
+                      }}
+                      transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                    />
                   )}
-                  <div className="flex items-center gap-3.5">
-                    <div className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0 text-[13px] font-bold"
-                      style={{ background: `${a.color}18`, color: a.color, border: `1px solid ${a.color}25` }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                    <div style={{
+                      height: 32, width: 32, borderRadius: 8, flexShrink: 0,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 13, fontWeight: 700,
+                      background: `${a.color}18`, color: a.color, border: `1px solid ${a.color}25`,
+                    }}>
                       {a.emoji}
                     </div>
-                    <div>
-                      <p className="text-[13px] font-semibold leading-tight">{a.name} Adviser</p>
-                      <p className="text-[11px] font-light mt-0.5" style={{ color: C.stone }}>{a.desc}</p>
+                    <div style={{ textAlign: "left" }}>
+                      <p style={{ fontSize: 13, fontWeight: 500, color: C.charcoal, lineHeight: 1.3 }}>{a.name} Adviser</p>
+                      <p style={{ fontSize: 11, color: C.stone, marginTop: 2, fontWeight: 400 }}>{a.desc}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     {i === activeAgent && (
                       <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
-                        className="font-ea-mono text-[9px] px-2 py-0.5 rounded-full"
-                        style={{ background: `${C.ember}15`, color: C.ember }}
+                        style={{
+                          fontFamily: "monospace",
+                          fontSize: 9,
+                          padding: "2px 8px",
+                          borderRadius: 999,
+                          background: `${a.color}15`,
+                          color: a.color,
+                        }}
                       >
                         Active
                       </motion.div>
                     )}
-                    <ArrowUpRight className="h-3.5 w-3.5 transition-all group-hover:translate-x-0.5 group-hover:-translate-y-0.5" style={{ color: C.dim }} />
+                    <ArrowUpRight className="h-3.5 w-3.5" style={{ color: C.dim }} />
                   </div>
                 </motion.button>
               ))}
@@ -1090,41 +1185,73 @@ export default function LandingPage() {
       </section>
 
       {/* ── MARKETPLACE ───────────────────────────────────────────────────── */}
-      <section className="py-16 sm:py-28 px-4 sm:px-6">
+      <section style={{ background: C.sand, padding: "128px 24px" }}>
         <div className="mx-auto max-w-7xl">
-          <motion.div className="mb-8 sm:mb-12" initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
-            <div className="flex items-center gap-3 mb-5">
-              <div style={{ height: 1, width: 16, background: C.taupe }} />
-              <span className="font-ea-mono text-[9px] tracking-[0.3em] uppercase" style={{ color: C.stone }}>Marketplace</span>
+          <motion.div style={{ marginBottom: 48 }} initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
+            <div style={{
+              fontFamily: "monospace",
+              fontSize: 11,
+              letterSpacing: "0.1em",
+              color: C.stone,
+              textTransform: "uppercase",
+              marginBottom: 16,
+            }}>
+              Marketplace
             </div>
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-              <h2 className="text-3xl sm:text-4xl tracking-tight leading-tight max-w-lg" style={{ fontWeight: 300 }}>
-                When you&apos;re ready,{" "}<em className="font-display not-italic">the investors are waiting.</em>
+              <h2 style={{
+                fontSize: "clamp(28px, 4vw, 44px)",
+                fontWeight: 400,
+                letterSpacing: "-0.025em",
+                lineHeight: 1.15,
+                color: C.charcoal,
+                maxWidth: 480,
+              }}>
+                When you&apos;re ready, the investors are waiting.
               </h2>
-              <motion.div
-                animate={{ opacity: [0.8, 1, 0.8] }}
-                transition={{ duration: 2.5, repeat: Infinity }}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-full w-fit"
-                style={{ background: C.goldL, border: `1px solid ${C.gold}55` }}
-              >
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "8px 14px",
+                borderRadius: 999,
+                background: "#FDF8EE",
+                border: `1px solid ${C.gold}55`,
+                width: "fit-content",
+                flexShrink: 0,
+              }}>
                 <Lock className="h-3 w-3" style={{ color: C.goldD }} />
-                <span className="text-[11px] font-semibold" style={{ color: C.goldD, letterSpacing: "0.04em" }}>Unlocks at Q-Score ≥ 70</span>
-              </motion.div>
+                <span style={{ fontSize: 11, fontWeight: 600, color: C.goldD, letterSpacing: "0.04em", fontFamily: "monospace" }}>
+                  Unlocks at Q-Score ≥ 70
+                </span>
+              </div>
             </div>
           </motion.div>
 
-          <p className="text-[12px] font-light mb-5" style={{ color: C.dim }}>Sample from our verified investor network</p>
+          <p style={{ fontSize: 12, color: C.dim, marginBottom: 20, fontWeight: 400 }}>Sample from our verified investor network</p>
 
-          <motion.div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${C.taupe}` }}
-            initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
-            {/* visible rows */}
+          <motion.div
+            style={{ borderRadius: 12, overflow: "hidden", border: `1px solid ${C.taupe}` }}
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+          >
             <div className="overflow-x-auto">
               <table className="w-full min-w-[480px]">
                 <thead>
-                  <tr style={{ background: C.sand, borderBottom: `1px solid ${C.taupe}` }}>
+                  <tr style={{ background: C.cream, borderBottom: `1px solid ${C.taupe}` }}>
                     {["Investor", "Check size", "Stages", "Match"].map((h, i) => (
-                      <th key={h} className={`text-left py-3.5 px-5 text-[10px] uppercase tracking-[0.16em] font-semibold ${i === 1 ? "hidden sm:table-cell" : ""} ${i === 2 ? "hidden md:table-cell" : ""}`}
-                        style={{ color: C.dim }}>
+                      <th
+                        key={h}
+                        className={`text-left py-3.5 px-5 ${i === 1 ? "hidden sm:table-cell" : ""} ${i === 2 ? "hidden md:table-cell" : ""}`}
+                        style={{
+                          fontSize: 10,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.16em",
+                          fontWeight: 600,
+                          color: C.dim,
+                          fontFamily: "monospace",
+                        }}>
                         {h}
                       </th>
                     ))}
@@ -1133,33 +1260,38 @@ export default function LandingPage() {
                 </thead>
                 <tbody>
                   {investors.slice(0, 3).map((inv, i) => (
-                    <motion.tr key={inv.name}
-                      style={{ borderBottom: `1px solid ${C.taupe}` }}
+                    <motion.tr
+                      key={inv.name}
+                      style={{ borderBottom: `1px solid ${C.taupe}`, background: "white" }}
                       initial={{ opacity: 0, x: -12 }}
                       whileInView={{ opacity: 1, x: 0 }}
                       viewport={{ once: true }}
                       transition={{ delay: i * 0.07, ease }}
-                      whileHover={{ backgroundColor: C.sand }}
+                      whileHover={{ backgroundColor: C.cream }}
                       onClick={() => go("/founder/onboarding")}
                       className="cursor-pointer"
                     >
                       <td className="py-4 px-5">
-                        <div className="flex items-center gap-3">
-                          <div className="h-8 w-8 rounded-lg flex items-center justify-center text-[10px] font-bold shrink-0"
-                            style={{ background: C.sand, color: C.charcoal, border: `1px solid ${C.taupe}` }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                          <div style={{
+                            height: 32, width: 32, borderRadius: 8,
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            fontSize: 10, fontWeight: 700, flexShrink: 0,
+                            background: C.sand, color: C.charcoal, border: `1px solid ${C.taupe}`,
+                          }}>
                             {inv.logo}
                           </div>
                           <div>
-                            <p className="text-[13px] font-semibold">{inv.name}</p>
-                            <p className="text-[11px] font-light" style={{ color: C.dim }}>{inv.type}</p>
+                            <p style={{ fontSize: 13, fontWeight: 500, color: C.charcoal }}>{inv.name}</p>
+                            <p style={{ fontSize: 11, color: C.dim, fontWeight: 400 }}>{inv.type}</p>
                           </div>
                         </div>
                       </td>
-                      <td className="py-4 px-5 hidden sm:table-cell text-[13px] font-light" style={{ color: C.stone }}>{inv.check}</td>
-                      <td className="py-4 px-5 hidden md:table-cell text-[13px] font-light" style={{ color: C.stone }}>{inv.stages}</td>
+                      <td className="py-4 px-5 hidden sm:table-cell" style={{ fontSize: 13, color: C.stone, fontWeight: 400 }}>{inv.check}</td>
+                      <td className="py-4 px-5 hidden md:table-cell" style={{ fontSize: 13, color: C.stone, fontWeight: 400 }}>{inv.stages}</td>
                       <td className="py-4 px-5"><MatchBar value={inv.match} /></td>
                       <td className="py-4 px-5 text-right">
-                        <button className="inline-flex items-center gap-1.5 text-[12px] font-medium transition-opacity hover:opacity-60" style={{ color: C.stone }}>
+                        <button style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 500, color: C.stone, background: "none", border: "none", cursor: "pointer" }}>
                           <Mail className="h-3.5 w-3.5" /> Connect
                         </button>
                       </td>
@@ -1171,18 +1303,16 @@ export default function LandingPage() {
 
             {/* Locked preview */}
             <div style={{ position: "relative", overflow: "hidden" }}>
-              {/* ghost rows */}
-              <div style={{ filter: "blur(3.5px)", opacity: 0.45, pointerEvents: "none" }}>
+              <div style={{ filter: "blur(3.5px)", opacity: 0.45, pointerEvents: "none", background: "white" }}>
                 {investors.slice(3).map((inv, i) => (
                   <div key={inv.name} style={{
                     display: "flex", alignItems: "center", justifyContent: "space-between",
                     padding: "16px 20px", borderBottom: i < 2 ? `1px solid ${C.taupe}` : "none",
-                    background: "#FDFCFA",
                   }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                       <div style={{ width: 32, height: 32, borderRadius: 8, background: C.sand, border: `1px solid ${C.taupe}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700 }}>{inv.logo}</div>
                       <div>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: C.charcoal }}>{inv.name}</div>
+                        <div style={{ fontSize: 13, fontWeight: 500, color: C.charcoal }}>{inv.name}</div>
                         <div style={{ fontSize: 11, color: C.dim }}>{inv.type}</div>
                       </div>
                     </div>
@@ -1193,17 +1323,12 @@ export default function LandingPage() {
                   </div>
                 ))}
               </div>
-              {/* gradient mask */}
               <div style={{
                 position: "absolute", inset: 0,
-                background: `linear-gradient(to bottom, rgba(250,248,243,0.2) 0%, rgba(250,248,243,0.85) 80%)`,
+                background: "linear-gradient(to bottom, rgba(245,241,232,0.1) 0%, rgba(245,241,232,0.88) 80%)",
                 pointerEvents: "none",
               }} />
-              {/* lock badge */}
-              <div style={{
-                position: "absolute", inset: 0,
-                display: "flex", alignItems: "center", justifyContent: "center",
-              }}>
+              <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <motion.div
                   initial={{ opacity: 0, scale: 0.9 }}
                   whileInView={{ opacity: 1, scale: 1 }}
@@ -1211,9 +1336,9 @@ export default function LandingPage() {
                   transition={{ delay: 0.3 }}
                   style={{
                     display: "inline-flex", alignItems: "center", gap: 10,
-                    padding: "12px 22px", background: C.cream,
+                    padding: "12px 22px", background: "white",
                     border: `1px solid ${C.taupe}`, borderRadius: 999,
-                    boxShadow: "0 8px 32px rgba(42,40,38,0.12)",
+                    boxShadow: "0 8px 32px rgba(42,40,38,0.1)",
                   }}
                 >
                   <Lock style={{ width: 14, height: 14, color: C.goldD }} />
@@ -1223,7 +1348,7 @@ export default function LandingPage() {
                   <button
                     onClick={() => go("/founder/onboarding")}
                     style={{
-                      fontSize: 12, fontWeight: 600, padding: "5px 14px", borderRadius: 999,
+                      fontSize: 12, fontWeight: 500, padding: "6px 14px", borderRadius: 6,
                       background: C.charcoal, color: C.cream, border: "none", cursor: "pointer",
                     }}
                   >
@@ -1233,10 +1358,16 @@ export default function LandingPage() {
               </div>
             </div>
 
-            <div className="px-5 py-4 flex items-center justify-between" style={{ background: C.sand, borderTop: `1px solid ${C.taupe}` }}>
-              <span className="text-[12px] font-light" style={{ color: C.dim }}>Showing 3 of 500+ investors</span>
-              <button className="text-[12px] font-semibold inline-flex items-center gap-1 transition-opacity hover:opacity-60"
-                style={{ color: C.charcoal }} onClick={() => go("/founder/onboarding")}>
+            <div style={{
+              padding: "14px 20px",
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              background: C.cream, borderTop: `1px solid ${C.taupe}`,
+            }}>
+              <span style={{ fontSize: 12, color: C.dim, fontWeight: 400 }}>Showing 3 of 500+ investors</span>
+              <button
+                style={{ fontSize: 12, fontWeight: 500, display: "inline-flex", alignItems: "center", gap: 4, color: C.charcoal, background: "none", border: "none", cursor: "pointer" }}
+                onClick={() => go("/founder/onboarding")}
+              >
                 Unlock full marketplace <ChevronRight className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -1248,17 +1379,36 @@ export default function LandingPage() {
       <div style={{ background: C.midnight }}>
         <div className="mx-auto max-w-4xl grid grid-cols-2 md:grid-cols-4">
           {stats.map((s, i) => (
-            <motion.div key={s.label}
-              className="px-6 sm:px-10 py-12 sm:py-16 text-center"
+            <motion.div
+              key={s.label}
               style={{
-                borderRight: i < stats.length - 1 ? `1px solid rgba(255,255,255,0.06)` : "none",
-                borderBottom: i < 2 ? `1px solid rgba(255,255,255,0.06)` : "none",
+                padding: "64px 40px",
+                textAlign: "center",
+                borderRight: i < stats.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none",
+                borderBottom: i < 2 ? "1px solid rgba(255,255,255,0.06)" : "none",
               }}
-              initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1, ease }}>
-              <p className="font-ea-mono tracking-tight mb-3" style={{ fontWeight: 400, color: C.ember, fontSize: "clamp(28px,4vw,44px)" }}>
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.1, ease }}
+            >
+              <p style={{
+                fontFamily: "monospace",
+                fontWeight: 300,
+                color: "white",
+                fontSize: "clamp(28px, 4vw, 44px)",
+                letterSpacing: "-0.02em",
+                marginBottom: 12,
+              }}>
                 <CountUp to={s.to} decimals={s.decimals} prefix={s.prefix} suffix={s.suffix} />
               </p>
-              <p className="font-ea-mono text-[10px] uppercase tracking-[0.18em]" style={{ color: "rgba(255,255,255,0.3)" }}>
+              <p style={{
+                fontFamily: "monospace",
+                fontSize: 10,
+                textTransform: "uppercase",
+                letterSpacing: "0.18em",
+                color: "rgba(255,255,255,0.3)",
+              }}>
                 {s.label}
               </p>
             </motion.div>
@@ -1267,37 +1417,54 @@ export default function LandingPage() {
       </div>
 
       {/* ── TESTIMONIALS ─────────────────────────────────────────────────── */}
-      <section className="py-16 sm:py-28 px-4 sm:px-6">
+      <section style={{ background: C.cream, padding: "128px 24px" }}>
         <div className="mx-auto max-w-7xl">
-          <motion.div className="mb-10 sm:mb-14" initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
-            <div className="flex items-center gap-3 mb-5">
-              <div style={{ height: 1, width: 16, background: C.taupe }} />
-              <span className="font-ea-mono text-[9px] tracking-[0.3em] uppercase" style={{ color: C.stone }}>Testimonials</span>
+          <motion.div style={{ marginBottom: 56 }} initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
+            <div style={{
+              fontFamily: "monospace",
+              fontSize: 11,
+              letterSpacing: "0.1em",
+              color: C.stone,
+              textTransform: "uppercase",
+              marginBottom: 16,
+            }}>
+              Testimonials
             </div>
-            <h2 className="text-3xl sm:text-4xl tracking-tight max-w-sm leading-tight" style={{ fontWeight: 300 }}>
-              What founders and{" "}<em className="font-display not-italic">investors say.</em>
+            <h2 style={{
+              fontSize: "clamp(28px, 4vw, 44px)",
+              fontWeight: 400,
+              letterSpacing: "-0.025em",
+              lineHeight: 1.15,
+              color: C.charcoal,
+            }}>
+              What founders and investors say.
             </h2>
           </motion.div>
 
           <div className="grid md:grid-cols-3 gap-4">
             {testimonials.map((t, i) => (
-              <motion.div key={t.name}
-                className="p-6 rounded-2xl flex flex-col"
-                style={{ background: C.sand, border: `1px solid ${C.taupe}` }}
+              <motion.div
+                key={t.name}
+                style={{
+                  padding: 28,
+                  borderRadius: 10,
+                  display: "flex",
+                  flexDirection: "column",
+                  background: "white",
+                  border: `1px solid ${C.taupe}`,
+                  boxShadow: "0 1px 4px rgba(42,40,38,0.04)",
+                }}
                 initial={{ opacity: 0, y: 16 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: (i % 3) * 0.1 }}
-                whileHover={{ y: -4, boxShadow: "0 12px 32px rgba(42,40,38,0.08)" }}
+                whileHover={{ y: -2, boxShadow: "0 4px 24px rgba(42,40,38,0.08)" }}
               >
                 <StarRating />
-                <div className="font-display leading-none mb-3 select-none" style={{ fontSize: 40, color: C.ember, opacity: 0.3, fontStyle: "italic" }}>
-                  &ldquo;
-                </div>
-                <p style={{ fontSize: 13, fontWeight: 300, lineHeight: 1.8, color: "#5A5650", flex: 1, marginBottom: 20 }}>
+                <p style={{ fontSize: 14, fontWeight: 400, lineHeight: 1.75, color: C.stone, flex: 1, marginBottom: 20 }}>
                   {t.quote}
                 </p>
-                <div className="flex items-center gap-3 pt-4" style={{ borderTop: `1px solid ${C.taupe}` }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, paddingTop: 16, borderTop: `1px solid ${C.taupe}` }}>
                   <div style={{
                     width: 32, height: 32, borderRadius: "50%",
                     background: t.bg, color: t.tc,
@@ -1308,8 +1475,8 @@ export default function LandingPage() {
                     {t.initials}
                   </div>
                   <div>
-                    <p className="font-ea-mono text-[11px] font-semibold" style={{ color: C.charcoal }}>{t.name}</p>
-                    <p className="font-ea-mono text-[10px]" style={{ color: C.stone }}>{t.role}</p>
+                    <p style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 600, color: C.charcoal }}>{t.name}</p>
+                    <p style={{ fontFamily: "monospace", fontSize: 10, color: C.stone }}>{t.role}</p>
                   </div>
                 </div>
               </motion.div>
@@ -1319,84 +1486,115 @@ export default function LandingPage() {
       </section>
 
       {/* ── FOR INVESTORS ─────────────────────────────────────────────────── */}
-      <section id="for-investors" className="py-16 sm:py-28 px-4 sm:px-6" style={{ background: C.sand }}>
+      <section id="for-investors" style={{ background: C.sand, padding: "128px 24px" }}>
         <div className="mx-auto max-w-7xl">
-          <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-start">
+          <div className="grid lg:grid-cols-2 gap-16 items-start">
             <motion.div initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
-              <div className="flex items-center gap-3 mb-5">
-                <div style={{ height: 1, width: 16, background: C.taupe }} />
-                <span className="font-ea-mono text-[9px] tracking-[0.3em] uppercase" style={{ color: C.stone }}>For Investors</span>
+              <div style={{
+                fontFamily: "monospace",
+                fontSize: 11,
+                letterSpacing: "0.1em",
+                color: C.stone,
+                textTransform: "uppercase",
+                marginBottom: 16,
+              }}>
+                For Investors
               </div>
-              <h2 className="text-3xl sm:text-4xl tracking-tight leading-tight mb-6" style={{ fontWeight: 300 }}>
-                Better deal flow.<br /><em className="font-display not-italic">Less noise.</em>
+              <h2 style={{
+                fontSize: "clamp(28px, 4vw, 44px)",
+                fontWeight: 400,
+                letterSpacing: "-0.025em",
+                lineHeight: 1.15,
+                color: C.charcoal,
+                marginBottom: 24,
+              }}>
+                Better deal flow.<br />Less noise.
               </h2>
-              <p className="text-[15px] font-light leading-relaxed mb-8 max-w-md" style={{ color: C.stone }}>
+              <p style={{ fontSize: 15, lineHeight: 1.7, color: C.stone, maxWidth: 440, marginBottom: 32, fontWeight: 400 }}>
                 Every founder in the marketplace has been scored algorithmically across six dimensions. You see pre-qualified, thesis-matched startups — not cold inbound.
               </p>
-              <ul className="space-y-3 mb-8">
+              <ul style={{ listStyle: "none", padding: 0, margin: "0 0 32px 0" }}>
                 {["Algorithmic Q-Score on every deal", "Thesis-matched AI recommendations", "Founders who have done the preparation work", "Automated due-diligence summaries"].map((f, i) => (
-                  <motion.li key={f} className="flex items-start gap-3 text-[14px] font-light" style={{ color: C.stone }}
-                    initial={{ opacity: 0, x: -10 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.09 }}>
+                  <motion.li
+                    key={f}
+                    style={{ display: "flex", alignItems: "flex-start", gap: 12, fontSize: 14, color: C.stone, fontWeight: 400, marginBottom: 12 }}
+                    initial={{ opacity: 0, x: -10 }}
+                    whileInView={{ opacity: 1, x: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: i * 0.09 }}
+                  >
                     <CheckCircle className="h-4 w-4 shrink-0 mt-0.5" style={{ color: C.sage }} />
                     {f}
                   </motion.li>
                 ))}
               </ul>
-              <MagneticButton
+              <button
                 onClick={() => go("/investor/onboarding")}
                 style={{
                   display: "inline-flex", alignItems: "center", gap: 8,
-                  fontSize: 14, fontWeight: 600, padding: "12px 24px", borderRadius: 999,
+                  fontSize: 14, fontWeight: 500, padding: "12px 24px", borderRadius: 6,
                   background: C.charcoal, color: C.cream, border: "none", cursor: "pointer",
+                  transition: "opacity 0.15s",
                 }}
               >
                 Join as an investor <ArrowRight className="h-4 w-4" />
-              </MagneticButton>
+              </button>
             </motion.div>
 
-            <motion.div className="space-y-px rounded-2xl overflow-hidden"
-              style={{ border: `1px solid ${C.taupe}`, boxShadow: "0 4px 24px rgba(42,40,38,0.05)" }}
-              initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.1 }}>
+            <motion.div
+              style={{ borderRadius: 12, overflow: "hidden", border: `1px solid ${C.taupe}`, boxShadow: "0 1px 4px rgba(42,40,38,0.04)" }}
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.1 }}
+            >
               {[
                 { name: "NeuralTech",  tag: "AI · Series A",     score: 891, match: 94, hot: true },
                 { name: "CloudScale",  tag: "DevTools · Seed",   score: 847, match: 91, hot: false },
                 { name: "HealthOS",    tag: "HealthTech · Seed", score: 823, match: 88, hot: false },
               ].map((d, i) => (
-                <motion.div key={d.name}
+                <motion.div
+                  key={d.name}
                   className="flex flex-col sm:flex-row sm:items-center justify-between px-5 py-5 gap-3 sm:gap-0"
-                  style={{ background: "#FDFCFA", borderBottom: i < 2 ? `1px solid ${C.taupe}` : "none" }}
-                  initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} transition={{ delay: 0.2 + i * 0.1 }}
-                  whileHover={{ backgroundColor: C.sand }}>
+                  style={{ background: "white", borderBottom: i < 2 ? `1px solid ${C.taupe}` : "none" }}
+                  initial={{ opacity: 0 }}
+                  whileInView={{ opacity: 1 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: 0.2 + i * 0.1 }}
+                  whileHover={{ backgroundColor: C.cream }}
+                >
                   <div>
-                    <div className="flex items-center gap-2.5 mb-0.5">
-                      <motion.div animate={{ opacity: [0.4, 1, 0.4] }} transition={{ duration: 2, repeat: Infinity, delay: i * 0.4 }}
-                        style={{ width: 6, height: 6, borderRadius: "50%", background: C.sage, flexShrink: 0 }} />
-                      <p className="text-[14px] font-semibold">{d.name}</p>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 2 }}>
+                      <div style={{ width: 6, height: 6, borderRadius: "50%", background: C.sage, flexShrink: 0 }} />
+                      <p style={{ fontSize: 14, fontWeight: 500, color: C.charcoal }}>{d.name}</p>
                       {d.hot && (
-                        <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 4, background: "rgba(217,119,87,0.12)", color: C.ember, letterSpacing: "0.06em" }}>
+                        <span style={{
+                          fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4,
+                          background: "rgba(42,40,38,0.08)", color: C.charcoal, letterSpacing: "0.08em",
+                          fontFamily: "monospace",
+                        }}>
                           HOT
                         </span>
                       )}
                     </div>
-                    <p className="text-[12px] font-light mt-0.5" style={{ color: C.dim }}>{d.tag}</p>
+                    <p style={{ fontSize: 12, color: C.dim, fontWeight: 400, paddingLeft: 16 }}>{d.tag}</p>
                   </div>
-                  <div className="flex items-center gap-5 sm:gap-7">
-                    <div className="text-left sm:text-right">
-                      <p className="text-[10px] uppercase tracking-[0.12em] font-semibold mb-0.5" style={{ color: C.dim }}>Q-Score</p>
-                      <p className="text-[15px] font-semibold" style={{ color: C.ember }}>{d.score}</p>
+                  <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
+                    <div>
+                      <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", fontWeight: 600, color: C.dim, marginBottom: 2, fontFamily: "monospace" }}>Q-Score</p>
+                      <p style={{ fontSize: 15, fontWeight: 500, color: C.charcoal, fontFamily: "monospace" }}>{d.score}</p>
                     </div>
-                    <div className="text-left sm:text-right">
-                      <p className="text-[10px] uppercase tracking-[0.12em] font-semibold mb-0.5" style={{ color: C.dim }}>Match</p>
-                      <p className="text-[15px] font-semibold">{d.match}%</p>
+                    <div>
+                      <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", fontWeight: 600, color: C.dim, marginBottom: 2, fontFamily: "monospace" }}>Match</p>
+                      <p style={{ fontSize: 15, fontWeight: 500, color: C.charcoal, fontFamily: "monospace" }}>{d.match}%</p>
                     </div>
                     <ArrowUpRight className="h-4 w-4 hidden sm:block" style={{ color: C.dim }} />
                   </div>
                 </motion.div>
               ))}
-              <div className="px-6 py-3.5 text-center" style={{ background: C.sand, borderTop: `1px solid ${C.taupe}` }}>
-                <p className="text-[12px] font-light" style={{ color: C.dim }}>
-                  <motion.span animate={{ opacity: [0.5, 1, 0.5] }} transition={{ duration: 2, repeat: Infinity }} style={{ display: "inline-block" }}>●</motion.span>
-                  {" "}+ 127 more matches this week
+              <div style={{ padding: "14px 20px", textAlign: "center", background: C.cream, borderTop: `1px solid ${C.taupe}` }}>
+                <p style={{ fontSize: 12, color: C.dim, fontWeight: 400 }}>
+                  + 127 more matches this week
                 </p>
               </div>
             </motion.div>
@@ -1405,121 +1603,185 @@ export default function LandingPage() {
       </section>
 
       {/* ── PRICING ───────────────────────────────────────────────────────── */}
-      <section id="pricing" className="py-16 sm:py-28 px-4 sm:px-6">
-        <div className="mx-auto max-w-4xl">
-          <motion.div className="text-center mb-10 sm:mb-12" initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
-            <div className="flex items-center gap-3 justify-center mb-5">
-              <div style={{ height: 1, width: 16, background: C.taupe }} />
-              <span className="font-ea-mono text-[9px] tracking-[0.3em] uppercase" style={{ color: C.stone }}>Pricing</span>
-              <div style={{ height: 1, width: 16, background: C.taupe }} />
+      <section id="pricing" style={{ background: C.cream, padding: "128px 24px" }}>
+        <div style={{ maxWidth: 800, margin: "0 auto" }}>
+          <motion.div style={{ marginBottom: 64 }} initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
+            <div style={{
+              fontFamily: "monospace",
+              fontSize: 11,
+              letterSpacing: "0.1em",
+              color: C.stone,
+              textTransform: "uppercase",
+              marginBottom: 16,
+              textAlign: "center",
+            }}>
+              Pricing
             </div>
-            <h2 className="text-3xl sm:text-4xl tracking-tight leading-tight mb-8" style={{ fontWeight: 300 }}>
-              Start free.{" "}<em className="font-display not-italic">Scale when you&apos;re raising.</em>
+            <h2 style={{
+              fontSize: "clamp(28px, 4vw, 44px)",
+              fontWeight: 400,
+              letterSpacing: "-0.025em",
+              lineHeight: 1.15,
+              color: C.charcoal,
+              marginBottom: 12,
+              textAlign: "center",
+            }}>
+              Simple pricing.
             </h2>
-            <div className="flex justify-center">
+            <p style={{ fontSize: 16, color: C.stone, textAlign: "center", marginBottom: 32, fontWeight: 400 }}>
+              Free until you&apos;re ready to raise.
+            </p>
+            <div style={{ display: "flex", justifyContent: "center" }}>
               <BillingToggle annual={annual} onChange={setAnnual} />
             </div>
           </motion.div>
 
-          <motion.div className="grid md:grid-cols-2 overflow-hidden"
-            style={{ border: `1px solid ${C.taupe}`, borderRadius: 20, boxShadow: "0 4px 40px rgba(42,40,38,0.06)" }}
-            initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
+          <motion.div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 1,
+              background: C.taupe,
+              border: `1px solid ${C.taupe}`,
+              borderRadius: 12,
+              overflow: "hidden",
+              boxShadow: "0 1px 4px rgba(42,40,38,0.04)",
+            }}
+            initial={{ opacity: 0, y: 16 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+          >
             {/* Free */}
-            <div className="p-8 sm:p-10" style={{ borderBottom: `1px solid ${C.taupe}` }}>
-              <span className="font-ea-mono text-[10px] tracking-[0.22em] uppercase" style={{ color: C.dim }}>Free</span>
-              <div className="font-ea-mono text-5xl sm:text-6xl mt-5 mb-1 tracking-tight" style={{ fontWeight: 400 }}>$0</div>
-              <p className="font-ea-mono text-[11px] mb-8" style={{ color: C.stone }}>Forever · No credit card</p>
-              <ul className="mb-8" style={{ borderTop: `1px solid ${C.taupe}` }}>
-                {["Full Q-Score assessment", "3 AI advisers (Strategy, Finance, Marketing)", "Workspace & deliverables", "Score improvement plan"].map((f) => (
-                  <li key={f} className="flex items-start gap-3 text-[13px] font-light py-3" style={{ color: C.stone, borderBottom: `1px solid ${C.taupe}` }}>
-                    <CheckCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" style={{ color: C.sage }} /> {f}
-                  </li>
-                ))}
-              </ul>
-              <MagneticButton onClick={() => go("/founder/onboarding")} style={{
-                width: "100%", padding: "13px", borderRadius: 999, fontSize: 14, fontWeight: 500,
-                border: `1px solid ${C.taupe}`, color: C.charcoal, background: "transparent", cursor: "pointer",
+            <div style={{ background: "#FAFAFA", padding: "40px 36px" }}>
+              <div style={{ fontSize: 13, color: C.stone, marginBottom: 8, fontWeight: 400 }}>Free</div>
+              <div style={{
+                fontFamily: "monospace",
+                fontSize: 36,
+                color: C.charcoal,
+                fontWeight: 300,
+                letterSpacing: "-0.02em",
+                marginBottom: 24,
               }}>
+                $0
+                <span style={{ fontSize: 14, color: C.dim }}> forever</span>
+              </div>
+
+              {["Q-Score assessment", "3 AI advisers", "Improvement roadmap", "Workspace & notes"].map((f) => (
+                <div key={f} style={{
+                  display: "flex", alignItems: "center", gap: 10,
+                  padding: "10px 0", fontSize: 14, color: C.stone, fontWeight: 400,
+                  borderBottom: `1px solid ${C.taupe}`,
+                }}>
+                  <div style={{ width: 4, height: 4, borderRadius: "50%", background: C.dim, flexShrink: 0 }} />
+                  {f}
+                </div>
+              ))}
+
+              <button
+                onClick={() => go("/founder/onboarding")}
+                style={{
+                  display: "block", width: "100%", marginTop: 28,
+                  padding: "12px 20px", border: `1px solid ${C.taupe}`,
+                  borderRadius: 6, fontSize: 14, color: C.charcoal,
+                  textAlign: "center", background: "transparent", cursor: "pointer",
+                  transition: "border-color 0.15s",
+                }}
+              >
                 Get started free
-              </MagneticButton>
+              </button>
             </div>
 
             {/* Pro */}
-            <div className="p-8 sm:p-10 relative overflow-hidden" style={{
-              background: C.midnight,
-              boxShadow: `inset 0 0 80px rgba(201,169,97,0.07), 0 0 0 1px rgba(201,169,97,0.12)`,
-            }}>
-              {/* shimmer sweep */}
-              <motion.div
-                animate={{ x: ["-100%", "200%"] }}
-                transition={{ duration: 3, repeat: Infinity, repeatDelay: 5, ease: "easeInOut" }}
-                style={{
-                  position: "absolute", top: 0, left: 0, right: 0, height: "100%",
-                  background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.025), transparent)",
-                  pointerEvents: "none",
-                }}
-              />
-              <div className="flex items-center justify-between mb-5">
-                <span className="font-ea-mono text-[10px] tracking-[0.22em] uppercase" style={{ color: "rgba(255,255,255,0.35)" }}>Pro</span>
-                <motion.span
-                  animate={{ opacity: [0.7, 1, 0.7] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                  className="font-ea-mono text-[9px] tracking-[0.1em] uppercase px-2.5 py-1 rounded-full"
-                  style={{
-                    background: `linear-gradient(135deg, rgba(247,239,217,0.1), rgba(201,169,97,0.12))`,
-                    color: C.gold, border: `1px solid ${C.gold}30`,
-                  }}>
-                  Most popular
-                </motion.span>
-              </div>
-              <div className="font-ea-mono tracking-tight mt-1 mb-1" style={{ fontWeight: 400, color: C.cream }}>
-                <span style={{ fontSize: "clamp(40px,5vw,56px)" }}>
-                  {annual ? "$39" : "$49"}
+            <div style={{ background: C.midnight, padding: "40px 36px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", fontWeight: 400 }}>Pro</span>
+                <span style={{
+                  background: C.ember, color: "white",
+                  fontSize: 10, padding: "2px 6px", borderRadius: 3,
+                  letterSpacing: "0.06em", fontFamily: "monospace",
+                  fontWeight: 600,
+                }}>
+                  POPULAR
                 </span>
-                <span style={{ fontSize: 22, color: "rgba(255,255,255,0.4)" }}>/mo</span>
+              </div>
+              <div style={{
+                fontFamily: "monospace",
+                fontSize: 36,
+                color: "white",
+                fontWeight: 300,
+                letterSpacing: "-0.02em",
+                marginBottom: 4,
+              }}>
+                {annual ? "$39" : "$49"}
+                <span style={{ fontSize: 14, color: "rgba(255,255,255,0.3)" }}> / month</span>
               </div>
               {annual && (
-                <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="font-ea-mono text-[10px] mb-1" style={{ color: C.gold }}>
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  style={{ fontSize: 11, color: C.gold, marginBottom: 4, fontFamily: "monospace" }}
+                >
                   Billed ${39 * 12}/yr · 2 months free
                 </motion.p>
               )}
-              <p className="font-ea-mono text-[11px] mb-8" style={{ color: "rgba(255,255,255,0.3)" }}>Cancel anytime</p>
-              <ul className="mb-8" style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
-                {["Everything in Free", "All 9 AI advisers", "Investor marketplace (unlocks at Q-Score 70)", "Academy cohort access", "Priority support"].map((f) => (
-                  <li key={f} className="flex items-start gap-3 text-[13px] font-light py-3" style={{ color: "rgba(255,255,255,0.5)", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                    <CheckCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" style={{ color: C.gold, opacity: 0.8 }} /> {f}
-                  </li>
-                ))}
-              </ul>
-              <MagneticButton onClick={() => go("/founder/onboarding")} style={{
-                width: "100%", padding: "13px", borderRadius: 999, fontSize: 14, fontWeight: 700,
-                background: `linear-gradient(135deg, ${C.ember}, #C46A4A)`,
-                color: "#fff", border: "none", cursor: "pointer",
-                boxShadow: `0 4px 24px rgba(217,119,87,0.4)`,
-              }}>
-                Start Pro free →
-              </MagneticButton>
+              <p style={{ fontSize: 11, color: "rgba(255,255,255,0.25)", marginBottom: 24, fontFamily: "monospace" }}>Cancel anytime</p>
+
+              {["Everything in Free", "All 9 AI advisers", "Investor marketplace", "Academy cohort access", "Priority support"].map((f) => (
+                <div key={f} style={{
+                  display: "flex", alignItems: "center", gap: 10,
+                  padding: "10px 0", fontSize: 14, color: "rgba(255,255,255,0.5)", fontWeight: 400,
+                  borderBottom: "1px solid rgba(255,255,255,0.06)",
+                }}>
+                  <div style={{ width: 4, height: 4, borderRadius: "50%", background: C.ember, flexShrink: 0 }} />
+                  {f}
+                </div>
+              ))}
+
+              <button
+                onClick={() => go("/founder/onboarding")}
+                style={{
+                  display: "block", width: "100%", marginTop: 28,
+                  padding: "12px 20px", background: C.ember,
+                  borderRadius: 6, fontSize: 14, color: "white",
+                  fontWeight: 500, textAlign: "center", border: "none", cursor: "pointer",
+                  transition: "opacity 0.15s",
+                }}
+              >
+                Start 14-day free trial
+              </button>
+              <p style={{ textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.25)", marginTop: 12, fontFamily: "monospace" }}>
+                No credit card required
+              </p>
             </div>
           </motion.div>
-
-          <p className="text-center text-[12px] font-light mt-5" style={{ color: C.dim }}>
-            Pro includes a 14-day free trial. No charge until you decide to continue.
-          </p>
         </div>
       </section>
 
       {/* ── FAQ ───────────────────────────────────────────────────────────── */}
-      <section className="py-16 sm:py-28 px-4 sm:px-6" style={{ background: C.sand }}>
-        <div className="mx-auto max-w-2xl">
-          <motion.div className="mb-10 sm:mb-12" initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
-            <div className="flex items-center gap-3 mb-5">
-              <div style={{ height: 1, width: 16, background: C.taupe }} />
-              <span className="font-ea-mono text-[9px] tracking-[0.3em] uppercase" style={{ color: C.stone }}>FAQ</span>
+      <section style={{ background: C.sand, padding: "128px 24px" }}>
+        <div style={{ maxWidth: 680, margin: "0 auto" }}>
+          <motion.div style={{ marginBottom: 48 }} initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
+            <div style={{
+              fontFamily: "monospace",
+              fontSize: 11,
+              letterSpacing: "0.1em",
+              color: C.stone,
+              textTransform: "uppercase",
+              marginBottom: 16,
+            }}>
+              FAQ
             </div>
-            <h2 className="text-3xl sm:text-4xl tracking-tight leading-tight" style={{ fontWeight: 300 }}>
-              <em className="font-display not-italic">Common questions.</em>
+            <h2 style={{
+              fontSize: "clamp(28px, 4vw, 44px)",
+              fontWeight: 400,
+              letterSpacing: "-0.025em",
+              lineHeight: 1.15,
+              color: C.charcoal,
+            }}>
+              Common questions.
             </h2>
           </motion.div>
+
           <div style={{ borderTop: `1px solid ${C.taupe}` }}>
             {[
               { q: "What is Q-Score and how is it calculated?", a: "Q-Score is an algorithmic investment-readiness score from 0–100. It measures your startup across 6 dimensions: team, market, traction, financials, product, and go-to-market. Each dimension is scored based on evidence you provide and the deliverables you build with your AI advisers." },
@@ -1529,23 +1791,41 @@ export default function LandingPage() {
               { q: "What's the difference between Free and Pro?", a: "Free gives you the full Q-Score assessment and 3 AI advisers (Strategy, Finance, Marketing). Pro unlocks all 9 advisers, the investor marketplace (once your Q-Score hits 70), Academy cohort access, and priority support." },
               { q: "How long does it take to get investor intros?", a: "Founders who enter the marketplace with a Q-Score of 75+ typically receive their first investor response within 2 weeks. The median time to a term sheet from marketplace entry is 6–10 weeks." },
             ].map((item, i) => (
-              <motion.div key={i} initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} transition={{ delay: i * 0.06 }}
-                style={{ borderBottom: `1px solid ${C.taupe}` }}>
-                <button className="w-full py-5 flex items-start justify-between gap-4 text-left"
-                  onClick={() => setFaqOpen(faqOpen === i ? null : i)}>
-                  <span className="text-[15px] font-light">{item.q}</span>
+              <motion.div
+                key={i}
+                initial={{ opacity: 0 }}
+                whileInView={{ opacity: 1 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.06 }}
+                style={{ borderBottom: `1px solid ${C.taupe}` }}
+              >
+                <button
+                  style={{
+                    width: "100%", padding: "20px 0",
+                    display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16,
+                    textAlign: "left", background: "none", border: "none", cursor: "pointer",
+                  }}
+                  onClick={() => setFaqOpen(faqOpen === i ? null : i)}
+                >
+                  <span style={{ fontSize: 15, fontWeight: 400, color: C.charcoal, lineHeight: 1.5 }}>{item.q}</span>
                   <motion.div
                     animate={{ rotate: faqOpen === i ? 180 : 0 }}
                     transition={{ type: "spring", stiffness: 200, damping: 20 }}
-                    style={{ flexShrink: 0 }}>
-                    <ChevronDown className="h-4 w-4 mt-0.5" style={{ color: faqOpen === i ? C.ember : C.stone }} />
+                    style={{ flexShrink: 0 }}
+                  >
+                    <ChevronDown className="h-4 w-4 mt-0.5" style={{ color: faqOpen === i ? C.charcoal : C.dim }} />
                   </motion.div>
                 </button>
                 <AnimatePresence>
                   {faqOpen === i && (
-                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.25, ease }} style={{ overflow: "hidden" }}>
-                      <p className="pb-5 text-[14px] font-light leading-relaxed" style={{ color: C.stone, paddingLeft: 0 }}>{item.a}</p>
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.25, ease }}
+                      style={{ overflow: "hidden" }}
+                    >
+                      <p style={{ paddingBottom: 20, fontSize: 14, lineHeight: 1.75, color: C.stone, fontWeight: 400 }}>{item.a}</p>
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -1556,18 +1836,32 @@ export default function LandingPage() {
       </section>
 
       {/* ── KNOWLEDGE LIBRARY ─────────────────────────────────────────────── */}
-      <section className="py-16 sm:py-24 px-4 sm:px-6" style={{ background: C.cream, borderTop: `1px solid ${C.taupe}` }}>
+      <section style={{ background: C.cream, borderTop: `1px solid ${C.taupe}`, padding: "96px 24px" }}>
         <div className="mx-auto max-w-7xl">
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-12">
             <div>
-              <span className="font-ea-mono text-[10px] tracking-[0.28em] uppercase block mb-3" style={{ color: C.stone }}>Free resource</span>
-              <h2 className="text-3xl sm:text-4xl tracking-tight" style={{ fontWeight: 300 }}>Startup Playbook Library</h2>
-              <p className="mt-3 text-base font-light max-w-xl" style={{ color: C.stone }}>
+              <span style={{
+                fontFamily: "monospace", fontSize: 10, letterSpacing: "0.28em",
+                textTransform: "uppercase", display: "block", marginBottom: 12, color: C.stone,
+              }}>
+                Free resource
+              </span>
+              <h2 style={{ fontSize: "clamp(24px, 3vw, 36px)", fontWeight: 400, letterSpacing: "-0.02em", color: C.charcoal }}>
+                Startup Playbook Library
+              </h2>
+              <p style={{ marginTop: 12, fontSize: 15, color: C.stone, maxWidth: 480, lineHeight: 1.65, fontWeight: 400 }}>
                 60+ curated frameworks from YC, a16z, Bessemer, and HBR — surfaced by your AI team when you need them.
               </p>
             </div>
-            <a href="/library" className="shrink-0 inline-flex items-center gap-2 text-[13px] font-semibold px-5 py-2.5 rounded-full transition-all hover:scale-[1.03]"
-              style={{ background: C.charcoal, color: C.cream }}>
+            <a
+              href="/library"
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                fontSize: 13, fontWeight: 500, padding: "10px 20px", borderRadius: 6,
+                background: C.charcoal, color: C.cream, textDecoration: "none",
+                flexShrink: 0,
+              }}
+            >
               Browse library →
             </a>
           </div>
@@ -1580,20 +1874,29 @@ export default function LandingPage() {
               { icon: "📖", type: "Guide",     title: "How to Find PMF",            source: "Gustaf Alströmer · YC",         fn: "CPO", color: "#DB2777" },
               { icon: "⚙️", type: "Framework", title: "7 Powers: Competitive Moats", source: "Hamilton Helmer",             fn: "CSO", color: "#059669" },
             ].map((r) => (
-              <motion.a key={r.title} href="/library"
-                className="block p-5 rounded-2xl"
-                style={{ background: C.sand, border: `1px solid ${C.taupe}`, textDecoration: "none" }}
-                whileHover={{ y: -4, boxShadow: "0 10px 28px rgba(42,40,38,0.09)" }}
-                transition={{ type: "spring", stiffness: 300, damping: 25 }}>
-                <div className="flex items-start gap-3">
-                  <div className="text-2xl mt-0.5 shrink-0">{r.icon}</div>
+              <motion.a
+                key={r.title}
+                href="/library"
+                style={{
+                  display: "block", padding: "20px 24px", borderRadius: 10,
+                  background: "white", border: `1px solid ${C.taupe}`, textDecoration: "none",
+                  boxShadow: "0 1px 4px rgba(42,40,38,0.04)",
+                }}
+                whileHover={{ y: -2, boxShadow: "0 4px 16px rgba(42,40,38,0.08)" }}
+                transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              >
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                  <div style={{ fontSize: 24, marginTop: 2, flexShrink: 0 }}>{r.icon}</div>
                   <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded" style={{ background: r.color + "1A", color: r.color }}>{r.fn}</span>
-                      <span className="text-[10px]" style={{ color: C.dim }}>{r.type}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                      <span style={{
+                        fontSize: 10, fontWeight: 600, padding: "2px 6px", borderRadius: 4,
+                        background: r.color + "1A", color: r.color, fontFamily: "monospace",
+                      }}>{r.fn}</span>
+                      <span style={{ fontSize: 10, color: C.dim, fontFamily: "monospace" }}>{r.type}</span>
                     </div>
-                    <p className="text-[14px] font-semibold leading-snug mb-1">{r.title}</p>
-                    <p className="text-[12px] font-light" style={{ color: C.stone }}>{r.source}</p>
+                    <p style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.4, marginBottom: 4, color: C.charcoal }}>{r.title}</p>
+                    <p style={{ fontSize: 12, color: C.stone, fontWeight: 400 }}>{r.source}</p>
                   </div>
                 </div>
               </motion.a>
@@ -1603,60 +1906,61 @@ export default function LandingPage() {
       </section>
 
       {/* ── FINAL CTA — DARK ──────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden" style={{ background: C.midnight }}>
-        {/* ember blob */}
-        <motion.div
-          animate={{ scale: [1, 1.15, 1], rotate: [0, 40, 0] }}
-          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-          style={{
-            position: "absolute", top: "20%", left: "50%", transform: "translateX(-50%)",
-            width: 700, height: 450,
-            background: `radial-gradient(ellipse, rgba(217,119,87,0.12) 0%, transparent 70%)`,
-            pointerEvents: "none", filter: "blur(60px)",
-          }}
-        />
-        {/* gold blob */}
-        <motion.div
-          animate={{ scale: [1, 1.08, 1], rotate: [0, -30, 0] }}
-          transition={{ duration: 18, repeat: Infinity, ease: "linear", delay: 5 }}
-          style={{
-            position: "absolute", bottom: "10%", right: "10%",
-            width: 400, height: 300,
-            background: `radial-gradient(ellipse, rgba(201,169,97,0.08) 0%, transparent 70%)`,
-            pointerEvents: "none", filter: "blur(50px)",
-          }}
-        />
+      <section style={{ background: C.midnight, position: "relative", overflow: "hidden" }}>
+        {/* Single subtle glow — no blobs */}
+        <div style={{
+          position: "absolute",
+          inset: 0,
+          background: "radial-gradient(ellipse at 50% 0%, rgba(217,119,87,0.08) 0%, transparent 60%)",
+          pointerEvents: "none",
+        }} />
 
-        <motion.div className="mx-auto max-w-3xl relative py-28 sm:py-44 px-4 sm:px-6 text-center"
-          initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
+        <motion.div
+          style={{ maxWidth: 640, margin: "0 auto", padding: "128px 24px", textAlign: "center", position: "relative" }}
+          initial={{ opacity: 0, y: 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+        >
           <div style={{ height: 1, background: "rgba(255,255,255,0.07)", marginBottom: 48 }} />
-          <span className="font-ea-mono text-[10px] tracking-[0.3em] uppercase block mb-8" style={{ color: "rgba(255,255,255,0.3)" }}>
+          <span style={{
+            fontFamily: "monospace", fontSize: 10, letterSpacing: "0.3em",
+            textTransform: "uppercase", display: "block", marginBottom: 32,
+            color: "rgba(255,255,255,0.3)",
+          }}>
             Ready to raise
           </span>
-          <h2 className="text-4xl sm:text-5xl md:text-6xl xl:text-[4.5rem] tracking-tight leading-[1.0] mb-10" style={{ fontWeight: 300, color: C.cream }}>
+          <h2 style={{
+            fontSize: "clamp(36px, 5vw, 64px)",
+            fontWeight: 300,
+            letterSpacing: "-0.03em",
+            lineHeight: 1.05,
+            color: "white",
+            marginBottom: 40,
+          }}>
             Build the company<br />
-            <em className="font-display not-italic" style={{ color: C.goldL }}>investors want to fund.</em>
+            <em style={{ fontStyle: "italic", color: "#F7EFD9" }}>investors want to fund.</em>
           </h2>
           <GetStartedDropdown
-            label={<>Start free <ArrowRight className="h-4 w-4" /></>}
-            className="inline-flex items-center justify-center gap-2 font-semibold px-9 py-4 rounded-full text-[15px]"
-            style={{
-              background: `linear-gradient(135deg, ${C.ember} 0%, #C46A4A 100%)`,
-              color: "#fff", border: "none", cursor: "pointer",
-              boxShadow: `0 6px 32px rgba(217,119,87,0.4)`,
-            }}
+            label={<>Start free <ArrowRight size={15} /></>}
             align="center"
           />
-          <p className="font-ea-mono text-[11px] mt-6" style={{ color: "rgba(255,255,255,0.2)" }}>
+          <p style={{
+            fontFamily: "monospace", fontSize: 11, marginTop: 24,
+            color: "rgba(255,255,255,0.2)",
+          }}>
             10-minute setup · No credit card · Free forever
           </p>
 
-          {/* mini stats */}
-          <div className="grid grid-cols-3 gap-4 mt-16 pt-10" style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+          {/* Mini stats */}
+          <div style={{
+            display: "grid", gridTemplateColumns: "repeat(3, 1fr)",
+            gap: 16, marginTop: 64, paddingTop: 40,
+            borderTop: "1px solid rgba(255,255,255,0.07)",
+          }}>
             {[["$2.3B+", "Raised via platform"], ["10,000+", "Active founders"], ["500+", "Verified investors"]].map(([n, l]) => (
               <div key={l}>
-                <p className="font-ea-mono text-xl sm:text-2xl font-medium mb-1" style={{ color: C.cream }}>{n}</p>
-                <p className="font-ea-mono text-[10px] uppercase tracking-[0.1em]" style={{ color: "rgba(255,255,255,0.25)" }}>{l}</p>
+                <p style={{ fontFamily: "monospace", fontSize: 20, fontWeight: 400, color: "white", marginBottom: 4, letterSpacing: "-0.01em" }}>{n}</p>
+                <p style={{ fontFamily: "monospace", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.1em", color: "rgba(255,255,255,0.25)" }}>{l}</p>
               </div>
             ))}
           </div>
@@ -1665,24 +1969,23 @@ export default function LandingPage() {
       </section>
 
       {/* ── FOOTER ────────────────────────────────────────────────────────── */}
-      <footer className="py-10 sm:py-14 px-4 sm:px-6" style={{ background: C.midnight, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+      <footer style={{ background: C.midnight, borderTop: "1px solid rgba(255,255,255,0.06)", padding: "48px 24px" }}>
         <div className="mx-auto max-w-7xl">
           <div className="grid grid-cols-2 md:grid-cols-5 gap-8 sm:gap-10 mb-10">
             <div className="col-span-2 md:col-span-2">
-              <div className="flex items-center gap-2.5 mb-4">
-                <div className="h-7 w-7 rounded-md flex items-center justify-center" style={{ background: "rgba(255,255,255,0.08)" }}>
-                  <span className="font-bold text-[8px]" style={{ color: "rgba(255,255,255,0.7)" }}>EA</span>
-                </div>
-                <span className="font-medium text-[15px]" style={{ color: "rgba(255,255,255,0.6)" }}>Edge Alpha</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+                <span style={{ fontFamily: "monospace", fontSize: 14, fontWeight: 500, color: "rgba(255,255,255,0.5)", letterSpacing: "-0.01em" }}>
+                  Edge Alpha
+                </span>
               </div>
-              <p className="text-[13px] font-light leading-relaxed max-w-[220px]" style={{ color: "rgba(255,255,255,0.25)" }}>
+              <p style={{ fontSize: 13, lineHeight: 1.65, color: "rgba(255,255,255,0.25)", maxWidth: 220, fontWeight: 400 }}>
                 AI-powered advisers and investor marketplace for ambitious founders.
               </p>
             </div>
             {[
               { title: "Product", links: [
                 { label: "Q-Score", href: "/founder/improve-qscore" },
-                { label: "CXO Suite", href: "/founder/agents" },
+                { label: "AI Agents", href: "/founder/agents" },
                 { label: "Academy", href: "/founder/academy" },
                 { label: "Investor Matching", href: "/founder/matching" },
               ]},
@@ -1700,12 +2003,13 @@ export default function LandingPage() {
               ]},
             ].map((col) => (
               <div key={col.title}>
-                <p className="text-[10px] uppercase tracking-[0.18em] font-semibold mb-4" style={{ color: "rgba(255,255,255,0.2)" }}>{col.title}</p>
-                <ul className="space-y-2.5">
+                <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", fontWeight: 600, marginBottom: 16, color: "rgba(255,255,255,0.2)", fontFamily: "monospace" }}>
+                  {col.title}
+                </p>
+                <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
                   {col.links.map((l) => (
-                    <li key={l.label}>
-                      <a href={l.href} className="text-[13px] font-light transition-opacity hover:opacity-80"
-                        style={{ color: "rgba(255,255,255,0.35)" }}>
+                    <li key={l.label} style={{ marginBottom: 10 }}>
+                      <a href={l.href} style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", textDecoration: "none", fontWeight: 400 }}>
                         {l.label}
                       </a>
                     </li>
@@ -1714,10 +2018,14 @@ export default function LandingPage() {
               </div>
             ))}
           </div>
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8"
-            style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-            <p className="text-[12px] font-light" style={{ color: "rgba(255,255,255,0.2)" }}>&copy; 2026 Edge Alpha. All rights reserved.</p>
-            <div className="flex items-center gap-5 text-[11px] font-light tracking-[0.1em]" style={{ color: "rgba(255,255,255,0.15)" }}>
+          <div style={{
+            display: "flex", flexDirection: "column", gap: 12,
+            paddingTop: 24, borderTop: "1px solid rgba(255,255,255,0.06)",
+          }} className="sm:flex-row sm:items-center sm:justify-between">
+            <p style={{ fontSize: 12, color: "rgba(255,255,255,0.2)", fontWeight: 400 }}>
+              &copy; 2026 Edge Alpha. All rights reserved.
+            </p>
+            <div style={{ display: "flex", alignItems: "center", gap: 20, fontSize: 11, color: "rgba(255,255,255,0.15)", letterSpacing: "0.1em", fontFamily: "monospace" }}>
               <span>SECURE</span><span>PRIVATE</span><span>AI-POWERED</span>
             </div>
           </div>

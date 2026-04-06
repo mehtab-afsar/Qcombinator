@@ -185,20 +185,72 @@ const AGENTS: AgentConfig[] = [
     id: AGENT_IDS.SAGE,
     name: 'Sage',
     pillar: 'product-strategy',
-    tools: [ARTIFACT_TYPES.STRATEGIC_PLAN],
+    tools: [
+      ARTIFACT_TYPES.STRATEGIC_PLAN,
+      ARTIFACT_TYPES.INVESTOR_READINESS_REPORT,
+      ARTIFACT_TYPES.BOARD_DECK,
+      ARTIFACT_TYPES.CONTRADICTION_REPORT,
+      ARTIFACT_TYPES.OKR_HEALTH_REPORT,
+      ARTIFACT_TYPES.CRISIS_PLAYBOOK,
+    ],
     dataTools: [],
     actions: ['send_investor_update', 'linear_export'],
     qscoreBoosts: {
-      [DIMENSIONS.PRODUCT]: 4, // strategic_plan(4)
+      [DIMENSIONS.PRODUCT]: 4,
     },
     // Sage synthesises everything — always injects all other agents' context
     highRelevanceAgents: [
       AGENT_IDS.FELIX, AGENT_IDS.PATEL, AGENT_IDS.NOVA,
       AGENT_IDS.ATLAS, AGENT_IDS.SUSI, AGENT_IDS.MAYA,
-      AGENT_IDS.HARPER, AGENT_IDS.LEO,
+      AGENT_IDS.HARPER, AGENT_IDS.LEO, AGENT_IDS.CARTER, AGENT_IDS.RILEY,
     ],
     mediumRelevanceAgents: [],
-    memory: { ownArtifacts: 2, otherArtifacts: 8, activityEvents: 15 },
+    memory: { ownArtifacts: 2, otherArtifacts: 10, activityEvents: 15 },
+  },
+
+  // ── Pillar 4: Customer & Growth (NEW) ────────────────────────────────────
+  {
+    id: AGENT_IDS.CARTER,
+    name: 'Carter',
+    pillar: 'operations-finance',
+    tools: [
+      ARTIFACT_TYPES.CUSTOMER_HEALTH_REPORT,
+      ARTIFACT_TYPES.CHURN_ANALYSIS,
+      ARTIFACT_TYPES.QBR_DECK,
+      ARTIFACT_TYPES.EXPANSION_PLAYBOOK,
+      ARTIFACT_TYPES.CS_PLAYBOOK,
+      ARTIFACT_TYPES.ONBOARDING_PLAN,
+    ],
+    dataTools: ['posthog_query', 'fetch_stripe_metrics', 'calendly_link'],
+    actions: ['send_customer_checkin', 'schedule_qbr', 'send_nps_survey'],
+    qscoreBoosts: {
+      [DIMENSIONS.TRACTION]: 6, // customer_health_report(3) + churn_analysis(3)
+    },
+    highRelevanceAgents: [AGENT_IDS.NOVA, AGENT_IDS.SUSI],
+    mediumRelevanceAgents: [AGENT_IDS.FELIX, AGENT_IDS.PATEL],
+    memory: { ownArtifacts: 3, otherArtifacts: 4, activityEvents: 10 },
+  },
+  {
+    id: AGENT_IDS.RILEY,
+    name: 'Riley',
+    pillar: 'sales-marketing',
+    tools: [
+      ARTIFACT_TYPES.GROWTH_MODEL,
+      ARTIFACT_TYPES.PAID_CAMPAIGN,
+      ARTIFACT_TYPES.REFERRAL_PROGRAM,
+      ARTIFACT_TYPES.LAUNCH_PLAYBOOK,
+      ARTIFACT_TYPES.GROWTH_REPORT,
+      ARTIFACT_TYPES.EXPERIMENT_RESULTS,
+    ],
+    dataTools: ['apollo_search', 'web_research', 'posthog_query'],
+    actions: ['launch_paid_campaign', 'setup_referral_program', 'deploy_landing_page'],
+    qscoreBoosts: {
+      [DIMENSIONS.TRACTION]: 5, // growth_model(3) + growth_report(2)
+      [DIMENSIONS.GTM]:      3, // paid_campaign(3)
+    },
+    highRelevanceAgents: [AGENT_IDS.PATEL, AGENT_IDS.NOVA],
+    mediumRelevanceAgents: [AGENT_IDS.ATLAS, AGENT_IDS.CARTER, AGENT_IDS.MAYA],
+    memory: { ownArtifacts: 3, otherArtifacts: 4, activityEvents: 10 },
   },
 ];
 
@@ -215,11 +267,18 @@ export interface ToolConfig {
 }
 
 export const TOOLS: ToolConfig[] = [
-  // Data tools
+  // Data tools — existing
   { id: 'lead_enrich',         type: 'data',     executor: 'executeLeadEnrich',      cache: { ttl: 86400, key: 'hash(domain)' },  costUsd: 0.001 },
   { id: 'web_research',        type: 'data',     executor: 'executeTavilyResearch',  cache: { ttl: 3600,  key: 'hash(query)' },   costUsd: 0.005 },
   { id: 'create_deal',         type: 'data',     executor: 'executeCreateDeal',      costUsd: 0 },
   { id: 'fetch_stripe_metrics',type: 'data',     executor: 'executeStripeMetrics',   costUsd: 0 },
+
+  // Data tools — new Tier 1 integrations
+  { id: 'apollo_search',       type: 'data',     executor: 'executeApolloSearch',    cache: { ttl: 3600, key: 'hash(query)' },    costUsd: 0.002 },
+  { id: 'posthog_query',       type: 'data',     executor: 'executePostHogQuery',    cache: { ttl: 300,  key: 'hash(query)' },    costUsd: 0 },
+  { id: 'calendly_link',       type: 'data',     executor: 'executeCalendlyLink',    costUsd: 0 },
+  { id: 'vapi_call',           type: 'data',     executor: 'executeVapiCall',        costUsd: 0.05 },
+  { id: 'fireflies_sync',      type: 'data',     executor: 'executeFirefliesSync',   costUsd: 0 },
 
   // Artifact tools
   { id: 'icp_document',        type: 'artifact', executor: 'executeArtifactGenerate', costUsd: 0.02 },
@@ -276,6 +335,13 @@ export const ACTIONS: ActionConfig[] = [
   { id: 'lead_enrich',           type: 'enrichment', executor: 'executeLeadEnrich',       confirmation: false },
   { id: 'web_research',          type: 'enrichment', executor: 'executeTavilyResearch',   confirmation: false },
   { id: 'fetch_stripe_metrics',  type: 'enrichment', executor: 'executeStripeMetrics',    confirmation: false },
+
+  // New platform actions (Carter + Riley)
+  { id: 'send_customer_checkin', type: 'platform',   executor: 'sendCustomerCheckin',     requires: [ARTIFACT_TYPES.CUSTOMER_HEALTH_REPORT], confirmation: false },
+  { id: 'schedule_qbr',          type: 'platform',   executor: 'scheduleQBR',             requires: [ARTIFACT_TYPES.QBR_DECK],           confirmation: true  },
+  { id: 'send_nps_survey',       type: 'platform',   executor: 'sendNpsSurvey',           confirmation: false },
+  { id: 'launch_paid_campaign',  type: 'platform',   executor: 'launchPaidCampaign',      requires: [ARTIFACT_TYPES.PAID_CAMPAIGN],      confirmation: true  },
+  { id: 'setup_referral_program',type: 'platform',   executor: 'setupReferralProgram',    requires: [ARTIFACT_TYPES.REFERRAL_PROGRAM],   confirmation: true  },
 
   // Handoff actions (clipboard copy + window.open, no server call)
   { id: 'gmail_compose',         type: 'handoff',    executor: 'handoffGmail',            requires: [ARTIFACT_TYPES.OUTREACH_SEQUENCE],  confirmation: false },

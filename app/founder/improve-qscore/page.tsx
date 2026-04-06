@@ -149,73 +149,6 @@ const DIMENSIONS: DimensionDef[] = [
       "Show gross margin trajectory and path to profitability",
     ],
   },
-  // ── Legacy v1_prd dimensions (kept for older score rows) ──────────────────
-  {
-    key: "market",
-    name: "Market",
-    weight: 20,
-    agentId: "atlas",
-    agentName: "Atlas",
-    recommendations: [
-      "Refine your TAM/SAM/SOM calculations with real data sources",
-      "Research and document market growth trends and timing",
-    ],
-  },
-  {
-    key: "product",
-    name: "Product",
-    weight: 18,
-    agentId: "nova",
-    agentName: "Nova",
-    recommendations: [
-      "Get more customer validation and testimonials",
-      "Show clear product-market fit signals (retention, NPS)",
-    ],
-  },
-  {
-    key: "financial",
-    name: "Financial",
-    weight: 18,
-    agentId: "felix",
-    agentName: "Felix",
-    recommendations: [
-      "Build a 12-month financial model with clear assumptions",
-      "Calculate unit economics (LTV, CAC, margins)",
-    ],
-  },
-  {
-    key: "goToMarket",
-    name: "Go-to-Market",
-    weight: 17,
-    agentId: "patel",
-    agentName: "Patel",
-    recommendations: [
-      "Define your ICP (Ideal Customer Profile) clearly",
-      "Calculate and optimise Customer Acquisition Cost",
-    ],
-  },
-  {
-    key: "team",
-    name: "Team",
-    weight: 15,
-    agentId: "harper",
-    agentName: "Harper",
-    recommendations: [
-      "Demonstrate deep domain expertise",
-      "Show complementary skills across the team",
-    ],
-  },
-  {
-    key: "traction",
-    name: "Traction",
-    weight: 12,
-    agentId: "susi",
-    agentName: "Susi",
-    recommendations: [
-      "Get more paying customers or letters of intent",
-      "Show consistent month-over-month growth",
-    ],
-  },
 ];
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -395,28 +328,17 @@ export default function ImproveQScorePage() {
   const pointsNeeded = Math.max(0, targetScore - overall);
   const progressPct = Math.min((overall / targetScore) * 100, 100);
 
-  // Detect IQ v2 score
-  const scoreVersion = (qScore as unknown as { scoreVersion?: string })?.scoreVersion ?? 'v1_prd'
-  const isIQv2 = scoreVersion === 'v2_iq'
   type IQParam = { id: string; name: string; averageScore: number; weight: number; indicatorsActive?: number }
-  const iqBreakdown = (qScore as unknown as { iqBreakdown?: IQParam[] })?.iqBreakdown ?? []
-  const availableIQ = (qScore as unknown as { availableIQ?: number })?.availableIQ ?? null
-  const track = (qScore as unknown as { track?: string })?.track ?? null
+  const iqBreakdown = (qScore?.iqBreakdown as IQParam[] | undefined) ?? []
+  const availableIQ = (qScore?.availableIQ as number | null) ?? null
+  const track = (qScore?.track as string | null) ?? null
 
-  // Build dimension scores from qScore breakdown or fallback
-  const dimScores: Record<string, number> = isIQv2
-    ? Object.fromEntries(iqBreakdown.map((p: IQParam) => [p.id, Math.round(p.averageScore * 20)]))
-    : {
-        market:     qScore?.breakdown?.market?.score ?? 54,
-        product:    qScore?.breakdown?.product?.score ?? 58,
-        financial:  qScore?.breakdown?.financial?.score ?? 42,
-        goToMarket: qScore?.breakdown?.goToMarket?.score ?? 35,
-        team:       qScore?.breakdown?.team?.score ?? 72,
-        traction:   qScore?.breakdown?.traction?.score ?? 48,
-      };
+  // Build dimension scores from IQ v2 P1–P6 parameters
+  const dimScores: Record<string, number> = Object.fromEntries(
+    iqBreakdown.map((p: IQParam) => [p.id, Math.round(p.averageScore * 20)])
+  )
 
-  // Only show P1-P6 for v2, legacy dims for v1
-  const activeDimensions = DIMENSIONS.filter(d => isIQv2 ? d.key.startsWith('p') : !d.key.startsWith('p'))
+  const activeDimensions = DIMENSIONS.filter(d => d.key.startsWith('p'))
 
   // Sort dimensions by lowest score first
   const sorted = [...activeDimensions].sort((a, b) => (dimScores[a.key] ?? 0) - (dimScores[b.key] ?? 0));
@@ -508,23 +430,18 @@ export default function ImproveQScorePage() {
 
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <h1 style={{ fontSize: 28, fontWeight: 300, letterSpacing: "-0.03em", margin: 0 }}>
-            {isIQv2 ? "Improve Your IQ Score" : "Improve Your Q-Score"}
+            Improve Your IQ Score
           </h1>
-          {isIQv2 && (
-            <span style={{
-              fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 999,
-              background: "#EFF6FF", color: blue, border: `1px solid ${blue}33`,
-              textTransform: "uppercase", letterSpacing: "0.1em",
-            }}>
-              IQ v2 · {track ? `${track} track` : "30 indicators"}
-            </span>
-          )}
+          <span style={{
+            fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 999,
+            background: "#EFF6FF", color: blue, border: `1px solid ${blue}33`,
+            textTransform: "uppercase", letterSpacing: "0.1em",
+          }}>
+            IQ v2 · {track ? `${track} track` : "30 indicators"}
+          </span>
         </div>
         <p style={{ fontSize: 14, color: muted, marginTop: 6 }}>
-          {isIQv2
-            ? `Unlock the investor marketplace by reaching IQ Score 45+${availableIQ ? ` · Available: ${availableIQ.toFixed(1)}/100` : ""}`
-            : "Unlock the investor marketplace by reaching Q-Score 65+"
-          }
+          {`Unlock the investor marketplace by reaching IQ Score 45+${availableIQ ? ` · Available: ${availableIQ.toFixed(1)}/100` : ""}`}
         </p>
       </div>
 
@@ -861,7 +778,7 @@ export default function ImproveQScorePage() {
         </div>
 
         {/* ── GTM Diagnostics ─────────────────────────────────── */}
-        {gtmDiag && !isIQv2 && (dimScores.goToMarket ?? 100) < 70 && (
+        {gtmDiag && false && (dimScores.goToMarket ?? 100) < 70 && (
           <div style={{ marginBottom: 36 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
               <Target size={16} style={{ color: amber }} />
@@ -870,12 +787,12 @@ export default function ImproveQScorePage() {
               </span>
             </div>
             <p style={{ fontSize: 13, color: muted, marginBottom: 16 }}>
-              {gtmDiag.primaryGap
-                ? `Top gap: ${gtmDiag.primaryGap}`
+              {gtmDiag?.primaryGap
+                ? `Top gap: ${gtmDiag!.primaryGap}`
                 : "Detailed breakdown of your 3 GTM sub-scores."}
             </p>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
-              {([gtmDiag.D1, gtmDiag.D2, gtmDiag.D3] as typeof gtmDiag.D1[]).map((d) => {
+              {(gtmDiag ? [gtmDiag.D1, gtmDiag.D2, gtmDiag.D3] : []).map((d) => {
                 const gradeColor = d.grade === "strong" ? green : d.grade === "weak" ? amber : red;
                 return (
                   <div key={d.id} style={{ ...cardStyle, padding: "16px 18px" }}>
@@ -1193,10 +1110,11 @@ export default function ImproveQScorePage() {
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                       <span style={{ fontSize: 14, fontWeight: 600 }}>{dim.name}</span>
                       {/* Evidence badge from RAG pipeline */}
-                      {qScore?.ragMetadata && (() => {
-                        const summary = qScore.ragMetadata?.evidenceSummary || [];
-                        const hasCorroboration = summary.some(s => s.includes(dim.key) || s.startsWith('✓'));
-                        const hasConflict = summary.some(s => s.startsWith('✗'));
+                      {qScore?.ragMetadata && ((): React.ReactNode => {
+                        const ragMeta = qScore.ragMetadata as { evidenceSummary?: string[] } | null;
+                        const summary: string[] = ragMeta?.evidenceSummary ?? [];
+                        const hasCorroboration = summary.some((s: string) => s.includes(dim.key) || s.startsWith('✓'));
+                        const hasConflict = summary.some((s: string) => s.startsWith('✗'));
                         if (hasConflict) return (
                           <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: `${red}14`, color: red }}>
                             Conflict

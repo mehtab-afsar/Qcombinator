@@ -12,6 +12,8 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getAgent } from '@/lib/edgealpha.config';
+import { compressContext } from './context-compressor';
+import { FF_AGENT_CONTEXT_COMPRESSION } from '@/lib/feature-flags';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -22,6 +24,7 @@ export interface Artifact {
   title: string;
   created_at: string;
   content?: Record<string, unknown>;
+  key_fields?: Record<string, string>;
 }
 
 export interface ActivityEvent {
@@ -90,7 +93,7 @@ export async function getAgentContext(
     // 1. Own artifacts
     supabase
       .from('agent_artifacts')
-      .select('id, agent_id, artifact_type, title, created_at')
+      .select('id, agent_id, artifact_type, title, created_at, key_fields')
       .eq('user_id', userId)
       .eq('agent_id', agentId)
       .order('created_at', { ascending: false })
@@ -100,7 +103,7 @@ export async function getAgentContext(
     crossAgentIds.length > 0
       ? supabase
           .from('agent_artifacts')
-          .select('id, agent_id, artifact_type, title, created_at')
+          .select('id, agent_id, artifact_type, title, created_at, key_fields')
           .eq('user_id', userId)
           .in('agent_id', crossAgentIds)
           .order('created_at', { ascending: false })
@@ -117,11 +120,29 @@ export async function getAgentContext(
       .limit(memory.activityEvents),
   ]);
 
-  return {
-    ownArtifacts:      (ownResult.data      as Artifact[]      ?? []),
-    crossAgentArtifacts: (crossResult.data  as Artifact[]      ?? []),
-    activity:          (activityResult.data as ActivityEvent[] ?? []),
+  const raw = {
+    ownArtifacts:        (ownResult.data      as Artifact[]      ?? []),
+    crossAgentArtifacts: (crossResult.data    as Artifact[]      ?? []),
+    activity:            (activityResult.data as ActivityEvent[] ?? []),
   };
+
+  // Compress context to stay within token budget (gated by feature flag)
+  if (FF_AGENT_CONTEXT_COMPRESSION) {
+    const compressed = compressContext(
+      raw.ownArtifacts,
+      raw.crossAgentArtifacts,
+      raw.activity,
+      agentId,
+      topic,
+    );
+    return {
+      ownArtifacts:        compressed.ownArtifacts,
+      crossAgentArtifacts: compressed.crossAgentArtifacts,
+      activity:            compressed.activity,
+    };
+  }
+
+  return raw;
 }
 
 // ─── Format helpers ───────────────────────────────────────────────────────────
