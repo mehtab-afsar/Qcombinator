@@ -792,7 +792,7 @@ export default function ImproveQScorePage() {
                 : "Detailed breakdown of your 3 GTM sub-scores."}
             </p>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
-              {(gtmDiag ? [gtmDiag.D1, gtmDiag.D2, gtmDiag.D3] : []).map((d) => {
+              {[gtmDiag!.D1, gtmDiag!.D2, gtmDiag!.D3].map((d) => {
                 const gradeColor = d.grade === "strong" ? green : d.grade === "weak" ? amber : red;
                 return (
                   <div key={d.id} style={{ ...cardStyle, padding: "16px 18px" }}>
