@@ -35,6 +35,13 @@ import {
 } from '@/lib/feature-flags';
 import { getRelevantResources, formatResourcesForPrompt } from '@/features/knowledge/library';
 import { withCircuitBreaker } from '@/lib/circuit-breaker';
+import {
+  getStartupState,
+  updateStartupState,
+  formatStartupStateForPrompt,
+  extractStateFromArtifact,
+  type StartupState,
+} from '@/lib/agents/startup-state';
 
 // ─── dedicated system prompt registry ────────────────────────────────────────
 
@@ -477,24 +484,34 @@ export async function POST(request: NextRequest) {
     let systemPrompt = AGENT_SYSTEM_PROMPTS[agentId] ?? buildAgentSystemPrompt(agent, userContext);
 
     // ── Agent memory + cross-agent context (registry-driven, fail-open) ──────
+    let startupState: StartupState | null = null;
     if (userId) {
-      // Run context loading + orchestration + founder profile in parallel
+      // Run context loading + orchestration + founder profile + startup state in parallel
       const parallelTasks: [
         Promise<Awaited<ReturnType<typeof getAgentContext>>>,
         Promise<Awaited<ReturnType<typeof orchestrate>>>,
         Promise<string>,
+        Promise<StartupState | null>,
       ] = [
         getAgentContext(agentId, userId, supabaseAdmin, message),
         FF_CROSS_AGENT_ORCHESTRATION
           ? orchestrate(agentId, userId, message, supabaseAdmin)
           : Promise.resolve({ subAgentResults: [], contextInjection: '', subCallsUsed: 0 }),
         getFounderProfileContext(userId, supabaseAdmin),
+        getStartupState(userId, supabaseAdmin),
       ];
-      const [ctxResult, orchResult, founderCtxResult] = await Promise.allSettled(parallelTasks);
+      const [ctxResult, orchResult, founderCtxResult, stateResult] = await Promise.allSettled(parallelTasks);
 
       // Inject founder profile first — agents should see it before artifact memory
       if (founderCtxResult.status === 'fulfilled' && founderCtxResult.value) {
         systemPrompt += founderCtxResult.value;
+      }
+
+      // Inject shared startup state — gives every agent live facts from other agents
+      if (stateResult.status === 'fulfilled') {
+        startupState = stateResult.value;
+        const stateBlock = formatStartupStateForPrompt(startupState);
+        if (stateBlock) systemPrompt += stateBlock;
       }
 
       if (ctxResult.status === 'fulfilled') {
@@ -733,6 +750,13 @@ CONVERSATION RULES:
                   if (FF_ARTIFACT_SELF_CRITIQUE && artifactId && userId) {
                     void (async () => { try { const critique = await critiqueArtifact(toolName, parsedContent); let fc = parsedContent; if (critique.needsPatch) fc = await patchArtifact(toolName, parsedContent, critique); await supabaseAdmin.from('agent_artifacts').update({ content: fc, critique_metadata: critique }).eq('id', artifactId!); } catch { /* non-critical */ } })();
                   }
+                  // Write extracted facts back to shared startup state (fire-and-forget)
+                  if (userId) {
+                    const stateUpdates = extractStateFromArtifact(agentId, toolName, parsedContent);
+                    if (Object.keys(stateUpdates).length > 0) {
+                      void updateStartupState(userId, stateUpdates, agentId, supabaseAdmin);
+                    }
+                  }
                   logToolExecution(supabaseAdmin, userId, agentId, toolName, t0A, 'success', undefined, 'standard');
                   send({ type: 'artifact', artifact: { id: artifactId, type: toolName, title: artifactTitle, content: parsedContent } });
                   send({ type: 'tool_done', toolName, summary: `${artifactTitle} ready` });
@@ -926,6 +950,11 @@ Reply with ONLY a JSON object: { "qualityScore": <0–100>, "gaps": ["..."] }`;
 
         if (artifactId && userId) {
           void scoreFromArtifact(userId, toolName, parsedContent, supabaseAdmin).catch(() => {});
+          // Write extracted facts back to shared startup state (fire-and-forget)
+          const stateUpdates = extractStateFromArtifact(agentId, toolName, parsedContent);
+          if (Object.keys(stateUpdates).length > 0) {
+            void updateStartupState(userId, stateUpdates, agentId, supabaseAdmin);
+          }
         }
 
         if (FF_ARTIFACT_SELF_CRITIQUE && artifactId && userId) {

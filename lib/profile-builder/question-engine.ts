@@ -75,8 +75,10 @@ export function getInitialQuestion(section: number, profile: FounderProfile): st
 
 export function getRequiredFields(section: number, stage: string): string[] {
   const lower = stage.toLowerCase()
-  const isPreRevenue = ['idea', 'pre-product', 'mvp', 'pre-revenue'].some(s => lower.includes(s))
-  const isGrowth = ['growing', 'scaling', 'growth', 'series'].some(s => lower.includes(s))
+  // Match actual stage values from onboarding: 'product-development', 'commercial', 'growth-scaling'
+  // Legacy values: 'idea', 'pre-product', 'mvp', 'pre-revenue' also supported
+  const isPreRevenue = ['idea', 'pre-product', 'mvp', 'pre-revenue', 'product-development', 'commercial'].some(s => lower.includes(s))
+  const isGrowth = ['growing', 'scaling', 'growth', 'series', 'growth-scaling'].some(s => lower.includes(s))
 
   const FIELDS: Record<number, { base: string[]; preRevenueBase?: string[]; revenueOnly?: string[]; growthOnly?: string[] }> = {
     1: {
@@ -172,12 +174,20 @@ export function getSectionCompletionPct(
     // Boolean false and numeric 0 are explicit "none" answers — count them regardless of confidence.
     // Only apply confidence gating to positive/string values where low confidence means
     // the LLM was guessing rather than extracting a stated fact.
-    const isExplicitNone = val === false || val === 0
+    // Boolean false is an explicit "none" answer — count it regardless of confidence.
+    // Numeric 0 still needs confidence gating (LLMs often default numeric fields to 0).
+    const isExplicitNone = val === false
     if (hasConfidenceData && !isExplicitNone) {
       const leafKey = field.includes('.') ? field.split('.').pop()! : field
-      const conf = confidenceMap[leafKey] ?? confidenceMap[field] ?? 0
-      const threshold = getConfidenceThreshold(field)
-      if (conf < threshold) continue
+      // Only gate when the LLM explicitly provided a confidence score for this field.
+      // If the key is absent entirely, the LLM didn't flag it as uncertain — let it through.
+      const leafPresent = leafKey in confidenceMap
+      const fieldPresent = field in confidenceMap
+      if (leafPresent || fieldPresent) {
+        const conf = leafPresent ? confidenceMap[leafKey] : confidenceMap[field]
+        const threshold = getConfidenceThreshold(field)
+        if (conf < threshold) continue
+      }
     }
     filled++
   }
@@ -199,9 +209,14 @@ export function getMissingFields(
     const isExplicitNone = val === false || val === 0
     if (hasConf && !isExplicitNone) {
       const leafKey = field.includes('.') ? field.split('.').pop()! : field
-      const conf = confidenceMap[leafKey] ?? confidenceMap[field] ?? 0
-      const threshold = getConfidenceThreshold(field)
-      if (conf < threshold) return true
+      // Only gate on explicit low-confidence scores; absent keys pass through
+      const leafPresent = leafKey in confidenceMap
+      const fieldPresent = field in confidenceMap
+      if (leafPresent || fieldPresent) {
+        const conf = leafPresent ? confidenceMap[leafKey] : confidenceMap[field]
+        const threshold = getConfidenceThreshold(field)
+        if (conf < threshold) return true
+      }
     }
     return false
   })
