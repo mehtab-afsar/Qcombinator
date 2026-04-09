@@ -49,12 +49,14 @@ async function callOpenRouterWithTools(
     maxTokens: number;
     temperature: number;
     tools?: ToolDefinition[];
+    model?: string;
   },
 ): Promise<LLMChatResponse> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new OpenRouterError('No Groq API key configured (GROQ_API_KEY)', 0);
 
   const hasTools = options.tools && options.tools.length > 0;
+  const model = options.model ?? 'llama-3.3-70b-versatile';
 
   const makeRequest = (signal: AbortSignal) =>
     fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -65,7 +67,7 @@ async function callOpenRouterWithTools(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model,
         messages,
         temperature: options.temperature,
         max_tokens: options.maxTokens,
@@ -245,15 +247,16 @@ export async function llmChat(params: {
   maxTokens?: number;
   temperature?: number;
   tools?: ToolDefinition[];
+  model?: string;
 }): Promise<LLMChatResponse> {
-  const { messages, maxTokens = 900, temperature = 0.7, tools } = params;
+  const { messages, maxTokens = 900, temperature = 0.7, tools, model } = params;
   const provider = process.env.LLM_PROVIDER ?? 'openrouter';
 
   if (provider === 'anthropic') {
     return callAnthropicWithTools(messages, { maxTokens, temperature, tools });
   }
 
-  return callOpenRouterWithTools(messages, { maxTokens, temperature, tools });
+  return callOpenRouterWithTools(messages, { maxTokens, temperature, tools, model });
 }
 
 /**

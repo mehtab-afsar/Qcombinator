@@ -75,11 +75,14 @@ export async function routedCall(params: RoutedCallParams): Promise<LLMChatRespo
     ? 'anthropic'
     : 'openrouter';
 
+  const model = params.overrides?.model ?? config.model;
+
   return llmChat({
     messages: params.messages,
     maxTokens,
     temperature,
     tools: params.tools,
+    model,
     // Pass provider hint via env override pattern
     ...(provider === 'anthropic' ? { _provider: 'anthropic' } : {}),
   } as Parameters<typeof llmChat>[0]);

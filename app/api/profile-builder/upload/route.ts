@@ -164,6 +164,7 @@ export async function POST(req: NextRequest) {
 
     let extractedFields: Record<string, unknown> = {}
     let confidenceMap: Record<string, number> = {}
+    let extractionError: string | null = null
 
     function mergeDeepFields(target: Record<string, unknown>, source: Record<string, unknown>) {
       for (const [k, v] of Object.entries(source)) {
@@ -174,6 +175,11 @@ export async function POST(req: NextRequest) {
           target[k] = v
         }
       }
+    }
+
+    if (section === 0 && parsed.text.length <= 50) {
+      extractionError = `PDF text too short to extract (got ${parsed.text.length} chars). The PDF may be image-based or password protected.`
+      console.warn('[upload] parsed text too short:', parsed.text.length, 'chars for', filename)
     }
 
     if (section === 0 && parsed.text.length > 50) {
@@ -194,8 +200,10 @@ export async function POST(req: NextRequest) {
           })
         )
       )
+      let anySucceeded = false
       for (const result of results) {
         if (result.status === 'fulfilled') {
+          anySucceeded = true
           // Skip if LLM flagged this as a non-startup document
           if (result.value.fields['startup_document'] === false) continue
           delete result.value.fields['startup_document']
@@ -204,7 +212,13 @@ export async function POST(req: NextRequest) {
           for (const [k, v] of Object.entries(flatConf)) {
             if (!(k in confidenceMap)) confidenceMap[k] = v
           }
+        } else {
+          console.error('[upload] LLM extraction promise rejected:', result.reason)
         }
+      }
+      if (!anySucceeded) {
+        const firstRejection = results.find(r => r.status === 'rejected') as PromiseRejectedResult | undefined
+        extractionError = `LLM extraction failed: ${firstRejection?.reason?.message ?? 'unknown error'}. Check that GROQ_API_KEY is set in your environment.`
       }
     // Auto-derive p3.buildComplexity from replicationTimeMonths if LLM missed it
     if (extractedFields.p3) {
@@ -238,6 +252,70 @@ export async function POST(req: NextRequest) {
         } catch (e) {
           console.warn('LLM extraction failed for upload:', e)
         }
+      }
+    }
+
+    // ── Regex fallback: run when LLM extraction produced nothing (e.g. no API key on Vercel) ──
+    // Guarantees every text-bearing document contributes at least a few fields to the score.
+    if (section === 0 && parsed.text.length > 50 && Object.keys(extractedFields).length === 0) {
+      const t = parsed.text
+      const regexFields: Record<string, unknown> = {}
+
+      // Financial
+      const mrrMatch = t.match(/(?:mrr|monthly recurring revenue)[^\d$]*[$]?\s*([0-9,.]+)\s*[kKmM]?/i)
+      if (mrrMatch) {
+        const raw = parseFloat(mrrMatch[1].replace(/,/g, ''))
+        const mult = /k/i.test(mrrMatch[0]) ? 1000 : /m/i.test(mrrMatch[0]) ? 1_000_000 : 1
+        regexFields.financial = { mrr: Math.round(raw * mult) }
+      }
+      const arrMatch = t.match(/(?:arr|annual recurring revenue)[^\d$]*[$]?\s*([0-9,.]+)\s*[kKmM]?/i)
+      if (arrMatch) {
+        const raw = parseFloat(arrMatch[1].replace(/,/g, ''))
+        const mult = /k/i.test(arrMatch[0]) ? 1000 : /m/i.test(arrMatch[0]) ? 1_000_000 : 1
+        const fin = (regexFields.financial as Record<string, unknown>) ?? {}
+        regexFields.financial = { ...fin, arr: Math.round(raw * mult) }
+      }
+      const burnMatch = t.match(/(?:burn rate|monthly burn|cash burn)[^\d$]*[$]?\s*([0-9,.]+)\s*[kKmM]?/i)
+      if (burnMatch) {
+        const raw = parseFloat(burnMatch[1].replace(/,/g, ''))
+        const mult = /k/i.test(burnMatch[0]) ? 1000 : /m/i.test(burnMatch[0]) ? 1_000_000 : 1
+        const fin = (regexFields.financial as Record<string, unknown>) ?? {}
+        regexFields.financial = { ...fin, monthlyBurn: Math.round(raw * mult) }
+      }
+      const runwayMatch = t.match(/(\d{1,2})\s*(?:months?|mo\.?)\s*(?:of\s*)?runway/i)
+      if (runwayMatch) {
+        const fin = (regexFields.financial as Record<string, unknown>) ?? {}
+        regexFields.financial = { ...fin, runway: parseInt(runwayMatch[1]) }
+      }
+
+      // Market validation
+      const custMatch = t.match(/(\d[\d,]*)\s*(?:paying\s*)?customers?/i)
+      if (custMatch) regexFields.hasPayingCustomers = true
+      const convMatch = t.match(/(\d[\d,]*)\s*(?:customer\s*)?(?:conversations?|interviews?|calls?)/i)
+      if (convMatch) regexFields.conversationCount = parseInt(convMatch[1].replace(/,/g, ''))
+
+      // Market
+      const tamMatch = t.match(/(?:tam|total addressable market)[^\d$]*[$]?\s*([0-9,.]+)\s*[bBmMkK](?:illion|n)?/i)
+      if (tamMatch) {
+        const raw = parseFloat(tamMatch[1].replace(/,/g, ''))
+        const mult = /b/i.test(tamMatch[0].slice(-5)) ? 1_000_000_000 : /m/i.test(tamMatch[0].slice(-5)) ? 1_000_000 : 1000
+        regexFields.p2 = { tamDescription: `$${(raw * mult / 1_000_000_000).toFixed(1)}B TAM` }
+      }
+
+      // Team
+      const teamMatch = t.match(/(?:team of|team:\s*)(\d+)\s*(?:people|members?|employees?)?/i)
+      const founderMatch = t.match(/(\d+)\s*(?:co-?)?founders?/i)
+      if (teamMatch || founderMatch) {
+        const years = t.match(/(\d+)\s*years?\s*(?:of\s*)?(?:experience|in the industry|in)/i)
+        regexFields.p4 = { domainYears: years ? parseInt(years[1]) : undefined }
+      }
+
+      if (Object.keys(regexFields).length > 0) {
+        console.log('[upload] LLM unavailable — regex fallback extracted', Object.keys(regexFields).length, 'top-level fields')
+        mergeDeepFields(extractedFields, regexFields)
+        // Low confidence since this is pattern-matched, not LLM-verified
+        for (const k of Object.keys(regexFields)) confidenceMap[k] = 0.5
+        extractionError = null  // fields found — don't surface as error
       }
     }
 
@@ -372,8 +450,10 @@ export async function POST(req: NextRequest) {
       extractedFields,
       confidenceMap,
       parsedText: parsed.text.slice(0, 500),
+      parsedTextLength: parsed.text.length,
       summary: `Extracted ${preview.length} fields from ${filename}`,
       sectionSummaries,  // populated only for step-0 uploads
+      extractionError,   // non-null when extraction failed — surfaces the reason to the UI
     })
   } catch (err) {
     console.error('[profile-builder/upload]', err)

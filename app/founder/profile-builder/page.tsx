@@ -688,7 +688,24 @@ export default function ProfileBuilderPage() {
         return
       }
 
-      // No sectionSummaries (e.g. image, CSV with no structure) — still show the file
+      // No sectionSummaries — could be image/CSV or an extraction failure
+      if (data.extractionError) {
+        console.error('[profile-builder] extraction failed:', data.extractionError)
+        // Show as a chat error message so the founder knows something went wrong
+        setSections(prev => {
+          const sec = prev['1'] ?? initSection()
+          return {
+            ...prev,
+            '1': {
+              ...sec,
+              messages: [...sec.messages, {
+                role: 'agent' as const,
+                text: `Note: I wasn't able to automatically extract fields from "${file.name}". Reason: ${data.extractionError} The file is saved and I'll use it as context.`,
+              }],
+            },
+          }
+        })
+      }
       setUploadedFiles(prev => {
         const next = [...prev, newFile]
         saveFlowState({ flowMode: flowMode === 'fast' ? 'fast' : undefined, smartQuestions, smartQaIndex, extractionSummary, uploadedFiles: next })
