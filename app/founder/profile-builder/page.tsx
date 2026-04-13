@@ -91,7 +91,7 @@ interface SectionSummary {
   label: string
   completionPct: number
   extractedCount: number
-  extractedSnippets: Array<{ label: string; value: string }>
+  extractedSnippets: Array<{ label: string; value: string; fieldKey?: string }>
   missingLabels: string[]
 }
 
@@ -198,6 +198,8 @@ export default function ProfileBuilderPage() {
   const [uploadLoading, setUploadLoading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [uploadedFiles, setUploadedFiles] = useState<Array<{ name: string; fields: number }>>([])
+  const [docTruncationInfo, setDocTruncationInfo] = useState<{ truncatedAt: number; totalLength: number } | null>(null)
+  const [fieldSourceMap, setFieldSourceMap] = useState<Record<string, 'document' | 'conversation' | 'inferred'>>({})
   const [recalcLoading, setRecalcLoading] = useState(false)
   const [recalcResult, setRecalcResult] = useState<{ finalIQ: number; grade: string } | null>(null)
 
@@ -674,10 +676,25 @@ export default function ProfileBuilderPage() {
           extractedBySections[secKey] = slice
         }
 
-        const qs = generateSmartQuestions(extractedBySections, founderProfile.stage ?? 'mid')
+        // Build section completion map so smart questions target only weak params (< 3/5)
+        const sectionCompletions: Record<string, number> = {}
+        for (const [key, summary] of Object.entries(data.sectionSummaries ?? {})) {
+          sectionCompletions[key] = (summary as { completionPct?: number }).completionPct ?? 0
+        }
+        const qs = generateSmartQuestions(extractedBySections, founderProfile.stage ?? 'mid', sectionCompletions, founderProfile.industry ?? undefined)
         setSmartQuestions(qs)
         setSmartQaIndex(0)
         setFlowMode('fast')
+        // Surface truncation info so extract-results can show "We read X of Y chars"
+        if (data.docTruncated) {
+          setDocTruncationInfo({ truncatedAt: data.truncatedAt as number, totalLength: data.parsedTextLength as number })
+        } else {
+          setDocTruncationInfo(null)
+        }
+        // Merge source attribution (document / inferred) into global map
+        if (data.fieldSource && typeof data.fieldSource === 'object') {
+          setFieldSourceMap(prev => ({ ...prev, ...(data.fieldSource as Record<string, 'document' | 'conversation' | 'inferred'>) }))
+        }
         // setUploadedFiles is now called unconditionally below — don't duplicate here
         setUploadedFiles(prev => {
           const next = [...prev, newFile]
@@ -761,15 +778,29 @@ export default function ProfileBuilderPage() {
     setUploadTrigger(null)
   }
 
-  // ── handle one or many files sequentially ────────────────────────────────
+  const MAX_UPLOAD_FILES = 3
+
+  // ── handle one or many files sequentially (up to MAX_UPLOAD_FILES total) ──
   async function handleFileUpload(files: FileList | File[]) {
     if (!token) return
     const fileArr = Array.from(files)
     if (fileArr.length === 0) return
+
+    // Enforce 3-file cap — only process files that fit within the remaining slot budget
+    const slotsLeft = MAX_UPLOAD_FILES - uploadedFiles.length
+    if (slotsLeft <= 0) {
+      setUploadError(`You've already uploaded ${MAX_UPLOAD_FILES} files — the maximum allowed. Your data is already merged.`)
+      return
+    }
+    const toProcess = fileArr.slice(0, slotsLeft)
+    if (toProcess.length < fileArr.length) {
+      setUploadError(`Only ${slotsLeft} more file${slotsLeft === 1 ? '' : 's'} allowed (max ${MAX_UPLOAD_FILES}). Processing the first ${toProcess.length}.`)
+    }
+
     setUploadLoading(true)
-    setUploadError(null)
+    if (slotsLeft === fileArr.length) setUploadError(null)
     const errors: string[] = []
-    for (const file of fileArr) {
+    for (const file of toProcess) {
       try {
         await uploadOneFile(file)
       } catch (e) {
@@ -849,16 +880,14 @@ export default function ProfileBuilderPage() {
   }
 
   const completedCount = ['1','2','3','4','5'].filter(k => sections[k]?.isComplete).length
-  const canSubmit = completedCount >= 3
+  // Fast mode (doc upload): allow submit when any section has ≥30% data — matches API gate
+  const hasAnySectionData = Object.values(sections).some(s => s.completionScore >= 30)
+  const canSubmit = completedCount >= 3 || (flowMode === 'fast' && uploadedFiles.length > 0 && hasAnySectionData)
 
   const STEP_ORDER = flowMode === 'fast' ? STEP_ORDER_FAST : STEP_ORDER_FULL
   const stepIdx = STEP_ORDER.indexOf(currentStep)
   const prevStep = stepIdx > 0 ? STEP_ORDER[stepIdx - 1] : null
   const nextStep = stepIdx < STEP_ORDER.length - 1 ? STEP_ORDER[stepIdx + 1] : null
-
-  // Progress dots reflect active flow
-  const PROGRESS_STEPS = STEP_ORDER
-  const progressIdx = PROGRESS_STEPS.indexOf(currentStep)
 
   // ── score narrative (deterministic, no LLM) ──────────────────────────────
   function buildScoreNarrative(
@@ -1094,11 +1123,36 @@ export default function ProfileBuilderPage() {
 
             <div style={{ textAlign: 'center', marginBottom: 12 }}>
               <h2 style={{ fontSize: 24, fontWeight: 700, color: ink, margin: '0 0 8px', letterSpacing: '-0.02em' }}>
-                Upload documents
+                Upload your pitch deck
               </h2>
-              <p style={{ fontSize: 14, color: muted, margin: '0 0 16px', lineHeight: 1.6 }}>
-                We&apos;ll extract data automatically and pre-fill your profile. The more specific your docs, the higher your score.
+              <p style={{ fontSize: 14, color: muted, margin: '0 0 20px', lineHeight: 1.6 }}>
+                We analyse it, identify your weakest parameters, and give you a partial IQ Score in under 5 minutes.
               </p>
+              {/* Flow preview */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0, marginBottom: 20 }}>
+                {[
+                  { step: '1', label: 'Upload', sub: 'PDF, PPTX, DOCX' },
+                  { step: '2', label: '3 questions', sub: 'Weakest params only' },
+                  { step: '3', label: 'Instant score', sub: 'Partial IQ Score' },
+                ].map(({ step, label, sub }, i) => (
+                  <React.Fragment key={step}>
+                    <div style={{ textAlign: 'center', minWidth: 96 }}>
+                      <div style={{
+                        width: 28, height: 28, borderRadius: '50%',
+                        background: blue, color: '#fff',
+                        fontSize: 12, fontWeight: 700,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        margin: '0 auto 6px',
+                      }}>{step}</div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: ink }}>{label}</div>
+                      <div style={{ fontSize: 11, color: muted, marginTop: 1 }}>{sub}</div>
+                    </div>
+                    {i < 2 && (
+                      <div style={{ flex: 1, height: 1, background: bdr, maxWidth: 40, margin: '0 4px', marginBottom: 20 }} />
+                    )}
+                  </React.Fragment>
+                ))}
+              </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
                 {[
                   { label: 'Pitch deck', note: 'Market + team' },
@@ -1122,10 +1176,11 @@ export default function ProfileBuilderPage() {
             </div>
 
             <div
-              onClick={() => { if (!uploadLoading) fileInputRef.current?.click() }}
+              onClick={() => { if (!uploadLoading && uploadedFiles.length < MAX_UPLOAD_FILES) fileInputRef.current?.click() }}
               style={{
                 border: `2px dashed ${bdr}`, borderRadius: 16, padding: '48px 32px',
-                textAlign: 'center', background: surf, cursor: uploadLoading ? 'not-allowed' : 'pointer',
+                textAlign: 'center', background: surf, cursor: (uploadLoading || uploadedFiles.length >= MAX_UPLOAD_FILES) ? 'not-allowed' : 'pointer',
+                opacity: uploadedFiles.length >= MAX_UPLOAD_FILES ? 0.55 : 1,
                 transition: 'all 0.2s', boxShadow: 'inset 0 1px 3px rgba(24,22,15,0.04)',
               }}
               onMouseEnter={e => { e.currentTarget.style.borderColor = amber; e.currentTarget.style.background = '#FFF7ED'; e.currentTarget.style.boxShadow = '0 2px 12px rgba(217,119,6,0.08)' }}
@@ -1137,9 +1192,9 @@ export default function ProfileBuilderPage() {
                   : <UploadCloud size={36} color={muted} strokeWidth={1.25} />}
               </div>
               <div style={{ fontSize: 15, fontWeight: 600, color: ink, marginBottom: 6 }}>
-                {uploadLoading ? 'Uploading and extracting…' : 'Drop files or click to upload'}
+                {uploadLoading ? 'Uploading and extracting…' : uploadedFiles.length >= MAX_UPLOAD_FILES ? `${MAX_UPLOAD_FILES}-file limit reached` : 'Drop files or click to upload'}
               </div>
-              <div style={{ fontSize: 13, color: muted }}>PDF, PPTX, XLSX, CSV, PNG, JPG — max 10 MB each · multiple files supported</div>
+              <div style={{ fontSize: 13, color: muted }}>PDF, PPTX, XLSX, CSV, PNG, JPG — max 10 MB each · up to 3 files, merged automatically</div>
             </div>
 
             {uploadError && (
@@ -1150,7 +1205,14 @@ export default function ProfileBuilderPage() {
 
             {uploadedFiles.length > 0 && (
               <div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Uploaded</div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    Uploaded
+                  </div>
+                  <div style={{ fontSize: 11, color: muted }}>
+                    {uploadedFiles.length}/{MAX_UPLOAD_FILES} files · data merged
+                  </div>
+                </div>
                 {uploadedFiles.map((f, i) => (
                   <div key={i} style={{
                     display: 'flex', alignItems: 'center', gap: 12,
@@ -1521,14 +1583,15 @@ export default function ProfileBuilderPage() {
               {/* Stats row */}
               {(() => {
                 const _tf = extractionSummary.reduce((s, x) => s + x.extractedCount, 0)
-                const _avg = extractionSummary.length > 0 ? Math.round(extractionSummary.reduce((s, x) => s + x.completionPct, 0) / extractionSummary.length) : 0
-                const _done = extractionSummary.filter(x => x.completionPct >= 70).length
+                // Sections "strong" = ≥60% (score ≥ 3/5) — no question asked for these
+                const _strong = extractionSummary.filter(x => x.completionPct >= 60).length
+                const _weak = extractionSummary.filter(x => x.completionPct < 60).length
                 return (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, maxWidth: 480, margin: '0 auto' }}>
                 {[
                   { value: String(_tf), label: 'Fields extracted', color: blue },
-                  { value: `${_avg}%`, label: 'Avg. coverage', color: _avg >= 60 ? green : amber },
-                  { value: `${_done}/${extractionSummary.length}`, label: 'Sections ready', color: _done > 0 ? green : muted },
+                  { value: `${_strong}/${extractionSummary.length}`, label: 'Strong (≥ 3/5)', color: _strong > 0 ? green : amber },
+                  { value: String(_weak), label: _weak === 1 ? 'Weak param' : 'Weak params', color: _weak > 0 ? amber : green },
                 ].map(({ value, label, color }) => (
                   <div key={label} style={{
                     padding: '14px 12px', borderRadius: 12,
@@ -1544,6 +1607,21 @@ export default function ProfileBuilderPage() {
               })()}
             </div>
 
+            {/* ── Truncation warning banner ── */}
+            {docTruncationInfo && (
+              <div style={{
+                display: 'flex', alignItems: 'flex-start', gap: 10,
+                padding: '12px 16px', borderRadius: 10,
+                background: '#FFFBEB', border: '1px solid #FCD34D',
+              }}>
+                <AlertTriangle size={15} strokeWidth={2} style={{ color: '#D97706', flexShrink: 0, marginTop: 1 }} />
+                <p style={{ margin: 0, fontSize: 13, color: '#92400E', lineHeight: 1.5 }}>
+                  We read the first <strong>{docTruncationInfo.truncatedAt.toLocaleString()}</strong> of <strong>{docTruncationInfo.totalLength.toLocaleString()}</strong> characters in your document.
+                  {' '}Upload a shorter version or answer the follow-up questions to fill in any gaps.
+                </p>
+              </div>
+            )}
+
             {/* ── Section-by-section breakdown ── */}
             <div>
               <div style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 12 }}>
@@ -1551,29 +1629,33 @@ export default function ProfileBuilderPage() {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {extractionSummary.map(s => {
-                  const isDone = s.completionPct >= 70
-                  const isPartial = s.completionPct > 0 && s.completionPct < 70
+                  // ≥60% = score ≥ 3/5 = "strong" — no question asked
+                  // <60% = score < 3/5 = "weak" — question will be asked (if in top 3 by impact)
+                  const isStrong = s.completionPct >= 60
+                  const isPartial = s.completionPct > 0 && s.completionPct < 60
+                  const willAsk = smartQuestions.some(q => q.sectionKey === s.sectionKey)
                   const _sectionIcons: Record<string, React.ElementType> = { '1': Users, '2': TrendingUp, '3': Shield, '4': User, '5': DollarSign }
                   const SIcon = _sectionIcons[s.sectionKey] ?? BarChart2
-                  const barColor = isDone ? green : isPartial ? blue : bdr
-                  const statusLabel = isDone ? 'Ready' : isPartial ? 'Partial' : 'Needs input'
-                  const statusBg = isDone ? '#F0FDF4' : isPartial ? '#EFF6FF' : surf2
-                  const statusColor = isDone ? green : isPartial ? blue : muted
+                  const barColor = isStrong ? green : isPartial ? (willAsk ? amber : blue) : bdr
+                  const statusLabel = isStrong ? 'Strong' : willAsk ? 'Will be asked' : isPartial ? 'Partial' : 'No data'
+                  const statusBg = isStrong ? '#F0FDF4' : willAsk ? '#FFFBEB' : isPartial ? '#EFF6FF' : surf2
+                  const statusColor = isStrong ? green : willAsk ? amber : isPartial ? blue : muted
 
                   return (
                     <div key={s.sectionKey} style={{
-                      borderRadius: 14, border: `1px solid ${isDone ? green + '40' : bdr}`,
-                      background: isDone ? '#FAFFFE' : bg,
+                      borderRadius: 14,
+                      border: `1px solid ${isStrong ? green + '40' : willAsk ? amber + '44' : bdr}`,
+                      background: isStrong ? '#FAFFFE' : willAsk ? '#FFFDF5' : bg,
                       overflow: 'hidden',
                     }}>
                       {/* Card header */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px 10px' }}>
                         <div style={{
                           width: 32, height: 32, borderRadius: 8, flexShrink: 0,
-                          background: isDone ? '#DCFCE7' : surf2,
+                          background: isStrong ? '#DCFCE7' : willAsk ? '#FEF3C7' : surf2,
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                         }}>
-                          <SIcon size={15} color={isDone ? green : muted} strokeWidth={1.75} />
+                          <SIcon size={15} color={isStrong ? green : willAsk ? amber : muted} strokeWidth={1.75} />
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -1598,16 +1680,30 @@ export default function ProfileBuilderPage() {
                         <div style={{ padding: '0 18px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
                           {s.extractedSnippets.length > 0 && (
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                              {s.extractedSnippets.map((snip, i) => (
-                                <span key={i} style={{
-                                  display: 'inline-flex', alignItems: 'center', gap: 4,
-                                  fontSize: 11, padding: '3px 9px', borderRadius: 20,
-                                  background: '#D1FAE5', color: '#065F46', fontWeight: 500,
-                                }}>
-                                  <Check size={9} strokeWidth={3} style={{ flexShrink: 0 }} />
-                                  {snip.label}: <span style={{ fontWeight: 700 }}>{snip.value}</span>
-                                </span>
-                              ))}
+                              {s.extractedSnippets.map((snip, i) => {
+                                const src = snip.fieldKey ? fieldSourceMap[snip.fieldKey] : undefined
+                                const srcLabel = src === 'conversation' ? 'chat' : src === 'inferred' ? 'derived' : src === 'document' ? 'doc' : null
+                                return (
+                                  <span key={i} style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                                    fontSize: 11, padding: '3px 9px', borderRadius: 20,
+                                    background: '#D1FAE5', color: '#065F46', fontWeight: 500,
+                                  }}>
+                                    <Check size={9} strokeWidth={3} style={{ flexShrink: 0 }} />
+                                    {snip.label}: <span style={{ fontWeight: 700 }}>{snip.value}</span>
+                                    {srcLabel && (
+                                      <span style={{
+                                        fontSize: 9, fontWeight: 700, padding: '1px 5px',
+                                        borderRadius: 10, background: src === 'inferred' ? '#FEF3C7' : src === 'conversation' ? '#DBEAFE' : '#E0F2FE',
+                                        color: src === 'inferred' ? '#92400E' : src === 'conversation' ? '#1E40AF' : '#0369A1',
+                                        marginLeft: 2, letterSpacing: '0.03em',
+                                      }}>
+                                        {srcLabel}
+                                      </span>
+                                    )}
+                                  </span>
+                                )
+                              })}
                             </div>
                           )}
                           {s.missingLabels.length > 0 && (
@@ -1640,25 +1736,25 @@ export default function ProfileBuilderPage() {
             {/* ── Next step callout ── */}
             {smartQuestions.length > 0 ? (
               <div style={{
-                borderRadius: 14, border: `1px solid ${blue}33`,
-                background: '#F0F5FF', padding: '20px 24px',
+                borderRadius: 14, border: `1px solid ${amber}44`,
+                background: '#FFFDF5', padding: '20px 24px',
                 display: 'flex', alignItems: 'center', gap: 16,
               }}>
                 <div style={{
-                  width: 40, height: 40, borderRadius: 10, background: blue,
+                  width: 40, height: 40, borderRadius: 10, background: amber,
                   display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                 }}>
                   <MessageSquare size={18} color='#fff' strokeWidth={1.75} />
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 14, fontWeight: 700, color: ink, marginBottom: 2 }}>
-                    {smartQuestions.length} targeted {smartQuestions.length === 1 ? 'question' : 'questions'} to unlock a higher score
+                    {smartQuestions.length} {smartQuestions.length === 1 ? 'question' : 'questions'} — your {smartQuestions.length} weakest parameter{smartQuestions.length !== 1 ? 's' : ''}
                   </div>
                   <div style={{ fontSize: 12, color: muted, lineHeight: 1.5 }}>
-                    These fill the specific gaps that affect your IQ Score most. Takes 3–5 minutes.
+                    Each scored below 3/5. Answering moves these the most. Your IQ Score calculates automatically after.
                   </div>
                 </div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: blue, flexShrink: 0 }}>~{smartQuestions.length * 45}s</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: amber, flexShrink: 0 }}>~{smartQuestions.length * 45}s</div>
               </div>
             ) : (
               <div style={{
@@ -1673,8 +1769,8 @@ export default function ProfileBuilderPage() {
                   <CheckCircle2 size={18} color='#fff' strokeWidth={1.75} />
                 </div>
                 <div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: ink, marginBottom: 2 }}>All critical fields covered</div>
-                  <div style={{ fontSize: 12, color: muted }}>Your documents gave us everything we need. Ready to calculate your IQ Score.</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: ink, marginBottom: 2 }}>All parameters score ≥ 3/5</div>
+                  <div style={{ fontSize: 12, color: muted }}>Your documents covered everything well. Calculating your IQ Score now.</div>
                 </div>
               </div>
             )}
@@ -1759,6 +1855,8 @@ export default function ProfileBuilderPage() {
               if (isLast) {
                 setCurrentStep(6)
                 saveFlowState(null)  // flow complete — clear persisted state
+                // Auto-calculate score immediately — no extra click required
+                handleSubmit()
               } else {
                 const nextIdx = smartQaIndex + 1
                 setSmartQaIndex(nextIdx)
@@ -1773,21 +1871,29 @@ export default function ProfileBuilderPage() {
               {/* Progress */}
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <span style={{ fontSize: 12, color: muted }}>Question {smartQaIndex + 1} of {smartQuestions.length}</span>
+                  <span style={{ fontSize: 12, color: muted }}>
+                    Question {smartQaIndex + 1} of {smartQuestions.length}
+                    {isLast && <span style={{ marginLeft: 8, color: amber, fontWeight: 600 }}>· Last one — score calculates next</span>}
+                  </span>
                   <span style={{ fontSize: 12, color: muted }}>{progressPct}%</span>
                 </div>
                 <div style={{ height: 4, background: bdr, borderRadius: 2, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${progressPct}%`, background: blue, borderRadius: 2, transition: 'width 0.3s ease' }} />
+                  <div style={{ height: '100%', width: `${progressPct}%`, background: isLast ? amber : blue, borderRadius: 2, transition: 'width 0.3s ease' }} />
                 </div>
               </div>
 
-              {/* Section badge */}
-              <div>
+              {/* Section badge + weak param indicator */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{
                   display: 'inline-block', fontSize: 11, fontWeight: 600,
                   padding: '3px 10px', borderRadius: 20,
                   background: '#EFF6FF', color: blue,
                 }}>{q.sectionLabel}</span>
+                <span style={{
+                  display: 'inline-block', fontSize: 11, fontWeight: 600,
+                  padding: '3px 10px', borderRadius: 20,
+                  background: '#FFFBEB', color: amber,
+                }}>Scored below 3/5 · high impact</span>
               </div>
 
               {/* Question */}
@@ -1838,7 +1944,7 @@ export default function ProfileBuilderPage() {
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     flexShrink: 0, transition: 'background 0.15s', marginBottom: 1,
                   }}
-                >{smartProcessing ? '·' : '↑'}</button>
+                >{smartProcessing ? <Loader2 size={14} strokeWidth={2} style={{ animation: 'spin 1s linear infinite' }} /> : isLast ? <Zap size={14} strokeWidth={2} /> : '↑'}</button>
               </div>
 
               {/* Help text */}
@@ -1903,6 +2009,7 @@ export default function ProfileBuilderPage() {
                     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>IQ Score Memo — ${companyLabel}</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#FAF8F3;color:#2A2826}@media print{body{background:white}.no-print{display:none!important}@page{margin:18mm 14mm;size:A4}}</style></head><body><div style="max-width:720px;margin:0 auto;padding:48px 40px 60px"><div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:24px;border-bottom:2px solid #2A2826;margin-bottom:32px"><div><div style="font-size:11px;font-weight:700;color:#6B6760;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px">Edge Alpha · IQ Score Memo</div><div style="font-size:24px;font-weight:800;color:#2A2826;letter-spacing:-0.02em">${companyLabel}</div><div style="font-size:12px;color:#6B6760;margin-top:4px">${dateStr}</div></div><div style="text-align:right"><div style="font-size:56px;font-weight:800;color:#2563EB;line-height:1;letter-spacing:-0.04em">${submitResult!.score}</div><div style="font-size:14px;font-weight:700;color:#2A2826">Grade ${submitResult!.grade}</div>${submitResult!.track ? `<div style="font-size:11px;color:#2563EB;margin-top:2px">${submitResult!.track} track</div>` : ''}</div></div><div style="margin-bottom:32px"><div style="font-size:11px;font-weight:700;color:#6B6760;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:14px">Parameter Overview</div>${submitResult!.iqBreakdown.map(p => { const ps = toS100(p.averageScore); return `<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px"><div style="width:150px;font-size:12px;color:#2A2826;font-weight:600;flex-shrink:0">${p.name}</div><div style="flex:1;height:6px;background:#E8E3D8;border-radius:3px;overflow:hidden"><div style="height:100%;width:${ps}%;background:${ps >= 70 ? '#16A34A' : ps >= 45 ? '#D97706' : '#DC2626'}"></div></div><div style="width:48px;text-align:right;font-size:12px;font-weight:800;color:${ps >= 70 ? '#16A34A' : ps >= 45 ? '#D97706' : '#DC2626'}">${ps}/100</div></div>` }).join('')}</div><div style="margin-bottom:32px;padding:20px 24px;background:#F5F1E8;border-left:3px solid #2563EB;border-radius:0 8px 8px 0"><div style="font-size:11px;font-weight:700;color:#6B6760;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px">Assessment Summary</div><p style="font-size:13px;color:#2A2826;line-height:1.7">${narrative.overall}</p></div><div style="margin-bottom:32px"><div style="font-size:11px;font-weight:700;color:#6B6760;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:14px">Indicator Detail</div>${rows}</div>${warnings}${submitResult!.unlockCards.length > 0 ? `<div style="margin-bottom:32px"><div style="font-size:11px;font-weight:700;color:#6B6760;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:14px">Top Score Unlocks</div>${unlocks}</div>` : ''}${submitResult!.readinessSummary ? `<div style="padding:18px 20px;background:#F5F1E8;border:1px solid #E8E3D8;border-radius:8px;margin-bottom:32px"><div style="font-size:11px;font-weight:700;color:#6B6760;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Investor Readiness Summary</div><p style="font-size:13px;color:#2A2826;line-height:1.7;font-style:italic">${submitResult!.readinessSummary}</p></div>` : ''}<div style="padding-top:20px;border-top:1px solid #E8E3D8;display:flex;justify-content:space-between;align-items:center"><div style="font-size:11px;color:#6B6760">Confidential · Generated by Edge Alpha</div><div style="font-size:11px;color:#6B6760">edgealpha.com</div></div></div><script>window.onload=function(){window.print()}<\/script></body></html>`
 
                     const win = window.open('', '_blank')
+                    // eslint-disable-next-line @typescript-eslint/no-deprecated
                     if (win) { win.document.write(html); win.document.close() }
                   }
 
@@ -2069,13 +2176,30 @@ export default function ProfileBuilderPage() {
               </div>
             ) : (
               <>
-                <div style={{ textAlign: 'center' }}>
+                {/* Fast-mode: auto-submitting — show full loading state */}
+                {flowMode === 'fast' && isSubmitting ? (
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20, padding: '80px 40px', textAlign: 'center' }}>
+                    <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Loader2 size={28} color={blue} strokeWidth={2} style={{ animation: 'spin 1s linear infinite' }} />
+                    </div>
+                    <div>
+                      <h2 style={{ fontSize: 22, fontWeight: 700, color: ink, margin: '0 0 8px', letterSpacing: '-0.02em' }}>
+                        Calculating your IQ Score…
+                      </h2>
+                      <p style={{ fontSize: 14, color: muted, margin: 0, lineHeight: 1.6 }}>
+                        Scoring all parameters, running benchmarks and AI reconciliation.
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
+                <div style={{ textAlign: 'center', display: flowMode === 'fast' && isSubmitting ? 'none' : undefined }}>
                   <h2 style={{ fontSize: 24, fontWeight: 700, color: ink, margin: '0 0 8px', letterSpacing: '-0.02em' }}>
-                    Review & Submit
+                    {flowMode === 'fast' ? 'Your partial IQ Score' : 'Review & Submit'}
                   </h2>
                   <p style={{ fontSize: 14, color: muted, margin: 0 }}>
-                    {completedCount}/5 sections complete.{' '}
-                    {canSubmit ? 'Ready to calculate your IQ Score.' : 'Complete at least 3 sections (70%+) to submit.'}
+                    {flowMode === 'fast'
+                      ? `Based on ${Object.values(sections).filter(s => s.completionScore >= 30).length}/5 parameters answered. Add more sections to raise it.`
+                      : `${completedCount}/5 sections complete. ${canSubmit ? 'Ready to calculate your IQ Score.' : 'Complete at least 1 section to submit.'}`}
                   </p>
                 </div>
                 {/* Live preview panel */}
@@ -2128,32 +2252,36 @@ export default function ProfileBuilderPage() {
                 {['1','2','3','4','5'].map(k => {
                   const sec = sections[k]
                   const pct = animatedScores[k] ?? sec?.completionScore ?? 0
+                  // ≥60% = score ≥ 3/5 = strong
+                  const isStrong60 = pct >= 60
                   return (
                     <div key={k} style={{
                       display: 'flex', alignItems: 'center', gap: 14,
                       padding: '12px 16px', borderRadius: 10,
-                      background: surf, border: `1px solid ${pct >= 70 ? green + '55' : bdr}`,
+                      background: surf, border: `1px solid ${isStrong60 ? green + '55' : bdr}`,
                     }}>
                       <div style={{
                         width: 28, height: 28, borderRadius: '50%',
-                        background: pct >= 70 ? '#DCFCE7' : surf2,
+                        background: isStrong60 ? '#DCFCE7' : surf2,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         fontSize: 13, fontWeight: 700,
-                        color: pct >= 70 ? green : muted,
+                        color: isStrong60 ? green : muted,
                         flexShrink: 0,
                       }}>
-                        {pct >= 70 ? <Check size={13} strokeWidth={2.5} color={green} /> : k}
+                        {isStrong60 ? <Check size={13} strokeWidth={2.5} color={green} /> : k}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 13, fontWeight: 600, color: ink }}>{SECTION_LABELS[k]}</div>
-                        <div style={{ fontSize: 12, color: pct >= 70 ? green : muted }}>{pct}% complete</div>
+                        <div style={{ fontSize: 12, color: isStrong60 ? green : muted }}>
+                          {pct}% · {isStrong60 ? 'score ≥ 3/5' : pct >= 30 ? 'score < 3/5 — add more detail' : 'no data yet'}
+                        </div>
                       </div>
                       <button onClick={() => setCurrentStep(parseInt(k, 10))} style={{
                         padding: '5px 12px', borderRadius: 6, border: `1px solid ${bdr}`,
                         background: 'transparent', fontSize: 12, color: muted,
                         cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
                       }}>
-                        {pct >= 70 ? 'Edit' : 'Complete'}
+                        {isStrong60 ? 'Improve' : 'Add detail'}
                       </button>
                     </div>
                   )

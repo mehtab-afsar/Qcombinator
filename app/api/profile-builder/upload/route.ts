@@ -10,13 +10,14 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
 const ALLOWED_TYPES = [
   'application/pdf',
   'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'text/csv',
   'image/png',
   'image/jpeg',
   'image/webp',
 ]
-const ALLOWED_EXTS = ['.pdf', '.pptx', '.xlsx', '.csv', '.png', '.jpg', '.jpeg', '.webp']
+const ALLOWED_EXTS = ['.pdf', '.pptx', '.docx', '.xlsx', '.csv', '.png', '.jpg', '.jpeg', '.webp']
 
 const SECTION_LABELS: Record<number, string> = {
   1: 'Market Validation',
@@ -182,9 +183,10 @@ export async function POST(req: NextRequest) {
       console.warn('[upload] parsed text too short:', parsed.text.length, 'chars for', filename)
     }
 
+    const DOC_CHAR_LIMIT = 6000
     if (section === 0 && parsed.text.length > 50) {
       // Run all 5 section prompts in parallel so every sidebar section gets populated
-      const docUserMsg = `Document text:\n\n${parsed.text.slice(0, 6000)}`
+      const docUserMsg = `Document text:\n\n${parsed.text.slice(0, DOC_CHAR_LIMIT)}`
       const results = await Promise.allSettled(
         [1, 2, 3, 4, 5].map(sec =>
           routedText('extraction',
@@ -369,7 +371,7 @@ export async function POST(req: NextRequest) {
       label: string
       completionPct: number
       extractedCount: number
-      extractedSnippets: Array<{ label: string; value: string }>
+      extractedSnippets: Array<{ label: string; value: string; fieldKey: string }>
       missingLabels: string[]
     }
 
@@ -382,7 +384,7 @@ export async function POST(req: NextRequest) {
         const missing = getMissingFields(sectionFields, secNum, founderStage)
 
         // Build human-readable snippets for the UI
-        const snippets: Array<{ label: string; value: string }> = []
+        const snippets: Array<{ label: string; value: string; fieldKey: string }> = []
         const flatField = (obj: Record<string, unknown>, prefix = '') => {
           for (const [k, v] of Object.entries(obj)) {
             const fullKey = prefix ? `${prefix}.${k}` : k
@@ -391,7 +393,7 @@ export async function POST(req: NextRequest) {
                 flatField(v as Record<string, unknown>, fullKey)
               } else {
                 const label = FIELD_LABELS[fullKey] ?? fullKey
-                snippets.push({ label, value: snippetValue(v) })
+                snippets.push({ label, value: snippetValue(v), fieldKey: fullKey })
               }
             }
           }
@@ -429,8 +431,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Build extraction preview for UI
+    // Build extraction preview for UI + source attribution map
     const preview: Array<{ field: string; value: unknown; confidence: number }> = []
+    const fieldSource: Record<string, 'document' | 'inferred'> = {}
     const flattenPreview = (obj: unknown, prefix = '') => {
       if (typeof obj !== 'object' || obj === null) return
       for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
@@ -439,18 +442,26 @@ export async function POST(req: NextRequest) {
           flattenPreview(v, fullKey)
         } else if (v !== null && v !== undefined) {
           preview.push({ field: fullKey, value: v, confidence: (confidenceMap[k] ?? parsed.confidence) })
+          // buildComplexity is auto-derived from replicationTimeMonths — mark as inferred
+          fieldSource[fullKey] = k === 'buildComplexity' ? 'inferred' : 'document'
         }
       }
     }
     flattenPreview(extractedFields)
+
+    const totalDocLength = parsed.text.length
+    const docTruncated = section === 0 && totalDocLength > DOC_CHAR_LIMIT
 
     return NextResponse.json({
       uploadId,
       extractedPreview: preview.slice(0, 20),
       extractedFields,
       confidenceMap,
+      fieldSource,                           // per-field source attribution: 'document' | 'inferred'
       parsedText: parsed.text.slice(0, 500),
-      parsedTextLength: parsed.text.length,
+      parsedTextLength: totalDocLength,
+      docTruncated,                          // true when doc was cut for extraction
+      truncatedAt: docTruncated ? DOC_CHAR_LIMIT : totalDocLength,
       summary: `Extracted ${preview.length} fields from ${filename}`,
       sectionSummaries,  // populated only for step-0 uploads
       extractionError,   // non-null when extraction failed — surfaces the reason to the UI
