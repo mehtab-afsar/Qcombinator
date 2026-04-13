@@ -52,11 +52,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Failed to load profile data' }, { status: 500 })
     }
 
-    // 2. Require at least 3 sections at 70%+
-    const completedSections = (rows ?? []).filter(r => (r.completion_score ?? 0) >= 70)
-    if (completedSections.length < 3) {
+    // 2. Require at least 1 section with real data (≥30% completion)
+    // Partial scores are supported — founders can submit after uploading a doc + 4 questions.
+    const sectionsWithData = (rows ?? []).filter(r => (r.completion_score ?? 0) >= 30)
+    if (sectionsWithData.length < 1) {
       return NextResponse.json(
-        { error: 'At least 3 sections must be 70%+ complete before submitting' },
+        { error: 'Complete at least one section before submitting. Upload a pitch deck or answer a few questions to get started.' },
         { status: 400 }
       )
     }
@@ -347,6 +348,8 @@ export async function POST(req: NextRequest) {
       score: finalScore,
       grade: finalGrade,
       finalIQ: iqResultWithWarnings.finalIQ,
+      partialIQ: iqResultWithWarnings.partialIQ,
+      answeredParameters: iqResultWithWarnings.answeredParameters,
       availableIQ: iqResultWithWarnings.availableIQ,
       iqBreakdown,
       track: iqResultWithWarnings.track,

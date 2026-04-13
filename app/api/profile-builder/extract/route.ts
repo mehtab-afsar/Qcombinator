@@ -91,11 +91,21 @@ export async function POST(req: NextRequest) {
     }
 
     // Merge with existing extracted fields (do not overwrite non-null with null)
+    // Arrays are UNIONED (deduplicated) rather than replaced — prevents e.g.
+    // teamCoverage: ["tech","product"] being wiped by a later ["sales"] extraction.
+    const ARRAY_MERGE_FIELDS = new Set([
+      'teamCoverage', 'advantages', 'customerList', 'channelsTried',
+      'competitorNames', 'certifications', 'integrations',
+    ])
     const merged: Record<string, unknown> = { ...(existingExtracted ?? {}) }
     const mergeDeep = (target: Record<string, unknown>, source: Record<string, unknown>) => {
       for (const [k, v] of Object.entries(source)) {
         if (v === null || v === undefined) continue
-        if (typeof v === 'object' && !Array.isArray(v) && typeof target[k] === 'object' && target[k] !== null) {
+        // Array union: merge + deduplicate string arrays instead of overwriting
+        if (Array.isArray(v) && ARRAY_MERGE_FIELDS.has(k)) {
+          const existing = Array.isArray(target[k]) ? (target[k] as unknown[]) : []
+          target[k] = [...new Set([...existing, ...v])]
+        } else if (typeof v === 'object' && !Array.isArray(v) && typeof target[k] === 'object' && target[k] !== null) {
           mergeDeep(target[k] as Record<string, unknown>, v as Record<string, unknown>)
         } else {
           target[k] = v
@@ -125,6 +135,8 @@ export async function POST(req: NextRequest) {
     const missingFields = getMissingFields(merged, section, stage, confidenceMap)
 
     // Generate follow-up question for missing fields
+    // Use effectiveConversation (already summarised if >4000 chars) so the model
+    // sees the full context without the 1500-char truncation that caused re-asks.
     let followUpQuestion: string | null = null
     if (missingFields.length > 0 && founderProfile) {
       const followUpPrompt = FOLLOW_UP_PROMPT
@@ -132,20 +144,54 @@ export async function POST(req: NextRequest) {
         .replace('{stage}', founderProfile.stage ?? 'unknown')
         .replace('{industry}', founderProfile.industry ?? 'general')
         .replace('{revenueStatus}', founderProfile.revenueStatus ?? 'unknown')
-        .replace('{conversationSoFar}', conversationText.slice(-1500))
-        .replace('{extractedSoFar}', JSON.stringify(merged, null, 2).slice(0, 1000))
+        .replace('{conversationSoFar}', effectiveConversation)   // full summarised history
+        .replace('{extractedSoFar}', (() => {
+          // Build a flat key→value summary instead of raw JSON truncation.
+          // Raw JSON sliced mid-object sends invalid JSON to the LLM.
+          const flat: Record<string, unknown> = {}
+          const flatten = (obj: Record<string, unknown>, prefix = '') => {
+            for (const [k, v] of Object.entries(obj)) {
+              const key = prefix ? `${prefix}.${k}` : k
+              if (v !== null && v !== undefined && typeof v === 'object' && !Array.isArray(v)) {
+                flatten(v as Record<string, unknown>, key)
+              } else if (v !== null && v !== undefined) {
+                flat[key] = v
+              }
+            }
+          }
+          flatten(merged)
+          return JSON.stringify(flat).slice(0, 1200)
+        })())
         .replace('{missingFields}', missingFields.join(', '))
 
       try {
-        const followUpRaw = await routedText('classification', [
+        // Use generation (70B) instead of classification (8B) — needs real conversational reasoning
+        const followUpRaw = await routedText('generation', [
           { role: 'system', content: followUpPrompt },
-          { role: 'user', content: 'Generate the next question.' },
-        ])
-        followUpQuestion = followUpRaw.trim() === 'SECTION_COMPLETE' ? null : followUpRaw.trim()
+          { role: 'user', content: 'Write your reply.' },
+        ], { maxTokens: 300 })
+        followUpQuestion = followUpRaw.trim().toUpperCase() === 'SECTION_COMPLETE' ? null : followUpRaw.trim()
       } catch {
         // non-blocking
       }
     }
+
+    // Build per-field source attribution for this extraction pass
+    // All fields newly extracted from conversation are 'conversation'; inferred ones are 'inferred'
+    const fieldSource: Record<string, 'conversation' | 'inferred'> = {}
+    const flatTag = (obj: Record<string, unknown>, prefix = '') => {
+      for (const [k, v] of Object.entries(obj)) {
+        const key = prefix ? `${prefix}.${k}` : k
+        if (v !== null && v !== undefined) {
+          if (typeof v === 'object' && !Array.isArray(v)) {
+            flatTag(v as Record<string, unknown>, key)
+          } else {
+            fieldSource[key] = k === 'buildComplexity' ? 'inferred' : 'conversation'
+          }
+        }
+      }
+    }
+    flatTag(extractedFields)
 
     return NextResponse.json({
       extractedFields,
@@ -154,6 +200,7 @@ export async function POST(req: NextRequest) {
       completionScore,
       missingFields,
       followUpQuestion,
+      fieldSource,          // 'conversation' | 'inferred' per newly extracted field
     })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)

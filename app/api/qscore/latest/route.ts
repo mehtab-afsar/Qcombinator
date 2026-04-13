@@ -88,6 +88,9 @@ export async function GET(_request: NextRequest) {
     const iqBreakdown = (latest.iq_breakdown as Record<string, unknown>) ?? null
     const availableIQ = (latest.available_iq as number) ?? null
     const track = (latest.track as string) ?? null
+    // partialIQ and answeredParameters are stored inside iq_breakdown by the submit route
+    const partialIQ = (iqBreakdown?.partialIQ as number | undefined) ?? null
+    const answeredParameters = (iqBreakdown?.answeredParameters as number | undefined) ?? null
 
     const qScore = {
       overall: effectiveOverall,
@@ -104,6 +107,8 @@ export async function GET(_request: NextRequest) {
       iqBreakdown,
       availableIQ,
       track,
+      partialIQ,
+      answeredParameters,
       breakdown: {
         market: {
           score: latest.market_score,

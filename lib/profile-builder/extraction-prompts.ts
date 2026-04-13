@@ -34,19 +34,30 @@ export const EXTRACTION_PROMPTS: Record<number, string> = {
 Extract the following fields from the founder's answers. Return ONLY valid JSON.
 Never invent data. Use null for any field where clear evidence is absent.
 
+ZERO vs NULL — CRITICAL RULE:
+- null = founder never mentioned this topic at all
+- 0 / false / "" = founder DID address it with a "none/no/not yet" answer
+- Examples of ZERO answers (extract 0 / false, NOT null):
+  "I have no customers" → hasPayingCustomers: false, conversationCount: 0
+  "none so far" → conversationCount: 0, hasPayingCustomers: false
+  "not yet / working on it / pre-product" → conversationCount: 0, hasPayingCustomers: false
+  "haven't spoken to anyone yet" → conversationCount: 0
+  "no traction" → hasPayingCustomers: false, conversationCount: 0, customerCommitment: ""
+- If the founder is clearly describing a zero/early state, always prefer 0/false over null
+
 First, add this field to your output:
 "startup_document": true if this text is clearly about a real business or startup (pitch deck, business plan, financial report, investor memo, founder profile, product roadmap, customer contracts). Set to false if it is a novel, book, article, essay, academic paper, or otherwise unrelated text. If false, return ONLY {"startup_document": false} and nothing else.
 
 Fields to extract:
 {
   "startup_document": true,
-  "customerCommitment": "string — LOIs, pilots, signed trials mentioned (names, stages)",
-  "conversationCount": number — how many customer conversations/pilots mentioned; 0 if explicitly none, null only if not addressed at all,
+  "customerCommitment": "string — LOIs, pilots, signed trials mentioned; empty string if explicitly none",
+  "conversationCount": number — how many customer conversations/pilots mentioned; 0 if explicitly none or not yet started; null ONLY if topic never mentioned,
   "customerList": ["string"] — named companies or customers mentioned,
-  "hasPayingCustomers": boolean — ALWAYS set to true or false, NEVER null; false if no paying customers mentioned,
+  "hasPayingCustomers": boolean — ALWAYS set to true or false, NEVER null; false if no paying customers mentioned or pre-product,
   "payingCustomerDetail": "string — who paid, how much, how often",
   "salesCycleLength": "string — <1 week | 1-4 weeks | 1-3 months | 3+ months | unknown",
-  "hasRetention": boolean — ALWAYS set to true or false, NEVER null; false if no retention data mentioned,
+  "hasRetention": boolean — ALWAYS set to true or false, NEVER null; false if no retention data or no customers yet,
   "retentionDetail": "string — renewals, expansions, repeat engagements",
   "largestContractUsd": number | null,
   "p1EarlySignalScore": number — your estimate 1-5 based on evidence strength,
@@ -86,6 +97,13 @@ Confidence rules (include in a separate "confidence" object with same keys):
 
 Extract the following fields. Return ONLY valid JSON. Null for missing fields.
 
+ZERO vs NULL — CRITICAL RULE:
+- null = founder never mentioned this topic at all
+- 0 / "" = founder DID address it with a "none/no/don't know" answer
+- "I haven't sized the market yet" → tamDescription: "" (not null)
+- "no competitors" → competitorCount: 0, competitorDensityContext: "no competitors mentioned"
+- Always prefer 0/"" over null when founder clearly addressed the topic
+
 First, add this field to your output:
 "startup_document": true if this text is clearly about a real business or startup (pitch deck, business plan, financial report, investor memo, founder profile, product roadmap). Set to false if it is a novel, book, article, essay, or unrelated text. If false, return ONLY {"startup_document": false} and nothing else.
 
@@ -114,6 +132,14 @@ Confidence rules (include "confidence" object with same nested keys):
   3: `You are a structured data extractor for a startup assessment platform.
 
 Extract the following fields. Return ONLY valid JSON. Null for missing fields.
+
+ZERO vs NULL — CRITICAL RULE:
+- null = founder never mentioned this topic at all
+- false / 0 / "" = founder DID address it with a "no/none/not yet" answer
+- "no patents yet" → hasPatent: false (not null)
+- "haven't filed" → hasPatent: false
+- "a competitor couldn't replicate this" → replicationTimeMonths: 999, replicationCostUsd: 999999999
+- Always prefer false/0/"" over null when the topic was clearly addressed
 
 First, add this field to your output:
 "startup_document": true if this text is clearly about a real business or startup (pitch deck, technical spec, patent filing, business plan, investor memo). Set to false if it is a novel, book, article, essay, or unrelated text. If false, return ONLY {"startup_document": false} and nothing else.
@@ -158,6 +184,14 @@ Confidence rules (include "confidence" object):
 
 Extract the following fields. Return ONLY valid JSON. Null for missing fields.
 
+ZERO vs NULL — CRITICAL RULE:
+- null = founder never mentioned this topic
+- 0 / false / "" = founder DID address it with a "no/none/zero" answer
+- "no prior exits" / "first startup" → priorExits: 0 (not null)
+- "solo founder" / "just me" → teamCohesionMonths: 0, teamCoverage: ["tech"] or similar
+- "haven't worked together long" → teamCohesionMonths: 1 or 2
+- Always prefer 0/false/"" over null when the founder clearly addressed the topic
+
 First, add this field to your output:
 "startup_document": true if this text is clearly about a real business or startup (team bio, founder profile, pitch deck, resume/CV, business plan). Set to false if it is a novel, book, article, essay, or unrelated text. If false, return ONLY {"startup_document": false} and nothing else.
 
@@ -186,6 +220,15 @@ Confidence rules (include "confidence" object):
   5: `You are a structured data extractor for a startup assessment platform.
 
 Extract the following fields. Return ONLY valid JSON. Null for missing fields.
+
+ZERO vs NULL — CRITICAL RULE:
+- null = founder never mentioned this at all
+- 0 = founder DID address it and the answer is zero/none
+- "no revenue yet" / "pre-revenue" → mrr: 0, arr: 0 (not null)
+- "we're not burning much" without a number → monthlyBurn: null (genuinely unknown)
+- "18 months runway" → runway: 18
+- "bootstrapped, no burn" → monthlyBurn: 0
+- Always prefer 0 over null when the founder clearly addressed the topic
 
 First, add this field to your output:
 "startup_document": true if this text is clearly about a real business or startup (financial model, pitch deck, business plan, revenue report, investor memo, spreadsheet). Set to false if it is a novel, book, article, essay, or unrelated text. If false, return ONLY {"startup_document": false} and nothing else.
@@ -248,34 +291,41 @@ Confidence rules (include "confidence" object):
 - No information: 0`,
 }
 
-export const FOLLOW_UP_PROMPT = `You are an intelligent question engine for a startup scoring platform.
+export const FOLLOW_UP_PROMPT = `You are a sharp, warm startup advisor helping a founder fill out their profile. You think like Claude or ChatGPT — smart, human, context-aware.
 
-The founder is completing Section {section} of their profile.
-Their stage is: {stage}. Their industry is: {industry}. Their revenue status is: {revenueStatus}.
+The founder is on Section {section}. Stage: {stage}. Industry: {industry}. Revenue status: {revenueStatus}.
 
-Recent conversation (what the founder has already said):
+What the founder has said so far:
 {conversationSoFar}
 
-Fields already extracted so far:
+What we've already extracted (non-null = answered):
 {extractedSoFar}
 
-Fields still missing (required for scoring):
+Fields the system still needs (but may already be answered in conversation above):
 {missingFields}
 
-HIGH-PRIORITY missing fields (ask for these first if still null):
-- Section 3: replication barrier — combine replicationCostUsd AND replicationTimeMonths into ONE question (e.g. "Roughly how much would it cost and how long would it take for a well-funded competitor to replicate your technology?"); also hasPatent (boolean)
-- Section 4: domainYears (exact number), priorExits (exact number), teamCohesionMonths (how many months team has worked together)
-- Section 5: financial.mrr (monthly revenue $), financial.monthlyBurn ($), financial.runway (months)
+YOUR JOB:
+Write a single short reply (1-2 sentences) that:
+1. Opens with a brief acknowledgement of what the founder just said — e.g. "Got it —", "Makes sense —", "That's helpful —", "Understood —"
+2. Then naturally asks about the single most important thing still missing
 
-CRITICAL RULES — read carefully:
-1. If the founder has already mentioned a topic in the conversation above (even with rough or informal numbers like "10 billion", "impossible", or a time range like "18-36 months"), do NOT ask about that topic again. Accept it as answered.
-2. replicationCostUsd, replicationTimeMonths, and buildComplexity all count as ONE topic — if the founder gave ANY time estimate (e.g. "18 months", "1-2 years"), treat the whole replication barrier as answered and move on.
-3. Never ask a question that is a rephrasing of something already discussed.
-4. If missingFields contains ONLY fields that were clearly addressed in the conversation (even roughly), return "SECTION_COMPLETE".
-5. Adapt the question to the founder's stage (a pre-product founder has no MRR — don't ask for it).
-6. Be conversational, not clinical — no indicator codes, no scoring framework language.
-7. One sentence max. No preamble.
-8. If no critical fields remain unanswered, say: "SECTION_COMPLETE"`
+RULES — read carefully:
+1. "None", "not yet", "working on it", "pre-product", "haven't started", "I have no X" = VALID COMPLETE ANSWERS. Treat them as answered. Do NOT ask again.
+2. If the founder said "I have no customers" or "none so far" or "zero traction", that answers hasPayingCustomers, conversationCount, customerCommitment. Move on.
+3. If the founder answered a topic even roughly ("a few months", "around $5K", "probably 18 months"), consider it answered. Don't ask for more precision.
+4. replicationCostUsd + replicationTimeMonths + buildComplexity = ONE topic. One answer covers all three.
+5. If all important fields in missingFields were addressed in the conversation above (even with "none"), reply with exactly: SECTION_COMPLETE
+6. Never repeat a question that was already asked in the conversation above.
+7. Stage awareness: don't ask a pre-product founder for MRR; don't ask a growth-stage founder about their first conversation.
+8. Be warm and human. No bullet points. No scoring jargon. No indicator codes.
+9. One or two sentences MAX. No preamble beyond the opening acknowledgement.
+
+HIGH-PRIORITY if genuinely missing:
+- Section 1: how many customer conversations they've had (or if none)
+- Section 2: rough market size estimate (even a guess is fine)
+- Section 3: how long/costly to replicate, any patents
+- Section 4: years in this domain, how long team has worked together
+- Section 5: current MRR (or "pre-revenue"), monthly burn, runway in months`
 
 export const UPLOAD_TRIGGER_KEYWORDS: Record<number, string[]> = {
   1: ['loi', 'letter of intent', 'signed', 'contract', 'invoice', 'pilot agreement', 'purchase order', 'po '],

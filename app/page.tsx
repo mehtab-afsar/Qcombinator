@@ -73,14 +73,6 @@ const mockDimensions = [
   { label: "Financials", score: 65, delta: "-2" },
 ];
 
-const avatarData = [
-  { init: "SC", bg: "#E8D5C4", tc: "#8B5E3C" },
-  { init: "MJ", bg: "#C4D8E8", tc: "#1D4ED8" },
-  { init: "ER", bg: "#D4E8C4", tc: "#166534" },
-  { init: "DP", bg: "#E8C4D8", tc: "#9D174D" },
-  { init: "JL", bg: "#C4C8E8", tc: "#3730A3" },
-];
-
 // ─── CountUp ─────────────────────────────────────────────────────────────────
 function CountUp({ to, decimals = 0, prefix = "", suffix = "" }: {
   to: number; decimals?: number; prefix?: string; suffix?: string;
@@ -392,33 +384,6 @@ function ProductMock() {
         </div>
       </div>
     </motion.div>
-  );
-}
-
-// ─── AvatarStack ──────────────────────────────────────────────────────────────
-function AvatarStack() {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-      <div style={{ display: "flex" }}>
-        {avatarData.map((a, i) => (
-          <div key={a.init} style={{
-            width: 28, height: 28, borderRadius: "50%",
-            marginLeft: i > 0 ? -8 : 0,
-            background: a.bg, color: a.tc,
-            fontSize: 8, fontWeight: 700,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            border: `2px solid ${C.cream}`,
-            zIndex: avatarData.length - i, position: "relative",
-            letterSpacing: "0.02em",
-          }}>
-            {a.init}
-          </div>
-        ))}
-      </div>
-      <span style={{ fontSize: 12, color: C.stone }}>
-        Join <strong style={{ color: C.charcoal }}>10,000+</strong> founders
-      </span>
-    </div>
   );
 }
 

@@ -154,11 +154,29 @@ export function parseImage(_buffer: Buffer, filename: string): ParseResult {
   }
 }
 
+// ── DOCX ──────────────────────────────────────────────────────────────────────
+async function parseDOCX(buffer: Buffer): Promise<ParseResult> {
+  try {
+    // mammoth extracts clean prose text from .docx files
+    const mammoth = await import('mammoth')
+    const result = await mammoth.extractRawText({ buffer })
+    const text = (result.value ?? '').replace(/\s+/g, ' ').trim().slice(0, 8000)
+    if (result.messages?.length) {
+      console.warn('[parseDOCX] mammoth warnings:', result.messages.map((m: { message: string }) => m.message).join('; '))
+    }
+    return { text, confidence: text.length > 200 ? 0.80 : 0.50 }
+  } catch (e) {
+    console.warn('[parseDOCX] mammoth failed, falling back to raw text:', e)
+    return { text: buffer.toString('utf8').slice(0, 8000), confidence: 0.40 }
+  }
+}
+
 // ── Main dispatcher ───────────────────────────────────────────────────────────
 export async function parseDocument(buffer: Buffer, filename: string, mimeType: string): Promise<ParseResult> {
   const lower = filename.toLowerCase()
   if (lower.endsWith('.pdf') || mimeType === 'application/pdf') return parsePDF(buffer)
   if (lower.endsWith('.pptx') || mimeType.includes('presentationml')) return parsePPTX(buffer)
+  if (lower.endsWith('.docx') || mimeType.includes('wordprocessingml')) return parseDOCX(buffer)
   if (lower.endsWith('.xlsx') || mimeType.includes('spreadsheetml')) return parseXLSX(buffer)
   if (lower.endsWith('.csv') || mimeType === 'text/csv') return parseCSV(buffer.toString('utf8'))
   if (['.png', '.jpg', '.jpeg', '.webp'].some(ext => lower.endsWith(ext))) return parseImage(buffer, filename)

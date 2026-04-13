@@ -235,6 +235,10 @@ export interface ParameterScore {
 export interface IQScoreResult {
   /** Final score: Σ(all 30 rawScores) / 150 × 100 */
   finalIQ: number
+  /** Coverage-adjusted score: finalIQ × (answeredParameters / 6). Use this when not all parameters are answered. */
+  partialIQ: number
+  /** Number of parameters (P1–P6) that have at least one active (non-excluded) indicator */
+  answeredParameters: number
   /** Score from non-excluded indicators only: Σ(non-excluded) / (N_active × 5) × 100 */
   availableIQ: number
   grade: Grade

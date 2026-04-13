@@ -146,6 +146,12 @@ export function calculateIQScore(
   const indicatorsActive = activeIndicators.length
   const indicatorsExcluded = 30 - indicatorsActive
 
+  // Coverage-adjusted partial score: how many of the 6 parameters have any active data
+  const TOTAL_PARAMETERS = 6
+  const answeredParameters = parameters.filter(p => p.indicators.some(i => !i.excluded && i.rawScore > 0)).length
+  const coverageFactor = answeredParameters / TOTAL_PARAMETERS
+  const partialIQ = Math.round(Math.min(100, Math.max(0, finalIQ * coverageFactor)))
+
   // Collect reconciliation flags from indicators
   const reconciliationFlags = parameters
     .flatMap(p => p.indicators)
@@ -154,6 +160,8 @@ export function calculateIQScore(
 
   return {
     finalIQ: Math.min(100, Math.max(0, finalIQ)),
+    partialIQ,
+    answeredParameters,
     availableIQ: Math.min(100, Math.max(0, availableIQ)),
     grade: calculateGrade(finalIQ),
     parameters,
@@ -181,6 +189,24 @@ export function inferStage(founderStage: string): ScoreStage {
 }
 
 // ── Sector normalization ──────────────────────────────────────────────────────
+
+/**
+ * Returns the raw (un-stage-blended) sector weight for each of the 5 profile-builder
+ * sections ('1'–'5'). Section '5' combines the P5 (structural impact) and P6 (financials)
+ * weights so the question ranker has a single comparable value per section.
+ * Consumers only need this mapping — they don't need to import SECTOR_WEIGHTS directly.
+ */
+export function getSectionWeightsBySector(sector: string): Record<string, number> {
+  const key = normalizeSector(sector)
+  const w = SECTOR_WEIGHTS[key] ?? SECTOR_WEIGHTS['default']
+  return {
+    '1': w[0],   // P1 Market Readiness
+    '2': w[1],   // P2 Market Potential
+    '3': w[2],   // P3 IP / Defensibility
+    '4': w[3],   // P4 Founder / Team
+    '5': (w[4] + w[5]) / 2,  // P5 Impact + P6 Financials averaged
+  }
+}
 
 export function normalizeSector(sector: string): string {
   const s = (sector ?? '').toLowerCase().replace(/[^a-z0-9]/g, '_')

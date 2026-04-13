@@ -3,6 +3,9 @@
  * Called after step-0 document upload to produce 5–7 questions covering only missing fields.
  */
 
+import { getRequiredFields } from './question-engine'
+import { getSectionWeightsBySector } from '@/features/qscore/calculators/iq-score-calculator'
+
 export interface SmartQuestion {
   id: string
   sectionKey: string    // '1'–'5'
@@ -25,17 +28,9 @@ export function getNestedValue(obj: Record<string, unknown>, path: string): unkn
   return cur
 }
 
-// ── Critical fields needed per section ───────────────────────────────────────
-
-export const CRITICAL_FIELDS: Record<string, string[]> = {
-  // conversationCount first — even pre-product founders can answer this; customerCommitment requires LOIs/contracts
-  '1': ['conversationCount', 'hasPayingCustomers', 'customerCommitment', 'hasRetention', 'salesCycleLength'],
-  '2': ['p2.tamDescription', 'p2.marketUrgency', 'p2.competitorDensityContext'],
-  // replicationTimeMonths is what LLMs reliably extract; buildComplexity often stays null even when answered
-  '3': ['p3.hasPatent', 'p3.replicationTimeMonths', 'p3.technicalDepth'],
-  '4': ['p4.domainYears', 'p4.founderMarketFit', 'p4.teamCoverage'],
-  '5': ['financial.mrr', 'financial.monthlyBurn', 'financial.runway'],
-}
+// ── Section labels (drives question routing) ──────────────────────────────────
+// Fields per section are now resolved dynamically via getRequiredFields(section, stage)
+// from question-engine.ts, so they adapt to pre-product vs. revenue vs. growth stages.
 
 const SECTION_LABELS: Record<string, string> = {
   '1': 'Market Validation',
@@ -146,6 +141,26 @@ const FIELD_QUESTIONS: Record<string, QuestionDef> = {
     },
     helpText: 'Name them, then explain your specific differentiator',
   },
+  'p2.valuePool': {
+    sectionKey: '2', priority: 7,
+    text: 'What is the total economic value of the problem you\'re solving — how much money does this problem cost your customers each year?',
+    getContext: (e) => {
+      const tam = getNestedValue(e, 'p2.tamDescription')
+      if (tam) return `We found your TAM description — need to quantify the value pool (cost of the problem)`
+      return ''
+    },
+    helpText: 'e.g. "$2M lost per hospital per year" or "4 hours/week × 50,000 teams × $50/hr"',
+  },
+  'p2.expansionPotential': {
+    sectionKey: '2', priority: 6,
+    text: 'How do you expand beyond your initial market? What\'s your path to 10× your current addressable market?',
+    getContext: (e) => {
+      const tam = getNestedValue(e, 'p2.tamDescription')
+      if (tam) return `We found your primary TAM — need your expansion strategy beyond the beachhead`
+      return ''
+    },
+    helpText: 'Adjacent verticals, geographies, or product lines that open up after initial wedge',
+  },
 
   // Section 3 — IP & Technology
   'p3.hasPatent': {
@@ -229,6 +244,28 @@ const FIELD_QUESTIONS: Record<string, QuestionDef> = {
     },
     helpText: 'Tech, sales, product, finance, ops — list who covers what',
   },
+  'p4.priorExits': {
+    sectionKey: '4', priority: 7,
+    text: 'Have any of your founding team members previously built and exited a company?',
+    getContext: (e) => {
+      const years = getNestedValue(e, 'p4.domainYears')
+      if (years) return `We found ${years} years domain experience — prior exits significantly boost team score`
+      return ''
+    },
+    helpText: 'Acquisitions, IPOs, or significant liquidity events — include approximate exit size if comfortable',
+  },
+  'p4.teamCohesionMonths': {
+    sectionKey: '4', priority: 6,
+    text: 'How long have the core founding team members worked together?',
+    getContext: (e) => {
+      const coverage = getNestedValue(e, 'p4.teamCoverage')
+      if (coverage) return `Team coverage found — cohesion (time working together) is the final team signal`
+      const fit = getNestedValue(e, 'p4.founderMarketFit')
+      if (fit) return 'We found your founder story — how long has this specific team been working together?'
+      return ''
+    },
+    helpText: 'Months working together on this company specifically — prior co-worker history counts',
+  },
 
   // Section 5 — Financials
   'financial.mrr': {
@@ -266,16 +303,45 @@ const FIELD_QUESTIONS: Record<string, QuestionDef> = {
   },
 }
 
+// ── IQ parameter weights (sector-agnostic default) ───────────────────────────
+// Used to rank which weak section is most worth asking about.
+// Matches the 'default' sector weights in iq-score-calculator.ts.
+const SECTION_IQ_WEIGHT: Record<string, number> = {
+  '1': 0.20,  // P1 Market Readiness
+  '2': 0.20,  // P2 Market Potential
+  '3': 0.17,  // P3 IP / Defensibility
+  '4': 0.18,  // P4 Founder / Team
+  '5': 0.17,  // P5/P6 Financials + Impact (combined proxy)
+}
+
 // ── Generator ─────────────────────────────────────────────────────────────────
 
+/**
+ * After document upload, generate targeted follow-up questions.
+ *
+ * Strategy:
+ *  1. Build one candidate question per section (highest-priority missing field).
+ *  2. Filter to sections that are STRICTLY WEAK: completionPct < 60 (≡ avg score < 3/5).
+ *     If no completionPct data is provided all sections with missing fields are candidates.
+ *  3. Rank weak sections by impact = (1 − completionPct/100) × iqWeight.
+ *  4. Return the top 3 questions — the ones that would move the IQ score most.
+ */
 export function generateSmartQuestions(
   extractedBySections: Record<string, Record<string, unknown>>,
-  _stage: string
+  stage: string,
+  sectionCompletions?: Record<string, number>,  // completionPct (0–100) per section '1'–'5'
+  sector?: string                               // e.g. 'biotech', 'b2b_saas' — drives weight ranking
 ): SmartQuestion[] {
+  // Sector-aware weights: biotech prioritises P3 (IP), b2b_saas prioritises P1+P6, etc.
+  // Falls back to hardcoded defaults if no sector provided.
+  const iqWeight = sector ? getSectionWeightsBySector(sector) : SECTION_IQ_WEIGHT
   const questions: SmartQuestion[] = []
 
-  for (const [sectionKey, fields] of Object.entries(CRITICAL_FIELDS)) {
+  for (const sectionKey of Object.keys(SECTION_LABELS)) {
     const sectionExtracted = extractedBySections[sectionKey] ?? {}
+    // Stage-aware field list: pre-product founders skip retention/salesCycle;
+    // growth founders get priorExits, teamCohesion, etc.
+    const fields = getRequiredFields(Number(sectionKey), stage)
 
     for (const fieldPath of fields) {
       const existing = getNestedValue(sectionExtracted, fieldPath)
@@ -296,6 +362,26 @@ export function generateSmartQuestions(
     }
   }
 
-  // Sort by priority desc, limit to 9 (3 per missing section × up to 3 sections)
-  return questions.sort((a, b) => b.priority - a.priority).slice(0, 9)
+  // Step 1: one best question per section
+  const bySection = new Map<string, SmartQuestion>()
+  for (const q of questions.sort((a, b) => b.priority - a.priority)) {
+    if (!bySection.has(q.sectionKey)) bySection.set(q.sectionKey, q)
+  }
+
+  // Step 2: keep only strictly weak sections (completionPct < 60 ≡ average score < 3/5)
+  const candidates = [...bySection.values()].filter(q => {
+    if (!sectionCompletions) return true
+    return (sectionCompletions[q.sectionKey] ?? 0) < 60
+  })
+
+  // Step 3: rank by impact = (gap from perfect) × (IQ parameter weight), top 3
+  return candidates
+    .sort((a, b) => {
+      const pctA = sectionCompletions?.[a.sectionKey] ?? 0
+      const pctB = sectionCompletions?.[b.sectionKey] ?? 0
+      const impactA = (1 - pctA / 100) * (iqWeight[a.sectionKey] ?? 0.17)
+      const impactB = (1 - pctB / 100) * (iqWeight[b.sectionKey] ?? 0.17)
+      return impactB - impactA
+    })
+    .slice(0, 3)
 }

@@ -459,6 +459,13 @@ export default function FounderDashboard() {
 
   const isDemo = !realQScore;
 
+  // Partial score: when real score exists but not all 6 parameters answered
+  const answeredParameters = (realQScore?.answeredParameters as number | undefined) ?? 0
+  const isPartial = !isDemo && answeredParameters > 0 && answeredParameters < 6
+  const displayScore = isPartial
+    ? ((realQScore?.partialIQ as number | undefined) ?? qs.overall)
+    : qs.overall
+
   // Always v2_iq — use P1–P6 IQ parameters for display
   type IQParam = { id: string; name: string; averageScore: number; weight: number; indicatorsActive: number }
   const iqBreakdownObj = realQScore?.iqBreakdown as { parameters?: IQParam[] } | undefined
@@ -480,7 +487,7 @@ export default function FounderDashboard() {
   const runwayCritical = runwayMonths !== null && runwayMonths <= 2;
   const topActions = sortedDims.slice(0, 3);
   const circumference = 2 * Math.PI * 52;
-  const dash = circumference * (1 - qs.overall / 100);
+  const dash = circumference * (1 - displayScore / 100);
 
   const quickStats = [
     {
@@ -521,6 +528,12 @@ export default function FounderDashboard() {
               <div style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "5px 14px", background: surf, border: `1px solid ${bdr}`, borderRadius: 999, fontSize: 11, color: muted }}>
                 <span style={{ height: 6, width: 6, background: amber, borderRadius: "50%", display: "inline-block", flexShrink: 0 }} />
                 Demo data — complete assessment for a real score
+              </div>
+            )}
+            {isPartial && (
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "5px 14px", background: surf, border: `1px solid #0D9488`, borderRadius: 999, fontSize: 11, color: "#0D9488" }}>
+                <span style={{ height: 6, width: 6, background: "#0D9488", borderRadius: "50%", display: "inline-block", flexShrink: 0 }} />
+                Partial score — based on {answeredParameters}/6 parameters
               </div>
             )}
           </div>
@@ -787,15 +800,22 @@ export default function FounderDashboard() {
                 />
               </svg>
               <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-                <span style={{ fontSize: 38, fontWeight: 600, color: "#F9F7F2", lineHeight: 1 }}>{qs.overall}</span>
+                <span style={{ fontSize: 38, fontWeight: 600, color: "#F9F7F2", lineHeight: 1 }}>{displayScore}</span>
                 <span style={{ fontSize: 10, color: "rgba(249,247,242,0.5)", marginTop: 3, textTransform: "uppercase", letterSpacing: "0.12em" }}>
-                  {"IQ Score"}
+                  {isPartial ? `${answeredParameters}/6 params` : "IQ Score"}
                 </span>
               </div>
             </div>
             <div style={{ textAlign: "center" }}>
-              <p style={{ fontSize: 15, fontWeight: 500, color: "#F9F7F2" }}>{gradeLabel(qs.overall)}</p>
-              <p style={{ fontSize: 11, color: "rgba(249,247,242,0.5)", marginTop: 2 }}>Top {100 - qs.percentile}% of founders</p>
+              <p style={{ fontSize: 15, fontWeight: 500, color: "#F9F7F2" }}>{gradeLabel(displayScore)}</p>
+              <p style={{ fontSize: 11, color: "rgba(249,247,242,0.5)", marginTop: 2 }}>
+                {isPartial ? `${answeredParameters}/6 parameters answered` : `Top ${100 - qs.percentile}% of founders`}
+              </p>
+              {isPartial && (
+                <p style={{ fontSize: 10, marginTop: 4, color: "rgba(249,247,242,0.45)", fontWeight: 400 }}>
+                  Complete {6 - answeredParameters} more section{6 - answeredParameters !== 1 ? "s" : ""} to unlock up to {100 - displayScore} more points
+                </p>
+              )}
               {daysSinceScore !== null && !isDemo && (
                 <p style={{
                   fontSize: 10, marginTop: 6,
