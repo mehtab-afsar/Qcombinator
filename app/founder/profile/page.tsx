@@ -274,7 +274,7 @@ export default function ProfileBuilder() {
             <Section
               title="Company basics"
               action={
-                <Link href="/founder/startup-profile" style={{ textDecoration: "none" }}>
+                <Link href="/founder/profile-builder" style={{ textDecoration: "none" }}>
                   <button
                     onMouseEnter={e => (e.currentTarget.style.background = bdr)}
                     onMouseLeave={e => (e.currentTarget.style.background = surf)}
@@ -411,7 +411,7 @@ export default function ProfileBuilder() {
               </div>
               <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 6 }}>
                 {[
-                  { href: "/founder/startup-profile", label: "Edit startup profile", icon: Edit },
+                  { href: "/founder/profile-builder", label: "Edit startup profile", icon: Edit },
                   { href: "/founder/assessment",      label: "Update assessment",    icon: RefreshCw },
                   { href: "/founder/dashboard",       label: "View dashboard",       icon: Target },
                   { href: "/founder/matching",        label: "Explore investors",    icon: Sparkles },
