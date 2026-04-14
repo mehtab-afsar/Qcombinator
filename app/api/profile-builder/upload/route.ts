@@ -13,7 +13,7 @@ import { flattenConfidence } from '@/lib/profile-builder/utils'
 //
 // Priority:
 //   1. Anthropic SDK directly (ANTHROPIC_API_KEY) — PDF beta, most reliable
-//   2. OpenRouter + Claude Haiku (OPENROUTER_API_KEY) — same model, via proxy
+//   2. OpenRouter + Gemini Flash (OPENROUTER_API_KEY) — accepts PDFs via standard image_url data URI
 //   3. null → falls through to existing regex fallback / clear error message
 async function extractFieldsFromImagePDF(
   buffer: Buffer,
@@ -76,7 +76,11 @@ async function extractFieldsFromImagePDF(
     }
   }
 
-  // ── Path 2: OpenRouter + Claude Haiku ────────────────────────────────────
+  // ── Path 2: OpenRouter + Gemini Flash ────────────────────────────────────
+  // Claude's `document` block type is Anthropic-native and doesn't pass through
+  // OpenRouter's OpenAI-compat layer. Gemini Flash accepts PDFs directly via the
+  // standard `image_url` field with a `data:application/pdf;base64,...` data URI —
+  // fully supported in OpenAI-compat format, no special headers needed.
   if (openrouterKey) {
     try {
       return await runSections(async sec => {
@@ -88,24 +92,34 @@ async function extractFieldsFromImagePDF(
             'X-Title': 'EdgeAlpha ProfileBuilder',
           },
           body: JSON.stringify({
-            model: 'anthropic/claude-haiku-4.5',
+            model: 'google/gemini-flash-1.5',
             max_tokens: 800,
             messages: [{
               role: 'user',
               content: [
-                // OpenRouter forwards Anthropic-native document blocks to Claude models
-                { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
+                {
+                  type: 'image_url',
+                  image_url: { url: `data:application/pdf;base64,${base64}` },
+                },
                 { type: 'text', text: EXTRACTION_PROMPTS[sec] },
               ],
             }],
           }),
         })
-        if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${await res.text()}`)
+        if (!res.ok) {
+          const errText = await res.text()
+          throw new Error(`OpenRouter ${res.status}: ${errText}`)
+        }
         const data = await res.json()
-        return (data.choices?.[0]?.message?.content ?? '') as string
+        // content may be string (OpenAI format) or array (some providers return arrays)
+        const content = data.choices?.[0]?.message?.content
+        if (Array.isArray(content)) {
+          return content.filter((b: {type:string}) => b.type === 'text').map((b: {text:string}) => b.text).join('')
+        }
+        return (content ?? '') as string
       })
     } catch (e) {
-      console.warn('[upload] OpenRouter vision failed:', e instanceof Error ? e.message : e)
+      console.warn('[upload] OpenRouter Gemini vision failed:', e instanceof Error ? e.message : e)
     }
   }
 

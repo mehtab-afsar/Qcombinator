@@ -194,8 +194,35 @@ export default function OnboardingPage() {
       const sb = createClient()
       const { error: signInErr } = await sb.auth.signInWithPassword({ email: form.email.trim(), password: form.password })
       if (signInErr) { setError('Account created but sign-in failed. Please log in.'); setLoading(false); return }
+      // Keep loading=true — the overlay stays visible during the navigation to profile-builder
       router.push('/founder/profile-builder')
     } catch { setError('Something went wrong. Please try again.'); setLoading(false) }
+  }
+
+  // Full-screen loading overlay shown while account is being created / navigating
+  if (loading) {
+    return (
+      <div style={{
+        position: 'fixed', inset: 0, background: bg, zIndex: 9999,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        gap: 20, fontFamily: 'system-ui, -apple-system, sans-serif',
+      }}>
+        <div style={{
+          width: 44, height: 44, borderRadius: '50%',
+          border: `3px solid #E2DDD5`, borderTopColor: '#2563EB',
+          animation: 'spin 0.8s linear infinite',
+        }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 16, fontWeight: 600, color: '#18160F', marginBottom: 6 }}>
+            Setting up your profile…
+          </div>
+          <div style={{ fontSize: 13, color: '#8A867C' }}>
+            This takes a few seconds
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
