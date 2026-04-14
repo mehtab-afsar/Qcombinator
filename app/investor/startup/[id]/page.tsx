@@ -17,6 +17,7 @@ import {
   TrendingUp,
   Sparkles,
   Download,
+  RefreshCw,
   X,
 } from "lucide-react";
 import Link from "next/link";
@@ -175,7 +176,7 @@ export default function StartupDeepDive({ params }: { params: { id: string } }) 
     setSavingNote(false);
   }
 
-  async function handleGenerateMemo() {
+  async function handleGenerateMemo(regenerate = false) {
     if (!startup || memoLoading) return;
     setMemoLoading(true);
     setMemoError('');
@@ -183,7 +184,7 @@ export default function StartupDeepDive({ params }: { params: { id: string } }) 
       const res = await fetch(`/api/investor/startup/${params.id}/memo`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ startup }),
+        body: JSON.stringify({ startup, regenerate }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to generate');
@@ -275,7 +276,7 @@ export default function StartupDeepDive({ params }: { params: { id: string } }) 
 
               {/* Generate Memo button */}
               <button
-                onClick={handleGenerateMemo}
+                onClick={() => handleGenerateMemo(false)}
                 disabled={memoLoading}
                 style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 999, fontSize: 12, fontWeight: 500, cursor: memoLoading ? "not-allowed" : "pointer", background: "#7C3AED15", color: "#7C3AED", border: "1px solid #C4B5FD", transition: "all 0.15s", opacity: memoLoading ? 0.7 : 1 }}
               >
@@ -938,13 +939,23 @@ export default function StartupDeepDive({ params }: { params: { id: string } }) 
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   {memoHtml && (
-                    <button
-                      onClick={handleDownloadMemo}
-                      style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: `1px solid ${bdr}`, background: surf, color: ink, fontSize: 12, fontWeight: 500, cursor: "pointer" }}
-                    >
-                      <Download style={{ height: 12, width: 12 }} />
-                      Download HTML
-                    </button>
+                    <>
+                      <button
+                        onClick={() => handleGenerateMemo(true)}
+                        disabled={memoLoading}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: `1px solid ${bdr}`, background: surf, color: muted, fontSize: 12, fontWeight: 500, cursor: memoLoading ? "not-allowed" : "pointer", opacity: memoLoading ? 0.5 : 1 }}
+                      >
+                        <RefreshCw style={{ height: 11, width: 11 }} />
+                        Regenerate
+                      </button>
+                      <button
+                        onClick={handleDownloadMemo}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: `1px solid ${bdr}`, background: surf, color: ink, fontSize: 12, fontWeight: 500, cursor: "pointer" }}
+                      >
+                        <Download style={{ height: 12, width: 12 }} />
+                        Download HTML
+                      </button>
+                    </>
                   )}
                   <button
                     onClick={() => { setMemoHtml(null); setMemoError(''); }}
@@ -961,7 +972,7 @@ export default function StartupDeepDive({ params }: { params: { id: string } }) 
                   <div style={{ padding: 32, textAlign: "center" }}>
                     <p style={{ fontSize: 13, color: red }}>{memoError}</p>
                     <button
-                      onClick={handleGenerateMemo}
+                      onClick={() => handleGenerateMemo(false)}
                       style={{ marginTop: 16, padding: "8px 20px", borderRadius: 8, border: "none", background: ink, color: bg, fontSize: 13, cursor: "pointer" }}
                     >
                       Retry

@@ -19,9 +19,28 @@ export async function POST(
     }
 
     const { id: founderId } = await params
-    const { startup } = await request.json()
+    const body = await request.json()
+    const { startup, regenerate } = body
     if (!startup) {
       return NextResponse.json({ error: 'startup data required' }, { status: 400 })
+    }
+
+    // Check for a cached memo (unless regenerate=true)
+    if (!regenerate) {
+      const { data: cached } = await supabase
+        .from('agent_artifacts')
+        .select('content, created_at')
+        .eq('user_id', user.id)
+        .eq('artifact_type', 'investment_memo')
+        .filter('content->>founderId', 'eq', founderId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (cached?.content) {
+        const c = cached.content as { memoHtml: string; memoMd: string; founderId: string }
+        return NextResponse.json({ memoHtml: c.memoHtml, memoMd: c.memoMd, cached: true })
+      }
     }
 
     // Fetch investor's name + firm for the memo header
@@ -122,7 +141,16 @@ Be analytical. Avoid superlatives. Cite specific Q-Score dimensions where releva
       founderId,
     })
 
-    return NextResponse.json({ memoHtml, memoMd })
+    // Save the generated memo to agent_artifacts (investor's own namespace)
+    void supabase
+      .from('agent_artifacts')
+      .insert({
+        user_id:       user.id,
+        artifact_type: 'investment_memo',
+        content: { founderId, memoMd, memoHtml, generatedAt: new Date().toISOString() },
+      })
+
+    return NextResponse.json({ memoHtml, memoMd, cached: false })
   } catch (err) {
     console.error('Memo generation error:', err)
     return NextResponse.json({ error: 'Failed to generate memo' }, { status: 500 })

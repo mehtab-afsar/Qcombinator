@@ -274,9 +274,17 @@ export default function DealFlowPage() {
               ))}
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 14 }}>
-              <span style={{ fontSize: 11, color: muted }}>
-                Total: {Object.values(weights).reduce((a, b) => a + b, 0)} (normalised to 100% automatically)
-              </span>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <span style={{ fontSize: 11, color: muted }}>
+                  Total: {Object.values(weights).reduce((a, b) => a + b, 0)} (normalised to 100%)
+                </span>
+                <button
+                  onClick={() => setWeights({ weight_market: 20, weight_product: 18, weight_gtm: 17, weight_financial: 18, weight_team: 15, weight_traction: 12 })}
+                  style={{ fontSize: 11, color: muted, background: "none", border: "none", cursor: "pointer", textDecoration: "underline", fontFamily: "inherit", padding: 0 }}
+                >
+                  Reset to defaults
+                </button>
+              </div>
               <button onClick={saveWeights} disabled={savingWeights} style={{ padding: "7px 18px", background: ink, color: bg, border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", opacity: savingWeights ? 0.6 : 1 }}>
                 {savingWeights ? "Saving…" : "Save weights"}
               </button>

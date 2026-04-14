@@ -61,6 +61,22 @@ export async function GET() {
       .eq('artifact_type', 'financial_summary')
       .order('created_at', { ascending: false })
 
+    // Fetch last message per connection for inbox preview
+    const connectionIds = connections.map(c => c.id)
+    const { data: lastMsgs } = await supabase
+      .from('messages')
+      .select('connection_request_id, body, sender_id, created_at')
+      .in('connection_request_id', connectionIds)
+      .order('created_at', { ascending: false })
+
+    // Build map: connection_id → latest message
+    const lastMsgMap: Record<string, { body: string; sender_id: string; created_at: string }> = {}
+    for (const m of (lastMsgs ?? [])) {
+      if (!lastMsgMap[m.connection_request_id]) {
+        lastMsgMap[m.connection_request_id] = { body: m.body, sender_id: m.sender_id, created_at: m.created_at }
+      }
+    }
+
     type ScoreRow = { user_id: string; overall_score: number; team_score: number; market_score: number; traction_score: number; gtm_score: number; product_score: number; calculated_at: string }
     type FounderRow = { user_id: string; startup_name: string; industry: string; stage: string; description: string; full_name: string }
 
@@ -94,6 +110,8 @@ export async function GET() {
       const growth  = (fin.growth  as string) ?? (fin.mrrGrowth   as string) ?? ''
       const burnRate= (fin.burnRate as string) ?? (fin.monthlyBurn as string) ?? ''
 
+      const lm = lastMsgMap[conn.id]
+
       return {
         id:               conn.founder_id,
         connectionId:     conn.id,
@@ -112,12 +130,18 @@ export async function GET() {
         },
         health:           healthScore,
         connectedAt:      conn.created_at,
+        personalMessage:  conn.personal_message || null,
         metrics: {
           revenue:  mrr     ? `${mrr} MRR`       : '—',
           growth:   growth  ? `+${growth}% MoM`  : '—',
           burnRate: burnRate? `${burnRate}/mo`    : '—',
           runway:   runway  ? `${runway} months`  : '—',
         },
+        lastMessage: lm ? {
+          body:       lm.body.slice(0, 100) + (lm.body.length > 100 ? '…' : ''),
+          created_at: lm.created_at,
+          senderId:   lm.sender_id,
+        } : null,
       }
     })
 

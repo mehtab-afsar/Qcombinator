@@ -44,6 +44,7 @@ interface AcceptedConversation {
   qScore: number
   connectedAt: string
   personalMessage?: string
+  lastMessage?: { body: string; created_at: string; senderId: string } | null
 }
 
 type Tab = 'requests' | 'conversations'
@@ -113,7 +114,8 @@ export default function InvestorMessagesPage() {
             (d.companies ?? []).map((c: {
               id: string; connectionId?: string; founderName: string; name: string;
               stage: string; sector: string; qScore: number;
-              connectedAt: string;
+              connectedAt: string; personalMessage?: string;
+              lastMessage?: { body: string; created_at: string; senderId: string } | null;
             }) => ({
               id: c.connectionId ?? c.id, // connectionId = connection_request.id for messaging
               founderId: c.id,
@@ -123,6 +125,8 @@ export default function InvestorMessagesPage() {
               industry: c.sector,
               qScore: c.qScore,
               connectedAt: c.connectedAt,
+              personalMessage: c.personalMessage,
+              lastMessage: c.lastMessage ?? null,
             }))
           )
         }
@@ -521,9 +525,16 @@ export default function InvestorMessagesPage() {
                         <p style={{ fontSize: 14, fontWeight: 600, color: ink }}>{conv.startupName}</p>
                         <span style={{ fontSize: 10, color: muted, background: surf, border: `1px solid ${bdr}`, borderRadius: 999, padding: '1px 7px' }}>{conv.stage}</span>
                       </div>
-                      <p style={{ fontSize: 12, color: muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {conv.founderName} · {conv.industry}
-                      </p>
+                      {conv.lastMessage ? (
+                        <p style={{ fontSize: 12, color: muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {conv.lastMessage.senderId === myUserId ? 'You: ' : `${conv.founderName}: `}
+                          {conv.lastMessage.body}
+                        </p>
+                      ) : (
+                        <p style={{ fontSize: 12, color: muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {conv.founderName} · {conv.industry}
+                        </p>
+                      )}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
                       <div style={{ textAlign: 'right' }}>
@@ -531,7 +542,9 @@ export default function InvestorMessagesPage() {
                         <p style={{ fontSize: 10, color: muted }}>Q-Score</p>
                       </div>
                       <div style={{ textAlign: 'right' }}>
-                        <p style={{ fontSize: 11, color: muted }}>{relDate(conv.connectedAt)}</p>
+                        <p style={{ fontSize: 11, color: muted }}>
+                          {conv.lastMessage ? relDate(conv.lastMessage.created_at) : relDate(conv.connectedAt)}
+                        </p>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 3, justifyContent: 'flex-end', marginTop: 2 }}>
                           <CheckCircle style={{ height: 10, width: 10, color: green }} />
                           <p style={{ fontSize: 10, color: green }}>Connected</p>
