@@ -1,10 +1,116 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import Anthropic from '@anthropic-ai/sdk'
 import { parseDocument } from '@/lib/profile-builder/document-parser'
 import { EXTRACTION_PROMPTS } from '@/lib/profile-builder/extraction-prompts'
 import { routedText } from '@/lib/llm/router'
 import { getSectionCompletionPct, getMissingFields } from '@/lib/profile-builder/question-engine'
 import { flattenConfidence } from '@/lib/profile-builder/utils'
+
+// ── Vision extraction for image-based / scanned PDFs ─────────────────────────
+// When pdf-parse yields < 50 chars (scanned doc, password protected, image-only),
+// send the raw PDF bytes to a vision-capable model.
+//
+// Priority:
+//   1. Anthropic SDK directly (ANTHROPIC_API_KEY) — PDF beta, most reliable
+//   2. OpenRouter + Claude Haiku (OPENROUTER_API_KEY) — same model, via proxy
+//   3. null → falls through to existing regex fallback / clear error message
+async function extractFieldsFromImagePDF(
+  buffer: Buffer,
+): Promise<{ fields: Record<string, unknown>; conf: Record<string, number> } | null> {
+  const anthropicKey = process.env.ANTHROPIC_API_KEY
+  const openrouterKey = process.env.OPENROUTER_API_KEY
+
+  if (!anthropicKey && !openrouterKey) return null
+
+  const base64 = buffer.toString('base64')
+
+  // ── Shared extractor: takes a function that calls one section prompt ──────
+  async function runSections(
+    callOne: (sec: number) => Promise<string>
+  ): Promise<{ fields: Record<string, unknown>; conf: Record<string, number> }> {
+    const results = await Promise.allSettled(
+      [1, 2, 3, 4, 5].map(sec =>
+        callOne(sec).then(raw => {
+          const m = raw.match(/\{[\s\S]*\}/)
+          if (!m) return { fields: {} as Record<string, unknown>, conf: {} as Record<string, number> }
+          const parsed = JSON.parse(m[0])
+          const { confidence: conf, ...rest } = parsed
+          return { fields: rest as Record<string, unknown>, conf: (conf ?? {}) as Record<string, number> }
+        })
+      )
+    )
+    const mergedFields: Record<string, unknown> = {}
+    const mergedConf: Record<string, number> = {}
+    for (const r of results) {
+      if (r.status === 'fulfilled') {
+        Object.assign(mergedFields, r.value.fields)
+        Object.assign(mergedConf, flattenConfidence(r.value.conf as Record<string, unknown>))
+      }
+    }
+    return { fields: mergedFields, conf: mergedConf }
+  }
+
+  // ── Path 1: Anthropic SDK (direct) ───────────────────────────────────────
+  if (anthropicKey) {
+    try {
+      const client = new Anthropic({ apiKey: anthropicKey })
+      return await runSections(sec =>
+        client.beta.messages.create({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 800,
+          betas: ['pdfs-2024-09-25'],
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } } as Anthropic.DocumentBlockParam,
+              { type: 'text', text: EXTRACTION_PROMPTS[sec] },
+            ],
+          }],
+        }).then(res =>
+          res.content.filter(b => b.type === 'text').map(b => (b as Anthropic.TextBlock).text).join('')
+        )
+      )
+    } catch (e) {
+      console.warn('[upload] Anthropic vision failed:', e instanceof Error ? e.message : e)
+    }
+  }
+
+  // ── Path 2: OpenRouter + Claude Haiku ────────────────────────────────────
+  if (openrouterKey) {
+    try {
+      return await runSections(async sec => {
+        const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${openrouterKey}`,
+            'Content-Type': 'application/json',
+            'X-Title': 'EdgeAlpha ProfileBuilder',
+          },
+          body: JSON.stringify({
+            model: 'anthropic/claude-haiku-4.5',
+            max_tokens: 800,
+            messages: [{
+              role: 'user',
+              content: [
+                // OpenRouter forwards Anthropic-native document blocks to Claude models
+                { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
+                { type: 'text', text: EXTRACTION_PROMPTS[sec] },
+              ],
+            }],
+          }),
+        })
+        if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${await res.text()}`)
+        const data = await res.json()
+        return (data.choices?.[0]?.message?.content ?? '') as string
+      })
+    } catch (e) {
+      console.warn('[upload] OpenRouter vision failed:', e instanceof Error ? e.message : e)
+    }
+  }
+
+  return null
+}
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
 const ALLOWED_TYPES = [
@@ -178,12 +284,30 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (section === 0 && parsed.text.length <= 50) {
-      extractionError = `PDF text too short to extract (got ${parsed.text.length} chars). The PDF may be image-based or password protected.`
-      console.warn('[upload] parsed text too short:', parsed.text.length, 'chars for', filename)
+    const DOC_CHAR_LIMIT = 6000
+    const isPDF = filename.toLowerCase().endsWith('.pdf') || mimeType === 'application/pdf'
+    const isImagePDF = section === 0 && parsed.text.length <= 50 && isPDF
+
+    // Image-based / scanned PDF: send raw bytes to Claude vision instead of text
+    if (isImagePDF) {
+      console.log('[upload] image-based PDF detected — attempting vision extraction for', filename)
+      const visionResult = await extractFieldsFromImagePDF(buffer)
+      if (visionResult && Object.keys(visionResult.fields).length > 0) {
+        mergeDeepFields(extractedFields, visionResult.fields)
+        const flatConf = flattenConfidence(visionResult.conf as Record<string, unknown>)
+        for (const [k, v] of Object.entries(flatConf)) {
+          if (!(k in confidenceMap)) confidenceMap[k] = v
+        }
+        // Lower confidence baseline — vision is good but less reliable than clean text
+        if (Object.keys(confidenceMap).length === 0) {
+          for (const k of Object.keys(extractedFields)) confidenceMap[k] = 0.65
+        }
+      } else {
+        extractionError = `This PDF appears to be image-based or scanned — vision extraction also failed. Try uploading a text-based PDF or PPTX, or answer the follow-up questions manually.`
+        console.warn('[upload] image PDF vision fallback failed for', filename)
+      }
     }
 
-    const DOC_CHAR_LIMIT = 6000
     if (section === 0 && parsed.text.length > 50) {
       // Run all 5 section prompts in parallel so every sidebar section gets populated
       const docUserMsg = `Document text:\n\n${parsed.text.slice(0, DOC_CHAR_LIMIT)}`
