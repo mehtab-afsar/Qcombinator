@@ -11,7 +11,7 @@ import { useRouter } from "next/navigation";
 import { useFounderData } from "@/features/founder/hooks/useFounderData";
 import { agents } from "@/features/agents/data/agents";
 import Link from "next/link";
-import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted } from '@/lib/constants/colors'
 
 // ─── SVG completion ring (like the Q-Score ring in dashboard) ─────────────────
 function CompletionRing({ pct }: { pct: number }) {

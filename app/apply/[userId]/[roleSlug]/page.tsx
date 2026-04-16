@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useParams } from "next/navigation";
-import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted, blue, green } from '@/lib/constants/colors'
 
 // ─── helper: format roleSlug into a readable title ────────────────────────────
 function slugToTitle(slug: string): string {

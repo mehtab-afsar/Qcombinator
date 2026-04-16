@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation'
 import { ConnectionRequestCard } from '@/features/investor/components/ConnectionRequestCard'
 import { MeetingSchedulerModal } from '@/features/investor/components/MeetingSchedulerModal'
 import { DeclineFeedbackForm } from '@/features/investor/components/DeclineFeedbackForm'
-import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted, blue, green, amber } from '@/lib/constants/colors'
 
 // ─── types ────────────────────────────────────────────────────────────────────
 interface Startup {

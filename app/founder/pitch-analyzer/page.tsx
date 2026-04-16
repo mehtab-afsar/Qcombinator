@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
+import { bg, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
 
 interface PitchAnalysis {
   overallScore: number;

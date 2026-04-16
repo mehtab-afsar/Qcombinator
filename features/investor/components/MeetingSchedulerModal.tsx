@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Calendar, Clock, Video, Send, X } from "lucide-react";
 import { MeetingSchedulerModalProps } from "../types/investor.types";
-import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted, blue, green } from '@/lib/constants/colors'
 
 const TIME_SLOTS = [
   "9:00 AM", "10:00 AM", "11:00 AM", "12:00 PM",

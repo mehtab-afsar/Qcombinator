@@ -13,7 +13,7 @@ import {
   getUpcomingWorkshops, getPastWorkshops, mentors,
   academyPrograms, getOpenPrograms,
 } from "@/features/academy/data/workshops";
-import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted } from '@/lib/constants/colors'
 
 // ─── recommended resources per dimension ──────────────────────────────────────
 const RECOMMENDED = [

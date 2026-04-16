@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useActivity } from "@/features/founder/hooks/useActivity";
-import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted, blue, green, amber } from '@/lib/constants/colors'
 
 const purple = "#7C3AED";
 

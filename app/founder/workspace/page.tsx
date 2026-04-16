@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { agents } from "@/features/agents/data/agents";
-import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted, blue, green } from '@/lib/constants/colors'
 
 // ─── artifact meta ────────────────────────────────────────────────────────────
 const ARTIFACT_META: Record<string, { icon: React.ElementType; label: string; color: string; agentId: string }> = {

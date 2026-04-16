@@ -10,7 +10,7 @@ import {
   ArrowLeft, Send, TrendingUp, CheckCircle,
   RefreshCw, ChevronRight,
 } from 'lucide-react';
-import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted, blue, green, amber } from '@/lib/constants/colors'
 
 // ─── agent colors ─────────────────────────────────────────────────────────────
 const AGENT_COLORS: Record<string, string> = {

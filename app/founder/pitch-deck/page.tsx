@@ -8,7 +8,7 @@ import {
   Sparkles, AlertCircle, CheckCircle2, ArrowRight, Layers,
 } from "lucide-react";
 import Link from "next/link";
-import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted, blue, green, amber } from '@/lib/constants/colors'
 
 // ─── slide definitions ────────────────────────────────────────────────────────
 const SLIDE_KEYS = [

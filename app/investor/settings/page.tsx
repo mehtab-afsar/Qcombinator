@@ -11,7 +11,7 @@ import {
   saveInvestorNotifications,
   signOutInvestor,
 } from '@/features/investor/services/investor-settings.service'
-import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted, blue, green, red } from '@/lib/constants/colors'
 
 // ─── types ────────────────────────────────────────────────────────────────────
 type TabId = 'account' | 'preferences' | 'notifications'

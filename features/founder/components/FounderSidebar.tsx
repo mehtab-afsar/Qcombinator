@@ -14,7 +14,7 @@ import { usePendingConnections } from "../hooks/usePendingConnections";
 import { useNotifications } from "../hooks/useNotifications";
 import { timeAgo } from "../utils/time";
 import { SidebarNotification } from "../types/founder.types";
-import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted, blue } from '@/lib/constants/colors'
 
 // ─── nav items ────────────────────────────────────────────────────────────────
 const BASE_NAV = [

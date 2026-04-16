@@ -7,7 +7,7 @@ import {
   ArrowRight, TrendingUp, Users, DollarSign, Globe,
   Eye, EyeOff, Loader2, Check, Lock,
 } from 'lucide-react'
-import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted, blue, green } from '@/lib/constants/colors'
 
 // ─── design tokens ────────────────────────────────────────────────────────────
 

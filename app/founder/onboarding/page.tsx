@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
 import { Check, ChevronRight } from 'lucide-react'
-import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted, blue } from '@/lib/constants/colors'
 
 // ── option data ───────────────────────────────────────────────────────────────
 const INDUSTRIES = [

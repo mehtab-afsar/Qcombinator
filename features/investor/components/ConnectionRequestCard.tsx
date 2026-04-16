@@ -5,7 +5,7 @@ import { useState } from "react";
 import { ConnectionRequestCardProps } from "../types/investor.types";
 import { qScoreColor } from "../utils/scoring";
 import { DIMENSION_LABELS } from "../constants/investor.constants";
-import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted, red } from '@/lib/constants/colors'
 
 // ─── component ────────────────────────────────────────────────────────────────
 export function ConnectionRequestCard({ request, onAccept, onDecline }: ConnectionRequestCardProps) {

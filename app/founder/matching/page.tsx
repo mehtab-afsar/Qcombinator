@@ -15,7 +15,7 @@ import { ConnectionStatusBadge } from '@/features/matching/components/Connection
 import { ConnectionStatus, MatchingInvestor } from '@/features/matching/types/matching.types'
 import { useQScore } from '@/features/qscore/hooks/useQScore'
 import { useMatchingData } from '@/features/matching/hooks/useMatchingData'
-import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted, blue } from '@/lib/constants/colors'
 
 type Investor = MatchingInvestor
 

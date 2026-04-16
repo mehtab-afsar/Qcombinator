@@ -6,7 +6,7 @@ import Link from "next/link";
 import { agents } from "@/features/agents/data/agents";
 import { Agent } from "@/features/agents/types/agent.types";
 import { useAgentCompletion } from "@/features/agents/hooks/useAgentCompletion";
-import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted, green, amber } from '@/lib/constants/colors'
 
 const pillarAccent: Record<string, string> = {
   "sales-marketing":    "#2563EB",

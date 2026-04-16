@@ -8,7 +8,7 @@ import {
   SEND_ANIMATION_DELAY_MS,
   SEND_CLOSE_DELAY_MS,
 } from "../types/matching.types";
-import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted, blue, green } from '@/lib/constants/colors'
 
 export function ConnectionRequestModal({
   isOpen,

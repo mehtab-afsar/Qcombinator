@@ -8,7 +8,7 @@ import {
   ArrowLeft, MessageSquare, TrendingUp,
   RefreshCw, Send, X,
 } from 'lucide-react'
-import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted, green, amber, red } from '@/lib/constants/colors'
 
 // ─── types ────────────────────────────────────────────────────────────────────
 interface PendingRequest {

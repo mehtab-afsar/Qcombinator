@@ -4,7 +4,7 @@ import { Suspense } from 'react';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { CXOGrid } from '@/components/cxo/CXOGrid';
 import { useQScore } from '@/features/qscore/hooks/useQScore';
-import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
+import { bg, muted } from '@/lib/constants/colors'
 
 function LoadingShell() {
   return (
