@@ -207,7 +207,7 @@ function score_3_4_BuildComplexity(data: AssessmentData, stage: ScoreStage): Ind
 
 export function score_3_5_ReplicationBarrier(data: AssessmentData, _stage: ScoreStage): IndicatorScore {
   const repCost = data.p3?.replicationCostUsd
-  const repMonths = data.p3?.replicationTimeMonths ?? (data as AssessmentData & { replicationTimeMonths?: number }).replicationTimeMonths
+  const repMonths = data.p3?.replicationTimeMonths
   const techText = data.p3?.technicalDepth ?? ''
   const complexText = data.p3?.buildComplexity ?? ''
 

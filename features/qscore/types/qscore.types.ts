@@ -155,6 +155,7 @@ export interface AssessmentData {
     knowHowDensity?: string;       // 3.3 Trade secrets / tacit knowledge held by team
     buildComplexity?: string;      // 3.4 Why is this hard to build (time, talent, data)
     replicationCostUsd?: number;   // 3.5 Estimated cost for a well-funded competitor to replicate ($)
+    replicationTimeMonths?: number; // 3.5 Time (months) for a well-funded competitor to replicate
   };
 
   // ── P4: Founder / Team sub-indicators ─────────────────────────────────────
