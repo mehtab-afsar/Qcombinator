@@ -10,14 +10,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { useInvestorMessageCount } from "../hooks/useInvestorMessageCount";
-
-// ─── palette ──────────────────────────────────────────────────────────────────
-const bg    = "#F9F7F2";
-const surf  = "#F0EDE6";
-const bdr   = "#E2DDD5";
-const ink   = "#18160F";
-const muted = "#8A867C";
-const blue  = "#2563EB";
+import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
 
 // ─── nav items ────────────────────────────────────────────────────────────────
 const BASE_NAV = [

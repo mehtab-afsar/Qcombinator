@@ -15,7 +15,8 @@ import { fetchDimensionWeights } from '@/features/qscore/services/threshold-conf
  */
 // Canonical dimension mappings — remapped to IQ Score v2 P1–P6 parameter labels
 // dbColumn kept as legacy for backward compat (qscore_history legacy rows)
-const ARTIFACT_BOOST: Record<string, { dbColumn: string; label: string; paramId: string; points: number }> = {
+// Exported so cxo-config.ts can derive dimensionBoost without mirroring the points.
+export const ARTIFACT_BOOST: Record<string, { dbColumn: string; label: string; paramId: string; points: number }> = {
   [ARTIFACT_TYPES.ICP_DOCUMENT]:       { dbColumn: DIMENSION_DB_COLUMN.gtm,      label: 'P2: Market Potential',    paramId: 'p2', points: 5 },
   [ARTIFACT_TYPES.OUTREACH_SEQUENCE]:  { dbColumn: DIMENSION_DB_COLUMN.gtm,      label: 'P1: Market Readiness',    paramId: 'p1', points: 3 },
   [ARTIFACT_TYPES.BATTLE_CARD]:        { dbColumn: DIMENSION_DB_COLUMN.market,   label: 'P2: Market Potential',    paramId: 'p2', points: 4 },

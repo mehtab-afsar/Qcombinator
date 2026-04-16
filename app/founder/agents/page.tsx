@@ -6,15 +6,7 @@ import Link from "next/link";
 import { agents } from "@/features/agents/data/agents";
 import { Agent } from "@/features/agents/types/agent.types";
 import { useAgentCompletion } from "@/features/agents/hooks/useAgentCompletion";
-
-// ─── palette ──────────────────────────────────────────────────────────────────
-const bg    = "#F9F7F2";
-const surf  = "#F0EDE6";
-const bdr   = "#E2DDD5";
-const ink   = "#18160F";
-const muted = "#8A867C";
-const green = "#16A34A";
-const amber = "#D97706";
+import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
 
 const pillarAccent: Record<string, string> = {
   "sales-marketing":    "#2563EB",
@@ -36,7 +28,6 @@ const dimensionLabel: Record<string, string> = {
   market:     "Market Score",
   traction:   "Traction Score",
 };
-
 
 const pillars: Agent["pillar"][] = [
   "sales-marketing",

@@ -15,16 +15,8 @@ import { ConnectionStatusBadge } from '@/features/matching/components/Connection
 import { ConnectionStatus, MatchingInvestor } from '@/features/matching/types/matching.types'
 import { useQScore } from '@/features/qscore/hooks/useQScore'
 import { useMatchingData } from '@/features/matching/hooks/useMatchingData'
+import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
 
-// ─── palette ──────────────────────────────────────────────────────────────────
-const bg    = "#F9F7F2"
-const surf  = "#F0EDE6"
-const bdr   = "#E2DDD5"
-const ink   = "#18160F"
-const muted = "#8A867C"
-const blue  = "#2563EB"
-
-// ─── local alias ─────────────────────────────────────────────────────────────
 type Investor = MatchingInvestor
 
 // ─── component ────────────────────────────────────────────────────────────────

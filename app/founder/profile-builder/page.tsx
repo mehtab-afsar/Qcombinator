@@ -14,18 +14,9 @@ import {
   FileText, Paperclip, ArrowUp, Loader2, Zap, BarChart,
   Lightbulb, AlertTriangle, Globe, Bot, RefreshCw, X as XIcon,
 } from 'lucide-react'
+import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
 
-// ── palette ───────────────────────────────────────────────────────────────────
-const bg    = '#F9F7F2'   // warm cream — page background
-const surf  = '#F0EDE6'   // warm sand — card / surface
 const surf2 = '#EAE7E0'   // deeper sand — agent bubbles, hover
-const bdr   = '#E2DDD5'
-const ink   = '#18160F'
-const muted = '#8A867C'
-const blue  = '#2563EB'
-const green = '#16A34A'
-const amber = '#D97706'
-const red   = '#DC2626'
 
 const MISSING_FIELD_LABELS: Record<string, string> = {
   customerCommitment: 'customer commitments (LOIs, pilots)',
@@ -789,7 +780,7 @@ export default function ProfileBuilderPage() {
     setUploadTrigger(null)
   }
 
-  const MAX_UPLOAD_FILES = 3
+  const MAX_UPLOAD_FILES = 10
 
   // ── handle one or many files sequentially (up to MAX_UPLOAD_FILES total) ──
   async function handleFileUpload(files: FileList | File[]) {
@@ -797,7 +788,7 @@ export default function ProfileBuilderPage() {
     const fileArr = Array.from(files)
     if (fileArr.length === 0) return
 
-    // Enforce 3-file cap — only process files that fit within the remaining slot budget
+    // Enforce file cap — only process files that fit within the remaining slot budget
     const slotsLeft = MAX_UPLOAD_FILES - uploadedFiles.length
     if (slotsLeft <= 0) {
       setUploadError(`You've already uploaded ${MAX_UPLOAD_FILES} files — the maximum allowed. Your data is already merged.`)
@@ -818,7 +809,7 @@ export default function ProfileBuilderPage() {
         setIsTyping(false)
         errors.push(`${toProcess[i].name}: ${e instanceof Error ? e.message : 'failed'}`)
       }
-      // Stagger uploads to spread Groq API load — avoids hitting TPM rate limit on file #3+
+      // Stagger uploads to spread Groq API load — avoids hitting TPM/RPM rate limits on concurrent uploads
       if (i < toProcess.length - 1) {
         await new Promise(r => setTimeout(r, 1200))
       }
@@ -1210,7 +1201,7 @@ export default function ProfileBuilderPage() {
               <div style={{ fontSize: 15, fontWeight: 600, color: ink, marginBottom: 6 }}>
                 {uploadLoading ? 'Uploading and extracting…' : uploadedFiles.length >= MAX_UPLOAD_FILES ? `${MAX_UPLOAD_FILES}-file limit reached` : 'Drop files or click to upload'}
               </div>
-              <div style={{ fontSize: 13, color: muted }}>PDF, PPTX, XLSX, CSV, PNG, JPG — max 10 MB each · up to 3 files, merged automatically</div>
+              <div style={{ fontSize: 13, color: muted }}>PDF, PPTX, XLSX, CSV, PNG, JPG — max 10 MB each · up to 10 files, merged automatically</div>
             </div>
 
             {uploadError && (

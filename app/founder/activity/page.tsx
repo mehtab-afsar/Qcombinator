@@ -3,16 +3,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useActivity } from "@/features/founder/hooks/useActivity";
+import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
 
-// ─── palette ──────────────────────────────────────────────────────────────────
-const bg    = "#F9F7F2";
-const surf  = "#F0EDE6";
-const bdr   = "#E2DDD5";
-const ink   = "#18160F";
-const muted = "#8A867C";
-const blue  = "#2563EB";
-const green = "#16A34A";
-const amber = "#D97706";
 const purple = "#7C3AED";
 
 // ─── agent metadata ───────────────────────────────────────────────────────────

@@ -5,14 +5,7 @@ import { useState } from "react";
 import { ConnectionRequestCardProps } from "../types/investor.types";
 import { qScoreColor } from "../utils/scoring";
 import { DIMENSION_LABELS } from "../constants/investor.constants";
-
-// ─── palette ──────────────────────────────────────────────────────────────────
-const bg    = "#F9F7F2";
-const surf  = "#F0EDE6";
-const bdr   = "#E2DDD5";
-const ink   = "#18160F";
-const muted = "#8A867C";
-const red   = "#DC2626";
+import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
 
 // ─── component ────────────────────────────────────────────────────────────────
 export function ConnectionRequestCard({ request, onAccept, onDecline }: ConnectionRequestCardProps) {

@@ -3,14 +3,7 @@
 import { useState } from "react";
 import { X, Send, Check } from "lucide-react";
 import { DeclineFeedbackFormProps } from "../types/investor.types";
-
-// ─── palette ──────────────────────────────────────────────────────────────────
-const bg    = "#F9F7F2";
-const surf  = "#F0EDE6";
-const bdr   = "#E2DDD5";
-const ink   = "#18160F";
-const muted = "#8A867C";
-const red   = "#DC2626";
+import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
 
 const DECLINE_REASONS = [
   { id: "stage",     label: "Not at the right stage for our fund" },

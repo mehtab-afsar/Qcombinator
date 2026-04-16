@@ -10,17 +10,7 @@ import {
 import Link from "next/link";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { usePortfolioData } from "@/features/founder/hooks/usePortfolioData";
-
-// ─── palette ──────────────────────────────────────────────────────────────────
-const bg    = "#F9F7F2";
-const surf  = "#F0EDE6";
-const bdr   = "#E2DDD5";
-const ink   = "#18160F";
-const muted = "#8A867C";
-const blue  = "#2563EB";
-const green = "#16A34A";
-const red   = "#DC2626";
-const amber = "#D97706";
+import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
 
 // ─── artifact meta ────────────────────────────────────────────────────────────
 const ARTIFACT_META: Record<string, { icon: React.ElementType; label: string; color: string }> = {
@@ -64,7 +54,6 @@ function timeAgo(iso: string): string {
   if (mins > 0) return `${mins}m ago`;
   return "just now";
 }
-
 
 // ─── component ────────────────────────────────────────────────────────────────
 export default function PortfolioPage() {

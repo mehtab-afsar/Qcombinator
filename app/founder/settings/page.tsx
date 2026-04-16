@@ -13,15 +13,7 @@ import {
   saveStartupProfileSettings,
   exportUserData,
 } from '@/features/founder/services/settings.service';
-
-// ─── palette ──────────────────────────────────────────────────────────────────
-const bg    = '#F9F7F2';
-const surf  = '#F0EDE6';
-const bdr   = '#E2DDD5';
-const ink   = '#18160F';
-const muted = '#8A867C';
-const red   = '#DC2626';
-const green = '#16A34A';
+import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
 
 type TabId = 'account' | 'company' | 'startup' | 'notifications' | 'data' | 'connectors' | 'billing';
 

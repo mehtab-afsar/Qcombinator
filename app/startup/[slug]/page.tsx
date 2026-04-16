@@ -1,16 +1,8 @@
 import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
 
-// ─── palette ──────────────────────────────────────────────────────────────────
-const bg    = '#F9F7F2';
-const surf  = '#F0EDE6';
-const bdr   = '#E2DDD5';
-const ink   = '#18160F';
-const muted = '#8A867C';
-const blue  = '#2563EB';
 const _green = '#16A34A';
-const amber = '#D97706';
-const red   = '#DC2626';
 
 function scoreColor(s: number) {
   if (s >= 70) return blue;

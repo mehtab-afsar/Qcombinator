@@ -10,6 +10,7 @@ import type { ActionType } from '@/lib/edgealpha.config';
 import type { AgentId } from '@/lib/constants/agent-ids';
 import { agents as DISPLAY_AGENTS } from '@/features/agents/data/agents';
 import { ARTIFACT_META } from '@/features/agents/shared/constants/artifact-meta';
+import { ARTIFACT_BOOST } from '@/features/qscore/services/agent-signal';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -55,23 +56,6 @@ export interface CXOConfig {
 }
 
 // ─── Static lookups ───────────────────────────────────────────────────────────
-
-/** Per-artifact Q-Score boost points (mirrors ARTIFACT_BOOST in agent-signal.ts). */
-const ARTIFACT_BOOST_PTS: Record<string, number> = {
-  icp_document:        5,
-  outreach_sequence:   4,
-  battle_card:         4,
-  gtm_playbook:        6,
-  sales_script:        4,
-  brand_messaging:     4,
-  financial_summary:   6,
-  legal_checklist:     3,
-  hiring_plan:         5,
-  pmf_survey:          5,
-  interview_notes:     3,
-  competitive_matrix:  5,
-  strategic_plan:      4,
-};
 
 /** Primary Q-Score dimension each agent most influences. */
 const AGENT_PRIMARY_DIMENSION: Record<AgentId, CXOConfig['primaryDimension']> = {
@@ -215,7 +199,7 @@ function buildConfigs(): Record<string, CXOConfig> {
     const deliverables: CXODeliverable[] = agent.tools.map(artifactType => ({
       artifactType,
       label:        getArtifactLabel(artifactType),
-      dimensionBoost: ARTIFACT_BOOST_PTS[artifactType] ?? 0,
+      dimensionBoost: ARTIFACT_BOOST[artifactType]?.points ?? 0,
     }));
 
     // Quick actions: each action this agent can trigger

@@ -5,9 +5,7 @@ import { useParams, useSearchParams, redirect } from 'next/navigation';
 import { CXOWorkspace } from '@/components/cxo/CXOWorkspace';
 import { getCXOConfig, CXO_CONFIGS } from '@/lib/cxo/cxo-config';
 import { useAuth } from '@/features/auth/hooks/useAuth';
-
-const bg   = '#F9F7F2';
-const muted = '#8A867C';
+import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
 
 function LoadingShell() {
   return (

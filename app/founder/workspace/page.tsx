@@ -10,15 +10,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { agents } from "@/features/agents/data/agents";
-
-// ─── palette ──────────────────────────────────────────────────────────────────
-const bg    = "#F9F7F2";
-const surf  = "#F0EDE6";
-const bdr   = "#E2DDD5";
-const ink   = "#18160F";
-const muted = "#8A867C";
-const blue  = "#2563EB";
-const green = "#16A34A";
+import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
 
 // ─── artifact meta ────────────────────────────────────────────────────────────
 const ARTIFACT_META: Record<string, { icon: React.ElementType; label: string; color: string; agentId: string }> = {
