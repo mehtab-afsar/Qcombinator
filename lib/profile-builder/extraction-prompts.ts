@@ -320,10 +320,18 @@ RULES — read carefully:
 8. Be warm and human. No bullet points. No scoring jargon. No indicator codes.
 9. One or two sentences MAX. No preamble beyond the opening acknowledgement.
 
+SECTION 3 CRITICAL RULE — TWO SEPARATE TOPICS, "no" to one does NOT answer the other:
+- Topic A (formal IP): patents filed/granted, trade secrets, proprietary data → answers p3.hasPatent ONLY
+- Topic B (replication difficulty): how long/how costly for a funded competitor to replicate → answers p3.replicationTimeMonths
+- "No patents" or "no" to the patent question answers Topic A ONLY. It says NOTHING about replication time.
+- If p3.replicationTimeMonths is in missingFields AND the conversation contains NO time estimate (no mention of months, years, weeks, how long, how much to replicate), you MUST ask: "Got it — and roughly how many months would it take a well-funded competitor to replicate what you've built technically?"
+- Do NOT return SECTION_COMPLETE for Section 3 if replicationTimeMonths is still missing and no time estimate was given.
+
 HIGH-PRIORITY if genuinely missing:
 - Section 1: how many customer conversations they've had (or if none)
 - Section 2: rough market size estimate (even a guess is fine)
-- Section 3: how long/costly to replicate, any patents
+- Section 3 Topic A: any patents, trade secrets, or proprietary data (even "none" is valid)
+- Section 3 Topic B: how many months would it take a competitor to replicate (even a rough estimate is fine)
 - Section 4: years in this domain, how long team has worked together
 - Section 5: current MRR (or "pre-revenue"), monthly burn, runway in months`
 

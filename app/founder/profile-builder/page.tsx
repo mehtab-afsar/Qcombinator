@@ -705,27 +705,23 @@ export default function ProfileBuilderPage() {
         return
       }
 
-      // No sectionSummaries — could be image/CSV or an extraction failure
-      if (data.extractionError) {
-        console.error('[profile-builder] extraction failed:', data.extractionError)
-        // Show as a chat error message so the founder knows something went wrong
-        setSections(prev => {
-          const sec = prev['1'] ?? initSection()
-          return {
-            ...prev,
-            '1': {
-              ...sec,
-              messages: [...sec.messages, {
-                role: 'agent' as const,
-                text: `Note: I wasn't able to automatically extract fields from "${file.name}". Reason: ${data.extractionError} The file is saved and I'll use it as context.`,
-              }],
-            },
-          }
-        })
-      }
+      // No sectionSummaries — extraction failed (image PDF, missing key, scanned doc, etc.)
+      // Instead of leaving the founder stuck, launch smart Q&A with empty extracted fields.
+      // All critical-field questions will be generated so the founder can answer manually.
+      console.warn('[profile-builder] extraction failed, falling through to manual Q&A:', data.extractionError)
+      const qs = generateSmartQuestions({}, founderProfile?.stage ?? 'pre-product')
+      setSmartQuestions(qs)
+      setSmartQaIndex(0)
+      setFlowMode('fast')
       setUploadedFiles(prev => {
         const next = [...prev, newFile]
-        saveFlowState({ flowMode: flowMode === 'fast' ? 'fast' : undefined, smartQuestions, smartQaIndex, extractionSummary, uploadedFiles: next })
+        saveFlowState({
+          flowMode: 'fast',
+          smartQuestions: qs,
+          smartQaIndex: 0,
+          extractionSummary,
+          uploadedFiles: next,
+        })
         return next
       })
       setUploadTrigger(null)
@@ -800,11 +796,15 @@ export default function ProfileBuilderPage() {
     setUploadLoading(true)
     if (slotsLeft === fileArr.length) setUploadError(null)
     const errors: string[] = []
-    for (const file of toProcess) {
+    for (let i = 0; i < toProcess.length; i++) {
       try {
-        await uploadOneFile(file)
+        await uploadOneFile(toProcess[i])
       } catch (e) {
-        errors.push(`${file.name}: ${e instanceof Error ? e.message : 'failed'}`)
+        errors.push(`${toProcess[i].name}: ${e instanceof Error ? e.message : 'failed'}`)
+      }
+      // Stagger uploads to spread Groq API load — avoids hitting TPM rate limit on file #3+
+      if (i < toProcess.length - 1) {
+        await new Promise(r => setTimeout(r, 1200))
       }
     }
     if (errors.length > 0) setUploadError(errors.join(' · '))
@@ -1386,33 +1386,54 @@ export default function ProfileBuilderPage() {
               {uploadTrigger && (
                 <div style={{
                   margin: '12px 0', padding: '12px 16px', borderRadius: 10,
-                  background: '#FFF7ED', border: '1px solid #FED7AA',
+                  background: uploadLoading ? '#FFF7ED' : '#FFF7ED',
+                  border: uploadLoading ? '1px solid #FED7AA' : '1px solid #FED7AA',
                   display: 'flex', alignItems: 'center', gap: 12,
+                  transition: 'all 0.2s',
                 }}>
-                  <div style={{ width: 32, height: 32, borderRadius: 8, background: surf2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <BarChart size={15} color={amber} strokeWidth={1.75} />
+                  <div style={{
+                    width: 32, height: 32, borderRadius: 8, background: surf2,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  }}>
+                    {uploadLoading
+                      ? <Loader2 size={15} color={amber} strokeWidth={2} style={{ animation: 'spin 1s linear infinite' }} />
+                      : <BarChart size={15} color={amber} strokeWidth={1.75} />}
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, color: '#92400E' }}>{uploadTrigger}</div>
-                    {impact && (
-                      <div style={{ fontSize: 11, color: amber, marginTop: 2, fontWeight: 600 }}>
-                        Upload to verify → boost {impact.dim} +{impact.pts} pts
-                      </div>
+                    {uploadLoading ? (
+                      <>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: '#92400E' }}>Extracting data from your document…</div>
+                        <div style={{ fontSize: 11, color: amber, marginTop: 2 }}>This takes a few seconds — hang tight</div>
+                      </>
+                    ) : (
+                      <>
+                        <div style={{ fontSize: 13, color: '#92400E' }}>{uploadTrigger}</div>
+                        {impact && (
+                          <div style={{ fontSize: 11, color: amber, marginTop: 2, fontWeight: 600 }}>
+                            Upload to verify → boost {impact.dim} +{impact.pts} pts
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
-                  <button onClick={() => { if (!uploadLoading) fileInputRef.current?.click() }} disabled={uploadLoading} style={{
-                    padding: '6px 14px', borderRadius: 6, border: 'none',
-                    background: uploadLoading ? bdr : amber, color: '#fff', fontSize: 12,
-                    fontWeight: 600, cursor: uploadLoading ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
-                  }}>Upload</button>
+                  {!uploadLoading && (
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      style={{
+                        padding: '6px 14px', borderRadius: 6, border: 'none',
+                        background: amber, color: '#fff', fontSize: 12,
+                        fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
+                      }}
+                    >Upload</button>
+                  )}
                 </div>
               )}
 
-              {/* Recalculate after section doc upload */}
-              {sec.uploadedDocuments.length > 0 && (
+              {/* Recalculate after section doc upload — only show button, result is dismissable */}
+              {sec.uploadedDocuments.length > 0 && !uploadLoading && (
                 <div style={{ margin: '8px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <button
-                    onClick={handleRecalculate}
+                    onClick={() => { setRecalcResult(null); handleRecalculate() }}
                     disabled={recalcLoading}
                     style={{
                       padding: '6px 14px', borderRadius: 7, border: `1.5px solid ${bdr}`,
@@ -1423,15 +1444,20 @@ export default function ProfileBuilderPage() {
                   >
                     {recalcLoading
                       ? <><Loader2 size={12} strokeWidth={2} style={{ animation: 'spin 1s linear infinite' }} /> Calculating…</>
-                      : <><Zap size={12} strokeWidth={2} /> Preview score impact</>}
+                      : <><Zap size={12} strokeWidth={2} /> Preview score</>}
                   </button>
                   {recalcResult && (
                     <span style={{
                       padding: '4px 10px', borderRadius: 6,
                       background: '#F0FDF4', border: `1px solid #A7F3D0`,
                       fontSize: 12, fontWeight: 600, color: green,
+                      display: 'flex', alignItems: 'center', gap: 6,
                     }}>
                       IQ {recalcResult.finalIQ} · {recalcResult.grade}
+                      <button
+                        onClick={() => setRecalcResult(null)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 1, color: green, opacity: 0.6, fontFamily: 'inherit' }}
+                      >×</button>
                     </span>
                   )}
                 </div>

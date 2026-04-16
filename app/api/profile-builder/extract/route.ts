@@ -174,6 +174,16 @@ export async function POST(req: NextRequest) {
       } catch {
         // non-blocking
       }
+
+      // Section 3 safety net: if replicationTimeMonths is missing and LLM returned null,
+      // force-ask the replication time question — "no patents" does NOT answer this.
+      if (section === 3 && followUpQuestion === null && missingFields.includes('p3.replicationTimeMonths')) {
+        const conv = effectiveConversation.toLowerCase()
+        const hasTimeEstimate = /\b(\d+\s*month|\d+\s*year|\d+\s*week|how long|replicat|timeline|time.*build|build.*time)\b/.test(conv)
+        if (!hasTimeEstimate) {
+          followUpQuestion = "Got it — and roughly how many months would it take a well-funded competitor to replicate what you've built technically?"
+        }
+      }
     }
 
     // Build per-field source attribution for this extraction pass

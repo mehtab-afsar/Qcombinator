@@ -58,24 +58,41 @@ export function parsePPTX(buffer: Buffer): ParseResult {
     const zip = new AdmZip(buffer)
     const entries = zip.getEntries()
 
-    const texts: string[] = []
+    // Helper: extract all <a:t> text from a DrawingML XML string
+    function extractDrawingMLText(xml: string): string[] {
+      const result: string[] = []
+      const tRegex = /<a:t[^>]*>([^<]+)<\/a:t>/g
+      let m
+      while ((m = tRegex.exec(xml)) !== null) {
+        const t = m[1]
+          .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+          .trim()
+        if (t.length > 1) result.push(t)
+      }
+      return result
+    }
+
+    const slideTexts: string[] = []
+    const noteTexts: string[] = []
+
     for (const entry of entries) {
-      // slide XML files: ppt/slides/slide1.xml, slide2.xml, etc.
+      const xml = entry.getData().toString('utf8')
+
+      // Slide body text: ppt/slides/slideN.xml
       if (entry.entryName.match(/ppt\/slides\/slide\d+\.xml/)) {
-        const xml = entry.getData().toString('utf8')
-        // Extract text from <a:t> tags (DrawingML text elements)
-        const tRegex = /<a:t[^>]*>([^<]+)<\/a:t>/g
-        let m
-        while ((m = tRegex.exec(xml)) !== null) {
-          const t = m[1]
-            .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
-            .trim()
-          if (t.length > 1) texts.push(t)
-        }
+        slideTexts.push(...extractDrawingMLText(xml))
+      }
+
+      // Speaker notes: ppt/notesSlides/notesSlideN.xml
+      // Founders typically write metrics, team bios, and financial detail here
+      if (entry.entryName.match(/ppt\/notesSlides\/notesSlide\d+\.xml/)) {
+        noteTexts.push(...extractDrawingMLText(xml))
       }
     }
 
-    const text = texts.join(' ').replace(/\s+/g, ' ').trim().slice(0, 8000)
+    // Notes are high-signal — prepend them so the LLM sees them first within the char limit
+    const combined = [...noteTexts, ...slideTexts]
+    const text = combined.join(' ').replace(/\s+/g, ' ').trim().slice(0, 8000)
     return { text, confidence: text.length > 100 ? 0.80 : 0.4 }
   } catch (e) {
     console.warn('[parsePPTX] adm-zip failed:', e)

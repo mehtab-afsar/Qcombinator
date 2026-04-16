@@ -24,9 +24,11 @@ function makeAbortController(timeoutMs: number) {
   return { controller, clear: () => clearTimeout(timer) };
 }
 
-async function waitForRateLimit(res: Response): Promise<void> {
+async function waitForRateLimit(res: Response, attempt: number): Promise<void> {
   const retryAfter = res.headers.get('Retry-After');
-  const waitMs = retryAfter ? Math.min(parseFloat(retryAfter) * 1000, 15_000) : 5_000;
+  // Exponential backoff: 5s → 10s → 20s, capped at Retry-After header if present
+  const backoff = Math.min(5_000 * Math.pow(2, attempt), 20_000);
+  const waitMs = retryAfter ? Math.min(parseFloat(retryAfter) * 1000, backoff) : backoff;
   await new Promise(resolve => setTimeout(resolve, waitMs));
 }
 
@@ -75,69 +77,57 @@ async function callOpenRouterWithTools(
       }),
     });
 
-  const { controller, clear } = makeAbortController(TIMEOUT_MS);
+  let res!: Response;
+  const MAX_ATTEMPTS = 3;
 
-  try {
-    let res: Response;
+  // Up to 3 attempts with exponential backoff on Groq 429 rate limits
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const { controller, clear } = makeAbortController(TIMEOUT_MS);
     try {
       res = await makeRequest(controller.signal);
     } catch (err: unknown) {
+      clear();
       if (err instanceof Error && err.name === 'AbortError') {
-        throw new OpenRouterError('Groq request timed out after 30s', 0, true);
+        throw new OpenRouterError(`Groq request timed out after 30s (attempt ${attempt + 1})`, 0, true);
       }
       throw err;
     }
-
-    // 429 — rate limited: wait then retry once
-    if (res.status === 429) {
-      console.warn('[llm/provider] Groq rate limited (429) — waiting before retry');
-      await waitForRateLimit(res);
-      const { controller: c2, clear: clear2 } = makeAbortController(TIMEOUT_MS);
-      try {
-        res = await makeRequest(c2.signal);
-      } catch (err: unknown) {
-        if (err instanceof Error && err.name === 'AbortError') {
-          throw new OpenRouterError('Groq retry timed out after 30s', 429, true);
-        }
-        throw err;
-      } finally {
-        clear2();
-      }
-      if (res.status === 429) {
-        throw new OpenRouterError('Groq rate limit exceeded — please try again later', 429);
-      }
-    }
-
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error('[llm/provider] Groq error:', res.status, errText);
-      throw new OpenRouterError(`Groq error: ${res.status} ${res.statusText}`, res.status);
-    }
-
-    const data = await res.json();
-    const msg = data.choices?.[0]?.message;
-
-    // Extract text content
-    const text = (msg?.content ?? '') as string;
-
-    // Extract tool call (first one only)
-    let toolCall: LLMChatResponse['toolCall'] = null;
-    const tc = msg?.tool_calls?.[0];
-    if (tc?.function) {
-      try {
-        toolCall = {
-          name: tc.function.name,
-          args: JSON.parse(tc.function.arguments),
-        };
-      } catch {
-        console.warn('[llm/provider] failed to parse tool_call arguments:', tc.function.arguments);
-      }
-    }
-
-    return { text, toolCall };
-  } finally {
     clear();
+
+    if (res.status !== 429) break;
+
+    if (attempt + 1 >= MAX_ATTEMPTS) {
+      throw new OpenRouterError('Groq rate limit exceeded after 3 attempts — please try again later', 429);
+    }
+    console.warn(`[llm/provider] Groq rate limited (429) — backoff attempt ${attempt + 1}/${MAX_ATTEMPTS}`);
+    await waitForRateLimit(res, attempt);
   }
+
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error('[llm/provider] Groq error:', res.status, errText);
+    throw new OpenRouterError(`Groq error: ${res.status} ${res.statusText}`, res.status);
+  }
+
+  const data = await res.json();
+  const msg = data.choices?.[0]?.message;
+
+  const text = (msg?.content ?? '') as string;
+
+  let toolCall: LLMChatResponse['toolCall'] = null;
+  const tc = msg?.tool_calls?.[0];
+  if (tc?.function) {
+    try {
+      toolCall = {
+        name: tc.function.name,
+        args: JSON.parse(tc.function.arguments),
+      };
+    } catch {
+      console.warn('[llm/provider] failed to parse tool_call arguments:', tc.function.arguments);
+    }
+  }
+
+  return { text, toolCall };
 }
 
 // ─── Anthropic path ──────────────────────────────────────────────────────────

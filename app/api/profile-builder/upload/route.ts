@@ -9,12 +9,12 @@ import { flattenConfidence } from '@/lib/profile-builder/utils'
 
 // ── Vision extraction for image-based / scanned PDFs ─────────────────────────
 // When pdf-parse yields < 50 chars (scanned doc, password protected, image-only),
-// send the raw PDF bytes to a vision-capable model.
+// render each page as a PNG screenshot and send to a vision model.
 //
 // Priority:
 //   1. Anthropic SDK directly (ANTHROPIC_API_KEY) — PDF beta, most reliable
-//   2. OpenRouter + Gemini Flash (OPENROUTER_API_KEY) — accepts PDFs via standard image_url data URI
-//   3. null → falls through to existing regex fallback / clear error message
+//   2. OpenRouter + Gemini 2.0 Flash — PNG screenshots via image/png data URIs
+//   3. null → clear error message shown to user
 async function extractFieldsFromImagePDF(
   buffer: Buffer,
 ): Promise<{ fields: Record<string, unknown>; conf: Record<string, number> } | null> {
@@ -76,14 +76,40 @@ async function extractFieldsFromImagePDF(
     }
   }
 
-  // ── Path 2: OpenRouter + Gemini Flash ────────────────────────────────────
-  // Claude's `document` block type is Anthropic-native and doesn't pass through
-  // OpenRouter's OpenAI-compat layer. Gemini Flash accepts PDFs directly via the
-  // standard `image_url` field with a `data:application/pdf;base64,...` data URI —
-  // fully supported in OpenAI-compat format, no special headers needed.
+  // ── Path 2: OpenRouter + Gemini 2.0 Flash (PNG screenshots) ─────────────
+  // PDF data URIs are unreliable through OpenRouter's OpenAI-compat layer.
+  // Instead, render each PDF page as a PNG using pdf-parse's getScreenshot(),
+  // then send those as proper image/png data URIs which all vision models accept.
   if (openrouterKey) {
+    let pngBase64Pages: string[] = []
+
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { PDFParse } = await import('pdf-parse' as any)
+      const parser = new PDFParse({ data: buffer })
+      // Render first 5 pages (enough for a pitch deck overview)
+      const screenshots = await parser.getScreenshot({ first: 5, imageDataUrl: false, imageBuffer: true })
+      await parser.destroy()
+      pngBase64Pages = (screenshots.pages ?? [])
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((p: any) => (p?.data instanceof Buffer || p?.data instanceof Uint8Array)
+          ? Buffer.from(p.data).toString('base64')
+          : null
+        )
+        .filter(Boolean) as string[]
+      console.log(`[upload] rendered ${pngBase64Pages.length} PDF page(s) as PNG for vision`)
+    } catch (e) {
+      console.warn('[upload] PDF screenshot render failed:', e instanceof Error ? e.message : e)
+    }
+
+    if (pngBase64Pages.length === 0) return null
+
     try {
       return await runSections(async sec => {
+        const imageContent = pngBase64Pages.map(png => ({
+          type: 'image_url' as const,
+          image_url: { url: `data:image/png;base64,${png}` },
+        }))
         const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
           method: 'POST',
           headers: {
@@ -92,15 +118,12 @@ async function extractFieldsFromImagePDF(
             'X-Title': 'EdgeAlpha ProfileBuilder',
           },
           body: JSON.stringify({
-            model: 'google/gemini-flash-1.5',
+            model: 'google/gemini-2.0-flash-001',
             max_tokens: 800,
             messages: [{
               role: 'user',
               content: [
-                {
-                  type: 'image_url',
-                  image_url: { url: `data:application/pdf;base64,${base64}` },
-                },
+                ...imageContent,
                 { type: 'text', text: EXTRACTION_PROMPTS[sec] },
               ],
             }],
@@ -111,7 +134,6 @@ async function extractFieldsFromImagePDF(
           throw new Error(`OpenRouter ${res.status}: ${errText}`)
         }
         const data = await res.json()
-        // content may be string (OpenAI format) or array (some providers return arrays)
         const content = data.choices?.[0]?.message?.content
         if (Array.isArray(content)) {
           return content.filter((b: {type:string}) => b.type === 'text').map((b: {text:string}) => b.text).join('')

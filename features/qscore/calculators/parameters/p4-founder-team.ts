@@ -40,6 +40,14 @@ const PRIOR_EXP_RE =
 function score_4_1_DomainDepth(data: AssessmentData, _stage: ScoreStage): IndicatorScore {
   const p4 = data.p4 ?? {}
   const domainYears = p4.domainYears
+  const originText = data.problemStory ?? ''
+
+  // Exclude when no domain experience data at all
+  if (domainYears === undefined && (!originText || originText.length < 15)) {
+    return { id: '4.1', name: 'Domain Depth', rawScore: 0, excluded: true,
+      exclusionReason: 'no domain experience data provided',
+      dataQuality: { source: 'founder_claim', verificationLevel: 'unverified', confidence: 0.5, reasons: [] } }
+  }
 
   let raw: number
   let confidence: number
@@ -60,7 +68,6 @@ function score_4_1_DomainDepth(data: AssessmentData, _stage: ScoreStage): Indica
     else raw = 5.0
   } else {
     // Infer from problem story
-    const originText = data.problemStory ?? ''
     const yearMatch = originText.match(/(\d+)\s*year/i)
     confidence = 0.50
     if (yearMatch) {
@@ -92,6 +99,13 @@ function score_4_1_DomainDepth(data: AssessmentData, _stage: ScoreStage): Indica
 function score_4_2_FounderMarketFit(data: AssessmentData, _stage: ScoreStage): IndicatorScore {
   const p4 = data.p4 ?? {}
   const fmfText = p4.founderMarketFit ?? data.problemStory ?? ''
+
+  if (!fmfText || fmfText.length < 15) {
+    return { id: '4.2', name: 'Founder-Market Fit', rawScore: 0, excluded: true,
+      exclusionReason: 'no founder-market fit data provided',
+      dataQuality: { source: 'founder_claim', verificationLevel: 'unverified', confidence: 0.5, reasons: [] } }
+  }
+
   const hasInsiderFit = INSIDER_FIT_RE.test(fmfText)
   const isAcademic = ACADEMIC_RE.test(fmfText)
   const isOutsider = OUTSIDER_RE.test(fmfText)
@@ -163,6 +177,13 @@ function score_4_2_FounderMarketFit(data: AssessmentData, _stage: ScoreStage): I
 function score_4_3_FounderExperience(data: AssessmentData, _stage: ScoreStage): IndicatorScore {
   const p4 = data.p4 ?? {}
   const priorExits = p4.priorExits
+  const expText = `${data.advantageExplanation ?? ''} ${data.problemStory ?? ''}`.trim()
+
+  if (priorExits === undefined && expText.length < 15) {
+    return { id: '4.3', name: 'Founder Experience', rawScore: 0, excluded: true,
+      exclusionReason: 'no founder experience data provided',
+      dataQuality: { source: 'founder_claim', verificationLevel: 'unverified', confidence: 0.5, reasons: [] } }
+  }
 
   let raw: number
   let confidence: number
@@ -174,7 +195,6 @@ function score_4_3_FounderExperience(data: AssessmentData, _stage: ScoreStage): 
     else if (priorExits === 2) raw = 4.5
     else raw = 5.0                     // 3+ exits
   } else {
-    const expText = `${data.advantageExplanation ?? ''} ${data.problemStory ?? ''}`
     const hasExp = PRIOR_EXP_RE.test(expText)
     const hasSeniorRole = /\b(ceo|cto|cfo|vp|director|head of|chief|partner|investor|board)\b/i.test(expText)
     confidence = 0.50
@@ -206,6 +226,12 @@ function score_4_4_LeadershipCoverage(data: AssessmentData, _stage: ScoreStage):
   const inferredCount = KEY_FUNCTIONS.filter(fn => advText.includes(fn)).length
   const effective = Math.max(coveredCount, inferredCount)
 
+  if (effective === 0 && coverage.length === 0 && advText.length < 15) {
+    return { id: '4.4', name: 'Leadership Coverage', rawScore: 0, excluded: true,
+      exclusionReason: 'no leadership coverage data provided',
+      dataQuality: { source: 'founder_claim', verificationLevel: 'unverified', confidence: 0.5, reasons: [] } }
+  }
+
   let raw: number
   if (effective === 0) raw = 1.5
   else if (effective === 1) raw = 2.0
@@ -230,6 +256,13 @@ function score_4_5_TeamCohesion(data: AssessmentData, _stage: ScoreStage): Indic
   const p4 = data.p4 ?? {}
   const cohesionMonths = p4.teamCohesionMonths
   const teamChurnRecent = (data as AssessmentData & { teamChurnRecent?: boolean }).teamChurnRecent ?? false
+  const cohText = data.problemStory ?? ''
+
+  if (cohesionMonths === undefined && cohText.length < 15) {
+    return { id: '4.5', name: 'Team Cohesion', rawScore: 0, excluded: true,
+      exclusionReason: 'no team cohesion data provided',
+      dataQuality: { source: 'founder_claim', verificationLevel: 'unverified', confidence: 0.5, reasons: [] } }
+  }
 
   let raw: number
   let confidence: number
@@ -246,7 +279,6 @@ function score_4_5_TeamCohesion(data: AssessmentData, _stage: ScoreStage): Indic
     else raw = 5.0
   } else {
     confidence = 0.45
-    const cohText = data.problemStory ?? ''
     if (/\b(co.?founder|founding team|built together|together for|known each other)\b/i.test(cohText)) {
       raw = 2.5
     } else {

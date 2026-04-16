@@ -36,6 +36,12 @@ function score_5_1_ClimateLeverage(data: AssessmentData, _stage: ScoreStage): In
   const p5 = data.p5 ?? {}
   const text = p5.climateLeverage ?? ''
 
+  if (!text || text.length < 10) {
+    return { id: '5.1', name: 'Climate Leverage', rawScore: 0, excluded: true,
+      exclusionReason: 'no climate leverage data provided',
+      dataQuality: { source: 'founder_claim', verificationLevel: 'unverified', confidence: 0, reasons: [] } }
+  }
+
   let raw: number
   if (!text || text.length < 20) raw = 1.0
   else if (text.match(/no.*climate|commercial|not.*impact/i)) raw = 1.0
@@ -65,6 +71,12 @@ function score_5_2_ResourceEfficiency(data: AssessmentData, _stage: ScoreStage):
   const p5 = data.p5 ?? {}
   const text = p5.socialImpact ?? (p5 as typeof p5 & { resourceEfficiency?: string }).resourceEfficiency ?? ''
 
+  if (!text || text.length < 10) {
+    return { id: '5.2', name: 'Resource Efficiency', rawScore: 0, excluded: true,
+      exclusionReason: 'no resource efficiency data provided',
+      dataQuality: { source: 'founder_claim', verificationLevel: 'unverified', confidence: 0, reasons: [] } }
+  }
+
   let raw: number
   if (!text || text.length < 20) raw = 1.0
   else if (text.match(/efficient|optimize|waste.reduc|circular|reuse|recycl/i) && text.length >= 60) raw = 3.5
@@ -87,6 +99,12 @@ function score_5_2_ResourceEfficiency(data: AssessmentData, _stage: ScoreStage):
 function score_5_3_DevelopmentRelevance(data: AssessmentData, _stage: ScoreStage): IndicatorScore {
   const p5 = data.p5 ?? {}
   const text = p5.revenueImpactLink ?? (p5 as typeof p5 & { developmentRelevance?: string }).developmentRelevance ?? ''
+
+  if (!text || text.length < 10) {
+    return { id: '5.3', name: 'Development Relevance', rawScore: 0, excluded: true,
+      exclusionReason: 'no development relevance data provided',
+      dataQuality: { source: 'founder_claim', verificationLevel: 'unverified', confidence: 0, reasons: [] } }
+  }
 
   let raw: number
   if (!text || text.length < 20) raw = 1.0
@@ -111,6 +129,12 @@ function score_5_4_BusinessModelAlignment(data: AssessmentData, _stage: ScoreSta
   const p5 = data.p5 ?? {}
   const text = p5.scalingMechanism ?? (p5 as typeof p5 & { businessModelAlignment?: string }).businessModelAlignment ?? ''
 
+  if (!text || text.length < 10) {
+    return { id: '5.4', name: 'Business Model Alignment', rawScore: 0, excluded: true,
+      exclusionReason: 'no business model alignment data provided',
+      dataQuality: { source: 'founder_claim', verificationLevel: 'unverified', confidence: 0, reasons: [] } }
+  }
+
   let raw: number
   if (!text || text.length < 20) raw = 1.0
   else if (text.match(/revenue.*impact|impact.*revenue|aligned|integrated|core.?to.?business/i) && text.length >= 60) raw = 4.0
@@ -134,6 +158,12 @@ function score_5_4_BusinessModelAlignment(data: AssessmentData, _stage: ScoreSta
 function score_5_5_StrategicRelevance(data: AssessmentData, _stage: ScoreStage): IndicatorScore {
   const p5 = data.p5 ?? {}
   const text = p5.viksitBharatAlignment ?? (p5 as typeof p5 & { strategicRelevance?: string }).strategicRelevance ?? ''
+
+  if (!text || text.length < 10) {
+    return { id: '5.5', name: 'Strategic Relevance', rawScore: 0, excluded: true,
+      exclusionReason: 'no strategic relevance data provided',
+      dataQuality: { source: 'founder_claim', verificationLevel: 'unverified', confidence: 0, reasons: [] } }
+  }
 
   // Viksit Bharat 2047 strategic domains
   const strategicDomains = /\b(semiconductor|defence|defense|clean energy|food|agri|healthcare|infrastructure|space|fintech|digital|atmanirbhar|make.?in.?india|india.?stack)\b/i

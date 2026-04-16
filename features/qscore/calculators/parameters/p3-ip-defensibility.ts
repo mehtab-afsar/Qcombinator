@@ -63,10 +63,23 @@ function buildComplexityToMonths(s: string): number | null {
 function score_3_1_IPProtection(data: AssessmentData, _stage: ScoreStage): IndicatorScore {
   const p3 = data.p3 ?? {}
   const patentDesc = p3.patentDescription ?? ''
-  const hasPatent = p3.hasPatent ?? false
+  const hasPatent = p3.hasPatent
+
+  // Exclude only when the question was never answered (undefined/null)
+  // hasPatent: false = explicitly answered "no patent" → score 1.5, don't exclude
+  const hasPatentText = patentDesc.length > 0 || data.advantageExplanation?.toLowerCase().includes('patent')
+  if (hasPatent === undefined || hasPatent === null) {
+    if (!hasPatentText) {
+      return { id: '3.1', name: 'IP Protection', rawScore: 0, excluded: true,
+        exclusionReason: 'no IP protection data provided',
+        dataQuality: _defaultDQ(0.5) }
+    }
+  }
+
+  const hasPatentBool = hasPatent ?? false
 
   let raw: number
-  if (hasPatent && patentDesc.length >= 50) raw = 5.0
+  if (hasPatentBool && patentDesc.length >= 50) raw = 5.0
   else if (hasPatent && patentDesc.length > 0) raw = 4.0
   else if (hasPatent) raw = 3.5
   else if (patentDesc.length >= 50) raw = 3.0  // describes IP without formal patent
@@ -74,11 +87,11 @@ function score_3_1_IPProtection(data: AssessmentData, _stage: ScoreStage): Indic
   else raw = 1.5  // no IP — still possible other moats
 
   const dq: DataQuality = {
-    source: hasPatent ? 'document' : 'founder_claim',
-    verificationLevel: hasPatent && patentDesc.length > 20 ? 'doc_supported' : 'unverified',
-    confidence: hasPatent ? (patentDesc.length >= 50 ? 0.85 : 0.65) : 0.45,
+    source: hasPatentBool ? 'document' : 'founder_claim',
+    verificationLevel: hasPatentBool && patentDesc.length > 20 ? 'doc_supported' : 'unverified',
+    confidence: hasPatentBool ? (patentDesc.length >= 50 ? 0.85 : 0.65) : 0.45,
     reasons: [
-      hasPatent ? 'patent claimed' : 'no patent',
+      hasPatentBool ? 'patent claimed' : 'no patent',
       patentDesc.length >= 50 ? 'description provided' : 'no patent description',
     ],
   }
@@ -88,6 +101,13 @@ function score_3_1_IPProtection(data: AssessmentData, _stage: ScoreStage): Indic
 
 function score_3_2_TechnicalDepth(data: AssessmentData, _stage: ScoreStage): IndicatorScore {
   const techText = data.p3?.technicalDepth ?? data.advantageExplanation ?? ''
+
+  if (!techText || techText.length < 15) {
+    return { id: '3.2', name: 'Technical Depth', rawScore: 0, excluded: true,
+      exclusionReason: 'no technical depth data provided',
+      dataQuality: _defaultDQ(0.5) }
+  }
+
   const hasTech = TECH_DEPTH_RE.test(techText)
 
   let raw: number
@@ -111,6 +131,13 @@ function score_3_2_TechnicalDepth(data: AssessmentData, _stage: ScoreStage): Ind
 
 function score_3_3_KnowHowDensity(data: AssessmentData, _stage: ScoreStage): IndicatorScore {
   const knowText = data.p3?.knowHowDensity ?? data.problemStory ?? ''
+
+  if (!data.p3?.knowHowDensity && (!knowText || knowText.length < 15)) {
+    return { id: '3.3', name: 'Know-How Density', rawScore: 0, excluded: true,
+      exclusionReason: 'no know-how density data provided',
+      dataQuality: _defaultDQ(0.5) }
+  }
+
   const hasKnowHow = KNOW_HOW_RE.test(knowText)
   const isSpecific = /\b(\d+\s*years|\d+\s*clients|\d+\s*integrations|\d+\s*customers|enterprise.?grade|production.?ready)\b/i.test(knowText)
 
@@ -138,6 +165,12 @@ function score_3_4_BuildComplexity(data: AssessmentData, stage: ScoreStage): Ind
   const isComplex = BUILD_COMPLEXITY_RE.test(complexText)
   const complexMonths = buildComplexityToMonths(complexText)
   const buildTime = data.buildTime ?? complexMonths
+
+  if (buildTime === null && !isComplex && (!complexText || complexText.length < 15)) {
+    return { id: '3.4', name: 'Build Complexity', rawScore: 0, excluded: true,
+      exclusionReason: 'no build complexity data provided',
+      dataQuality: _defaultDQ(0.5) }
+  }
 
   let raw: number
   if (buildTime !== null && buildTime !== undefined) {
@@ -174,9 +207,15 @@ function score_3_4_BuildComplexity(data: AssessmentData, stage: ScoreStage): Ind
 
 export function score_3_5_ReplicationBarrier(data: AssessmentData, _stage: ScoreStage): IndicatorScore {
   const repCost = data.p3?.replicationCostUsd
-  const repMonths = (data as AssessmentData & { replicationTimeMonths?: number }).replicationTimeMonths
+  const repMonths = data.p3?.replicationTimeMonths ?? (data as AssessmentData & { replicationTimeMonths?: number }).replicationTimeMonths
   const techText = data.p3?.technicalDepth ?? ''
   const complexText = data.p3?.buildComplexity ?? ''
+
+  if (repCost === undefined && repMonths === undefined && !techText && !complexText) {
+    return { id: '3.5', name: 'Replication Barrier', rawScore: 0, excluded: true,
+      exclusionReason: 'no replication barrier data provided',
+      dataQuality: _defaultDQ(0.5) }
+  }
 
   let raw: number
   if (repCost !== undefined) {

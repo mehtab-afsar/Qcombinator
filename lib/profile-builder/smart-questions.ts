@@ -54,7 +54,7 @@ const FIELD_QUESTIONS: Record<string, QuestionDef> = {
   // Section 1 — Market Validation
   customerCommitment: {
     sectionKey: '1', priority: 10,
-    text: 'Tell me about your strongest customer commitment.',
+    text: 'Can you share more detail on specific customer projects, LOIs, pilots, or current engagements?',
     getContext: (e) => {
       const c = e.customerCommitment
       if (c && typeof c === 'string' && c.length > 5) return `We found: "${c.slice(0, 70)}"`
@@ -77,7 +77,7 @@ const FIELD_QUESTIONS: Record<string, QuestionDef> = {
   },
   hasPayingCustomers: {
     sectionKey: '1', priority: 8,
-    text: 'Do you have paying customers? If so, how many and at what price point?',
+    text: 'Can you share current payment history, past revenues, paid pilots, or commercial contracts?',
     getContext: (e) => {
       if (e.largestContractUsd) return `We found a $${(e.largestContractUsd as number).toLocaleString?.() ?? e.largestContractUsd} contract — need total paying customer count`
       if (e.payingCustomerDetail) return `We found: "${String(e.payingCustomerDetail).slice(0, 60)}" — need count and price point`
@@ -87,7 +87,7 @@ const FIELD_QUESTIONS: Record<string, QuestionDef> = {
   },
   hasRetention: {
     sectionKey: '1', priority: 7,
-    text: 'Tell me about customer retention.',
+    text: 'Can you share whether customers continue using, renewing, or expanding after the first engagement?',
     getContext: (e) => {
       const count = e.payingCustomerDetail ?? e.hasPayingCustomers
       if (count && e.largestContractUsd) return `We found: paying customers at $${(e.largestContractUsd as number).toLocaleString?.() ?? e.largestContractUsd} contract value`
@@ -98,7 +98,7 @@ const FIELD_QUESTIONS: Record<string, QuestionDef> = {
   },
   salesCycleLength: {
     sectionKey: '1', priority: 6,
-    text: 'How long does it take to close a deal from first contact?',
+    text: 'How long does it typically take to move from first contact to pilot, and from pilot to a paid contract?',
     getContext: (e) => {
       if (e.hasPayingCustomers === true) return 'You have revenue — sales cycle length affects your traction score'
       if (e.largestContractUsd) return `With a $${(e.largestContractUsd as number).toLocaleString?.() ?? e.largestContractUsd} contract, cycle length matters for scoring`
@@ -110,7 +110,7 @@ const FIELD_QUESTIONS: Record<string, QuestionDef> = {
   // Section 2 — Market & Competition
   'p2.tamDescription': {
     sectionKey: '2', priority: 10,
-    text: 'Describe your total addressable market.',
+    text: 'Can you share your realistic target market size, reachable customer segment, and expansion potential over time?',
     getContext: (e) => {
       const competitors = getNestedValue(e, 'p2.competitorCount')
       if (competitors != null) return `We found ${competitors} competitors — still need your TAM size`
@@ -122,7 +122,7 @@ const FIELD_QUESTIONS: Record<string, QuestionDef> = {
   },
   'p2.marketUrgency': {
     sectionKey: '2', priority: 9,
-    text: 'What changed recently that makes this possible or urgent now?',
+    text: 'Can you explain how painful, costly, frequent, or strategic this problem is for customers today?',
     getContext: (e) => {
       const tam = getNestedValue(e, 'p2.tamDescription')
       if (tam) return `We found your TAM description — need the "why now" catalyst`
@@ -134,7 +134,7 @@ const FIELD_QUESTIONS: Record<string, QuestionDef> = {
   },
   'p2.competitorDensityContext': {
     sectionKey: '2', priority: 8,
-    text: 'Who are your main competitors and how are you different?',
+    text: 'Can you share who the main competitors and substitutes are, and why there is still room for a new player to establish a strong position?',
     getContext: (e) => {
       const count = getNestedValue(e, 'p2.competitorCount')
       return count !== undefined ? `We see ${count} competitors mentioned — need your specific differentiator` : ''
@@ -143,7 +143,7 @@ const FIELD_QUESTIONS: Record<string, QuestionDef> = {
   },
   'p2.valuePool': {
     sectionKey: '2', priority: 7,
-    text: 'What is the total economic value of the problem you\'re solving — how much money does this problem cost your customers each year?',
+    text: 'Can you share more on customer budgets, pricing levels, contract values, and the margin potential in this market?',
     getContext: (e) => {
       const tam = getNestedValue(e, 'p2.tamDescription')
       if (tam) return `We found your TAM description — need to quantify the value pool (cost of the problem)`
@@ -153,7 +153,7 @@ const FIELD_QUESTIONS: Record<string, QuestionDef> = {
   },
   'p2.expansionPotential': {
     sectionKey: '2', priority: 6,
-    text: 'How do you expand beyond your initial market? What\'s your path to 10× your current addressable market?',
+    text: 'Can you explain which adjacent use cases, customer segments, geographies, or product layers you can expand into after the initial wedge?',
     getContext: (e) => {
       const tam = getNestedValue(e, 'p2.tamDescription')
       if (tam) return `We found your primary TAM — need your expansion strategy beyond the beachhead`
@@ -165,7 +165,7 @@ const FIELD_QUESTIONS: Record<string, QuestionDef> = {
   // Section 3 — IP & Technology
   'p3.hasPatent': {
     sectionKey: '3', priority: 10,
-    text: 'Do you have any patents filed or granted? Any trade secrets or proprietary data?',
+    text: 'Can you share whether you have any filed or granted patents, exclusive licenses, trademarks, or other legally protected assets relevant to the core business?',
     getContext: (e) => {
       const depth = getNestedValue(e, 'p3.technicalDepth')
       if (depth) return `We found your tech depth — need patent/trade secret status to complete IP score`
@@ -177,7 +177,7 @@ const FIELD_QUESTIONS: Record<string, QuestionDef> = {
   },
   'p3.buildComplexity': {
     sectionKey: '3', priority: 9,
-    text: 'How long would it take a well-funded competitor to replicate what you\'ve built?',
+    text: 'Can you explain how much time, iteration, validation, or engineering effort was required to reach the current product state, and why it would be hard to replicate?',
     getContext: (e) => {
       const cost = getNestedValue(e, 'p3.replicationCostUsd')
       const time = getNestedValue(e, 'p3.replicationTimeMonths')
@@ -190,7 +190,7 @@ const FIELD_QUESTIONS: Record<string, QuestionDef> = {
   },
   'p3.replicationTimeMonths': {
     sectionKey: '3', priority: 9,
-    text: 'How many months would it take a well-funded competitor to replicate your technology?',
+    text: 'How many months would it take a well-funded competitor to replicate your technology — and what would make it difficult?',
     getContext: (e) => {
       const cost = getNestedValue(e, 'p3.replicationCostUsd')
       if (cost) return `We found replication cost — still need the time estimate in months`
@@ -202,18 +202,27 @@ const FIELD_QUESTIONS: Record<string, QuestionDef> = {
   },
   'p3.technicalDepth': {
     sectionKey: '3', priority: 8,
-    text: 'What makes your technology genuinely hard to build?',
+    text: 'Can you explain what is technically difficult, novel, or sophisticated about the product and why it is not easy to build?',
     getContext: (e) => {
       const pat = getNestedValue(e, 'p3.hasPatent')
       return pat ? `Patent status: ${pat} — now describe what makes the tech hard to replicate` : ''
     },
     helpText: 'Proprietary data, novel algorithm, unique architecture, rare expertise',
   },
+  'p3.knowHowDensity': {
+    sectionKey: '3', priority: 7,
+    text: 'Can you share what specialized expertise, tacit learning, unique datasets, or team-specific capabilities are embedded in the business?',
+    getContext: (e) => {
+      const depth = getNestedValue(e, 'p3.technicalDepth')
+      return depth ? 'We found your tech depth — need to understand the proprietary know-how embedded in the team' : ''
+    },
+    helpText: 'Trade secrets, proprietary datasets, accumulated process know-how, rare team expertise',
+  },
 
   // Section 4 — Team
   'p4.domainYears': {
     sectionKey: '4', priority: 10,
-    text: 'How many years of direct experience do you have in this industry?',
+    text: 'Can you share the founders\' and core team\'s direct experience, sector exposure, and years spent in this domain?',
     getContext: (e) => {
       const fit = getNestedValue(e, 'p4.founderMarketFit')
       if (fit) return `We found founder-market fit narrative — need exact years of experience`
@@ -225,7 +234,7 @@ const FIELD_QUESTIONS: Record<string, QuestionDef> = {
   },
   'p4.founderMarketFit': {
     sectionKey: '4', priority: 9,
-    text: 'Why are YOU specifically the right person to build this company?',
+    text: 'Can you explain why this team is particularly well positioned to solve this problem and win in this market?',
     getContext: (e) => {
       const years = getNestedValue(e, 'p4.domainYears')
       return years ? `We found: ${years} years of domain experience` : ''
@@ -234,7 +243,7 @@ const FIELD_QUESTIONS: Record<string, QuestionDef> = {
   },
   'p4.teamCoverage': {
     sectionKey: '4', priority: 8,
-    text: 'What key functions does your founding team cover?',
+    text: 'Can you explain how the company currently covers the critical functions across product, technology, commercial, and operations?',
     getContext: (e) => {
       const years = getNestedValue(e, 'p4.domainYears')
       if (years) return `${years} years domain experience found — need team function coverage`
@@ -246,7 +255,7 @@ const FIELD_QUESTIONS: Record<string, QuestionDef> = {
   },
   'p4.priorExits': {
     sectionKey: '4', priority: 7,
-    text: 'Have any of your founding team members previously built and exited a company?',
+    text: 'Can you share any previous founding, operating, scaling, or leadership experience that is relevant to the current stage?',
     getContext: (e) => {
       const years = getNestedValue(e, 'p4.domainYears')
       if (years) return `We found ${years} years domain experience — prior exits significantly boost team score`
@@ -256,7 +265,7 @@ const FIELD_QUESTIONS: Record<string, QuestionDef> = {
   },
   'p4.teamCohesionMonths': {
     sectionKey: '4', priority: 6,
-    text: 'How long have the core founding team members worked together?',
+    text: 'Can you share more on team retention, founder alignment, key hires, and how the team has handled pressure, pivots, or execution challenges together?',
     getContext: (e) => {
       const coverage = getNestedValue(e, 'p4.teamCoverage')
       if (coverage) return `Team coverage found — cohesion (time working together) is the final team signal`
@@ -267,7 +276,37 @@ const FIELD_QUESTIONS: Record<string, QuestionDef> = {
     helpText: 'Months working together on this company specifically — prior co-worker history counts',
   },
 
-  // Section 5 — Financials
+  // Section 5 — Financials & Impact
+  'p5.climateLeverage': {
+    sectionKey: '5', priority: 6,
+    text: 'Can you share whether the company creates measurable reductions in emissions, carbon intensity, energy use, or other climate-relevant externalities?',
+    getContext: (_e) => '',
+    helpText: 'Quantified CO₂ reduction, energy savings, avoided emissions, or climate-positive substitution effects',
+  },
+  'p5.socialImpact': {
+    sectionKey: '5', priority: 5,
+    text: 'Can you explain how the product improves the use of materials, energy, water, labor, time, or cost compared with current alternatives?',
+    getContext: (_e) => '',
+    helpText: 'Reductions in input use, waste, time, cost, energy, water, or material burden',
+  },
+  'p5.revenueImpactLink': {
+    sectionKey: '5', priority: 5,
+    text: 'Can you explain how the business improves health, food, education, livelihoods, infrastructure, inclusion, resilience, or other important societal outcomes?',
+    getContext: (_e) => '',
+    helpText: 'Links to meaningful societal outcomes — access, affordability, resilience, productivity, or quality of life',
+  },
+  'p5.businessModelAlignment': {
+    sectionKey: '5', priority: 4,
+    text: 'Can you explain how your revenue model is directly linked to the impact or systemic outcome you aim to create?',
+    getContext: (_e) => '',
+    helpText: 'Whether the company earns more when it creates more of the desired outcome',
+  },
+  'p5.viksitBharatAlignment': {
+    sectionKey: '5', priority: 4,
+    text: 'Can you explain how the business contributes to priority capability areas such as sovereignty, resilience, domestic industrial capacity, deep tech capability, or national development priorities?',
+    getContext: (_e) => '',
+    helpText: 'Links to strategic sectors, domestic capability building, supply chain resilience, or critical infrastructure',
+  },
   'financial.mrr': {
     sectionKey: '5', priority: 10,
     text: 'What is your current monthly recurring revenue (MRR)?',

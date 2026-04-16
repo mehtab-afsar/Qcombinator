@@ -61,6 +61,15 @@ function score_1_1_EarlySignal(data: AssessmentData, stage: ScoreStage): Indicat
   const commitment = data.customerCommitment ?? ''
   const customerList = data.customerList ?? []
 
+  // Exclude when no engagement data at all has been provided
+  const hasNoData = data.conversationCount == null && data.hasPayingCustomers == null
+    && !data.customerCommitment && (data.customerList ?? []).length === 0
+  if (hasNoData) {
+    return { id: '1.1', name: 'Early Signal', rawScore: 0, excluded: true,
+      exclusionReason: 'no customer engagement data provided',
+      dataQuality: defaultDQ(0.5) }
+  }
+
   let raw: number
   if (stage === 'early') {
     if (count === 0) raw = 1.0
@@ -313,6 +322,13 @@ function score_1_5_Scale(data: AssessmentData, stage: ScoreStage): IndicatorScor
   const customerList = data.customerList ?? []
   const p2 = data.p2 ?? {}
   const expansionDesc = p2.expansionPotential ?? ''
+
+  // Exclude when no scale/expansion data provided
+  if (!expansionDesc && customerList.length === 0 && !data.targetCustomers && !data.largestContractUsd) {
+    return { id: '1.5', name: 'Scale', rawScore: 0, excluded: true,
+      exclusionReason: 'no scale or expansion data provided',
+      dataQuality: defaultDQ(0.5) }
+  }
 
   let raw: number
   if (stage === 'early') {

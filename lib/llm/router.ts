@@ -38,11 +38,11 @@ interface RoutingConfig {
 }
 
 const ROUTING_TABLE: Record<TaskClass, RoutingConfig> = {
-  extraction:     { maxTokens: 2000, temperature: 0.1, model: GROQ_ECONOMY },
+  extraction:     { maxTokens: 2000, temperature: 0.1, model: GROQ_STANDARD },
   generation:     { maxTokens: 3000, temperature: 0.55, model: GROQ_STANDARD },
   reasoning:      { maxTokens: 1200, temperature: 0.2, useAnthropic: true },
   classification: { maxTokens: 250,  temperature: 0.0, model: GROQ_ECONOMY },
-  summarisation:  { maxTokens: 600,  temperature: 0.3, model: GROQ_ECONOMY },
+  summarisation:  { maxTokens: 600,  temperature: 0.3, model: GROQ_STANDARD },
 }
 
 // Tier → task class mapping (for explicit tier-based calls)

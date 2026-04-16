@@ -94,17 +94,17 @@ export function getRequiredFields(section: number, stage: string): string[] {
     3: {
       // replicationTimeMonths is what the LLM actually extracts from "18-36 months" answers;
       // buildComplexity is a categorical bucket that often stays null even when the question is answered
-      base: ['p3.hasPatent', 'p3.replicationTimeMonths'],
-      growthOnly: ['p3.technicalDepth', 'p3.knowHowDensity', 'p3.replicationCostUsd'],
+      base: ['p3.hasPatent', 'p3.replicationTimeMonths', 'p3.knowHowDensity'],
+      growthOnly: ['p3.technicalDepth', 'p3.replicationCostUsd'],
     },
     4: {
       base: ['p4.domainYears', 'p4.founderMarketFit'],
       growthOnly: ['p4.priorExits', 'p4.teamCoverage', 'p4.teamCohesionMonths'],
     },
     5: {
-      base: ['financial.monthlyBurn', 'financial.runway'],
+      base: ['financial.monthlyBurn', 'financial.runway', 'p5.businessModelAlignment', 'p5.viksitBharatAlignment'],
       revenueOnly: ['financial.mrr'],
-      growthOnly: ['p5.climateLeverage', 'p5.revenueImpactLink'],
+      growthOnly: ['p5.climateLeverage', 'p5.revenueImpactLink', 'p5.socialImpact'],
     },
   }
 

@@ -32,6 +32,14 @@ const EXPANSION_RE =
 
 export function score_2_1_MarketSize(data: AssessmentData, stage: ScoreStage): IndicatorScore {
   const tamText = (data.p2?.tamDescription ?? '').toLowerCase()
+
+  // Exclude when no market size data provided at all
+  if (!tamText || tamText.length < 10) {
+    return { id: '2.1', name: 'Market Size', rawScore: 0, excluded: true,
+      exclusionReason: 'no market size description provided',
+      dataQuality: _defaultDQ(0.5) }
+  }
+
   const hasNumber = /\$[\d,.]+[mbt]?|\d+[\s,]*(million|billion|trillion)/.test(tamText)
   const hasReasoning = /\b(because|since|based on|assuming|estimate|research|data|report|ibis|gartner|forrester|bottom.up|sam|som)\b/.test(tamText)
   const isLong = tamText.length >= 80
@@ -115,6 +123,13 @@ export function score_2_1_MarketSize(data: AssessmentData, stage: ScoreStage): I
 
 function score_2_2_MarketUrgency(data: AssessmentData, _stage: ScoreStage): IndicatorScore {
   const urgencyText = data.p2?.marketUrgency ?? data.problemStory ?? ''
+
+  if (!urgencyText || urgencyText.length < 10) {
+    return { id: '2.2', name: 'Market Urgency', rawScore: 0, excluded: true,
+      exclusionReason: 'no market urgency data provided',
+      dataQuality: _defaultDQ(0.5) }
+  }
+
   const hasTrigger = URGENCY_RE.test(urgencyText)
   const isSpecific = urgencyText.length >= 80
   const hasTimeRef = /\b(20(2[3-9]|3[0-9])|last (year|month|quarter)|this year|recently|since 20)\b/i.test(urgencyText)
@@ -141,6 +156,13 @@ function score_2_2_MarketUrgency(data: AssessmentData, _stage: ScoreStage): Indi
 
 function score_2_3_ValuePool(data: AssessmentData, _stage: ScoreStage): IndicatorScore {
   const valueText = data.p2?.valuePool ?? ''
+
+  if (!valueText || valueText.length < 10) {
+    return { id: '2.3', name: 'Value Pool', rawScore: 0, excluded: true,
+      exclusionReason: 'no value pool data provided',
+      dataQuality: _defaultDQ(0.5) }
+  }
+
   const hasEcon = /\$[\d,.]+[mbt]?|\d+[\s,]*(million|billion|hour|day|week|year)\b/i.test(valueText)
   const hasWaste = /\b(waste|inefficien|cost|overhead|manual|legacy|broken|friction|loss|churn|down.?time)\b/i.test(valueText)
 
@@ -167,6 +189,13 @@ function score_2_3_ValuePool(data: AssessmentData, _stage: ScoreStage): Indicato
 
 function score_2_4_ExpansionPotential(data: AssessmentData, _stage: ScoreStage): IndicatorScore {
   const expansionText = data.p2?.expansionPotential ?? data.advantageExplanation ?? ''
+
+  if (!expansionText || expansionText.length < 10) {
+    return { id: '2.4', name: 'Expansion Potential', rawScore: 0, excluded: true,
+      exclusionReason: 'no expansion potential data provided',
+      dataQuality: _defaultDQ(0.5) }
+  }
+
   const hasExpansion = EXPANSION_RE.test(expansionText)
   const hasStages = /\b(phase|step|first|then|next|after|later|eventually|year [23]|series [ab])\b/i.test(expansionText)
 
@@ -194,6 +223,14 @@ function score_2_4_ExpansionPotential(data: AssessmentData, _stage: ScoreStage):
 export function score_2_5_CompetitiveSpace(data: AssessmentData, _stage: ScoreStage): IndicatorScore {
   const compCount = data.p2?.competitorCount
   const compContext = data.p2?.competitorDensityContext ?? ''
+
+  // Exclude when no competitive data provided at all
+  if (compCount === undefined && compContext.length < 10) {
+    return { id: '2.5', name: 'Competitive Space', rawScore: 0, excluded: true,
+      exclusionReason: 'no competitive landscape data provided',
+      dataQuality: _defaultDQ(0.5) }
+  }
+
   const hasPositioning = /\b(different|unlike|instead of|better than|unique|niche|whitespace|position|moat|10x)\b/i.test(compContext)
   const hasNamedCompetitors = compContext.length > 30
 
