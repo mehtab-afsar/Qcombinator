@@ -246,7 +246,16 @@ export async function llmChat(params: {
     return callAnthropicWithTools(messages, { maxTokens, temperature, tools });
   }
 
-  return callOpenRouterWithTools(messages, { maxTokens, temperature, tools, model });
+  try {
+    return await callOpenRouterWithTools(messages, { maxTokens, temperature, tools, model });
+  } catch (err) {
+    // Groq rate-limited — fall back to Anthropic if key is available
+    if (err instanceof OpenRouterError && err.statusCode === 429 && process.env.ANTHROPIC_API_KEY) {
+      console.warn('[llm/provider] Groq rate limit hit — falling back to Anthropic claude-haiku-4-5');
+      return callAnthropicWithTools(messages, { maxTokens, temperature, tools });
+    }
+    throw err;
+  }
 }
 
 /**
@@ -303,8 +312,7 @@ export async function* llmStream(params: {
   if (!res.ok) {
     clear();
     const errText = await res.text();
-    throw new OpenRouterError(`Groq stream error: ${res.status}`, res.status);
-    void errText;
+    throw new OpenRouterError(`Groq stream error: ${res.status} — ${errText}`, res.status);
   }
 
   // Accumulate tool call fragments across stream chunks
