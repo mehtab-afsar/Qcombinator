@@ -76,40 +76,11 @@ async function extractFieldsFromImagePDF(
     }
   }
 
-  // ── Path 2: OpenRouter + Gemini 2.0 Flash (PNG screenshots) ─────────────
-  // PDF data URIs are unreliable through OpenRouter's OpenAI-compat layer.
-  // Instead, render each PDF page as a PNG using pdf-parse's getScreenshot(),
-  // then send those as proper image/png data URIs which all vision models accept.
+  // ── Path 2: OpenRouter + Gemini 2.0 Flash (native PDF support) ──────────
+  // Gemini accepts PDFs as data URIs directly — no screenshot rendering needed.
   if (openrouterKey) {
-    let pngBase64Pages: string[] = []
-
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { PDFParse } = await import('pdf-parse' as any)
-      const parser = new PDFParse({ data: buffer })
-      // Render first 5 pages (enough for a pitch deck overview)
-      const screenshots = await parser.getScreenshot({ first: 5, imageDataUrl: false, imageBuffer: true })
-      await parser.destroy()
-      pngBase64Pages = (screenshots.pages ?? [])
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .map((p: any) => (p?.data instanceof Buffer || p?.data instanceof Uint8Array)
-          ? Buffer.from(p.data).toString('base64')
-          : null
-        )
-        .filter(Boolean) as string[]
-      console.log(`[upload] rendered ${pngBase64Pages.length} PDF page(s) as PNG for vision`)
-    } catch (e) {
-      console.warn('[upload] PDF screenshot render failed:', e instanceof Error ? e.message : e)
-    }
-
-    if (pngBase64Pages.length === 0) return null
-
     try {
       return await runSections(async sec => {
-        const imageContent = pngBase64Pages.map(png => ({
-          type: 'image_url' as const,
-          image_url: { url: `data:image/png;base64,${png}` },
-        }))
         const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
           method: 'POST',
           headers: {
@@ -123,7 +94,10 @@ async function extractFieldsFromImagePDF(
             messages: [{
               role: 'user',
               content: [
-                ...imageContent,
+                {
+                  type: 'image_url',
+                  image_url: { url: `data:application/pdf;base64,${base64}` },
+                },
                 { type: 'text', text: EXTRACTION_PROMPTS[sec] },
               ],
             }],
