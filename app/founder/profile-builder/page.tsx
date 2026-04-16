@@ -558,6 +558,19 @@ export default function ProfileBuilderPage() {
     formData.append('file', file)
     formData.append('section', String(typeof currentStep === 'number' ? currentStep : 0))
 
+    // Sections 1-5: immediately show a user bubble with the filename + typing dots
+    if (typeof currentStep === 'number' && currentStep >= 1) {
+      const sk = String(currentStep)
+      setSections(prev => {
+        const sec = prev[sk] ?? initSection()
+        return {
+          ...prev,
+          [sk]: { ...sec, messages: [...sec.messages, { role: 'user' as const, text: `📎 ${file.name}` }] },
+        }
+      })
+      setIsTyping(true)
+    }
+
     const res = await fetch('/api/profile-builder/upload', {
       method: 'POST',
       headers: { Authorization: `Bearer ${token!}` },
@@ -765,6 +778,8 @@ export default function ProfileBuilderPage() {
       saveSection(secKey, updated, token!)
       return { ...prev, [secKey]: updated }
     })
+    // Stop typing dots now that agent reply is in messages
+    setIsTyping(false)
 
     setUploadedFiles(prev => {
       const next = [...prev, { name: file.name, fields: fieldsFound }]
@@ -800,6 +815,7 @@ export default function ProfileBuilderPage() {
       try {
         await uploadOneFile(toProcess[i])
       } catch (e) {
+        setIsTyping(false)
         errors.push(`${toProcess[i].name}: ${e instanceof Error ? e.message : 'failed'}`)
       }
       // Stagger uploads to spread Groq API load — avoids hitting TPM rate limit on file #3+
@@ -1382,8 +1398,8 @@ export default function ProfileBuilderPage() {
                 <div ref={chatEndRef} />
               </div>
 
-              {/* Upload trigger */}
-              {uploadTrigger && (
+              {/* Upload trigger / loading banner — shows for keyword triggers AND manual attach */}
+              {(uploadTrigger || uploadLoading) && (
                 <div style={{
                   margin: '12px 0', padding: '12px 16px', borderRadius: 10,
                   background: uploadLoading ? '#FFF7ED' : '#FFF7ED',
