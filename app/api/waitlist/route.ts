@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { log } from '@/lib/logger'
 
 // POST /api/waitlist — public, no auth
 // Body: { testId, userId, email, name, source }
@@ -42,7 +43,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (err) {
-    console.error('Waitlist signup error:', err)
+    log.error('Waitlist signup error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

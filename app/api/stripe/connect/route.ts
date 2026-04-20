@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { log } from '@/lib/logger'
 
 // POST /api/stripe/connect
 // Body: { restrictedKey }
@@ -115,7 +116,7 @@ export async function POST(request: NextRequest) {
       .eq('user_id', user.id)
 
     if (updateError) {
-      console.error('[Stripe Connect] Profile update error:', updateError)
+      log.error('[Stripe Connect] Profile update error:', updateError)
       return NextResponse.json({ error: 'Failed to save verified metrics' }, { status: 500 })
     }
 
@@ -199,7 +200,7 @@ export async function POST(request: NextRequest) {
       deltaFlag: deltaFlag ?? null,
     })
   } catch (err) {
-    console.error('[Stripe Connect] Error:', err)
+    log.error('[Stripe Connect] Error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -221,7 +222,7 @@ export async function GET() {
 
     return NextResponse.json({ profile: profile ?? null })
   } catch (err) {
-    console.error('[Stripe Connect GET] Error:', err)
+    log.error('[Stripe Connect GET] Error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

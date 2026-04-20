@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/sage/standup
 // Body: { artifactId? }
@@ -160,7 +161,7 @@ Top win: [what went well]</code>
 
     return NextResponse.json({ sent: true, email: founderEmail, okrCount: okrs.length, weekNum })
   } catch (err) {
-    console.error('Sage standup error:', err)
+    log.error('Sage standup error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

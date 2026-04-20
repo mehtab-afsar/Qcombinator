@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/nova/distribute
 // Distributes a PMF survey to a list of customer emails via Resend.
@@ -147,7 +148,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ sent, failed, surveyUrl })
   } catch (err) {
-    console.error('Nova distribute POST error:', err)
+    log.error('Nova distribute POST error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

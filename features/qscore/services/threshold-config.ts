@@ -8,6 +8,7 @@
  */
 
 import { SupabaseClient } from '@supabase/supabase-js';
+import { log } from '@/lib/logger'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -57,7 +58,7 @@ export async function fetchQScoreThresholds(supabase: SupabaseClient): Promise<T
     .order('tier_rank');
 
   if (error || !data) {
-    console.warn('[Q-Score Thresholds] Failed to fetch:', error?.message);
+    log.warn('[Q-Score Thresholds] Failed to fetch:', error?.message);
     return thresholdCache ?? new Map(); // return stale cache or empty on failure
   }
 
@@ -100,7 +101,7 @@ export async function fetchDimensionWeights(
     .select('sector, dimension, weight');
 
   if (error || !data) {
-    console.warn('[Q-Score Weights] Failed to fetch:', error?.message);
+    log.warn('[Q-Score Weights] Failed to fetch:', error?.message);
     return defaultWeights();
   }
 

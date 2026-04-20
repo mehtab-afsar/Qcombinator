@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/leo/term-sheet
 // Body: { text } — raw term sheet text (paste)
@@ -97,7 +98,7 @@ Return ONLY valid JSON with this exact shape:
       highlights:  parsed.highlights ?? [],
     })
   } catch (err) {
-    console.error('Leo term-sheet error:', err)
+    log.error('Leo term-sheet error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

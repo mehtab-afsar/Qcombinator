@@ -1,12 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import {
-  Inbox, CheckCircle, Users, ChevronRight,
-  ArrowLeft, MessageSquare, TrendingUp,
-  RefreshCw, Send, X,
+  CheckCircle, X, Send, TrendingUp, ChevronRight,
+  Inbox, MessageSquare,
 } from 'lucide-react'
 import { bg, surf, bdr, ink, muted, green, amber, red } from '@/lib/constants/colors'
 
@@ -25,8 +24,8 @@ interface PendingRequest {
   requestedDate: string
 }
 
-interface AcceptedConversation {
-  id: string           // connection_request id (used as connectionId for messaging)
+interface Conversation {
+  id: string
   founderId: string
   founderName: string
   startupName: string
@@ -38,8 +37,6 @@ interface AcceptedConversation {
   lastMessage?: { body: string; created_at: string; senderId: string } | null
 }
 
-type Tab = 'requests' | 'conversations'
-
 interface Message {
   id: string
   sender_id: string
@@ -48,21 +45,23 @@ interface Message {
   created_at: string
 }
 
+type Panel = { type: 'request'; data: PendingRequest } | { type: 'conversation'; data: Conversation } | null
+
 // ─── helpers ──────────────────────────────────────────────────────────────────
 function relDate(iso: string) {
-  const diff  = Date.now() - new Date(iso).getTime()
-  const days  = Math.floor(diff / 86400000)
-  const hours = Math.floor(diff / 3600000)
-  if (hours < 1)  return 'Just now'
-  if (hours < 24) return `${hours}h ago`
-  if (days === 1) return 'Yesterday'
-  if (days < 30)  return `${days}d ago`
+  const diff = Date.now() - new Date(iso).getTime()
+  const h = Math.floor(diff / 3600000)
+  const d = Math.floor(diff / 86400000)
+  if (h < 1) return 'Just now'
+  if (h < 24) return `${h}h ago`
+  if (d === 1) return 'Yesterday'
+  if (d < 30) return `${d}d ago`
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-function qColor(n: number) {
-  return n >= 70 ? green : n >= 50 ? amber : red
-}
+function qColor(n: number) { return n >= 70 ? green : n >= 50 ? amber : red }
+function qBg(n: number)    { return n >= 70 ? '#F0FDF4' : n >= 50 ? '#FFFBEB' : '#FEF2F2' }
+function qBorder(n: number){ return n >= 70 ? '#86EFAC' : n >= 50 ? '#FDE68A' : '#FECACA' }
 
 function initials(name: string) {
   return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
@@ -71,19 +70,22 @@ function initials(name: string) {
 // ─── component ────────────────────────────────────────────────────────────────
 export default function InvestorMessagesPage() {
   const router = useRouter()
-  const [tab,           setTab]           = useState<Tab>('requests')
   const [requests,      setRequests]      = useState<PendingRequest[]>([])
-  const [conversations, setConversations] = useState<AcceptedConversation[]>([])
+  const [conversations, setConversations] = useState<Conversation[]>([])
   const [loading,       setLoading]       = useState(true)
-  const [selected,      setSelected]      = useState<AcceptedConversation | null>(null)
+  const [panel,         setPanel]         = useState<Panel>(null)
+  const [activeTab,     setActiveTab]     = useState<'requests' | 'conversations'>('requests')
   const [actionLoading, setActionLoading] = useState<string | null>(null)
-  const [toast,         setToast]         = useState<string | null>(null)
   const [messages,      setMessages]      = useState<Message[]>([])
   const [msgLoading,    setMsgLoading]    = useState(false)
   const [msgInput,      setMsgInput]      = useState('')
   const [sending,       setSending]       = useState(false)
   const [myUserId,      setMyUserId]      = useState<string | null>(null)
+  const [toast,         setToast]         = useState<string | null>(null)
+  const bottomRef   = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
+  // ── load ───────────────────────────────────────────────────────────────────
   useEffect(() => {
     async function load() {
       try {
@@ -108,43 +110,66 @@ export default function InvestorMessagesPage() {
               connectedAt: string; personalMessage?: string;
               lastMessage?: { body: string; created_at: string; senderId: string } | null;
             }) => ({
-              id: c.connectionId ?? c.id, // connectionId = connection_request.id for messaging
-              founderId: c.id,
-              founderName: c.founderName,
-              startupName: c.name,
-              stage: c.stage,
-              industry: c.sector,
-              qScore: c.qScore,
-              connectedAt: c.connectedAt,
+              id:              c.connectionId ?? c.id,
+              founderId:       c.id,
+              founderName:     c.founderName,
+              startupName:     c.name,
+              stage:           c.stage,
+              industry:        c.sector,
+              qScore:          c.qScore,
+              connectedAt:     c.connectedAt,
               personalMessage: c.personalMessage,
-              lastMessage: c.lastMessage ?? null,
+              lastMessage:     c.lastMessage ?? null,
             }))
           )
         }
-      } catch { /* silently fail */ } finally {
-        setLoading(false)
-      }
+      } catch { /* silently fail */ } finally { setLoading(false) }
     }
     load()
   }, [])
 
-  // Load messages when a conversation is selected
+  // Auto-open first unread / first request
   useEffect(() => {
-    if (!selected) { setMessages([]); return }
+    if (loading) return
+    if (requests.length > 0 && !panel) {
+      setActiveTab('requests')
+      setPanel({ type: 'request', data: requests[0] })
+    } else if (conversations.length > 0 && !panel) {
+      setActiveTab('conversations')
+      setPanel({ type: 'conversation', data: conversations[0] })
+    }
+  }, [loading]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load messages when conversation selected
+  useEffect(() => {
+    if (!panel || panel.type !== 'conversation') { setMessages([]); return }
     setMsgLoading(true)
-    fetch(`/api/messages?connectionId=${selected.id}`)
+    fetch(`/api/messages?connectionId=${panel.data.id}`)
       .then(r => r.ok ? r.json() : { messages: [] })
       .then(d => setMessages(d.messages ?? []))
       .catch(() => {})
       .finally(() => setMsgLoading(false))
-  }, [selected])
+  }, [panel])
+
+  // Scroll to bottom on new messages
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
+  // Auto-resize textarea
+  useEffect(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = Math.min(el.scrollHeight, 140) + 'px'
+  }, [msgInput])
 
   function showToast(msg: string) {
     setToast(msg)
     setTimeout(() => setToast(null), 3000)
   }
 
-  async function handleAccept(req: PendingRequest) {
+  const handleAccept = useCallback(async (req: PendingRequest) => {
     setActionLoading(req.id)
     try {
       const res = await fetch('/api/investor/connections', {
@@ -153,27 +178,23 @@ export default function InvestorMessagesPage() {
         body: JSON.stringify({ requestId: req.id, action: 'accept' }),
       })
       if (res.ok) {
-        setRequests(prev => prev.filter(r => r.id !== req.id))
-        setConversations(prev => [{
-          id: req.id, // connection_request.id — used as connectionId for messaging
-          founderId: req.founderId,
-          founderName: req.founderName,
-          startupName: req.startupName,
-          stage: req.stage,
-          industry: req.industry,
-          qScore: req.qScore,
+        const newConv: Conversation = {
+          id: req.id, founderId: req.founderId,
+          founderName: req.founderName, startupName: req.startupName,
+          stage: req.stage, industry: req.industry, qScore: req.qScore,
           connectedAt: new Date().toISOString(),
           personalMessage: req.personalMessage,
-        }, ...prev])
+        }
+        setRequests(prev => prev.filter(r => r.id !== req.id))
+        setConversations(prev => [newConv, ...prev])
+        setPanel({ type: 'conversation', data: newConv })
+        setActiveTab('conversations')
         showToast(`Connected with ${req.founderName}`)
-        setTab('conversations')
       }
-    } catch { /* noop */ } finally {
-      setActionLoading(null)
-    }
-  }
+    } catch { /* noop */ } finally { setActionLoading(null) }
+  }, [])
 
-  async function handleDecline(req: PendingRequest) {
+  const handleDecline = useCallback(async (req: PendingRequest) => {
     setActionLoading(req.id)
     try {
       const res = await fetch('/api/investor/connections', {
@@ -182,392 +203,493 @@ export default function InvestorMessagesPage() {
         body: JSON.stringify({ requestId: req.id, action: 'decline' }),
       })
       if (res.ok) {
-        setRequests(prev => prev.filter(r => r.id !== req.id))
+        setRequests(prev => {
+          const remaining = prev.filter(r => r.id !== req.id)
+          if (panel?.type === 'request' && panel.data.id === req.id) {
+            setPanel(remaining.length > 0 ? { type: 'request', data: remaining[0] } : null)
+          }
+          return remaining
+        })
         showToast('Request declined')
       }
-    } catch { /* noop */ } finally {
-      setActionLoading(null)
-    }
-  }
+    } catch { /* noop */ } finally { setActionLoading(null) }
+  }, [panel])
 
-  async function handleSendMessage() {
-    if (!selected || !msgInput.trim() || sending) return
+  async function handleSend() {
+    if (!panel || panel.type !== 'conversation' || !msgInput.trim() || sending) return
     setSending(true)
     try {
       const res = await fetch('/api/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ connectionId: selected.id, body: msgInput.trim() }),
+        body: JSON.stringify({ connectionId: panel.data.id, body: msgInput.trim() }),
       })
       if (res.ok) {
         const d = await res.json()
         setMessages(prev => [...prev, d.message])
         setMsgInput('')
+        // Update last message preview in conversation list
+        setConversations(prev => prev.map(c =>
+          c.id === panel.data.id
+            ? { ...c, lastMessage: { body: msgInput.trim(), created_at: new Date().toISOString(), senderId: myUserId ?? '' } }
+            : c
+        ))
       } else {
-        showToast('Failed to send message')
+        showToast('Failed to send')
       }
-    } catch { showToast('Failed to send message') } finally {
-      setSending(false)
-    }
+    } catch { showToast('Failed to send') } finally { setSending(false) }
   }
 
-  if (loading) {
-    return (
-      <div style={{ minHeight: '100vh', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ textAlign: 'center' }}>
-          <RefreshCw style={{ height: 20, width: 20, color: muted, margin: '0 auto 12px', animation: 'spin 1s linear infinite' }} />
-          <p style={{ fontSize: 13, color: muted }}>Loading inbox…</p>
+  // ── render ─────────────────────────────────────────────────────────────────
+  return (
+    <div style={{ display: 'flex', height: '100vh', background: bg, color: ink, overflow: 'hidden' }}>
+
+      {/* ── LEFT PANEL ────────────────────────────────────────────────── */}
+      <div style={{
+        width: 320, flexShrink: 0, borderRight: `1px solid ${bdr}`,
+        display: 'flex', flexDirection: 'column', height: '100%',
+      }}>
+        {/* left header */}
+        <div style={{ padding: '20px 20px 0', flexShrink: 0 }}>
+          <h1 style={{ fontSize: 18, fontWeight: 600, color: ink, letterSpacing: '-0.02em', marginBottom: 16 }}>
+            Messages
+          </h1>
+          {/* tabs */}
+          <div style={{ display: 'flex', gap: 2, padding: '3px', background: surf, border: `1px solid ${bdr}`, borderRadius: 10, marginBottom: 12 }}>
+            {([
+              { key: 'requests'      as const, label: 'Requests',      count: requests.length      },
+              { key: 'conversations' as const, label: 'Conversations', count: conversations.length },
+            ]).map(t => (
+              <button
+                key={t.key}
+                onClick={() => setActiveTab(t.key)}
+                style={{
+                  flex: 1, padding: '7px 10px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                  fontSize: 12, fontWeight: 500, fontFamily: 'inherit',
+                  background: activeTab === t.key ? bg : 'transparent',
+                  color: activeTab === t.key ? ink : muted,
+                  boxShadow: activeTab === t.key ? '0 1px 4px rgba(0,0,0,0.07)' : 'none',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  transition: 'all .12s',
+                }}
+              >
+                {t.label}
+                {t.count > 0 && (
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, borderRadius: 999, padding: '1px 6px',
+                    background: t.key === 'requests' ? red : surf,
+                    color: t.key === 'requests' ? '#fff' : muted,
+                  }}>
+                    {t.count}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* list */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0 8px 20px' }}>
+          {loading ? (
+            <div style={{ padding: '40px 12px', textAlign: 'center' }}>
+              <p style={{ fontSize: 12, color: muted }}>Loading…</p>
+            </div>
+          ) : activeTab === 'requests' ? (
+            requests.length === 0 ? (
+              <div style={{ padding: '48px 16px', textAlign: 'center' }}>
+                <Inbox style={{ height: 28, width: 28, color: muted, margin: '0 auto 12px' }} />
+                <p style={{ fontSize: 13, color: muted, lineHeight: 1.5 }}>No pending requests yet</p>
+              </div>
+            ) : requests.map(req => {
+              const isActive = panel?.type === 'request' && panel.data.id === req.id
+              return (
+                <button
+                  key={req.id}
+                  onClick={() => { setPanel({ type: 'request', data: req }); setActiveTab('requests') }}
+                  style={{
+                    width: '100%', display: 'flex', alignItems: 'flex-start', gap: 12,
+                    padding: '12px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                    background: isActive ? '#EEF2FF' : 'transparent',
+                    transition: 'background .1s', textAlign: 'left', fontFamily: 'inherit',
+                    marginBottom: 2,
+                  }}
+                  onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = surf }}
+                  onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                >
+                  <div style={{
+                    width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+                    background: surf, border: `1px solid ${bdr}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 12, fontWeight: 700, color: ink,
+                  }}>
+                    {initials(req.startupName)}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{req.startupName}</p>
+                      <p style={{ fontSize: 10, color: muted, flexShrink: 0, marginLeft: 6 }}>{relDate(req.requestedDate)}</p>
+                    </div>
+                    <p style={{ fontSize: 11, color: muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{req.founderName} · {req.industry}</p>
+                    {req.personalMessage && (
+                      <p style={{ fontSize: 11, color: muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 3 }}>
+                        &quot;{req.personalMessage}&quot;
+                      </p>
+                    )}
+                  </div>
+                </button>
+              )
+            })
+          ) : (
+            conversations.length === 0 ? (
+              <div style={{ padding: '48px 16px', textAlign: 'center' }}>
+                <MessageSquare style={{ height: 28, width: 28, color: muted, margin: '0 auto 12px' }} />
+                <p style={{ fontSize: 13, color: muted, lineHeight: 1.5 }}>No conversations yet</p>
+                <button
+                  onClick={() => setActiveTab('requests')}
+                  style={{ marginTop: 12, fontSize: 12, color: '#4F46E5', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
+                >
+                  View requests →
+                </button>
+              </div>
+            ) : conversations.map(conv => {
+              const isActive = panel?.type === 'conversation' && panel.data.id === conv.id
+              return (
+                <button
+                  key={conv.id}
+                  onClick={() => setPanel({ type: 'conversation', data: conv })}
+                  style={{
+                    width: '100%', display: 'flex', alignItems: 'flex-start', gap: 12,
+                    padding: '12px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                    background: isActive ? '#EEF2FF' : 'transparent',
+                    transition: 'background .1s', textAlign: 'left', fontFamily: 'inherit',
+                    marginBottom: 2,
+                  }}
+                  onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = surf }}
+                  onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                >
+                  <div style={{
+                    width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+                    background: surf, border: `1px solid ${bdr}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 12, fontWeight: 700, color: ink,
+                  }}>
+                    {initials(conv.startupName)}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{conv.startupName}</p>
+                      <p style={{ fontSize: 10, color: muted, flexShrink: 0, marginLeft: 6 }}>
+                        {conv.lastMessage ? relDate(conv.lastMessage.created_at) : relDate(conv.connectedAt)}
+                      </p>
+                    </div>
+                    <p style={{ fontSize: 11, color: muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {conv.lastMessage
+                        ? `${conv.lastMessage.senderId === myUserId ? 'You: ' : `${conv.founderName}: `}${conv.lastMessage.body}`
+                        : `${conv.founderName} · ${conv.industry}`}
+                    </p>
+                  </div>
+                </button>
+              )
+            })
+          )}
         </div>
       </div>
-    )
-  }
 
-  // ── conversation thread view ──────────────────────────────────────────────
-  if (selected) {
-    return (
-      <div style={{ minHeight: '100vh', background: bg, color: ink }}>
-        {/* Header */}
-        <div style={{ borderBottom: `1px solid ${bdr}`, padding: '16px 24px', display: 'flex', alignItems: 'center', gap: 12, background: bg }}>
-          <button
-            onClick={() => setSelected(null)}
-            style={{ width: 32, height: 32, borderRadius: 8, border: `1px solid ${bdr}`, background: surf, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-          >
-            <ArrowLeft style={{ height: 14, width: 14, color: muted }} />
-          </button>
-          <div style={{ width: 38, height: 38, borderRadius: 10, background: surf, border: `1px solid ${bdr}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: ink }}>
-            {initials(selected.startupName)}
-          </div>
-          <div>
-            <p style={{ fontSize: 14, fontWeight: 600, color: ink }}>{selected.startupName}</p>
-            <p style={{ fontSize: 11, color: muted }}>{selected.founderName} · {selected.stage} · {selected.industry}</p>
-          </div>
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-            <button
-              onClick={() => router.push(`/investor/startup/${selected.founderId}`)}
-              style={{ padding: '7px 14px', borderRadius: 8, border: `1px solid ${bdr}`, background: surf, fontSize: 12, fontWeight: 500, color: ink, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
+      {/* ── RIGHT PANEL ───────────────────────────────────────────────── */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+        <AnimatePresence mode="wait">
+          {!panel ? (
+            <motion.div
+              key="empty"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 40 }}
             >
-              <TrendingUp style={{ height: 12, width: 12 }} /> Full profile
-            </button>
-          </div>
-        </div>
+              <MessageSquare style={{ height: 40, width: 40, color: muted, marginBottom: 16 }} />
+              <p style={{ fontSize: 15, fontWeight: 500, color: ink, marginBottom: 6 }}>Select a conversation</p>
+              <p style={{ fontSize: 13, color: muted }}>Choose a request or conversation from the left to get started.</p>
+            </motion.div>
 
-        {/* Thread */}
-        <div style={{ maxWidth: 680, margin: '0 auto', padding: '32px 24px' }}>
-          {/* Q-Score badge */}
-          <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: '14px 18px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 12 }}>
-            <TrendingUp style={{ height: 14, width: 14, color: muted }} />
-            <span style={{ fontSize: 12, color: muted }}>Q-Score</span>
-            <span style={{ fontSize: 16, fontWeight: 700, color: qColor(selected.qScore) }}>{selected.qScore || '—'}</span>
-            <span style={{ fontSize: 11, color: muted, marginLeft: 'auto' }}>Connected {relDate(selected.connectedAt)}</span>
-          </div>
-
-          {/* Connection accepted notice */}
-          <div style={{ textAlign: 'center', padding: '12px 0', marginBottom: 20 }}>
-            <span style={{ fontSize: 11, color: muted, background: surf, padding: '4px 14px', borderRadius: 999, border: `1px solid ${bdr}` }}>
-              Connection accepted · {relDate(selected.connectedAt)}
-            </span>
-          </div>
-
-          {/* Message thread */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20, minHeight: 80 }}>
-            {/* Initial connection message from founder */}
-            {selected.personalMessage && messages.length === 0 && (
-              <div style={{ display: 'flex', gap: 10 }}>
-                <div style={{ width: 30, height: 30, borderRadius: 8, background: surf, border: `1px solid ${bdr}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: ink, flexShrink: 0 }}>
-                  {initials(selected.founderName)}
+          ) : panel.type === 'request' ? (
+            /* ── REQUEST DETAIL ─────────────────────────────────────── */
+            <motion.div
+              key={`req-${panel.data.id}`}
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+            >
+              {/* header */}
+              <div style={{ padding: '18px 28px', borderBottom: `1px solid ${bdr}`, display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
+                <div style={{ width: 42, height: 42, borderRadius: 11, background: surf, border: `1px solid ${bdr}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: ink }}>
+                  {initials(panel.data.startupName)}
                 </div>
-                <div style={{ flex: 1 }}>
-                  <p style={{ fontSize: 10, color: muted, marginBottom: 3 }}>{selected.founderName} · Connection request message</p>
-                  <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: '4px 12px 12px 12px', padding: '10px 14px' }}>
-                    <p style={{ fontSize: 13, color: ink, lineHeight: 1.6, margin: 0 }}>{selected.personalMessage}</p>
-                  </div>
+                <div>
+                  <p style={{ fontSize: 15, fontWeight: 600, color: ink, marginBottom: 2 }}>{panel.data.startupName}</p>
+                  <p style={{ fontSize: 12, color: muted }}>{panel.data.founderName} · {panel.data.industry} · {panel.data.stage}</p>
                 </div>
+                <button
+                  onClick={() => router.push(`/investor/startup/${panel.data.founderId}`)}
+                  style={{ marginLeft: 'auto', padding: '7px 14px', borderRadius: 8, border: `1px solid ${bdr}`, background: 'transparent', fontSize: 12, fontWeight: 500, color: ink, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
+                >
+                  <TrendingUp style={{ height: 12, width: 12 }} /> Full profile
+                </button>
               </div>
-            )}
-            {msgLoading && (
-              <p style={{ fontSize: 12, color: muted, textAlign: 'center' }}>Loading messages…</p>
-            )}
-            {messages.map(msg => {
-              const isMine = msg.sender_id === myUserId
-              return (
-                <div key={msg.id} style={{ display: 'flex', gap: 10, flexDirection: isMine ? 'row-reverse' : 'row' }}>
-                  <div style={{ width: 30, height: 30, borderRadius: 8, background: isMine ? ink : surf, border: `1px solid ${bdr}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: isMine ? bg : ink, flexShrink: 0 }}>
-                    {isMine ? 'Me' : initials(selected.founderName)}
-                  </div>
-                  <div style={{ maxWidth: '72%' }}>
-                    <p style={{ fontSize: 10, color: muted, marginBottom: 3, textAlign: isMine ? 'right' : 'left' }}>
-                      {relDate(msg.created_at)}
-                    </p>
-                    <div style={{
-                      background: isMine ? ink : surf,
-                      color: isMine ? bg : ink,
-                      border: `1px solid ${isMine ? ink : bdr}`,
-                      borderRadius: isMine ? '12px 4px 12px 12px' : '4px 12px 12px 12px',
-                      padding: '10px 14px',
-                    }}>
-                      <p style={{ fontSize: 13, lineHeight: 1.6, margin: 0 }}>{msg.body}</p>
+
+              {/* body */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: '32px 40px', maxWidth: 640, width: '100%', margin: '0 auto' }}>
+                {/* connection request label */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 24 }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.14em', color: muted }}>Connection Request</span>
+                  <span style={{ fontSize: 10, color: muted, background: surf, border: `1px solid ${bdr}`, borderRadius: 999, padding: '2px 9px' }}>{relDate(panel.data.requestedDate)}</span>
+                </div>
+
+                {/* Q-Score display */}
+                <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 14, padding: '20px 22px', marginBottom: 20 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+                    <div>
+                      <p style={{ fontSize: 11, color: muted, marginBottom: 4 }}>Q-Score</p>
+                      <p style={{ fontSize: 32, fontWeight: 300, color: qColor(panel.data.qScore), letterSpacing: '-0.04em', lineHeight: 1 }}>
+                        {panel.data.qScore}
+                      </p>
+                    </div>
+                    <div style={{ width: 1, height: 40, background: bdr }} />
+                    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                      {Object.entries(panel.data.qScoreBreakdown).map(([dim, score]) => (
+                        <div key={dim} style={{ textAlign: 'center' }}>
+                          <p style={{ fontSize: 13, fontWeight: 600, color: qColor(score as number), lineHeight: 1 }}>{score as number}</p>
+                          <p style={{ fontSize: 9, color: muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 3 }}>
+                            {dim === 'goToMarket' ? 'GTM' : dim}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ marginLeft: 'auto', padding: '4px 12px', borderRadius: 999, background: qBg(panel.data.qScore), border: `1px solid ${qBorder(panel.data.qScore)}` }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: qColor(panel.data.qScore) }}>
+                        {panel.data.qScore >= 70 ? 'Strong' : panel.data.qScore >= 50 ? 'Moderate' : 'Early stage'}
+                      </span>
                     </div>
                   </div>
                 </div>
-              )
-            })}
-          </div>
 
-          {/* Message compose area */}
-          <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 12, overflow: 'hidden' }}>
-            <textarea
-              value={msgInput}
-              onChange={e => setMsgInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSendMessage() }}
-              placeholder={`Message ${selected.founderName}… (⌘+Enter to send)`}
-              rows={3}
-              style={{
-                width: '100%', border: 'none', outline: 'none', resize: 'none',
-                background: 'transparent', padding: '14px 16px',
-                fontSize: 13, color: ink, fontFamily: 'inherit', lineHeight: 1.6,
-                boxSizing: 'border-box',
-              }}
-            />
-            <div style={{ padding: '10px 16px', borderTop: `1px solid ${bdr}`, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 11, color: muted }}>{msgInput.length}/4000</span>
-              <button
-                onClick={handleSendMessage}
-                disabled={!msgInput.trim() || sending || msgInput.length > 4000}
-                style={{ padding: '7px 16px', borderRadius: 8, border: 'none', background: ink, color: bg, fontSize: 12, fontWeight: 500, cursor: (!msgInput.trim() || sending) ? 'not-allowed' : 'pointer', opacity: (!msgInput.trim() || sending) ? 0.5 : 1, display: 'flex', alignItems: 'center', gap: 5 }}
-              >
-                <Send style={{ height: 11, width: 11 }} /> {sending ? 'Sending…' : 'Send'}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
+                {/* tags */}
+                <div style={{ display: 'flex', gap: 6, marginBottom: 20 }}>
+                  <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 999, background: surf, border: `1px solid ${bdr}`, color: muted }}>{panel.data.stage}</span>
+                  <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 999, background: '#EFF6FF', border: '1px solid #BFDBFE', color: '#2563EB' }}>{panel.data.industry}</span>
+                </div>
 
-  // ── main inbox ────────────────────────────────────────────────────────────
-  return (
-    <div style={{ minHeight: '100vh', background: bg, color: ink, padding: '40px 24px' }}>
-      <div style={{ maxWidth: 860, margin: '0 auto' }}>
+                {/* one-liner */}
+                {panel.data.oneLiner && (
+                  <p style={{ fontSize: 14, color: ink, lineHeight: 1.65, marginBottom: 20 }}>
+                    {panel.data.oneLiner}
+                  </p>
+                )}
 
-        {/* header */}
-        <div style={{ marginBottom: 32 }}>
-          <p style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.18em', color: muted, fontWeight: 600, marginBottom: 8 }}>
-            Investor · Messages
-          </p>
-          <h1 style={{ fontSize: 'clamp(1.8rem,4vw,2.4rem)', fontWeight: 300, letterSpacing: '-0.03em', color: ink, marginBottom: 6 }}>
-            Inbox.
-          </h1>
-          <p style={{ fontSize: 14, color: muted }}>Connection requests from founders and accepted conversations.</p>
-        </div>
-
-        {/* tabs */}
-        <div style={{ display: 'flex', borderBottom: `1px solid ${bdr}`, marginBottom: 24 }}>
-          {([
-            { key: 'requests' as Tab, label: `Requests (${requests.length})`, icon: Inbox },
-            { key: 'conversations' as Tab, label: `Conversations (${conversations.length})`, icon: MessageSquare },
-          ]).map(t => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                padding: '10px 16px', fontSize: 12, fontWeight: 500,
-                color: tab === t.key ? ink : muted,
-                background: 'transparent', border: 'none', cursor: 'pointer',
-                borderBottom: tab === t.key ? `2px solid ${ink}` : '2px solid transparent',
-                transition: 'color .15s', fontFamily: 'inherit',
-              }}
-            >
-              <t.icon style={{ height: 13, width: 13 }} />
-              {t.label}
-              {t.key === 'requests' && requests.length > 0 && (
-                <span style={{ background: red, color: '#fff', fontSize: 10, fontWeight: 700, borderRadius: 999, padding: '1px 6px', marginLeft: 2 }}>
-                  {requests.length}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-
-        {/* ── requests tab ── */}
-        {tab === 'requests' && (
-          <>
-            {requests.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '60px 24px', border: `1px dashed ${bdr}`, borderRadius: 16 }}>
-                <Inbox style={{ height: 36, width: 36, color: muted, margin: '0 auto 16px' }} />
-                <p style={{ fontSize: 15, fontWeight: 600, color: ink, marginBottom: 6 }}>No pending requests</p>
-                <p style={{ fontSize: 13, color: muted }}>New connection requests from founders will appear here.</p>
+                {/* personal message */}
+                {panel.data.personalMessage && (
+                  <div style={{ borderLeft: `3px solid ${bdr}`, paddingLeft: 16, marginBottom: 28 }}>
+                    <p style={{ fontSize: 11, color: muted, marginBottom: 6, fontWeight: 500 }}>Personal note from {panel.data.founderName}</p>
+                    <p style={{ fontSize: 14, color: ink, lineHeight: 1.7, fontStyle: 'italic' }}>
+                      &quot;{panel.data.personalMessage}&quot;
+                    </p>
+                  </div>
+                )}
               </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {requests.map((req, i) => (
-                  <motion.div
-                    key={req.id}
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.04 }}
-                    style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden' }}
+
+              {/* accept / decline footer */}
+              <div style={{ padding: '16px 28px', borderTop: `1px solid ${bdr}`, display: 'flex', gap: 10, justifyContent: 'flex-end', flexShrink: 0, background: bg }}>
+                <button
+                  onClick={() => handleDecline(panel.data)}
+                  disabled={actionLoading === panel.data.id}
+                  style={{ padding: '9px 20px', borderRadius: 9, border: `1px solid #FECACA`, background: '#FEF2F2', fontSize: 13, fontWeight: 500, color: red, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  <X style={{ height: 12, width: 12 }} /> Decline
+                </button>
+                <button
+                  onClick={() => handleAccept(panel.data)}
+                  disabled={actionLoading === panel.data.id}
+                  style={{ padding: '9px 24px', borderRadius: 9, border: 'none', background: ink, fontSize: 13, fontWeight: 500, color: bg, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: actionLoading === panel.data.id ? 0.6 : 1 }}
+                >
+                  <CheckCircle style={{ height: 12, width: 12 }} />
+                  {actionLoading === panel.data.id ? 'Accepting…' : 'Accept'}
+                </button>
+              </div>
+            </motion.div>
+
+          ) : (
+            /* ── CONVERSATION THREAD ────────────────────────────────── */
+            <motion.div
+              key={`conv-${panel.data.id}`}
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+            >
+              {/* header */}
+              <div style={{ padding: '14px 24px', borderBottom: `1px solid ${bdr}`, display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+                <div style={{ width: 38, height: 38, borderRadius: 9, background: surf, border: `1px solid ${bdr}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: ink }}>
+                  {initials(panel.data.startupName)}
+                </div>
+                <div>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: ink, marginBottom: 1 }}>{panel.data.startupName}</p>
+                  <p style={{ fontSize: 11, color: muted }}>{panel.data.founderName} · {panel.data.industry}</p>
+                </div>
+                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ padding: '3px 10px', borderRadius: 999, background: qBg(panel.data.qScore), border: `1px solid ${qBorder(panel.data.qScore)}` }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: qColor(panel.data.qScore) }}>Q {panel.data.qScore}</span>
+                  </div>
+                  <button
+                    onClick={() => router.push(`/investor/startup/${panel.data.founderId}`)}
+                    style={{ padding: '6px 12px', borderRadius: 8, border: `1px solid ${bdr}`, background: 'transparent', fontSize: 11, fontWeight: 500, color: ink, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
                   >
-                    {/* top row */}
-                    <div style={{ padding: '18px 20px 14px', display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-                      <div style={{ width: 44, height: 44, borderRadius: 11, background: surf, border: `1px solid ${bdr}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: ink, flexShrink: 0 }}>
-                        {initials(req.startupName)}
+                    Profile <ChevronRight style={{ height: 10, width: 10 }} />
+                  </button>
+                </div>
+              </div>
+
+              {/* messages area */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {/* connection accepted pill */}
+                <div style={{ textAlign: 'center', marginBottom: 20 }}>
+                  <span style={{ fontSize: 11, color: muted, background: surf, padding: '4px 14px', borderRadius: 999, border: `1px solid ${bdr}` }}>
+                    Connected · {relDate(panel.data.connectedAt)}
+                  </span>
+                </div>
+
+                {/* initial personal message from founder */}
+                {panel.data.personalMessage && (
+                  <div style={{ display: 'flex', gap: 10, marginBottom: 12, alignItems: 'flex-end' }}>
+                    <div style={{ width: 28, height: 28, borderRadius: 7, background: surf, border: `1px solid ${bdr}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: ink, flexShrink: 0 }}>
+                      {initials(panel.data.founderName)}
+                    </div>
+                    <div style={{ maxWidth: '72%' }}>
+                      <p style={{ fontSize: 10, color: muted, marginBottom: 4 }}>{panel.data.founderName} · Connection note</p>
+                      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: '3px 12px 12px 12px', padding: '10px 14px' }}>
+                        <p style={{ fontSize: 13, color: ink, lineHeight: 1.65, margin: 0 }}>{panel.data.personalMessage}</p>
                       </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
-                          <p style={{ fontSize: 15, fontWeight: 600, color: ink }}>{req.startupName}</p>
-                          <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', background: surf, color: muted, border: `1px solid ${bdr}`, borderRadius: 999, padding: '2px 8px' }}>
-                            {req.stage}
-                          </span>
-                          <span style={{ fontSize: 11, fontWeight: 700, color: qColor(req.qScore), background: qColor(req.qScore) === green ? '#F0FDF4' : qColor(req.qScore) === amber ? '#FFFBEB' : '#FEF2F2', border: `1px solid ${qColor(req.qScore) === green ? '#86EFAC' : qColor(req.qScore) === amber ? '#FDE68A' : '#FECACA'}`, borderRadius: 999, padding: '2px 8px' }}>
-                            Q {req.qScore}
-                          </span>
+                    </div>
+                  </div>
+                )}
+
+                {msgLoading && (
+                  <p style={{ fontSize: 12, color: muted, textAlign: 'center', padding: '20px 0' }}>Loading messages…</p>
+                )}
+
+                {messages.map((msg, idx) => {
+                  const isMine = msg.sender_id === myUserId
+                  const prevMsg = messages[idx - 1]
+                  const showAvatar = !prevMsg || prevMsg.sender_id !== msg.sender_id
+                  const isLast = idx === messages.length - 1 || messages[idx + 1]?.sender_id !== msg.sender_id
+
+                  return (
+                    <div
+                      key={msg.id}
+                      style={{
+                        display: 'flex',
+                        flexDirection: isMine ? 'row-reverse' : 'row',
+                        alignItems: 'flex-end',
+                        gap: 8,
+                        marginTop: showAvatar ? 10 : 2,
+                      }}
+                    >
+                      {/* avatar placeholder for spacing */}
+                      <div style={{ width: 28, flexShrink: 0, display: 'flex', alignItems: 'flex-end', justifyContent: isMine ? 'flex-end' : 'flex-start' }}>
+                        {!isMine && isLast && (
+                          <div style={{ width: 28, height: 28, borderRadius: 7, background: surf, border: `1px solid ${bdr}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: ink }}>
+                            {initials(panel.data.founderName)}
+                          </div>
+                        )}
+                      </div>
+
+                      <div style={{ maxWidth: '68%', display: 'flex', flexDirection: 'column', alignItems: isMine ? 'flex-end' : 'flex-start' }}>
+                        <div style={{
+                          padding: '10px 14px',
+                          borderRadius: isMine
+                            ? (showAvatar ? '16px 4px 16px 16px' : '16px 16px 4px 16px')
+                            : (showAvatar ? '4px 16px 16px 16px' : '16px 16px 16px 4px'),
+                          background: isMine ? ink : surf,
+                          border: `1px solid ${isMine ? ink : bdr}`,
+                          color: isMine ? bg : ink,
+                        }}>
+                          <p style={{ fontSize: 13, lineHeight: 1.6, margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                            {msg.body}
+                          </p>
                         </div>
-                        <p style={{ fontSize: 12, color: muted, marginBottom: 2 }}>
-                          {req.founderName} · {req.industry} · {relDate(req.requestedDate)}
-                        </p>
-                        {req.personalMessage && (
-                          <p style={{ fontSize: 13, color: ink, lineHeight: 1.5, marginTop: 10, padding: '10px 14px', background: surf, borderRadius: 8, border: `1px solid ${bdr}` }}>
-                            &quot;{req.personalMessage}&quot;
+                        {isLast && (
+                          <p style={{ fontSize: 10, color: muted, marginTop: 3, paddingLeft: isMine ? 0 : 4, paddingRight: isMine ? 4 : 0 }}>
+                            {relDate(msg.created_at)}
                           </p>
                         )}
                       </div>
                     </div>
-
-                    {/* Q-Score breakdown */}
-                    <div style={{ padding: '10px 20px', borderTop: `1px solid ${bdr}`, borderBottom: `1px solid ${bdr}`, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                      {Object.entries(req.qScoreBreakdown).map(([dim, score]) => (
-                        <div key={dim} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <span style={{ fontSize: 10, color: muted, textTransform: 'capitalize' }}>{dim === 'goToMarket' ? 'GTM' : dim}</span>
-                          <span style={{ fontSize: 11, fontWeight: 700, color: qColor(score as number) }}>{score as number}</span>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* action buttons */}
-                    <div style={{ padding: '12px 20px', display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center' }}>
-                      <button
-                        onClick={() => router.push(`/investor/startup/${req.founderId}`)}
-                        style={{ padding: '7px 14px', borderRadius: 8, border: `1px solid ${bdr}`, background: 'transparent', fontSize: 12, fontWeight: 500, color: muted, cursor: 'pointer' }}
-                      >
-                        View profile
-                      </button>
-                      <button
-                        onClick={() => handleDecline(req)}
-                        disabled={actionLoading === req.id}
-                        style={{ padding: '7px 14px', borderRadius: 8, border: `1px solid #FECACA`, background: '#FEF2F2', fontSize: 12, fontWeight: 500, color: red, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
-                      >
-                        <X style={{ height: 11, width: 11 }} /> Decline
-                      </button>
-                      <button
-                        onClick={() => handleAccept(req)}
-                        disabled={actionLoading === req.id}
-                        style={{ padding: '7px 16px', borderRadius: 8, border: 'none', background: ink, fontSize: 12, fontWeight: 500, color: bg, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, opacity: actionLoading === req.id ? 0.6 : 1 }}
-                      >
-                        <CheckCircle style={{ height: 11, width: 11 }} />
-                        {actionLoading === req.id ? 'Connecting…' : 'Accept'}
-                      </button>
-                    </div>
-                  </motion.div>
-                ))}
+                  )
+                })}
+                <div ref={bottomRef} />
               </div>
-            )}
-          </>
-        )}
 
-        {/* ── conversations tab ── */}
-        {tab === 'conversations' && (
-          <>
-            {conversations.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '60px 24px', border: `1px dashed ${bdr}`, borderRadius: 16 }}>
-                <Users style={{ height: 36, width: 36, color: muted, margin: '0 auto 16px' }} />
-                <p style={{ fontSize: 15, fontWeight: 600, color: ink, marginBottom: 6 }}>No conversations yet</p>
-                <p style={{ fontSize: 13, color: muted, marginBottom: 20 }}>Accept connection requests to start conversations with founders.</p>
-                <button
-                  onClick={() => setTab('requests')}
-                  style={{ padding: '9px 20px', borderRadius: 999, border: 'none', background: ink, color: bg, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
-                >
-                  View requests
-                </button>
-              </div>
-            ) : (
-              <div style={{ border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden' }}>
-                {conversations.map((conv, i) => (
-                  <motion.div
-                    key={conv.id}
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.04 }}
-                    onClick={() => setSelected(conv)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 14,
-                      padding: '16px 20px', cursor: 'pointer',
-                      borderBottom: i < conversations.length - 1 ? `1px solid ${bdr}` : 'none',
-                      background: bg, transition: 'background .12s',
+              {/* compose */}
+              <div style={{ padding: '12px 20px', borderTop: `1px solid ${bdr}`, flexShrink: 0, background: bg }}>
+                <div style={{
+                  display: 'flex', alignItems: 'flex-end', gap: 10,
+                  background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: '10px 14px',
+                  transition: 'border-color .12s',
+                }}>
+                  <textarea
+                    ref={textareaRef}
+                    value={msgInput}
+                    onChange={e => setMsgInput(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                        e.preventDefault()
+                        handleSend()
+                      }
                     }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = surf }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = bg }}
-                  >
-                    <div style={{ width: 42, height: 42, borderRadius: 10, background: surf, border: `1px solid ${bdr}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: ink, flexShrink: 0 }}>
-                      {initials(conv.startupName)}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-                        <p style={{ fontSize: 14, fontWeight: 600, color: ink }}>{conv.startupName}</p>
-                        <span style={{ fontSize: 10, color: muted, background: surf, border: `1px solid ${bdr}`, borderRadius: 999, padding: '1px 7px' }}>{conv.stage}</span>
-                      </div>
-                      {conv.lastMessage ? (
-                        <p style={{ fontSize: 12, color: muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {conv.lastMessage.senderId === myUserId ? 'You: ' : `${conv.founderName}: `}
-                          {conv.lastMessage.body}
-                        </p>
-                      ) : (
-                        <p style={{ fontSize: 12, color: muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {conv.founderName} · {conv.industry}
-                        </p>
-                      )}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-                      <div style={{ textAlign: 'right' }}>
-                        <p style={{ fontSize: 14, fontWeight: 700, color: qColor(conv.qScore) }}>{conv.qScore || '—'}</p>
-                        <p style={{ fontSize: 10, color: muted }}>Q-Score</p>
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <p style={{ fontSize: 11, color: muted }}>
-                          {conv.lastMessage ? relDate(conv.lastMessage.created_at) : relDate(conv.connectedAt)}
-                        </p>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 3, justifyContent: 'flex-end', marginTop: 2 }}>
-                          <CheckCircle style={{ height: 10, width: 10, color: green }} />
-                          <p style={{ fontSize: 10, color: green }}>Connected</p>
-                        </div>
-                      </div>
-                      <ChevronRight style={{ height: 14, width: 14, color: muted }} />
-                    </div>
-                  </motion.div>
-                ))}
+                    placeholder={`Message ${panel.data.founderName}…`}
+                    rows={1}
+                    style={{
+                      flex: 1, border: 'none', outline: 'none', resize: 'none', overflow: 'hidden',
+                      background: 'transparent', fontSize: 13, color: ink,
+                      fontFamily: 'inherit', lineHeight: 1.6, maxHeight: 140,
+                    }}
+                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                    {msgInput.length > 3500 && (
+                      <span style={{ fontSize: 10, color: msgInput.length > 4000 ? red : muted }}>
+                        {msgInput.length}/4000
+                      </span>
+                    )}
+                    <button
+                      onClick={handleSend}
+                      disabled={!msgInput.trim() || sending || msgInput.length > 4000}
+                      style={{
+                        width: 32, height: 32, borderRadius: 8, border: 'none',
+                        background: msgInput.trim() && !sending ? ink : bdr,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        cursor: msgInput.trim() && !sending ? 'pointer' : 'default',
+                        transition: 'background .12s',
+                      }}
+                    >
+                      <Send style={{ height: 13, width: 13, color: msgInput.trim() ? bg : muted }} />
+                    </button>
+                  </div>
+                </div>
+                <p style={{ fontSize: 10, color: muted, marginTop: 5, paddingLeft: 2 }}>⌘+Enter to send</p>
               </div>
-            )}
-          </>
-        )}
-
-        {/* empty state overall */}
-        {requests.length === 0 && conversations.length === 0 && (
-          <div style={{ textAlign: 'center', marginTop: 48 }}>
-            <p style={{ fontSize: 12, color: muted }}>
-              Founders can find you in Deal Flow once they complete their Q-Score assessment.
-            </p>
-          </div>
-        )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* toast */}
       <AnimatePresence>
         {toast && (
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: ink, color: bg, borderRadius: 10, padding: '10px 20px', fontSize: 13, fontWeight: 500, zIndex: 9999, whiteSpace: 'nowrap' }}
+            exit={{ opacity: 0, y: 16 }}
+            style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: ink, color: bg, borderRadius: 10, padding: '10px 20px', fontSize: 13, fontWeight: 500, zIndex: 9999, whiteSpace: 'nowrap', boxShadow: '0 4px 20px rgba(0,0,0,0.15)' }}
           >
             {toast}
           </motion.div>

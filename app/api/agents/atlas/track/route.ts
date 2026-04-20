@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { log } from '@/lib/logger'
 
 // GET    /api/agents/atlas/track       — list tracked competitors (with lazy scraping)
 // POST   /api/agents/atlas/track       — add a competitor
@@ -101,7 +102,7 @@ async function scrapeCompetitorPricing(
       })
     }
   } catch (err) {
-    console.error(`Scrape failed for competitor ${competitorId}:`, err)
+    log.error(`Scrape failed for competitor ${competitorId}:`, err)
   }
 }
 
@@ -133,13 +134,13 @@ export async function GET() {
         !comp.last_scraped_at || new Date(comp.last_scraped_at) < sevenDaysAgo
       if (needsScrape) {
         // Fire and forget — intentionally not awaited
-        scrapeCompetitorPricing(comp.id, comp.url, user.id, comp.name, comp.last_price_data).catch(console.error)
+        scrapeCompetitorPricing(comp.id, comp.url, user.id, comp.name, comp.last_price_data).catch(err => log.error("scrapeCompetitorPricing", err))
       }
     }
 
     return NextResponse.json({ competitors })
   } catch (err) {
-    console.error('Atlas track GET error:', err)
+    log.error('Atlas track GET error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -188,7 +189,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ competitor: data })
   } catch (err) {
-    console.error('Atlas track POST error:', err)
+    log.error('Atlas track POST error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -219,7 +220,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (err) {
-    console.error('Atlas track DELETE error:', err)
+    log.error('Atlas track DELETE error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -2,8 +2,8 @@
 
 import { motion } from "framer-motion";
 import {
-  Bell, Brain, Building2, ChevronsUpDown,
-  ClipboardList, GraduationCap, Home, LogOut, MessageSquare,
+  Bell, Brain, ChevronsUpDown,
+  ClipboardList, CreditCard, GraduationCap, Home, LogOut, MessageSquare,
   Settings, Target, UserCircle,
 } from "lucide-react";
 import Link from "next/link";
@@ -15,6 +15,7 @@ import { useNotifications } from "../hooks/useNotifications";
 import { timeAgo } from "../utils/time";
 import { SidebarNotification } from "../types/founder.types";
 import { bg, surf, bdr, ink, muted, blue } from '@/lib/constants/colors'
+import { Avatar } from '@/features/shared/components/Avatar'
 
 // ─── nav items ────────────────────────────────────────────────────────────────
 const BASE_NAV = [
@@ -230,6 +231,8 @@ function DropItem({
   onClick?: () => void;
   danger?: boolean;
 }) {
+  const hoverBg = danger ? "rgba(220,38,38,0.08)" : surf;
+  const restBg  = danger ? "rgba(220,38,38,0.04)" : "transparent";
   const style: React.CSSProperties = {
     display: "flex",
     alignItems: "center",
@@ -239,14 +242,14 @@ function DropItem({
     color: danger ? "#DC2626" : ink,
     textDecoration: "none",
     cursor: "pointer",
-    background: "transparent",
+    background: restBg,
     border: "none",
     width: "100%",
     fontFamily: "inherit",
     transition: "background .12s",
   };
-  const hover = (e: React.MouseEvent) => ((e.currentTarget as HTMLElement).style.background = surf);
-  const leave = (e: React.MouseEvent) => ((e.currentTarget as HTMLElement).style.background = "transparent");
+  const hover = (e: React.MouseEvent) => ((e.currentTarget as HTMLElement).style.background = hoverBg);
+  const leave = (e: React.MouseEvent) => ((e.currentTarget as HTMLElement).style.background = restBg);
 
   if (href) {
     return (
@@ -299,10 +302,10 @@ export default function FounderSidebar() {
     return pathname === href || pathname.startsWith(href + "/");
   }
 
-  const displayName = (user?.user_metadata?.full_name as string) || user?.email?.split("@")[0] || "Founder";
-  const startupName = (user?.user_metadata?.startup_name as string) || "Edge Alpha";
-  const initials    = displayName.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase();
-  const orgInitial  = startupName[0]?.toUpperCase() ?? "E";
+  const displayName   = (user?.user_metadata?.full_name as string) || user?.email?.split("@")[0] || "Founder";
+  const startupName   = (user?.user_metadata?.startup_name as string) || "Edge Alpha";
+  const avatarUrl     = (user?.user_metadata?.avatar_url as string | null) ?? null;
+  const companyLogoUrl = (user?.user_metadata?.company_logo_url as string | null) ?? null;
 
   const handleSignOut = async () => {
     await signOut();
@@ -337,14 +340,7 @@ export default function FounderSidebar() {
           display: "flex", alignItems: "center",
           padding: "0 10px",
         }}>
-          <div style={{
-            height: 28, width: 28, borderRadius: 7, flexShrink: 0,
-            background: ink, color: bg,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 11, fontWeight: 700,
-          }}>
-            {orgInitial}
-          </div>
+          <Avatar url={companyLogoUrl} name={startupName} size={28} radius={7} />
           <motion.div
             animate={{ opacity: expanded ? 1 : 0, x: expanded ? 0 : -4 }}
             transition={{ duration: 0.15 }}
@@ -502,14 +498,7 @@ export default function FounderSidebar() {
                 onMouseEnter={e => ((e.currentTarget as HTMLElement).style.background = surf)}
                 onMouseLeave={e => ((e.currentTarget as HTMLElement).style.background = "transparent")}
               >
-                <div style={{
-                  height: 24, width: 24, borderRadius: "50%", flexShrink: 0,
-                  background: ink, color: bg,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 9, fontWeight: 700,
-                }}>
-                  {initials}
-                </div>
+                <Avatar url={avatarUrl} name={displayName} size={24} radius={999} fontSize={9} />
                 <motion.div
                   animate={{ opacity: expanded ? 1 : 0, x: expanded ? 0 : -4 }}
                   transition={{ duration: 0.15 }}
@@ -528,24 +517,16 @@ export default function FounderSidebar() {
           >
             {/* user info */}
             <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px" }}>
-              <div style={{
-                height: 28, width: 28, borderRadius: "50%", flexShrink: 0,
-                background: ink, color: bg,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 10, fontWeight: 700,
-              }}>
-                {initials}
-              </div>
+              <Avatar url={avatarUrl} name={displayName} size={28} radius={999} fontSize={10} />
               <div style={{ overflow: "hidden" }}>
                 <p style={{ fontSize: 13, fontWeight: 600, color: ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{displayName}</p>
                 <p style={{ fontSize: 11, color: muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{user?.email}</p>
               </div>
             </div>
             <DropSep />
-            <DropItem href="/founder/profile" icon={UserCircle} label="Profile" />
-            <DropItem href="/founder/settings" icon={Settings} label="Settings" />
-            <DropItem href="/founder/settings?tab=company" icon={Building2} label="Company Settings" />
-            <DropItem href="/founder/settings?tab=connectors" icon={Settings} label="Connectors" />
+            <DropItem href="/founder/profile"              icon={UserCircle} label="Profile" />
+            <DropItem href="/founder/settings"             icon={Settings}   label="Settings" />
+            <DropItem href="/founder/settings?tab=billing" icon={CreditCard} label="Subscription" />
             <DropSep />
             <DropItem icon={LogOut} label="Sign out" onClick={handleSignOut} danger />
           </Dropdown>

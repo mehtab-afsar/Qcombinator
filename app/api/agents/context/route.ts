@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { log } from '@/lib/logger'
 
 // Cross-agent context bus
 // GET  /api/agents/context?since=ISO_DATE&agentId=xxx
@@ -93,7 +94,7 @@ export async function GET(request: NextRequest) {
       subscriberMap: agentId ? SUBSCRIBER_MAP : undefined,
     })
   } catch (err) {
-    console.error('Context bus GET error:', err)
+    log.error('Context bus GET error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -124,7 +125,7 @@ export async function POST(request: NextRequest) {
     const notify = SUBSCRIBER_MAP[actionType] ?? []
     return NextResponse.json({ id: (data as { id: string }).id, notify })
   } catch (err) {
-    console.error('Context bus POST error:', err)
+    log.error('Context bus POST error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

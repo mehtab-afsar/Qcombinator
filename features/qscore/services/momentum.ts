@@ -18,6 +18,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { log } from '@/lib/logger'
 
 export type MomentumLabel = 'hot' | 'rising' | 'steady' | 'falling';
 
@@ -149,7 +150,7 @@ export async function updateMomentum(
 
     return clampedMomentum;
   } catch (err) {
-    console.warn('[Momentum] Update failed:', err);
+    log.warn('[Momentum] Update failed:', err);
     return null;
   }
 }

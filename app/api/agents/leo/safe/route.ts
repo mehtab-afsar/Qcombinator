@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/leo/safe
 // Body: { safeType: 'post-money' | 'pre-money', investorName, investorEmail, investmentAmount, valuationCap, discountRate, companyName?, jurisdiction? }
@@ -69,7 +70,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ html, company, safeType })
   } catch (err) {
-    console.error('Leo SAFE error:', err)
+    log.error('Leo SAFE error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

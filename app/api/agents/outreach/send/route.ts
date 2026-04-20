@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import { createClient } from '@/lib/supabase/server'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/outreach/send
 // Personalizes and sends outreach emails to a list of contacts via Resend.
@@ -96,12 +97,12 @@ async function sendOne(
       html:    htmlBody,
     })
     if (error) {
-      console.error('[Outreach send] Resend error:', error);
+      log.error('[Outreach send] Resend error:', error);
       return { email: contact.email, status: 'failed', error: 'send_failed' }
     }
     return { email: contact.email, status: 'sent', resendId: data?.id }
   } catch (err) {
-    console.error('[Outreach send] Unexpected error:', err);
+    log.error('[Outreach send] Unexpected error:', err);
     return { email: contact.email, status: 'failed', error: 'send_failed' }
   }
 }
@@ -233,7 +234,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ sent, failed, results, pipelineAdded: sent })
   } catch (err) {
-    console.error('Outreach send error:', err)
+    log.error('Outreach send error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -269,7 +270,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ sends: data ?? [], stats: { total, opened, replied } })
   } catch (err) {
-    console.error('Outreach GET error:', err)
+    log.error('Outreach GET error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

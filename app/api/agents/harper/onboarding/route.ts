@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/harper/onboarding
 // Generates a week-1 onboarding checklist for a new hire.
@@ -211,7 +212,7 @@ footer p { font-size: 11px; color: #8A867C; }
 
     return NextResponse.json({ html, checklist: schedule })
   } catch (err) {
-    console.error('Harper onboarding POST error:', err)
+    log.error('Harper onboarding POST error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

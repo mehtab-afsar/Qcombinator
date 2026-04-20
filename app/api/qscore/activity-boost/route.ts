@@ -1,26 +1,19 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { createAdminClient } from '@/lib/supabase/server'
+import { verifyAuth } from '@/lib/auth/verify'
+import { log } from '@/lib/logger'
 
 // POST /api/qscore/activity-boost
 // No body — rewards consistent platform engagement with a small Q-Score signal boost
 // Checks: last login within 24h, 3+ agent actions in last 7 days, 5+ messages today
 // Returns: { boosted: boolean, boostAmount: number, currentScore: number, reason: string }
 
-function getAdmin() {
-  return createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-}
-
 export async function POST() {
   try {
-    const supabase = await createClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    const admin = getAdmin()
+    const auth = await verifyAuth()
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+    const { user } = auth
+    const admin = createAdminClient()
 
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
     const oneDayAgo    = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
@@ -120,7 +113,7 @@ export async function POST() {
       reason: reasons.join(' + '),
     })
   } catch (err) {
-    console.error('Activity boost error:', err)
+    log.error('POST /api/qscore/activity-boost', { err })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

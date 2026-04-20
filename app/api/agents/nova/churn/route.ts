@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/nova/churn
 // Analyzes churn prediction signals from survey data, Stripe metrics, and usage patterns.
@@ -138,7 +139,7 @@ Rules:
 
     return NextResponse.json({ analysis, signals, mrr, churnRate, nps })
   } catch (err) {
-    console.error('Nova churn POST error:', err)
+    log.error('Nova churn POST error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

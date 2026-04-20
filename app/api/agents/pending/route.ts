@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { log } from '@/lib/logger'
 
 // GET  /api/agents/pending         — list pending actions (status=pending)
 // POST /api/agents/pending         — create a new pending action
@@ -22,7 +23,7 @@ export async function GET() {
     if (error) throw error
     return NextResponse.json({ actions: data ?? [] })
   } catch (err) {
-    console.error('Pending actions GET error:', err)
+    log.error('Pending actions GET error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest) {
     if (error) throw error
     return NextResponse.json({ id: data.id })
   } catch (err) {
-    console.error('Pending actions POST error:', err)
+    log.error('Pending actions POST error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -73,7 +74,7 @@ export async function PATCH(request: NextRequest) {
     if (error) throw error
     return NextResponse.json({ success: true })
   } catch (err) {
-    console.error('Pending actions PATCH error:', err)
+    log.error('Pending actions PATCH error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

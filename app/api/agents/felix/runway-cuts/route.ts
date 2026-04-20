@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/felix/runway-cuts
 // Body: { runwayMonths, burnRate?, mrr?, snapshot?, artifactId? }
@@ -102,7 +103,7 @@ Return ONLY valid JSON (no markdown) with this exact shape:
       urgency,
     })
   } catch (err) {
-    console.error('Felix runway-cuts error:', err)
+    log.error('Felix runway-cuts error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

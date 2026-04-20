@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
 import { withCircuitBreaker } from '@/lib/circuit-breaker'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/atlas/social
 // Searches Twitter/Reddit/HN/web for mentions of one or more competitors.
@@ -144,7 +145,7 @@ ${trackedAlerts && trackedAlerts.length > 0 ? `\nPreviously tracked alerts:\n${t
       competitors,
     })
   } catch (err) {
-    console.error('Atlas social POST error:', err)
+    log.error('Atlas social POST error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

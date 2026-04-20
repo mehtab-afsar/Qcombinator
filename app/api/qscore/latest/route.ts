@@ -1,18 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { verifyAuth } from '@/lib/auth/verify';
+import { log } from '@/lib/logger';
 
-export async function GET(_request: NextRequest) {
+export async function GET() {
   try {
+    const auth = await verifyAuth();
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+    const { user } = auth;
+
     const supabase = await createClient();
-
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
 
     // Query via view — includes deltas from previous_score_id join
     let latest: Record<string, unknown> | null = null;
@@ -28,7 +25,7 @@ export async function GET(_request: NextRequest) {
       latest = viewData;
     } else {
       // View unavailable — fall back to direct table query (no delta columns)
-      console.warn('qscore_with_delta view error, falling back to direct query:', viewError.message);
+      log.warn('qscore_with_delta view error, falling back to direct query:', viewError.message);
       const { data: directData, error: directError } = await supabase
         .from('qscore_history')
         .select('id, user_id, overall_score, percentile, grade, market_score, product_score, gtm_score, financial_score, team_score, traction_score, calculated_at, ai_actions, data_source, source_artifact_type, score_version, iq_breakdown, available_iq, track')
@@ -38,7 +35,7 @@ export async function GET(_request: NextRequest) {
         .single();
 
       if (directError && directError.code !== 'PGRST116') {
-        console.error('Error fetching Q-Score:', directError);
+        log.error('Error fetching Q-Score:', directError);
         return NextResponse.json({ error: 'Failed to fetch Q-Score' }, { status: 500 });
       }
       latest = directData;
@@ -152,7 +149,7 @@ export async function GET(_request: NextRequest) {
 
     return NextResponse.json({ qScore });
   } catch (error) {
-    console.error('Error fetching latest Q-Score:', error);
+    log.error('GET /api/qscore/latest', { err: error });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

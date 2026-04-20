@@ -135,47 +135,88 @@ function ScoreChart({ points }: { points: ScorePoint[] }) {
   const [showDims, setShowDims] = useState(false);
   const [hovered, setHovered] = useState<number | null>(null);
 
+  // Single data point — show a "first assessment" card instead of an empty line
   if (points.length < 2) {
+    const p = points[0];
+    const scoreDate = p ? new Date(p.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : null;
+    const col = p ? scoreColor(p.overall) : muted;
     return (
-      <div style={{ paddingTop: 8 }}>
-        <p style={{ fontSize: 13, color: muted, lineHeight: 1.6 }}>
-          Complete your assessment to start tracking your score over time.
-        </p>
-        <Link href="/founder/assessment" style={{
+      <div style={{ paddingTop: 4 }}>
+        {p ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 20, padding: "16px 20px", background: surf, border: `1px solid ${bdr}`, borderRadius: 12, marginBottom: 14 }}>
+            <div style={{ textAlign: "center", flexShrink: 0 }}>
+              <div style={{ fontSize: 36, fontWeight: 300, color: col, letterSpacing: "-0.04em", lineHeight: 1 }}>{p.overall}</div>
+              <div style={{ fontSize: 9, fontWeight: 600, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginTop: 3 }}>First score</div>
+            </div>
+            <div style={{ width: 1, height: 40, background: bdr, flexShrink: 0 }} />
+            <div>
+              <p style={{ fontSize: 13, fontWeight: 500, color: ink, marginBottom: 3 }}>
+                Assessment recorded · {scoreDate}
+              </p>
+              <p style={{ fontSize: 12, color: muted, lineHeight: 1.5 }}>
+                Retake the assessment after completing more sections or building agent deliverables to track your progress here.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <p style={{ fontSize: 13, color: muted, lineHeight: 1.6, paddingTop: 4 }}>
+            Complete your assessment to start tracking your score over time.
+          </p>
+        )}
+        <Link href="/founder/profile-builder" style={{
           display: "inline-flex", alignItems: "center", gap: 5,
-          marginTop: 14, padding: "7px 16px", background: ink, color: bg,
+          padding: "7px 16px", background: ink, color: bg,
           fontSize: 12, fontWeight: 500, borderRadius: 999, textDecoration: "none",
         }}>
-          Take assessment <ArrowRight style={{ height: 11, width: 11 }} />
+          {p ? "Improve score" : "Start assessment"} <ArrowRight style={{ height: 11, width: 11 }} />
         </Link>
       </div>
     );
   }
 
-  // SVG layout
-  const W = 560, H = 160;
-  const ml = 30, mr = 72, mt = 14, mb = 28;
+  // SVG layout — taller canvas for more breathing room
+  const W = 560, H = 200;
+  const ml = 32, mr = 76, mt = 16, mb = 36;
   const pw = W - ml - mr;
   const ph = H - mt - mb;
 
-  const xPos = (i: number) => ml + (points.length > 1 ? (i / (points.length - 1)) * pw : pw / 2);
+  const xPos = (i: number) => ml + (i / (points.length - 1)) * pw;
   const yPos = (v: number) => mt + (1 - v / 100) * ph;
 
-  const linePath = (acc: (p: ScorePoint) => number) =>
+  const pathD = (acc: (p: ScorePoint) => number) =>
     points.map((p, i) => `${i === 0 ? "M" : "L"}${xPos(i).toFixed(1)},${yPos(acc(p)).toFixed(1)}`).join(" ");
 
   const lastScore = points[points.length - 1].overall;
-  const diff = lastScore - points[0].overall;
+  const firstScore = points[0].overall;
+  const diff = lastScore - firstScore;
   const diffColor = diff > 0 ? green : diff < 0 ? red : muted;
   const agentBoosts = points.filter(p => p.source === "agent_completion").length;
 
-  // Date labels: first, middle, last (deduplicated)
-  const dateIdxs = Array.from(new Set([0, Math.floor((points.length - 1) / 2), points.length - 1]));
+  // Area fill path (close below the line)
+  const areaD = pathD(p => p.overall) +
+    ` L${xPos(points.length - 1).toFixed(1)},${yPos(0).toFixed(1)} L${xPos(0).toFixed(1)},${yPos(0).toFixed(1)} Z`;
+
+  // Date labels: show unique dates only; add time suffix if two points share the same date
+  const formatDate = (iso: string, idx: number) => {
+    const d = new Date(iso);
+    const dateStr = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    // if another point shares this date string, add time
+    const sameDate = points.some((q, j) => j !== idx &&
+      new Date(q.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }) === dateStr);
+    if (sameDate) return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+    return dateStr;
+  };
+
+  // Pick label positions: first, and last (never show duplicates)
+  const labelIdxs: number[] = [0];
+  if (points.length > 2) labelIdxs.push(Math.floor((points.length - 1) / 2));
+  labelIdxs.push(points.length - 1);
+  const dedupedLabelIdxs = [...new Set(labelIdxs)];
 
   return (
     <div>
-      {/* toggle pills */}
-      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 14 }}>
+      {/* Controls row */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 16 }}>
         {[["Overall", false], ["Dimensions", true]].map(([label, val]) => (
           <button
             key={label as string}
@@ -196,59 +237,69 @@ function ScoreChart({ points }: { points: ScorePoint[] }) {
             ⚡ {agentBoosts} agent boost{agentBoosts > 1 ? "s" : ""}
           </span>
         )}
+        <span style={{ fontSize: 10, color: muted, marginLeft: "auto" }}>
+          {points.length} assessment{points.length !== 1 ? "s" : ""}
+        </span>
       </div>
 
-      {/* SVG chart */}
+      {/* SVG */}
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ overflow: "visible", display: "block" }}>
-        {/* Reference gridlines */}
-        {[40, 65, 80].map(v => (
+        <defs>
+          <linearGradient id="scoreGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={scoreColor(lastScore)} stopOpacity="0.12" />
+            <stop offset="100%" stopColor={scoreColor(lastScore)} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+
+        {/* Milestone gridlines */}
+        {([
+          { v: 80, color: "#EDE9FE", label: "Target", labelColor: "#6D28D9" },
+          { v: 65, color: "#FEF3C7", label: "Marketplace", labelColor: "#B45309" },
+          { v: 40, color: bdr,       label: "",            labelColor: "" },
+        ] as Array<{ v: number; color: string; label: string; labelColor: string }>).map(({ v, color, label, labelColor }) => (
           <g key={v}>
             <line
               x1={ml} y1={yPos(v)} x2={W - mr} y2={yPos(v)}
-              stroke={v === 80 ? "#EDE9FE" : v === 65 ? "#FEF3C7" : bdr}
-              strokeWidth={v === 65 || v === 80 ? 1.5 : 0.5}
-              strokeDasharray={v === 65 || v === 80 ? "4,3" : undefined}
+              stroke={color}
+              strokeWidth={v === 40 ? 0.5 : 1.5}
+              strokeDasharray={v !== 40 ? "4 3" : undefined}
             />
-            <text x={ml - 5} y={yPos(v) + 3.5} fill={muted} fontSize={8.5} textAnchor="end">{v}</text>
-            {v === 65 && (
-              <text x={W - mr + 6} y={yPos(v) + 3.5} fill="#B45309" fontSize={9} fontWeight="600">Marketplace</text>
-            )}
-            {v === 80 && (
-              <text x={W - mr + 6} y={yPos(v) + 3.5} fill="#6D28D9" fontSize={9} fontWeight="600">Target</text>
-            )}
+            <text x={ml - 6} y={yPos(v) + 3.5} fill={muted} fontSize={8} textAnchor="end">{v}</text>
+            {label && <text x={W - mr + 8} y={yPos(v) + 3.5} fill={labelColor} fontSize={8.5} fontWeight="600">{label}</text>}
           </g>
         ))}
+
+        {/* Area fill */}
+        {!showDims && (
+          <path d={areaD} fill="url(#scoreGrad)" />
+        )}
 
         {/* Dimension lines */}
         {showDims && Object.entries(DIM_COLORS).map(([key, col]) => (
           <path
             key={key}
-            d={linePath((p) => (p as unknown as Record<string, number>)[key === "gtm" ? "gtm" : key])}
-            fill="none"
-            stroke={col}
-            strokeWidth={1.5}
-            strokeOpacity={0.5}
-            strokeLinecap="round"
-            strokeLinejoin="round"
+            d={pathD(p => (p as unknown as Record<string, number>)[key])}
+            fill="none" stroke={col} strokeWidth={1.5} strokeOpacity={0.55}
+            strokeLinecap="round" strokeLinejoin="round"
           />
         ))}
 
-        {/* Overall line */}
-        <path
-          d={linePath(p => p.overall)}
-          fill="none"
-          stroke={scoreColor(lastScore)}
-          strokeWidth={2.5}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+        {/* Overall trajectory line */}
+        {!showDims && (
+          <path
+            d={pathD(p => p.overall)}
+            fill="none" stroke={scoreColor(lastScore)} strokeWidth={2.5}
+            strokeLinecap="round" strokeLinejoin="round"
+          />
+        )}
 
-        {/* Data points + tooltips */}
+        {/* Data points */}
         {points.map((p, i) => {
           const x = xPos(i);
           const y = yPos(p.overall);
           const isAgent = p.source === "agent_completion";
           const isHov = hovered === i;
+          const col = scoreColor(p.overall);
           return (
             <g
               key={i}
@@ -256,17 +307,19 @@ function ScoreChart({ points }: { points: ScorePoint[] }) {
               onMouseLeave={() => setHovered(null)}
               style={{ cursor: "default" }}
             >
-              {/* Event label under dot */}
-              <text x={x} y={yPos(0) + 16} fill={isAgent ? blue : muted} fontSize={9} textAnchor="middle">
-                {isAgent ? "⚡" : "A"}
-              </text>
+              {/* Agent boost indicator */}
+              {isAgent && (
+                <text x={x} y={yPos(0) + mb - 4} fill={blue} fontSize={10} textAnchor="middle">⚡</text>
+              )}
+              {/* Outer ring on hover */}
+              {isHov && <circle cx={x} cy={y} r={9} fill={col} fillOpacity="0.15" />}
               {/* Dot */}
-              <circle cx={x} cy={y} r={isHov ? 5 : 3.5} fill={scoreColor(p.overall)} />
+              <circle cx={x} cy={y} r={isHov ? 5.5 : 4} fill={bg} stroke={col} strokeWidth={2.5} />
               {/* Score tooltip */}
               {isHov && (
                 <g>
-                  <rect x={x - 16} y={y - 28} width={32} height={17} rx={4} fill={ink} />
-                  <text x={x} y={y - 16} fill={bg} fontSize={10} textAnchor="middle" fontWeight="600">
+                  <rect x={x - 18} y={y - 32} width={36} height={18} rx={4} fill={ink} />
+                  <text x={x} y={y - 19} fill={bg} fontSize={10.5} textAnchor="middle" fontWeight="700">
                     {p.overall}
                   </text>
                 </g>
@@ -276,9 +329,9 @@ function ScoreChart({ points }: { points: ScorePoint[] }) {
         })}
 
         {/* X-axis date labels */}
-        {dateIdxs.map(i => (
-          <text key={i} x={xPos(i)} y={H - 2} fill={muted} fontSize={8.5} textAnchor="middle">
-            {new Date(points[i].date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+        {dedupedLabelIdxs.map(i => (
+          <text key={i} x={xPos(i)} y={H - 3} fill={muted} fontSize={8.5} textAnchor="middle">
+            {formatDate(points[i].date, i)}
           </text>
         ))}
       </svg>
@@ -296,11 +349,19 @@ function ScoreChart({ points }: { points: ScorePoint[] }) {
       )}
 
       {/* Summary row */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12 }}>
-        <span style={{ fontSize: 24, fontWeight: 300, color: ink, letterSpacing: "-0.03em" }}>{lastScore}</span>
-        <span style={{ fontSize: 11, fontWeight: 600, color: diffColor }}>
-          {diff > 0 ? "+" : ""}{diff} since start
-        </span>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 14, paddingTop: 12, borderTop: `1px solid ${bdr}` }}>
+        <span style={{ fontSize: 26, fontWeight: 300, color: ink, letterSpacing: "-0.03em" }}>{lastScore}</span>
+        <div>
+          <span style={{ fontSize: 11, fontWeight: 600, color: diffColor }}>
+            {diff > 0 ? "+" : ""}{diff} pts
+          </span>
+          <span style={{ fontSize: 11, color: muted }}> since first assessment</span>
+        </div>
+        {diff > 0 && (
+          <div style={{ marginLeft: "auto", fontSize: 10, fontWeight: 600, color: green, background: "#F0FDF4", padding: "2px 8px", borderRadius: 999 }}>
+            Improving
+          </div>
+        )}
       </div>
     </div>
   );
@@ -444,7 +505,7 @@ export default function FounderDashboard() {
   }
 
   const qs = realQScore
-    ? { overall: realQScore.overall, percentile: realQScore.percentile ?? 41 }
+    ? { overall: realQScore.overall, percentile: realQScore.percentile ?? null }
     : DEMO_QSCORE;
 
   const isDemo = !realQScore;
@@ -465,6 +526,36 @@ export default function FounderDashboard() {
     .sort((a, b) => a.averageScore - b.averageScore)
     .map(p => [p.id, { score: Math.round(p.averageScore * 20), change: 0, trend: 'neutral' as const }] as [string, { score: number; change: number; trend: 'up' | 'down' | 'neutral' }]);
 
+  // When no real IQ params (demo or legacy score), populate bars from DEMO breakdown
+  type DimTuple = [string, { score: number; change: number; trend: 'up' | 'down' | 'neutral' }];
+  const demoDims: DimTuple[] = ([
+    ['p1', { score: DEMO_QSCORE.breakdown.market.score,     change: DEMO_QSCORE.breakdown.market.change,     trend: DEMO_QSCORE.breakdown.market.trend     }],
+    ['p2', { score: DEMO_QSCORE.breakdown.goToMarket.score, change: DEMO_QSCORE.breakdown.goToMarket.change, trend: DEMO_QSCORE.breakdown.goToMarket.trend }],
+    ['p3', { score: DEMO_QSCORE.breakdown.product.score,    change: DEMO_QSCORE.breakdown.product.change,    trend: DEMO_QSCORE.breakdown.product.trend    }],
+    ['p4', { score: DEMO_QSCORE.breakdown.team.score,       change: DEMO_QSCORE.breakdown.team.change,       trend: DEMO_QSCORE.breakdown.team.trend       }],
+    ['p5', { score: DEMO_QSCORE.breakdown.traction.score,   change: DEMO_QSCORE.breakdown.traction.change,   trend: DEMO_QSCORE.breakdown.traction.trend   }],
+    ['p6', { score: DEMO_QSCORE.breakdown.financial.score,  change: DEMO_QSCORE.breakdown.financial.change,  trend: DEMO_QSCORE.breakdown.financial.trend  }],
+  ] as DimTuple[]).sort((a, b) => a[1].score - b[1].score);
+  // Build from legacy breakdown (used when IQ v2 params are unavailable)
+  const _lb = realQScore?.breakdown
+  const legacyDims: DimTuple[] = _lb
+    ? ([
+        ['p1', { score: Math.round((_lb.market     as { score?: number })?.score ?? 0), change: (_lb.market     as { change?: number })?.change ?? 0, trend: ((_lb.market     as { trend?: string })?.trend ?? 'neutral') as 'up' | 'down' | 'neutral' }],
+        ['p2', { score: Math.round((_lb.goToMarket as { score?: number })?.score ?? 0), change: (_lb.goToMarket as { change?: number })?.change ?? 0, trend: ((_lb.goToMarket as { trend?: string })?.trend ?? 'neutral') as 'up' | 'down' | 'neutral' }],
+        ['p3', { score: Math.round((_lb.product    as { score?: number })?.score ?? 0), change: (_lb.product    as { change?: number })?.change ?? 0, trend: ((_lb.product    as { trend?: string })?.trend ?? 'neutral') as 'up' | 'down' | 'neutral' }],
+        ['p4', { score: Math.round((_lb.team       as { score?: number })?.score ?? 0), change: (_lb.team       as { change?: number })?.change ?? 0, trend: ((_lb.team       as { trend?: string })?.trend ?? 'neutral') as 'up' | 'down' | 'neutral' }],
+        ['p5', { score: Math.round((_lb.traction   as { score?: number })?.score ?? 0), change: (_lb.traction   as { change?: number })?.change ?? 0, trend: ((_lb.traction   as { trend?: string })?.trend ?? 'neutral') as 'up' | 'down' | 'neutral' }],
+        ['p6', { score: Math.round((_lb.financial  as { score?: number })?.score ?? 0), change: (_lb.financial  as { change?: number })?.change ?? 0, trend: ((_lb.financial  as { trend?: string })?.trend ?? 'neutral') as 'up' | 'down' | 'neutral' }],
+      ] as DimTuple[]).sort((a, b) => a[1].score - b[1].score)
+    : []
+
+  // Priority: IQ v2 params → legacy breakdown → demo (only when no real score at all)
+  const effectiveSortedDims = sortedDims.length > 0
+    ? sortedDims
+    : legacyDims.length > 0
+      ? legacyDims
+      : demoDims
+
   // Score freshness
   const lastScoreDate = scoreHistory.length > 0 ? new Date(scoreHistory[scoreHistory.length - 1].date) : null;
   const daysSinceScore = lastScoreDate ? Math.floor((Date.now() - lastScoreDate.getTime()) / 86400000) : null;
@@ -475,7 +566,7 @@ export default function FounderDashboard() {
   const runwayMonths = dashMetrics?.runway ?? null;
   const runwayLow    = runwayMonths !== null && runwayMonths < 6;
   const runwayCritical = runwayMonths !== null && runwayMonths <= 2;
-  const topActions = sortedDims.slice(0, 3);
+  const topActions = effectiveSortedDims.slice(0, 3);
   const circumference = 2 * Math.PI * 52;
   const dash = circumference * (1 - displayScore / 100);
 
@@ -492,7 +583,7 @@ export default function FounderDashboard() {
       sub: investorMatches !== null ? (investorMatches === 0 ? "connect at IQ 70+" : `connection${investorMatches !== 1 ? "s" : ""} sent`) : "loading…",
       icon: Users, positive: true,
     },
-    { label: "Score percentile",   value: `${qs.percentile}th`, sub: "of all founders", icon: BarChart3, positive: null  },
+    { label: "Score percentile",   value: qs.percentile !== null ? `${qs.percentile}th` : "—", sub: qs.percentile !== null ? "of all founders" : "submit score to rank", icon: BarChart3, positive: null  },
     { label: "Next milestone",     value: isDemo ? "70" : String(Math.max(70, Math.ceil(qs.overall / 10) * 10)), sub: "target IQ Score", icon: Zap, positive: null },
   ];
 
@@ -776,53 +867,84 @@ export default function FounderDashboard() {
               display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 18,
             }}
           >
-            {/* SVG ring */}
-            <div style={{ position: "relative", height: 128, width: 128 }}>
-              <svg style={{ position: "absolute", inset: 0, transform: "rotate(-90deg)" }} viewBox="0 0 120 120">
-                <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="7" />
-                <motion.circle
-                  cx="60" cy="60" r="52"
-                  fill="none" stroke="#F9F7F2" strokeWidth="7" strokeLinecap="round"
-                  strokeDasharray={`${circumference}`}
-                  initial={{ strokeDashoffset: circumference }}
-                  animate={{ strokeDashoffset: dash }}
-                  transition={{ duration: 1.4, delay: 0.3, ease: "easeOut" }}
-                />
-              </svg>
-              <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-                <span style={{ fontSize: 38, fontWeight: 600, color: "#F9F7F2", lineHeight: 1 }}>{displayScore}</span>
-                <span style={{ fontSize: 10, color: "rgba(249,247,242,0.5)", marginTop: 3, textTransform: "uppercase", letterSpacing: "0.12em" }}>
-                  {isPartial ? `${answeredParameters}/6 params` : "IQ Score"}
-                </span>
-              </div>
-            </div>
-            <div style={{ textAlign: "center" }}>
-              <p style={{ fontSize: 15, fontWeight: 500, color: "#F9F7F2" }}>{gradeLabel(displayScore)}</p>
-              <p style={{ fontSize: 11, color: "rgba(249,247,242,0.5)", marginTop: 2 }}>
-                {isPartial ? `${answeredParameters}/6 parameters answered` : `Top ${100 - qs.percentile}% of founders`}
-              </p>
-              {isPartial && (
-                <p style={{ fontSize: 10, marginTop: 4, color: "rgba(249,247,242,0.45)", fontWeight: 400 }}>
-                  Complete {6 - answeredParameters} more section{6 - answeredParameters !== 1 ? "s" : ""} to unlock up to {100 - displayScore} more points
-                </p>
-              )}
-              {daysSinceScore !== null && !isDemo && (
-                <p style={{
-                  fontSize: 10, marginTop: 6,
-                  color: isStale ? "#FCA5A5" : isMaturing ? "#FCD34D" : "rgba(249,247,242,0.4)",
-                  fontWeight: isStale || isMaturing ? 600 : 400,
-                }}>
-                  {isStale ? "⚠ " : isMaturing ? "○ " : ""}{daysSinceScore}d old
-                </p>
-              )}
-              {realQScore?.decayApplied && realQScore.rawOverall && realQScore.rawOverall !== realQScore.overall && (
-                <p style={{ fontSize: 9, marginTop: 3, color: "#FCA5A5", fontWeight: 600 }}>
-                  Score reflects {realQScore.daysSince}d-old data ({Math.round((1 - (realQScore.decayFactor as number)) * 100)}% reduction) — reassess to restore
-                </p>
-              )}
-              {/* IQ v2: available IQ + track */}
-              {!isDemo && (
-                <>
+            {isDemo ? (
+              /* ── No score yet — guide user to profile builder ── */
+              <>
+                <div style={{ position: "relative", height: 128, width: 128 }}>
+                  <svg style={{ position: "absolute", inset: 0, transform: "rotate(-90deg)" }} viewBox="0 0 120 120">
+                    <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="7" strokeDasharray="6 4" />
+                  </svg>
+                  <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                    <span style={{ fontSize: 38, fontWeight: 300, color: "rgba(249,247,242,0.3)", lineHeight: 1 }}>—</span>
+                    <span style={{ fontSize: 10, color: "rgba(249,247,242,0.3)", marginTop: 3, textTransform: "uppercase", letterSpacing: "0.12em" }}>No score yet</span>
+                  </div>
+                </div>
+                <div style={{ textAlign: "center" }}>
+                  <p style={{ fontSize: 14, fontWeight: 500, color: "#F9F7F2", marginBottom: 6 }}>Get your IQ Score</p>
+                  <p style={{ fontSize: 12, color: "rgba(249,247,242,0.5)", lineHeight: 1.55, maxWidth: 200, margin: "0 auto" }}>
+                    Complete the Profile Builder to receive your personalised investment-readiness score across 6 dimensions.
+                  </p>
+                </div>
+                <Link href="/founder/profile-builder"
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 6,
+                    padding: "10px 22px",
+                    background: "#F9F7F2", borderRadius: 999,
+                    fontSize: 12, color: ink, fontWeight: 600, textDecoration: "none",
+                    transition: "opacity 0.15s",
+                  }}
+                  onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.opacity = "0.85")}
+                  onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.opacity = "1")}
+                >
+                  Start Profile Builder <ArrowRight style={{ height: 12, width: 12 }} />
+                </Link>
+              </>
+            ) : (
+              /* ── Real score ── */
+              <>
+                <div style={{ position: "relative", height: 128, width: 128 }}>
+                  <svg style={{ position: "absolute", inset: 0, transform: "rotate(-90deg)" }} viewBox="0 0 120 120">
+                    <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="7" />
+                    <motion.circle
+                      cx="60" cy="60" r="52"
+                      fill="none" stroke="#F9F7F2" strokeWidth="7" strokeLinecap="round"
+                      strokeDasharray={`${circumference}`}
+                      initial={{ strokeDashoffset: circumference }}
+                      animate={{ strokeDashoffset: dash }}
+                      transition={{ duration: 1.4, delay: 0.3, ease: "easeOut" }}
+                    />
+                  </svg>
+                  <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                    <span style={{ fontSize: 38, fontWeight: 600, color: "#F9F7F2", lineHeight: 1 }}>{displayScore}</span>
+                    <span style={{ fontSize: 10, color: "rgba(249,247,242,0.5)", marginTop: 3, textTransform: "uppercase", letterSpacing: "0.12em" }}>
+                      {isPartial ? `${answeredParameters}/6 params` : "IQ Score"}
+                    </span>
+                  </div>
+                </div>
+                <div style={{ textAlign: "center" }}>
+                  <p style={{ fontSize: 15, fontWeight: 500, color: "#F9F7F2" }}>{gradeLabel(displayScore)}</p>
+                  <p style={{ fontSize: 11, color: "rgba(249,247,242,0.5)", marginTop: 2 }}>
+                    {isPartial ? `${answeredParameters}/6 parameters answered` : qs.percentile !== null ? `Top ${100 - qs.percentile}% of founders` : "Complete assessment to rank"}
+                  </p>
+                  {isPartial && (
+                    <p style={{ fontSize: 10, marginTop: 4, color: "rgba(249,247,242,0.45)", fontWeight: 400 }}>
+                      Complete {6 - answeredParameters} more section{6 - answeredParameters !== 1 ? "s" : ""} to unlock up to {100 - displayScore} more points
+                    </p>
+                  )}
+                  {daysSinceScore !== null && (
+                    <p style={{
+                      fontSize: 10, marginTop: 6,
+                      color: isStale ? "#FCA5A5" : isMaturing ? "#FCD34D" : "rgba(249,247,242,0.4)",
+                      fontWeight: isStale || isMaturing ? 600 : 400,
+                    }}>
+                      {isStale ? "⚠ " : isMaturing ? "○ " : ""}{daysSinceScore}d old
+                    </p>
+                  )}
+                  {realQScore?.decayApplied && realQScore.rawOverall && realQScore.rawOverall !== realQScore.overall && (
+                    <p style={{ fontSize: 9, marginTop: 3, color: "#FCA5A5", fontWeight: 600 }}>
+                      Score reflects {realQScore.daysSince}d-old data ({Math.round((1 - (realQScore.decayFactor as number)) * 100)}% reduction) — reassess to restore
+                    </p>
+                  )}
                   {realQScore?.availableIQ != null && (
                     <p style={{ fontSize: 9, marginTop: 4, color: "rgba(249,247,242,0.45)", fontWeight: 500 }}>
                       Ceiling: {Math.round(realQScore.availableIQ as number)}/100 — complete more sections to raise it
@@ -836,22 +958,22 @@ export default function FounderDashboard() {
                       {realQScore.track as string} track
                     </p>
                   )}
-                </>
-              )}
-            </div>
-            <Link href={isDemo ? "/founder/assessment" : "/founder/improve-qscore"}
-              style={{
-                display: "inline-flex", alignItems: "center", gap: 6,
-                padding: "9px 20px",
-                background: "rgba(249,247,242,0.1)", border: "1px solid rgba(249,247,242,0.18)",
-                borderRadius: 999, fontSize: 12, color: "#F9F7F2", fontWeight: 500, textDecoration: "none",
-                transition: "background 0.15s",
-              }}
-              onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "rgba(249,247,242,0.18)")}
-              onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "rgba(249,247,242,0.1)")}
-            >
-              {isDemo ? "Complete assessment" : "Improve score"} <ArrowRight style={{ height: 12, width: 12 }} />
-            </Link>
+                </div>
+                <Link href="/founder/improve-qscore"
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 6,
+                    padding: "9px 20px",
+                    background: "rgba(249,247,242,0.1)", border: "1px solid rgba(249,247,242,0.18)",
+                    borderRadius: 999, fontSize: 12, color: "#F9F7F2", fontWeight: 500, textDecoration: "none",
+                    transition: "background 0.15s",
+                  }}
+                  onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "rgba(249,247,242,0.18)")}
+                  onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "rgba(249,247,242,0.1)")}
+                >
+                  Improve score <ArrowRight style={{ height: 12, width: 12 }} />
+                </Link>
+              </>
+            )}
           </motion.div>
 
           {/* Dimension bars */}
@@ -868,12 +990,18 @@ export default function FounderDashboard() {
               <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", color: muted, fontWeight: 600, margin: 0 }}>
                 {"IQ Matrix — P1–P6"}
               </p>
-              {!isDemo && (
+              {isDemo ? (
+                <span style={{
+                  fontSize: 9, fontWeight: 700, padding: "2px 8px", borderRadius: 999,
+                  background: "#FFFBEB", color: "#92400E", border: "1px solid #FDE68A",
+                  textTransform: "uppercase", letterSpacing: "0.1em",
+                }}>
+                  Example — not your data
+                </span>
+              ) : (
                 <span style={{
                   fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 999,
-                  background: "#EFF6FF",
-                  color: blue,
-                  border: `1px solid ${blue}33`,
+                  background: "#EFF6FF", color: blue, border: `1px solid ${blue}33`,
                   textTransform: "uppercase", letterSpacing: "0.1em",
                 }}>
                   {"IQ v2"}
@@ -881,7 +1009,7 @@ export default function FounderDashboard() {
               )}
             </div>
             <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: 4 }}>
-              {sortedDims.map(([key, dim], i) => {
+              {effectiveSortedDims.map(([key, dim], i) => {
                 const meta = DIMENSION_META[key];
                 const TrendIcon = dim.trend === "up" ? TrendingUp : dim.trend === "down" ? TrendingDown : Minus;
                 const trendColor = dim.trend === "up" ? green : dim.trend === "down" ? red : muted;
@@ -993,7 +1121,7 @@ export default function FounderDashboard() {
                 <Target style={{ height: 13, width: 13, color: blue }} />
               </div>
               <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", color: muted, fontWeight: 600 }}>
-                Today&apos;s focus — AI-recommended priorities
+                Today&apos;s focus
               </p>
             </div>
             {dashLoading && <Loader2 style={{ height: 14, width: 14, color: muted, animation: "spin 1s linear infinite" }} />}
@@ -1003,6 +1131,15 @@ export default function FounderDashboard() {
             <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 14, padding: "20px 22px", display: "flex", alignItems: "center", gap: 10 }}>
               <Loader2 style={{ height: 16, width: 16, color: muted, animation: "spin 1s linear infinite", flexShrink: 0 }} />
               <p style={{ fontSize: 13, color: muted }}>Analysing your data to find the highest-impact tasks…</p>
+            </div>
+          ) : !dashLoading && priorities.length === 0 ? (
+            <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 14, padding: "18px 22px" }}>
+              <p style={{ fontSize: 13, color: muted, lineHeight: 1.6 }}>
+                Complete your Profile Builder to unlock AI-recommended priorities tailored to your score.
+              </p>
+              <Link href="/founder/profile-builder" style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 10, fontSize: 12, fontWeight: 600, color: blue, textDecoration: "none" }}>
+                Start Profile Builder <ChevronRight style={{ height: 11, width: 11 }} />
+              </Link>
             </div>
           ) : priorities.length > 0 ? (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>

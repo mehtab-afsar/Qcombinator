@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { verifyAuth } from '@/lib/auth/verify'
+import { log } from '@/lib/logger'
 import { callOpenRouter } from '@/lib/openrouter'
 
 // POST /api/investor/startup/:id/memo
@@ -12,11 +14,10 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await verifyAuth()
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+    const { user } = auth
     const supabase = await createClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
 
     const { id: founderId } = await params
     const body = await request.json()
@@ -152,7 +153,7 @@ Be analytical. Avoid superlatives. Cite specific Q-Score dimensions where releva
 
     return NextResponse.json({ memoHtml, memoMd, cached: false })
   } catch (err) {
-    console.error('Memo generation error:', err)
+    log.error('POST /api/investor/startup/[id]/memo', { err })
     return NextResponse.json({ error: 'Failed to generate memo' }, { status: 500 })
   }
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/harper/offer-letter
 // Generates an offer letter for an accepted candidate.
@@ -164,7 +165,7 @@ ${(offerData.conditions as string[] | undefined)?.length ? `<div class="conditio
       subject: offerData.subject ?? `Offer of Employment — ${role} at ${fp?.startup_name ?? 'Company'}`,
     })
   } catch (err) {
-    console.error('Harper offer-letter POST error:', err)
+    log.error('Harper offer-letter POST error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

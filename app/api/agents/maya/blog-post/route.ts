@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/maya/blog-post
 // Body: { topic, artifactId? }
@@ -77,7 +78,7 @@ Return ONLY the blog post content as clean HTML (no <html>/<head>/<body> wrapper
 
     return NextResponse.json({ html, topic })
   } catch (err) {
-    console.error('Maya blog post error:', err)
+    log.error('Maya blog post error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

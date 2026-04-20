@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { withCircuitBreaker } from '@/lib/circuit-breaker'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/felix/investor-update
 // Body: { recipients, metricsSnapshot, subject? }
@@ -187,11 +188,11 @@ export async function POST(request: NextRequest) {
           })
           if (res.ok) { sentCount++; return }
           const errText = await res.text()
-          console.error(`Resend error for ${recipient}:`, errText)
+          log.error(`Resend error for ${recipient}:`, errText)
           throw new Error(`Resend ${res.status}`)
         })
       } catch (err) {
-        console.error(`Failed to send to ${recipient}:`, err)
+        log.error(`Failed to send to ${recipient}:`, err)
       }
     }
 
@@ -220,7 +221,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, sentCount })
   } catch (err) {
-    console.error('Felix investor-update error:', err)
+    log.error('Felix investor-update error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

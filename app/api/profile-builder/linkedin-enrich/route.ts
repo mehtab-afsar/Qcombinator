@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 function getAdminClient() {
   return createClient(
@@ -96,7 +97,7 @@ If you cannot confidently infer from the URL alone, return nulls. Never invent s
 
     return NextResponse.json({ enriched: true, fields: Object.keys(p4Fields) })
   } catch (err) {
-    console.error('[linkedin-enrich]', err)
+    log.error('[linkedin-enrich]', err)
     // Always return 200 — this is a background, non-blocking call
     return NextResponse.json({ skipped: true, reason: 'Error' })
   }

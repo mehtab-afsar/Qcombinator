@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 import { encodeToken } from '@/app/api/unsubscribe/route';
+import { log } from '@/lib/logger'
 
 // Stale deal threshold: deals not updated in 7+ days (non-terminal stages)
 const STALE_DEAL_DAYS = 7;
@@ -41,7 +42,7 @@ export async function GET(request: Request) {
     .limit(500);
 
   if (listError || !founders) {
-    console.error('Cron: failed to list founders:', listError);
+    log.error('Cron: failed to list founders:', listError);
     return NextResponse.json({ error: 'Failed to list founders' }, { status: 500 });
   }
 
@@ -181,7 +182,7 @@ export async function GET(request: Request) {
         results.standupsSent++;
       }
     } catch (err) {
-      console.error(`Cron standup error for user ${user.id}:`, err);
+      log.error(`Cron standup error for user ${user.id}:`, err);
       results.errors++;
     }
 
@@ -245,7 +246,7 @@ export async function GET(request: Request) {
         }
       }
     } catch (err) {
-      console.error(`Cron runway alert error for user ${user.id}:`, err);
+      log.error(`Cron runway alert error for user ${user.id}:`, err);
       results.errors++;
     }
 
@@ -300,7 +301,7 @@ export async function GET(request: Request) {
         }
       }
     } catch (err) {
-      console.error(`Cron churn alert error for user ${user.id}:`, err);
+      log.error(`Cron churn alert error for user ${user.id}:`, err);
       results.errors++;
     }
 
@@ -364,7 +365,7 @@ export async function GET(request: Request) {
         results.staleDealAlerts++;
       }
     } catch (err) {
-      console.error(`Cron stale deal alert error for user ${user.id}:`, err);
+      log.error(`Cron stale deal alert error for user ${user.id}:`, err);
       results.errors++;
     }
   }

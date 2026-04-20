@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
-import { shouldTriggerUpload, getInitialQuestion, getMissingFields, PITCH_SECTION_QUESTION } from '@/lib/profile-builder/question-engine'
+import { shouldTriggerUpload, getInitialQuestion, getMissingFields, PITCH_SECTION_QUESTION, buildFoundSnippets, getTargetedQuestion, flattenForDisplay } from '@/lib/profile-builder/question-engine'
 import type { FounderProfile } from '@/lib/profile-builder/question-engine'
 import { generateSmartQuestions } from '@/lib/profile-builder/smart-questions'
 import type { SmartQuestion } from '@/lib/profile-builder/smart-questions'
@@ -230,7 +230,7 @@ export default function ProfileBuilderPage() {
 
       const { data: fp } = await supabase
         .from('founder_profiles')
-        .select('stage, industry, revenue_status, company_name, profile_builder_flow')
+        .select('stage, industry, revenue_status, company_name, profile_builder_flow, profile_builder_completed')
         .eq('user_id', data.session.user.id)
         .single()
       if (fp) {
@@ -242,14 +242,22 @@ export default function ProfileBuilderPage() {
         })
         // Restore flow state — fast mode: full restore including smart-qa position
         //                      full mode: restore extractionSummary only
+        let scoreReportRestored = false
         if (fp.profile_builder_flow) {
           const flow = fp.profile_builder_flow as {
             flowMode?: 'fast' | 'full'
             smartQuestions?: SmartQuestion[]
             smartQaIndex?: number
             extractionSummary?: SectionSummary[]
+            currentStep?: number
+            submitResult?: NonNullable<typeof submitResult>
           }
-          if (flow.flowMode === 'fast') {
+          // Restore score report first — takes priority over resuming in-progress flow
+          if (flow.submitResult) {
+            setSubmitResult(flow.submitResult)
+            setCurrentStep(6)
+            scoreReportRestored = true
+          } else if (flow.flowMode === 'fast') {
             setFlowMode('fast')
             if (flow.smartQuestions?.length)    setSmartQuestions(flow.smartQuestions)
             if (flow.smartQaIndex != null)      setSmartQaIndex(flow.smartQaIndex)
@@ -262,6 +270,63 @@ export default function ProfileBuilderPage() {
             // Full mode — restore extraction results so they survive page refresh
             setExtractionSummary(flow.extractionSummary)
           }
+        }
+
+        // Fallback: if the score report wasn't in flow state (e.g. submitted before persistence fix),
+        // reconstruct it from the latest qscore_history row so the Score Report tab reappears.
+        if (!scoreReportRestored && fp.profile_builder_completed) {
+          try {
+            const { data: latestScore } = await supabase
+              .from('qscore_history')
+              .select('overall_score, grade, available_iq, track, iq_breakdown, reconciliation_flags, validation_warnings, ai_actions')
+              .eq('user_id', data.session.user.id)
+              .order('calculated_at', { ascending: false })
+              .limit(1)
+              .single()
+
+            if (latestScore) {
+              const breakdown = latestScore.iq_breakdown as {
+                parameters?: Array<{
+                  id: string; name: string; averageScore: number; weight: number
+                  indicators: Array<{ id: string; name: string; rawScore: number; excluded: boolean; exclusionReason?: string; vcAlert?: string }>
+                }>
+                percentiles?: Record<string, { percentile: number | null; label: string }>
+              } | null
+              const percentiles = breakdown?.percentiles ?? {}
+              const iqBreakdown = (breakdown?.parameters ?? []).map(p => ({
+                id: p.id,
+                name: p.name,
+                weight: Math.round((p.weight ?? 0) * 100),
+                averageScore: Math.round((p.averageScore ?? 0) * 10) / 10,
+                indicatorsActive: (p.indicators ?? []).filter((i) => !i.excluded).length,
+                indicators: (p.indicators ?? []).map(ind => ({
+                  id: ind.id,
+                  name: ind.name,
+                  rawScore: ind.rawScore,
+                  excluded: ind.excluded,
+                  exclusionReason: ind.exclusionReason,
+                  vcAlert: ind.vcAlert,
+                  percentile: percentiles[ind.id]?.percentile ?? null,
+                  percentileLabel: percentiles[ind.id]?.label,
+                })),
+              }))
+              const aiActions = latestScore.ai_actions as { unlockCards?: NonNullable<typeof submitResult>['unlockCards']; readinessSummary?: string } | null
+              const reconFlags = (latestScore.reconciliation_flags as NonNullable<typeof submitResult>['reconciliationFlags'] | null) ?? []
+              const restored: NonNullable<typeof submitResult> = {
+                score: latestScore.overall_score,
+                grade: latestScore.grade ?? 'F',
+                availableIQ: (latestScore.available_iq as number | null) ?? latestScore.overall_score,
+                track: (latestScore.track as string | null) ?? undefined,
+                iqBreakdown,
+                reconciliationFlags: reconFlags,
+                validationWarnings: (latestScore.validation_warnings as string[] | null) ?? [],
+                unlockCards: aiActions?.unlockCards ?? [],
+                readinessSummary: aiActions?.readinessSummary ?? '',
+              }
+              setSubmitResult(restored)
+              setCurrentStep(6)
+            }
+          } catch { /* non-blocking */ }
         }
       }
 
@@ -338,20 +403,21 @@ export default function ProfileBuilderPage() {
       const hasExtracted = Object.keys(sec.extractedFields ?? {}).length > 0
       if (hasExtracted) {
         if (sec.completionScore >= 70) {
-          initialQ = `I extracted this section from your documents and it looks complete (${sec.completionScore}%). Feel free to add more detail or move on.`
+          initialQ = `I pulled this section from your documents (${sec.completionScore}% complete). You're good to move on — or add more detail below.`
         } else {
-          // Build context-aware question using what's already known vs what's missing
-          // Pass confidence map so low-confidence fields are also surfaced as gaps
           const missing = getMissingFields(sec.extractedFields, currentStep, founderProfile.stage ?? 'pre-product', sec.confidenceMap ?? {})
-          const missingLabels = missing
-            .map(f => MISSING_FIELD_LABELS[f])
-            .filter(Boolean)
-            .slice(0, 3)
-          if (missingLabels.length > 0) {
-            initialQ = `I extracted some info from your documents, but still need a few things: ${missingLabels.join(', ')}. Can you fill in the gaps?`
-          } else {
-            initialQ = getInitialQuestion(currentStep, founderProfile)
-          }
+          const foundSnippets = buildFoundSnippets(sec.extractedFields, currentStep)
+          const foundStr = foundSnippets.length > 0
+            ? `From your documents I found: ${foundSnippets.slice(0, 3).join(' · ')}.\n\n`
+            : ''
+          // Ask about the first missing required field specifically, not a list
+          const firstMissingKey = missing[0]
+          const firstMissingLabel = (MISSING_FIELD_LABELS[firstMissingKey] ?? '').toLowerCase()
+          const targetedSuffix = getTargetedQuestion(currentStep, firstMissingKey)
+          const gapQ = firstMissingLabel && targetedSuffix
+            ? `I still need your ${firstMissingLabel} — ${targetedSuffix}`
+            : getInitialQuestion(currentStep, founderProfile)
+          initialQ = foundStr + gapQ
         }
       } else {
         initialQ = getInitialQuestion(currentStep, founderProfile)
@@ -506,11 +572,18 @@ export default function ProfileBuilderPage() {
       const extracted = await res.json()
 
       const pct: number = extracted.completionScore ?? 0
+      // Show what was just extracted before asking the next question
+      const newlyExtracted: string[] = Object.entries(extracted.extractedFields ?? {})
+        .flatMap(([k, v]) => flattenForDisplay(k, v))
+        .slice(0, 3)
+      const extractPrefix = newlyExtracted.length > 0
+        ? `Got it — noted: ${newlyExtracted.join(', ')}. `
+        : ''
       const agentReply: string =
-        extracted.followUpQuestion ??
+        extractPrefix + (extracted.followUpQuestion ??
         (pct >= 70
-          ? "I have what I need for this section. Feel free to add more detail or move to the next section."
-          : "Tell me more — the more specific you are, the higher your score.")
+          ? "This section looks good. Move on when you're ready."
+          : "Keep going — the more specific you are, the higher your score."))
 
       setSections(prev => {
         const sec = prev[key] ?? initSection()
@@ -706,13 +779,20 @@ export default function ProfileBuilderPage() {
           return next
         })
         setUploadTrigger(null)
+        // Auto-advance to extraction summary so the user can see what was found
+        setCurrentStep('extract-results')
         return
       }
 
       // No sectionSummaries — extraction failed (image PDF, missing key, scanned doc, etc.)
-      // Instead of leaving the founder stuck, launch smart Q&A with empty extracted fields.
-      // All critical-field questions will be generated so the founder can answer manually.
-      console.warn('[profile-builder] extraction failed, falling through to manual Q&A:', data.extractionError)
+      // Show the error to the user instead of silently falling through.
+      if (data.extractionError) {
+        setUploadError(`Extraction failed: ${data.extractionError}`)
+        console.warn('[profile-builder] extraction error surfaced to user:', data.extractionError)
+      } else {
+        setUploadError('No data could be extracted from this file. Try a text-based PDF or PPTX, or answer the questions below manually.')
+        console.warn('[profile-builder] extraction produced 0 fields — falling through to manual Q&A')
+      }
       const qs = generateSmartQuestions({}, founderProfile?.stage ?? 'pre-product')
       setSmartQuestions(qs)
       setSmartQaIndex(0)
@@ -838,7 +918,7 @@ export default function ProfileBuilderPage() {
         }
         return
       }
-      setSubmitResult({
+      const result = {
         score: data.score,
         grade: data.grade,
         availableIQ: data.availableIQ ?? data.score,
@@ -848,8 +928,11 @@ export default function ProfileBuilderPage() {
         validationWarnings: data.validationWarnings ?? [],
         unlockCards: data.unlockCards ?? [],
         readinessSummary: data.readinessSummary ?? '',
-      })
-      saveFlowState(null)  // profile submitted — clear persisted fast-flow state
+      }
+      setSubmitResult(result)
+      setCurrentStep(6)
+      // Persist so user can return to their score report after closing the page
+      saveFlowState({ submitResult: result, currentStep: 6 })
     } catch {
       setSubmitError('Network error — please try again')
     } finally {
@@ -1070,9 +1153,29 @@ export default function ProfileBuilderPage() {
               )
             })}
 
-            {/* Review */}
+            {/* Review & Score Report */}
             <div style={{ marginTop: 16 }}>
               {(() => {
+                const isActive = String(currentStep) === '6'
+                return (
+                  <button
+                    onClick={() => setCurrentStep(6)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      width: '100%', padding: '7px 10px', borderRadius: 8,
+                      border: 'none', cursor: 'pointer', textAlign: 'left',
+                      background: isActive && !submitResult ? surf2 : 'transparent',
+                      marginBottom: 1, transition: 'background 0.15s',
+                    }}
+                    onMouseEnter={e => { if (!isActive || submitResult) e.currentTarget.style.background = bdr }}
+                    onMouseLeave={e => { if (!isActive || submitResult) e.currentTarget.style.background = 'transparent' }}
+                  >
+                    <CheckCircle2 size={14} color={isActive && !submitResult ? blue : muted} strokeWidth={isActive && !submitResult ? 2.5 : 1.75} style={{ flexShrink: 0 }} />
+                    <div style={{ fontSize: 12, fontWeight: isActive && !submitResult ? 600 : 400, color: isActive && !submitResult ? blue : ink, lineHeight: 1.3 }}>Review & Submit</div>
+                  </button>
+                )
+              })()}
+              {submitResult && (() => {
                 const isActive = String(currentStep) === '6'
                 return (
                   <button
@@ -1087,8 +1190,10 @@ export default function ProfileBuilderPage() {
                     onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = bdr }}
                     onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent' }}
                   >
-                    <CheckCircle2 size={14} color={isActive ? blue : muted} strokeWidth={isActive ? 2.5 : 1.75} style={{ flexShrink: 0 }} />
-                    <div style={{ fontSize: 12, fontWeight: isActive ? 600 : 400, color: isActive ? blue : ink, lineHeight: 1.3 }}>Review & Submit</div>
+                    <FileText size={14} color={isActive ? blue : green} strokeWidth={isActive ? 2.5 : 1.75} style={{ flexShrink: 0 }} />
+                    <div style={{ fontSize: 12, fontWeight: isActive ? 600 : 500, color: isActive ? blue : green, lineHeight: 1.3 }}>
+                      Score Report · {submitResult.score}
+                    </div>
                   </button>
                 )
               })()}
@@ -1354,7 +1459,7 @@ export default function ProfileBuilderPage() {
               {/* Chat messages */}
               <div style={{
                 flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column',
-                gap: 12, minHeight: 260, maxHeight: 400, padding: '4px 0',
+                gap: 20, minHeight: 260, maxHeight: 520, padding: '12px 0',
               }}>
                 {sec.messages.length === 0 && (
                   <div style={{ textAlign: 'center', padding: 32, color: muted, fontSize: 14 }}>
@@ -1393,30 +1498,30 @@ export default function ProfileBuilderPage() {
               {(uploadTrigger || uploadLoading) && (
                 <div style={{
                   margin: '12px 0', padding: '12px 16px', borderRadius: 10,
-                  background: uploadLoading ? '#FFF7ED' : '#FFF7ED',
-                  border: uploadLoading ? '1px solid #FED7AA' : '1px solid #FED7AA',
+                  background: '#EFF6FF',
+                  border: '1px solid #BFDBFE',
                   display: 'flex', alignItems: 'center', gap: 12,
                   transition: 'all 0.2s',
                 }}>
                   <div style={{
-                    width: 32, height: 32, borderRadius: 8, background: surf2,
+                    width: 32, height: 32, borderRadius: 8, background: surf,
                     display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                   }}>
                     {uploadLoading
-                      ? <Loader2 size={15} color={amber} strokeWidth={2} style={{ animation: 'spin 1s linear infinite' }} />
-                      : <BarChart size={15} color={amber} strokeWidth={1.75} />}
+                      ? <Loader2 size={15} color={blue} strokeWidth={2} style={{ animation: 'spin 1s linear infinite' }} />
+                      : <Paperclip size={15} color={blue} strokeWidth={1.75} />}
                   </div>
                   <div style={{ flex: 1 }}>
                     {uploadLoading ? (
                       <>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: '#92400E' }}>Extracting data from your document…</div>
-                        <div style={{ fontSize: 11, color: amber, marginTop: 2 }}>This takes a few seconds — hang tight</div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: '#1D4ED8' }}>Extracting data from your document…</div>
+                        <div style={{ fontSize: 11, color: blue, marginTop: 2, opacity: 0.8 }}>This takes a few seconds — hang tight</div>
                       </>
                     ) : (
                       <>
-                        <div style={{ fontSize: 13, color: '#92400E' }}>{uploadTrigger}</div>
+                        <div style={{ fontSize: 13, color: '#1D4ED8' }}>{uploadTrigger}</div>
                         {impact && (
-                          <div style={{ fontSize: 11, color: amber, marginTop: 2, fontWeight: 600 }}>
+                          <div style={{ fontSize: 11, color: blue, marginTop: 2, fontWeight: 600, opacity: 0.9 }}>
                             Upload to verify → boost {impact.dim} +{impact.pts} pts
                           </div>
                         )}
@@ -1428,7 +1533,7 @@ export default function ProfileBuilderPage() {
                       onClick={() => fileInputRef.current?.click()}
                       style={{
                         padding: '6px 14px', borderRadius: 6, border: 'none',
-                        background: amber, color: '#fff', fontSize: 12,
+                        background: blue, color: '#fff', fontSize: 12,
                         fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
                       }}
                     >Upload</button>
@@ -2039,10 +2144,100 @@ export default function ProfileBuilderPage() {
                     const warnings = submitResult!.validationWarnings.length > 0
                       ? `<div style="margin:16px 0;padding:12px 16px;background:#FFFBEB;border:1px solid #D97706;border-radius:8px"><div style="font-size:11px;font-weight:700;color:#D97706;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px">Consistency Notes</div>${submitResult!.validationWarnings.map(w => `<div style="font-size:12px;color:#2A2826;line-height:1.5">· ${w}</div>`).join('')}</div>` : ''
 
-                    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>IQ Score Memo — ${companyLabel}</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#FAF8F3;color:#2A2826}@media print{body{background:white}.no-print{display:none!important}@page{margin:18mm 14mm;size:A4}}</style></head><body><div style="max-width:720px;margin:0 auto;padding:48px 40px 60px"><div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:24px;border-bottom:2px solid #2A2826;margin-bottom:32px"><div><div style="font-size:11px;font-weight:700;color:#6B6760;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px">Edge Alpha · IQ Score Memo</div><div style="font-size:24px;font-weight:800;color:#2A2826;letter-spacing:-0.02em">${companyLabel}</div><div style="font-size:12px;color:#6B6760;margin-top:4px">${dateStr}</div></div><div style="text-align:right"><div style="font-size:56px;font-weight:800;color:#2563EB;line-height:1;letter-spacing:-0.04em">${submitResult!.score}</div><div style="font-size:14px;font-weight:700;color:#2A2826">Grade ${submitResult!.grade}</div>${submitResult!.track ? `<div style="font-size:11px;color:#2563EB;margin-top:2px">${submitResult!.track} track</div>` : ''}</div></div><div style="margin-bottom:32px"><div style="font-size:11px;font-weight:700;color:#6B6760;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:14px">Parameter Overview</div>${submitResult!.iqBreakdown.map(p => { const ps = toS100(p.averageScore); return `<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px"><div style="width:150px;font-size:12px;color:#2A2826;font-weight:600;flex-shrink:0">${p.name}</div><div style="flex:1;height:6px;background:#E8E3D8;border-radius:3px;overflow:hidden"><div style="height:100%;width:${ps}%;background:${ps >= 70 ? '#16A34A' : ps >= 45 ? '#D97706' : '#DC2626'}"></div></div><div style="width:48px;text-align:right;font-size:12px;font-weight:800;color:${ps >= 70 ? '#16A34A' : ps >= 45 ? '#D97706' : '#DC2626'}">${ps}/100</div></div>` }).join('')}</div><div style="margin-bottom:32px;padding:20px 24px;background:#F5F1E8;border-left:3px solid #2563EB;border-radius:0 8px 8px 0"><div style="font-size:11px;font-weight:700;color:#6B6760;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px">Assessment Summary</div><p style="font-size:13px;color:#2A2826;line-height:1.7">${narrative.overall}</p></div><div style="margin-bottom:32px"><div style="font-size:11px;font-weight:700;color:#6B6760;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:14px">Indicator Detail</div>${rows}</div>${warnings}${submitResult!.unlockCards.length > 0 ? `<div style="margin-bottom:32px"><div style="font-size:11px;font-weight:700;color:#6B6760;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:14px">Top Score Unlocks</div>${unlocks}</div>` : ''}${submitResult!.readinessSummary ? `<div style="padding:18px 20px;background:#F5F1E8;border:1px solid #E8E3D8;border-radius:8px;margin-bottom:32px"><div style="font-size:11px;font-weight:700;color:#6B6760;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Investor Readiness Summary</div><p style="font-size:13px;color:#2A2826;line-height:1.7;font-style:italic">${submitResult!.readinessSummary}</p></div>` : ''}<div style="padding-top:20px;border-top:1px solid #E8E3D8;display:flex;justify-content:space-between;align-items:center"><div style="font-size:11px;color:#6B6760">Confidential · Generated by Edge Alpha</div><div style="font-size:11px;color:#6B6760">edgealpha.com</div></div></div><script>window.onload=function(){window.print()}<\/script></body></html>`
+                    const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>IQ Score Memo — ${companyLabel}</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#FAFAF9;color:#2A2826}
+  .page{max-width:720px;margin:0 auto;padding:0 0 80px}
+  .print-footer{position:fixed;bottom:0;left:0;right:0;background:#FAFAF9;border-top:1px solid #E8E3D8;padding:10px 40px;display:flex;justify-content:space-between;align-items:center}
+  @media print{
+    body{background:white}
+    .no-print{display:none!important}
+    .print-footer{background:white}
+    @page{size:A4;margin:0 0 18mm 0}
+  }
+</style>
+</head>
+<body>
+<div class="page">
 
-                    const win = window.open('', '_blank')
-                    if (win) { win.document.write(html); win.document.close() }
+  <!-- Edge Alpha header bar -->
+  <div style="background:#1A1815;color:#FAF8F3;padding:14px 40px;display:flex;justify-content:space-between;align-items:center;margin-bottom:0">
+    <div style="display:flex;align-items:center;gap:10px">
+      <div style="width:22px;height:22px;background:#FAF8F3;border-radius:4px;display:flex;align-items:center;justify-content:center">
+        <div style="width:10px;height:10px;border:2px solid #1A1815;border-radius:2px"></div>
+      </div>
+      <span style="font-size:13px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase">Edge Alpha</span>
+    </div>
+    <span style="font-size:10px;color:rgba(250,248,243,0.5);letter-spacing:0.08em">IQ SCORE MEMO</span>
+  </div>
+
+  <!-- Document header -->
+  <div style="padding:32px 40px 28px;border-bottom:1px solid #E8E3D8;background:white">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:20px">
+      <div>
+        <div style="font-size:10px;font-weight:700;color:#9B9691;text-transform:uppercase;letter-spacing:0.14em;margin-bottom:8px">Investor Readiness Assessment</div>
+        <div style="font-size:26px;font-weight:700;color:#2A2826;letter-spacing:-0.02em;line-height:1.1;margin-bottom:6px">${companyLabel}</div>
+        <div style="font-size:12px;color:#9B9691">${dateStr}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div style="font-size:64px;font-weight:300;color:#2A2826;line-height:1;letter-spacing:-0.05em">${submitResult!.score}</div>
+        <div style="display:inline-flex;align-items:center;gap:6px;margin-top:6px;padding:3px 10px;background:#F0F0EE;border-radius:20px">
+          <span style="font-size:12px;font-weight:700;color:#2A2826">Grade ${submitResult!.grade}</span>
+        </div>
+        ${submitResult!.track ? `<div style="font-size:11px;color:#9B9691;margin-top:6px">${submitResult!.track} track</div>` : ''}
+      </div>
+    </div>
+  </div>
+
+  <div style="padding:32px 40px">
+
+    <!-- Parameter overview -->
+    <div style="margin-bottom:32px">
+      <div style="font-size:9px;font-weight:700;color:#9B9691;text-transform:uppercase;letter-spacing:0.14em;margin-bottom:16px">Parameter Overview</div>
+      ${submitResult!.iqBreakdown.map(p => { const ps = toS100(p.averageScore); const bc = ps >= 70 ? '#16A34A' : ps >= 45 ? '#D97706' : '#DC2626'; return `<div style="display:flex;align-items:center;gap:14px;margin-bottom:11px"><div style="width:160px;font-size:12px;color:#2A2826;font-weight:500;flex-shrink:0">${p.name}</div><div style="flex:1;height:5px;background:#E8E3D8;border-radius:3px;overflow:hidden"><div style="height:100%;width:${ps}%;background:${bc}"></div></div><div style="width:40px;text-align:right;font-size:12px;font-weight:700;color:#2A2826">${ps}</div></div>` }).join('')}
+    </div>
+
+    <!-- Narrative -->
+    <div style="margin-bottom:32px;padding:18px 22px;background:#F5F3EE;border-left:2px solid #2A2826;border-radius:0 8px 8px 0">
+      <div style="font-size:9px;font-weight:700;color:#9B9691;text-transform:uppercase;letter-spacing:0.14em;margin-bottom:8px">Assessment Summary</div>
+      <p style="font-size:13px;color:#2A2826;line-height:1.75">${narrative.overall}</p>
+    </div>
+
+    <!-- Indicator detail -->
+    <div style="margin-bottom:32px">
+      <div style="font-size:9px;font-weight:700;color:#9B9691;text-transform:uppercase;letter-spacing:0.14em;margin-bottom:16px">Indicator Detail</div>
+      ${rows}
+    </div>
+
+    ${warnings}
+
+    ${submitResult!.unlockCards.length > 0 ? `<div style="margin-bottom:32px"><div style="font-size:9px;font-weight:700;color:#9B9691;text-transform:uppercase;letter-spacing:0.14em;margin-bottom:16px">Top Score Unlocks</div>${unlocks}</div>` : ''}
+
+    ${submitResult!.readinessSummary ? `<div style="padding:18px 22px;background:#F5F3EE;border:1px solid #E8E3D8;border-radius:8px;margin-bottom:32px"><div style="font-size:9px;font-weight:700;color:#9B9691;text-transform:uppercase;letter-spacing:0.14em;margin-bottom:8px">Investor Readiness Summary</div><p style="font-size:13px;color:#2A2826;line-height:1.75;font-style:italic">${submitResult!.readinessSummary}</p></div>` : ''}
+
+  </div>
+</div>
+
+<!-- Footer — fixed at bottom of every page -->
+<div class="print-footer">
+  <span style="font-size:10px;color:#9B9691">Confidential · Edge Alpha · ${dateStr}</span>
+  <span style="font-size:10px;color:#9B9691;font-weight:500">www.edgealpha.vc</span>
+</div>
+
+<script>window.onload=function(){window.print()}<\/script>
+</body></html>`
+
+                    const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+                    const blobUrl = URL.createObjectURL(blob)
+                    const win = window.open(blobUrl, '_blank')
+                    if (win) {
+                      win.addEventListener('afterprint', () => URL.revokeObjectURL(blobUrl))
+                    }
                   }
 
                   return (
@@ -2061,9 +2256,11 @@ export default function ProfileBuilderPage() {
                             <div style={{ fontSize: 12, color: muted }}>{dateStr}</div>
                           </div>
                           <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                            <div style={{ fontSize: 64, fontWeight: 900, color: blue, lineHeight: 1, letterSpacing: '-0.04em' }}>{submitResult.score}</div>
-                            <div style={{ fontSize: 15, fontWeight: 700, color: ink, marginTop: 2 }}>Grade {submitResult.grade}</div>
-                            {submitResult.track && <div style={{ marginTop: 4, fontSize: 11, fontWeight: 600, color: blue }}>{submitResult.track} track</div>}
+                            <div style={{ fontSize: 56, fontWeight: 800, color: ink, lineHeight: 1, letterSpacing: '-0.03em' }}>{submitResult.score}</div>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 6, padding: '3px 10px', background: surf2, borderRadius: 20 }}>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: ink }}>Grade {submitResult.grade}</span>
+                            </div>
+                            {submitResult.track && <div style={{ marginTop: 6, fontSize: 11, fontWeight: 500, color: muted }}>{submitResult.track} track</div>}
                           </div>
                         </div>
                         <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
@@ -2084,12 +2281,11 @@ export default function ProfileBuilderPage() {
                             const bc = ps >= 70 ? green : ps >= 45 ? amber : red
                             return (
                               <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                                <div style={{ width: 160, fontSize: 12, fontWeight: 600, color: ink, flexShrink: 0 }}>{p.name}</div>
-                                <div style={{ flex: 1, height: 6, background: bdr, borderRadius: 3, overflow: 'hidden' }}>
+                                <div style={{ width: 160, fontSize: 12, fontWeight: 500, color: ink, flexShrink: 0 }}>{p.name}</div>
+                                <div style={{ flex: 1, height: 5, background: bdr, borderRadius: 3, overflow: 'hidden' }}>
                                   <div style={{ height: '100%', width: `${ps}%`, background: bc, borderRadius: 3, transition: 'width 0.6s ease' }} />
                                 </div>
-                                <div style={{ width: 52, textAlign: 'right', fontSize: 12, fontWeight: 800, color: bc }}>{ps}/100</div>
-                                <div style={{ width: 80, fontSize: 11, color: muted, textAlign: 'right' }}>{p.indicatorsActive} active · {Math.round(p.weight * 100)}% wt</div>
+                                <div style={{ width: 44, textAlign: 'right', fontSize: 12, fontWeight: 700, color: ink }}>{ps}</div>
                               </div>
                             )
                           })}
@@ -2114,9 +2310,9 @@ export default function ProfileBuilderPage() {
                             return (
                               <div key={p.id} style={{ borderRadius: 12, border: `1px solid ${bdr}`, overflow: 'hidden', background: bg }}>
                                 <div style={{ padding: '10px 16px', background: surf2, display: 'flex', alignItems: 'center', gap: 10, borderBottom: `1px solid ${bdr}` }}>
-                                  <div style={{ width: 24, height: 24, borderRadius: 6, background: psColor + '22', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 800, color: psColor, flexShrink: 0 }}>{p.id.toUpperCase()}</div>
-                                  <span style={{ fontSize: 13, fontWeight: 700, color: ink, flex: 1 }}>{p.name}</span>
-                                  <span style={{ fontSize: 14, fontWeight: 800, color: psColor }}>{ps}</span>
+                                  <div style={{ width: 22, height: 22, borderRadius: 5, background: surf, border: `1px solid ${bdr}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: muted, flexShrink: 0 }}>{p.id.toUpperCase()}</div>
+                                  <span style={{ fontSize: 13, fontWeight: 600, color: ink, flex: 1 }}>{p.name}</span>
+                                  <span style={{ fontSize: 13, fontWeight: 700, color: psColor }}>{ps}</span>
                                   <span style={{ fontSize: 11, color: muted }}>/100</span>
                                 </div>
                                 <div>
@@ -2129,10 +2325,10 @@ export default function ProfileBuilderPage() {
                                       <div key={ind.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 16px', borderBottom: ii < (p.indicators ?? []).length - 1 ? `1px solid ${bdr}` : 'none' }}>
                                         <div style={{ width: 8, height: 8, borderRadius: '50%', background: dotColor, flexShrink: 0 }} />
                                         <span style={{ flex: 1, fontSize: 12, color: excl ? muted : ink, fontStyle: excl ? 'italic' : 'normal', lineHeight: 1.4 }}>{ind.name}</span>
-                                        {ind.percentileLabel && !excl && <span style={{ fontSize: 10, fontWeight: 600, color: blue, background: '#EFF6FF', padding: '1px 7px', borderRadius: 20, flexShrink: 0 }}>{ind.percentileLabel}</span>}
-                                        {ind.vcAlert && !excl && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, color: amber, background: '#FEF3C7', padding: '1px 7px', borderRadius: 20, flexShrink: 0 }}><AlertTriangle size={8} strokeWidth={2} />VC flag</span>}
+                                        {ind.percentileLabel && !excl && <span style={{ fontSize: 10, fontWeight: 500, color: muted, background: surf2, padding: '1px 7px', borderRadius: 20, flexShrink: 0 }}>{ind.percentileLabel}</span>}
+                                        {ind.vcAlert && !excl && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, color: amber, background: surf2, padding: '1px 7px', borderRadius: 20, flexShrink: 0 }}><AlertTriangle size={8} strokeWidth={2} />VC flag</span>}
                                         {excl && <span style={{ fontSize: 10, color: muted, background: surf2, padding: '1px 7px', borderRadius: 20, flexShrink: 0 }}>{ind.exclusionReason ?? 'N/A'}</span>}
-                                        <div style={{ minWidth: 32, padding: '2px 6px', borderRadius: 5, background: excl ? surf2 : score5 >= 4 ? '#DCFCE7' : score5 >= 2.5 ? '#FEF3C7' : score5 > 0 ? '#FEE2E2' : surf2, textAlign: 'center', fontSize: 11, fontWeight: 700, color: dotColor, flexShrink: 0 }}>{scoreLabel}</div>
+                                        <div style={{ minWidth: 32, padding: '2px 6px', borderRadius: 5, background: surf2, textAlign: 'center', fontSize: 11, fontWeight: 700, color: dotColor, flexShrink: 0 }}>{scoreLabel}</div>
                                       </div>
                                     )
                                   })}
@@ -2148,8 +2344,8 @@ export default function ProfileBuilderPage() {
 
                       {/* Validation warnings */}
                       {submitResult.validationWarnings.length > 0 && (
-                        <div style={{ marginBottom: 28, padding: '14px 18px', borderRadius: 10, background: '#FFFBEB', border: `1px solid ${amber}55` }}>
-                          <div style={{ fontSize: 10, fontWeight: 700, color: amber, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Consistency Notes</div>
+                        <div style={{ marginBottom: 28, padding: '14px 18px', borderRadius: 10, background: surf, border: `1px solid ${bdr}`, borderLeft: `3px solid ${amber}` }}>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Consistency Notes</div>
                           {submitResult.validationWarnings.map((w, i) => <div key={i} style={{ fontSize: 12, color: ink, lineHeight: 1.55, marginBottom: 3 }}>· {w}</div>)}
                         </div>
                       )}
@@ -2160,10 +2356,10 @@ export default function ProfileBuilderPage() {
                           <div style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 14 }}>Top Score Unlocks</div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                             {submitResult.unlockCards.map((card, ci) => (
-                              <div key={ci} style={{ display: 'flex', gap: 16, padding: '14px 16px', borderRadius: 10, border: `1px solid ${bdr}`, background: surf }}>
-                                <div style={{ textAlign: 'center', minWidth: 44, flexShrink: 0, paddingTop: 2 }}>
-                                  <div style={{ fontSize: 20, fontWeight: 900, color: blue, lineHeight: 1, letterSpacing: '-0.02em' }}>+{card.estimatedPointGain}</div>
-                                  <div style={{ fontSize: 9, fontWeight: 700, color: muted, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 2 }}>pts</div>
+                              <div key={ci} style={{ display: 'flex', gap: 16, padding: '14px 16px', borderRadius: 10, border: `1px solid ${bdr}`, borderLeft: `3px solid ${bdr}`, background: surf }}>
+                                <div style={{ textAlign: 'center', minWidth: 40, flexShrink: 0, paddingTop: 2 }}>
+                                  <div style={{ fontSize: 18, fontWeight: 800, color: ink, lineHeight: 1 }}>+{card.estimatedPointGain}</div>
+                                  <div style={{ fontSize: 9, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 2 }}>pts</div>
                                 </div>
                                 <div style={{ flex: 1 }}>
                                   <div style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 3 }}>{card.indicatorName}</div>
@@ -2185,9 +2381,9 @@ export default function ProfileBuilderPage() {
                       )}
 
                       {/* What's next */}
-                      <div style={{ padding: '18px 20px', borderRadius: 10, background: '#F0FDF4', border: `1px solid ${green}44` }}>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: green, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>What&apos;s next</div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <div style={{ padding: '18px 20px', borderRadius: 10, background: surf, border: `1px solid ${bdr}` }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>What&apos;s next</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                           {[
                             { Icon: Globe, text: 'Your score is live on the Investor Portal — visible to matched investors' },
                             { Icon: Bot, text: 'Use AI agents to build deliverables that boost your weakest dimensions' },
@@ -2195,7 +2391,7 @@ export default function ProfileBuilderPage() {
                           ].map(({ Icon, text }, i) => (
                             <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                               <Icon size={13} color={green} strokeWidth={1.75} style={{ flexShrink: 0, marginTop: 1 }} />
-                              <span style={{ fontSize: 12, color: '#166534', lineHeight: 1.55 }}>{text}</span>
+                              <span style={{ fontSize: 12, color: ink, lineHeight: 1.55 }}>{text}</span>
                             </div>
                           ))}
                         </div>

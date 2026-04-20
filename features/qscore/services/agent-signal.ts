@@ -4,6 +4,7 @@ import { ARTIFACT_TYPES, type ArtifactType } from '@/lib/constants/artifact-type
 import { DIMENSION_DB_COLUMN } from '@/lib/constants/dimensions';
 import { AGENTS } from '@/lib/edgealpha.config';
 import { fetchDimensionWeights } from '@/features/qscore/services/threshold-config';
+import { log } from '@/lib/logger'
 
 /**
  * Dimension boost config per artifact type.
@@ -171,7 +172,7 @@ export async function applyAgentScoreSignal(
     });
 
   if (error) {
-    console.error('applyAgentScoreSignal insert error:', error);
+    log.error('applyAgentScoreSignal insert error:', error);
     return { boosted: false };
   }
 

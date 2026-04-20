@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
 import { Resend } from 'resend'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/harper/reject
 // Generates a personalised, kind rejection email for a candidate and sends it via Resend.
@@ -147,7 +148,7 @@ Write the rejection email body.`,
 
     return NextResponse.json({ sent: true, subject })
   } catch (err) {
-    console.error('Harper reject error:', err)
+    log.error('Harper reject error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

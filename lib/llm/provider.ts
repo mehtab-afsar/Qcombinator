@@ -95,8 +95,9 @@ export async function* llmStream(params: {
   maxTokens?: number;
   temperature?: number;
   tools?: ToolDefinition[];
+  model?: string;
 }): AsyncGenerator<{ type: 'delta'; text: string } | { type: 'done'; toolCall: LLMChatResponse['toolCall'] }> {
-  const { messages, maxTokens = 900, temperature = 0.7, tools } = params;
+  const { messages, maxTokens = 900, temperature = 0.7, tools, model = 'claude-sonnet-4-6' } = params;
   const { system, chat } = splitMessages(messages);
   const client = getClient();
 
@@ -110,7 +111,7 @@ export async function* llmStream(params: {
     : undefined;
 
   const stream = client.messages.stream({
-    model: 'claude-haiku-4-5-20251001',
+    model,
     max_tokens: maxTokens,
     temperature,
     ...(system ? { system } : {}),

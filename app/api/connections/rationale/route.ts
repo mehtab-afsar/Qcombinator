@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { verifyAuth } from '@/lib/auth/verify'
+import { log } from '@/lib/logger'
 import { generateMatchRationale } from '@/features/matching/services/match-rationale'
 
 /**
@@ -12,17 +13,14 @@ import { generateMatchRationale } from '@/features/matching/services/match-ratio
  */
 export async function POST(req: NextRequest) {
   try {
-    const supabase = await createClient()
-    const { data: { user }, error: authErr } = await supabase.auth.getUser()
-    if (authErr || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const auth = await verifyAuth()
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
     const body = await req.json()
     const rationale = await generateMatchRationale(body)
     return NextResponse.json({ rationale })
   } catch (err) {
-    console.error('[connections/rationale]', err)
+    log.error('POST /api/connections/rationale', { err })
     return NextResponse.json({ rationale: '' }, { status: 200 })
   }
 }

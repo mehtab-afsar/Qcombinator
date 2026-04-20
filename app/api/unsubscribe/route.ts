@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { log } from '@/lib/logger'
 
 // GET /api/unsubscribe?token=<base64(userId:type)>&type=weekly|runway|alerts
 //
@@ -97,7 +98,7 @@ export async function GET(request: NextRequest) {
     .eq('user_id', userId)
 
   if (updateErr) {
-    console.error('Unsubscribe update error:', updateErr)
+    log.error('Unsubscribe update error:', updateErr)
     return new NextResponse(errorPage('Failed to update preferences. Please try again.'), {
       status: 500,
       headers: { 'Content-Type': 'text/html' },

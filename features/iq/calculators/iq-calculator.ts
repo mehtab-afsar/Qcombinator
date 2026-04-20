@@ -19,6 +19,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AssessmentData } from '@/features/qscore/types/qscore.types';
+import { log } from '@/lib/logger'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -520,7 +521,7 @@ export async function saveIQScore(
     .single();
 
   if (error || !row) {
-    console.error('[IQ] Insert error:', error);
+    log.error('[IQ] Insert error:', error);
     return null;
   }
 

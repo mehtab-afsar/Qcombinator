@@ -1,8 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { parseBody, signupSchema } from '@/lib/api/validate';
+import { log } from '@/lib/logger'
 
 export async function POST(request: NextRequest) {
   try {
+    const parsed = await parseBody(request, signupSchema);
+    if (!parsed.ok) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
+    }
+
+    const {
+      email, password, fullName,
+      startupName, companyName, website, industry, stage,
+      revenueStatus, fundingStatus, teamSize, founderName,
+      problemStatement, targetCustomer, location, tagline,
+    } = parsed.data;
+
     // Use admin client with service role key to bypass email confirmation
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -15,37 +29,19 @@ export async function POST(request: NextRequest) {
       }
     );
 
-    // Get signup data from request
-    const {
-      email, password, fullName, startupName,
-      // Registration fields
-      companyName, website, industry, stage,
-      revenueStatus, fundingStatus, teamSize, founderName,
-    } = await request.json();
-
-    // Validate required fields
-    if (!email || !password || !fullName) {
-      return NextResponse.json(
-        { error: 'Email, password, and full name are required' },
-        { status: 400 }
-      );
-    }
-
     // Map new stage values to DB-accepted values (CHECK constraint: idea|mvp|launched|scaling)
     const STAGE_MAP: Record<string, string> = {
       'product-development': 'mvp',
       'commercial':          'launched',
       'growth-scaling':      'scaling',
-      // legacy fallbacks
       'pre-product': 'idea',
       'mvp':         'mvp',
       'beta':        'mvp',
       'launched':    'launched',
       'growing':     'scaling',
     };
-    const dbStage = STAGE_MAP[stage] ?? 'idea';
+    const dbStage = STAGE_MAP[stage ?? ''] ?? 'idea';
 
-    // Map industry to normalizeSector keys used by IQ Score calculator
     const INDUSTRY_MAP: Record<string, string> = {
       'medtech-biotech':     'biotech',
       'ai-software':         'ai_ml',
@@ -53,28 +49,23 @@ export async function POST(request: NextRequest) {
       'agri-foodtech':       'default',
       'clean-tech':          'climate',
     };
-    const dbIndustry = INDUSTRY_MAP[industry] ?? industry ?? null;
+    const dbIndustry = INDUSTRY_MAP[industry ?? ''] ?? industry ?? null;
 
-    // Map funding values
     const FUNDING_MAP: Record<string, string> = {
       'friends-family':     'pre-seed',
       'angel':              'pre-seed',
       'vc':                 'seed',
-      // legacy fallbacks
       'friends-and-family': 'pre-seed',
       'series-a-plus':      'series-a',
     };
     const dbFunding = fundingStatus ? (FUNDING_MAP[fundingStatus] ?? fundingStatus) : null;
 
-    // Map revenue values
     const REVENUE_MAP: Record<string, string> = {
       'early-revenue': 'first-revenue',
       'recurring':     'mrr-10k-100k',
     };
     const dbRevenue = revenueStatus ? (REVENUE_MAP[revenueStatus] ?? revenueStatus) : null;
 
-    // Attempt to create user directly — handle duplicate email via error response
-    // (avoids fetching all users just to check existence)
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
@@ -86,7 +77,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (authError) {
-      console.error('Auth signup error:', authError);
+      log.error('Auth signup error:', authError);
       const isDuplicate =
         authError.message?.toLowerCase().includes('already registered') ||
         authError.message?.toLowerCase().includes('already exists') ||
@@ -104,13 +95,9 @@ export async function POST(request: NextRequest) {
     }
 
     if (!authData.user) {
-      return NextResponse.json(
-        { error: 'Failed to create user' },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: 'Failed to create user' }, { status: 500 });
     }
 
-    // Create founder profile with all registration fields
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('founder_profiles')
       .insert({
@@ -132,15 +119,20 @@ export async function POST(request: NextRequest) {
         founder_name: founderName || fullName,
         registration_completed: true,
         profile_builder_completed: false,
+        tagline: tagline || null,
+        location: location || null,
+        startup_profile_data: {
+          problemStatement: problemStatement || null,
+          targetCustomer: targetCustomer || null,
+        },
       })
       .select()
       .single();
 
     if (profileError) {
-      console.error('Error creating founder profile:', profileError);
-      // Roll back auth user to avoid orphaned accounts
+      log.error('Error creating founder profile:', profileError);
       await supabaseAdmin.auth.admin.deleteUser(authData.user.id).catch(e =>
-        console.error('Failed to rollback auth user after profile error:', e)
+        log.error('Failed to rollback auth user after profile error:', e)
       );
       return NextResponse.json(
         { error: 'Account setup failed. Please try again.' },
@@ -148,19 +140,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Insert zero Q-Score row — honest baseline before Profile Builder
     const { error: qscoreErr } = await supabaseAdmin.from('qscore_history').insert({
       user_id: authData.user.id,
       overall_score: 0,
       data_source: 'registration',
     });
-    if (qscoreErr) console.error('Failed to insert initial qscore row:', qscoreErr);
+    if (qscoreErr) log.error('Failed to insert initial qscore row:', qscoreErr);
 
-    // Initialize subscription usage limits — fire-and-forget, non-blocking
     const featureLimits = [
-      { feature: 'agent_chat', usage_count: 0, limit_count: 50 },
-      { feature: 'qscore_recalc', usage_count: 0, limit_count: 2 },
-      { feature: 'investor_connection', usage_count: 0, limit_count: 3 },
+      { feature: 'agent_chat',           usage_count: 0, limit_count: 50 },
+      { feature: 'qscore_recalc',        usage_count: 0, limit_count: 2  },
+      { feature: 'investor_connection',  usage_count: 0, limit_count: 3  },
     ];
     Promise.all(featureLimits.map(limit =>
       supabaseAdmin.from('subscription_usage').insert({
@@ -170,7 +160,7 @@ export async function POST(request: NextRequest) {
         limit_count: limit.limit_count,
         reset_at: getNextMonthDate(),
       })
-    )).catch(e => console.error('subscription_usage insert failed (non-fatal):', e));
+    )).catch(e => log.error('subscription_usage insert failed (non-fatal):', e));
 
     return NextResponse.json({
       message: 'Account created successfully',
@@ -182,17 +172,12 @@ export async function POST(request: NextRequest) {
       profile,
     });
   } catch (error) {
-    console.error('Error during signup:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    log.error('Error during signup:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
-// Helper function to get date one month from now
 function getNextMonthDate(): string {
   const now = new Date();
-  const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, now.getDate());
-  return nextMonth.toISOString();
+  return new Date(now.getFullYear(), now.getMonth() + 1, now.getDate()).toISOString();
 }

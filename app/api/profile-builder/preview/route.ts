@@ -5,6 +5,7 @@ import { calculateIQScore, inferStage, normalizeSector } from '@/features/qscore
 import { validateConsistency } from '@/features/qscore/validators/consistency-validator'
 import { getAllIndicatorPercentiles } from '@/features/qscore/benchmarking/benchmark-engine'
 import type { SectionData } from '@/lib/profile-builder/data-merger'
+import { log } from '@/lib/logger'
 
 function getAdminClient() {
   return createClient(
@@ -140,7 +141,7 @@ export async function GET(req: NextRequest) {
       scoreVersion: 'v2_iq',
     })
   } catch (err) {
-    console.error('[profile-builder/preview]', err)
+    log.error('[profile-builder/preview]', err)
     return NextResponse.json({ error: 'Preview failed' }, { status: 500 })
   }
 }

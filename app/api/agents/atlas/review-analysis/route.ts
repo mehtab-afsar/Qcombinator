@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/atlas/review-analysis
 // Body: { competitorName, reviews: string (paste of G2/Capterra/TrustPilot reviews) }
@@ -73,7 +74,7 @@ Return ONLY valid JSON (no markdown fences):
 
     return NextResponse.json({ analysis })
   } catch (err) {
-    console.error('Atlas review analysis error:', err)
+    log.error('Atlas review analysis error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

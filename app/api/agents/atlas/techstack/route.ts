@@ -2,6 +2,7 @@ import { withCircuitBreaker } from '@/lib/circuit-breaker'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/atlas/techstack
 // Uses Tavily to detect a competitor's tech stack from their website + public sources.
@@ -109,7 +110,7 @@ ${context || 'No search results found — provide best estimate based on company
 
     return NextResponse.json({ techstack, competitorName })
   } catch (err) {
-    console.error('Atlas techstack error:', err)
+    log.error('Atlas techstack error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

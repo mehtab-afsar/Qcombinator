@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { verifyAuth } from '@/lib/auth/verify'
+import { log } from '@/lib/logger'
 
 // GET /api/messages?connectionId=<uuid>
 // Returns messages for a given connection_request, oldest first.
 // Marks unread messages (from the other party) as read on fetch.
 export async function GET(request: NextRequest) {
   try {
+    const auth = await verifyAuth()
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+    const { user } = auth
     const supabase = await createClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
 
     const connectionId = new URL(request.url).searchParams.get('connectionId')
     if (!connectionId) {
@@ -42,7 +43,7 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: true })
 
     if (error) {
-      console.error('Messages GET error:', error)
+      log.error('GET /api/messages', { error })
       return NextResponse.json({ error: 'Failed to fetch messages' }, { status: 500 })
     }
 
@@ -57,7 +58,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ messages: msgs ?? [] })
   } catch (err) {
-    console.error('Messages GET error:', err)
+    log.error('GET /api/messages', { err })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -67,11 +68,10 @@ export async function GET(request: NextRequest) {
 // Sends a message within an accepted connection.
 export async function POST(request: NextRequest) {
   try {
+    const auth = await verifyAuth()
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+    const { user } = auth
     const supabase = await createClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
 
     const { connectionId, body } = await request.json()
 
@@ -116,13 +116,13 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) {
-      console.error('Messages POST error:', error)
+      log.error('POST /api/messages insert', { error })
       return NextResponse.json({ error: 'Failed to send message' }, { status: 500 })
     }
 
     return NextResponse.json({ message: msg }, { status: 201 })
   } catch (err) {
-    console.error('Messages POST error:', err)
+    log.error('POST /api/messages', { err })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

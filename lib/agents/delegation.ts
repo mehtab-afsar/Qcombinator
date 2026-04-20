@@ -12,6 +12,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { log } from '@/lib/logger'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -65,10 +66,10 @@ export async function delegateTo(
       .select('id')
       .single();
 
-    if (error) { console.warn('[delegation] create error:', error.message); return null; }
+    if (error) { log.warn('[delegation] create error:', error.message); return null; }
     return data?.id ?? null;
   } catch (e) {
-    console.warn('[delegation] unexpected error:', e);
+    log.warn('[delegation] unexpected error:', e);
     return null;
   }
 }

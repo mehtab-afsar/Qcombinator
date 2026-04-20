@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/patel/launch-copy
 // Generates ready-to-paste copy for:
@@ -93,7 +94,7 @@ Return ONLY valid JSON (no markdown fences):
 
     return NextResponse.json({ copy: parsed, startupName })
   } catch (err) {
-    console.error('Launch copy error:', err)
+    log.error('Launch copy error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

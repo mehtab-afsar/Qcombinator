@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/atlas/monitor
 // Scans tracked competitors for recent changes: new job postings, pricing, funding, product updates.
@@ -137,7 +138,7 @@ Only include real signals from the data. If there's nothing new, say so honestly
 
     return NextResponse.json({ digest, competitors: allCompetitors })
   } catch (err) {
-    console.error('Atlas monitor POST error:', err)
+    log.error('Atlas monitor POST error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

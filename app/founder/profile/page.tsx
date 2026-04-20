@@ -153,7 +153,7 @@ export default function ProfileBuilder() {
     );
   }
 
-  if (!profile || !assessment) {
+  if (!profile) {
     return (
       <div style={{ background: bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
         <motion.div
@@ -171,11 +171,11 @@ export default function ProfileBuilder() {
           }}>
             <Building2 style={{ width: 28, height: 28, color: muted }} />
           </div>
-          <h2 style={{ fontSize: 22, fontWeight: 300, color: ink, marginBottom: 10 }}>Complete your profile</h2>
+          <h2 style={{ fontSize: 22, fontWeight: 300, color: ink, marginBottom: 10 }}>Profile not found</h2>
           <p style={{ fontSize: 14, fontWeight: 300, color: muted, marginBottom: 28, lineHeight: 1.6 }}>
-            Run your assessment first — it powers every section of your investor profile.
+            Complete your onboarding to set up your founder profile.
           </p>
-          <Link href="/founder/assessment" style={{ textDecoration: "none" }}>
+          <Link href="/founder/onboarding" style={{ textDecoration: "none" }}>
             <button
               onMouseEnter={e => (e.currentTarget.style.opacity = "0.85")}
               onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
@@ -186,7 +186,7 @@ export default function ProfileBuilder() {
                 display: "inline-flex", alignItems: "center", gap: 8,
               }}
             >
-              Start assessment <ArrowRight style={{ width: 15, height: 15 }} />
+              Get started <ArrowRight style={{ width: 15, height: 15 }} />
             </button>
           </Link>
         </motion.div>
@@ -195,9 +195,9 @@ export default function ProfileBuilder() {
   }
 
   const pctFields = [
-    profile.startupName, profile.industry, profile.description,
-    assessment.problemStory, assessment.icpDescription,
-    assessment.mrr !== undefined, assessment.channelsTried?.length,
+    profile.startupName, profile.industry, profile.stage,
+    profile.funding, profile.description,
+    assessment?.problemStory, assessment?.icpDescription,
   ];
   const completion = Math.round((pctFields.filter(Boolean).length / pctFields.length) * 100);
 
@@ -225,6 +225,20 @@ export default function ProfileBuilder() {
           </div>
 
           <div style={{ display: "flex", gap: 8 }}>
+            <Link href="/founder/settings"
+              style={{
+                display: "flex", alignItems: "center", gap: 7,
+                padding: "9px 16px", borderRadius: 10,
+                border: `1px solid ${bdr}`, background: bg,
+                color: muted, fontSize: 13, fontWeight: 400,
+                textDecoration: "none", transition: "background 0.15s",
+              }}
+              onMouseEnter={e => ((e.currentTarget as HTMLElement).style.background = surf)}
+              onMouseLeave={e => ((e.currentTarget as HTMLElement).style.background = bg)}
+            >
+              <Edit style={{ width: 14, height: 14 }} />
+              Edit profile
+            </Link>
             <button
               onClick={() => userId && router.push(`/p/${userId}`)}
               onMouseEnter={e => (e.currentTarget.style.background = surf)}
@@ -300,22 +314,22 @@ export default function ProfileBuilder() {
 
             {/* Problem & Solution */}
             <Section title="Problem & solution">
-              <Field label="Problem statement" value={assessment.problemStory} />
-              {assessment.advantageExplanation && (
+              <Field label="Problem statement" value={assessment?.problemStory} />
+              {assessment?.advantageExplanation && (
                 <Field label="Unique advantage" value={assessment.advantageExplanation} />
               )}
             </Section>
 
             {/* Market & Customers */}
             <Section title="Market & customers">
-              {assessment.icpDescription && (
+              {assessment?.icpDescription && (
                 <Field label="Ideal customer profile" value={assessment.icpDescription} />
               )}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0 }}>
-                {assessment.targetCustomers && (
+                {assessment?.targetCustomers && (
                   <Field label="Target market size" value={`${assessment.targetCustomers.toLocaleString()} customers`} />
                 )}
-                {assessment.conversationCount && (
+                {assessment?.conversationCount && (
                   <Field label="Customer interviews" value={`${assessment.conversationCount} conversations`} />
                 )}
               </div>
@@ -363,10 +377,10 @@ export default function ProfileBuilder() {
                   {[
                     { done: !!profile.startupName,          label: "Company name" },
                     { done: !!profile.industry,             label: "Industry" },
-                    { done: !!assessment.problemStory,      label: "Problem statement" },
-                    { done: !!assessment.icpDescription,    label: "ICP description" },
-                    { done: assessment.mrr !== undefined,   label: "Financial metrics" },
-                    { done: !!assessment.advantageExplanation, label: "Unique advantage" },
+                    { done: !!assessment?.problemStory,         label: "Problem statement" },
+                    { done: !!assessment?.icpDescription,       label: "ICP description" },
+                    { done: assessment?.mrr !== undefined,       label: "Financial metrics" },
+                    { done: !!assessment?.advantageExplanation, label: "Unique advantage" },
                   ].map(({ done, label }) => (
                     <CheckItem key={label} done={done} label={label} />
                   ))}

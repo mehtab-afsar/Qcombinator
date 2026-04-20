@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/harper/reference
 // Generates a tailored reference check questionnaire for a specific candidate and role.
@@ -113,7 +114,7 @@ ${roleDetail?.mustHaves ? `Must-have skills for role: ${roleDetail.mustHaves.joi
 
     return NextResponse.json({ kit, candidateName, role })
   } catch (err) {
-    console.error('Harper reference POST error:', err)
+    log.error('Harper reference POST error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

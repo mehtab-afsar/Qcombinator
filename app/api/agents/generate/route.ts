@@ -11,6 +11,7 @@ import { ARTIFACT_TYPES, ALL_ARTIFACT_TYPES, type ArtifactType } from '@/lib/con
 import { DIMENSIONS } from '@/lib/constants/dimensions';
 import { executeTool } from '@/lib/tools/executor';
 import { isCircuitOpen, withCircuitBreaker } from '@/lib/circuit-breaker';
+import { log } from '@/lib/logger'
 
 /**
  * Agent Artifact Generation API
@@ -245,7 +246,7 @@ export async function POST(request: NextRequest) {
           'x-run-secret': runSecret ?? '',
         },
         body: JSON.stringify({ jobId, agentId, conversationHistory, artifactType, conversationId, userId }),
-      }).catch(err => console.error('[generate] async run trigger failed:', err))
+      }).catch(err => log.error('[generate] async run trigger failed:', err))
       return NextResponse.json({ jobId, status: 'pending' })
     }
 
@@ -337,7 +338,7 @@ export async function POST(request: NextRequest) {
                     })
                   )
                 )
-                .catch(err => console.warn('[RAG] Embedding failed (circuit may open):', err));
+                .catch(err => log.warn('[RAG] Embedding failed (circuit may open):', err));
             }
 
             // ── LLM artifact quality evaluation ───────────────────────
@@ -447,7 +448,7 @@ Rules: score >= 70 → "full", score 40–69 → "partial", score < 40 → "mini
     return NextResponse.json({ ...responsePayload, jobId });
 
   } catch (error) {
-    console.error('Agent generate error:', error);
+    log.error('Agent generate error:', error);
     return NextResponse.json(
       { error: 'Failed to generate deliverable. Please try again.' },
       { status: 500 },

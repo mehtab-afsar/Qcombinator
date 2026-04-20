@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { createAdminClient } from '@/lib/supabase/server'
+import { verifyAuth } from '@/lib/auth/verify'
+import { log } from '@/lib/logger'
 import { sendConnectionAcceptedEmails } from '@/lib/email/send'
 
 // GET /api/investor/connections
@@ -8,11 +9,10 @@ import { sendConnectionAcceptedEmails } from '@/lib/email/send'
 // joined with founder_profiles and latest qscore_history.
 export async function GET() {
   try {
-    const supabase = await createClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const auth = await verifyAuth()
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+    const { user } = auth
+    const supabase = createAdminClient()
 
     // Look up this investor's demo_investor_id — connections are stored by demo_investor_id,
     // NOT investor_id (which is an auth.users FK used only for real-auth investor accounts).
@@ -24,12 +24,10 @@ export async function GET() {
 
     const demoInvestorId = investorProfile?.demo_investor_id
 
-    // Build the base query — try demo_investor_id first (founders connect via demo investors),
-    // fall back to investor_id for any real-auth investor rows.
+    // Build the base query — returns ALL statuses so the page can show pending / accepted / declined tabs.
     let query = supabase
       .from('connection_requests')
-      .select('id, founder_id, status, personal_message, founder_qscore, created_at')
-      .eq('status', 'pending')
+      .select('id, founder_id, status, personal_message, founder_qscore, created_at, updated_at')
       .order('created_at', { ascending: false })
 
     if (demoInvestorId) {
@@ -41,7 +39,7 @@ export async function GET() {
     const { data: requests, error } = await query
 
     if (error) {
-      console.error('Fetch connection requests error:', error)
+      log.error('GET /api/investor/connections', { error })
       return NextResponse.json({ error: 'Failed to fetch requests' }, { status: 500 })
     }
 
@@ -51,7 +49,7 @@ export async function GET() {
     const [{ data: profiles }, { data: allScores }] = await Promise.all([
       supabase
         .from('founder_profiles')
-        .select('user_id, full_name, startup_name, industry, stage')
+        .select('user_id, full_name, startup_name, industry, stage, tagline, avatar_url, company_logo_url')
         .in('user_id', founderIds),
       supabase
         .from('qscore_history')
@@ -60,7 +58,7 @@ export async function GET() {
         .order('calculated_at', { ascending: false }),
     ])
 
-    type ProfileRow = { user_id: string; full_name: string; startup_name: string; industry: string; stage: string }
+    type ProfileRow = { user_id: string; full_name: string; startup_name: string; industry: string; stage: string; tagline?: string; avatar_url?: string | null; company_logo_url?: string | null }
     type QRow = { user_id: string; overall_score: number; market_score: number; product_score: number; gtm_score: number; financial_score: number; team_score: number; traction_score: number; percentile: number }
 
     const profileMap = new Map<string, ProfileRow>()
@@ -94,14 +92,19 @@ export async function GET() {
           team: qrow?.team_score ?? 0,
           traction: qrow?.traction_score ?? 0,
         },
+        status: req.status as 'pending' | 'viewed' | 'accepted' | 'declined' | 'meeting_scheduled',
         personalMessage: req.personal_message ?? undefined,
         requestedDate: req.created_at,
+        respondedDate: req.updated_at ?? null,
+        tagline: profile?.tagline ?? '',
+        avatarUrl: (profile as ProfileRow | undefined)?.avatar_url ?? null,
+        companyLogoUrl: (profile as ProfileRow | undefined)?.company_logo_url ?? null,
       }
     })
 
     return NextResponse.json({ requests: enriched })
   } catch (err) {
-    console.error('Connection requests GET error:', err)
+    log.error('GET /api/investor/connections', { err })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -110,11 +113,10 @@ export async function GET() {
 // Body: { requestId, action: 'accept' | 'decline', feedback?: { reasons, text } }
 export async function PATCH(request: NextRequest) {
   try {
-    const supabase = await createClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const auth = await verifyAuth()
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+    const { user } = auth
+    const supabase = createAdminClient()
 
     const { requestId, action, feedback } = await request.json()
     if (!requestId || !action) {
@@ -135,6 +137,7 @@ export async function PATCH(request: NextRequest) {
       .eq('user_id', user.id)
       .single()
 
+
     const demoInvestorId = investorProfile?.demo_investor_id
 
     let updateQuery = supabase
@@ -152,7 +155,7 @@ export async function PATCH(request: NextRequest) {
     const { error } = await updateQuery
 
     if (error) {
-      console.error('Update connection request error:', error)
+      log.error('PATCH /api/investor/connections update', { error })
       return NextResponse.json({ error: 'Failed to update request' }, { status: 500 })
     }
 
@@ -168,11 +171,6 @@ export async function PATCH(request: NextRequest) {
     // On accept: fetch names/emails and send notification emails
     if (action === 'accept' && process.env.RESEND_API_KEY) {
       try {
-        const supabaseAdmin = createAdminClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.SUPABASE_SERVICE_ROLE_KEY!
-        )
-
         // Get the connection request to find the founder_id
         const { data: connReq } = await supabase
           .from('connection_requests')
@@ -187,10 +185,10 @@ export async function PATCH(request: NextRequest) {
             { data: founderProfile },
             { data: investorProfile },
           ] = await Promise.all([
-            supabaseAdmin.auth.admin.getUserById(connReq.founder_id),
-            supabaseAdmin.auth.admin.getUserById(user.id),
-            supabaseAdmin.from('founder_profiles').select('full_name, startup_name').eq('user_id', connReq.founder_id).single(),
-            supabaseAdmin.from('investor_profiles').select('full_name, firm_name').eq('user_id', user.id).single(),
+            supabase.auth.admin.getUserById(connReq.founder_id),
+            supabase.auth.admin.getUserById(user.id),
+            supabase.from('founder_profiles').select('full_name, startup_name').eq('user_id', connReq.founder_id).single(),
+            supabase.from('investor_profiles').select('full_name, firm_name').eq('user_id', user.id).single(),
           ])
 
           const founderEmail = founderUser?.email
@@ -212,14 +210,13 @@ export async function PATCH(request: NextRequest) {
           }
         }
       } catch (emailErr) {
-        // Never let email failures break the response
-        console.error('Email notification error:', emailErr)
+        log.error('PATCH /api/investor/connections email', { emailErr })
       }
     }
 
     return NextResponse.json({ success: true, status: newStatus })
   } catch (err) {
-    console.error('Connection requests PATCH error:', err)
+    log.error('PATCH /api/investor/connections', { err })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

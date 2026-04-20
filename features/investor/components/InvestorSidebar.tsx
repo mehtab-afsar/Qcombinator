@@ -2,33 +2,107 @@
 
 import { motion } from "framer-motion";
 import {
-  Home, Search, Brain, PieChart, MessageSquare,
-  ChevronsUpDown, LogOut, Settings, UserCircle, Kanban,
+  Bell, Search, PieChart, MessageSquare,
+  ChevronsUpDown, LogOut, Settings, UserCircle, Kanban, CreditCard, LayoutDashboard,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/features/auth/hooks/useAuth";
-import { useInvestorMessageCount } from "../hooks/useInvestorMessageCount";
 import { bg, surf, bdr, ink, muted, blue } from '@/lib/constants/colors'
+import { Avatar } from '@/features/shared/components/Avatar'
+import { useInvestorNotifications, InvestorNotification } from '@/features/investor/hooks/useInvestorNotifications'
 
 // ─── nav items ────────────────────────────────────────────────────────────────
 const BASE_NAV = [
-  { name: "Dashboard",   href: "/investor/dashboard",   icon: Home,          badge: null   },
-  { name: "Deal Flow",   href: "/investor/deal-flow",   icon: Search,        badge: "Live" },
-  { name: "Pipeline",    href: "/investor/pipeline",    icon: Kanban,        badge: null   },
-  { name: "AI Analysis", href: "/investor/ai-analysis", icon: Brain,         badge: null   },
-  { name: "Portfolio",   href: "/investor/portfolio",   icon: PieChart,      badge: null   },
-  { name: "Messages",    href: "/investor/messages",    icon: MessageSquare, badge: null   },
+  { name: "Dashboard",  href: "/investor/dashboard",  icon: LayoutDashboard, badge: null   },
+  { name: "Deal Flow",  href: "/investor/deal-flow",  icon: Search,          badge: "Live" },
+  { name: "Pipeline",   href: "/investor/pipeline",   icon: Kanban,          badge: null   },
+  { name: "Portfolio",  href: "/investor/portfolio",  icon: PieChart,        badge: null   },
+  { name: "Messages",   href: "/investor/messages",   icon: MessageSquare,   badge: null   },
 ];
 
 const BADGE: Record<string, { bg: string; color: string }> = {
   "Live": { bg: "#F0FDF4", color: "#166534" },
 };
 
-function msgBadgeStyle(count: number): { bg: string; color: string } {
-  if (count === 0) return { bg: surf, color: muted };
+function badgeStyle(badge: string): { bg: string; color: string } {
+  if (BADGE[badge]) return BADGE[badge];
+  // numeric unread count — red
   return { bg: "#FEF2F2", color: "#DC2626" };
+}
+
+// ─── notification panel ───────────────────────────────────────────────────────
+function NotificationPanel({
+  notifications,
+  onClose,
+}: {
+  notifications: InvestorNotification[];
+  onClose: () => void;
+}) {
+  function timeAgo(iso: string) {
+    const diff = Date.now() - new Date(iso).getTime();
+    const m = Math.floor(diff / 60000);
+    if (m < 1)  return 'just now';
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h ago`;
+    return `${Math.floor(h / 24)}d ago`;
+  }
+  return (
+    <>
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 49 }} />
+      <div style={{
+        position: "fixed", left: 60, top: 0, bottom: 0, zIndex: 50,
+        width: 320, background: bg, borderRight: `1px solid ${bdr}`,
+        display: "flex", flexDirection: "column",
+        boxShadow: "4px 0 24px rgba(0,0,0,0.08)",
+      }}>
+        <div style={{
+          height: 52, flexShrink: 0, borderBottom: `1px solid ${bdr}`,
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "0 16px",
+        }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: ink }}>Notifications</span>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, color: muted, borderRadius: 6 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: "8px 0" }}>
+          {notifications.length === 0 ? (
+            <div style={{ padding: "48px 24px", textAlign: "center" }}>
+              <div style={{ fontSize: 28, marginBottom: 12 }}>🔔</div>
+              <p style={{ fontSize: 13, color: muted, margin: 0, lineHeight: 1.6 }}>
+                No notifications yet.<br />Updates will appear here.
+              </p>
+            </div>
+          ) : notifications.map(n => (
+            <div key={n.id} style={{
+              display: "flex", alignItems: "flex-start", gap: 12,
+              padding: "12px 16px", borderBottom: `1px solid ${bdr}`,
+              background: n.read ? "transparent" : `${blue}05`,
+            }}>
+              <div style={{
+                width: 32, height: 32, borderRadius: "50%", flexShrink: 0,
+                background: surf, border: `1px solid ${bdr}`,
+                display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14,
+              }}>{n.icon}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{
+                  fontSize: 13, color: ink, margin: "0 0 3px", lineHeight: 1.45,
+                  display: "-webkit-box", WebkitLineClamp: 2,
+                  WebkitBoxOrient: "vertical", overflow: "hidden",
+                }}>{n.title}</p>
+                <p style={{ fontSize: 11, color: muted, margin: 0 }}>{timeAgo(n.time)}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
+  );
 }
 
 // ─── dropdown ─────────────────────────────────────────────────────────────────
@@ -92,6 +166,8 @@ function DropItem({
   onClick?: () => void;
   danger?: boolean;
 }) {
+  const hoverBg = danger ? "rgba(220,38,38,0.08)" : surf;
+  const restBg  = danger ? "rgba(220,38,38,0.04)" : "transparent";
   const style: React.CSSProperties = {
     display: "flex",
     alignItems: "center",
@@ -101,14 +177,14 @@ function DropItem({
     color: danger ? "#DC2626" : ink,
     textDecoration: "none",
     cursor: "pointer",
-    background: "transparent",
+    background: restBg,
     border: "none",
     width: "100%",
     fontFamily: "inherit",
     transition: "background .12s",
   };
-  const hover = (e: React.MouseEvent) => ((e.currentTarget as HTMLElement).style.background = surf);
-  const leave = (e: React.MouseEvent) => ((e.currentTarget as HTMLElement).style.background = "transparent");
+  const hover = (e: React.MouseEvent) => ((e.currentTarget as HTMLElement).style.background = hoverBg);
+  const leave = (e: React.MouseEvent) => ((e.currentTarget as HTMLElement).style.background = restBg);
 
   if (href) {
     return (
@@ -132,23 +208,46 @@ function DropSep() {
 
 // ─── component ────────────────────────────────────────────────────────────────
 export default function InvestorSidebar() {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded,  setExpanded]  = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
   const pathname = usePathname();
   const router   = useRouter();
   const { user, signOut } = useAuth();
+  const [unreadTotal, setUnreadTotal] = useState(0);
+  const [pendingConnections, setPendingConnections] = useState(0);
+  const { notifications, unreadCount, markAllRead } = useInvestorNotifications();
 
-  const msgCount = useInvestorMessageCount();
+  function openNotifications() {
+    setNotifOpen(true);
+    markAllRead();
+  }
 
-  // Build nav with dynamic message badge
-  const nav = BASE_NAV.map(item =>
-    item.name === "Messages" && msgCount !== null && msgCount > 0
-      ? { ...item, badge: String(msgCount) }
-      : item
-  );
+  useEffect(() => {
+    let cancelled = false;
+    async function poll() {
+      try {
+        const res = await fetch("/api/investor/messages/unread");
+        if (!res.ok || cancelled) return;
+        const d = await res.json();
+        setUnreadTotal(d.total ?? 0);
+        setPendingConnections(d.pendingRequests ?? 0);
+      } catch { /* non-critical */ }
+    }
+    poll();
+    const id = setInterval(poll, 30_000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, []);
+
+  const nav = BASE_NAV.map(item => {
+    if (item.name === "Messages" && unreadTotal > 0) return { ...item, badge: String(unreadTotal) };
+    if (item.name === "Portfolio" && pendingConnections > 0) return { ...item, badge: String(pendingConnections) };
+    return item;
+  });
 
   const displayName = (user?.user_metadata?.full_name as string) || user?.email?.split("@")[0] || "Investor";
   const fundName    = (user?.user_metadata?.fund_name as string) || "Edge Alpha";
-  const initials    = displayName.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase();
+  const avatarUrl   = (user?.user_metadata?.avatar_url as string | null) ?? null;
+  const firmLogoUrl = (user?.user_metadata?.firm_logo_url as string | null) ?? null;
 
   const handleSignOut = async () => {
     await signOut();
@@ -159,6 +258,7 @@ export default function InvestorSidebar() {
   const W_CLOSED = 52;
 
   return (
+    <>
     <motion.nav
       style={{
         position: "fixed", left: 0, top: 0, zIndex: 40,
@@ -182,14 +282,7 @@ export default function InvestorSidebar() {
         display: "flex", alignItems: "center",
         padding: "0 10px",
       }}>
-        <div style={{
-          height: 28, width: 28, borderRadius: 7, flexShrink: 0,
-          background: blue, color: "#fff",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 9, fontWeight: 900, letterSpacing: "0.05em",
-        }}>
-          EA
-        </div>
+        <Avatar url={firmLogoUrl} name={fundName} size={28} radius={7} bgColor={blue} fgColor="#fff" fontSize={9} />
         <motion.div
           animate={{ opacity: expanded ? 1 : 0, x: expanded ? 0 : -4 }}
           transition={{ duration: 0.15 }}
@@ -204,15 +297,61 @@ export default function InvestorSidebar() {
 
       {/* ── middle: nav links ────────────────────────────────────────── */}
       <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "8px 6px" }}>
+
+        {/* Notification bell */}
+        <button
+          onClick={openNotifications}
+          style={{
+            display: "flex", alignItems: "center",
+            height: 36, width: "100%",
+            borderRadius: 8, padding: "0 10px",
+            marginBottom: 2,
+            background: notifOpen ? `${blue}10` : "transparent",
+            border: "none", cursor: "pointer",
+            transition: "background .12s",
+          }}
+          onMouseEnter={e => { if (!notifOpen) (e.currentTarget as HTMLElement).style.background = surf; }}
+          onMouseLeave={e => { if (!notifOpen) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+        >
+          <div style={{ position: "relative", flexShrink: 0 }}>
+            <Bell style={{ height: 16, width: 16, color: notifOpen ? blue : muted }} />
+            {unreadCount > 0 && (
+              <span style={{
+                position: "absolute", top: -4, right: -5,
+                width: 14, height: 14, borderRadius: "50%",
+                background: "#DC2626", color: "#fff",
+                fontSize: 8, fontWeight: 700,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                border: `1.5px solid ${bg}`,
+              }}>
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
+          </div>
+          <motion.div
+            animate={{ opacity: expanded ? 1 : 0, x: expanded ? 0 : -4 }}
+            transition={{ duration: 0.15 }}
+            style={{ marginLeft: 10, display: "flex", alignItems: "center", flex: 1, overflow: "hidden", whiteSpace: "nowrap" }}
+          >
+            <span style={{ fontSize: 13, fontWeight: 500, color: notifOpen ? blue : ink }}>Notifications</span>
+            {unreadCount > 0 && (
+              <span style={{
+                marginLeft: "auto", flexShrink: 0,
+                padding: "1px 7px", borderRadius: 999,
+                fontSize: 10, fontWeight: 600,
+                background: "#FEF2F2", color: "#DC2626",
+              }}>{unreadCount}</span>
+            )}
+          </motion.div>
+        </button>
+
+        {/* Divider */}
+        <div style={{ height: 1, background: bdr, margin: "6px 4px 8px" }} />
+
         {nav.map(item => {
           const active = pathname === item.href || pathname.startsWith(item.href + "/");
           const Icon   = item.icon;
-          const isMessages = item.name === "Messages";
-          const bs = isMessages && item.badge
-            ? msgBadgeStyle(Number(item.badge))
-            : item.badge
-              ? BADGE[item.badge] ?? null
-              : null;
+          const bs = item.badge ? badgeStyle(item.badge) : null;
 
           return (
             <Link
@@ -288,14 +427,7 @@ export default function InvestorSidebar() {
               onMouseEnter={e => ((e.currentTarget as HTMLElement).style.background = surf)}
               onMouseLeave={e => ((e.currentTarget as HTMLElement).style.background = "transparent")}
             >
-              <div style={{
-                height: 24, width: 24, borderRadius: "50%", flexShrink: 0,
-                background: ink, color: bg,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 9, fontWeight: 700,
-              }}>
-                {initials}
-              </div>
+              <Avatar url={avatarUrl} name={displayName} size={24} radius={999} fontSize={9} />
               <motion.div
                 animate={{ opacity: expanded ? 1 : 0, x: expanded ? 0 : -4 }}
                 transition={{ duration: 0.15 }}
@@ -313,27 +445,30 @@ export default function InvestorSidebar() {
           }
         >
           <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px" }}>
-            <div style={{
-              height: 28, width: 28, borderRadius: "50%", flexShrink: 0,
-              background: ink, color: bg,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 10, fontWeight: 700,
-            }}>
-              {initials}
-            </div>
+            <Avatar url={avatarUrl} name={displayName} size={28} radius={999} fontSize={10} />
             <div style={{ overflow: "hidden" }}>
               <p style={{ fontSize: 13, fontWeight: 600, color: ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{displayName}</p>
               <p style={{ fontSize: 11, color: muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{user?.email}</p>
             </div>
           </div>
           <DropSep />
-          <DropItem href="/investor/portfolio" icon={UserCircle} label="Profile" />
-          <DropItem href="/investor/settings"  icon={Settings}   label="Settings" />
+          <DropItem href="/investor/portfolio" icon={UserCircle}  label="Profile" />
+          <DropItem href="/investor/settings"  icon={Settings}    label="Settings" />
+          <DropItem href="/investor/billing"   icon={CreditCard}  label="Subscription" />
           <DropSep />
           <DropItem icon={LogOut} label="Sign out" onClick={handleSignOut} danger />
         </Dropdown>
       </div>
 
     </motion.nav>
+
+    {/* ── Notification panel ───────────────────────────────────────── */}
+    {notifOpen && (
+      <NotificationPanel
+        notifications={notifications}
+        onClose={() => setNotifOpen(false)}
+      />
+    )}
+    </>
   );
 }

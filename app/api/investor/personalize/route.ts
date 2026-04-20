@@ -1,18 +1,20 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { createClient as createAdmin } from '@supabase/supabase-js'
+import { createAdminClient } from '@/lib/supabase/server'
+import { verifyAuth } from '@/lib/auth/verify'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/investor/personalize
 // Called at the end of investor onboarding — uses AI to score founders
 // against this investor's thesis and store personalized match data.
 export async function POST() {
   try {
+    const auth = await verifyAuth()
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+    const { user } = auth
+
     const supabase = await createClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
 
     // ── 1. Fetch investor profile ──────────────────────────────────────────
     const { data: investor } = await supabase
@@ -26,11 +28,7 @@ export async function POST() {
     }
 
     // ── 2. Fetch founders with Q-scores ────────────────────────────────────
-    const adminUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-    const adminKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-    const admin = createAdmin(adminUrl, adminKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    })
+    const admin = createAdminClient()
 
     const { data: founders } = await admin
       .from('founder_profiles')
@@ -39,9 +37,14 @@ export async function POST() {
       .eq('role', 'founder')
       .limit(30)
 
-    // Batch fetch all Q-Scores in one query instead of N per-founder queries
-    type FounderRow = { user_id: string; full_name: string; startup_name: string | null; industry: string | null; stage: string | null; tagline: string | null; location: string | null; funding: string | null }
+    type FounderRow = {
+      user_id: string; full_name: string; startup_name: string | null;
+      industry: string | null; stage: string | null; tagline: string | null;
+      location: string | null; funding: string | null
+    }
+
     const enriched: { id: string; name: string; sector: string; stage: string; tagline: string; qScore: number }[] = []
+
     if (founders && founders.length > 0) {
       const founderIds = (founders as FounderRow[]).map(f => f.user_id)
       const { data: allScores } = await admin
@@ -50,7 +53,6 @@ export async function POST() {
         .in('user_id', founderIds)
         .order('calculated_at', { ascending: false })
 
-      // Pick the latest score per founder
       const scoreByUid = new Map<string, number>()
       for (const row of allScores ?? []) {
         if (!scoreByUid.has(row.user_id)) scoreByUid.set(row.user_id, row.overall_score)
@@ -58,26 +60,26 @@ export async function POST() {
 
       for (const f of founders as FounderRow[]) {
         enriched.push({
-          id: f.user_id,
-          name: f.startup_name || f.full_name,
-          sector: f.industry ?? 'Unknown',
-          stage: f.stage ?? 'Unknown',
-          tagline: f.tagline ?? '',
-          qScore: scoreByUid.get(f.user_id) ?? 0,
+          id:      f.user_id,
+          name:    f.startup_name || f.full_name,
+          sector:  f.industry ?? 'Unknown',
+          stage:   f.stage    ?? 'Unknown',
+          tagline: f.tagline  ?? '',
+          qScore:  scoreByUid.get(f.user_id) ?? 0,
         })
       }
     }
 
     // ── 3. Build AI prompt ─────────────────────────────────────────────────
     const investorSummary = [
-      investor.firm_name ? `Firm: ${investor.firm_name}` : '',
-      investor.firm_type ? `Type: ${investor.firm_type}` : '',
-      investor.aum ? `AUM: ${investor.aum}` : '',
-      investor.sectors?.length ? `Sectors: ${investor.sectors.join(', ')}` : '',
-      investor.stages?.length ? `Stages: ${investor.stages.join(', ')}` : '',
+      investor.firm_name         ? `Firm: ${investor.firm_name}` : '',
+      investor.firm_type         ? `Type: ${investor.firm_type}` : '',
+      investor.aum               ? `AUM: ${investor.aum}` : '',
+      investor.sectors?.length   ? `Sectors: ${investor.sectors.join(', ')}` : '',
+      investor.stages?.length    ? `Stages: ${investor.stages.join(', ')}` : '',
       investor.check_sizes?.length ? `Check sizes: ${investor.check_sizes.join(', ')}` : '',
       investor.geography?.length ? `Geography: ${investor.geography.join(', ')}` : '',
-      investor.thesis ? `Thesis: ${investor.thesis}` : '',
+      investor.thesis            ? `Thesis: ${investor.thesis}` : '',
       investor.deal_flow_strategy ? `Deal sourcing: ${investor.deal_flow_strategy}` : '',
     ].filter(Boolean).join('\n')
 
@@ -114,12 +116,11 @@ If there are no founders, return an empty matches object. Score based on sector 
         [{ role: 'user', content: prompt }],
         { maxTokens: 1024, temperature: 0.3 },
       )
-      // Strip markdown code fences if present
       const cleaned = raw.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim()
-      const parsed = JSON.parse(cleaned)
-      if (parsed.insight) insight = parsed.insight
-      if (parsed.matches && typeof parsed.matches === 'object') {
-        Object.assign(matches, parsed.matches)
+      const aiResult = JSON.parse(cleaned)
+      if (aiResult.insight) insight = aiResult.insight
+      if (aiResult.matches && typeof aiResult.matches === 'object') {
+        Object.assign(matches, aiResult.matches)
       }
     } catch {
       // AI call failed — proceed with fallback insight, empty matches
@@ -127,7 +128,6 @@ If there are no founders, return an empty matches object. Score based on sector 
 
     // ── 5. Save to DB ──────────────────────────────────────────────────────
     const personalization = { insight, matches, generated_at: new Date().toISOString() }
-
     await supabase
       .from('investor_profiles')
       .update({ ai_personalization: personalization })
@@ -135,7 +135,7 @@ If there are no founders, return an empty matches object. Score based on sector 
 
     return NextResponse.json({ insight, matches })
   } catch (err) {
-    console.error('Personalize error:', err)
+    log.error('POST /api/investor/personalize', { err })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

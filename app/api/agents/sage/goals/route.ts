@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // GET  /api/agents/sage/goals  — return current goals + check-in history
 // POST /api/agents/sage/goals  — log a weekly check-in (progress updates)
@@ -52,7 +53,7 @@ export async function GET() {
       checkins: checkins ?? [],
     })
   } catch (err) {
-    console.error('Sage goals GET error:', err)
+    log.error('Sage goals GET error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -144,7 +145,7 @@ ${goalsContext}`,
       checkinDate: new Date().toISOString(),
     })
   } catch (err) {
-    console.error('Sage goals POST error:', err)
+    log.error('Sage goals POST error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

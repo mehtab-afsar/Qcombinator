@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/susi/meeting-prep
 // Generates a call brief for an upcoming meeting with a prospect.
@@ -131,7 +132,7 @@ Be specific. No generic sales advice.`,
 
     return NextResponse.json({ prep, company: targetCompany, contact: targetContact })
   } catch (err) {
-    console.error('Susi meeting-prep POST error:', err)
+    log.error('Susi meeting-prep POST error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

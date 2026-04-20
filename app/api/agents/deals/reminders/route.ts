@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { log } from '@/lib/logger'
 
 // GET /api/agents/deals/reminders
 // Returns deals that are stale (next_action_date is past or within 3 days)
@@ -49,7 +50,7 @@ export async function GET() {
 
     return NextResponse.json({ reminders })
   } catch (err) {
-    console.error('Deal reminders error:', err)
+    log.error('Deal reminders error:', err)
     return NextResponse.json({ reminders: [] })
   }
 }

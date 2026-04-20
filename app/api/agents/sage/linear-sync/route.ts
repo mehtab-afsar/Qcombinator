@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/sage/linear-sync
 // Body: { linearApiKey, artifactId? }
@@ -181,7 +182,7 @@ export async function POST(request: NextRequest) {
     })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Internal server error'
-    console.error('Sage Linear sync error:', err)
+    log.error('Sage Linear sync error:', err)
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }

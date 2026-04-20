@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // GET  /api/agents/sage/decisions — returns decision journal entries
 // POST /api/agents/sage/decisions — logs a new strategic decision
@@ -32,7 +33,7 @@ export async function GET() {
 
     return NextResponse.json({ decisions: entries ?? [] })
   } catch (err) {
-    console.error('Sage decisions GET error:', err)
+    log.error('Sage decisions GET error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -111,7 +112,7 @@ ${category ? `Category: ${category}` : ''}`,
 
     return NextResponse.json({ ok: true, assessment, decision, category })
   } catch (err) {
-    console.error('Sage decisions POST error:', err)
+    log.error('Sage decisions POST error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

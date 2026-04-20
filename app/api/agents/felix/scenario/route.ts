@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/felix/scenario
 // Models financial scenarios: "What if I hire 2 engineers?" or "What if churn doubles?"
@@ -106,7 +107,7 @@ Produce 4-6 impact rows covering: burn, runway, break-even, cash position, MRR (
 
     return NextResponse.json({ result, scenario })
   } catch (err) {
-    console.error('Felix scenario POST error:', err)
+    log.error('Felix scenario POST error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

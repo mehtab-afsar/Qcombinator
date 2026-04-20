@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/survey/analyze
 // Auto-analyzes NEW survey responses since a given timestamp.
@@ -133,7 +134,7 @@ ${textAnswers.slice(0, 20).map((t, i) => `${i + 1}. "${t}"`).join('\n')}`,
       since: sinceTs,
     })
   } catch (err) {
-    console.error('Survey analyze error:', err)
+    log.error('Survey analyze error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

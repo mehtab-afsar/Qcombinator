@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { randomUUID } from 'crypto'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/leo/nda
 // Body: { counterpartyName, counterpartyEmail, ndaType: 'mutual' | 'one-way', purpose, jurisdiction? }
@@ -231,12 +232,12 @@ export async function POST(request: NextRequest) {
       })
     } catch (dbErr) {
       // Table may not exist yet — non-fatal, continue and return HTML
-      console.warn('legal_documents insert skipped (table may not exist):', dbErr)
+      log.warn('legal_documents insert skipped (table may not exist):', dbErr)
     }
 
     return NextResponse.json({ html: ndaHtml, docId })
   } catch (err) {
-    console.error('Leo NDA error:', err)
+    log.error('Leo NDA error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

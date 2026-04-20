@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/felix/board-deck
 // Generates HTML financial slides for a board deck from Stripe + expense data.
@@ -124,7 +125,7 @@ Use real numbers from context. If a metric is missing, note it as 'TBD' and expl
 
     return NextResponse.json({ result, htmlDeck, scoreTrend, company: fp?.startup_name })
   } catch (err) {
-    console.error('Felix board-deck POST error:', err)
+    log.error('Felix board-deck POST error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

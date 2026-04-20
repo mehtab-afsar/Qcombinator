@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/harper/apply — public, submit a job application
 // GET  /api/agents/harper/apply — authenticated founder only, view applications
@@ -126,7 +127,7 @@ export async function POST(request: NextRequest) {
       score = result.score
       scoreNotes = result.notes
     } catch (err) {
-      console.error('Resume scoring failed:', err)
+      log.error('Resume scoring failed:', err)
       // Non-fatal — insert with score 0
     }
 
@@ -147,7 +148,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (insertError) {
-      console.error('Application insert error:', insertError)
+      log.error('Application insert error:', insertError)
       return NextResponse.json({ error: 'Failed to save application' }, { status: 500 })
     }
 
@@ -169,7 +170,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, score, notes: scoreNotes })
   } catch (err) {
-    console.error('Harper apply POST error:', err)
+    log.error('Harper apply POST error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -193,13 +194,13 @@ export async function GET() {
       .order('score', { ascending: false })
 
     if (error) {
-      console.error('Applications fetch error:', error)
+      log.error('Applications fetch error:', error)
       return NextResponse.json({ error: 'Failed to fetch applications' }, { status: 500 })
     }
 
     return NextResponse.json({ applications: data ?? [] })
   } catch (err) {
-    console.error('Harper apply GET error:', err)
+    log.error('Harper apply GET error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

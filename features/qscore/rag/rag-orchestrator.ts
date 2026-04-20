@@ -21,6 +21,7 @@ import { blendScores, calculateRAGConfidence } from './score-blender';
 import { assembleEvidenceContext } from './evidence/context-assembler';
 import { adjustScoresWithEvidence } from './evidence/evidence-scorer';
 import type { EnhancedSemanticEvaluation } from './types';
+import { log } from '@/lib/logger'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Field Extraction (mirrors answer-evaluator.ts)
@@ -161,7 +162,7 @@ export async function runRAGScoring(
   } catch (err) {
     // Critical failure — fall back entirely to existing evaluator
     const errorMessage = err instanceof Error ? err.message : String(err);
-    console.warn('[RAG orchestrator] Failed, falling back to base evaluator:', errorMessage);
+    log.warn('[RAG orchestrator] Failed, falling back to base evaluator:', errorMessage);
 
     try {
       const fallback = await evaluateAssessmentAnswers(data);

@@ -21,7 +21,9 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
+import { Avatar } from '@/features/shared/components/Avatar'
 
 // ─── types ────────────────────────────────────────────────────────────────────
 const TABS = ["overview", "financials", "team", "market", "documents", "analysis"] as const;
@@ -83,6 +85,8 @@ interface StartupData {
   }
   iqBreakdown?: Array<{ id: string; name: string; weight: number; averageScore: number }> | null
   scoreVersion?: string
+  avatarUrl?: string | null
+  companyLogoUrl?: string | null
 }
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -101,20 +105,20 @@ function fmt(val: string | undefined, pre = '', suf = '') {
 }
 
 // ─── pipeline stage config ────────────────────────────────────────────────────
-const STAGES = ['watching', 'interested', 'meeting', 'in_dd', 'portfolio', 'passed'] as const
+const STAGES = ['watching', 'meeting', 'in_dd', 'portfolio', 'passed'] as const
 type Stage = typeof STAGES[number]
 
 const STAGE_CONFIG: Record<Stage, { label: string; color: string; bg: string; border: string }> = {
-  watching:   { label: 'Watching',    color: muted,  bg: surf,      border: bdr     },
-  interested: { label: 'Interested',  color: blue,   bg: '#EFF6FF', border: '#BFDBFE' },
-  meeting:    { label: 'Meeting',     color: '#7C3AED', bg: '#F5F3FF', border: '#C4B5FD' },
-  in_dd:      { label: 'In DD',       color: amber,  bg: '#FFFBEB', border: '#FDE68A' },
-  portfolio:  { label: 'Portfolio',   color: green,  bg: '#ECFDF5', border: '#86EFAC' },
-  passed:     { label: 'Passed',      color: red,    bg: '#FEF2F2', border: '#FECACA' },
+  watching:   { label: 'Watching / Interested', color: blue,      bg: '#EFF6FF', border: '#BFDBFE' },
+  meeting:    { label: 'Meeting',               color: '#7C3AED', bg: '#F5F3FF', border: '#C4B5FD' },
+  in_dd:      { label: 'In DD',                 color: amber,     bg: '#FFFBEB', border: '#FDE68A' },
+  portfolio:  { label: 'Portfolio',             color: green,     bg: '#ECFDF5', border: '#86EFAC' },
+  passed:     { label: 'Passed',                color: red,       bg: '#FEF2F2', border: '#FECACA' },
 }
 
 // ─── component ────────────────────────────────────────────────────────────────
-export default function StartupDeepDive({ params }: { params: { id: string } }) {
+export default function StartupDeepDive() {
+  const { id } = useParams<{ id: string }>();
   const [activeTab,    setActiveTab]    = useState<Tab>("overview");
   const [loading,      setLoading]      = useState(true);
   const [startup,      setStartup]      = useState<StartupData | null>(null);
@@ -132,19 +136,20 @@ export default function StartupDeepDive({ params }: { params: { id: string } }) 
 
   useEffect(() => {
     Promise.all([
-      fetch(`/api/investor/startup/${params.id}`).then(r => r.json()),
+      fetch(`/api/investor/startup/${id}`).then(r => r.json()),
       fetch('/api/investor/pipeline').then(r => r.json()).catch(() => ({ pipelineMap: {} })),
     ]).then(([startupData, pipelineData]) => {
       if (startupData.error) setError(startupData.error);
       else setStartup(startupData.startup);
-      const entry = (pipelineData.pipelineMap ?? {})[params.id];
+      const entry = (pipelineData.pipelineMap ?? {})[id];
       if (entry) {
-        setPipelineStage(entry.stage as Stage);
+        const raw = entry.stage === 'interested' ? 'watching' : entry.stage;
+        setPipelineStage(STAGES.includes(raw as Stage) ? (raw as Stage) : 'watching');
         setNotesText(entry.notes ?? '');
       }
     }).catch(() => setError('Failed to load profile'))
       .finally(() => setLoading(false));
-  }, [params.id]);
+  }, [id]);
 
   async function updateStage(stage: Stage) {
     setPipelineStage(stage);
@@ -152,16 +157,17 @@ export default function StartupDeepDive({ params }: { params: { id: string } }) 
     await fetch('/api/investor/pipeline', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ founderId: params.id, stage }),
+      body: JSON.stringify({ founderId: id, stage }),
     });
   }
 
   async function saveNotes() {
+    if (!pipelineStage) return; // notes require an explicit pipeline stage
     setSavingNote(true);
     await fetch('/api/investor/pipeline', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ founderId: params.id, stage: pipelineStage ?? 'watching', notes: notesText }),
+      body: JSON.stringify({ founderId: id, stage: pipelineStage, notes: notesText }),
     }).catch(() => {});
     setSavingNote(false);
   }
@@ -171,7 +177,7 @@ export default function StartupDeepDive({ params }: { params: { id: string } }) 
     setMemoLoading(true);
     setMemoError('');
     try {
-      const res = await fetch(`/api/investor/startup/${params.id}/memo`, {
+      const res = await fetch(`/api/investor/startup/${id}/memo`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ startup, regenerate }),
@@ -212,13 +218,13 @@ export default function StartupDeepDive({ params }: { params: { id: string } }) 
     return (
       <div style={{ minHeight: '100vh', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
         <p style={{ fontSize: 15, color: ink }}>{error || 'Not found'}</p>
-        <Link href="/investor/dashboard" style={{ fontSize: 13, color: blue, textDecoration: 'none' }}>← Back to pipeline</Link>
+        <Link href="/investor/deal-flow" style={{ fontSize: 13, color: blue, textDecoration: 'none' }}>← Back to pipeline</Link>
       </div>
     );
   }
 
   const s       = startup;
-  const initials = s.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+  const _initials = s.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
 
   return (
     <div style={{ minHeight: "100vh", background: bg, color: ink }}>
@@ -228,7 +234,7 @@ export default function StartupDeepDive({ params }: { params: { id: string } }) 
         <div style={{ maxWidth: 1100, margin: "0 auto", height: 68, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
 
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <Link href="/investor/dashboard" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: muted, textDecoration: "none", fontWeight: 500 }}
+            <Link href="/investor/deal-flow" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: muted, textDecoration: "none", fontWeight: 500 }}
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = ink}
               onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = muted}
             >
@@ -236,9 +242,7 @@ export default function StartupDeepDive({ params }: { params: { id: string } }) 
             </Link>
             <div style={{ height: 16, width: 1, background: bdr }} />
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ height: 32, width: 32, borderRadius: 8, background: ink, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: bg }}>{initials}</span>
-              </div>
+              <Avatar url={s.companyLogoUrl ?? null} name={s.name} size={32} radius={8} />
               <div>
                 <p style={{ fontSize: 14, fontWeight: 600, color: ink, lineHeight: 1.1 }}>{s.name}</p>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
@@ -323,7 +327,7 @@ export default function StartupDeepDive({ params }: { params: { id: string } }) 
                         <>
                           <div style={{ height: 1, background: bdr, margin: "4px 0" }} />
                           <button
-                            onClick={async () => { setPipelineStage(null); setPipelineOpen(false); await fetch(`/api/investor/pipeline?founderId=${params.id}`, { method: 'DELETE' }); }}
+                            onClick={async () => { setPipelineStage(null); setPipelineOpen(false); await fetch(`/api/investor/pipeline?founderId=${id}`, { method: 'DELETE' }); }}
                             style={{ display: "flex", width: "100%", padding: "8px 14px", background: "transparent", border: "none", cursor: "pointer", fontSize: 12, color: red, textAlign: "left" }}
                           >
                             Remove from pipeline
@@ -346,17 +350,24 @@ export default function StartupDeepDive({ params }: { params: { id: string } }) 
             <FileText style={{ height: 14, width: 14, color: amber, flexShrink: 0, marginTop: 3 }} />
             <div style={{ flex: 1 }}>
               <p style={{ fontSize: 11, fontWeight: 700, color: amber, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Private Notes — visible only to you</p>
+              {!pipelineStage && (
+                <p style={{ fontSize: 11, color: muted, marginBottom: 8, fontStyle: "italic" }}>
+                  Add this company to your pipeline first to save notes.
+                </p>
+              )}
               <textarea
                 value={notesText}
                 onChange={e => setNotesText(e.target.value)}
                 onBlur={saveNotes}
-                placeholder="Add your private notes on this founder — thesis fit, meeting notes, concerns, questions to ask…"
+                disabled={!pipelineStage}
+                placeholder={pipelineStage ? "Add your private notes on this founder — thesis fit, meeting notes, concerns, questions to ask…" : "Add this company to your pipeline to unlock notes…"}
                 style={{
                   width: "100%", minHeight: 80, padding: "10px 12px",
                   border: `1px solid #FDE68A`, borderRadius: 8,
-                  background: "#fff", fontSize: 13, color: ink, resize: "vertical",
+                  background: pipelineStage ? "#fff" : "#FAFAF9",
+                  fontSize: 13, color: pipelineStage ? ink : muted, resize: "vertical",
                   fontFamily: "system-ui, -apple-system, sans-serif", lineHeight: 1.6,
-                  outline: "none",
+                  outline: "none", opacity: pipelineStage ? 1 : 0.6,
                 }}
               />
               <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", marginTop: 6, gap: 8 }}>
@@ -701,9 +712,7 @@ export default function StartupDeepDive({ params }: { params: { id: string } }) 
                     <p style={{ fontSize: 11, fontWeight: 600, color: blue, textTransform: "uppercase", letterSpacing: "0.14em" }}>Founder</p>
                   </div>
                   <div style={{ padding: "22px", display: "flex", gap: 16 }}>
-                    <div style={{ height: 56, width: 56, borderRadius: 14, background: surf, border: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 600, color: ink, flexShrink: 0 }}>
-                      {s.founderName.split(' ').map(n => n[0]).join('')}
-                    </div>
+                    <Avatar url={s.avatarUrl ?? null} name={s.founderName} size={56} radius={14} />
                     <div style={{ flex: 1 }}>
                       <p style={{ fontSize: 15, fontWeight: 600, color: ink }}>{s.founderName}</p>
                       <p style={{ fontSize: 12, color: blue, fontWeight: 500, marginTop: 2 }}>Founder & CEO</p>
@@ -718,9 +727,7 @@ export default function StartupDeepDive({ params }: { params: { id: string } }) 
                     const background = member.background || member.requirements || '';
                     return (
                       <div key={i} style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 16, padding: "18px 22px", display: "flex", gap: 14 }}>
-                        <div style={{ height: 44, width: 44, borderRadius: 12, background: surf, border: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 600, color: ink, flexShrink: 0 }}>
-                          {name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
-                        </div>
+                        <Avatar url={null} name={name} size={44} radius={12} />
                         <div>
                           <p style={{ fontSize: 14, fontWeight: 500, color: ink }}>{name}</p>
                           {role && <p style={{ fontSize: 12, color: muted, marginTop: 2 }}>{role}</p>}
@@ -732,9 +739,7 @@ export default function StartupDeepDive({ params }: { params: { id: string } }) 
                 ) : s.startupProfile?.advisors?.length > 0 ? (
                   s.startupProfile.advisors.map((advisor, i) => (
                     <div key={i} style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 16, padding: "16px 22px", display: "flex", gap: 14, alignItems: "center" }}>
-                      <div style={{ height: 40, width: 40, borderRadius: 10, background: surf, border: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 600, color: ink, flexShrink: 0 }}>
-                        {advisor.trim()[0]}
-                      </div>
+                      <Avatar url={null} name={advisor.trim()} size={40} radius={10} />
                       <p style={{ fontSize: 13, color: ink }}>{advisor}</p>
                     </div>
                   ))
@@ -906,11 +911,11 @@ export default function StartupDeepDive({ params }: { params: { id: string } }) 
               style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 100 }}
             />
             <motion.div
-              initial={{ opacity: 0, scale: 0.96, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: 12 }}
+              initial={{ opacity: 0, scale: 0.97, y: 16, x: "-50%" }}
+              animate={{ opacity: 1, scale: 1, y: 0, x: "-50%" }}
+              exit={{ opacity: 0, scale: 0.97, y: 8, x: "-50%" }}
               style={{
-                position: "fixed", top: "5vh", left: "50%", transform: "translateX(-50%)",
+                position: "fixed", top: "5vh", left: "50%",
                 width: "min(860px, 94vw)", maxHeight: "90vh", zIndex: 101,
                 background: bg, borderRadius: 20, boxShadow: "0 24px 64px rgba(0,0,0,0.2)",
                 display: "flex", flexDirection: "column", overflow: "hidden",

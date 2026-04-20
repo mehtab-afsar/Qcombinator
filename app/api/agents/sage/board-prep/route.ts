@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/sage/board-prep
 // Generates a board meeting packet by pulling from all agents:
@@ -168,7 +169,7 @@ Be specific. Use actual numbers where available. Flag unknowns honestly. This is
 
     return NextResponse.json({ boardPacket, company: profile?.startup_name })
   } catch (err) {
-    console.error('Sage board-prep POST error:', err)
+    log.error('Sage board-prep POST error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

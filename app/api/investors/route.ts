@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createAdminClient } from '@/lib/supabase/server'
+import { log } from '@/lib/logger'
 
 // GET /api/investors
 // Returns a merged list of real investor_profiles (onboarded users) and
@@ -8,10 +9,7 @@ import { createClient } from '@supabase/supabase-js'
 // matching page know which FK to use when creating a connection_request.
 export async function GET() {
   try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
+    const supabase = createAdminClient()
 
     const [{ data: demoRows, error: demoErr }, { data: realRows, error: realErr }] =
       await Promise.all([
@@ -26,8 +24,8 @@ export async function GET() {
           .eq('onboarding_completed', true),
       ])
 
-    if (demoErr) console.error('Demo investors fetch error:', demoErr)
-    if (realErr) console.error('Real investors fetch error:', realErr)
+    if (demoErr) log.error('GET /api/investors demo', { demoErr })
+    if (realErr) log.error('GET /api/investors real', { realErr })
 
     type DemoRow = {
       id: string; name: string; firm: string; title: string | null; location: string | null;
@@ -77,7 +75,7 @@ export async function GET() {
 
     return NextResponse.json({ investors: [...realNormalised, ...demoNormalised] })
   } catch (err) {
-    console.error('Investors API error:', err)
+    log.error('GET /api/investors', { err })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

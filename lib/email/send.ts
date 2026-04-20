@@ -1,4 +1,5 @@
 import { Resend } from 'resend'
+import { log } from '@/lib/logger'
 
 const FROM = 'Edge Alpha <noreply@edgealpha.ai>'
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://edgealpha.ai'
@@ -73,9 +74,9 @@ export async function sendConnectionAcceptedEmails(params: ConnectionAcceptedPar
   ])
 
   if (founderResult.status === 'rejected') {
-    console.error('Failed to send founder email:', founderResult.reason)
+    log.error('Failed to send founder email:', founderResult.reason)
   }
   if (investorResult.status === 'rejected') {
-    console.error('Failed to send investor email:', investorResult.reason)
+    log.error('Failed to send investor email:', investorResult.reason)
   }
 }

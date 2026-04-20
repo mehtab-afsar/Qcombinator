@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/leo/cofounder
 // Generates a co-founder agreement as a styled HTML document.
@@ -198,7 +199,7 @@ ${[
 
     return NextResponse.json({ html })
   } catch (err) {
-    console.error('Leo cofounder POST error:', err)
+    log.error('Leo cofounder POST error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

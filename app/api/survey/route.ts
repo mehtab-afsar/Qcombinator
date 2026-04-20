@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { log } from '@/lib/logger'
 
 // GET  /api/survey?surveyId=xxx — public, returns survey artifact content
 // POST /api/survey            — public, submits a survey response
@@ -41,7 +42,7 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (err) {
-    console.error('Survey GET error:', err)
+    log.error('Survey GET error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -83,13 +84,13 @@ export async function POST(request: NextRequest) {
     })
 
     if (error) {
-      console.error('Survey response insert error:', error)
+      log.error('Survey response insert error:', error)
       return NextResponse.json({ error: 'Failed to submit survey response' }, { status: 500 })
     }
 
     return NextResponse.json({ success: true })
   } catch (err) {
-    console.error('Survey POST error:', err)
+    log.error('Survey POST error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/patel/directories
 // Generates submission-ready copy for Product Hunt, HackerNews Show HN, BetaList, Indie Hackers,
@@ -107,7 +108,7 @@ ${targetCustomer ? `Target customer: ${targetCustomer}` : ''}`,
 
     return NextResponse.json({ result, company })
   } catch (err) {
-    console.error('Patel directories POST error:', err)
+    log.error('Patel directories POST error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

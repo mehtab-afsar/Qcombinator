@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // GET /api/agents/actions?conversationId=<uuid>
 // Returns persisted action items for a given conversation.
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest) {
     if (error) return NextResponse.json({ error: 'Failed to fetch actions' }, { status: 500 })
     return NextResponse.json({ actions: data ?? [] })
   } catch (err) {
-    console.error('Agent actions GET error:', err)
+    log.error('Agent actions GET error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -133,13 +134,13 @@ Return ONLY valid JSON, no markdown fences, no explanation:
     const withMeta = saved ?? rows.map(r => ({ id: '', ...r }))
 
     if (saveError) {
-      console.error('Save agent_actions error:', saveError)
+      log.error('Save agent_actions error:', saveError)
       return NextResponse.json({ actions: withMeta })
     }
 
     return NextResponse.json({ actions: withMeta })
   } catch (err) {
-    console.error('Agent actions extract error:', err)
+    log.error('Agent actions extract error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -174,7 +175,7 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (err) {
-    console.error('Agent actions PATCH error:', err)
+    log.error('Agent actions PATCH error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

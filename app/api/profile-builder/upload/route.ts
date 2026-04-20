@@ -6,6 +6,7 @@ import { EXTRACTION_PROMPTS } from '@/lib/profile-builder/extraction-prompts'
 import { routedText } from '@/lib/llm/router'
 import { getSectionCompletionPct, getMissingFields } from '@/lib/profile-builder/question-engine'
 import { flattenConfidence } from '@/lib/profile-builder/utils'
+import { log } from '@/lib/logger'
 
 // ── Vision extraction for image-based / scanned PDFs ─────────────────────────
 // When pdf-parse yields < 50 chars (scanned doc, password protected, image-only),
@@ -72,7 +73,7 @@ async function extractFieldsFromImagePDF(
         )
       )
     } catch (e) {
-      console.warn('[upload] Anthropic vision failed:', e instanceof Error ? e.message : e)
+      log.warn('[upload] Anthropic vision failed:', e instanceof Error ? e.message : e)
     }
   }
 
@@ -115,7 +116,7 @@ async function extractFieldsFromImagePDF(
         return (content ?? '') as string
       })
     } catch (e) {
-      console.warn('[upload] OpenRouter Gemini vision failed:', e instanceof Error ? e.message : e)
+      log.warn('[upload] OpenRouter Gemini vision failed:', e instanceof Error ? e.message : e)
     }
   }
 
@@ -269,7 +270,7 @@ export async function POST(req: NextRequest) {
       contentType: mimeType,
       upsert: false,
     })
-    if (storageErr) console.warn('Storage upload failed (non-blocking):', storageErr.message)
+    if (storageErr) log.warn('Storage upload failed (non-blocking):', storageErr.message)
 
     // Read founder stage for completion scoring
     const { data: fp } = await supabase
@@ -314,7 +315,7 @@ export async function POST(req: NextRequest) {
         }
       } else {
         extractionError = `This PDF appears to be image-based or scanned — vision extraction also failed. Try uploading a text-based PDF or PPTX, or answer the follow-up questions manually.`
-        console.warn('[upload] image PDF vision fallback failed for', filename)
+        log.warn('[upload] image PDF vision fallback failed for', filename)
       }
     }
 
@@ -349,12 +350,14 @@ export async function POST(req: NextRequest) {
             if (!(k in confidenceMap)) confidenceMap[k] = v
           }
         } else {
-          console.error('[upload] LLM extraction promise rejected:', result.reason)
+          log.error('[upload] LLM extraction promise rejected:', result.reason)
         }
       }
       if (!anySucceeded) {
         const firstRejection = results.find(r => r.status === 'rejected') as PromiseRejectedResult | undefined
-        extractionError = `LLM extraction failed: ${firstRejection?.reason?.message ?? 'unknown error'}. Check that GROQ_API_KEY is set in your environment.`
+        const reason = firstRejection?.reason?.message ?? 'unknown error'
+        extractionError = `AI extraction failed: ${reason}. Check that ANTHROPIC_API_KEY is set correctly in your environment variables.`
+        log.error('[upload] All 5 extraction calls failed. First error:', reason)
       }
     // Auto-derive p3.buildComplexity from replicationTimeMonths if LLM missed it
     if (extractedFields.p3) {
@@ -386,7 +389,7 @@ export async function POST(req: NextRequest) {
             confidenceMap = rawConf ? flattenConfidence(rawConf as Record<string, unknown>) : {}
           }
         } catch (e) {
-          console.warn('LLM extraction failed for upload:', e)
+          log.warn('LLM extraction failed for upload:', e)
         }
       }
     }
@@ -556,7 +559,7 @@ export async function POST(req: NextRequest) {
             updated_at: new Date().toISOString(),
           }, { onConflict: 'user_id,section' })
           if (upsertErr) {
-            console.error(`[upload] upsert section ${secNum} failed:`, upsertErr)
+            log.error(`[upload] upsert section ${secNum} failed:`, upsertErr)
             return NextResponse.json({
               error: `Failed to save extracted data (section ${secNum}): ${upsertErr.message}`,
             }, { status: 500 })
@@ -601,7 +604,7 @@ export async function POST(req: NextRequest) {
       extractionError,   // non-null when extraction failed — surfaces the reason to the UI
     })
   } catch (err) {
-    console.error('[profile-builder/upload]', err)
+    log.error('[profile-builder/upload]', err)
     return NextResponse.json({ error: 'Upload failed' }, { status: 500 })
   }
 }

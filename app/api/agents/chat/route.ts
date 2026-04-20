@@ -43,6 +43,7 @@ import {
   type StartupState,
 } from '@/lib/agents/startup-state';
 import { upsertAgentGoal, getAgentGoal, formatGoalForPrompt } from '@/lib/agents/agent-goals';
+import { log } from '@/lib/logger'
 import {
   getPendingDelegations,
   formatDelegationsForPrompt,
@@ -94,7 +95,7 @@ function logToolExecution(
 async function fetchTavilyResearch(query: string): Promise<Record<string, unknown> | null> {
   const apiKey = process.env.TAVILY_API_KEY;
   if (!apiKey) {
-    console.warn('TAVILY_API_KEY not configured — skipping research');
+    log.warn('TAVILY_API_KEY not configured — skipping research');
     return null;
   }
 
@@ -117,7 +118,7 @@ async function fetchTavilyResearch(query: string): Promise<Record<string, unknow
     clearTimeout(timer);
 
     if (!response.ok) {
-      console.error('Tavily error:', response.statusText);
+      log.error('Tavily error:', response.statusText);
       return null;
     }
 
@@ -630,7 +631,7 @@ export async function POST(request: NextRequest) {
         usageId = usage.usageId;
       } catch {
         // Usage check failed (table missing, FK error, etc.) — allow the message through
-        console.warn('Usage check failed — allowing message through');
+        log.warn('Usage check failed — allowing message through');
       }
     }
 
@@ -691,7 +692,7 @@ export async function POST(request: NextRequest) {
       if (ctxResult.status === 'fulfilled') {
         systemPrompt += formatContextForPrompt(ctxResult.value);
       } else {
-        console.warn('Agent context injection failed — proceeding without memory');
+        log.warn('Agent context injection failed — proceeding without memory');
       }
 
       if (FF_CROSS_AGENT_ORCHESTRATION && orchResult.status === 'fulfilled' && orchResult.value.contextInjection) {
@@ -826,6 +827,7 @@ CONVERSATION RULES:
                 for await (const chunk of llmStream({
                   messages: loopMessages, maxTokens: 900, temperature: 0.7,
                   tools: agentTools.length > 0 ? agentTools : undefined,
+                  model: 'claude-sonnet-4-6',
                 })) {
                   if (chunk.type === 'delta') {
                     send({ type: 'delta', text: chunk.text });
@@ -899,7 +901,7 @@ CONVERSATION RULES:
                   }
                   send({ type: 'tool_done', toolName, summary: execResult.slice(0, 100) });
                   send({ type: 'delta', text: `\n\n${execResult}` });
-                } catch (err) { console.error(`${toolName} streaming:`, err); }
+                } catch (err) { log.error(`${toolName} streaming:`, err); }
                 break;
 
               } else {
@@ -957,7 +959,7 @@ CONVERSATION RULES:
                   send({ type: 'artifact', artifact: { id: artifactId, type: toolName, title: artifactTitle, content: parsedContent } });
                   send({ type: 'tool_done', toolName, summary: `${artifactTitle} ready` });
                 } catch (err) {
-                  console.error('Artifact streaming error:', err);
+                  log.error('Artifact streaming error:', err);
                   send({ type: 'tool_done', toolName, summary: 'Generation failed' });
                 }
                 break;
@@ -999,6 +1001,7 @@ CONVERSATION RULES:
         maxTokens: 900,
         temperature: 0.7,
         tools: agentTools.length > 0 ? agentTools : undefined,
+        model: 'claude-sonnet-4-6',
       });
 
       if (!llmResponse.text && !llmResponse.toolCall) throw new Error('No response from AI');
@@ -1084,7 +1087,7 @@ CONVERSATION RULES:
           logToolExecution(supabaseAdmin, userId, agentId, toolName, t0Exec, 'success');
           chatReply = llmResponse.text ? `${llmResponse.text}\n\n${execResult}` : execResult;
         } catch (err) {
-          console.error(`${toolName} failed:`, err);
+          log.error(`${toolName} failed:`, err);
           chatReply = llmResponse.text ?? '';
         }
         break;
@@ -1182,7 +1185,7 @@ Reply with ONLY a JSON object: { "qualityScore": <0–100>, "gaps": ["..."] }`;
         chatReply = llmResponse.text ?? '';
         logToolExecution(supabaseAdmin, userId, agentId, toolName, t0Artifact, 'success', undefined, 'standard');
       } catch (err) {
-        console.error('Artifact generation error:', err);
+        log.error('Artifact generation error:', err);
         chatReply = llmResponse.text ?? '';
       }
       break; // artifact tools always terminate the loop
@@ -1239,7 +1242,7 @@ Reply with ONLY a JSON object: { "qualityScore": <0–100>, "gaps": ["..."] }`;
         }
       } catch {
         // Persistence failed — the AI reply is still returned to the user
-        console.warn('Message persistence failed — response still returned to client');
+        log.warn('Message persistence failed — response still returned to client');
       }
 
       // Increment usage (also fail-open)
@@ -1259,7 +1262,7 @@ Reply with ONLY a JSON object: { "qualityScore": <0–100>, "gaps": ["..."] }`;
 
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : String(error);
-    console.error('Agent chat error:', errMsg, error);
+    log.error('Agent chat error: ' + errMsg, error);
 
     let userMessage: string;
     let httpStatus = 500;

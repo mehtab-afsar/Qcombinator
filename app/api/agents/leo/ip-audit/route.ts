@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/leo/ip-audit
 // Audits startup IP risks: code ownership, prior employer claims, OSS licenses, contractor assignments.
@@ -116,7 +117,7 @@ Key risks to check:
 
     return NextResponse.json({ audit })
   } catch (err) {
-    console.error('Leo IP audit POST error:', err)
+    log.error('Leo IP audit POST error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

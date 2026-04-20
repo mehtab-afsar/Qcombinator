@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/felix/actuals
 // Compares Stripe actuals against projected MRR from financial model.
@@ -110,7 +111,7 @@ Rules:
       analysis,
     })
   } catch (err) {
-    console.error('Felix actuals error:', err)
+    log.error('Felix actuals error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import { createClient } from '@supabase/supabase-js'
 import { encodeToken } from '@/app/api/unsubscribe/route'
+import { log } from '@/lib/logger'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://edgealpha.ai'
 
@@ -20,7 +21,7 @@ export async function POST(request: NextRequest) {
     // Internal auth check — fail closed if secret is not configured
     const requiredSecret = process.env.INTERNAL_API_SECRET
     if (!requiredSecret) {
-      console.error('INTERNAL_API_SECRET not configured — rejecting all alerts requests')
+      log.error('INTERNAL_API_SECRET not configured — rejecting all alerts requests')
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
     const secret = request.headers.get('x-internal-secret')
@@ -206,7 +207,7 @@ export async function POST(request: NextRequest) {
       if (outcomes[i].status === 'fulfilled') {
         sent++
       } else {
-        console.error(`Alert email failed for investor ${emailPayloads[i].investorId}:`, (outcomes[i] as PromiseRejectedResult).reason)
+        log.error(`Alert email failed for investor ${emailPayloads[i].investorId}:`, (outcomes[i] as PromiseRejectedResult).reason)
       }
     }
 
@@ -223,7 +224,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ sent })
   } catch (err) {
-    console.error('Investor alerts error:', err)
+    log.error('Investor alerts error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

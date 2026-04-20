@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { verifyAuth } from '@/lib/auth/verify';
+import { log } from '@/lib/logger';
 
 /**
  * GET /api/iq/latest
@@ -10,12 +12,10 @@ import { createClient } from '@/lib/supabase/server';
  */
 export async function GET() {
   try {
+    const auth = await verifyAuth();
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+    const { user } = auth;
     const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
 
     const { data: row, error } = await supabase
       .from('iq_scores')
@@ -31,7 +31,7 @@ export async function GET() {
     }
 
     if (error) {
-      console.error('[IQ latest] DB error:', error);
+      log.error('GET /api/iq/latest', { error });
       return NextResponse.json({ error: 'Failed to fetch IQ Score' }, { status: 500 });
     }
 
@@ -63,7 +63,7 @@ export async function GET() {
       calculating: false,
     });
   } catch (err) {
-    console.error('[IQ latest] Error:', err);
+    log.error('GET /api/iq/latest', { err });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

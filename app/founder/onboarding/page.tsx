@@ -9,11 +9,11 @@ import { bg, surf, bdr, ink, muted, blue } from '@/lib/constants/colors'
 
 // ── option data ───────────────────────────────────────────────────────────────
 const INDUSTRIES = [
-  { value: 'medtech-biotech',  label: 'Medtech / Biotech'    },
-  { value: 'ai-software',      label: 'AI & Software'         },
-  { value: 'robotics-hardware',label: 'Robotics & Hardware'   },
-  { value: 'agri-foodtech',    label: 'Agri- & Foodtech'      },
-  { value: 'clean-tech',       label: 'Clean Tech'            },
+  { value: 'medtech-biotech',   label: 'Medtech / Biotech'   },
+  { value: 'ai-software',       label: 'AI & Software'        },
+  { value: 'robotics-hardware', label: 'Robotics & Hardware'  },
+  { value: 'agri-foodtech',     label: 'Agri- & Foodtech'     },
+  { value: 'clean-tech',        label: 'Clean Tech'           },
 ]
 
 const STAGES = [
@@ -23,22 +23,22 @@ const STAGES = [
 ]
 
 const REVENUE = [
-  { value: 'pre-revenue',  label: 'Pre-revenue',                    sub: 'No paying customers yet'      },
-  { value: 'early-revenue',label: 'Early revenue (pilots)',         sub: 'First paying customers'        },
-  { value: 'recurring',    label: 'Recurring revenues',             sub: 'Signed contracts or SaaS MRR'  },
+  { value: 'pre-revenue',   label: 'Pre-revenue',            sub: 'No paying customers yet'     },
+  { value: 'early-revenue', label: 'Early revenue (pilots)', sub: 'First paying customers'       },
+  { value: 'recurring',     label: 'Recurring revenues',     sub: 'Signed contracts or SaaS MRR' },
 ]
 
 const TEAM = [
-  { value: '1-5',  label: '1–5'   },
-  { value: '5-10', label: '5–10'  },
-  { value: '10+',  label: '10+'   },
+  { value: '1-5',  label: '1–5'  },
+  { value: '5-10', label: '5–10' },
+  { value: '10+',  label: '10+'  },
 ]
 
 const FUNDING = [
-  { value: 'bootstrapped',    label: 'Bootstrapped'      },
-  { value: 'friends-family',  label: 'Friends & family'  },
-  { value: 'angel',           label: 'Angel investors'   },
-  { value: 'vc',              label: 'VC'                },
+  { value: 'bootstrapped',   label: 'Bootstrapped'     },
+  { value: 'friends-family', label: 'Friends & family' },
+  { value: 'angel',          label: 'Angel investors'  },
+  { value: 'vc',             label: 'VC'               },
 ]
 
 // ── animation ─────────────────────────────────────────────────────────────────
@@ -58,9 +58,9 @@ function Label({ children, optional }: { children: React.ReactNode; optional?: b
   )
 }
 
-function TextInput({ value, onChange, placeholder, type = 'text', autoFocus = false }: {
+function TextInput({ value, onChange, placeholder, type = 'text', autoFocus = false, maxLength }: {
   value: string; onChange: (v: string) => void
-  placeholder?: string; type?: string; autoFocus?: boolean
+  placeholder?: string; type?: string; autoFocus?: boolean; maxLength?: number
 }) {
   return (
     <input
@@ -69,12 +69,35 @@ function TextInput({ value, onChange, placeholder, type = 'text', autoFocus = fa
       onChange={e => onChange(e.target.value)}
       placeholder={placeholder}
       autoFocus={autoFocus}
+      maxLength={maxLength}
       autoComplete={type === 'email' ? 'email' : type === 'password' ? 'new-password' : 'off'}
       style={{
         width: '100%', padding: '11px 14px', borderRadius: 8,
         border: `1.5px solid ${bdr}`, background: bg,
         fontSize: 14, color: ink, outline: 'none', fontFamily: 'inherit',
         boxSizing: 'border-box', transition: 'border-color 0.15s',
+      }}
+      onFocus={e => { e.currentTarget.style.borderColor = blue }}
+      onBlur={e => { e.currentTarget.style.borderColor = bdr }}
+    />
+  )
+}
+
+function TextArea({ value, onChange, placeholder, rows = 3 }: {
+  value: string; onChange: (v: string) => void; placeholder?: string; rows?: number
+}) {
+  return (
+    <textarea
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      placeholder={placeholder}
+      rows={rows}
+      style={{
+        width: '100%', padding: '11px 14px', borderRadius: 8,
+        border: `1.5px solid ${bdr}`, background: bg,
+        fontSize: 14, color: ink, outline: 'none', fontFamily: 'inherit',
+        boxSizing: 'border-box', transition: 'border-color 0.15s',
+        resize: 'vertical', lineHeight: 1.5,
       }}
       onFocus={e => { e.currentTarget.style.borderColor = blue }}
       onBlur={e => { e.currentTarget.style.borderColor = bdr }}
@@ -130,20 +153,36 @@ function OptionCard({ label, sub, active, onClick }: {
   )
 }
 
+function ReviewRow({ label, value }: { label: string; value: string }) {
+  if (!value) return null
+  return (
+    <div style={{ display: 'flex', gap: 12, padding: '8px 0', borderBottom: `1px solid ${bdr}` }}>
+      <span style={{ fontSize: 12, color: muted, width: 120, flexShrink: 0, paddingTop: 1 }}>{label}</span>
+      <span style={{ fontSize: 13, color: ink }}>{value}</span>
+    </div>
+  )
+}
+
 // ── form state ────────────────────────────────────────────────────────────────
 interface FormData {
+  // Step 1
   companyName: string; website: string; industry: string; stage: string
+  // Step 2
   revenueStatus: string; fundingStatus: string; teamSize: string
+  // Step 3
+  problemStatement: string; targetCustomer: string; location: string; tagline: string
+  // Step 4 (account)
   founderName: string; email: string; password: string
 }
 
 const EMPTY: FormData = {
   companyName: '', website: '', industry: '', stage: '',
   revenueStatus: '', fundingStatus: '', teamSize: '',
+  problemStatement: '', targetCustomer: '', location: '', tagline: '',
   founderName: '', email: '', password: '',
 }
 
-const STEP_LABELS = ['Your Startup', 'Account']
+const STEP_LABELS = ['Your Startup', 'Traction', 'Your Problem', 'Create Account']
 
 // ── main ──────────────────────────────────────────────────────────────────────
 export default function OnboardingPage() {
@@ -163,8 +202,9 @@ export default function OnboardingPage() {
   }, [router])
 
   const canNext1 = form.companyName.trim() && form.industry && form.stage
-  const canSubmit = form.revenueStatus && form.fundingStatus && form.teamSize &&
-    form.founderName.trim() && form.email.trim() && form.password.length >= 8
+  const canNext2 = form.revenueStatus && form.fundingStatus && form.teamSize
+  const canNext3 = form.problemStatement.trim() && form.targetCustomer.trim()
+  const canSubmit = form.founderName.trim() && form.email.trim() && form.password.length >= 8
 
   function go(next: number) { setDir(next > page ? 1 : -1); setPage(next); setError('') }
 
@@ -180,6 +220,8 @@ export default function OnboardingPage() {
           stage: form.stage, revenueStatus: form.revenueStatus,
           fundingStatus: form.fundingStatus, teamSize: form.teamSize,
           founderName: form.founderName,
+          problemStatement: form.problemStatement, targetCustomer: form.targetCustomer,
+          location: form.location, tagline: form.tagline,
         }),
       })
       const data = await res.json()
@@ -187,12 +229,10 @@ export default function OnboardingPage() {
       const sb = createClient()
       const { error: signInErr } = await sb.auth.signInWithPassword({ email: form.email.trim(), password: form.password })
       if (signInErr) { setError('Account created but sign-in failed. Please log in.'); setLoading(false); return }
-      // Keep loading=true — the overlay stays visible during the navigation to profile-builder
       router.push('/founder/profile-builder')
     } catch { setError('Something went wrong. Please try again.'); setLoading(false) }
   }
 
-  // Full-screen loading overlay shown while account is being created / navigating
   if (loading) {
     return (
       <div style={{
@@ -207,16 +247,14 @@ export default function OnboardingPage() {
         }} />
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 16, fontWeight: 600, color: '#18160F', marginBottom: 6 }}>
-            Setting up your profile…
-          </div>
-          <div style={{ fontSize: 13, color: '#8A867C' }}>
-            This takes a few seconds
-          </div>
+          <div style={{ fontSize: 16, fontWeight: 600, color: '#18160F', marginBottom: 6 }}>Setting up your profile…</div>
+          <div style={{ fontSize: 13, color: '#8A867C' }}>This takes a few seconds</div>
         </div>
       </div>
     )
   }
+
+  const canGoNext = page === 1 ? canNext1 : page === 2 ? canNext2 : page === 3 ? canNext3 : false
 
   return (
     <div style={{
@@ -250,10 +288,10 @@ export default function OnboardingPage() {
                     : <span style={{ fontSize: 11, fontWeight: 700, color: active ? '#fff' : muted }}>{n}</span>
                   }
                 </div>
-                <span style={{ fontSize: 11, color: active ? ink : muted, fontWeight: active ? 600 : 400 }}>{label}</span>
+                <span style={{ fontSize: 11, color: active ? ink : muted, fontWeight: active ? 600 : 400, whiteSpace: 'nowrap' }}>{label}</span>
               </div>
               {i < STEP_LABELS.length - 1 && (
-                <div style={{ width: 52, height: 1, background: n < page ? blue : bdr, margin: '-11px 10px 0', transition: 'background 0.3s' }} />
+                <div style={{ width: 40, height: 1, background: n < page ? blue : bdr, margin: '-11px 8px 0', transition: 'background 0.3s' }} />
               )}
             </div>
           )
@@ -282,11 +320,15 @@ export default function OnboardingPage() {
             <div style={{ marginBottom: 28 }}>
               <h1 style={{ fontSize: 19, fontWeight: 700, color: ink, margin: 0, letterSpacing: '-0.3px', lineHeight: 1.3 }}>
                 {page === 1 && 'Tell us about your startup'}
-                {page === 2 && 'Create your account'}
+                {page === 2 && 'Traction & team'}
+                {page === 3 && 'The problem you\'re solving'}
+                {page === 4 && 'Create your account'}
               </h1>
               <p style={{ fontSize: 13, color: muted, margin: '5px 0 0', lineHeight: 1.5 }}>
                 {page === 1 && 'This calibrates your IQ Score accurately from day one.'}
                 {page === 2 && 'Honest answers give you a more useful baseline — no judgment.'}
+                {page === 3 && 'Help investors understand what you\'re building and who it\'s for.'}
+                {page === 4 && 'Review your details, then create your account.'}
               </p>
             </div>
 
@@ -297,87 +339,109 @@ export default function OnboardingPage() {
                   <Label>Company name</Label>
                   <TextInput value={form.companyName} onChange={set('companyName')} placeholder="e.g. Acme Inc." autoFocus />
                 </div>
-
                 <div>
                   <Label>Industry / Sector</Label>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
                     {INDUSTRIES.map(o => (
-                      <OptionCard
-                        key={o.value}
-                        label={o.label}
-                        active={form.industry === o.value}
-                        onClick={() => set('industry')(o.value)}
-                      />
+                      <OptionCard key={o.value} label={o.label} active={form.industry === o.value} onClick={() => set('industry')(o.value)} />
                     ))}
                   </div>
                 </div>
-
                 <div>
                   <Label optional>Website</Label>
                   <TextInput value={form.website} onChange={set('website')} placeholder="https://" />
                 </div>
-
                 <div>
                   <Label>Stage</Label>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
                     {STAGES.map(o => (
-                      <OptionCard
-                        key={o.value}
-                        label={o.label}
-                        sub={o.sub}
-                        active={form.stage === o.value}
-                        onClick={() => set('stage')(o.value)}
-                      />
+                      <OptionCard key={o.value} label={o.label} sub={o.sub} active={form.stage === o.value} onClick={() => set('stage')(o.value)} />
                     ))}
                   </div>
                 </div>
               </div>
             )}
 
-            {/* ── PAGE 2 — Account ── */}
+            {/* ── PAGE 2 — Traction ── */}
             {page === 2 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
                 <div>
                   <Label>Revenue</Label>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
                     {REVENUE.map(o => (
-                      <OptionCard
-                        key={o.value}
-                        label={o.label}
-                        sub={o.sub}
-                        active={form.revenueStatus === o.value}
-                        onClick={() => set('revenueStatus')(o.value)}
-                      />
+                      <OptionCard key={o.value} label={o.label} sub={o.sub} active={form.revenueStatus === o.value} onClick={() => set('revenueStatus')(o.value)} />
                     ))}
                   </div>
                 </div>
-
                 <div>
                   <Label>Team size</Label>
                   <div style={{ display: 'flex', gap: 8 }}>
                     {TEAM.map(o => (
-                      <Pill
-                        key={o.value}
-                        label={o.label}
-                        active={form.teamSize === o.value}
-                        onClick={() => set('teamSize')(o.value)}
-                      />
+                      <Pill key={o.value} label={o.label} active={form.teamSize === o.value} onClick={() => set('teamSize')(o.value)} />
                     ))}
                   </div>
                 </div>
-
                 <div>
                   <Label>Funding status</Label>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
                     {FUNDING.map(o => (
-                      <Pill
-                        key={o.value}
-                        label={o.label}
-                        active={form.fundingStatus === o.value}
-                        onClick={() => set('fundingStatus')(o.value)}
-                      />
+                      <Pill key={o.value} label={o.label} active={form.fundingStatus === o.value} onClick={() => set('fundingStatus')(o.value)} />
                     ))}
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── PAGE 3 — Problem & ICP ── */}
+            {page === 3 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+                <div>
+                  <Label>What problem are you solving?</Label>
+                  <TextArea
+                    value={form.problemStatement}
+                    onChange={set('problemStatement')}
+                    placeholder="Describe the pain point your customers face today…"
+                    rows={3}
+                  />
+                </div>
+                <div>
+                  <Label>Who is your ideal customer?</Label>
+                  <TextInput
+                    value={form.targetCustomer}
+                    onChange={set('targetCustomer')}
+                    placeholder="e.g. Mid-market SaaS companies with 50–500 employees"
+                  />
+                </div>
+                <div>
+                  <Label optional>One-liner / tagline</Label>
+                  <TextInput
+                    value={form.tagline}
+                    onChange={set('tagline')}
+                    placeholder="e.g. The operating system for clinical trials"
+                    maxLength={140}
+                  />
+                  {form.tagline && (
+                    <p style={{ fontSize: 11, color: muted, marginTop: 4, textAlign: 'right' }}>{form.tagline.length}/140</p>
+                  )}
+                </div>
+                <div>
+                  <Label optional>Location</Label>
+                  <TextInput value={form.location} onChange={set('location')} placeholder="e.g. London, UK" />
+                </div>
+              </div>
+            )}
+
+            {/* ── PAGE 4 — Account + Review ── */}
+            {page === 4 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+                {/* Quick review card */}
+                <div style={{ background: bg, borderRadius: 10, border: `1px solid ${bdr}`, padding: '14px 16px' }}>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: muted, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 8 }}>Your details</p>
+                  <ReviewRow label="Company" value={form.companyName} />
+                  <ReviewRow label="Industry" value={INDUSTRIES.find(i => i.value === form.industry)?.label ?? form.industry} />
+                  <ReviewRow label="Stage" value={STAGES.find(s => s.value === form.stage)?.label ?? form.stage} />
+                  <ReviewRow label="Revenue" value={REVENUE.find(r => r.value === form.revenueStatus)?.label ?? form.revenueStatus} />
+                  {form.tagline && <ReviewRow label="One-liner" value={form.tagline} />}
                 </div>
 
                 {/* divider */}
@@ -391,7 +455,6 @@ export default function OnboardingPage() {
                   <Label>Full name</Label>
                   <TextInput value={form.founderName} onChange={set('founderName')} placeholder="Jane Smith" />
                 </div>
-
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                   <div>
                     <Label>Work email</Label>
@@ -429,17 +492,17 @@ export default function OnboardingPage() {
             </a>
           )}
 
-          {page < 2 ? (
+          {page < 4 ? (
             <button
               onClick={() => go(page + 1)}
-              disabled={!canNext1}
+              disabled={!canGoNext}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6,
                 padding: '9px 20px', borderRadius: 8, border: 'none',
-                background: !canNext1 ? bdr : blue,
-                color: '#fff', fontSize: 13, fontWeight: 600, cursor: !canNext1 ? 'not-allowed' : 'pointer',
+                background: !canGoNext ? bdr : blue,
+                color: '#fff', fontSize: 13, fontWeight: 600, cursor: !canGoNext ? 'not-allowed' : 'pointer',
                 fontFamily: 'inherit', transition: 'opacity 0.15s',
-                opacity: !canNext1 ? 0.45 : 1,
+                opacity: !canGoNext ? 0.45 : 1,
               }}
             >
               Continue <ChevronRight size={14} />
@@ -456,7 +519,7 @@ export default function OnboardingPage() {
                 fontFamily: 'inherit', opacity: (!canSubmit || loading) ? 0.45 : 1,
               }}
             >
-              {loading ? 'Creating account…' : <><span>Create account</span><ChevronRight size={14} /></>}
+              {loading ? 'Creating account…' : <><span>Launch my profile</span><ChevronRight size={14} /></>}
             </button>
           )}
         </div>

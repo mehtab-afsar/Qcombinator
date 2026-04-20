@@ -13,6 +13,8 @@ export interface InvestorSettingsData {
   sectors: string[]
   stages: string[]
   checkSizes: string[]
+  avatarUrl: string
+  firmLogoUrl: string
   newFounders: boolean
   highQScore: boolean
   connectionReq: boolean
@@ -24,13 +26,18 @@ export async function loadInvestorSettings(): Promise<InvestorSettingsData | nul
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
-  const { data: profile } = await supabase
-    .from('investor_profiles')
-    .select('full_name, firm_name, title, thesis, sectors, stages, check_sizes, deal_flow_notifications, notification_preferences')
-    .eq('user_id', user.id)
-    .single()
-
-  const prefs = (profile?.notification_preferences ?? {}) as Record<string, boolean>
+  const [{ data: profile }, { data: notifPrefs }] = await Promise.all([
+    supabase
+      .from('investor_profiles')
+      .select('full_name, firm_name, title, thesis, sectors, stages, check_sizes, avatar_url, firm_logo_url')
+      .eq('user_id', user.id)
+      .single(),
+    supabase
+      .from('notification_preferences')
+      .select('high_q_score, connection_req, weekly_digest, deal_flow_notifications')
+      .eq('user_id', user.id)
+      .maybeSingle(),
+  ])
 
   return {
     email:        user.email ?? '',
@@ -41,10 +48,12 @@ export async function loadInvestorSettings(): Promise<InvestorSettingsData | nul
     sectors:      profile?.sectors     ?? [],
     stages:       profile?.stages      ?? [],
     checkSizes:   profile?.check_sizes ?? [],
-    newFounders:  profile?.deal_flow_notifications !== false,
-    highQScore:   prefs.highQScore    !== false,
-    connectionReq: prefs.connectionReq !== false,
-    weeklyDigest: prefs.weeklyDigest  === true,
+    avatarUrl:    profile?.avatar_url   ?? '',
+    firmLogoUrl:  profile?.firm_logo_url ?? '',
+    newFounders:  notifPrefs?.deal_flow_notifications !== false,
+    highQScore:   notifPrefs?.high_q_score    !== false,
+    connectionReq: notifPrefs?.connection_req !== false,
+    weeklyDigest: notifPrefs?.weekly_digest   === true,
   }
 }
 
@@ -118,16 +127,14 @@ export async function saveInvestorNotifications(input: SaveNotificationsInput): 
   if (!user) throw new Error('Not authenticated')
 
   const { error } = await supabase
-    .from('investor_profiles')
-    .update({
+    .from('notification_preferences')
+    .upsert({
+      user_id:                user.id,
       deal_flow_notifications: input.newFounders,
-      notification_preferences: {
-        highQScore:    input.highQScore,
-        connectionReq: input.connectionReq,
-        weeklyDigest:  input.weeklyDigest,
-      },
-    })
-    .eq('user_id', user.id)
+      high_q_score:           input.highQScore,
+      connection_req:         input.connectionReq,
+      weekly_digest:          input.weeklyDigest,
+    }, { onConflict: 'user_id' })
 
   if (error) throw error
 }

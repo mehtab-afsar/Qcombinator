@@ -11,38 +11,27 @@ import { fetchMetricsFromSupabase } from '@/features/founder/services/founder-da
 import { FounderProfile, AssessmentData, MetricsData } from '@/features/founder/types/founder.types';
 
 /**
- * Hook for founder profile data
+ * Hook for founder profile data — reads from Supabase via /api/founder/profile
  */
 export function useFounderProfile() {
   const [profile, setProfile] = useState<FounderProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadProfile = () => {
-      const data = storageService.getFounderProfile();
-      setProfile(data);
-      setLoading(false);
-    };
-
-    loadProfile();
-
-    // Listen for storage changes
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'founderProfile') {
-        loadProfile();
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    fetch('/api/founder/profile')
+      .then(r => r.json())
+      .then(d => { setProfile(d.profile ?? null); setLoading(false); })
+      .catch(() => setLoading(false));
   }, []);
 
-  const updateProfile = (updates: Partial<FounderProfile>) => {
-    const success = storageService.updateFounderProfile(updates);
-    if (success) {
-      setProfile(prev => prev ? { ...prev, ...updates } : null);
-    }
-    return success;
+  const updateProfile = async (updates: Partial<FounderProfile>) => {
+    setProfile(prev => prev ? { ...prev, ...updates } : null);
+    await fetch('/api/founder/profile', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+    return true;
   };
 
   return {

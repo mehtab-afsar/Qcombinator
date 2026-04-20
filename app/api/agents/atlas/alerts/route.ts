@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { log } from '@/lib/logger'
 
 // GET /api/agents/atlas/alerts
 // Returns recent price_change_alert events from agent_activity (last 30 days).
@@ -25,7 +26,7 @@ export async function GET() {
 
     return NextResponse.json({ alerts: data ?? [] })
   } catch (err) {
-    console.error('Atlas alerts GET error:', err)
+    log.error('Atlas alerts GET error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

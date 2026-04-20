@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/felix/fundraising
 // Models a fundraising round: dilution, ownership post-round, use of funds, investor return.
@@ -133,7 +134,7 @@ Use of funds should add up to 100%. Base on stage and burn rate context.`,
       alternativeStructure: analysis.alternativeStructure ?? null,
     })
   } catch (err) {
-    console.error('Felix fundraising POST error:', err)
+    log.error('Felix fundraising POST error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/felix/stripe
 // Body: { stripeKey }
@@ -95,7 +96,7 @@ export async function POST(request: NextRequest) {
       dataSource: 'stripe_live',
     })
   } catch (err) {
-    console.error('Felix Stripe error:', err)
+    log.error('Felix Stripe error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { createClient as createServiceClient } from '@supabase/supabase-js';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
+import { verifyAuth } from '@/lib/auth/verify';
+import { log } from '@/lib/logger';
 import { fetchQScoreThresholds, invalidateQScoreThresholdCache } from '@/features/qscore/services/threshold-config';
 
-const service = () => createServiceClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
-);
+const service = () => createAdminClient();
 
-/** GET /api/qscore/thresholds — all active tiers + dimension weights */
+/** GET /api/qscore/thresholds — all active tiers + dimension weights (public) */
 export async function GET() {
   try {
     const sc = service();
@@ -26,7 +24,7 @@ export async function GET() {
 
     return NextResponse.json({ thresholds, weights: weightsData.data ?? [] });
   } catch (error) {
-    console.error('[QScore Thresholds GET]', error);
+    log.error('GET /api/qscore/thresholds', { error });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -37,9 +35,10 @@ export async function GET() {
  */
 export async function PATCH(request: NextRequest) {
   try {
+    const auth = await verifyAuth();
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+    const { user } = auth;
     const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { data: profile } = await supabase
       .from('founder_profiles').select('role').eq('user_id', user.id).single();
@@ -73,20 +72,21 @@ export async function PATCH(request: NextRequest) {
     invalidateQScoreThresholdCache();
     return NextResponse.json({ updated });
   } catch (error) {
-    console.error('[QScore Thresholds PATCH]', error);
+    log.error('PATCH /api/qscore/thresholds', { error });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
 /**
- * PATCH /api/qscore/thresholds/weights — update a dimension weight
+ * PUT /api/qscore/thresholds — update a dimension weight
  * Body: { sector, dimension, weight }
  */
 export async function PUT(request: NextRequest) {
   try {
+    const auth = await verifyAuth();
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+    const { user } = auth;
     const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { data: profile } = await supabase
       .from('founder_profiles').select('role').eq('user_id', user.id).single();
@@ -110,7 +110,7 @@ export async function PUT(request: NextRequest) {
     invalidateQScoreThresholdCache();
     return NextResponse.json({ updated });
   } catch (error) {
-    console.error('[QScore Weights PUT]', error);
+    log.error('PUT /api/qscore/thresholds', { error });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

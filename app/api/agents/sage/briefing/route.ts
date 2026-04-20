@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/sage/briefing
 // Generates a cross-agent weekly briefing pulling live data from all agents.
@@ -121,7 +122,7 @@ Be specific. Reference actual data. The founder reads this in 3 minutes.`,
 
     return NextResponse.json({ briefing: { content }, company: profile?.startup_name })
   } catch (err) {
-    console.error('Sage briefing POST error:', err)
+    log.error('Sage briefing POST error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

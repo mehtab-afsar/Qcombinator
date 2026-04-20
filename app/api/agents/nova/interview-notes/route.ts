@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/nova/interview-notes
 // Body: { notes: string, intervieweeName?: string, role?: string, artifactId?: string }
@@ -147,7 +148,7 @@ Be specific and use direct language from the notes where possible. Identify 2-5 
 
     return NextResponse.json({ analysis, artifactId })
   } catch (err) {
-    console.error('Nova interview-notes error:', err)
+    log.error('Nova interview-notes error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/harper/post-job
 // Body: { role: { role, salaryRange, equity, responsibilities?, requirements? }, boards: string[] }
@@ -170,7 +171,7 @@ export async function POST(request: NextRequest) {
       hnHeader: HN_HEADER,
     })
   } catch (err) {
-    console.error('Harper post-job error:', err)
+    log.error('Harper post-job error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

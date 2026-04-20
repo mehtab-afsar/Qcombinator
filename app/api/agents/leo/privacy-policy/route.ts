@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/leo/privacy-policy
 // Generates a Privacy Policy + Terms of Service for the startup, downloadable as HTML.
@@ -164,7 +165,7 @@ Effective date: ${today}`,
 
     return NextResponse.json({ html, docType, company })
   } catch (err) {
-    console.error('Leo privacy policy error:', err)
+    log.error('Leo privacy policy error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

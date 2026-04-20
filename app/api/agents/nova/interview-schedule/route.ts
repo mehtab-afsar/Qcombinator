@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/nova/interview-schedule
 // Body: {
@@ -158,7 +159,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ sent, failed, results })
   } catch (err) {
-    console.error('Nova interview-schedule error:', err)
+    log.error('Nova interview-schedule error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

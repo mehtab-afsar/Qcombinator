@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/server'
+import { verifyAuth } from '@/lib/auth/verify'
+import { log } from '@/lib/logger'
 
 // GET /api/investor/portfolio
 // Returns accepted connection requests enriched with founder Q-Score + artifact data
@@ -7,9 +9,10 @@ import { createClient } from '@/lib/supabase/server'
 
 export async function GET() {
   try {
-    const supabase = await createClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const auth = await verifyAuth()
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+    const { user } = auth
+    const supabase = createAdminClient()
 
     // Get investor profile to find their demo_investor_id (if any)
     const { data: investorProfile } = await supabase
@@ -40,21 +43,24 @@ export async function GET() {
 
     const founderIds = connections.map(c => c.founder_id).filter(Boolean)
 
+    // supabase is already the admin client — reads founder data bypassing RLS
+    const admin = supabase
+
     // Fetch founder profiles
-    const { data: founders } = await supabase
+    const { data: founders } = await admin
       .from('founder_profiles')
       .select('user_id, startup_name, industry, stage, description, full_name')
       .in('user_id', founderIds)
 
     // Fetch latest Q-Score per founder
-    const { data: scores } = await supabase
+    const { data: scores } = await admin
       .from('qscore_history')
       .select('user_id, overall_score, team_score, market_score, traction_score, gtm_score, product_score, calculated_at')
       .in('user_id', founderIds)
       .order('calculated_at', { ascending: false })
 
     // Fetch financial artifact per founder (for revenue/runway data)
-    const { data: financials } = await supabase
+    const { data: financials } = await admin
       .from('agent_artifacts')
       .select('user_id, content, created_at')
       .in('user_id', founderIds)
@@ -63,7 +69,7 @@ export async function GET() {
 
     // Fetch last message per connection for inbox preview
     const connectionIds = connections.map(c => c.id)
-    const { data: lastMsgs } = await supabase
+    const { data: lastMsgs } = await admin
       .from('messages')
       .select('connection_request_id, body, sender_id, created_at')
       .in('connection_request_id', connectionIds)
@@ -147,7 +153,7 @@ export async function GET() {
 
     return NextResponse.json({ companies })
   } catch (err) {
-    console.error('Investor portfolio GET error:', err)
+    log.error('GET /api/investor/portfolio', { err })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

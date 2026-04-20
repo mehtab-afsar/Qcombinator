@@ -18,6 +18,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ARTIFACT_TYPES } from '@/lib/constants/artifact-types';
 import { AGENT_IDS } from '@/lib/constants/agent-ids';
+import { log } from '@/lib/logger'
 
 // ── Iteration speed ───────────────────────────────────────────────────────────
 
@@ -194,7 +195,7 @@ export async function computeBehaviouralScore(
 
     return { behaviouralScore: Math.max(0, Math.min(100, behaviouralScore)), signals };
   } catch (err) {
-    console.warn('[Behavioural] Scoring failed:', err);
+    log.warn('[Behavioural] Scoring failed:', err);
     return { behaviouralScore: 50, signals: {} };
   }
 }

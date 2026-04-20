@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/leo/regulatory
 // Researches industry-specific regulations for the startup's sector.
@@ -111,7 +112,7 @@ ${additionalContext ? `Additional context: ${additionalContext}` : ''}`,
 
     return NextResponse.json({ result, industry })
   } catch (err) {
-    console.error('Leo regulatory POST error:', err)
+    log.error('Leo regulatory POST error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { log } from '@/lib/logger'
 
 // GET    /api/agents/investor/contacts         — list investor contacts for auth user
 // POST   /api/agents/investor/contacts         — create an investor contact
@@ -25,7 +26,7 @@ export async function GET() {
 
     return NextResponse.json({ contacts: data ?? [] })
   } catch (err) {
-    console.error('Investor contacts GET error:', err)
+    log.error('Investor contacts GET error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -68,7 +69,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ contact: data })
   } catch (err) {
-    console.error('Investor contacts POST error:', err)
+    log.error('Investor contacts POST error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -99,7 +100,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (err) {
-    console.error('Investor contacts DELETE error:', err)
+    log.error('Investor contacts DELETE error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

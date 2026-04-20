@@ -29,7 +29,7 @@ interface RoutingConfig {
 const ROUTING_TABLE: Record<TaskClass, RoutingConfig> = {
   extraction:     { model: HAIKU,  maxTokens: 2000, temperature: 0.1  },
   generation:     { model: SONNET, maxTokens: 3000, temperature: 0.55 },
-  reasoning:      { model: HAIKU,  maxTokens: 1200, temperature: 0.2  },
+  reasoning:      { model: SONNET, maxTokens: 1200, temperature: 0.2  },
   classification: { model: HAIKU,  maxTokens: 250,  temperature: 0.0  },
   summarisation:  { model: HAIKU,  maxTokens: 600,  temperature: 0.3  },
 };

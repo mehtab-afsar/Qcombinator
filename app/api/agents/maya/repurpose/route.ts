@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/maya/repurpose
 // Repurposes a piece of content into multiple formats.
@@ -114,7 +115,7 @@ Write natively for each platform. Twitter = punchy/opinionated. LinkedIn = profe
 
     return NextResponse.json({ repurposed })
   } catch (err) {
-    console.error('Maya repurpose POST error:', err)
+    log.error('Maya repurpose POST error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

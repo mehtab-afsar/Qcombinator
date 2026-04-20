@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/susi/forecast
 // Generates a revenue forecast based on pipeline data, close rates, and MRR.
@@ -129,7 +130,7 @@ Base your forecast on stage-weighted deal values and historical close rates. Be 
 
     return NextResponse.json({ forecast, pipelineValue: totalPipelineValue, dealCount: (activeDeals ?? []).length })
   } catch (err) {
-    console.error('Susi forecast POST error:', err)
+    log.error('Susi forecast POST error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

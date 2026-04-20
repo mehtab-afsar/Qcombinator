@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import { createClient } from '@/lib/supabase/server'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/proposal/send
 // Generates a branded sales proposal from the sales_script artifact data
@@ -243,7 +244,7 @@ export async function POST(request: NextRequest) {
     })
 
     if (error) {
-      console.error('Proposal send error:', error)
+      log.error('Proposal send error:', error)
       return NextResponse.json({ error: 'Failed to send proposal' }, { status: 500 })
     }
 
@@ -299,7 +300,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, proposalId: saved?.id, resendId: data?.id })
   } catch (err) {
-    console.error('Proposal send error:', err)
+    log.error('Proposal send error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -320,7 +321,7 @@ export async function GET() {
 
     return NextResponse.json({ proposals: data ?? [] })
   } catch (err) {
-    console.error('Proposals GET error:', err)
+    log.error('Proposals GET error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

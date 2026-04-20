@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { log } from '@/lib/logger'
 
 // GET /api/p/:userId
 // Public portfolio endpoint — no auth required.
@@ -52,7 +53,7 @@ export async function GET(
     ] = await Promise.all([
       supabase
         .from('founder_profiles')
-        .select('full_name, startup_name, industry, stage, tagline, location, website, linkedin_url, onboarding_completed, startup_profile_data, description')
+        .select('full_name, startup_name, industry, stage, tagline, location, website, linkedin_url, onboarding_completed, startup_profile_data, description, avatar_url, company_logo_url')
         .eq('user_id', userId)
         .single(),
 
@@ -147,6 +148,8 @@ export async function GET(
         linkedinUrl:  profile.linkedin_url,
         foundedYear:  (sp.foundedDate as string) ? new Date(sp.foundedDate as string).getFullYear() : null,
         teamSize:     (sp.teamSize as string) || null,
+        avatarUrl:    (profile as Record<string, unknown>).avatar_url as string | null ?? null,
+        companyLogoUrl: (profile as Record<string, unknown>).company_logo_url as string | null ?? null,
       },
       qScore: qrow ? {
         overall:     qrow.overall_score,
@@ -171,7 +174,7 @@ export async function GET(
       } : null,
     })
   } catch (err) {
-    console.error('Public portfolio error:', err)
+    log.error('Public portfolio error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

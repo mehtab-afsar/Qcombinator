@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
 import { Resend } from 'resend'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/maya/newsletter
 // Generates and sends a product newsletter to a subscriber list via Resend.
@@ -152,7 +153,7 @@ Rules:
 
     return NextResponse.json({ newsletter: nl, html, subject, sent, failed })
   } catch (err) {
-    console.error('Maya newsletter error:', err)
+    log.error('Maya newsletter error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

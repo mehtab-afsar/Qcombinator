@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/nova/validate-problem
 // Searches Reddit, HackerNews, Twitter, and forums for people discussing the problem
@@ -133,7 +134,7 @@ Rules:
 
     return NextResponse.json({ validation: parsed, sourcesSearched: unique.length })
   } catch (err) {
-    console.error('Nova validate-problem error:', err)
+    log.error('Nova validate-problem error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

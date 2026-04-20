@@ -1,36 +1,24 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { NextResponse } from 'next/server'
+import { createAdminClient } from '@/lib/supabase/server'
+import { verifyAuth } from '@/lib/auth/verify'
+import { log } from '@/lib/logger'
 
-async function getUserId(req: NextRequest): Promise<string | null> {
-  const token = req.headers.get('authorization')?.replace('Bearer ', '')
-  if (!token) return null
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
-  const { data } = await supabase.auth.getUser(token)
-  return data.user?.id ?? null
-}
-
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
-    const userId = await getUserId(req)
-    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const auth = await verifyAuth()
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+    const { user } = auth
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    )
+    const supabase = createAdminClient()
 
     const { data, error } = await supabase
       .from('profile_builder_data')
       .select('section, extracted_fields, confidence_map, completion_score, completed_at, raw_conversation, uploaded_documents')
-      .eq('user_id', userId)
+      .eq('user_id', user.id)
       .order('section', { ascending: true })
 
     if (error) {
-      console.error('[profile-builder/draft]', error)
+      log.error('GET /api/profile-builder/draft', { error })
       return NextResponse.json({ error: 'Failed to load draft' }, { status: 500 })
     }
 
@@ -57,7 +45,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ sections, totalSections: Object.keys(sections).length, uploadedFiles })
   } catch (err) {
-    console.error('[profile-builder/draft]', err)
+    log.error('GET /api/profile-builder/draft', { err })
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }

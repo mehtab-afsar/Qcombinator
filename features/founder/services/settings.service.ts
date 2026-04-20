@@ -11,6 +11,12 @@ export interface SettingsProfile {
   startupName: string
   industry: string
   description: string
+  tagline: string
+  location: string
+  problemStatement: string
+  targetCustomer: string
+  avatarUrl: string
+  companyLogoUrl: string
   // Startup profile (from signup / profile builder)
   stage: string
   revenueStatus: string
@@ -34,28 +40,36 @@ export async function loadSettings(): Promise<SettingsProfile | null> {
 
   const { data } = await supabase
     .from('founder_profiles')
-    .select('full_name, startup_name, industry, description, notification_preferences, stage, revenue_status, team_size, funding_status, website')
+    .select('full_name, startup_name, industry, description, tagline, location, startup_profile_data, notification_preferences, stage, revenue_status, team_size, funding_status, website')
     .eq('user_id', user.id)
     .single()
 
   const prefs = ((data?.notification_preferences ?? {}) as Record<string, boolean>)
+  const sp    = ((data?.startup_profile_data    ?? {}) as Record<string, unknown>)
+  const meta  = (user.user_metadata ?? {}) as Record<string, string>
 
   return {
-    email:        user.email ?? '',
-    fullName:     data?.full_name      ?? '',
-    startupName:  data?.startup_name   ?? '',
-    industry:     data?.industry       ?? '',
-    description:  data?.description    ?? '',
-    stage:        data?.stage          ?? '',
-    revenueStatus:data?.revenue_status ?? '',
-    teamSize:     data?.team_size      ?? '',
-    fundingStatus:data?.funding_status ?? '',
-    website:      data?.website        ?? '',
+    email:            user.email ?? '',
+    fullName:         data?.full_name    || meta.full_name    || '',
+    startupName:      data?.startup_name || meta.startup_name || '',
+    industry:         data?.industry       ?? '',
+    description:      data?.description    ?? '',
+    tagline:          (data?.tagline        as string) ?? '',
+    location:         (data?.location       as string) ?? '',
+    problemStatement: (sp.problemStatement  as string) ?? '',
+    targetCustomer:   (sp.targetCustomer    as string) ?? '',
+    avatarUrl:        (user.user_metadata?.avatar_url       as string) ?? '',
+    companyLogoUrl:   (user.user_metadata?.company_logo_url as string) ?? '',
+    stage:            data?.stage          ?? '',
+    revenueStatus:    data?.revenue_status ?? '',
+    teamSize:         data?.team_size      ?? '',
+    fundingStatus:    data?.funding_status ?? '',
+    website:          data?.website        ?? '',
     notificationPreferences: {
       emailNotifications: prefs.emailNotifications !== false,
       qScoreUpdates:      prefs.qScoreUpdates      !== false,
       investorMessages:   prefs.investorMessages   !== false,
-      weeklyDigest:       prefs.weeklyDigest       === true,
+      weeklyDigest:       prefs.weeklyDigest        === true,
       runwayAlerts:       prefs.runwayAlerts        !== false,
     },
   }
@@ -73,16 +87,45 @@ export async function saveAccountSettings(fullName: string): Promise<void> {
   if (error) throw error
 }
 
-/** Saves company settings. */
+/** Saves company fields: name, industry, description, tagline, location. */
 export async function saveCompanySettings(
-  startupName: string, industry: string, description: string
+  startupName: string, industry: string, description: string,
+  tagline: string, location: string
 ): Promise<void> {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
   const { error } = await supabase
     .from('founder_profiles')
-    .update({ startup_name: startupName, industry, description })
+    .update({ startup_name: startupName, industry, description, tagline: tagline || null, location: location || null })
+    .eq('user_id', user.id)
+  if (error) throw error
+}
+
+/** Saves startup details: problemStatement and targetCustomer (stored in startup_profile_data JSONB). */
+export async function saveStartupDetailsSettings(
+  problemStatement: string, targetCustomer: string
+): Promise<void> {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not authenticated')
+
+  const { data: existing } = await supabase
+    .from('founder_profiles')
+    .select('startup_profile_data')
+    .eq('user_id', user.id)
+    .single()
+
+  const current = ((existing?.startup_profile_data ?? {}) as Record<string, unknown>)
+  const { error } = await supabase
+    .from('founder_profiles')
+    .update({
+      startup_profile_data: {
+        ...current,
+        problemStatement: problemStatement || null,
+        targetCustomer:   targetCustomer   || null,
+      },
+    })
     .eq('user_id', user.id)
   if (error) throw error
 }

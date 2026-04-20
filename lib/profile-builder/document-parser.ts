@@ -4,6 +4,7 @@
  * Uses pdf-parse for PDFs and adm-zip for PPTX/XLSX.
  */
 import AdmZip from 'adm-zip'
+import { log } from '@/lib/logger'
 
 export interface ParseResult {
   text: string
@@ -23,7 +24,7 @@ export async function parsePDF(buffer: Buffer): Promise<ParseResult> {
     const text = (result.text ?? '').replace(/\s+/g, ' ').trim().slice(0, 8000)
     return { text, confidence: text.length > 200 ? 0.85 : 0.5 }
   } catch (e) {
-    console.warn('[parsePDF] failed, falling back to raw extraction:', e)
+    log.warn('[parsePDF] failed, falling back to raw extraction:', e)
     return parsePDFFallback(buffer)
   }
 }
@@ -95,7 +96,7 @@ export function parsePPTX(buffer: Buffer): ParseResult {
     const text = combined.join(' ').replace(/\s+/g, ' ').trim().slice(0, 8000)
     return { text, confidence: text.length > 100 ? 0.80 : 0.4 }
   } catch (e) {
-    console.warn('[parsePPTX] adm-zip failed:', e)
+    log.warn('[parsePPTX] adm-zip failed:', e)
     return { text: '', confidence: 0.2 }
   }
 }
@@ -152,7 +153,7 @@ export function parseXLSX(buffer: Buffer): ParseResult {
 
     return { text, structuredData, confidence: text.length > 100 ? 0.85 : 0.4 }
   } catch (e) {
-    console.warn('[parseXLSX] adm-zip failed:', e)
+    log.warn('[parseXLSX] adm-zip failed:', e)
     return { text: '', confidence: 0.2 }
   }
 }
@@ -179,11 +180,11 @@ async function parseDOCX(buffer: Buffer): Promise<ParseResult> {
     const result = await mammoth.extractRawText({ buffer })
     const text = (result.value ?? '').replace(/\s+/g, ' ').trim().slice(0, 8000)
     if (result.messages?.length) {
-      console.warn('[parseDOCX] mammoth warnings:', result.messages.map((m: { message: string }) => m.message).join('; '))
+      log.warn('[parseDOCX] mammoth warnings:', result.messages.map((m: { message: string }) => m.message).join('; '))
     }
     return { text, confidence: text.length > 200 ? 0.80 : 0.50 }
   } catch (e) {
-    console.warn('[parseDOCX] mammoth failed, falling back to raw text:', e)
+    log.warn('[parseDOCX] mammoth failed, falling back to raw text:', e)
     return { text: buffer.toString('utf8').slice(0, 8000), confidence: 0.40 }
   }
 }

@@ -1,5 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
+import { log } from '@/lib/logger'
 
 export async function createClient() {
   const cookieStore = await cookies()
@@ -11,7 +13,7 @@ export async function createClient() {
   if (!supabaseUrl || !supabaseAnonKey ||
       supabaseUrl === 'your-supabase-url-here' ||
       supabaseUrl === 'https://your-project.supabase.co') {
-    console.error('⚠️  Supabase not configured! Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local')
+    log.error('⚠️  Supabase not configured! Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local')
     throw new Error('Supabase not configured. Please check .env.local and SUPABASE_SETUP.md')
   }
 
@@ -37,4 +39,19 @@ export async function createClient() {
       },
     }
   )
+}
+
+// Service-role client — bypasses RLS. Use only in server-side API routes
+// where the caller's identity has already been verified via createClient().
+export function createAdminClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error('SUPABASE_SERVICE_ROLE_KEY is not configured')
+  }
+
+  return createSupabaseClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  })
 }

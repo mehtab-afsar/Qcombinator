@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { log } from '@/lib/logger'
 
 /**
  * Tavily Web Search API route
@@ -45,7 +46,7 @@ export async function POST(request: NextRequest) {
     clearTimeout(timer);
 
     if (!response.ok) {
-      console.error("Tavily API error:", response.statusText);
+      log.error("Tavily API error:", response.statusText);
       return NextResponse.json({ error: "Research failed" }, { status: 502 });
     }
 
@@ -60,7 +61,7 @@ export async function POST(request: NextRequest) {
       })),
     });
   } catch (err) {
-    console.error("Research route error:", err);
+    log.error("Research route error:", err);
     return NextResponse.json({ error: "Research request failed" }, { status: 500 });
   }
 }

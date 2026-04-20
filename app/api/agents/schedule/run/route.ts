@@ -15,6 +15,7 @@ export const maxDuration = 120
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { log } from '@/lib/logger'
 
 function getAdmin() {
   return createClient(
@@ -51,7 +52,7 @@ export async function POST(req: NextRequest) {
     .limit(50)
 
   if (error) {
-    console.error('[schedule/run] fetch error:', error)
+    log.error('[schedule/run] fetch error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
@@ -121,7 +122,7 @@ export async function POST(req: NextRequest) {
           .from('scheduled_actions')
           .update({ status: 'failed', error: errMsg } as Record<string, unknown>)
           .eq('id', action.id)
-        console.error(`[schedule/run] action ${action.id} failed:`, errMsg)
+        log.error(`[schedule/run] action ${action.id} failed:`, errMsg)
         failed++
       }
     })

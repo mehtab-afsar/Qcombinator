@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/patel/icp-validation
 // Validates ICP effectiveness using real outreach data.
@@ -140,7 +141,7 @@ Provide 3-5 ICP refinements. Base everything on the real numbers.`,
       projectedImpact:   analysis.projectedImpact ?? null,
     })
   } catch (err) {
-    console.error('Patel ICP validation POST error:', err)
+    log.error('Patel ICP validation POST error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

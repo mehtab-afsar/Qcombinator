@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/maya/press-kit
 // Generates a downloadable HTML press kit from brand_messaging artifact + founder profile.
@@ -209,7 +210,7 @@ footer p { font-size: 11px; color: #8A867C; }
 
     return NextResponse.json({ html, pressKit: pk })
   } catch (err) {
-    console.error('Maya press-kit error:', err)
+    log.error('Maya press-kit error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

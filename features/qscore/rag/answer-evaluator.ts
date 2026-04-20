@@ -12,6 +12,7 @@
 import { callOpenRouter } from '@/lib/openrouter';
 import { AssessmentData } from '../types/qscore.types';
 import { SemanticEvaluation, AnswerQualityScores, MarketValidation } from './types';
+import { log } from '@/lib/logger'
 import {
   retrieveScoringRubrics,
   retrieveBenchmarkContext,
@@ -320,7 +321,7 @@ export async function evaluateAssessmentAnswers(
     };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
-    console.warn('[RAG evaluator] LLM evaluation failed, using heuristics:', errorMessage);
+    log.warn('[RAG evaluator] LLM evaluation failed, using heuristics:', errorMessage);
 
     return {
       answerQuality: buildHeuristicScores(data),

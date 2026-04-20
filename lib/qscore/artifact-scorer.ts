@@ -17,6 +17,7 @@ import { calculateIQScore, inferStage, normalizeSector } from '../../features/qs
 import { calculateGrade } from '../../features/qscore/types/qscore.types'
 import { getCachedSectorWeights } from '../cache/qscore-cache'
 import type { SectionData } from '../profile-builder/data-merger'
+import { log } from '@/lib/logger'
 
 // ── Artifact field extractors ─────────────────────────────────────────────────
 
@@ -170,7 +171,7 @@ async function patchProfileSection(
     .upsert(upsertPayload, { onConflict: 'user_id,section' })
 
   if (error) {
-    console.warn('[artifact-scorer] patch upsert failed:', error.message)
+    log.warn('[artifact-scorer] patch upsert failed:', error.message)
     return false
   }
 
@@ -289,6 +290,6 @@ export async function scoreFromArtifact(
     })
 
   if (insertErr) {
-    console.warn('[artifact-scorer] qscore insert failed:', insertErr.message)
+    log.warn('[artifact-scorer] qscore insert failed:', insertErr.message)
   }
 }

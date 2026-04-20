@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { withCircuitBreaker } from '@/lib/circuit-breaker'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/sage/investor-update
 // Body: { contactIds: string[] }
@@ -273,11 +274,11 @@ export async function POST(request: NextRequest) {
             return
           }
           const errText = await res.text()
-          console.error(`Resend error for ${contact.email}:`, errText)
+          log.error(`Resend error for ${contact.email}:`, errText)
           throw new Error(`Resend ${res.status}`)
         })
       } catch (err) {
-        console.error(`Failed to send to ${contact.email}:`, err)
+        log.error(`Failed to send to ${contact.email}:`, err)
       }
     }
 
@@ -306,7 +307,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, sentCount })
   } catch (err) {
-    console.error('Sage investor-update error:', err)
+    log.error('Sage investor-update error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

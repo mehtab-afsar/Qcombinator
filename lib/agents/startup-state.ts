@@ -9,6 +9,7 @@
  */
 
 import { SupabaseClient } from '@supabase/supabase-js';
+import { log } from '@/lib/logger'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -90,12 +91,12 @@ export async function getStartupState(
       .maybeSingle();
 
     if (error) {
-      console.warn('[startup-state] read error:', error.message);
+      log.warn('[startup-state] read error:', error.message);
       return null;
     }
     return data as StartupState | null;
   } catch (e) {
-    console.warn('[startup-state] unexpected read error:', e);
+    log.warn('[startup-state] unexpected read error:', e);
     return null;
   }
 }
@@ -127,9 +128,9 @@ export async function updateStartupState(
         updated_at: new Date().toISOString(),
       }, { onConflict: 'user_id' });
 
-    if (error) console.warn('[startup-state] write error:', error.message);
+    if (error) log.warn('[startup-state] write error:', error.message);
   } catch (e) {
-    console.warn('[startup-state] unexpected write error:', e);
+    log.warn('[startup-state] unexpected write error:', e);
   }
 }
 

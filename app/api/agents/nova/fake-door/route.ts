@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { createHash } from 'crypto'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/nova/fake-door
 // Body: { featureName, tagline, description, ctaText, artifactId }
@@ -82,7 +83,7 @@ document.getElementById('waitlist-form').addEventListener('submit', async functi
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-  } catch (err) { console.error(err); }
+  } catch (err) { log.error(err); }
   document.getElementById('form-wrap').style.display = 'none';
   document.getElementById('success-msg').style.display = 'block';
 });
@@ -190,7 +191,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ url: liveUrl, testId, siteId })
   } catch (err) {
-    console.error('Nova fake door error:', err)
+    log.error('Nova fake door error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

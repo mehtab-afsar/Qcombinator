@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 interface PitchAnalysis {
   overallScore: number
@@ -78,7 +79,7 @@ Scores of 7+ require clear evidence in the pitch. Be precise — identify specif
       return NextResponse.json(FALLBACK)
     }
   } catch (error) {
-    console.error('Pitch analysis error:', error)
+    log.error('Pitch analysis error:', error)
     return NextResponse.json(FALLBACK)
   }
 }

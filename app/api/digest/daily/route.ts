@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
 import { Resend } from 'resend'
+import { log } from '@/lib/logger'
 
 // POST /api/digest/daily
 // Generates and emails a morning briefing: today's priorities, pipeline health,
@@ -169,7 +170,7 @@ Rules:
       todayStr,
     })
   } catch (err) {
-    console.error('Daily briefing error:', err)
+    log.error('Daily briefing error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

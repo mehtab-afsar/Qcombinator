@@ -1,21 +1,23 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/server'
 import { generateMatchRationale } from '@/features/matching/services/match-rationale'
 import { FF_AI_INVESTOR_MATCHING } from '@/lib/feature-flags'
+import { verifyAuth } from '@/lib/auth/verify'
+import { log } from '@/lib/logger'
 
 // GET /api/investor/deal-flow
 // Returns founders with completed onboarding and a Q-Score, sorted by score desc.
 // Investors use this to browse the deal flow pipeline.
 export async function GET() {
   try {
-    const supabase = await createClient()
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const auth = await verifyAuth()
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+    const { user } = auth
+
+    const admin = createAdminClient()
 
     // Fetch founders who have completed onboarding
-    const { data: founders, error } = await supabase
+    const { data: founders, error } = await admin
       .from('founder_profiles')
       .select(`
         user_id,
@@ -35,13 +37,13 @@ export async function GET() {
         behavioural_score,
         visibility_gated
       `)
-      .eq('onboarding_completed', true)
-      .eq('role', 'founder')
+      .or('role.is.null,role.neq.investor')
+      .not('startup_name', 'is', null)
       .order('updated_at', { ascending: false })
       .limit(50)
 
     if (error) {
-      console.error('Deal flow fetch error:', error)
+      log.error('Deal flow fetch error:', error)
       return NextResponse.json({ error: 'Failed to fetch deal flow' }, { status: 500 })
     }
 
@@ -59,19 +61,19 @@ export async function GET() {
       { data: allArtifacts },
     ] = await Promise.all([
       // Latest Q-Score per founder — fetch all, pick latest in JS
-      supabase
+      admin
         .from('qscore_history')
         .select('user_id, overall_score, market_score, product_score, gtm_score, financial_score, team_score, traction_score, percentile, calculated_at')
         .in('user_id', userIds)
         .order('calculated_at', { ascending: false }),
       // Weekly activity — fetch user_ids only and count in JS
-      supabase
+      admin
         .from('agent_activity')
         .select('user_id')
         .in('user_id', userIds)
         .gte('created_at', since7d),
       // Total deliverables — fetch user_ids only and count in JS
-      supabase
+      admin
         .from('agent_artifacts')
         .select('user_id')
         .in('user_id', userIds),
@@ -99,10 +101,20 @@ export async function GET() {
         const weeklyActions = activityCountByUser.get(f.user_id) ?? 0
         const deliverableCount = artifactCountByUser.get(f.user_id) ?? 0
 
-        // Map DB stage values to display labels
+        // Map canonical DB stage values to display labels
         const stageLabel: Record<string, string> = {
-          idea: 'Idea', mvp: 'MVP', launched: 'Seed', scaling: 'Series A',
-          'pre-seed': 'Pre-Seed', seed: 'Seed', 'series-a': 'Series A', bootstrapped: 'Bootstrapped',
+          idea:         'Idea',
+          mvp:          'MVP',
+          'pre-seed':   'Pre-Seed',
+          seed:         'Seed',
+          'series-a':   'Series A',
+          bootstrapped: 'Bootstrapped',
+          // legacy aliases kept for rows not yet migrated
+          launched:     'Seed',
+          scaling:      'Series A',
+          preseed:      'Pre-Seed',
+          'pre_seed':   'Pre-Seed',
+          'series_a':   'Series A',
         }
 
         // Pull richer data from startup_profile_data JSONB
@@ -158,17 +170,19 @@ export async function GET() {
           momentumScore:    (f as Record<string, unknown>).momentum_score    ?? null,
           behaviouralScore: (f as Record<string, unknown>).behavioural_score ?? null,
           visibilityGated:  (f as Record<string, unknown>).visibility_gated  ?? false,
+          avatarUrl:        (f as Record<string, unknown>).avatar_url        ?? null,
+          companyLogoUrl:   (f as Record<string, unknown>).company_logo_url  ?? null,
         }
       })
 
     // Fetch investor's AI personalization + custom parameter weights
     const [{ data: investorProfile }, { data: investorWeights }] = await Promise.all([
-      supabase
+      admin
         .from('investor_profiles')
         .select('ai_personalization, firm_name, thesis, focus_sectors, focus_stages, portfolio_companies, full_name')
         .eq('user_id', user.id)
         .single(),
-      supabase
+      admin
         .from('investor_parameter_weights')
         .select('weight_market, weight_product, weight_gtm, weight_financial, weight_team, weight_traction')
         .eq('investor_user_id', user.id)
@@ -182,7 +196,7 @@ export async function GET() {
 
     // Apply personalized match scores + custom weighted Q-Score
     const withMatch = enriched.map(f => {
-      const _baseMatch = aiMatches[f.id]?.score ?? Math.round(50 + (f.qScore / 100) * 40);
+      // base match kept for reference; actual match score computed below with custom weights
       // If investor has custom weights, recalculate match score using them
       // (uses dimension scores from qscore_history if available via latestQScore map)
       const qrow = latestQScore.get(f.id);
@@ -211,8 +225,26 @@ export async function GET() {
     // Gate visibility: filter out founders below Signal Strength 40
     const visible = withMatch.filter(f => !f.visibilityGated);
 
-    // Sort by momentum first (hot founders first), then match score, then Q-Score
-    visible.sort((a, b) => {
+    // Investor preference matching — founders matching investor's sectors/stages surface first
+    const prefSectors = ((investorProfile as Record<string, unknown> | null)?.focus_sectors as string[] | null) ?? [];
+    const prefStages  = ((investorProfile as Record<string, unknown> | null)?.focus_stages  as string[] | null) ?? [];
+
+    function matchesPrefs(f: (typeof visible)[0]): boolean {
+      if (prefSectors.length === 0 && prefStages.length === 0) return true;
+      const sectorMatch = prefSectors.length === 0 || prefSectors.some(s =>
+        f.sector.toLowerCase().includes(s.toLowerCase()) || s.toLowerCase().includes(f.sector.toLowerCase())
+      );
+      const stageMatch = prefStages.length === 0 || prefStages.some(s =>
+        f.stage.toLowerCase().includes(s.toLowerCase()) || s.toLowerCase().includes(f.stage.toLowerCase())
+      );
+      return sectorMatch && stageMatch;
+    }
+
+    const visibleWithPrefs = visible.map(f => ({ ...f, matchesPreferences: matchesPrefs(f) }));
+
+    // Sort: preference matches first, then momentum, then match score, then Q-Score
+    visibleWithPrefs.sort((a, b) => {
+      if (a.matchesPreferences !== b.matchesPreferences) return a.matchesPreferences ? -1 : 1;
       const mA = (a.momentumScore as number | null) ?? 0;
       const mB = (b.momentumScore as number | null) ?? 0;
       if (mB !== mA) return (mB as number) - (mA as number);
@@ -220,8 +252,8 @@ export async function GET() {
     });
 
     // ── AI Match Summaries for top 5 founders (economy-tier, gated) ──────────
-    type FounderWithSummary = (typeof visible)[0] & { aiMatchSummary: string | null }
-    const foundersWithSummary: FounderWithSummary[] = visible.map(f => ({ ...f, aiMatchSummary: null }))
+    type FounderWithSummary = (typeof visibleWithPrefs)[0] & { aiMatchSummary: string | null }
+    const foundersWithSummary: FounderWithSummary[] = visibleWithPrefs.map(f => ({ ...f, aiMatchSummary: null }))
 
     if (FF_AI_INVESTOR_MATCHING && investorProfile) {
       const ip = investorProfile as Record<string, unknown>
@@ -259,10 +291,10 @@ export async function GET() {
 
     return NextResponse.json({
       founders: foundersWithSummary,
-      meta: { totalFounders: withMatch.length, gated: withMatch.length - visible.length },
+      meta: { totalFounders: withMatch.length, gated: withMatch.length - visibleWithPrefs.length, preferenceFiltered: prefSectors.length > 0 || prefStages.length > 0 },
     })
   } catch (err) {
-    console.error('Deal flow GET error:', err)
+    log.error('GET /api/investor/deal-flow', { err })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/felix/expenses
 // Founder pastes a list of expenses → Felix categorizes into buckets
@@ -71,7 +72,7 @@ Rules:
 
     return NextResponse.json({ result })
   } catch (err) {
-    console.error('Felix expenses error:', err)
+    log.error('Felix expenses error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

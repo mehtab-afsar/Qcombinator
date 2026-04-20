@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/sage/contradictions
 // Reads all agent artifacts and uses an LLM to detect strategic contradictions:
@@ -142,7 +143,7 @@ Rules:
 
     return NextResponse.json({ analysis: parsed, artifactsAnalysed: availableTypes.length })
   } catch (err) {
-    console.error('Sage contradictions error:', err)
+    log.error('Sage contradictions error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

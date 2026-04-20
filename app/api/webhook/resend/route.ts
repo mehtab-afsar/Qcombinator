@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { log } from '@/lib/logger'
 
 // POST /api/webhook/resend
 // Receives Resend webhook events and updates outreach_sends tracking.
@@ -198,7 +199,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ received: true, matched: true, newStatus, updated: updates.length })
   } catch (err) {
-    console.error('Resend webhook error:', err)
+    log.error('Resend webhook error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

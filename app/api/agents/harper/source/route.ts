@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/harper/source
 // Active candidate sourcing: searches GitHub, LinkedIn, AngelList via Tavily
@@ -143,7 +144,7 @@ Rules:
 
     return NextResponse.json({ sourced: parsed, searchedPlatforms: queries.length })
   } catch (err) {
-    console.error('Harper source error:', err)
+    log.error('Harper source error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/maya/brand-check
 // Checks a piece of copy (website, email, deck) for brand consistency.
@@ -118,7 +119,7 @@ Score on exactly 5 dimensions. Focus on: clarity, specificity, tone, brand align
 
     return NextResponse.json({ result })
   } catch (err) {
-    console.error('Maya brand-check POST error:', err)
+    log.error('Maya brand-check POST error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

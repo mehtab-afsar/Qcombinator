@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 function getAdmin() {
   return createAdminClient(
@@ -97,7 +98,7 @@ Rules:
 
     return NextResponse.json({ calendar: parsed })
   } catch (err) {
-    console.error('Patel content calendar error:', err)
+    log.error('Patel content calendar error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

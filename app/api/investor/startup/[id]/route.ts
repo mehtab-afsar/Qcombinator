@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/server'
+import { verifyAuth } from '@/lib/auth/verify'
+import { log } from '@/lib/logger'
 
 // GET /api/investor/startup/:id
 // Returns a full founder profile for the investor deep-dive page.
@@ -9,16 +11,12 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = await createClient()
-
-    // Auth check — investors only
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const auth = await verifyAuth()
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
     const { id: founderId } = await params
 
+    const admin = createAdminClient()
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
 
     // Fetch in parallel: founder profile + latest Q-Score + latest artifacts + agent activity
@@ -29,13 +27,13 @@ export async function GET(
       { data: allArtifacts },
       { data: recentActivity },
     ] = await Promise.all([
-      supabase
+      admin
         .from('founder_profiles')
         .select('full_name, startup_name, industry, stage, tagline, location, funding, linkedin_url, website, updated_at, startup_profile_data')
         .eq('user_id', founderId)
         .single(),
 
-      supabase
+      admin
         .from('qscore_history')
         .select('overall_score, percentile, grade, market_score, product_score, gtm_score, financial_score, team_score, traction_score, calculated_at, assessment_data, score_version, iq_breakdown')
         .eq('user_id', founderId)
@@ -43,19 +41,19 @@ export async function GET(
         .limit(1)
         .maybeSingle(),
 
-      supabase
+      admin
         .from('agent_artifacts')
         .select('artifact_type, content, created_at')
         .eq('user_id', founderId)
         .in('artifact_type', ['financial_summary', 'hiring_plan', 'competitive_matrix', 'gtm_playbook', 'brand_messaging', 'strategic_plan'])
         .order('created_at', { ascending: false }),
 
-      supabase
+      admin
         .from('agent_artifacts')
         .select('artifact_type')
         .eq('user_id', founderId),
 
-      supabase
+      admin
         .from('agent_activity')
         .select('agent_id, action_type, created_at')
         .eq('user_id', founderId)
@@ -64,9 +62,26 @@ export async function GET(
         .limit(50),
     ])
 
-    if (profileError || !profile) {
+    if (profileError) {
+      log.error('GET /api/investor/startup/[id] profile query failed', { founderId, err: profileError })
+      return NextResponse.json({ error: 'Founder not found', detail: profileError.message }, { status: 404 })
+    }
+    if (!profile) {
       return NextResponse.json({ error: 'Founder not found' }, { status: 404 })
     }
+
+    // Fetch image URLs separately — these columns may not exist if migration hasn't run
+    let avatarUrl: string | null = null
+    let companyLogoUrl: string | null = null
+    try {
+      const { data: imgRow } = await admin
+        .from('founder_profiles')
+        .select('avatar_url, company_logo_url')
+        .eq('user_id', founderId)
+        .single()
+      avatarUrl = (imgRow as Record<string, string | null> | null)?.avatar_url ?? null
+      companyLogoUrl = (imgRow as Record<string, string | null> | null)?.company_logo_url ?? null
+    } catch { /* columns don't exist yet — ignore */ }
 
     // Pick the most recent artifact per type
     const latestByType: Record<string, Record<string, unknown>> = {}
@@ -268,11 +283,13 @@ export async function GET(
       })(),
       iqBreakdown: iqParams.length > 0 ? iqParams : null,
       scoreVersion: qrow?.score_version ?? 'v1_prd',
+      avatarUrl,
+      companyLogoUrl,
     }
 
     return NextResponse.json({ startup: result })
   } catch (err) {
-    console.error('Investor startup GET error:', err)
+    log.error('GET /api/investor/startup/[id]', { err })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

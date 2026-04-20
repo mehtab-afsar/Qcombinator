@@ -1,65 +1,62 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+import { verifyAuth } from '@/lib/auth/verify'
+import { parseBody, weightsSchema } from '@/lib/api/validate'
+import { log } from '@/lib/logger'
 
 // GET /api/investor/weights — return investor's custom dimension weights
 export async function GET() {
   try {
-    const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const auth = await verifyAuth()
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+    const { user } = auth
 
+    const supabase = await createClient()
     const { data } = await supabase
       .from('investor_parameter_weights')
       .select('weight_market, weight_product, weight_gtm, weight_financial, weight_team, weight_traction')
       .eq('investor_user_id', user.id)
-      .single();
+      .single()
 
-    // Return defaults when not yet configured
     return NextResponse.json({
       weights: data ?? {
         weight_market: 20, weight_product: 18, weight_gtm: 17,
         weight_financial: 18, weight_team: 15, weight_traction: 12,
       },
-    });
-  } catch {
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    })
+  } catch (err) {
+    log.error('GET /api/investor/weights', { err })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
 // POST /api/investor/weights — upsert investor's custom dimension weights
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const auth = await verifyAuth()
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+    const { user } = auth
 
-    const body = await request.json();
-    const fields = ['weight_market', 'weight_product', 'weight_gtm', 'weight_financial', 'weight_team', 'weight_traction'];
+    const parsed = await parseBody(request, weightsSchema)
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
 
-    // Validate all weights are numbers 0-100
-    for (const f of fields) {
-      const v = body[f];
-      if (typeof v !== 'number' || v < 0 || v > 100) {
-        return NextResponse.json({ error: `${f} must be a number between 0 and 100` }, { status: 400 });
-      }
-    }
-
-    const payload = {
-      investor_user_id: user.id,
-      ...Object.fromEntries(fields.map(f => [f, body[f]])),
-      updated_at: new Date().toISOString(),
-    };
-
+    const supabase = await createClient()
     const { error } = await supabase
       .from('investor_parameter_weights')
-      .upsert(payload, { onConflict: 'investor_user_id' });
+      .upsert({
+        investor_user_id: user.id,
+        ...parsed.data,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'investor_user_id' })
 
     if (error) {
-      console.error('[Investor weights] Upsert error:', error);
-      return NextResponse.json({ error: 'Failed to save weights' }, { status: 500 });
+      log.error('[investor/weights] upsert failed', { err: error, userId: user.id })
+      return NextResponse.json({ error: 'Failed to save weights' }, { status: 500 })
     }
-    return NextResponse.json({ success: true });
-  } catch {
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+
+    return NextResponse.json({ success: true })
+  } catch (err) {
+    log.error('POST /api/investor/weights', { err })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

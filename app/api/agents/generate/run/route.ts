@@ -27,6 +27,7 @@ import { isCircuitOpen, withCircuitBreaker } from '@/lib/circuit-breaker'
 import { getStartupState, updateStartupState, extractStateFromArtifact } from '@/lib/agents/startup-state'
 import { upsertAgentGoal } from '@/lib/agents/agent-goals'
 import { triggerProactiveDelegations } from '@/lib/agents/delegation'
+import { log } from '@/lib/logger'
 
 const ARTIFACT_DIMENSION: Record<ArtifactType, string> = {
   // Existing
@@ -292,7 +293,7 @@ ${conversationText.slice(0, 4000)}`
 
     return NextResponse.json({ ok: true })
   } catch (err) {
-    console.error('[generate/run]', err)
+    log.error('[generate/run]', err)
     try {
       await supabase.from('artifact_jobs').update({
         status: 'failed',

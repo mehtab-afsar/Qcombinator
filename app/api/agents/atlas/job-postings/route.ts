@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/atlas/job-postings
 // Body: { competitorName, jobListings }
@@ -89,7 +90,7 @@ Group roles into meaningful patterns (AI/ML, enterprise sales, infra, product, d
 
     return NextResponse.json({ analysis })
   } catch (err) {
-    console.error('Atlas job postings error:', err)
+    log.error('Atlas job postings error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

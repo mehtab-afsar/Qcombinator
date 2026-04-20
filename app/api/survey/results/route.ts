@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { log } from '@/lib/logger'
 
 // GET /api/survey/results?surveyId=xxx — authenticated founder
 // Returns all responses for the survey, plus PMF score calculation
@@ -46,7 +47,7 @@ export async function GET(request: NextRequest) {
       .order('submitted_at', { ascending: false })
 
     if (responsesError) {
-      console.error('Survey results fetch error:', responsesError)
+      log.error('Survey results fetch error:', responsesError)
       return NextResponse.json({ error: 'Failed to fetch survey responses' }, { status: 500 })
     }
 
@@ -103,7 +104,7 @@ export async function GET(request: NextRequest) {
       textAnswers: textAnswers.slice(0, 30),
     })
   } catch (err) {
-    console.error('Survey results GET error:', err)
+    log.error('Survey results GET error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

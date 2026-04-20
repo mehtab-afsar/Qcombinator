@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
+import { log } from '@/lib/logger'
 
 export async function GET() {
   // ── Auth guard ────────────────────────────────────────────────────────────
@@ -267,7 +268,7 @@ export async function GET() {
     },
   });
   } catch (err) {
-    console.error('[Admin metrics] Unexpected error:', err);
+    log.error('[Admin metrics] Unexpected error:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

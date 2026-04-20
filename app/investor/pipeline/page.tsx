@@ -1,24 +1,34 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
-import { ExternalLink, ChevronRight } from "lucide-react";
+import { ExternalLink, X, ChevronDown } from "lucide-react";
 import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
+import { Avatar } from '@/features/shared/components/Avatar'
+import { ScoreBadge } from '@/features/shared/components/Badge'
+import { EmptyState } from '@/features/shared/components/EmptyState'
 
 // ─── stage config ─────────────────────────────────────────────────────────────
-const STAGES = ['watching', 'interested', 'meeting', 'in_dd', 'portfolio', 'passed'] as const
+const STAGES = ['watching', 'meeting', 'in_dd', 'portfolio', 'passed'] as const
 type Stage = typeof STAGES[number]
 
-const STAGE_CONFIG: Record<Stage, { label: string; color: string; bg: string; border: string; dot: string }> = {
-  watching:   { label: 'Watching',   color: muted,     bg: surf,      border: bdr,      dot: muted   },
-  interested: { label: 'Interested', color: blue,      bg: '#EFF6FF', border: '#BFDBFE', dot: blue    },
-  meeting:    { label: 'Meeting',    color: '#7C3AED', bg: '#F5F3FF', border: '#C4B5FD', dot: '#7C3AED' },
-  in_dd:      { label: 'In DD',      color: amber,     bg: '#FFFBEB', border: '#FDE68A', dot: amber   },
-  portfolio:  { label: 'Portfolio',  color: green,     bg: '#ECFDF5', border: '#86EFAC', dot: green   },
-  passed:     { label: 'Passed',     color: red,       bg: '#FEF2F2', border: '#FECACA', dot: red     },
+const STAGE_LABELS: Record<Stage, string> = {
+  watching:  'Watching',
+  meeting:   'Meeting',
+  in_dd:     'In DD',
+  portfolio: 'Portfolio',
+  passed:    'Passed',
 }
 
-// ─── types ────────────────────────────────────────────────────────────────────
+const STAGE_DOTS: Record<Stage, string> = {
+  watching: blue, meeting: "#7C3AED", in_dd: amber, portfolio: green, passed: red,
+}
+
+function normaliseStage(s: string): Stage {
+  if (s === 'interested') return 'watching'
+  return STAGES.includes(s as Stage) ? (s as Stage) : 'watching'
+}
+
 interface PipelineEntry {
   id: string;
   founder_user_id: string;
@@ -34,6 +44,9 @@ interface FounderProfile {
   industry: string;
   stage: string;
   qScore: number;
+  companyLogoUrl?: string | null;
+  avatarUrl?: string | null;
+  tagline?: string | null;
 }
 
 interface EnrichedEntry extends PipelineEntry {
@@ -45,214 +58,199 @@ function timeAgo(dateStr: string): string {
   const d = Math.floor(diff / 86400000);
   if (d === 0) return "today";
   if (d === 1) return "yesterday";
-  return `${d}d ago`;
+  if (d < 7) return `${d}d ago`;
+  if (d < 30) return `${Math.floor(d / 7)}w ago`;
+  return `${Math.floor(d / 30)}mo ago`;
 }
 
-function qColor(n: number) {
-  return n >= 75 ? green : n >= 55 ? amber : red;
-}
+// ─── stage dropdown — fixed position to avoid overflow clipping ───────────────
+function StageSelect({ stage, onChange }: { stage: Stage; onChange: (s: Stage) => void }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const btnRef = useRef<HTMLButtonElement>(null);
 
-// ─── entry card ───────────────────────────────────────────────────────────────
-function EntryCard({ entry, onStageChange, onRemove }: {
-  entry: EnrichedEntry;
-  onStageChange: (founderId: string, stage: Stage) => void;
-  onRemove: (founderId: string) => void;
-}) {
-  const [stageOpen, setStageOpen] = useState(false);
-  const p = entry.profile;
+  function toggle(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom + 4, left: r.left });
+    }
+    setOpen(o => !o);
+  }
 
   return (
-    <div style={{
-      background: bg, border: `1px solid ${bdr}`, borderRadius: 12,
-      padding: "14px 16px", marginBottom: 10, position: "relative",
-    }}>
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-        {/* Avatar */}
-        <div style={{
-          width: 36, height: 36, borderRadius: 9, background: ink, flexShrink: 0,
-          display: "flex", alignItems: "center", justifyContent: "center",
-        }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: bg }}>
-            {(p?.startup_name ?? "?").charAt(0).toUpperCase()}
-          </span>
-        </div>
+    <>
+      <button
+        ref={btnRef}
+        onClick={toggle}
+        style={{
+          display: "inline-flex", alignItems: "center", gap: 5,
+          padding: "5px 10px", borderRadius: 7,
+          fontSize: 12, fontWeight: 500, cursor: "pointer",
+          background: "transparent", color: muted,
+          border: `1px solid ${bdr}`,
+          fontFamily: "system-ui, sans-serif",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {STAGE_LABELS[stage]}
+        <ChevronDown style={{ width: 10, height: 10, color: muted }} />
+      </button>
 
-        {/* Info */}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <span style={{ fontFamily: "system-ui, sans-serif", fontSize: 13, fontWeight: 700, color: ink }}>
-              {p?.startup_name ?? "Unknown"}
-            </span>
-            {(p?.qScore ?? 0) > 0 && (
-              <span style={{
-                fontSize: 11, fontWeight: 700, color: qColor(p?.qScore ?? 0),
-                background: `${qColor(p?.qScore ?? 0)}14`, padding: "1px 7px", borderRadius: 999,
-              }}>
-                Q{p?.qScore}
-              </span>
-            )}
-            <span style={{ fontFamily: "system-ui, sans-serif", fontSize: 11, color: muted, marginLeft: "auto" }}>
-              {timeAgo(entry.updated_at)}
-            </span>
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 98 }} />
+          <div style={{
+            position: "fixed", top: pos.top, left: pos.left,
+            zIndex: 99, background: surf, border: `1px solid ${bdr}`,
+            borderRadius: 10, boxShadow: "0 8px 28px rgba(0,0,0,0.10)",
+            padding: "4px 0", minWidth: 152,
+          }}>
+            {STAGES.filter(s => s !== stage).map(s => (
+              <button
+                key={s}
+                onClick={() => { setOpen(false); onChange(s); }}
+                style={{
+                  display: "flex", alignItems: "center",
+                  width: "100%", padding: "9px 14px",
+                  background: "transparent", border: "none", cursor: "pointer",
+                  fontSize: 13, color: ink, textAlign: "left",
+                  fontWeight: 400, fontFamily: "system-ui, sans-serif",
+                  transition: "background 0.1s",
+                }}
+                onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = `${bdr}50`}
+                onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "transparent"}
+              >
+                Move to {STAGE_LABELS[s]}
+              </button>
+            ))}
           </div>
-          <p style={{ fontFamily: "system-ui, sans-serif", fontSize: 11, color: muted, margin: "3px 0 0" }}>
-            {p?.full_name ?? "—"} · {p?.industry ?? "—"} · {p?.stage ?? "—"}
-          </p>
-          {entry.notes && (
-            <p style={{
-              fontFamily: "system-ui, sans-serif", fontSize: 11, color: ink,
-              margin: "6px 0 0", lineHeight: 1.5, borderLeft: `2px solid ${amber}`,
-              paddingLeft: 8,
-              display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",
-            }}>
-              {entry.notes}
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* Footer actions */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, paddingTop: 10, borderTop: `1px solid ${bdr}` }}>
-
-        {/* Stage change */}
-        <div style={{ position: "relative" }}>
-          <button
-            onClick={() => setStageOpen(o => !o)}
-            style={{ fontSize: 11, fontWeight: 600, color: STAGE_CONFIG[entry.stage].color, background: STAGE_CONFIG[entry.stage].bg, border: `1px solid ${STAGE_CONFIG[entry.stage].border}`, borderRadius: 999, padding: "3px 10px", cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
-          >
-            {STAGE_CONFIG[entry.stage].label}
-            <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9" /></svg>
-          </button>
-          {stageOpen && (
-            <>
-              <div onClick={() => setStageOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 48 }} />
-              <div style={{ position: "absolute", left: 0, top: "calc(100% + 4px)", zIndex: 49, background: bg, border: `1px solid ${bdr}`, borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.1)", padding: "4px 0", minWidth: 140 }}>
-                {STAGES.filter(s => s !== entry.stage).map(stage => (
-                  <button
-                    key={stage}
-                    onClick={() => { setStageOpen(false); onStageChange(entry.founder_user_id, stage); }}
-                    style={{ display: "block", width: "100%", padding: "7px 12px", background: "transparent", border: "none", cursor: "pointer", fontSize: 12, color: STAGE_CONFIG[stage].color, textAlign: "left", fontWeight: 500 }}
-                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = STAGE_CONFIG[stage].bg}
-                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "transparent"}
-                  >
-                    Move to {STAGE_CONFIG[stage].label}
-                  </button>
-                ))}
-                <div style={{ height: 1, background: bdr, margin: "4px 0" }} />
-                <button
-                  onClick={() => { setStageOpen(false); onRemove(entry.founder_user_id); }}
-                  style={{ display: "block", width: "100%", padding: "7px 12px", background: "transparent", border: "none", cursor: "pointer", fontSize: 12, color: red, textAlign: "left" }}
-                >
-                  Remove
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* Spacer */}
-        <div style={{ flex: 1 }} />
-
-        {/* View profile link */}
-        <Link
-          href={`/investor/startup/${entry.founder_user_id}`}
-          style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, color: blue, textDecoration: "none", fontWeight: 500 }}
-        >
-          View profile <ChevronRight style={{ height: 10, width: 10 }} />
-        </Link>
-      </div>
-    </div>
-  );
-}
-
-// ─── stage column ─────────────────────────────────────────────────────────────
-function StageColumn({ stage, entries, onStageChange, onRemove }: {
-  stage: Stage;
-  entries: EnrichedEntry[];
-  onStageChange: (founderId: string, stage: Stage) => void;
-  onRemove: (founderId: string) => void;
-}) {
-  const cfg = STAGE_CONFIG[stage];
-  return (
-    <div style={{ minWidth: 280, flex: 1 }}>
-      {/* Column header */}
-      <div style={{
-        display: "flex", alignItems: "center", gap: 8, marginBottom: 12,
-        padding: "8px 12px", background: cfg.bg, border: `1px solid ${cfg.border}`,
-        borderRadius: 10,
-      }}>
-        <div style={{ width: 8, height: 8, borderRadius: "50%", background: cfg.dot, flexShrink: 0 }} />
-        <span style={{ fontFamily: "system-ui, sans-serif", fontSize: 12, fontWeight: 700, color: cfg.color, flex: 1 }}>
-          {cfg.label}
-        </span>
-        <span style={{ fontFamily: "system-ui, sans-serif", fontSize: 11, color: cfg.color, opacity: 0.7, fontWeight: 600 }}>
-          {entries.length}
-        </span>
-      </div>
-
-      {/* Cards */}
-      {entries.length === 0 ? (
-        <div style={{ padding: "20px 12px", textAlign: "center", border: `1.5px dashed ${bdr}`, borderRadius: 10 }}>
-          <p style={{ fontFamily: "system-ui, sans-serif", fontSize: 12, color: muted, margin: 0 }}>
-            No founders here yet
-          </p>
-        </div>
-      ) : (
-        entries.map(e => (
-          <EntryCard key={e.id} entry={e} onStageChange={onStageChange} onRemove={onRemove} />
-        ))
+        </>
       )}
+    </>
+  );
+}
+
+// ─── row ──────────────────────────────────────────────────────────────────────
+function PipelineRow({ entry, onStageChange, onRemove, isLast }: {
+  entry: EnrichedEntry;
+  onStageChange: (id: string, stage: Stage) => void;
+  onRemove: (id: string) => void;
+  isLast: boolean;
+}) {
+  const p = entry.profile;
+  const metaParts = [p?.industry, p?.stage].filter(Boolean);
+
+  return (
+    <div
+      style={{
+        display: "flex", alignItems: "center", gap: 14,
+        padding: "14px 20px",
+        borderBottom: isLast ? "none" : `1px solid ${bdr}`,
+        transition: "background 0.1s",
+      }}
+      onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = `${bdr}30`}
+      onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "transparent"}
+    >
+      <Avatar url={p?.companyLogoUrl ?? p?.avatarUrl ?? null} name={p?.startup_name ?? "?"} size={36} radius={8} />
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 3 }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {p?.startup_name ?? "Unknown"}
+          </span>
+          {(p?.qScore ?? 0) > 0 && <ScoreBadge score={p!.qScore} />}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
+          {metaParts.map((t, i) => (
+            <span key={i} style={{ fontSize: 10, padding: "1px 6px", background: surf, border: `1px solid ${bdr}`, borderRadius: 5, color: muted }}>
+              {t}
+            </span>
+          ))}
+          {p?.tagline && (
+            <span style={{ fontSize: 11, color: muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 240 }}>
+              {p.tagline}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <span style={{ fontSize: 11, color: muted, flexShrink: 0, minWidth: 56, textAlign: "right" }}>
+        {timeAgo(entry.updated_at)}
+      </span>
+
+      <StageSelect stage={entry.stage} onChange={s => onStageChange(entry.founder_user_id, s)} />
+
+      <Link
+        href={`/investor/startup/${entry.founder_user_id}`}
+        onClick={e => e.stopPropagation()}
+        style={{
+          fontSize: 12, color: muted, textDecoration: "none", flexShrink: 0,
+          display: "inline-flex", alignItems: "center", gap: 3, fontWeight: 500,
+        }}
+      >
+        View
+      </Link>
+
+      <button
+        onClick={e => { e.stopPropagation(); onRemove(entry.founder_user_id); }}
+        title="Remove"
+        style={{
+          width: 26, height: 26, borderRadius: 6, flexShrink: 0, background: "transparent",
+          border: "none", cursor: "pointer", display: "flex", alignItems: "center",
+          justifyContent: "center", color: muted, transition: "color 0.1s",
+        }}
+        onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = red}
+        onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = muted}
+      >
+        <X style={{ height: 12, width: 12 }} />
+      </button>
     </div>
   );
 }
 
-// ─── main page ────────────────────────────────────────────────────────────────
+// ─── page ─────────────────────────────────────────────────────────────────────
 export default function InvestorPipelinePage() {
-  const [entries,  setEntries]  = useState<EnrichedEntry[]>([]);
-  const [loading,  setLoading]  = useState(true);
-  const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
+  const [entries,     setEntries]     = useState<EnrichedEntry[]>([]);
+  const [loading,     setLoading]     = useState(true);
+  const [activeStage, setActiveStage] = useState<Stage | "all">("all");
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const [pipelineRes, foundersRes] = await Promise.all([
-          fetch('/api/investor/pipeline').then(r => r.json()),
-          fetch('/api/investor/deal-flow').then(r => r.json()),
-        ]);
-
-        const raw: PipelineEntry[] = pipelineRes.pipeline ?? [];
-        const deals = (foundersRes.deals ?? []) as Array<{
-          founderId: string; name: string; founder: string;
-          sector: string; stage: string; qScore: number;
-        }>;
-
-        // Build a profile map from deal flow
-        const profileMap: Record<string, FounderProfile> = {};
-        for (const d of deals) {
-          profileMap[d.founderId] = {
-            user_id: d.founderId,
-            startup_name: d.name,
-            full_name: d.founder,
-            industry: d.sector,
-            stage: d.stage,
-            qScore: d.qScore,
-          };
-        }
-
-        setEntries(raw.map(e => ({ ...e, profile: profileMap[e.founder_user_id] ?? null })));
-      } catch {
-        setEntries([]);
-      } finally {
-        setLoading(false);
+  const load = useCallback(async () => {
+    try {
+      const [pipelineRes, foundersRes] = await Promise.all([
+        fetch('/api/investor/pipeline').then(r => r.json()),
+        fetch('/api/investor/deal-flow').then(r => r.json()),
+      ]);
+      const raw: PipelineEntry[] = pipelineRes.pipeline ?? [];
+      const founders = (foundersRes.founders ?? []) as Array<{
+        id: string; name: string; founder: { name: string } | null;
+        sector: string; stage: string; qScore: number;
+        tagline?: string | null;
+        companyLogoUrl?: string | null; avatarUrl?: string | null;
+      }>;
+      const profileMap: Record<string, FounderProfile> = {};
+      for (const d of founders) {
+        profileMap[d.id] = {
+          user_id: d.id, startup_name: d.name, full_name: d.founder?.name ?? '',
+          industry: d.sector, stage: d.stage, qScore: d.qScore,
+          companyLogoUrl: d.companyLogoUrl ?? null, avatarUrl: d.avatarUrl ?? null,
+          tagline: d.tagline ?? null,
+        };
       }
-    })();
+      setEntries(raw.map(e => ({ ...e, stage: normaliseStage(e.stage), profile: profileMap[e.founder_user_id] ?? null })));
+    } catch {
+      setEntries([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   async function handleStageChange(founderId: string, stage: Stage) {
     setEntries(prev => prev.map(e => e.founder_user_id === founderId ? { ...e, stage } : e));
     await fetch('/api/investor/pipeline', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ founderId, stage }),
     });
   }
@@ -262,123 +260,131 @@ export default function InvestorPipelinePage() {
     fetch(`/api/investor/pipeline?founderId=${founderId}`, { method: 'DELETE' });
   }
 
-  // Group by stage
-  const byStage = STAGES.reduce((acc, s) => {
-    acc[s] = entries.filter(e => e.stage === s);
+  const stageCounts = STAGES.reduce((acc, s) => {
+    acc[s] = entries.filter(e => e.stage === s).length;
     return acc;
-  }, {} as Record<Stage, EnrichedEntry[]>);
+  }, {} as Record<Stage, number>);
 
-  const activeStages = STAGES.filter(s => s !== 'passed');
+  const filtered = activeStage === "all" ? entries : entries.filter(e => e.stage === activeStage);
+  const stageOrder: Record<Stage, number> = { watching: 0, meeting: 1, in_dd: 2, portfolio: 3, passed: 4 };
+  const sorted = [...filtered].sort((a, b) => {
+    const sd = stageOrder[a.stage] - stageOrder[b.stage];
+    return sd !== 0 ? sd : new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+  });
+
+  const tabs: Array<{ key: Stage | 'all'; label: string }> = [
+    { key: 'all', label: `All (${entries.length})` },
+    ...STAGES.filter(s => stageCounts[s] > 0).map(s => ({ key: s, label: `${STAGE_LABELS[s]} (${stageCounts[s]})` })),
+  ];
 
   return (
-    <div style={{ minHeight: "100vh", background: bg }}>
+    <div style={{ minHeight: "100vh", background: bg, color: ink, padding: "40px 28px 72px" }}>
+      <div style={{ maxWidth: 960, margin: "0 auto" }}>
 
-      {/* Header */}
-      <div style={{ background: surf, borderBottom: `1px solid ${bdr}`, padding: "0 28px", position: "sticky", top: 0, zIndex: 10 }}>
-        <div style={{ maxWidth: 1200, margin: "0 auto", height: 56, display: "flex", alignItems: "center", gap: 16 }}>
-          <h1 style={{ fontFamily: "system-ui, sans-serif", fontSize: 17, fontWeight: 700, color: ink, margin: 0, flex: 1 }}>
-            Deal Pipeline
-          </h1>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {entries.length > 0 && (
-              <div style={{ background: `${blue}14`, border: `1px solid ${blue}30`, borderRadius: 12, padding: "2px 10px", fontFamily: "system-ui, sans-serif", fontSize: 12, fontWeight: 600, color: blue }}>
-                {entries.length} founders
-              </div>
-            )}
-            {/* View toggle */}
-            <div style={{ display: "flex", background: surf, border: `1px solid ${bdr}`, borderRadius: 8, overflow: "hidden" }}>
-              {(["kanban", "list"] as const).map(v => (
-                <button
-                  key={v}
-                  onClick={() => setViewMode(v)}
-                  style={{ padding: "5px 12px", border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600, background: viewMode === v ? ink : "transparent", color: viewMode === v ? bg : muted, transition: "all 0.15s" }}
-                >
-                  {v === "kanban" ? "Kanban" : "List"}
-                </button>
-              ))}
-            </div>
-            <Link href="/investor/deal-flow" style={{ fontSize: 12, fontWeight: 600, color: blue, textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}>
-              Browse founders <ExternalLink style={{ height: 11, width: 11 }} />
-            </Link>
-          </div>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "24px 28px 80px" }}>
-
-        {loading ? (
-          <div style={{ textAlign: "center", padding: "80px 0" }}>
-            <div style={{ width: 32, height: 32, borderRadius: "50%", border: `3px solid ${bdr}`, borderTopColor: blue, animation: "spin 0.8s linear infinite", margin: "0 auto 12px" }} />
-            <p style={{ fontFamily: "system-ui, sans-serif", fontSize: 13, color: muted }}>Loading pipeline…</p>
-            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-          </div>
-        ) : entries.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "80px 32px", border: `1.5px dashed ${bdr}`, borderRadius: 16 }}>
-            <div style={{ fontSize: 36, marginBottom: 16 }}>📋</div>
-            <h2 style={{ fontFamily: "system-ui, sans-serif", fontSize: 18, fontWeight: 700, color: ink, margin: "0 0 10px" }}>
-              Your pipeline is empty
-            </h2>
-            <p style={{ fontFamily: "system-ui, sans-serif", fontSize: 14, color: muted, margin: "0 0 20px", lineHeight: 1.6, maxWidth: 380, marginLeft: "auto", marginRight: "auto" }}>
-              Browse the deal flow and add founders to your pipeline to track them through stages.
+        {/* header */}
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 28, flexWrap: "wrap", gap: 12 }}>
+          <div>
+            <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.2em", color: muted, fontWeight: 600, marginBottom: 6 }}>
+              Investor · Pipeline
             </p>
-            <Link href="/investor/deal-flow" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "10px 20px", background: ink, color: bg, borderRadius: 999, textDecoration: "none", fontFamily: "system-ui, sans-serif", fontSize: 13, fontWeight: 600 }}>
-              Browse Deal Flow
-            </Link>
+            <h1 style={{ fontSize: "clamp(1.6rem,3.5vw,2.2rem)", fontWeight: 300, letterSpacing: "-0.03em", color: ink, marginBottom: 4 }}>
+              Your pipeline.
+            </h1>
+            <p style={{ fontSize: 13, color: muted }}>Track and manage founders across every stage of your process.</p>
           </div>
-        ) : viewMode === "kanban" ? (
-          /* Kanban view */
-          <div style={{ display: "flex", gap: 16, overflowX: "auto", paddingBottom: 16 }}>
-            {activeStages.map(stage => (
-              <StageColumn
-                key={stage}
-                stage={stage}
-                entries={byStage[stage]}
-                onStageChange={handleStageChange}
-                onRemove={handleRemove}
-              />
+          <Link href="/investor/deal-flow" style={{
+            display: "inline-flex", alignItems: "center", gap: 6,
+            padding: "9px 18px", borderRadius: 8, fontSize: 12, fontWeight: 500,
+            background: surf, border: `1px solid ${bdr}`, color: ink,
+            textDecoration: "none", alignSelf: "flex-start", marginTop: 4,
+          }}>
+            Browse founders <ExternalLink style={{ height: 11, width: 11, color: muted }} />
+          </Link>
+        </div>
+
+        {/* stats strip */}
+        {!loading && entries.length > 0 && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 1, background: bdr, border: `1px solid ${bdr}`, borderRadius: 12, overflow: "hidden", marginBottom: 28 }}>
+            {[
+              { label: "Total",     value: entries.length,            accent: ink     },
+              { label: "Watching",  value: stageCounts.watching,      accent: blue    },
+              { label: "Meeting",   value: stageCounts.meeting,       accent: "#7C3AED" },
+              { label: "In DD",     value: stageCounts.in_dd,         accent: amber   },
+              { label: "Portfolio", value: stageCounts.portfolio,     accent: green   },
+            ].map((s, i) => (
+              <div key={i} style={{ background: bg, padding: "18px 20px" }}>
+                <p style={{ fontSize: 24, fontWeight: 300, color: s.accent, letterSpacing: "-0.04em", lineHeight: 1, marginBottom: 5 }}>{s.value}</p>
+                <p style={{ fontSize: 11, color: muted }}>{s.label}</p>
+              </div>
             ))}
-          </div>
-        ) : (
-          /* List view grouped by stage */
-          <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
-            {STAGES.filter(s => byStage[s].length > 0).map(stage => {
-              const cfg = STAGE_CONFIG[stage];
-              return (
-                <div key={stage}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: cfg.dot }} />
-                    <span style={{ fontFamily: "system-ui, sans-serif", fontSize: 13, fontWeight: 700, color: cfg.color }}>
-                      {cfg.label}
-                    </span>
-                    <span style={{ fontSize: 11, color: muted }}>({byStage[stage].length})</span>
-                    <div style={{ flex: 1, height: 1, background: bdr }} />
-                  </div>
-                  <div style={{ maxWidth: 720 }}>
-                    {byStage[stage].map(e => (
-                      <EntryCard key={e.id} entry={e} onStageChange={handleStageChange} onRemove={handleRemove} />
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
           </div>
         )}
 
-        {/* Passed section (always at bottom in list mode) */}
-        {!loading && entries.length > 0 && viewMode === "list" && byStage.passed.length > 0 && (
-          <div style={{ marginTop: 32, paddingTop: 24, borderTop: `1px solid ${bdr}` }}>
-            <details>
-              <summary style={{ fontFamily: "system-ui, sans-serif", fontSize: 12, fontWeight: 600, color: muted, cursor: "pointer", marginBottom: 12 }}>
-                Passed ({byStage.passed.length})
-              </summary>
-              <div style={{ maxWidth: 720, marginTop: 12 }}>
-                {byStage.passed.map(e => (
-                  <EntryCard key={e.id} entry={e} onStageChange={handleStageChange} onRemove={handleRemove} />
+        {loading ? (
+          <div style={{ padding: "80px 0", textAlign: "center" }}>
+            <p style={{ fontSize: 13, color: muted }}>Loading pipeline…</p>
+          </div>
+        ) : entries.length === 0 ? (
+          <EmptyState
+            icon="📋"
+            title="Your pipeline is empty"
+            body="Browse the deal flow, view a founder's profile, and add them to your pipeline when you're ready."
+            action={{ label: "Browse Deal Flow", href: "/investor/deal-flow" }}
+          />
+        ) : (
+          <>
+            {/* tabs */}
+            <div style={{ display: "flex", borderBottom: `1px solid ${bdr}`, marginBottom: 0 }}>
+              {tabs.map(t => (
+                <button
+                  key={t.key}
+                  onClick={() => setActiveStage(t.key)}
+                  style={{
+                    padding: "10px 16px", fontSize: 13, fontWeight: 500, cursor: "pointer",
+                    background: "transparent", border: "none",
+                    borderBottom: activeStage === t.key ? `2px solid ${ink}` : "2px solid transparent",
+                    color: activeStage === t.key ? ink : muted,
+                    marginBottom: -1, transition: "all 0.15s",
+                  }}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            {/* list */}
+            <div style={{ border: `1px solid ${bdr}`, borderTop: "none", borderRadius: "0 0 12px 12px", overflow: "hidden", background: bg }}>
+              {sorted.length === 0 ? (
+                <div style={{ padding: "40px 20px", textAlign: "center" }}>
+                  <p style={{ fontSize: 13, color: muted }}>No founders in this stage.</p>
+                </div>
+              ) : (
+                sorted.map((entry, i) => (
+                  <PipelineRow
+                    key={entry.id}
+                    entry={entry}
+                    onStageChange={handleStageChange}
+                    onRemove={handleRemove}
+                    isLast={i === sorted.length - 1}
+                  />
+                ))
+              )}
+            </div>
+
+            {/* distribution bar */}
+            {entries.length > 0 && (
+              <div style={{ marginTop: 20, display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.12em", color: muted }}>Distribution</span>
+                {STAGES.filter(s => stageCounts[s] > 0).map(s => (
+                  <div key={s} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: STAGE_DOTS[s], flexShrink: 0 }} />
+                    <span style={{ fontSize: 12, color: muted }}>{STAGE_LABELS[s]}</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: ink }}>{stageCounts[s]}</span>
+                  </div>
                 ))}
               </div>
-            </details>
-          </div>
+            )}
+          </>
         )}
       </div>
     </div>

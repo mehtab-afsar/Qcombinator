@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdmin } from '@supabase/supabase-js'
+import { log } from '@/lib/logger'
 
 /**
  * GET /api/agents/generate/status?jobId=<uuid>
@@ -52,7 +53,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ status: job.status })
   } catch (err) {
-    console.error('[generate/status]', err)
+    log.error('[generate/status]', err)
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }

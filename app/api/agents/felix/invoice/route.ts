@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/felix/invoice
 // Generates a professional HTML invoice from line items.
@@ -185,7 +186,7 @@ th:not(:first-child) { text-align: right; }
 
     return NextResponse.json({ html, invoiceNumber: invNum, total, currency })
   } catch (err) {
-    console.error('Felix invoice error:', err)
+    log.error('Felix invoice error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

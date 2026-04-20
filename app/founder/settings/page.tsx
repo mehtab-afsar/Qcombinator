@@ -9,11 +9,13 @@ import {
   loadSettings,
   saveAccountSettings,
   saveCompanySettings,
+  saveStartupDetailsSettings,
   saveNotificationSettings,
   saveStartupProfileSettings,
   exportUserData,
 } from '@/features/founder/services/settings.service';
 import { bg, surf, bdr, ink, muted, green, red } from '@/lib/constants/colors'
+import { Avatar } from '@/features/shared/components/Avatar'
 
 type TabId = 'account' | 'company' | 'startup' | 'notifications' | 'data' | 'connectors' | 'billing';
 
@@ -58,6 +60,12 @@ function SettingsInner() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
+  // Images
+  const [avatarUrl,       setAvatarUrl]       = useState<string | null>(null);
+  const [companyLogoUrl,  setCompanyLogoUrl]  = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [uploadingLogo,   setUploadingLogo]   = useState(false);
+
   // Account
   const [fullName, setFullName] = useState('');
   const [email,    setEmail]    = useState('');
@@ -66,6 +74,14 @@ function SettingsInner() {
   const [startupName,  setStartupName]  = useState('');
   const [industry,     setIndustry]     = useState('');
   const [description,  setDescription]  = useState('');
+
+  // Company extras
+  const [tagline,          setTagline]          = useState('');
+  const [location,         setLocation]         = useState('');
+
+  // Startup details (JSONB)
+  const [problemStatement, setProblemStatement] = useState('');
+  const [targetCustomer,   setTargetCustomer]   = useState('');
 
   // Startup profile
   const [spStage,         setSpStage]         = useState('');
@@ -95,6 +111,12 @@ function SettingsInner() {
       setSpTeamSize(s.teamSize)
       setSpFunding(s.fundingStatus)
       setSpWebsite(s.website)
+      setTagline(s.tagline)
+      setLocation(s.location)
+      setProblemStatement(s.problemStatement)
+      setTargetCustomer(s.targetCustomer)
+      setAvatarUrl(s.avatarUrl || null)
+      setCompanyLogoUrl(s.companyLogoUrl || null)
       setEmailNotifications(s.notificationPreferences.emailNotifications)
       setQScoreUpdates(s.notificationPreferences.qScoreUpdates)
       setInvestorMessages(s.notificationPreferences.investorMessages)
@@ -107,6 +129,26 @@ function SettingsInner() {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3000);
   }
+
+  const handleImageUpload = async (file: File, imageType: 'founder-avatar' | 'founder-logo') => {
+    const setUploading = imageType === 'founder-avatar' ? setUploadingAvatar : setUploadingLogo;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('imageType', imageType);
+      const res = await fetch('/api/upload/image', { method: 'POST', body: fd });
+      if (!res.ok) throw new Error('Upload failed');
+      const { url } = await res.json();
+      if (imageType === 'founder-avatar') setAvatarUrl(url);
+      else setCompanyLogoUrl(url);
+      showToast('Image updated');
+    } catch {
+      showToast('Upload failed', 'error');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleSaveAccount = async () => {
     setSaving(true);
@@ -123,10 +165,22 @@ function SettingsInner() {
   const handleSaveCompany = async () => {
     setSaving(true);
     try {
-      await saveCompanySettings(startupName, industry, description);
+      await saveCompanySettings(startupName, industry, description, tagline, location);
       showToast('Company settings saved');
     } catch {
       showToast('Failed to save settings', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveStartupDetails = async () => {
+    setSaving(true);
+    try {
+      await saveStartupDetailsSettings(problemStatement, targetCustomer);
+      showToast('Startup details saved');
+    } catch {
+      showToast('Failed to save startup details', 'error');
     } finally {
       setSaving(false);
     }
@@ -260,6 +314,39 @@ function SettingsInner() {
           {/* Account */}
           {activeTab === 'account' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <SettingsCard title="Profile Photo & Logo" description="Upload your profile photo and company logo">
+                <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+                  {/* Profile photo */}
+                  <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, cursor: uploadingAvatar ? 'wait' : 'pointer' }}>
+                    <div style={{ position: 'relative' }}>
+                      <Avatar url={avatarUrl} name={fullName || 'You'} size={80} radius={999} fontSize={28} />
+                      {uploadingAvatar && (
+                        <div style={{ position: 'absolute', inset: 0, borderRadius: 999, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <RefreshCw style={{ height: 18, width: 18, color: '#fff', animation: 'spin 1s linear infinite' }} />
+                        </div>
+                      )}
+                    </div>
+                    <span style={{ fontSize: 11, color: muted }}>Profile photo</span>
+                    <input type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }}
+                      onChange={e => { const f = e.target.files?.[0]; if (f) handleImageUpload(f, 'founder-avatar'); e.target.value = ''; }} />
+                  </label>
+                  {/* Company logo */}
+                  <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, cursor: uploadingLogo ? 'wait' : 'pointer' }}>
+                    <div style={{ position: 'relative' }}>
+                      <Avatar url={companyLogoUrl} name={startupName || 'Co'} size={80} radius={14} fontSize={26} />
+                      {uploadingLogo && (
+                        <div style={{ position: 'absolute', inset: 0, borderRadius: 14, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <RefreshCw style={{ height: 18, width: 18, color: '#fff', animation: 'spin 1s linear infinite' }} />
+                        </div>
+                      )}
+                    </div>
+                    <span style={{ fontSize: 11, color: muted }}>Company logo</span>
+                    <input type="file" accept="image/jpeg,image/png,image/webp,image/svg+xml" style={{ display: 'none' }}
+                      onChange={e => { const f = e.target.files?.[0]; if (f) handleImageUpload(f, 'founder-logo'); e.target.value = ''; }} />
+                  </label>
+                </div>
+              </SettingsCard>
+
               <SettingsCard title="Account Information" description="Update your personal information">
                 <FieldRow label="Full Name">
                   <input
@@ -317,7 +404,43 @@ function SettingsInner() {
                     style={{ ...inputStyle, minHeight: 96, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
                   />
                 </FieldRow>
+                <FieldRow label="Tagline" hint="One-liner shown on your investor profile (max 140 chars)">
+                  <input
+                    value={tagline}
+                    onChange={e => setTagline(e.target.value.slice(0, 140))}
+                    placeholder="e.g., AI-powered compliance for regulated industries"
+                    style={inputStyle}
+                  />
+                </FieldRow>
+                <FieldRow label="Location">
+                  <input
+                    value={location}
+                    onChange={e => setLocation(e.target.value)}
+                    placeholder="e.g., London, UK"
+                    style={inputStyle}
+                  />
+                </FieldRow>
                 <SaveButton onClick={handleSaveCompany} loading={saving} />
+              </SettingsCard>
+
+              <SettingsCard title="Startup Details" description="Your problem and target customer — visible to investors">
+                <FieldRow label="Problem Statement">
+                  <textarea
+                    value={problemStatement}
+                    onChange={e => setProblemStatement(e.target.value)}
+                    placeholder="What problem are you solving? Be specific."
+                    style={{ ...inputStyle, minHeight: 100, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
+                  />
+                </FieldRow>
+                <FieldRow label="Target Customer">
+                  <input
+                    value={targetCustomer}
+                    onChange={e => setTargetCustomer(e.target.value)}
+                    placeholder="Who is your ideal customer? e.g., Mid-market CFOs"
+                    style={inputStyle}
+                  />
+                </FieldRow>
+                <SaveButton onClick={handleSaveStartupDetails} loading={saving} />
               </SettingsCard>
             </div>
           )}
@@ -528,39 +651,27 @@ function SettingsInner() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                   <div style={{
                     width: 44, height: 44, borderRadius: 12, flexShrink: 0,
-                    background: '#EFF6FF', border: '1px solid #BFDBFE',
+                    background: '#F0FDF4', border: '1px solid #BBF7D0',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>
-                    <CreditCard style={{ width: 18, height: 18, color: '#2563EB' }} />
+                    <CheckCircle style={{ width: 20, height: 20, color: green }} />
                   </div>
                   <div style={{ flex: 1 }}>
-                    <p style={{ fontSize: 15, fontWeight: 600, color: ink }}>Pro Plan</p>
+                    <p style={{ fontSize: 15, fontWeight: 600, color: ink }}>Founder Plan</p>
                     <p style={{ fontSize: 12, color: muted }}>
                       <span style={{
                         display: 'inline-flex', alignItems: 'center', gap: 4,
                         color: green, fontWeight: 600, marginRight: 8,
                       }}>
-                        <CheckCircle style={{ width: 11, height: 11 }} /> Active
+                        <CheckCircle style={{ width: 11, height: 11 }} /> Free
                       </span>
-                      · Renews monthly
+                      · Always free for founders
                     </p>
                   </div>
                 </div>
-                <div style={{ paddingTop: 8, borderTop: `1px solid ${bdr}` }}>
-                  <button
-                    disabled
-                    style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 7,
-                      padding: '9px 22px',
-                      background: bdr, color: muted,
-                      border: 'none', borderRadius: 999, fontSize: 12, fontWeight: 500,
-                      cursor: 'not-allowed',
-                    }}
-                  >
-                    Manage subscription →
-                  </button>
-                  <p style={{ fontSize: 11, color: muted, marginTop: 8 }}>
-                    Subscription management coming soon.
+                <div style={{ padding: '14px 16px', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 10 }}>
+                  <p style={{ fontSize: 12, color: '#166534', lineHeight: 1.6 }}>
+                    The Edge Alpha platform is <strong>free for founders</strong>. Build your profile, get your Q-Score, and connect with investors at no cost. Investors pay for access to the deal flow.
                   </p>
                 </div>
               </SettingsCard>

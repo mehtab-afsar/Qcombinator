@@ -14,6 +14,7 @@ import { embedBatch } from './embedder';
 import { ARTIFACT_DIMENSION_MAP } from '@/lib/constants/artifact-dimension-map';
 import type { ArtifactType } from '@/lib/constants/artifact-types';
 import type { Dimension } from '@/lib/constants/dimensions';
+import { log } from '@/lib/logger'
 
 const MAX_CHUNK_CHARS = 500;
 const OVERLAP_CHARS = 100;
@@ -135,7 +136,7 @@ export async function embedArtifact(artifact: ArtifactInput): Promise<void> {
   if (!process.env.OPENAI_API_KEY) return;
 
   if (!artifact.content || typeof artifact.content !== 'object') {
-    console.warn('[Embedding Pipeline] Artifact has no content to embed:', artifact.id);
+    log.warn('[Embedding Pipeline] Artifact has no content to embed:', artifact.id);
     return;
   }
 
@@ -149,7 +150,7 @@ export async function embedArtifact(artifact: ArtifactInput): Promise<void> {
   );
 
   if (chunks.length === 0) {
-    console.warn('[Embedding Pipeline] No chunks generated for artifact:', artifact.id);
+    log.warn('[Embedding Pipeline] No chunks generated for artifact:', artifact.id);
     return;
   }
 
@@ -182,7 +183,7 @@ export async function embedArtifact(artifact: ArtifactInput): Promise<void> {
     .insert(rows);
 
   if (error) {
-    console.error('[Embedding Pipeline] Insert failed:', error.message);
+    log.error('[Embedding Pipeline] Insert failed:', error.message);
     return;
   }
 

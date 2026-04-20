@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/sage/pivot
 // Sage monitors multiple startup health signals and evaluates whether a pivot
@@ -169,7 +170,7 @@ Be direct. If signals are unclear, say so. Don't recommend pivoting based on 1 b
       signals: { currentScore, scoreTrend, scoreDeclining, winRate, nps, mrr, runway, avgProgress },
     })
   } catch (err) {
-    console.error('Sage pivot POST error:', err)
+    log.error('Sage pivot POST error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

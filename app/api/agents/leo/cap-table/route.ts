@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/leo/cap-table
 // Validates a cap table description for legal issues: missing option pool,
@@ -131,7 +132,7 @@ ${legalContent.incorporationType ? `Incorporation: ${legalContent.incorporationT
 
     return NextResponse.json({ result })
   } catch (err) {
-    console.error('Leo cap-table POST error:', err)
+    log.error('Leo cap-table POST error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

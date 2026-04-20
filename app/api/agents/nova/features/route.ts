@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/nova/features
 // Aggregates feature requests from survey open-text responses.
@@ -106,7 +107,7 @@ Rules:
 
     return NextResponse.json({ analysis, feedbackCount: feedbackLines.length })
   } catch (err) {
-    console.error('Nova features error:', err)
+    log.error('Nova features error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

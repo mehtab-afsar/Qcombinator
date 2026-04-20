@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { verifyAuth } from '@/lib/auth/verify';
+import { log } from '@/lib/logger';
 
 /**
  * GET /api/qscore/benchmarks
@@ -12,12 +14,10 @@ import { createClient } from '@/lib/supabase/server';
  */
 export async function GET(_request: NextRequest) {
   try {
+    const auth = await verifyAuth();
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+    const { user } = auth;
     const supabase = await createClient();
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
 
     // Fetch all users' latest score rows (one per user, ordered by most recent first)
     const { data: allRows, error } = await supabase
@@ -64,7 +64,7 @@ export async function GET(_request: NextRequest) {
 
     return NextResponse.json({ benchmarks });
   } catch (err) {
-    console.error('Benchmarks error:', err);
+    log.error('GET /api/qscore/benchmarks', { err });
     return NextResponse.json({ benchmarks: null });
   }
 }

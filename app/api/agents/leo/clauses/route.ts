@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/leo/clauses
 // Returns standard contract clauses for a given clause type, customized to the founder's context.
@@ -95,7 +96,7 @@ ${context ? `Context: ${context}` : ''}`,
 
     return NextResponse.json({ clause: parsed, clauseType })
   } catch (err) {
-    console.error('Leo clauses error:', err)
+    log.error('Leo clauses error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

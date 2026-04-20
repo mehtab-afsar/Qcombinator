@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
 import { withCircuitBreaker } from '@/lib/circuit-breaker'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/atlas/weekly-scan  — user-triggered scan (authenticated)
 // GET  /api/agents/atlas/weekly-scan  — cron-triggered scan (all founders, CRON_SECRET)
@@ -169,7 +170,7 @@ Return ONLY valid JSON:
     .single()
 
   if (insertErr) {
-    console.error(`Atlas weekly scan insert error for user ${userId}:`, insertErr)
+    log.error(`Atlas weekly scan insert error for user ${userId}:`, insertErr)
     return { error: 'Failed to save digest' }
   }
 
@@ -222,7 +223,7 @@ export async function GET(request: Request) {
     .limit(500)
 
   if (listError || !founders) {
-    console.error('Atlas cron: failed to list founders:', listError)
+    log.error('Atlas cron: failed to list founders:', listError)
     return NextResponse.json({ error: 'Failed to list founders' }, { status: 500 })
   }
 
@@ -274,7 +275,7 @@ export async function GET(request: Request) {
           .eq('status', 'running')
       }
     } catch (err) {
-      console.error(`Atlas cron scan error for user ${founder.user_id}:`, err)
+      log.error(`Atlas cron scan error for user ${founder.user_id}:`, err)
       results.errors++
     }
   }
@@ -304,7 +305,7 @@ export async function POST() {
 
     return NextResponse.json(result)
   } catch (err) {
-    console.error('Atlas weekly scan error:', err)
+    log.error('Atlas weekly scan error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

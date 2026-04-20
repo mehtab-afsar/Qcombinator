@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/harper/outreach
 // Drafts a personalized recruiting message for a sourced candidate.
@@ -132,7 +133,7 @@ ${extraContext ? `Additional context: ${extraContext}` : ''}`,
 
     return NextResponse.json({ draft, candidateName, role, channel })
   } catch (err) {
-    console.error('Harper outreach error:', err)
+    log.error('Harper outreach error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

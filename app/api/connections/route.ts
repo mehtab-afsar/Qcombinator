@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { verifyAuth } from '@/lib/auth/verify';
+import { log } from '@/lib/logger';
 
 /**
  * GET  /api/connections
@@ -13,12 +15,10 @@ import { createClient } from '@/lib/supabase/server';
 
 export async function GET() {
   try {
+    const auth = await verifyAuth();
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+    const { user } = auth;
     const supabase = await createClient();
-    const { data: { user }, error: authErr } = await supabase.auth.getUser();
-
-    if (authErr || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
 
     const { data, error } = await supabase
       .from('connection_requests')
@@ -26,7 +26,7 @@ export async function GET() {
       .eq('founder_id', user.id);
 
     if (error) {
-      console.error('Connections GET error:', error);
+      log.error('GET /api/connections', { error });
       return NextResponse.json({ connections: {}, connectionIds: {} });
     }
 
@@ -46,19 +46,17 @@ export async function GET() {
 
     return NextResponse.json({ connections: statusMap, connectionIds: idMap });
   } catch (err) {
-    console.error('Connections GET unexpected error:', err);
+    log.error('GET /api/connections unexpected', { err });
     return NextResponse.json({ connections: {} });
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await verifyAuth();
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+    const { user } = auth;
     const supabase = await createClient();
-    const { data: { user }, error: authErr } = await supabase.auth.getUser();
-
-    if (authErr || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
 
     const { demo_investor_id, investor_id, personal_message, founder_qscore } = await request.json();
 
@@ -97,13 +95,13 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
-      console.error('Connections POST error:', error);
+      log.error('POST /api/connections', { error });
       return NextResponse.json({ error: 'Failed to save connection request' }, { status: 500 });
     }
 
     return NextResponse.json({ status: data.status, id: data.id });
   } catch (err) {
-    console.error('Connections POST unexpected error:', err);
+    log.error('POST /api/connections unexpected', { err });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

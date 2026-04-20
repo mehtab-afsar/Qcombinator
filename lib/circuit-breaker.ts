@@ -13,6 +13,8 @@
  * silently rather than throwing — artifact generation must not be blocked.
  */
 
+import { log } from '@/lib/logger'
+
 export type ServiceId =
   | 'hunter_io'
   | 'tavily'
@@ -82,7 +84,7 @@ export function recordFailure(service: ServiceId): void {
 
   if (state.failures > FAILURE_THRESHOLD && state.openedAt === null) {
     state.openedAt = now;
-    console.warn(`[circuit-breaker] Circuit OPENED for ${service} after ${state.failures} failures in ${FAILURE_WINDOW_MS / 1000}s`);
+    log.warn(`[circuit-breaker] Circuit OPENED for ${service} after ${state.failures} failures in ${FAILURE_WINDOW_MS / 1000}s`);
   }
 }
 
@@ -99,7 +101,7 @@ export async function withCircuitBreaker<T>(
   fallback?: T,
 ): Promise<T> {
   if (isCircuitOpen(service)) {
-    console.warn(`[circuit-breaker] Circuit is OPEN for ${service} — skipping call`);
+    log.warn(`[circuit-breaker] Circuit is OPEN for ${service} — skipping call`);
     if (fallback !== undefined) return fallback;
     throw new Error(`Circuit breaker open for service: ${service}`);
   }

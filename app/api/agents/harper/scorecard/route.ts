@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/harper/scorecard
 // Generates a structured interview scorecard for a candidate.
@@ -142,7 +143,7 @@ ${interviewNotes}`,
 
     return NextResponse.json({ scorecard })
   } catch (err) {
-    console.error('Harper scorecard error:', err)
+    log.error('Harper scorecard error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

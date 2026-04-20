@@ -152,6 +152,29 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
+  // Role-based redirect — only on root dashboard pages to keep middleware fast
+  if (user) {
+    if (pathname === '/founder/dashboard' || pathname === '/founder') {
+      const { data: fp } = await supabase
+        .from('founder_profiles')
+        .select('role')
+        .eq('user_id', user.id)
+        .maybeSingle()
+      if (!fp || fp.role !== 'founder') {
+        return NextResponse.redirect(new URL('/investor/dashboard', request.url))
+      }
+    } else if (pathname === '/investor/dashboard' || pathname === '/investor') {
+      const { data: ip } = await supabase
+        .from('investor_profiles')
+        .select('user_id')
+        .eq('user_id', user.id)
+        .maybeSingle()
+      if (!ip) {
+        return NextResponse.redirect(new URL('/investor/onboarding', request.url))
+      }
+    }
+  }
+
   return response
 }
 

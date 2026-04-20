@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { log } from '@/lib/logger'
 
 // GET /api/agents/harper/pipeline
 // Returns hiring funnel analytics: sourced → applied → screened → interviewed → offered → hired
@@ -111,7 +112,7 @@ export async function GET() {
       totalApplications: applied,
     })
   } catch (err) {
-    console.error('Harper pipeline GET error:', err)
+    log.error('Harper pipeline GET error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

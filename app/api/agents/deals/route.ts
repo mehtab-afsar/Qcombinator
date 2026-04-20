@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { log } from '@/lib/logger'
 
 const VALID_STAGES = ['lead', 'qualified', 'proposal', 'negotiating', 'won', 'lost'] as const
 type Stage = typeof VALID_STAGES[number]
@@ -34,7 +35,7 @@ export async function GET() {
 
     return NextResponse.json({ deals: data ?? [], grouped })
   } catch (err) {
-    console.error('Deals GET error:', err)
+    log.error('Deals GET error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -67,7 +68,7 @@ export async function POST(request: NextRequest) {
     if (error) return NextResponse.json({ error: 'Failed to create deal' }, { status: 500 })
     return NextResponse.json({ deal: data })
   } catch (err) {
-    console.error('Deals POST error:', err)
+    log.error('Deals POST error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -102,7 +103,7 @@ export async function PATCH(request: NextRequest) {
     if (error) return NextResponse.json({ error: 'Failed to update deal' }, { status: 500 })
     return NextResponse.json({ deal: data })
   } catch (err) {
-    console.error('Deals PATCH error:', err)
+    log.error('Deals PATCH error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -126,7 +127,7 @@ export async function DELETE(request: NextRequest) {
     if (error) return NextResponse.json({ error: 'Failed to delete deal' }, { status: 500 })
     return NextResponse.json({ success: true })
   } catch (err) {
-    console.error('Deals DELETE error:', err)
+    log.error('Deals DELETE error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

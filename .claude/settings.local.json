@@ -44,7 +44,9 @@
       "Bash(/Users/mohammedmehtabafsar/Desktop/Qcombinator/app/api/agents/harper/source/route.ts:*)",
       "Bash(/Users/mohammedmehtabafsar/Desktop/Qcombinator/app/api/agents/leo/clauses/route.ts:*)",
       "Bash(head -10 /Users/mohammedmehtabafsar/Desktop/Qcombinator/app/founder/agents/[agentId]/page.tsx)",
-      "Bash(docker info)"
+      "Bash(docker info)",
+      "Bash(SUPABASE_DB_PASSWORD=Mehtabafsar@1 npx supabase db push)",
+      "Bash(SUPABASE_DB_PASSWORD='EdgeAlpha@2026' npx supabase db push)"
     ],
     "deny": [],
     "ask": []

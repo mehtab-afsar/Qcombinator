@@ -21,6 +21,10 @@ export interface FounderProfile {
   startupName?: string;
   industry?: string;
   description?: string;
+  tagline?: string;
+  location?: string;
+  problemStatement?: string;
+  targetCustomer?: string;
 }
 
 export interface AssessmentData {

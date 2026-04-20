@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import crypto from 'crypto'
 import { withCircuitBreaker } from '@/lib/circuit-breaker'
+import { log } from '@/lib/logger'
 
 const NETLIFY_API = 'https://api.netlify.com/api/v1'
 
@@ -78,14 +79,14 @@ export async function POST(request: NextRequest) {
             headers: { Authorization: `Bearer ${NETLIFY_API_KEY}`, 'Content-Type': 'application/octet-stream' },
             body: htmlBytes,
           })
-          if (!uploadRes.ok) console.error('Netlify upload error:', await uploadRes.text())
+          if (!uploadRes.ok) log.error('Netlify upload error:', await uploadRes.text())
         }
 
         return dep
       })
       deploy = result
     } catch (err) {
-      console.error('Netlify deploy error:', err)
+      log.error('Netlify deploy error:', err)
       return NextResponse.json({ error: 'Netlify deployment failed. Please try again.' }, { status: 502 })
     }
 
@@ -120,7 +121,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ url: liveUrl, siteId, deployId: deploy.id })
   } catch (err) {
-    console.error('Landingpage deploy error:', err)
+    log.error('Landingpage deploy error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
+import { Avatar } from '@/features/shared/components/Avatar'
 
 // ─── artifact meta ────────────────────────────────────────────────────────────
 const ARTIFACT_META: Record<string, { icon: React.ElementType; color: string }> = {
@@ -81,6 +82,8 @@ interface PortfolioData {
     linkedinUrl: string | null;
     foundedYear: number | null;
     teamSize: number | null;
+    avatarUrl: string | null;
+    companyLogoUrl: string | null;
   };
   qScore: {
     overall: number;
@@ -183,13 +186,7 @@ export default function PublicPortfolio() {
           style={{ display: "flex", alignItems: "flex-start", gap: 24, marginBottom: 40, flexWrap: "wrap" }}
         >
           {/* avatar */}
-          <div style={{
-            height: 64, width: 64, borderRadius: 16, background: ink, color: bg,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 22, fontWeight: 700, flexShrink: 0,
-          }}>
-            {initials}
-          </div>
+          <Avatar url={founder.avatarUrl ?? null} name={founder.name} size={64} radius={16} fontSize={22} />
 
           <div style={{ flex: 1, minWidth: 200 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>

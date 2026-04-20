@@ -5,6 +5,7 @@
  */
 
 import { withCircuitBreaker } from '@/lib/circuit-breaker';
+import { log } from '@/lib/logger'
 
 export interface TavilyResult {
   title: string;
@@ -28,7 +29,7 @@ export async function tavilySearch(
 ): Promise<TavilyResponse | null> {
   const apiKey = process.env.TAVILY_API_KEY;
   if (!apiKey) {
-    console.warn('[tavily] TAVILY_API_KEY not configured — skipping');
+    log.warn('[tavily] TAVILY_API_KEY not configured — skipping');
     return null;
   }
 

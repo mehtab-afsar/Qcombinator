@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // GET  /api/agents/sage/milestone — returns milestone status derived from strategic_plan artifact
 // POST /api/agents/sage/milestone — marks a milestone as complete
@@ -69,7 +70,7 @@ export async function GET() {
       completedCount: milestones.filter((_, i) => completedSet.has(i)).length,
     })
   } catch (err) {
-    console.error('Sage milestone GET error:', err)
+    log.error('Sage milestone GET error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -150,7 +151,7 @@ Remaining: ${remainingMilestones.join(', ')}`,
 
     return NextResponse.json({ ok: true, assessment, daysRemaining })
   } catch (err) {
-    console.error('Sage milestone POST error:', err)
+    log.error('Sage milestone POST error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

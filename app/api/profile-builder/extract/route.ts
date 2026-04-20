@@ -4,6 +4,7 @@ import { EXTRACTION_PROMPTS, FOLLOW_UP_PROMPT } from '@/lib/profile-builder/extr
 import { getSectionCompletionPct, getMissingFields, FounderProfile } from '@/lib/profile-builder/question-engine'
 import { routedText } from '@/lib/llm/router'
 import { flattenConfidence } from '@/lib/profile-builder/utils'
+import { log } from '@/lib/logger'
 
 async function getUserId(req: NextRequest): Promise<string | null> {
   const token = req.headers.get('authorization')?.replace('Bearer ', '')
@@ -214,7 +215,7 @@ export async function POST(req: NextRequest) {
     })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
-    console.error('[profile-builder/extract]', msg)
+    log.error('[profile-builder/extract]', msg)
     return NextResponse.json({ error: 'Extraction failed', detail: msg }, { status: 500 })
   }
 }

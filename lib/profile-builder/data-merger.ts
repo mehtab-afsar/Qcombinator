@@ -7,6 +7,7 @@
  */
 
 import type { AssessmentData, DataSourceMap, DataSourceType } from '@/features/qscore/types/qscore.types'
+import { log } from '@/lib/logger'
 
 // ── Field drift detection ─────────────────────────────────────────────────────
 // Extraction prompts sometimes return snake_case when camelCase is expected.
@@ -65,7 +66,7 @@ function warnFieldDrift(sectionNum: number, raw: Record<string, unknown>): void 
     }
   }
   if (hits.length > 0) {
-    console.warn(`[data-merger] Section ${sectionNum} field drift detected (snake_case keys will be ignored):\n${hits.join('\n')}`)
+    log.warn(`[data-merger] Section ${sectionNum} field drift detected (snake_case keys will be ignored):\n${hits.join('\n')}`)
   }
 }
 

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/sage/focus
 // Sage answers: "What is the single most important thing I should work on RIGHT NOW?"
@@ -137,7 +138,7 @@ Rules:
 
     return NextResponse.json({ focus: result, scores, generatedAt: new Date().toISOString() })
   } catch (err) {
-    console.error('Sage focus POST error:', err)
+    log.error('Sage focus POST error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

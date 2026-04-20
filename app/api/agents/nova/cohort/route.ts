@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/nova/cohort
 // Segments survey respondents into cohorts and analyzes NPS/sentiment differences.
@@ -137,7 +138,7 @@ Return ONLY valid JSON:
 
     return NextResponse.json({ result, cohortSummaries, responseCount: responses.length })
   } catch (err) {
-    console.error('Nova cohort POST error:', err)
+    log.error('Nova cohort POST error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

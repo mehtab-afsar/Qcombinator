@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { verifyAuth } from '@/lib/auth/verify';
+import { log } from '@/lib/logger';
 import { embedText } from '@/features/qscore/rag/embeddings/embedder';
 
 /**
@@ -13,17 +15,10 @@ import { embedText } from '@/features/qscore/rag/embeddings/embedder';
  */
 export async function POST(request: NextRequest) {
   try {
+    const auth = await verifyAuth();
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+    const { user } = auth;
     const supabase = await createClient();
-
-    // Auth: userId from session only
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
 
     const { claim, dimension } = await request.json();
 
@@ -98,10 +93,7 @@ export async function POST(request: NextRequest) {
       dimension: dimension || null,
     });
   } catch (error) {
-    console.error('[validate-claim] Error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    log.error('POST /api/qscore/validate-claim', { error });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

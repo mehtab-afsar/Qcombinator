@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { log } from '@/lib/logger'
 
 // GET /api/agents/leo/data-room
 // Returns all agent artifacts grouped by data-room category,
@@ -183,7 +184,7 @@ export async function GET() {
       missing,
     })
   } catch (err) {
-    console.error('Leo data-room error:', err)
+    log.error('Leo data-room error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

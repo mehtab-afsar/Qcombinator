@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { withCircuitBreaker, isCircuitOpen } from '@/lib/circuit-breaker'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/patel/enrich
 // Body: { domain, hunterApiKey? }
@@ -105,7 +106,7 @@ export async function POST(request: NextRequest) {
       total: data.meta?.results ?? leads.length,
     })
   } catch (err) {
-    console.error('Patel enrich error:', err)
+    log.error('Patel enrich error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

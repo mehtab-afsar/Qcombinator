@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/leo/diff
 // Compares two versions of a legal document (e.g., SAFE, NDA, term sheet).
@@ -88,7 +89,7 @@ ${truncate(revised)}`,
 
     return NextResponse.json({ diff, docType })
   } catch (err) {
-    console.error('Leo diff error:', err)
+    log.error('Leo diff error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

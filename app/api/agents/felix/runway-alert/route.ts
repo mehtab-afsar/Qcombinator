@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/felix/runway-alert
 // Body: { runwayMonths, burnRate?, mrr?, artifactId? }
@@ -105,7 +106,7 @@ export async function POST(request: NextRequest) {
 
     if (!emailRes.ok) {
       const errText = await emailRes.text()
-      console.error('Resend runway alert error:', errText)
+      log.error('Resend runway alert error:', errText)
       return NextResponse.json({ error: 'Failed to send alert email' }, { status: 500 })
     }
 
@@ -122,7 +123,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ sent: true, urgency, email: founderEmail })
   } catch (err) {
-    console.error('Felix runway alert error:', err)
+    log.error('Felix runway alert error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/webhook/lead?uid=USER_ID
 // Public webhook — no auth required
@@ -154,7 +155,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ received: true, emailSent: sendRes.ok })
   } catch (err) {
-    console.error('Susi lead webhook error:', err)
+    log.error('Susi lead webhook error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { createHash } from 'crypto'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/maya/blog-publish
 // Publishes a Maya-generated blog post to a live Netlify URL.
@@ -103,7 +104,7 @@ export async function POST(request: NextRequest) {
     })
     if (!siteRes.ok) {
       const err = await siteRes.text()
-      console.error('Netlify create site error:', err)
+      log.error('Netlify create site error:', err)
       return NextResponse.json({ error: 'Failed to create Netlify site' }, { status: 502 })
     }
     const site = await siteRes.json() as { id: string; ssl_url?: string; default_domain?: string }
@@ -160,7 +161,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ url: liveUrl, siteId })
   } catch (err) {
-    console.error('Blog publish error:', err)
+    log.error('Blog publish error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

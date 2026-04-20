@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { log } from '@/lib/logger'
 
 // GET /api/p/:userId/analytics
 // Auth required — founders can only see their own portfolio view stats.
@@ -65,7 +66,7 @@ export async function GET(
       })),
     })
   } catch (err) {
-    console.error('Portfolio analytics error:', err)
+    log.error('Portfolio analytics error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

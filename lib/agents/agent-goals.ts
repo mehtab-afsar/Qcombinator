@@ -10,6 +10,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { StartupState } from './startup-state';
+import { log } from '@/lib/logger'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -222,10 +223,10 @@ export async function upsertAgentGoal(
       .select()
       .single();
 
-    if (error) { console.warn('[agent-goals] upsert error:', error.message); return null; }
+    if (error) { log.warn('[agent-goals] upsert error:', error.message); return null; }
     return dbRowToGoal(data);
   } catch (e) {
-    console.warn('[agent-goals] unexpected error:', e);
+    log.warn('[agent-goals] unexpected error:', e);
     return null;
   }
 }

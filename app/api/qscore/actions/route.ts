@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { verifyAuth } from '@/lib/auth/verify';
+import { log } from '@/lib/logger';
 import { callOpenRouter } from '@/lib/openrouter';
 import { retrieveActionsContext, inferSector, loadKnowledgeBase } from '@/features/qscore/rag/retrieval';
 import { AssessmentData } from '@/features/qscore/types/qscore.types';
@@ -24,12 +26,10 @@ const DIMENSION_AGENTS: Record<string, { agentId: string; agentName: string; lab
 
 export async function GET(_request: NextRequest) {
   try {
+    const auth = await verifyAuth();
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+    const { user } = auth;
     const supabase = await createClient();
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
 
     // Fetch latest score row (includes cached ai_actions)
     const { data: latest, error: scoreError } = await supabase
@@ -197,7 +197,7 @@ Return ONLY valid JSON. No markdown, no explanation.`;
     });
 
   } catch (error) {
-    console.error('Q-Score actions error:', error);
+    log.error('GET /api/qscore/actions', { error });
     return NextResponse.json({ actions: [] });
   }
 }
@@ -208,9 +208,10 @@ Return ONLY valid JSON. No markdown, no explanation.`;
  */
 export async function POST(_request: NextRequest) {
   try {
+    const auth = await verifyAuth();
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+    const { user } = auth;
     const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     // Clear cached actions on latest score row
     const { data: latest } = await supabase
@@ -231,7 +232,7 @@ export async function POST(_request: NextRequest) {
     // Delegate to GET for fresh generation
     return GET(_request);
   } catch (error) {
-    console.error('Q-Score actions regenerate error:', error);
+    log.error('POST /api/qscore/actions', { error });
     return NextResponse.json({ actions: [] });
   }
 }

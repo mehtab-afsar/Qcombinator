@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { withCircuitBreaker } from '@/lib/circuit-breaker'
+import { log } from '@/lib/logger'
 
 // POST /api/digest/weekly
 // Sends a beautiful weekly digest email to the founder summarising:
@@ -157,7 +158,7 @@ export async function POST() {
 
     return NextResponse.json({ sent: true, email: founderEmail, actionCount: activity.length })
   } catch (err) {
-    console.error('Weekly digest error:', err)
+    log.error('Weekly digest error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

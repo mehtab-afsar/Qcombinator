@@ -31,9 +31,10 @@
     "react-dom": "19.1.0",
     "resend": "^6.9.2",
     "sonner": "^2.0.7",
+    "stripe": "^22.0.2",
     "tailwind-merge": "^3.5.0",
     "tailwindcss-animate": "^1.0.7",
-    "zustand": "^5.0.8"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

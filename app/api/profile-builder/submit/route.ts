@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createAdminClient } from '@/lib/supabase/server'
+import { verifyAuth } from '@/lib/auth/verify'
+import { log } from '@/lib/logger'
 import { mergeToAssessmentData } from '@/lib/profile-builder/data-merger'
 import { enrichDataQuality } from '@/lib/profile-builder/confidence-engine'
 import { reconcileIndicators, applyReconciliationFlags } from '@/lib/profile-builder/reconciliation-engine'
@@ -15,32 +17,14 @@ import { getAllIndicatorPercentiles } from '@/features/qscore/benchmarking/bench
 import { generateScoreIntelligence, type ScoreIntelligence } from '@/features/qscore/services/score-intelligence'
 import type { SectionData } from '@/lib/profile-builder/data-merger'
 
-function getAdminClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  )
-}
-
-async function getUserId(req: NextRequest): Promise<string | null> {
-  const token = req.headers.get('authorization')?.replace('Bearer ', '')
-  if (!token) return null
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
-  const { data } = await supabase.auth.getUser(token)
-  return data.user?.id ?? null
-}
-
-export async function POST(req: NextRequest) {
+export async function POST(_req: NextRequest) {
   try {
     // 1. Auth + load section data
-    const userId = await getUserId(req)
-    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const auth = await verifyAuth()
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+    const userId = auth.user.id
 
-    const supabase = getAdminClient()
+    const supabase = createAdminClient()
 
     const { data: rows, error: fetchErr } = await supabase
       .from('profile_builder_data')
@@ -48,7 +32,7 @@ export async function POST(req: NextRequest) {
       .eq('user_id', userId)
 
     if (fetchErr) {
-      console.error('[submit] fetch error:', fetchErr)
+      log.error('POST /api/profile-builder/submit fetch', { fetchErr })
       return NextResponse.json({ error: 'Failed to load profile data' }, { status: 500 })
     }
 
@@ -238,7 +222,7 @@ export async function POST(req: NextRequest) {
       })
 
     if (insertErr) {
-      console.error('[submit] qscore insert error:', insertErr)
+      log.error('POST /api/profile-builder/submit insert', { insertErr })
       return NextResponse.json({ error: `Score save failed: ${insertErr.message}` }, { status: 500 })
     }
 
@@ -259,7 +243,7 @@ export async function POST(req: NextRequest) {
           error: r.error ?? null,
         }))
       ).then(({ error: logErr }) => {
-        if (logErr) console.warn('[submit] reconciliation log failed:', logErr)
+        if (logErr) log.error('POST /api/profile-builder/submit reconciliation log', { logErr })
       })
     }
 
@@ -320,7 +304,7 @@ export async function POST(req: NextRequest) {
             })
           }
         } catch (milestoneErr) {
-          console.warn('[submit] milestone notification failed:', milestoneErr)
+          log.error('POST /api/profile-builder/submit milestone', { milestoneErr })
         }
       })()
     }
@@ -360,7 +344,7 @@ export async function POST(req: NextRequest) {
       readinessSummary: (scoreIntelligence as ScoreIntelligence | null)?.readinessSummary ?? '',
     })
   } catch (err) {
-    console.error('[profile-builder/submit]', err)
+    log.error('POST /api/profile-builder/submit', { err })
     return NextResponse.json({ error: 'Scoring failed' }, { status: 500 })
   }
 }

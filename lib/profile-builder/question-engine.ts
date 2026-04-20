@@ -232,6 +232,128 @@ function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
   return current
 }
 
+// ── Targeted question map — asked when ONE specific field is missing ──────────
+// Each key is a required field path; value is the follow-up question to ask.
+const TARGETED_QUESTIONS: Record<string, string> = {
+  // Section 1 — Market Validation
+  'conversationCount':     'how many customer conversations or discovery calls have you had so far?',
+  'hasPayingCustomers':    'have any of those conversations turned into paying customers or pilots?',
+  'customerCommitment':    'do you have any signed LOIs, pilots, or contracts — even at a small scale?',
+  'salesCycleLength':      'how long does it typically take from first contact to a signed deal?',
+  'hasRetention':          'are your early customers coming back or expanding their use?',
+  'largestContractUsd':    'what\'s the largest single deal or contract value you\'ve closed so far?',
+  // Section 2 — Market & Competition
+  'p2.tamDescription':     'how do you size your total addressable market — walk me through the number of potential buyers and what they currently spend on this problem?',
+  'p2.marketUrgency':      'what\'s changed in the world in the last 1–2 years that makes this the right moment to build this?',
+  'p2.valuePool':          'what do your target customers currently spend to solve this problem — whether on software, headcount, or workarounds?',
+  'p2.expansionPotential': 'once you capture your initial market, what adjacent markets or product lines open up?',
+  'p2.competitorDensityContext': 'who are the main competitors, and what\'s your key differentiation?',
+  // Section 3 — IP & Technology
+  'p3.hasPatent':            'have you filed any patents, trade secrets, or applied for regulatory approvals?',
+  'p3.replicationTimeMonths':'if a well-funded competitor started building today, how many months would it take them to replicate what you\'ve built?',
+  'p3.knowHowDensity':       'what\'s the core expertise or know-how that\'s hardest for a competitor to replicate?',
+  'p3.technicalDepth':       'how would you describe the technical complexity — is this a novel algorithm, a proprietary dataset, or deep integrations?',
+  'p3.replicationCostUsd':   'roughly how much capital would a competitor need to replicate your technology from scratch?',
+  // Section 4 — Team
+  'p4.domainYears':          'how many years have you personally worked in this industry or problem space?',
+  'p4.founderMarketFit':     'what\'s your personal connection to this problem — why are you the right person to solve it?',
+  'p4.priorExits':           'have any of the founders previously started or exited a company?',
+  'p4.teamCoverage':         'which key functions — product, engineering, sales, finance — are covered by your core team?',
+  'p4.teamCohesionMonths':   'how long have the founding team members worked together?',
+  // Section 5 — Financials & Impact
+  'financial.mrr':          'what\'s your current monthly recurring revenue?',
+  'financial.monthlyBurn':  'what\'s your current monthly cash burn?',
+  'financial.runway':       'how many months of runway do you have at your current burn rate?',
+  'financial.grossMargin':  'what\'s your gross margin — revenue minus direct cost of delivery?',
+  'p5.businessModelAlignment': 'how does your business model work — is it subscription, usage, transaction, or something else?',
+  'p5.viksitBharatAlignment':  'how does your product contribute to broader economic or development goals in your market?',
+}
+
+export function getTargetedQuestion(section: number, fieldKey: string): string {
+  return TARGETED_QUESTIONS[fieldKey]
+    ?? TARGETED_QUESTIONS[fieldKey.replace(/^p\d+\./, '')]  // strip prefix fallback
+    ?? ''
+}
+
+// ── Field display labels for "I found: ..." summaries ────────────────────────
+const FIELD_DISPLAY_LABELS: Record<string, string> = {
+  'conversationCount':     'customer conversations',
+  'hasPayingCustomers':    'paying customers',
+  'customerCommitment':    'customer commitments',
+  'salesCycleLength':      'sales cycle',
+  'largestContractUsd':    'largest contract',
+  'p2.tamDescription':     'market size',
+  'p2.marketUrgency':      'market urgency',
+  'p2.valuePool':          'customer spend on the problem',
+  'p2.competitorCount':    'competitor count',
+  'p2.competitorDensityContext': 'competitive landscape',
+  'p3.hasPatent':          'IP/patents',
+  'p3.buildComplexity':    'build complexity',
+  'p3.technicalDepth':     'technical depth',
+  'p3.knowHowDensity':     'proprietary know-how',
+  'p3.replicationCostUsd': 'replication cost',
+  'p3.replicationTimeMonths': 'replication time',
+  'p4.domainYears':        'domain experience',
+  'p4.founderMarketFit':   'founder-market fit',
+  'p4.teamCoverage':       'team coverage',
+  'p4.priorExits':         'prior exits',
+  'p4.teamCohesionMonths': 'team tenure together',
+  'financial.mrr':         'MRR',
+  'financial.arr':         'ARR',
+  'financial.monthlyBurn': 'monthly burn',
+  'financial.runway':      'runway',
+  'financial.grossMargin': 'gross margin',
+  'p5.businessModelAlignment': 'business model',
+}
+
+function snippetStr(v: unknown): string {
+  if (v === null || v === undefined) return ''
+  if (typeof v === 'boolean') return v ? 'Yes' : 'No'
+  if (typeof v === 'number') return v.toLocaleString()
+  if (typeof v === 'string') return v.slice(0, 55) + (v.length > 55 ? '…' : '')
+  return String(v).slice(0, 55)
+}
+
+/**
+ * Builds human-readable "I found: X, Y, Z" snippets from extracted fields for a given section.
+ * Returns strings like "MRR: $12K" or "market size: $2B healthcare AI market".
+ */
+export function buildFoundSnippets(extractedFields: Record<string, unknown>, section: number): string[] {
+  const SECTION_PICKS: Record<number, string[]> = {
+    1: ['conversationCount','hasPayingCustomers','customerCommitment','salesCycleLength','largestContractUsd'],
+    2: ['p2.tamDescription','p2.marketUrgency','p2.valuePool','p2.competitorCount','p2.competitorDensityContext'],
+    3: ['p3.hasPatent','p3.buildComplexity','p3.technicalDepth','p3.knowHowDensity','p3.replicationCostUsd','p3.replicationTimeMonths'],
+    4: ['p4.domainYears','p4.founderMarketFit','p4.teamCoverage','p4.priorExits','p4.teamCohesionMonths'],
+    5: ['financial.mrr','financial.arr','financial.monthlyBurn','financial.runway','financial.grossMargin','p5.businessModelAlignment'],
+  }
+  const picks = SECTION_PICKS[section] ?? []
+  const snippets: string[] = []
+  for (const fieldPath of picks) {
+    const val = getNestedValue(extractedFields, fieldPath)
+    if (val === null || val === undefined) continue
+    const label = FIELD_DISPLAY_LABELS[fieldPath] ?? fieldPath.split('.').pop()!
+    snippets.push(`${label}: ${snippetStr(val)}`)
+  }
+  return snippets
+}
+
+/**
+ * Flattens extracted fields into "label: value" display strings for the after-answer message.
+ * Only top-level known fields and one level of nesting are included.
+ */
+export function flattenForDisplay(key: string, value: unknown): string[] {
+  if (value === null || value === undefined) return []
+  if (typeof value === 'object' && !Array.isArray(value)) {
+    const nested = value as Record<string, unknown>
+    return Object.entries(nested).flatMap(([k, v]) => flattenForDisplay(`${key}.${k}`, v))
+  }
+  const label = FIELD_DISPLAY_LABELS[key] ?? FIELD_DISPLAY_LABELS[key.split('.').pop() ?? '']
+  if (!label) return []
+  const str = snippetStr(value)
+  if (!str) return []
+  return [`${label}: ${str}`]
+}
+
 // ── Upload trigger detection ──────────────────────────────────────────────────
 
 export function shouldTriggerUpload(answer: string, section: number): string | null {

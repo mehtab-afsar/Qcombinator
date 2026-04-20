@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/maya/buffer-schedule
 // Body: { bufferToken, platforms: ('linkedin'|'twitter')[], artifactId? }
@@ -190,7 +191,7 @@ export async function POST(request: NextRequest) {
       profiles: targetProfiles.map(p => p.formatted_service),
     })
   } catch (err) {
-    console.error('Maya Buffer schedule error:', err)
+    log.error('Maya Buffer schedule error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

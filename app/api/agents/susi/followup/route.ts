@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { callOpenRouter } from '@/lib/openrouter'
+import { log } from '@/lib/logger'
 
 // POST /api/agents/susi/followup
 // Drafts a contextual follow-up email for a deal.
@@ -100,7 +101,7 @@ Rules:
 
     return NextResponse.json({ draft: parsed })
   } catch (err) {
-    console.error('Susi followup error:', err)
+    log.error('Susi followup error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
