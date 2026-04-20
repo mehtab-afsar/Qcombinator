@@ -8,7 +8,7 @@ import Link from "next/link";
 import { getAgentById } from "@/features/agents/data/agents";
 
 // ─── shared features ──────────────────────────────────────────────────────────
-import { bg, surf, bdr, ink, muted, blue, green, amber, red, pillarAccent, pillarLabel, dimensionLabel } from "@/features/agents/shared/constants/colors";
+import { bg, surf, bdr, ink, muted, blue, green, amber, red, pillarAccent } from "@/features/agents/shared/constants/colors";
 import { ARTIFACT_META, QUICK_QUESTIONS } from "@/features/agents/shared/constants/artifact-meta";
 import { fmtFileSize, fmtFileType } from "@/features/agents/shared/utils";
 import { DeliverablePanel } from "@/features/agents/shared/components/DeliverablePanel";
@@ -550,14 +550,12 @@ export default function AgentChat() {
     </div>
   );
 
-  const accent   = pillarAccent[agent.pillar] ?? blue;
-  const pillar   = pillarLabel[agent.pillar]  ?? agent.pillar;
-  const dimLabel = dimensionLabel[agent.improvesScore] ?? agent.improvesScore;
+  const accent = pillarAccent[agent.pillar] ?? blue;
 
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column", background: bg, color: ink }}>
 
-      {/* ── Q-Score boost toast ──────────────────────────────────────────────── */}
+      {/* Q-Score boost toast */}
       <AnimatePresence>
         {scoreBoost && (
           <motion.div
@@ -567,214 +565,178 @@ export default function AgentChat() {
             transition={{ duration: 0.25 }}
             style={{
               position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)",
-              zIndex: 1000,
-              background: "#052e16",
-              color: "#bbf7d0",
-              borderRadius: 12,
-              padding: "10px 20px",
+              zIndex: 1000, background: "#052e16", color: "#bbf7d0",
+              borderRadius: 12, padding: "10px 20px",
               display: "flex", alignItems: "center", gap: 10,
-              fontSize: 13, fontWeight: 600,
-              boxShadow: "0 4px 24px rgba(0,0,0,0.18)",
+              fontSize: 13, fontWeight: 600, boxShadow: "0 4px 24px rgba(0,0,0,0.18)",
               pointerEvents: "none",
             }}
           >
             <TrendingUp size={15} style={{ color: "#4ade80" }} />
-            Q-Score +{scoreBoost.points} pts · {scoreBoost.dimension} dimension boosted
+            Q-Score +{scoreBoost.points} pts · {scoreBoost.dimension} boosted
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* ── score challenge banner ───────────────────────────────────────────── */}
+      {/* Challenge banner */}
       {challengeDim && CHALLENGE_LABEL[challengeDim] && (
         <div style={{
-          flexShrink: 0,
-          background: "#FFFBEB",
-          borderBottom: `1px solid #F5E6B8`,
-          padding: "10px 28px",
-          display: "flex", alignItems: "center", gap: 12,
+          flexShrink: 0, background: "#FFFBEB", borderBottom: `1px solid #F5E6B8`,
+          padding: "8px 24px", display: "flex", alignItems: "center", gap: 10,
         }}>
-          <Zap size={14} style={{ color: amber, flexShrink: 0 }} />
+          <Zap size={13} style={{ color: amber, flexShrink: 0 }} />
           <p style={{ fontSize: 12, color: "#92400E", flex: 1 }}>
-            <strong>Score Challenge:</strong> build a deliverable here to boost your{" "}
-            <strong>{CHALLENGE_LABEL[challengeDim]}</strong> dimension. Your score updates automatically when you generate.
+            <strong>Score Challenge:</strong> generate a deliverable here to boost your <strong>{CHALLENGE_LABEL[challengeDim]}</strong> score.
           </p>
-          <Link
-            href="/founder/improve-qscore"
-            style={{ fontSize: 11, color: amber, fontWeight: 600, textDecoration: "none", flexShrink: 0 }}
-          >
-            View all challenges →
+          <Link href="/founder/improve-qscore" style={{ fontSize: 11, color: amber, fontWeight: 600, textDecoration: "none", flexShrink: 0 }}>
+            View all →
           </Link>
         </div>
       )}
 
-      {/* ── page header ─────────────────────────────────────────────────────── */}
-      <div style={{ flexShrink: 0, borderBottom: `1px solid ${bdr}`, background: bg, padding: "0 28px", height: 60, display: "flex", alignItems: "center" }}>
-        <div style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+      {/* Header */}
+      <div style={{ flexShrink: 0, borderBottom: `1px solid ${bdr}`, background: bg, padding: "0 24px", height: 52, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        {/* Left: back + agent identity */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <Link
+            href="/founder/dashboard"
+            replace
+            style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: muted, textDecoration: "none", transition: "color .15s" }}
+            onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = ink)}
+            onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = muted)}
+          >
+            <ArrowLeft style={{ height: 13, width: 13 }} />
+            Back
+          </Link>
+          <div style={{ width: 1, height: 16, background: bdr }} />
+          <div style={{
+            height: 30, width: 30, borderRadius: 8, flexShrink: 0,
+            background: accent + "15", border: `1.5px solid ${accent}40`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 13, fontWeight: 700, color: accent,
+          }}>
+            {agent.name[0]}
+          </div>
+          <div>
+            <span style={{ fontSize: 14, fontWeight: 600, color: ink }}>{agent.name}</span>
+            <span style={{ fontSize: 11, color: muted, marginLeft: 8 }}>{agent.specialty}</span>
+          </div>
+        </div>
 
-          {/* ── Left: back + divider + agent identity ── */}
-          <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
-            <Link
-              href="/founder/dashboard"
-              replace
-              style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: muted, textDecoration: "none", transition: "color .15s", flexShrink: 0 }}
-              onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = ink)}
-              onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = muted)}
-            >
-              <ArrowLeft style={{ height: 12, width: 12 }} />
-              Back
-            </Link>
-
-            <div style={{ width: 1, height: 18, background: bdr, flexShrink: 0 }} />
-
-            <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-              {/* avatar */}
+        {/* Right: single Generate button */}
+        <div style={{ position: "relative" }}>
+          <button
+            onClick={() => setShowDelivDropdown(d => !d)}
+            style={{
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600,
+              background: showDelivDropdown ? ink : surf,
+              color: showDelivDropdown ? bg : ink,
+              border: `1px solid ${showDelivDropdown ? ink : bdr}`,
+              cursor: "pointer", transition: "all .15s", fontFamily: "inherit",
+            }}
+          >
+            <Sparkles style={{ height: 12, width: 12 }} />
+            Generate
+            <ChevronRight style={{ height: 9, width: 9, transform: showDelivDropdown ? "rotate(90deg)" : "none", transition: "transform .2s" }} />
+          </button>
+          {showDelivDropdown && (
+            <>
+              <div style={{ position: "fixed", inset: 0, zIndex: 99 }} onClick={() => setShowDelivDropdown(false)} />
               <div style={{
-                height: 34, width: 34, borderRadius: 9, flexShrink: 0,
-                background: accent + "15",
-                border: `1.5px solid ${accent}40`,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 14, fontWeight: 700, color: accent,
+                position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 100,
+                width: 260, background: bg, border: `1px solid ${bdr}`,
+                borderRadius: 12, boxShadow: "0 8px 28px rgba(0,0,0,0.11)", overflow: "hidden",
               }}>
-                {agent.name[0]}
+                {(AGENT_TEMPLATES[agentId] ?? []).map((tmpl, i) => {
+                  const meta  = tmpl.artifactType ? ARTIFACT_META[tmpl.artifactType as keyof typeof ARTIFACT_META] : null;
+                  const TIcon = meta?.icon ?? FileText;
+                  return (
+                    <button
+                      key={i}
+                      onClick={() => { handleSend(tmpl.starterPrompt); setShowDelivDropdown(false); }}
+                      style={{
+                        display: "flex", alignItems: "flex-start", gap: 10,
+                        width: "100%", padding: "10px 14px", textAlign: "left",
+                        background: "none", border: "none",
+                        borderBottom: i < (AGENT_TEMPLATES[agentId] ?? []).length - 1 ? `1px solid ${bdr}` : "none",
+                        cursor: "pointer", fontFamily: "inherit", transition: "background .12s",
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = surf; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "none"; }}
+                    >
+                      <TIcon size={13} style={{ color: meta?.color ?? accent, flexShrink: 0, marginTop: 2 }} />
+                      <div>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 1 }}>{tmpl.title}</p>
+                        <p style={{ fontSize: 10, color: muted, lineHeight: 1.4 }}>{tmpl.description}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+                {!isPatel && agent.artifactType && apiMessages.length >= 4 && (
+                  <button
+                    onClick={() => { handleGenerate(); setShowDelivDropdown(false); }}
+                    disabled={generatingArtifact}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 10,
+                      width: "100%", padding: "10px 14px", textAlign: "left",
+                      background: generatingArtifact ? surf : "none", border: "none",
+                      borderTop: `1px solid ${bdr}`,
+                      cursor: generatingArtifact ? "wait" : "pointer",
+                      fontFamily: "inherit", transition: "background .12s",
+                      opacity: generatingArtifact ? 0.6 : 1,
+                    }}
+                    onMouseEnter={(e) => { if (!generatingArtifact) e.currentTarget.style.background = surf; }}
+                    onMouseLeave={(e) => { if (!generatingArtifact) e.currentTarget.style.background = "none"; }}
+                  >
+                    <Sparkles size={13} style={{ color: accent, flexShrink: 0 }} />
+                    <div>
+                      <p style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 1 }}>
+                        {generatingArtifact ? "Generating…" : "Generate from conversation"}
+                      </p>
+                      <p style={{ fontSize: 10, color: muted }}>Uses your chat history</p>
+                    </div>
+                  </button>
+                )}
               </div>
-              {/* name + specialty */}
-              <div style={{ minWidth: 0 }}>
-                <p style={{ fontSize: 14, fontWeight: 600, color: ink, lineHeight: 1.2 }}>
-                  {agent.name}
-                  <span style={{ fontSize: 10, fontWeight: 600, color: accent, letterSpacing: "0.08em", marginLeft: 8 }}>
-                    {(agent as typeof agent & { cxoTitle?: string }).cxoTitle ?? pillar}
-                  </span>
-                </p>
-                <p style={{ fontSize: 11, color: muted, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {agent.specialty}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* ── Right: status pills + action buttons ── */}
-          <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-            {isFelix && (
-              <div style={{ padding: "3px 10px", background: "#F0FDF4", border: `1px solid #86EFAC`, borderRadius: 999, fontSize: 11, color: green, fontWeight: 600 }}>
-                Live Model
-              </div>
-            )}
-            {isPatel && (
-              <div style={{ padding: "3px 10px", background: "#EFF6FF", border: `1px solid #93C5FD`, borderRadius: 999, fontSize: 11, color: blue, fontWeight: 600 }}>
-                Agentic GTM
-              </div>
-            )}
-            <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 10px", background: surf, border: `1px solid ${bdr}`, borderRadius: 999, fontSize: 11, color: muted }}>
-              <TrendingUp style={{ height: 10, width: 10, color: accent }} />
-              {dimLabel}
-            </div>
-
-            {/* Deliverable dropdown */}
-            <div style={{ position: "relative" }}>
-              <button
-                onClick={() => setShowDelivDropdown(d => !d)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 5,
-                  padding: "5px 12px", borderRadius: 7, fontSize: 12, fontWeight: 600,
-                  background: showDelivDropdown ? ink : surf,
-                  color: showDelivDropdown ? bg : ink,
-                  border: `1px solid ${showDelivDropdown ? ink : bdr}`,
-                  cursor: "pointer", transition: "all .15s", fontFamily: "inherit",
-                }}
-              >
-                <FileText style={{ height: 11, width: 11 }} />
-                Deliverable
-                <ChevronRight style={{ height: 9, width: 9, transform: showDelivDropdown ? "rotate(90deg)" : "none", transition: "transform .2s" }} />
-              </button>
-              {showDelivDropdown && (
-                <>
-                  <div style={{ position: "fixed", inset: 0, zIndex: 99 }} onClick={() => setShowDelivDropdown(false)} />
-                  <div style={{
-                    position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 100,
-                    width: 280, background: bg, border: `1px solid ${bdr}`,
-                    borderRadius: 12, boxShadow: "0 8px 32px rgba(0,0,0,0.13)", overflow: "hidden",
-                  }}>
-                    {(AGENT_TEMPLATES[agentId] ?? []).map((tmpl, i) => {
-                      const meta  = tmpl.artifactType ? ARTIFACT_META[tmpl.artifactType as keyof typeof ARTIFACT_META] : null;
-                      const TIcon = meta?.icon ?? FileText;
-                      return (
-                        <button
-                          key={i}
-                          onClick={() => { handleSend(tmpl.starterPrompt); setShowDelivDropdown(false); }}
-                          style={{
-                            display: "flex", alignItems: "flex-start", gap: 10,
-                            width: "100%", padding: "11px 14px", textAlign: "left",
-                            background: "none", border: "none",
-                            borderBottom: i < (AGENT_TEMPLATES[agentId] ?? []).length - 1 ? `1px solid ${bdr}` : "none",
-                            cursor: "pointer", fontFamily: "inherit", transition: "background .12s",
-                          }}
-                          onMouseEnter={(e) => { e.currentTarget.style.background = surf; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.background = "none"; }}
-                        >
-                          <TIcon size={13} style={{ color: meta?.color ?? accent, flexShrink: 0, marginTop: 2 }} />
-                          <div>
-                            <p style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 2 }}>{tmpl.title}</p>
-                            <p style={{ fontSize: 10, color: muted, lineHeight: 1.4 }}>{tmpl.description}</p>
-                          </div>
-                        </button>
-                      );
-                    })}
-                    {!isPatel && agent.artifactType && apiMessages.length >= 4 && (
-                      <button
-                        onClick={() => { handleGenerate(); setShowDelivDropdown(false); }}
-                        disabled={generatingArtifact}
-                        style={{
-                          display: "flex", alignItems: "center", gap: 10,
-                          width: "100%", padding: "11px 14px", textAlign: "left",
-                          background: generatingArtifact ? surf : "none", border: "none",
-                          cursor: generatingArtifact ? "wait" : "pointer",
-                          fontFamily: "inherit", transition: "background .12s",
-                          opacity: generatingArtifact ? 0.6 : 1,
-                        }}
-                        onMouseEnter={(e) => { if (!generatingArtifact) e.currentTarget.style.background = surf; }}
-                        onMouseLeave={(e) => { if (!generatingArtifact) e.currentTarget.style.background = "none"; }}
-                      >
-                        <Sparkles size={13} style={{ color: accent, flexShrink: 0 }} />
-                        <div>
-                          <p style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 2 }}>
-                            {generatingArtifact ? "Generating…" : "Generate from conversation"}
-                          </p>
-                          <p style={{ fontSize: 10, color: muted }}>Uses your chat history</p>
-                        </div>
-                      </button>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Actions button */}
-            <button
-              onClick={() => setShowActionsPanel(p => !p)}
-              style={{
-                display: "flex", alignItems: "center", gap: 5,
-                padding: "5px 12px", borderRadius: 7, fontSize: 12, fontWeight: 600,
-                background: showActionsPanel ? ink : surf,
-                color: showActionsPanel ? bg : ink,
-                border: `1px solid ${showActionsPanel ? ink : bdr}`,
-                cursor: "pointer", transition: "all .15s", fontFamily: "inherit",
-              }}
-            >
-              <Zap style={{ height: 11, width: 11, color: showActionsPanel ? bg : accent }} />
-              Actions
-            </button>
-          </div>
+            </>
+          )}
         </div>
       </div>
 
-      {/* ── body (chat + optional panel) ──────────────────────────────────── */}
+      {/* Body: chat + optional right panel */}
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
 
-        {/* ── chat column ─────────────────────────────────────────────────── */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "24px 28px" }}>
-          <div style={{ maxWidth: 680, margin: "0 auto", display: "flex", flexDirection: "column", gap: 16 }}>
+        {/* Chat column */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "28px 24px 0" }}>
+          <div style={{ maxWidth: 660, margin: "0 auto", display: "flex", flexDirection: "column", gap: 14 }}>
 
-            {/* suggested prompts */}
+            {/* Susi: deal follow-up reminders */}
+            {agentId === "susi" && susiReminders.length > 0 && (
+              <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 10, padding: "12px 14px", marginBottom: 4 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: ink, marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                  Follow-up Reminders
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {susiReminders.map(r => (
+                    <div key={r.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                      <div>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: ink }}>{r.company}</span>
+                        {r.contact_name && <span style={{ fontSize: 11, color: muted }}> · {r.contact_name}</span>}
+                        <span style={{ fontSize: 10, marginLeft: 6, padding: "2px 6px", borderRadius: 4, background: r.isOverdue ? "#FEE2E2" : "#FEF3C7", color: r.isOverdue ? "#B91C1C" : "#92400E", fontWeight: 600 }}>{r.label}</span>
+                        {r.next_action && <p style={{ fontSize: 11, color: muted, marginTop: 2 }}>{r.next_action}</p>}
+                      </div>
+                      <button
+                        onClick={() => handleSend(`Help me follow up on my deal with ${r.company} (${r.stage} stage). ${r.next_action ? `My planned next action was: ${r.next_action}.` : ""} What should I say?`)}
+                        style={{ padding: "5px 12px", borderRadius: 6, border: "none", background: "#F59E0B", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}
+                      >Follow Up</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Suggested prompts */}
             <AnimatePresence>
               {showPrompts && (
                 <motion.div
@@ -784,10 +746,10 @@ export default function AgentChat() {
                   exit={{ opacity: 0, y: -6 }}
                   transition={{ duration: 0.25 }}
                 >
-                  <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
+                  <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
                     <div style={{
                       height: 28, width: 28, borderRadius: 8, flexShrink: 0, marginTop: 2,
-                      background: surf, border: `2px solid ${accent}`,
+                      background: accent + "15", border: `1.5px solid ${accent}40`,
                       display: "flex", alignItems: "center", justifyContent: "center",
                       fontSize: 12, fontWeight: 700, color: accent,
                     }}>
@@ -807,7 +769,7 @@ export default function AgentChat() {
                   </div>
 
                   <div style={{ paddingLeft: 38, display: "flex", flexWrap: "wrap", gap: 8 }}>
-                    {agent.suggestedPrompts.slice(0, 5).map((p, i) => (
+                    {agent.suggestedPrompts.slice(0, 4).map((p, i) => (
                       <button
                         key={i}
                         onClick={() => handleSend(p)}
@@ -867,7 +829,7 @@ export default function AgentChat() {
                 {msg.role === "agent" && (
                   <div style={{
                     height: 28, width: 28, borderRadius: 8, flexShrink: 0, marginTop: 2,
-                    background: surf, border: `2px solid ${accent}`,
+                    background: accent + "15", border: `1.5px solid ${accent}40`,
                     display: "flex", alignItems: "center", justifyContent: "center",
                     fontSize: 12, fontWeight: 700, color: accent,
                   }}>
@@ -977,7 +939,7 @@ export default function AgentChat() {
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ display: "flex", gap: 10 }}>
                 <div style={{
                   height: 28, width: 28, borderRadius: 8, flexShrink: 0,
-                  background: surf, border: `2px solid ${accent}`,
+                  background: accent + "15", border: `1.5px solid ${accent}40`,
                   display: "flex", alignItems: "center", justifyContent: "center",
                   fontSize: 12, fontWeight: 700, color: accent,
                 }}>
@@ -1029,8 +991,8 @@ export default function AgentChat() {
         ) : null}
       </div>
 
-      {/* ── input bar ──────────────────────────────────────────────────────── */}
-      <div style={{ flexShrink: 0, borderTop: `1px solid ${bdr}`, padding: "14px 28px", background: bg }}>
+      {/* Input bar */}
+      <div style={{ flexShrink: 0, borderTop: `1px solid ${bdr}`, padding: "14px 24px", background: bg }}>
         <input
           ref={chatFileRef}
           type="file"
@@ -1039,7 +1001,7 @@ export default function AgentChat() {
           onChange={(e) => { const f = e.target.files?.[0]; if (f) { handleChatFileUpload(f); e.target.value = ""; } }}
         />
         <div style={{
-          maxWidth: hasPanel ? "none" : 680, margin: "0 auto",
+          maxWidth: hasPanel ? "none" : 660, margin: "0 auto",
           display: "flex", alignItems: "flex-end", gap: 8,
           paddingRight: hasPanel ? 436 : 0,
         }}>
@@ -1070,7 +1032,7 @@ export default function AgentChat() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={`Ask ${agent.name} anything about ${agent.specialty.toLowerCase()}…`}
+            placeholder={`Ask ${agent.name} anything…`}
             disabled={typing}
             rows={1}
             style={{
@@ -1105,17 +1067,10 @@ export default function AgentChat() {
             <Send style={{ height: 15, width: 15, color: !input.trim() || typing ? muted : bg }} />
           </button>
         </div>
-        <p style={{
-          textAlign: "center", fontSize: 11, color: muted,
-          marginTop: 8, opacity: 0.5,
-          paddingRight: hasPanel ? 436 : 0,
-        }}>
-          Enter to send · Shift+Enter for new line · Attach docs with the clip icon
-        </p>
       </div>
 
-      {/* ── action items panel ───────────────────────────────────────────────── */}
-      {showActions && (
+      {/* Action items panel */}
+      {false && showActions && (
         <div style={{
           flexShrink: 0, borderTop: `1px solid ${bdr}`, padding: "16px 28px",
           background: surf,

@@ -42,6 +42,13 @@ import {
   extractStateFromArtifact,
   type StartupState,
 } from '@/lib/agents/startup-state';
+import { upsertAgentGoal, getAgentGoal, formatGoalForPrompt } from '@/lib/agents/agent-goals';
+import {
+  getPendingDelegations,
+  formatDelegationsForPrompt,
+  markDelegationRunning,
+  triggerProactiveDelegations,
+} from '@/lib/agents/delegation';
 
 // ─── dedicated system prompt registry ────────────────────────────────────────
 
@@ -427,6 +434,153 @@ async function executeCalendlyLink(ctx: Record<string, unknown>): Promise<string
   }, '*Calendly is temporarily unavailable. Please try again shortly.*');
 }
 
+// ─── execution tool handlers ─────────────────────────────────────────────────
+
+async function executeSendOutreachSequence(
+  ctx: Record<string, unknown>,
+  userId: string | undefined,
+  supabaseAdmin: SupabaseClient,
+  agentId: string,
+): Promise<string> {
+  if (!userId) return 'Cannot send emails — user not authenticated.';
+  const contacts = (ctx.contacts as Array<{ name: string; email: string; company?: string }>) ?? [];
+  const steps    = (ctx.sequence_steps as Array<{ subject: string; body: string }>) ?? [];
+  if (contacts.length === 0) return 'No contacts provided. Run apollo_search first to find leads.';
+  if (steps.length === 0)    return 'No sequence steps provided. Generate an outreach_sequence artifact first.';
+
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+  const res = await fetch(`${baseUrl}/api/agents/outreach/send`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-user-id': userId },
+    body: JSON.stringify({ contacts, steps, agentId }),
+  });
+  if (!res.ok) return `Outreach send failed: ${res.status} ${res.statusText}`;
+  const data = await res.json() as { sent?: number; failed?: number; pipelineAdded?: number };
+
+  void supabaseAdmin.from('agent_activity').insert({
+    user_id: userId, agent_id: agentId, action_type: 'outreach_sent',
+    description: `Sent outreach to ${data.sent ?? 0} contacts`,
+    metadata: { sent: data.sent, failed: data.failed, pipeline_added: data.pipelineAdded },
+  });
+
+  return `Outreach sent: **${data.sent ?? 0} emails dispatched**, ${data.failed ?? 0} failed, ${data.pipelineAdded ?? 0} contacts added to pipeline.`;
+}
+
+async function executeBulkEnrichPipeline(
+  ctx: Record<string, unknown>,
+  userId: string | undefined,
+  supabaseAdmin: SupabaseClient,
+  agentId: string,
+): Promise<string> {
+  if (!userId) return 'Cannot enrich pipeline — user not authenticated.';
+  const apiKey = process.env.APOLLO_API_KEY;
+  if (!apiKey) return '*Apollo.io API key not configured.*';
+
+  const payload: Record<string, unknown> = { page: 1, per_page: (ctx.per_page as number) ?? 50 };
+  if (ctx.job_titles)  payload.person_titles = ctx.job_titles;
+  if (ctx.industries)  payload.organization_industry_tag_values = ctx.industries;
+  if (ctx.locations)   payload.person_locations = ctx.locations;
+  if (ctx.keywords)    payload.q_keywords = ctx.keywords;
+  if (ctx.employee_count_min || ctx.employee_count_max) {
+    payload.organization_num_employees_ranges = [`${ctx.employee_count_min ?? 1},${ctx.employee_count_max ?? 10000}`];
+  }
+
+  const res = await fetch('https://api.apollo.io/v1/mixed_people/search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Api-Key': apiKey },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) return `Apollo search failed: ${res.status}`;
+
+  const data = await res.json() as { people?: Array<Record<string, unknown>> };
+  const people = data.people ?? [];
+  if (people.length === 0) return 'No leads found. Try broadening the search criteria.';
+
+  const rows = people.map((p: Record<string, unknown>) => ({
+    user_id: userId,
+    company: ((p.organization as Record<string, unknown>)?.name as string) || 'Unknown',
+    contact_name: [p.first_name, p.last_name].filter(Boolean).join(' ') || null,
+    contact_email: (p.email as string) || null,
+    contact_title: (p.title as string) || null,
+    stage: 'lead',
+    source: `${agentId}_bulk_enrich`,
+  }));
+
+  const { error } = await supabaseAdmin.from('deals').insert(rows);
+  if (error) return `Pipeline insert failed: ${error.message}`;
+
+  void supabaseAdmin.from('agent_activity').insert({
+    user_id: userId, agent_id: agentId, action_type: 'pipeline_enriched',
+    description: `Bulk added ${rows.length} leads from Apollo`,
+    metadata: { count: rows.length },
+  });
+
+  return `Pipeline enriched: **${rows.length} leads added** from Apollo search.`;
+}
+
+async function executeScheduleFollowup(
+  ctx: Record<string, unknown>,
+  userId: string | undefined,
+  supabaseAdmin: SupabaseClient,
+  agentId: string,
+): Promise<string> {
+  if (!userId) return 'Cannot schedule follow-up — user not authenticated.';
+  const actionType  = (ctx.action_type as string) || 'followup_check';
+  const daysFromNow = (ctx.days_from_now as number) || 3;
+  const payload     = (ctx.payload as Record<string, unknown>) || {};
+
+  const executeAt = new Date();
+  executeAt.setDate(executeAt.getDate() + daysFromNow);
+
+  const { error } = await supabaseAdmin.from('scheduled_actions').insert({
+    user_id: userId, agent_id: agentId, action_type: actionType,
+    payload, execute_at: executeAt.toISOString(), status: 'pending',
+  });
+  if (error) return `Failed to schedule follow-up: ${error.message}`;
+
+  void supabaseAdmin.from('agent_activity').insert({
+    user_id: userId, agent_id: agentId, action_type: 'followup_scheduled',
+    description: `Scheduled ${actionType} for Day +${daysFromNow}`,
+    metadata: { action_type: actionType, execute_at: executeAt.toISOString() },
+  });
+
+  return `Follow-up scheduled: **${actionType}** set for ${executeAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} (Day +${daysFromNow}).`;
+}
+
+async function executeInitiateVoiceCall(
+  ctx: Record<string, unknown>,
+  userId: string | undefined,
+  supabaseAdmin: SupabaseClient,
+  agentId: string,
+): Promise<string> {
+  if (!userId) return 'Cannot initiate call — user not authenticated.';
+  const phoneNumber = (ctx.phone_number as string) || '';
+  if (!phoneNumber) return 'No phone number provided. Please supply a phone number in E.164 format.';
+
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+  const res = await fetch(`${baseUrl}/api/agents/susi/vapi`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-user-id': userId },
+    body: JSON.stringify({
+      phone_number: phoneNumber,
+      lead_name: ctx.lead_name ?? '',
+      company:   ctx.company ?? '',
+      context:   ctx.context ?? '',
+      agentId,
+    }),
+  });
+  if (!res.ok) return `Voice call failed: ${res.status} ${res.statusText}`;
+  const data = await res.json() as { callId?: string; status?: string };
+
+  void supabaseAdmin.from('agent_activity').insert({
+    user_id: userId, agent_id: agentId, action_type: 'voice_call_initiated',
+    description: `AI SDR call initiated to ${ctx.lead_name ?? phoneNumber}`,
+    metadata: { phone_number: phoneNumber, call_id: data.callId, company: ctx.company },
+  });
+
+  return `Voice call initiated: AI SDR dialing **${ctx.lead_name ?? phoneNumber}**${ctx.company ? ` at ${ctx.company}` : ''}. Call ID: ${data.callId ?? 'pending'}.`;
+}
+
 // ─── main handler ────────────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
@@ -512,6 +666,26 @@ export async function POST(request: NextRequest) {
         startupState = stateResult.value;
         const stateBlock = formatStartupStateForPrompt(startupState);
         if (stateBlock) systemPrompt += stateBlock;
+      }
+
+      // Load pending delegations + agent goal in parallel (non-blocking — never delays the response)
+      const [delegationsResult, goalResult] = await Promise.allSettled([
+        getPendingDelegations(agentId, userId, supabaseAdmin),
+        startupState ? getAgentGoal(agentId, userId, supabaseAdmin) : Promise.resolve(null),
+      ]);
+
+      // Inject pending delegations (high-priority: injected before artifact memory)
+      if (delegationsResult.status === 'fulfilled' && delegationsResult.value.length > 0) {
+        systemPrompt += formatDelegationsForPrompt(delegationsResult.value);
+        // Mark immediate-priority delegations as running
+        for (const task of delegationsResult.value) {
+          if (task.priority === 'immediate') void markDelegationRunning(task.id, supabaseAdmin);
+        }
+      }
+
+      // Inject agent goal status (so the agent knows what it's optimising for)
+      if (goalResult.status === 'fulfilled') {
+        systemPrompt += formatGoalForPrompt(goalResult.value);
       }
 
       if (ctxResult.status === 'fulfilled') {
@@ -608,13 +782,19 @@ CONVERSATION RULES:
     const LOOP_TOOLS = new Set([
       'lead_enrich', 'web_research', 'apollo_search', 'posthog_query', 'calendly_link',
     ]);
+    const EXEC_TOOLS = new Set([
+      'send_outreach_sequence', 'initiate_voice_call', 'bulk_enrich_pipeline', 'schedule_followup', 'create_deal',
+    ]);
     const TOOL_LABELS: Record<string, string> = {
-      apollo_search:  'Searching Apollo for leads',
-      posthog_query:  'Pulling analytics from PostHog',
-      calendly_link:  'Generating booking link',
-      lead_enrich:    'Enriching lead data',
-      web_research:   'Researching the web',
-      create_deal:    'Adding deal to pipeline',
+      apollo_search:          'Searching Apollo for leads',
+      posthog_query:          'Pulling analytics from PostHog',
+      calendly_link:          'Generating booking link',
+      lead_enrich:            'Enriching lead data',
+      web_research:           'Researching the web',
+      create_deal:            'Adding deal to pipeline',
+      send_outreach_sequence: 'Sending outreach emails',
+      bulk_enrich_pipeline:   'Enriching pipeline from Apollo',
+      schedule_followup:      'Scheduling follow-up',
     };
 
     async function generateArtifactJSON(prompt: string): Promise<Record<string, unknown>> {
@@ -702,13 +882,24 @@ CONVERSATION RULES:
                 ];
                 continue;
 
-              } else if (toolName === 'create_deal') {
-                send({ type: 'tool_start', toolName: 'create_deal', label: 'Adding deal to pipeline' });
+              } else if (EXEC_TOOLS.has(toolName)) {
+                send({ type: 'tool_start', toolName, label: TOOL_LABELS[toolName] ?? toolName });
                 try {
-                  const dealResult = await executeCreateDeal(toolCtx, userId, supabaseAdmin, agentId);
-                  send({ type: 'tool_done', toolName: 'create_deal', summary: dealResult.slice(0, 100) });
-                  send({ type: 'delta', text: `\n\n${dealResult}` });
-                } catch (err) { console.error('create_deal streaming:', err); }
+                  let execResult = '';
+                  if (toolName === 'create_deal') {
+                    execResult = await executeCreateDeal(toolCtx, userId, supabaseAdmin, agentId);
+                  } else if (toolName === 'send_outreach_sequence') {
+                    execResult = await executeSendOutreachSequence(toolCtx, userId, supabaseAdmin, agentId);
+                  } else if (toolName === 'initiate_voice_call') {
+                    execResult = await executeInitiateVoiceCall(toolCtx, userId, supabaseAdmin, agentId);
+                  } else if (toolName === 'bulk_enrich_pipeline') {
+                    execResult = await executeBulkEnrichPipeline(toolCtx, userId, supabaseAdmin, agentId);
+                  } else if (toolName === 'schedule_followup') {
+                    execResult = await executeScheduleFollowup(toolCtx, userId, supabaseAdmin, agentId);
+                  }
+                  send({ type: 'tool_done', toolName, summary: execResult.slice(0, 100) });
+                  send({ type: 'delta', text: `\n\n${execResult}` });
+                } catch (err) { console.error(`${toolName} streaming:`, err); }
                 break;
 
               } else {
@@ -750,11 +941,16 @@ CONVERSATION RULES:
                   if (FF_ARTIFACT_SELF_CRITIQUE && artifactId && userId) {
                     void (async () => { try { const critique = await critiqueArtifact(toolName, parsedContent); let fc = parsedContent; if (critique.needsPatch) fc = await patchArtifact(toolName, parsedContent, critique); await supabaseAdmin.from('agent_artifacts').update({ content: fc, critique_metadata: critique }).eq('id', artifactId!); } catch { /* non-critical */ } })();
                   }
-                  // Write extracted facts back to shared startup state (fire-and-forget)
+                  // Write extracted facts to world model + refresh goal + trigger delegations
                   if (userId) {
                     const stateUpdates = extractStateFromArtifact(agentId, toolName, parsedContent);
                     if (Object.keys(stateUpdates).length > 0) {
-                      void updateStartupState(userId, stateUpdates, agentId, supabaseAdmin);
+                      void (async () => {
+                        await updateStartupState(userId, stateUpdates, agentId, supabaseAdmin);
+                        const freshState = await getStartupState(userId, supabaseAdmin);
+                        if (freshState) void upsertAgentGoal(agentId, userId, freshState, supabaseAdmin);
+                        void triggerProactiveDelegations(agentId, userId, startupState, stateUpdates, supabaseAdmin);
+                      })();
                     }
                   }
                   logToolExecution(supabaseAdmin, userId, agentId, toolName, t0A, 'success', undefined, 'standard');
@@ -871,17 +1067,24 @@ CONVERSATION RULES:
         continue; // loop — LLM will see the result and reason again
       }
 
-      // ── create_deal: write action, execute and break ───────────────────
-      if (toolName === 'create_deal') {
-        const t0Deal = Date.now();
+      // ── Execution tools: execute action and break ────────────────────
+      if (EXEC_TOOLS.has(toolName)) {
+        const t0Exec = Date.now();
         try {
-          const dealResult = await executeCreateDeal(toolCtx, userId, supabaseAdmin, agentId);
-          logToolExecution(supabaseAdmin, userId, agentId, 'create_deal', t0Deal, 'success');
-          chatReply = llmResponse.text
-            ? `${llmResponse.text}\n\n${dealResult}`
-            : dealResult;
+          let execResult = '';
+          if (toolName === 'create_deal') {
+            execResult = await executeCreateDeal(toolCtx, userId, supabaseAdmin, agentId);
+          } else if (toolName === 'send_outreach_sequence') {
+            execResult = await executeSendOutreachSequence(toolCtx, userId, supabaseAdmin, agentId);
+          } else if (toolName === 'bulk_enrich_pipeline') {
+            execResult = await executeBulkEnrichPipeline(toolCtx, userId, supabaseAdmin, agentId);
+          } else if (toolName === 'schedule_followup') {
+            execResult = await executeScheduleFollowup(toolCtx, userId, supabaseAdmin, agentId);
+          }
+          logToolExecution(supabaseAdmin, userId, agentId, toolName, t0Exec, 'success');
+          chatReply = llmResponse.text ? `${llmResponse.text}\n\n${execResult}` : execResult;
         } catch (err) {
-          console.error('create_deal failed:', err);
+          console.error(`${toolName} failed:`, err);
           chatReply = llmResponse.text ?? '';
         }
         break;
@@ -950,10 +1153,15 @@ Reply with ONLY a JSON object: { "qualityScore": <0–100>, "gaps": ["..."] }`;
 
         if (artifactId && userId) {
           void scoreFromArtifact(userId, toolName, parsedContent, supabaseAdmin).catch(() => {});
-          // Write extracted facts back to shared startup state (fire-and-forget)
+          // Write extracted facts to world model + refresh goal + trigger delegations
           const stateUpdates = extractStateFromArtifact(agentId, toolName, parsedContent);
           if (Object.keys(stateUpdates).length > 0) {
-            void updateStartupState(userId, stateUpdates, agentId, supabaseAdmin);
+            void (async () => {
+              await updateStartupState(userId, stateUpdates, agentId, supabaseAdmin);
+              const freshState = await getStartupState(userId, supabaseAdmin);
+              if (freshState) void upsertAgentGoal(agentId, userId, freshState, supabaseAdmin);
+              void triggerProactiveDelegations(agentId, userId, startupState, stateUpdates, supabaseAdmin);
+            })();
           }
         }
 

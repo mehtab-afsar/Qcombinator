@@ -57,7 +57,7 @@ export default function AgentsHub() {
             Your executive team.
           </h1>
           <p style={{ fontSize: 15, color: muted, lineHeight: 1.65, maxWidth: 520 }}>
-            Nine AI executives — CMO, CFO, CRO, CPO and more. Each has deep domain expertise, builds real deliverables, and improves your Q-Score.
+            Eleven AI executives — CMO, CFO, CRO, CPO, CCO, CGO and more. Each has deep domain expertise, builds real deliverables, and improves your Q-Score.
           </p>
         </div>
 
@@ -217,7 +217,7 @@ export default function AgentsHub() {
 
         {/* footnote */}
         <p style={{ marginTop: 48, fontSize: 12, color: muted, opacity: 0.6, textAlign: "center" }}>
-          Your CXO team · 9 AI executives · Powered by Claude 3.5 Haiku via OpenRouter
+          Your CXO team · 11 AI executives · Powered by Claude via Anthropic
         </p>
       </div>
     </div>

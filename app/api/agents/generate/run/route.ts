@@ -24,6 +24,9 @@ import { FF_ARTIFACT_SELF_CRITIQUE } from '@/lib/feature-flags'
 import { ARTIFACT_TYPES, ALL_ARTIFACT_TYPES, type ArtifactType } from '@/lib/constants/artifact-types'
 import { DIMENSIONS } from '@/lib/constants/dimensions'
 import { isCircuitOpen, withCircuitBreaker } from '@/lib/circuit-breaker'
+import { getStartupState, updateStartupState, extractStateFromArtifact } from '@/lib/agents/startup-state'
+import { upsertAgentGoal } from '@/lib/agents/agent-goals'
+import { triggerProactiveDelegations } from '@/lib/agents/delegation'
 
 const ARTIFACT_DIMENSION: Record<ArtifactType, string> = {
   // Existing
@@ -225,6 +228,18 @@ ${conversationText.slice(0, 4000)}`
         .select('id')
         .single()
       artifactId = saved?.id ?? null
+
+      // Write extracted facts to shared startup state + trigger proactive delegations
+      const stateUpdates = extractStateFromArtifact(agentId, artifactType, parsedContent)
+      if (Object.keys(stateUpdates).length > 0) {
+        const prevState = await getStartupState(userId, supabase)
+        await updateStartupState(userId, stateUpdates, agentId, supabase)
+        // Refresh goal status for this agent
+        const freshState = await getStartupState(userId, supabase)
+        if (freshState) void upsertAgentGoal(agentId, userId, freshState, supabase)
+        // Fire proactive delegations (Felix→Harper on runway drop, Nova→Maya on PMF update, etc.)
+        void triggerProactiveDelegations(agentId, userId, prevState, stateUpdates, supabase)
+      }
 
       // RAG embedding
       if (artifactId && !isCircuitOpen('openai_embeddings')) {

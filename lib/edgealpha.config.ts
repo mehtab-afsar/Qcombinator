@@ -69,7 +69,7 @@ const AGENTS: AgentConfig[] = [
       ARTIFACT_TYPES.OUTREACH_SEQUENCE,
       ARTIFACT_TYPES.GTM_PLAYBOOK,
     ],
-    dataTools: ['lead_enrich'],
+    dataTools: ['lead_enrich', 'apollo_search', 'send_outreach_sequence', 'bulk_enrich_pipeline', 'schedule_followup'],
     actions: ['deploy_landing_page', 'gmail_compose', 'google_alert'],
     qscoreBoosts: {
       [DIMENSIONS.GTM]:      11, // icp_document(5) + gtm_playbook(6)
@@ -84,7 +84,7 @@ const AGENTS: AgentConfig[] = [
     name: 'Susi',
     pillar: 'sales-marketing',
     tools: [ARTIFACT_TYPES.SALES_SCRIPT],
-    dataTools: ['lead_enrich', 'create_deal'],
+    dataTools: ['lead_enrich', 'create_deal', 'initiate_voice_call', 'schedule_followup'],
     actions: ['gmail_compose', 'create_deal'],
     qscoreBoosts: {
       [DIMENSIONS.TRACTION]: 4, // sales_script(4)

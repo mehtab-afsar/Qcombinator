@@ -250,6 +250,138 @@ const firefliesSync: ToolDefinition = {
   },
 };
 
+// ─── Execution tools (trigger real-world actions, not just data fetch) ────────
+
+const sendOutreachSequence: ToolDefinition = {
+  name: 'send_outreach_sequence',
+  description:
+    'Send a generated outreach email sequence to a list of contacts via Resend. Use AFTER apollo_search has returned leads AND an outreach_sequence artifact exists. Sends step 0 immediately and schedules follow-up steps.',
+  parameters: {
+    type: 'object',
+    properties: {
+      contacts: {
+        type: 'array',
+        description: 'List of contacts from apollo_search or lead_enrich results',
+        items: {
+          type: 'object',
+          properties: {
+            name:    { type: 'string' },
+            email:   { type: 'string' },
+            company: { type: 'string' },
+            title:   { type: 'string' },
+          },
+          required: ['name', 'email'],
+        },
+      },
+      sequence_steps: {
+        type: 'array',
+        description: 'Email steps from the outreach_sequence artifact — each step has subject + body',
+        items: {
+          type: 'object',
+          properties: {
+            subject: { type: 'string' },
+            body:    { type: 'string' },
+          },
+          required: ['subject', 'body'],
+        },
+      },
+      sequence_name: {
+        type: 'string',
+        description: 'Name of the outreach campaign (e.g. "Q2 B2B SaaS CTO Outreach")',
+      },
+      from_name: {
+        type: 'string',
+        description: 'Sender name (founder name)',
+      },
+      schedule_followups: {
+        type: 'boolean',
+        description: 'If true, automatically schedule follow-up steps (Day 3, Day 7, Day 14). Default true.',
+      },
+    },
+    required: ['contacts', 'sequence_steps'],
+  },
+};
+
+const bulkEnrichPipeline: ToolDefinition = {
+  name: 'bulk_enrich_pipeline',
+  description:
+    'Run an Apollo search and immediately add all results to the CRM pipeline as deals. Combines lead search + deal creation in one action. Use when the founder wants to populate their pipeline from an ICP search.',
+  parameters: {
+    type: 'object',
+    properties: {
+      job_titles: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Target job titles to search',
+      },
+      industries: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Target industries',
+      },
+      employee_count_min: { type: 'number' },
+      employee_count_max: { type: 'number' },
+      locations: {
+        type: 'array',
+        items: { type: 'string' },
+      },
+      keywords: {
+        type: 'array',
+        items: { type: 'string' },
+      },
+      per_page: {
+        type: 'number',
+        description: 'Number of results (max 100, default 25)',
+      },
+    },
+    required: ['job_titles'],
+  },
+};
+
+const initiateVoiceCall: ToolDefinition = {
+  name: 'initiate_voice_call',
+  description:
+    'Dial a lead via Vapi AI SDR (Susi\'s voice agent). Use when the founder wants to make an AI-powered sales call to a specific contact. Requires a phone number.',
+  parameters: {
+    type: 'object',
+    properties: {
+      phone_number: {
+        type: 'string',
+        description: 'E.164 formatted phone number of the lead (e.g. +14155552671)',
+      },
+      lead_name: { type: 'string', description: 'First name of the person being called' },
+      company:   { type: 'string', description: 'Lead\'s company name' },
+      context:   { type: 'string', description: 'Brief context for the call — product, pain points, goals' },
+    },
+    required: ['phone_number'],
+  },
+};
+
+const scheduleFollowup: ToolDefinition = {
+  name: 'schedule_followup',
+  description:
+    'Schedule a follow-up action to run automatically N days from now. Use to queue up Day 3 / Day 7 / Day 14 email steps, or a follow-up voice call, without requiring the founder to remember.',
+  parameters: {
+    type: 'object',
+    properties: {
+      action_type: {
+        type: 'string',
+        enum: ['send_email_step', 'vapi_call', 'followup_check'],
+        description: 'What to do when the scheduled time arrives',
+      },
+      days_from_now: {
+        type: 'number',
+        description: 'Days until the action fires (e.g. 3 for a Day 3 follow-up)',
+      },
+      payload: {
+        type: 'object',
+        description: 'All data needed to execute the action: contacts, sequence steps, step_index, etc.',
+      },
+    },
+    required: ['action_type', 'days_from_now', 'payload'],
+  },
+};
+
 // ─── Artifact tools (loose context schema) ───────────────────────────────────
 
 function artifactTool(name: string, description: string): ToolDefinition {
@@ -397,6 +529,12 @@ const experimentResults  = artifactTool(ARTIFACT_TYPES.EXPERIMENT_RESULTS,'Gener
 // These ToolDefinition objects provide the JSON schema used by the LLM.
 
 export const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
+  // Execution tools
+  send_outreach_sequence:   sendOutreachSequence,
+  initiate_voice_call:      initiateVoiceCall,
+  bulk_enrich_pipeline:     bulkEnrichPipeline,
+  schedule_followup:        scheduleFollowup,
+
   // Data tools
   lead_enrich:              leadEnrich,
   web_research:             webResearch,

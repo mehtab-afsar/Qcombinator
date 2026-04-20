@@ -52,6 +52,12 @@ export interface StartupState {
   cac:                   number | null;
   monthly_growth_rate:   number | null;   // % month-over-month users/revenue
 
+  // Outreach feedback (Patel / Susi — updated by Resend webhook)
+  outreach_sent_count:   number | null;   // emails dispatched last 30 days
+  outreach_open_rate:    number | null;   // % opened
+  outreach_reply_rate:   number | null;   // % replied
+  meetings_booked:       number | null;   // from Calendly
+
   // Meta
   updated_at:            string | null;
   last_updated_by:       string | null;   // agent id that last wrote
@@ -67,7 +73,7 @@ export const AGENT_STATE_FIELDS: Record<string, (keyof StartupState)[]> = {
   harper: ['team_size', 'open_roles_count'],
   sage:   ['investor_readiness_score'],
   riley:  ['cac', 'monthly_growth_rate'],
-  patel:  ['open_deals_count'],
+  patel:  ['open_deals_count', 'outreach_sent_count', 'outreach_open_rate', 'outreach_reply_rate', 'meetings_booked'],
 };
 
 // ── Read ──────────────────────────────────────────────────────────────────────
@@ -169,6 +175,14 @@ export function formatStartupStateForPrompt(state: StartupState | null): string 
   if (state.cac != null)               growth.push(`CAC $${state.cac}`);
   if (state.monthly_growth_rate != null) growth.push(`${state.monthly_growth_rate}% MoM`);
   if (growth.length) lines.push(`🚀 Growth: ${growth.join(' · ')}`);
+
+  // Outreach feedback
+  const outreach: string[] = [];
+  if (state.outreach_sent_count != null) outreach.push(`${state.outreach_sent_count} sent`);
+  if (state.outreach_open_rate != null)  outreach.push(`${state.outreach_open_rate}% opened`);
+  if (state.outreach_reply_rate != null) outreach.push(`${state.outreach_reply_rate}% replied`);
+  if (state.meetings_booked != null)     outreach.push(`${state.meetings_booked} meetings booked`);
+  if (outreach.length) lines.push(`📧 Outreach: ${outreach.join(' · ')}`);
 
   // Competitive / Fundraising
   if (state.competitor_count != null)       lines.push(`🏆 Competitors tracked: ${state.competitor_count}`);

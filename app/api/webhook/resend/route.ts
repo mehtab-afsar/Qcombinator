@@ -134,20 +134,49 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ received: true, matched: false })
     }
 
+    // Build timestamp/flag updates based on event type
+    const timestampFields: Record<string, unknown> = { updated_at: new Date().toISOString() }
+    if (type === 'email.opened')                                       timestampFields.opened_at    = data.opened_at ?? new Date().toISOString()
+    if (type === 'email.link_clicked' || type === 'email.clicked')    timestampFields.clicked_at   = data.clicked_at ?? new Date().toISOString()
+    if (type === 'email.bounced')                                      timestampFields.bounced      = true
+    if (type === 'email.delivered')                                    timestampFields.delivered_at = data.created_at ?? new Date().toISOString()
+
     // Update each matched row if the new status is an upgrade
     const updates = rows
       .filter(row => shouldUpgradeStatus(row.status ?? 'sent', newStatus))
       .map(row =>
         admin
           .from('outreach_sends')
-          .update({ status: newStatus, updated_at: new Date().toISOString() })
+          .update({ status: newStatus, ...timestampFields })
           .eq('id', row.id)
       )
 
     await Promise.all(updates)
 
-    // Log the event to agent_activity for the founder's activity feed
+    // Recalculate outreach stats for affected users and update startup_state
     const uniqueUserIds = [...new Set(rows.map(r => r.user_id).filter(Boolean))]
+    await Promise.allSettled(uniqueUserIds.map(async (uid) => {
+      const since = new Date(); since.setDate(since.getDate() - 30)
+      const { data: stats } = await admin
+        .from('outreach_sends')
+        .select('status, bounced')
+        .eq('user_id', uid)
+        .gte('created_at', since.toISOString())
+      if (!stats || stats.length === 0) return
+      const total    = stats.length
+      const opened   = stats.filter(s => ['opened','clicked','replied'].includes(s.status)).length
+      const replied  = stats.filter(s => s.status === 'replied').length
+      await admin.from('startup_state').upsert({
+        user_id: uid,
+        outreach_sent_count: total,
+        outreach_open_rate:  Math.round((opened  / total) * 100),
+        outreach_reply_rate: Math.round((replied / total) * 100),
+        last_updated_by: 'patel',
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id' })
+    }))
+
+    // Log the event to agent_activity for the founder's activity feed
     const eventLabel: Record<string, string> = {
       'email.opened':       'opened your outreach email',
       'email.link_clicked': 'clicked a link in your outreach email',
