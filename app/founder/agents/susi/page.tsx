@@ -94,16 +94,6 @@ function fmt$(n: number) {
   return `$${n}`;
 }
 
-function StatCard({ label, value, sub, accent: ac }: { label: string; value: string | number; sub?: string; accent?: string }) {
-  return (
-    <div style={{ flex: 1, padding: "10px 12px", borderRadius: 8, background: bg, border: `1px solid ${bdr}` }}>
-      <p style={{ fontSize: 18, fontWeight: 700, color: ink, lineHeight: 1 }}>{value}</p>
-      <p style={{ fontSize: 10, color: muted, marginTop: 3, fontWeight: 500 }}>{label}</p>
-      {sub && <p style={{ fontSize: 9, color: ac ?? accent, marginTop: 2, fontWeight: 600 }}>{sub}</p>}
-    </div>
-  );
-}
-
 // ─── stage badge ─────────────────────────────────────────────────────────────
 
 function StageBadge({ stage }: { stage: StageId }) {
@@ -190,7 +180,7 @@ export default function SusiWorkspace() {
   const [actions, setActions]       = useState<ActionItem[]>([]);
   const [extracting, setExtracting] = useState(false);
   const [deals, setDeals]           = useState<Deal[]>([]);
-  const [dealsLoading, setDealsLoading] = useState(true);
+  const [_dealsLoading, setDealsLoading] = useState(true);
   const [reminders, setReminders]   = useState<Reminder[]>([]);
   const [scoreBoost, setScoreBoost] = useState<{ points: number; dimension: string } | null>(null);
   const [stats, setStats]           = useState<DashStats>({ totalDeals: 0, pipelineValue: 0, wonDeals: 0, reminders: 0 });

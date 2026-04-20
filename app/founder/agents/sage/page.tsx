@@ -103,17 +103,6 @@ function lowestDimension(scores: ReadinessScores): { label: string; score: numbe
   return { label: dim.label, score: scores[dim.key] ?? 0 };
 }
 
-// ─── stat card ────────────────────────────────────────────────────────────────
-
-function StatCard({ label, value, color }: { label: string; value: string | number; color?: string }) {
-  return (
-    <div style={{ flex: 1, padding: "10px 12px", borderRadius: 8, background: bg, border: `1px solid ${bdr}` }}>
-      <p style={{ fontSize: 18, fontWeight: 700, color: color ?? ink, lineHeight: 1 }}>{value}</p>
-      <p style={{ fontSize: 10, color: muted, marginTop: 3, fontWeight: 500 }}>{label}</p>
-    </div>
-  );
-}
-
 // ─── main page ────────────────────────────────────────────────────────────────
 
 export default function SageWorkspace() {

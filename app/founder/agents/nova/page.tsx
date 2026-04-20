@@ -4,13 +4,12 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ArrowLeft, Send, Zap, CheckCircle2,
+  Send, CheckCircle2,
   MessageSquare, Package, ListChecks, FileText,
-  BarChart3, Target, RefreshCw, ChevronRight,
-  X, TrendingUp, Users, Activity, ExternalLink,
+  BarChart3, Target, RefreshCw,
+  TrendingUp, Users, Activity, ExternalLink,
   AlertTriangle, Lightbulb,
 } from "lucide-react";
-import Link from "next/link";
 import { WorkspaceSidebar } from "@/features/agents/shared/components/WorkspaceSidebar";
 import { bg, surf, bdr, ink, muted } from "@/features/agents/shared/constants/colors";
 import { ARTIFACT_META } from "@/features/agents/shared/constants/artifact-meta";
@@ -20,7 +19,6 @@ import type { ArtifactData } from "@/features/agents/types/agent.types";
 // ─── constants ────────────────────────────────────────────────────────────────
 
 const accent = "#7C3AED"; // purple — product-strategy pillar
-const SIDEBAR_W = 264;
 
 const NOVA_DELIVERABLES = [
   { type: "pmf_survey",          icon: FileText,  label: "PMF Survey",          description: "Sean Ellis-style survey to measure fit" },
@@ -89,17 +87,6 @@ function pmfStrength(m: SignalMetrics): { label: string; color: string } {
   if (avg >= 0.8) return { label: "Strong PMF", color: "#16A34A" };
   if (avg >= 0.5) return { label: "Weak PMF",   color: "#D97706" };
   return { label: "Pre-PMF", color: "#DC2626" };
-}
-
-// ─── stat card ────────────────────────────────────────────────────────────────
-
-function StatCard({ label, value, color }: { label: string; value: string | number; color?: string }) {
-  return (
-    <div style={{ flex: 1, padding: "10px 12px", borderRadius: 8, background: bg, border: `1px solid ${bdr}` }}>
-      <p style={{ fontSize: 18, fontWeight: 700, color: color ?? ink, lineHeight: 1 }}>{value}</p>
-      <p style={{ fontSize: 10, color: muted, marginTop: 3, fontWeight: 500 }}>{label}</p>
-    </div>
-  );
 }
 
 // ─── signal row ───────────────────────────────────────────────────────────────

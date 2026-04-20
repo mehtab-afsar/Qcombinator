@@ -4,12 +4,11 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ArrowLeft, Send, TrendingUp, Zap, CheckCircle2, Paperclip,
+  Send, TrendingUp, CheckCircle2,
   MessageSquare, Package, ListChecks, FileText, BarChart3,
-  DollarSign, PieChart, ChevronRight, X, RefreshCw,
-  AlertCircle, TrendingDown, Layers, CreditCard, ExternalLink,
+  PieChart, RefreshCw,
+  AlertCircle, Layers, CreditCard, ExternalLink,
 } from "lucide-react";
-import Link from "next/link";
 import { WorkspaceSidebar } from "@/features/agents/shared/components/WorkspaceSidebar";
 import { bg, surf, bdr, ink, muted, amber } from "@/features/agents/shared/constants/colors";
 import { ARTIFACT_META } from "@/features/agents/shared/constants/artifact-meta";
@@ -19,7 +18,6 @@ import type { ArtifactData } from "@/features/agents/types/agent.types";
 // ─── constants ────────────────────────────────────────────────────────────────
 
 const accent = amber;
-const SIDEBAR_W = 264;
 
 const FELIX_DELIVERABLES = [
   { type: "financial_summary",       icon: BarChart3,    label: "Financial Summary",       description: "MRR, ARR, burn, runway snapshot" },
@@ -106,18 +104,6 @@ function runwayColor(months: number | null) {
   if (months <= 3) return "#DC2626";
   if (months <= 6) return "#D97706";
   return "#16A34A";
-}
-
-// ─── stat card ────────────────────────────────────────────────────────────────
-
-function StatCard({ label, value, sub, color }: { label: string; value: string | number; sub?: string; color?: string }) {
-  return (
-    <div style={{ flex: 1, padding: "10px 12px", borderRadius: 8, background: bg, border: `1px solid ${bdr}` }}>
-      <p style={{ fontSize: 18, fontWeight: 700, color: color ?? ink, lineHeight: 1 }}>{value}</p>
-      <p style={{ fontSize: 10, color: muted, marginTop: 3, fontWeight: 500 }}>{label}</p>
-      {sub && <p style={{ fontSize: 9, color: accent, marginTop: 2, fontWeight: 600 }}>{sub}</p>}
-    </div>
-  );
 }
 
 // ─── metric row ───────────────────────────────────────────────────────────────
@@ -294,7 +280,7 @@ export default function FelixWorkspace() {
     const toolMsg: UiMessage = { role: "tool", text: "", toolActivity: { toolName: "", label: "Working…", status: "running" } };
     let toolIdx = -1;
     let agentText = "";
-    let lastChunk = "";
+    let _lastChunk = "";
 
     try {
       const res = await fetch("/api/agents/chat", {
@@ -330,7 +316,7 @@ export default function FelixWorkspace() {
             toolIdx = -1;
           } else if (evt.type === "text_delta") {
             agentText += evt.text as string;
-            lastChunk = evt.text as string;
+            _lastChunk = evt.text as string;
             setUiMessages(p => {
               const idx = p.findLastIndex(m => m.role === "agent");
               if (idx === -1) return [...p, { role: "agent", text: agentText }];

@@ -1,10 +1,10 @@
 /**
- * Groq LLM helper (drop-in replacement for OpenRouter).
- * Groq is OpenAI-compatible — same request/response format.
- * - AbortController timeout: 30s non-streaming, 60s streaming
- * - 429 rate-limit retry: reads Retry-After header, waits up to 15s, retries up to 3 times
- * - Typed OpenRouterError kept for backward compatibility with callers
+ * Anthropic Claude LLM helper.
+ * Replaces the old Groq/OpenRouter implementation.
+ * Keeps exported function signatures identical for backward compatibility.
  */
+
+import Anthropic from '@anthropic-ai/sdk';
 
 export interface OpenRouterMessage {
   role: 'system' | 'user' | 'assistant';
@@ -22,21 +22,32 @@ export class OpenRouterError extends Error {
   }
 }
 
-const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const MODEL    = 'llama-3.3-70b-versatile';
-const TIMEOUT_MS        = 30_000;
-const STREAM_TIMEOUT_MS = 60_000;
+const MODEL = 'claude-haiku-4-5-20251001';
 
-function makeAbortController(timeoutMs: number): { controller: AbortController; clear: () => void } {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  return { controller, clear: () => clearTimeout(timer) };
+let _client: Anthropic | null = null;
+function getClient(): Anthropic {
+  if (!_client) {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) throw new OpenRouterError('ANTHROPIC_API_KEY is not configured', 0);
+    _client = new Anthropic({ apiKey });
+  }
+  return _client;
 }
 
-async function waitForRateLimit(res: Response): Promise<void> {
-  const retryAfter = res.headers.get('Retry-After');
-  const waitMs = retryAfter ? Math.min(parseFloat(retryAfter) * 1000, 15_000) : 5_000;
-  await new Promise(resolve => setTimeout(resolve, waitMs));
+function splitMessages(messages: OpenRouterMessage[]): {
+  system: string;
+  chat: Array<{ role: 'user' | 'assistant'; content: string }>;
+} {
+  let system = '';
+  const chat: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+  for (const msg of messages) {
+    if (msg.role === 'system') {
+      system += (system ? '\n\n' : '') + msg.content;
+    } else {
+      chat.push({ role: msg.role === 'user' ? 'user' : 'assistant', content: msg.content });
+    }
+  }
+  return { system, chat };
 }
 
 export async function callOpenRouter(
@@ -44,128 +55,66 @@ export async function callOpenRouter(
   options: { maxTokens?: number; temperature?: number } = {}
 ): Promise<string> {
   const { maxTokens = 500, temperature = 0.7 } = options;
-
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) throw new OpenRouterError('No Groq API key configured (GROQ_API_KEY)', 0);
-
-  const makeRequest = (signal: AbortSignal) =>
-    fetch(GROQ_URL, {
-      method: 'POST',
-      signal,
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ model: MODEL, messages, temperature, max_tokens: maxTokens }),
-    });
-
-  const { controller, clear } = makeAbortController(TIMEOUT_MS);
+  const { system, chat } = splitMessages(messages);
 
   try {
-    let res: Response;
-    try {
-      res = await makeRequest(controller.signal);
-    } catch (err: unknown) {
-      if (err instanceof Error && err.name === 'AbortError') {
-        throw new OpenRouterError('Groq request timed out after 30s', 0, true);
-      }
-      throw err;
-    }
-
-    // 429 — rate limited: retry up to 3 times with backoff
-    let retryCount = 0;
-    while (res.status === 429 && retryCount < 3) {
-      retryCount++;
-      console.warn(`[groq] rate limited (429) — retry ${retryCount}/3`);
-      await waitForRateLimit(res);
-      const { controller: cR, clear: clearR } = makeAbortController(TIMEOUT_MS);
-      try {
-        res = await makeRequest(cR.signal);
-      } catch (err: unknown) {
-        if (err instanceof Error && err.name === 'AbortError') {
-          throw new OpenRouterError('Groq retry timed out after 30s', 429, true);
-        }
-        throw err;
-      } finally {
-        clearR();
-      }
-    }
-    if (res.status === 429) {
-      throw new OpenRouterError('Groq rate limit exceeded — please try again later', 429);
-    }
-
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error('[groq] error:', res.status, errText);
-      throw new OpenRouterError(`Groq error: ${res.status} ${res.statusText}`, res.status);
-    }
-
-    const data = await res.json();
-    return (data.choices?.[0]?.message?.content ?? '') as string;
-  } finally {
-    clear();
+    const response = await getClient().messages.create({
+      model: MODEL,
+      max_tokens: maxTokens,
+      temperature,
+      ...(system ? { system } : {}),
+      messages: chat,
+    });
+    return response.content
+      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+      .map(b => b.text)
+      .join('');
+  } catch (err) {
+    if (err instanceof Anthropic.RateLimitError)
+      throw new OpenRouterError('Anthropic rate limit exceeded — please try again later', 429);
+    if (err instanceof Anthropic.AuthenticationError)
+      throw new OpenRouterError('Anthropic authentication failed — check ANTHROPIC_API_KEY', 401);
+    if (err instanceof Anthropic.APIError)
+      throw new OpenRouterError(`Anthropic error: ${err.status} ${err.message}`, err.status ?? 500);
+    throw err;
   }
 }
 
+// streamOpenRouter: returns a Response with SSE body, same contract as before.
 export async function streamOpenRouter(
   messages: OpenRouterMessage[],
   options: { maxTokens?: number; temperature?: number } = {}
 ): Promise<Response> {
   const { maxTokens = 1000, temperature = 0.7 } = options;
+  const { system, chat } = splitMessages(messages);
+  const client = getClient();
+  const encoder = new TextEncoder();
 
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) throw new OpenRouterError('No Groq API key configured (GROQ_API_KEY)', 0);
-
-  const { controller, clear } = makeAbortController(STREAM_TIMEOUT_MS);
-
-  const makeRequest = () =>
-    fetch(GROQ_URL, {
-      method: 'POST',
-      signal: controller.signal,
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ model: MODEL, messages, temperature, max_tokens: maxTokens, stream: true }),
-    });
-
-  try {
-    let res: Response;
-    try {
-      res = await makeRequest();
-    } catch (err: unknown) {
-      if (err instanceof Error && err.name === 'AbortError') {
-        throw new OpenRouterError('Groq stream timed out after 60s', 0, true);
-      }
-      throw err;
-    }
-
-    // 429 — rate limited: wait then retry
-    if (res.status === 429) {
-      console.warn('[groq] stream rate limited (429) — waiting before retry');
-      await waitForRateLimit(res);
+  const readable = new ReadableStream({
+    async start(controller) {
       try {
-        res = await makeRequest();
-      } catch (err: unknown) {
-        if (err instanceof Error && err.name === 'AbortError') {
-          throw new OpenRouterError('Groq stream retry timed out', 429, true);
+        const stream = client.messages.stream({
+          model: MODEL,
+          max_tokens: maxTokens,
+          temperature,
+          ...(system ? { system } : {}),
+          messages: chat,
+        });
+        for await (const event of stream) {
+          if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+            const data = JSON.stringify({ choices: [{ delta: { content: event.delta.text } }] });
+            controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+          }
         }
-        throw err;
+        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+        controller.close();
+      } catch (err) {
+        controller.error(err);
       }
-      if (res.status === 429) {
-        throw new OpenRouterError('Groq rate limit exceeded — please try again later', 429);
-      }
-    }
+    },
+  });
 
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error('[groq] stream error:', res.status, errText);
-      throw new OpenRouterError(`Groq stream error: ${res.status} ${res.statusText}`, res.status);
-    }
-
-    return res;
-  } catch (err) {
-    clear();
-    throw err;
-  }
+  return new Response(readable, {
+    headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' },
+  });
 }

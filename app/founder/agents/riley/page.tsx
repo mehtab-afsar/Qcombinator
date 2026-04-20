@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Send, Zap, CheckCircle2,
+  Send, CheckCircle2,
   MessageSquare, Package, ListChecks, FileText,
   RefreshCw, ChevronRight, ExternalLink,
   TrendingUp, Target, Users, Search, BarChart3,
@@ -80,17 +80,6 @@ interface RawArtifact {
   content: Record<string, unknown>; created_at: string;
 }
 
-// ─── stat card ────────────────────────────────────────────────────────────────
-
-function StatCard({ label, value, color }: { label: string; value: string | number; color?: string }) {
-  return (
-    <div style={{ flex: 1, padding: "10px 12px", borderRadius: 8, background: bg, border: `1px solid ${bdr}` }}>
-      <p style={{ fontSize: 18, fontWeight: 700, color: color ?? ink, lineHeight: 1 }}>{value}</p>
-      <p style={{ fontSize: 10, color: muted, marginTop: 3, fontWeight: 500 }}>{label}</p>
-    </div>
-  );
-}
-
 // ─── experiment card ──────────────────────────────────────────────────────────
 
 function ExperimentCard({
@@ -101,7 +90,7 @@ function ExperimentCard({
   onDelete:      (id: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const statusMeta = EXP_STATUSES.find(s => s.id === experiment.status)!;
+  const _statusMeta = EXP_STATUSES.find(s => s.id === experiment.status)!;
   const nextStatuses = EXP_STATUSES.filter(s => s.id !== experiment.status);
 
   return (

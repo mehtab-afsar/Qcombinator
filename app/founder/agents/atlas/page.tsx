@@ -4,13 +4,12 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ArrowLeft, Send, Zap, CheckCircle2,
+  Send, CheckCircle2,
   MessageSquare, Package, ListChecks, FileText,
-  BarChart3, RefreshCw, ChevronRight, X,
+  BarChart3, RefreshCw, ChevronRight,
   ExternalLink, Shield, Eye, Plus, Trash2,
   TrendingUp, Globe, AlertCircle,
 } from "lucide-react";
-import Link from "next/link";
 import { WorkspaceSidebar } from "@/features/agents/shared/components/WorkspaceSidebar";
 import { bg, surf, bdr, ink, muted } from "@/features/agents/shared/constants/colors";
 import { ARTIFACT_META } from "@/features/agents/shared/constants/artifact-meta";
@@ -20,7 +19,6 @@ import type { ArtifactData } from "@/features/agents/types/agent.types";
 // ─── constants ────────────────────────────────────────────────────────────────
 
 const accent = "#0EA5E9"; // sky blue — intelligence/recon feel
-const SIDEBAR_W = 264;
 
 const ATLAS_DELIVERABLES = [
   { type: "competitive_matrix",  icon: BarChart3,  label: "Competitive Matrix",  description: "Feature comparison, positioning map, white space" },
@@ -76,17 +74,6 @@ interface DashStats {
 interface RawArtifact {
   id: string; artifact_type: string; title: string;
   content: Record<string, unknown>; created_at: string;
-}
-
-// ─── stat card ────────────────────────────────────────────────────────────────
-
-function StatCard({ label, value, color }: { label: string; value: string | number; color?: string }) {
-  return (
-    <div style={{ flex: 1, padding: "10px 12px", borderRadius: 8, background: bg, border: `1px solid ${bdr}` }}>
-      <p style={{ fontSize: 18, fontWeight: 700, color: color ?? ink, lineHeight: 1 }}>{value}</p>
-      <p style={{ fontSize: 10, color: muted, marginTop: 3, fontWeight: 500 }}>{label}</p>
-    </div>
-  );
 }
 
 // ─── competitor card ──────────────────────────────────────────────────────────

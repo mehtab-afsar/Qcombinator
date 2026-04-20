@@ -45,25 +45,10 @@ interface ApiMessage { role: "user" | "assistant"; content: string; }
 interface ActionItem { id: string; action_text: string; priority: string; status: string; action_type?: string; cta_label?: string; }
 interface DashStats  { sent: number; openRate: number; replyRate: number; openDeals: number; deliverables: number; }
 
-// ─── stat card ────────────────────────────────────────────────────────────────
-
-function StatCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
-  return (
-    <div style={{
-      flex: 1, padding: "10px 12px", borderRadius: 8,
-      background: bg, border: `1px solid ${bdr}`,
-    }}>
-      <p style={{ fontSize: 18, fontWeight: 700, color: ink, lineHeight: 1 }}>{value}</p>
-      <p style={{ fontSize: 10, color: muted, marginTop: 3, fontWeight: 500 }}>{label}</p>
-      {sub && <p style={{ fontSize: 9, color: accent, marginTop: 2, fontWeight: 600 }}>{sub}</p>}
-    </div>
-  );
-}
-
 // ─── main page ────────────────────────────────────────────────────────────────
 
 export default function PatelWorkspace() {
-  const router = useRouter();
+  const _router = useRouter();
   const searchParams = useSearchParams();
   const targetArtifactId = searchParams.get("artifact");
 
@@ -78,13 +63,13 @@ export default function PatelWorkspace() {
   const [conversationId, setConvId]     = useState<string | null>(null);
   const [historyLoading, setHistLoading]= useState(true);
   const [artifactHistory, setArtifacts] = useState<ArtifactData[]>([]);
-  const [activeArtifact, setActive]     = useState<ArtifactData | null>(null);
+  const [_activeArtifact, setActive]    = useState<ArtifactData | null>(null);
   const [viewingArtifact, setViewing]   = useState<ArtifactData | null>(null);
   const [actionItems, setActions]       = useState<ActionItem[]>([]);
   const [extracting, setExtracting]     = useState(false);
   const [scoreBoost, setScoreBoost]     = useState<{ points: number; dimension: string } | null>(null);
   const [stats, setStats]               = useState<DashStats>({ sent: 0, openRate: 0, replyRate: 0, openDeals: 0, deliverables: 0 });
-  const [statsLoading, setStatsLoading] = useState(true);
+  const [_statsLoading, setStatsLoading] = useState(true);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // ── scroll ─────────────────────────────────────────────────────────────────

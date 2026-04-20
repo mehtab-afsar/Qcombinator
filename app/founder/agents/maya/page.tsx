@@ -7,10 +7,9 @@ import {
   Send, Zap, CheckCircle2,
   MessageSquare, Package, ListChecks, FileText,
   RefreshCw, ExternalLink,
-  Rss, Search, Newspaper, Radio, BookOpen,
+  Rss, Search, Newspaper,
   Palette, TrendingUp, Calendar,
 } from "lucide-react";
-import Link from "next/link";
 import { WorkspaceSidebar } from "@/features/agents/shared/components/WorkspaceSidebar";
 import { bg, surf, bdr, ink, muted } from "@/features/agents/shared/constants/colors";
 import { ARTIFACT_META } from "@/features/agents/shared/constants/artifact-meta";
@@ -20,7 +19,6 @@ import type { ArtifactData } from "@/features/agents/types/agent.types";
 // ─── constants ────────────────────────────────────────────────────────────────
 
 const accent  = "#EC4899"; // pink — brand/creative
-const SIDEBAR_W = 264;
 
 const MAYA_DELIVERABLES = [
   { type: "brand_messaging",    icon: Palette,    label: "Brand Messaging",    description: "Positioning, value prop, taglines, hero copy" },
@@ -89,24 +87,13 @@ const STATUS_META: Record<ContentItem["status"], { label: string; color: string 
   published: { label: "Published", color: "#16A34A" },
 };
 
-// ─── stat card ────────────────────────────────────────────────────────────────
-
-function StatCard({ label, value, color }: { label: string; value: string | number; color?: string }) {
-  return (
-    <div style={{ flex: 1, padding: "10px 12px", borderRadius: 8, background: bg, border: `1px solid ${bdr}` }}>
-      <p style={{ fontSize: 18, fontWeight: 700, color: color ?? ink, lineHeight: 1 }}>{value}</p>
-      <p style={{ fontSize: 10, color: muted, marginTop: 3, fontWeight: 500 }}>{label}</p>
-    </div>
-  );
-}
-
 // ─── content card ─────────────────────────────────────────────────────────────
 
 function ContentCard({
   item, onStatusChange, onDelete,
 }: { item: ContentItem; onStatusChange: (id: string, s: ContentItem["status"]) => void; onDelete: (id: string) => void }) {
   const ch = CHANNELS.find(c => c.id === item.channel)!;
-  const st = STATUS_META[item.status];
+  const _st = STATUS_META[item.status];
   const statuses: ContentItem["status"][] = ["idea", "draft", "scheduled", "published"];
 
   return (
@@ -321,7 +308,7 @@ export default function MayaWorkspace() {
   }
 
   function toggleChannel(ch: ChannelId) {
-    setActiveChannels(p => { const s = new Set(p); s.has(ch) ? s.delete(ch) : s.add(ch); return s; });
+    setActiveChannels(p => { const s = new Set(p); if (s.has(ch)) { s.delete(ch); } else { s.add(ch); } return s; });
   }
 
   // ─── sidebar ──────────────────────────────────────────────────────────────
