@@ -1,7 +1,8 @@
 'use client'
 
 import { CSSProperties, useRef, useState, DragEvent, ChangeEvent } from 'react'
-import { bg, surf, bdr, ink, muted, blue, red } from '@/features/shared/tokens'
+import Image from 'next/image'
+import { surf, bdr, ink, muted, blue, red } from '@/features/shared/tokens'
 import { Spinner } from './Spinner'
 
 interface FileUploadAreaProps {
@@ -147,7 +148,7 @@ export function ImageUploadTarget({
       {uploading ? (
         <Spinner size="sm" />
       ) : currentUrl ? (
-        <img src={currentUrl} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <Image src={currentUrl} alt={name} fill style={{ objectFit: 'cover' }} />
       ) : (
         <span style={{ fontSize: size * 0.28, fontWeight: 700, color: muted }}>{initials}</span>
       )}

@@ -1,7 +1,8 @@
 /**
- * Anthropic Claude LLM helper.
+ * Compatibility wrapper — all calls go to Anthropic Claude.
  * Replaces the old Groq/OpenRouter implementation.
- * Keeps exported function signatures identical for backward compatibility.
+ * Keeps exported function signatures identical so the 100+ agent routes
+ * that import callOpenRouter/streamOpenRouter need no changes.
  */
 
 import Anthropic from '@anthropic-ai/sdk';

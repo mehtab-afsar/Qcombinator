@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
-import { shouldTriggerUpload, getInitialQuestion, getMissingFields, PITCH_SECTION_QUESTION, buildFoundSnippets, getTargetedQuestion, flattenForDisplay } from '@/lib/profile-builder/question-engine'
+import { shouldTriggerUpload, getInitialQuestion, getMissingFields, buildFoundSnippets, getTargetedQuestion, flattenForDisplay } from '@/lib/profile-builder/question-engine'
 import type { FounderProfile } from '@/lib/profile-builder/question-engine'
 import { generateSmartQuestions } from '@/lib/profile-builder/smart-questions'
 import type { SmartQuestion } from '@/lib/profile-builder/smart-questions'
@@ -47,8 +47,8 @@ const UPLOAD_IMPACT: Record<number, { dim: string; pts: number }> = {
   5: { dim: 'Financial', pts: 18 },
 }
 
-const STEP_ORDER_FULL: Array<number | 'pitch' | 'extract-results' | 'smart-qa'> = [0, 'pitch', 1, 2, 3, 4, 5, 6]
-const STEP_ORDER_FAST: Array<number | 'pitch' | 'extract-results' | 'smart-qa'> = [0, 'extract-results', 'smart-qa', 6]
+const STEP_ORDER_FULL: Array<number | 'pitch' | 'extract-results' | 'smart-qa' | 'pre-score'> = [0, 'pitch', 1, 2, 3, 4, 5, 6]
+const STEP_ORDER_FAST: Array<number | 'pitch' | 'extract-results' | 'smart-qa' | 'pre-score'> = [0, 'extract-results', 'smart-qa', 'pre-score', 6]
 
 // ── types ─────────────────────────────────────────────────────────────────────
 interface Message { role: 'agent' | 'user'; text: string }
@@ -116,10 +116,19 @@ function initSection(): SectionState {
   }
 }
 
+const YC_QUESTIONS = [
+  "What does your company do? Describe it in one sentence — like you're explaining to a smart friend.",
+  "Who specifically has this problem, and how much does it cost them today — in time, money, or frustration?",
+  "Why is now the right moment to build this? What changed in the last 2–3 years that creates this opening?",
+  "Why are you and your team the right people to solve this? What gives you an unfair advantage?",
+  "How do you make money, and what does the business look like at scale?",
+]
+
 // ── main component ────────────────────────────────────────────────────────────
 export default function ProfileBuilderPage() {
   const router = useRouter()
-  const [currentStep, setCurrentStep] = useState<number | 'pitch' | 'extract-results' | 'smart-qa'>(0)
+  const [currentStep, setCurrentStep] = useState<number | 'pitch' | 'extract-results' | 'smart-qa' | 'pre-score'>(0)
+  const [ycPitchIdx, setYcPitchIdx] = useState(0)
 
   const [sections, setSections] = useState<Record<string, SectionState>>({
     pitch: initSection(),
@@ -169,8 +178,8 @@ export default function ProfileBuilderPage() {
   } | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [rateLimitUntil, setRateLimitUntil] = useState<Date | null>(null)
-  const [previewData, setPreviewData] = useState<PreviewData | null>(null)
-  const [previewLoading, setPreviewLoading] = useState(false)
+  const [_previewData, setPreviewData] = useState<PreviewData | null>(null)
+  const [_previewLoading, setPreviewLoading] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(true)
 
   // Smart upload flow
@@ -187,8 +196,9 @@ export default function ProfileBuilderPage() {
   const [isTyping, setIsTyping] = useState(false)
   const [uploadTrigger, setUploadTrigger] = useState<string | null>(null)
   const [uploadLoading, setUploadLoading] = useState(false)
+  const [uploadMsgIdx, setUploadMsgIdx] = useState(0)
   const [uploadError, setUploadError] = useState<string | null>(null)
-  const [uploadedFiles, setUploadedFiles] = useState<Array<{ name: string; fields: number }>>([])
+  const [uploadedFiles, setUploadedFiles] = useState<Array<{ name: string; fields: number; fileUrl?: string }>>([])
   const [docTruncationInfo, setDocTruncationInfo] = useState<{ truncatedAt: number; totalLength: number } | null>(null)
   const [fieldSourceMap, setFieldSourceMap] = useState<Record<string, 'document' | 'conversation' | 'inferred'>>({})
   const [recalcLoading, setRecalcLoading] = useState(false)
@@ -219,6 +229,32 @@ export default function ProfileBuilderPage() {
 
   const chatEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // ── upload loading messages — rotate every 2.2s while upload is in progress ─
+  const UPLOAD_MESSAGES = [
+    'Reading your documents…',
+    'Extracting market signals…',
+    'Identifying customer traction…',
+    'Mapping IP & defensibility…',
+    'Analysing your team…',
+    'Building financial picture…',
+    'Scoring your indicators…',
+    'Almost done…',
+  ]
+  useEffect(() => {
+    if (!uploadLoading) { setUploadMsgIdx(0); return }
+    const timer = setInterval(() => setUploadMsgIdx(i => (i + 1) % UPLOAD_MESSAGES.length), 2200)
+    return () => clearInterval(timer)
+  }, [uploadLoading]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── auto-clear rateLimitUntil once its time passes ────────────────────────
+  useEffect(() => {
+    if (!rateLimitUntil) return
+    const ms = rateLimitUntil.getTime() - Date.now()
+    if (ms <= 0) { setRateLimitUntil(null); return }
+    const timer = setTimeout(() => setRateLimitUntil(null), ms)
+    return () => clearTimeout(timer)
+  }, [rateLimitUntil])
 
   // ── on mount: session + founder profile + draft ───────────────────────────
   useEffect(() => {
@@ -265,7 +301,7 @@ export default function ProfileBuilderPage() {
             const idx   = flow.smartQaIndex ?? 0
             const total = flow.smartQuestions?.length ?? 0
             if (total > 0 && idx < total) setCurrentStep('smart-qa')
-            else if (flow.extractionSummary?.length) setCurrentStep('extract-results')
+            else if (flow.extractionSummary?.length) setCurrentStep('pre-score')
           } else if (flow.extractionSummary?.length) {
             // Full mode — restore extraction results so they survive page refresh
             setExtractionSummary(flow.extractionSummary)
@@ -398,12 +434,20 @@ export default function ProfileBuilderPage() {
 
     let initialQ: string
     if (currentStep === 'pitch') {
-      initialQ = PITCH_SECTION_QUESTION
+      initialQ = YC_QUESTIONS[0]
     } else {
       const hasExtracted = Object.keys(sec.extractedFields ?? {}).length > 0
       if (hasExtracted) {
         if (sec.completionScore >= 70) {
-          initialQ = `I pulled this section from your documents (${sec.completionScore}% complete). You're good to move on — or add more detail below.`
+          const SECTION_BOOST_HINTS: Record<number, string> = {
+            1: `Good baseline captured. To push your Market Readiness score higher, add: exact number of paying customers, average contract value in dollars, net revenue retention %, average customer retention in months, and typical sales cycle length. Specific numbers always score higher than ranges.`,
+            2: `Market data looks solid. To strengthen this section, add: your TAM/SAM/SOM breakdown with named sources (e.g. Gartner 2024), the specific SEC regulation or deadline driving urgency, your top 3 competitors with estimated market share, and 2–3 named adjacent verticals you plan to expand into with signed LOIs or pilot conversations.`,
+            3: `IP coverage is strong. To maximise your Defensibility score, add: your patent number and grant date, the estimated cost in USD for a competitor to replicate your technology, how many months it would take with a 10-person team, and what specific dataset or know-how makes replication hardest.`,
+            4: `Team profile is in good shape. To improve further, add: years of domain experience per founder, any prior exits with acquisition amounts, how long the founding team has worked together, and whether you have advisors or board members with relevant investor networks.`,
+            5: `Financial data captured. To boost this section, add: current MRR and ARR as exact figures, monthly gross burn, net burn, runway in months, gross margin %, average deal size, and customer lifetime value if available. Benchmarking against sector peers (e.g. "top-quartile SaaS gross margin") also helps.`,
+          }
+          const hint = SECTION_BOOST_HINTS[currentStep as number]
+          initialQ = hint ?? `Good coverage from your documents (${sec.completionScore}% complete). Add more specific data below to push your score higher.`
         } else {
           const missing = getMissingFields(sec.extractedFields, currentStep, founderProfile.stage ?? 'pre-product', sec.confidenceMap ?? {})
           const foundSnippets = buildFoundSnippets(sec.extractedFields, currentStep)
@@ -438,7 +482,7 @@ export default function ProfileBuilderPage() {
   // ── redirect from smart-qa if no questions remain ────────────────────────
   useEffect(() => {
     if (currentStep === 'smart-qa' && smartQuestions.length > 0 && smartQaIndex >= smartQuestions.length) {
-      setCurrentStep(6)
+      setCurrentStep('pre-score')
     }
   }, [currentStep, smartQaIndex, smartQuestions.length])
 
@@ -447,7 +491,7 @@ export default function ProfileBuilderPage() {
     if (currentStep !== 6 || !token) return
     setPreviewLoading(true)
     fetch('/api/profile-builder/preview', { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(String(r.status)); return r.json() })
       .then(setPreviewData)
       .catch(() => {})
       .finally(() => setPreviewLoading(false))
@@ -505,37 +549,27 @@ export default function ProfileBuilderPage() {
       },
     }))
 
-    // Pitch: local clarity evaluation
+    // Pitch: YC-style sequential questions
     if (currentStep === 'pitch') {
       setIsTyping(true)
-      await new Promise(r => setTimeout(r, 500))
-      const words = userText.split(/\s+/).length
-      const hasProblem = /problem|pain|issue|struggle|hard|broken|fail|challenge/i.test(userText)
-      const hasWho = /we |our |company|startup|for |customer|user|team|built/i.test(userText) || words > 8
-      const hasNow = /now|today|2020|2021|2022|2023|2024|2025|ai|llm|remote|cloud|pandemic|recent|money|wealth|economic|market|funding|capital|growth|trend|income|consumer|spend|inflation|rate|interest|regul|tech|shift|change|new|emerg|opport|rise|grow/i.test(userText)
-      const clarity = Math.min(100,
-        (words > 20 ? 40 : words > 10 ? 25 : 10) +
-        (hasProblem ? 20 : 0) + (hasWho ? 20 : 0) + (hasNow ? 20 : 0)
-      )
-      const done = clarity >= 60 && hasNow
-      const isRepeat = (sections['pitch']?.messages?.length ?? 0) > 2
-      const reply = done
-        ? "Clear pitch — problem, customer, and timing are all present. Move on to Market Validation."
-        : !hasNow && !isRepeat
-          ? "Good start. What changed in the world recently that makes this the right moment to build this?"
-          : !hasNow && isRepeat
-            ? "Got it. Can you be more specific about the timing — what's shifted in the market or world in the last 1–2 years that creates this opening?"
-            : "Help me understand: who exactly has this problem, and what happens to them if they don't solve it?"
+      await new Promise(r => setTimeout(r, 400))
+      const nextIdx = ycPitchIdx + 1
+      const isLastQuestion = ycPitchIdx >= YC_QUESTIONS.length - 1
+      const reply = isLastQuestion
+        ? "Great answers — your pitch practice is complete. These responses give investors a clear picture of your opportunity."
+        : YC_QUESTIONS[nextIdx]
 
       setSections(prev => ({
         ...prev,
         pitch: {
           ...prev['pitch'],
           messages: [...(prev['pitch']?.messages ?? []), { role: 'agent' as const, text: reply }],
-          completionScore: clarity,
-          isComplete: done,
+          completionScore: Math.round(((nextIdx) / YC_QUESTIONS.length) * 100),
+          isComplete: isLastQuestion,
         },
       }))
+      if (!isLastQuestion) setYcPitchIdx(nextIdx)
+      else setYcPitchIdx(YC_QUESTIONS.length - 1)
       setIsTyping(false)
       return
     }
@@ -582,7 +616,7 @@ export default function ProfileBuilderPage() {
       const agentReply: string =
         extractPrefix + (extracted.followUpQuestion ??
         (pct >= 70
-          ? "This section looks good. Move on when you're ready."
+          ? `This section is at ${pct}% — solid. Is there anything else you'd like to add? Specific customer names, exact numbers, or key context you haven't mentioned?`
           : "Keep going — the more specific you are, the higher your score."))
 
       setSections(prev => {
@@ -693,7 +727,7 @@ export default function ProfileBuilderPage() {
       // Always add the file to the uploaded list, even if no fields were extracted.
       // The block below used to be inside the extractedFields guard, so files that
       // uploaded successfully but extracted 0 fields were silently dropped from the UI.
-      const newFile = { name: file.name, fields: fieldsFound }
+      const newFile = { name: file.name, fields: fieldsFound, fileUrl: data.fileUrl as string | undefined }
 
       if (data.sectionSummaries && data.sectionSummaries.length > 0) {
         // Merge with previous extraction results — keep best completionPct per section
@@ -753,12 +787,31 @@ export default function ProfileBuilderPage() {
           extractedBySections[secKey] = slice
         }
 
-        // Build section completion map so smart questions target only weak params (< 3/5)
-        const sectionCompletions: Record<string, number> = {}
-        for (const [key, summary] of Object.entries(data.sectionSummaries ?? {})) {
-          sectionCompletions[key] = (summary as { completionPct?: number }).completionPct ?? 0
+        // Use gap-ranked questions from server when available (sector+stage-aware, indicator-level)
+        // Fall back to client-side generateSmartQuestions only if server returned nothing.
+        const PARAM_IDX_TO_SECTION: Record<number, string> = { 0:'1', 1:'2', 2:'3', 3:'4', 4:'5', 5:'5' }
+        const serverGaps = (data.gapQuestions ?? []) as Array<{
+          field: string; question: string; contextHint: string; helpText: string
+          impact: number; paramLabel: string; paramIdx: number
+        }>
+        let qs: SmartQuestion[]
+        if (serverGaps.length > 0) {
+          qs = serverGaps.map((g, i) => ({
+            id: `gap_${g.field.replace(/\./g, '_')}`,
+            sectionKey: PARAM_IDX_TO_SECTION[g.paramIdx] ?? '1',
+            sectionLabel: g.paramLabel,
+            text: g.question,
+            contextHint: g.contextHint,
+            helpText: g.helpText,
+            priority: Math.round(g.impact * 1000) - i,
+          }))
+        } else {
+          const sectionCompletions: Record<string, number> = {}
+          for (const [key, summary] of Object.entries(data.sectionSummaries ?? {})) {
+            sectionCompletions[key] = (summary as { completionPct?: number }).completionPct ?? 0
+          }
+          qs = generateSmartQuestions(extractedBySections, founderProfile.stage ?? 'mid', sectionCompletions, founderProfile.industry ?? undefined)
         }
-        const qs = generateSmartQuestions(extractedBySections, founderProfile.stage ?? 'mid', sectionCompletions, founderProfile.industry ?? undefined)
         setSmartQuestions(qs)
         setSmartQaIndex(0)
         setFlowMode('fast')
@@ -901,7 +954,7 @@ export default function ProfileBuilderPage() {
 
   // ── submit ────────────────────────────────────────────────────────────────
   async function handleSubmit() {
-    if (!token) return
+    if (!token || isSubmitting) return
     setIsSubmitting(true)
     setSubmitError(null)
     try {
@@ -1082,6 +1135,7 @@ export default function ProfileBuilderPage() {
               ...(flowMode === 'fast' ? [
                 { key: 'extract-results', label: 'Extraction Results', Icon: BarChart2 },
                 { key: 'smart-qa',        label: 'Quick Questions',   Icon: MessageSquare },
+                { key: 'pre-score',       label: 'Your Snapshot',     Icon: BarChart },
               ] : [
                 { key: 'pitch', label: 'Your Pitch', Icon: Target },
               ]),
@@ -1095,6 +1149,7 @@ export default function ProfileBuilderPage() {
                     else if (key === 'pitch') setCurrentStep('pitch')
                     else if (key === 'extract-results') setCurrentStep('extract-results')
                     else if (key === 'smart-qa') setCurrentStep('smart-qa')
+                    else if (key === 'pre-score') setCurrentStep('pre-score')
                   }}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 10,
@@ -1287,11 +1342,59 @@ export default function ProfileBuilderPage() {
               </div>
             </div>
 
+            {/* ── Animated loading screen (replaces upload zone during processing) ── */}
+            {uploadLoading ? (
+              <div style={{
+                borderRadius: 20, padding: '56px 32px', background: surf,
+                border: `1px solid ${bdr}`, textAlign: 'center',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20,
+              }}>
+                {/* Spinning ring */}
+                <div style={{ position: 'relative', width: 64, height: 64 }}>
+                  <div style={{
+                    position: 'absolute', inset: 0, borderRadius: '50%',
+                    border: `3px solid ${bdr}`,
+                  }} />
+                  <div style={{
+                    position: 'absolute', inset: 0, borderRadius: '50%',
+                    border: `3px solid transparent`,
+                    borderTopColor: blue,
+                    animation: 'spin 0.9s linear infinite',
+                  }} />
+                  <div style={{
+                    position: 'absolute', inset: 8, borderRadius: '50%',
+                    border: `2px solid transparent`,
+                    borderTopColor: `${blue}60`,
+                    animation: 'spin 1.6s linear infinite reverse',
+                  }} />
+                </div>
+                {/* Rotating message */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'center' }}>
+                  <div style={{ fontSize: 17, fontWeight: 700, color: ink, letterSpacing: '-0.01em', minHeight: 26 }}>
+                    {UPLOAD_MESSAGES[uploadMsgIdx]}
+                  </div>
+                  <div style={{ fontSize: 13, color: muted }}>
+                    Extracting all 30 indicators across 6 parameters
+                  </div>
+                </div>
+                {/* Indicator dots */}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {UPLOAD_MESSAGES.map((_, i) => (
+                    <div key={i} style={{
+                      width: 6, height: 6, borderRadius: '50%',
+                      background: i === uploadMsgIdx ? blue : bdr,
+                      transition: 'background 0.4s',
+                    }} />
+                  ))}
+                </div>
+              </div>
+            ) : (
             <div
-              onClick={() => { if (!uploadLoading && uploadedFiles.length < MAX_UPLOAD_FILES) fileInputRef.current?.click() }}
+              onClick={() => { if (uploadedFiles.length < MAX_UPLOAD_FILES) fileInputRef.current?.click() }}
               style={{
                 border: `2px dashed ${bdr}`, borderRadius: 16, padding: '48px 32px',
-                textAlign: 'center', background: surf, cursor: (uploadLoading || uploadedFiles.length >= MAX_UPLOAD_FILES) ? 'not-allowed' : 'pointer',
+                textAlign: 'center', background: surf,
+                cursor: uploadedFiles.length >= MAX_UPLOAD_FILES ? 'not-allowed' : 'pointer',
                 opacity: uploadedFiles.length >= MAX_UPLOAD_FILES ? 0.55 : 1,
                 transition: 'all 0.2s', boxShadow: 'inset 0 1px 3px rgba(24,22,15,0.04)',
               }}
@@ -1299,15 +1402,14 @@ export default function ProfileBuilderPage() {
               onMouseLeave={e => { e.currentTarget.style.borderColor = bdr; e.currentTarget.style.background = surf; e.currentTarget.style.boxShadow = 'inset 0 1px 3px rgba(24,22,15,0.04)' }}
             >
               <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
-                {uploadLoading
-                  ? <Loader2 size={36} color={blue} strokeWidth={1.5} style={{ animation: 'spin 1s linear infinite' }} />
-                  : <UploadCloud size={36} color={muted} strokeWidth={1.25} />}
+                <UploadCloud size={36} color={muted} strokeWidth={1.25} />
               </div>
               <div style={{ fontSize: 15, fontWeight: 600, color: ink, marginBottom: 6 }}>
-                {uploadLoading ? 'Uploading and extracting…' : uploadedFiles.length >= MAX_UPLOAD_FILES ? `${MAX_UPLOAD_FILES}-file limit reached` : 'Drop files or click to upload'}
+                {uploadedFiles.length >= MAX_UPLOAD_FILES ? `${MAX_UPLOAD_FILES}-file limit reached` : 'Drop files or click to upload'}
               </div>
               <div style={{ fontSize: 13, color: muted }}>PDF, PPTX, XLSX, CSV, PNG, JPG — max 10 MB each · up to 10 files, merged automatically</div>
             </div>
+            )}
 
             {uploadError && (
               <div style={{ padding: '10px 14px', borderRadius: 8, background: '#FEF2F2', border: `1px solid #FECACA`, fontSize: 13, color: red }}>
@@ -1332,13 +1434,25 @@ export default function ProfileBuilderPage() {
                     border: `1px solid ${bdr}`, marginBottom: 6,
                     boxShadow: '0 1px 3px rgba(24,22,15,0.05)',
                   }}>
-                    <div style={{ width: 32, height: 32, borderRadius: 8, background: surf2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <FileText size={15} color={muted} strokeWidth={1.75} />
+                    <div
+                      onClick={() => f.fileUrl && window.open(f.fileUrl, '_blank', 'noopener')}
+                      title={f.fileUrl ? 'Click to preview' : undefined}
+                      style={{
+                        width: 32, height: 32, borderRadius: 8, background: surf2,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                        cursor: f.fileUrl ? 'pointer' : 'default',
+                      }}
+                    >
+                      <FileText size={15} color={f.fileUrl ? blue : muted} strokeWidth={1.75} />
                     </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</div>
+                    <div
+                      style={{ flex: 1, minWidth: 0, cursor: f.fileUrl ? 'pointer' : 'default' }}
+                      onClick={() => f.fileUrl && window.open(f.fileUrl, '_blank', 'noopener')}
+                    >
+                      <div style={{ fontSize: 13, fontWeight: 600, color: f.fileUrl ? blue : ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</div>
                       <div style={{ fontSize: 11, color: f.fields > 0 ? green : muted, marginTop: 2 }}>
                         {f.fields > 0 ? `${f.fields} fields extracted` : 'Stored as context'}
+                        {f.fileUrl && <span style={{ color: muted }}> · click to preview</span>}
                       </div>
                     </div>
                     <Check size={14} color={green} strokeWidth={2.5} style={{ flexShrink: 0 }} />
@@ -1446,13 +1560,17 @@ export default function ProfileBuilderPage() {
                 </div>
               )}
 
-              {/* Pitch warning */}
-              {currentStep === 'pitch' && sec.completionScore > 0 && sec.completionScore < 60 && (
-                <div style={{
-                  marginBottom: 16, padding: '10px 14px', borderRadius: 8,
-                  background: '#FFFBEB', border: '1px solid #FDE68A', fontSize: 13, color: '#92400E',
-                }}>
-                  Name the customer, the problem, and why now — investors need all three.
+              {/* YC pitch progress */}
+              {currentStep === 'pitch' && (
+                <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {YC_QUESTIONS.map((_, qi) => (
+                      <div key={qi} style={{ width: qi <= ycPitchIdx ? 20 : 8, height: 4, borderRadius: 2, background: qi < ycPitchIdx ? green : qi === ycPitchIdx ? blue : bdr, transition: 'all 0.3s ease' }} />
+                    ))}
+                  </div>
+                  <span style={{ fontSize: 11, color: muted }}>
+                    {sec.isComplete ? 'Pitch complete' : `Question ${Math.min(ycPitchIdx + 1, YC_QUESTIONS.length)} of ${YC_QUESTIONS.length}`}
+                  </span>
                 </div>
               )}
 
@@ -1668,9 +1786,34 @@ export default function ProfileBuilderPage() {
                     </button>
                   </div>
                 </div>
-                <p style={{ margin: '5px 0 0 6px', fontSize: 11, color: muted, opacity: 0.6 }}>
-                  Enter to send · Shift+Enter for new line
-                </p>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '5px 0 0 6px' }}>
+                  <p style={{ fontSize: 11, color: muted, opacity: 0.6 }}>
+                    Enter to send · Shift+Enter for new line
+                  </p>
+                  {currentStep === 'pitch' && !sec.isComplete && (
+                    <button
+                      onClick={() => {
+                        const nextIdx = ycPitchIdx + 1
+                        const isLast = ycPitchIdx >= YC_QUESTIONS.length - 1
+                        const reply = isLast ? "Pitch practice complete. Skipped — you can answer these during investor meetings." : YC_QUESTIONS[nextIdx]
+                        setSections(prev => ({
+                          ...prev,
+                          pitch: {
+                            ...prev['pitch'],
+                            messages: [...(prev['pitch']?.messages ?? []), { role: 'user' as const, text: '(skipped)' }, { role: 'agent' as const, text: reply }],
+                            completionScore: Math.round(((nextIdx) / YC_QUESTIONS.length) * 100),
+                            isComplete: isLast,
+                          },
+                        }))
+                        if (!isLast) setYcPitchIdx(nextIdx)
+                        else setYcPitchIdx(YC_QUESTIONS.length - 1)
+                      }}
+                      style={{ fontSize: 11, color: muted, background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px', borderRadius: 4, fontFamily: 'inherit' }}
+                    >
+                      Skip →
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Back / Next */}
@@ -1913,21 +2056,51 @@ export default function ProfileBuilderPage() {
               </div>
             )}
 
-            {/* ── CTAs ── */}
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'space-between', alignItems: 'center' }}>
-              <button onClick={() => { setFlowMode('full'); setCurrentStep('pitch') }} style={{
-                padding: '10px 18px', borderRadius: 8, border: `1px solid ${bdr}`,
-                background: 'transparent', fontSize: 13, color: muted,
-                cursor: 'pointer', fontFamily: 'inherit',
-              }}>Explore manually</button>
-              <button onClick={() => setCurrentStep(smartQuestions.length > 0 ? 'smart-qa' : 6)} style={{
-                padding: '13px 32px', borderRadius: 10, border: 'none',
-                background: blue, color: '#fff', fontSize: 14, fontWeight: 600,
-                cursor: 'pointer', fontFamily: 'inherit',
-                boxShadow: `0 4px 14px ${blue}40`,
+            {/* ── Binary CTA ── */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: ink, marginBottom: 2 }}>
+                What would you like to do?
+              </div>
+
+              {smartQuestions.length > 0 && (
+                <button onClick={() => setCurrentStep('smart-qa')} style={{
+                  padding: '14px 24px', borderRadius: 10, border: 'none',
+                  background: blue, color: '#fff', fontSize: 14, fontWeight: 600,
+                  cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+                  boxShadow: `0 4px 14px ${blue}40`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                }}>
+                  <div>
+                    <div>Answer {smartQuestions.length} targeted questions</div>
+                    <div style={{ fontSize: 12, fontWeight: 400, opacity: 0.8, marginTop: 2 }}>
+                      Fills gaps in your highest-impact indicators — takes ~{smartQuestions.length * 45}s
+                    </div>
+                  </div>
+                  <span style={{ fontSize: 18, marginLeft: 12 }}>→</span>
+                </button>
+              )}
+
+              <button onClick={() => { setCurrentStep(6); handleSubmit() }} style={{
+                padding: '13px 24px', borderRadius: 10,
+                border: `1.5px solid ${bdr}`,
+                background: 'transparent', color: ink, fontSize: 14, fontWeight: 500,
+                cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               }}>
-                {smartQuestions.length > 0 ? `Answer ${smartQuestions.length} questions →` : 'Review & Submit →'}
+                <div>
+                  <div>Calculate score from documents only</div>
+                  <div style={{ fontSize: 12, fontWeight: 400, color: muted, marginTop: 2 }}>
+                    Based on what we extracted — you can always re-answer questions later
+                  </div>
+                </div>
+                <span style={{ fontSize: 18, marginLeft: 12, color: muted }}>→</span>
               </button>
+
+              <button onClick={() => { setFlowMode('full'); setCurrentStep('pitch') }} style={{
+                padding: '8px 0', background: 'transparent', border: 'none',
+                fontSize: 12, color: muted, cursor: 'pointer', fontFamily: 'inherit',
+                textAlign: 'center',
+              }}>Fill in manually section by section →</button>
             </div>
           </div>
         )}
@@ -1991,10 +2164,8 @@ export default function ProfileBuilderPage() {
               setSmartProcessing(false)
               setSmartInput('')
               if (isLast) {
-                setCurrentStep(6)
+                setCurrentStep('pre-score')
                 saveFlowState(null)  // flow complete — clear persisted state
-                // Auto-calculate score immediately — no extra click required
-                handleSubmit()
               } else {
                 const nextIdx = smartQaIndex + 1
                 setSmartQaIndex(nextIdx)
@@ -2110,6 +2281,181 @@ export default function ProfileBuilderPage() {
               </div>
             </div>
             </div>
+          )
+        })()}
+
+        {/* ── PRE-SCORE SNAPSHOT ── */}
+        {currentStep === 'pre-score' && (() => {
+          // Merge all section confidenceMaps into one flat map for field-level confidence chips
+          const allConfidence: Record<string, number> = {}
+          for (const sec of Object.values(sections)) {
+            Object.assign(allConfidence, sec.confidenceMap)
+          }
+
+          // P6 financial fields from merged section-5 state
+          const fin = (sections['5']?.extractedFields?.financial ?? {}) as Record<string, unknown>
+          const financialSnippets = [
+            { label: 'MRR', key: 'mrr' }, { label: 'ARR', key: 'arr' },
+            { label: 'Monthly Burn', key: 'monthlyBurn' }, { label: 'Runway (mo)', key: 'runway' },
+            { label: 'Gross Margin', key: 'grossMargin' },
+          ].map(({ label, key }) => ({ label, value: fin[key] != null ? String(fin[key]) : null, fieldKey: `financial.${key}` }))
+
+          const financialExtracted = financialSnippets.filter(s => s.value !== null)
+          const financialMissing = financialSnippets.filter(s => s.value === null).map(s => s.label)
+
+          // Build the 6 parameter cards
+          const paramCards = [
+            ...extractionSummary.map((s, i) => ({
+              key: s.sectionKey,
+              label: ['Market Validation', 'Market & Competition', 'IP & Technology', 'Team & Founders', 'Climate & Impact'][i] ?? s.label,
+              completionPct: s.completionPct,
+              snippets: s.extractedSnippets,
+              missing: s.missingLabels,
+            })),
+            {
+              key: 'fin',
+              label: 'Financials',
+              completionPct: financialExtracted.length === 0 ? 0 : Math.round((financialExtracted.length / financialSnippets.length) * 100),
+              snippets: financialExtracted.map(s => ({ label: s.label, value: s.value ?? '', fieldKey: s.fieldKey })),
+              missing: financialMissing,
+            },
+          ]
+
+          const overallPct = paramCards.length > 0
+            ? Math.round(paramCards.reduce((sum, c) => sum + c.completionPct, 0) / paramCards.length)
+            : 0
+
+          const barColor = (pct: number) => pct >= 60 ? green : pct >= 30 ? amber : red
+
+          const confidenceLabel = (fieldKey: string) => {
+            const v = allConfidence[fieldKey.split('.').pop() ?? fieldKey]
+            if (v === undefined) return null
+            if (v >= 0.8) return { label: 'High', color: green }
+            if (v >= 0.5) return { label: 'Med', color: amber }
+            return { label: 'Low', color: red }
+          }
+
+          return (
+            <>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '40px 40px 0' }}>
+              <div style={{ maxWidth: 900, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 28, paddingBottom: 80 }}>
+
+                {/* Header */}
+                <div>
+                  <div style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    fontSize: 11, fontWeight: 700, color: blue,
+                    textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10,
+                    padding: '3px 10px', borderRadius: 20, background: '#EFF6FF',
+                  }}>
+                    <BarChart size={12} strokeWidth={2} /> Your startup snapshot
+                  </div>
+                  <h1 style={{ fontSize: 26, fontWeight: 800, color: ink, margin: '0 0 6px', letterSpacing: '-0.02em' }}>
+                    Here&apos;s everything we&apos;ve captured
+                  </h1>
+                  <p style={{ fontSize: 14, color: muted, margin: 0 }}>
+                    Review what we extracted from your documents and answers before calculating your Q-Score.
+                  </p>
+                </div>
+
+                {/* Overall coverage bar */}
+                <div style={{ padding: '16px 20px', borderRadius: 12, background: surf, border: `1px solid ${bdr}` }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: ink }}>Overall profile coverage</span>
+                    <span style={{ fontSize: 18, fontWeight: 800, color: barColor(overallPct) }}>{overallPct}%</span>
+                  </div>
+                  <div style={{ height: 8, background: bdr, borderRadius: 4, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${overallPct}%`, background: barColor(overallPct), borderRadius: 4, transition: 'width 0.6s ease' }} />
+                  </div>
+                  <p style={{ fontSize: 12, color: muted, margin: '8px 0 0' }}>
+                    {overallPct >= 60 ? 'Strong coverage — your score will be well-supported by data.'
+                     : overallPct >= 35 ? 'Moderate coverage — missing fields will default to 0 in your score.'
+                     : 'Sparse coverage — consider adding more detail in the sections below.'}
+                  </p>
+                </div>
+
+                {/* 6 Parameter cards in 2-col grid */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  {paramCards.map((card) => (
+                    <div key={card.key} style={{
+                      padding: '16px 18px', borderRadius: 12,
+                      border: `1px solid ${card.completionPct >= 60 ? '#BBF7D0' : card.completionPct >= 30 ? '#FDE68A' : bdr}`,
+                      background: bg,
+                    }}>
+                      {/* Card header */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: ink, lineHeight: 1.3 }}>{card.label}</div>
+                        <div style={{
+                          fontSize: 12, fontWeight: 800, color: barColor(card.completionPct),
+                          background: card.completionPct >= 60 ? '#F0FDF4' : card.completionPct >= 30 ? '#FFFBEB' : '#FEF2F2',
+                          padding: '2px 8px', borderRadius: 20, flexShrink: 0, marginLeft: 8,
+                        }}>{card.completionPct}%</div>
+                      </div>
+                      {/* Progress bar */}
+                      <div style={{ height: 4, background: bdr, borderRadius: 2, overflow: 'hidden', marginBottom: 12 }}>
+                        <div style={{ height: '100%', width: `${card.completionPct}%`, background: barColor(card.completionPct), borderRadius: 2 }} />
+                      </div>
+
+                      {/* Extracted fields */}
+                      {card.snippets.length > 0 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: card.missing.length > 0 ? 10 : 0 }}>
+                          {card.snippets.slice(0, 4).map((s, i) => {
+                            const conf = s.fieldKey ? confidenceLabel(s.fieldKey) : null
+                            return (
+                              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                                <CheckCircle2 size={12} color={green} strokeWidth={2} style={{ flexShrink: 0 }} />
+                                <span style={{ color: muted, flexShrink: 0 }}>{s.label}:</span>
+                                <span style={{ color: ink, fontWeight: 500, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.value}</span>
+                                {conf && (
+                                  <span style={{ fontSize: 10, fontWeight: 600, color: conf.color, background: `${conf.color}18`, padding: '1px 5px', borderRadius: 10, flexShrink: 0 }}>
+                                    {conf.label}
+                                  </span>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+
+                      {/* Missing fields */}
+                      {card.missing.slice(0, 3).map((m, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, marginBottom: 4 }}>
+                          <XIcon size={11} color={red} strokeWidth={2.5} style={{ flexShrink: 0 }} />
+                          <span style={{ color: '#9CA3AF' }}>{m}</span>
+                        </div>
+                      ))}
+                      {card.snippets.length === 0 && card.missing.length === 0 && (
+                        <div style={{ fontSize: 12, color: muted, fontStyle: 'italic' }}>No data found for this parameter.</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+              </div>
+            </div>
+
+            {/* Sticky CTA footer — always visible regardless of scroll position */}
+            <div style={{
+              position: 'sticky', bottom: 0, background: bg,
+              borderTop: `1px solid ${bdr}`, padding: '14px 40px',
+              display: 'flex', gap: 12, justifyContent: 'space-between', alignItems: 'center',
+              zIndex: 10,
+            }}>
+              <button
+                onClick={() => setCurrentStep(smartQuestions.length > 0 ? 'smart-qa' : 'extract-results')}
+                style={{ padding: '10px 18px', borderRadius: 8, border: `1px solid ${bdr}`, background: 'transparent', fontSize: 13, color: muted, cursor: 'pointer', fontFamily: 'inherit' }}
+              >← Back</button>
+              <button
+                onClick={() => { setCurrentStep(6); handleSubmit() }}
+                style={{
+                  padding: '13px 32px', borderRadius: 10, border: 'none',
+                  background: blue, color: '#fff', fontSize: 14, fontWeight: 600,
+                  cursor: 'pointer', fontFamily: 'inherit',
+                  boxShadow: `0 4px 14px ${blue}40`,
+                }}
+              >Calculate my Q-Score →</button>
+            </div>
+            </>
           )
         })()}
 
@@ -2240,8 +2586,68 @@ export default function ProfileBuilderPage() {
                     }
                   }
 
+                  // Derive top strengths/risks from iqBreakdown
+                  const sorted = [...submitResult.iqBreakdown].sort((a, b) => b.averageScore - a.averageScore)
+                  const strengths = sorted.slice(0, 2).map(p => p.name)
+                  const risks     = [...submitResult.iqBreakdown].sort((a, b) => a.averageScore - b.averageScore).slice(0, 2).map(p => p.name)
+
                   return (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+
+                      {/* ── Q-Score Snapshot Hero ── */}
+                      <div style={{ padding: '28px 0 24px', marginBottom: 28, borderBottom: `1px solid ${bdr}` }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                          {/* Score + grade */}
+                          <div style={{ padding: '24px', background: surf, border: `1px solid ${bdr}`, borderRadius: 16, textAlign: 'center' }}>
+                            <div style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 12 }}>Your Q-Score</div>
+                            <div style={{ fontSize: 72, fontWeight: 800, color: submitResult.score >= 70 ? green : submitResult.score >= 45 ? amber : red, lineHeight: 1, letterSpacing: '-0.04em', marginBottom: 8 }}>
+                              {submitResult.score}
+                            </div>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '4px 12px', background: bg, border: `1px solid ${bdr}`, borderRadius: 20, marginBottom: 8 }}>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: ink }}>Grade {submitResult.grade}</span>
+                              {Boolean((submitResult.iqBreakdown[0] as Record<string, unknown>)?.percentileLabel) && (
+                                <span style={{ fontSize: 11, color: muted }}>· {String((submitResult.iqBreakdown[0] as Record<string, unknown>).percentileLabel)}</span>
+                              )}
+                            </div>
+                            {submitResult.track && <div style={{ fontSize: 11, color: muted, marginTop: 4 }}>{submitResult.track} track</div>}
+                          </div>
+
+                          {/* Strengths + risks */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                            {strengths.length > 0 && (
+                              <div style={{ padding: '16px', background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: 12 }}>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: green, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>Strengths</div>
+                                {strengths.map(s => (
+                                  <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: green, flexShrink: 0 }} />
+                                    <span style={{ fontSize: 12, color: ink }}>{s}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {risks.length > 0 && (
+                              <div style={{ padding: '16px', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 12 }}>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: amber, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>Improve</div>
+                                {risks.map(r => (
+                                  <div key={r} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: amber, flexShrink: 0 }} />
+                                    <span style={{ fontSize: 12, color: ink }}>{r}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+                          <button onClick={() => router.push('/founder/dashboard')} style={{ padding: '10px 22px', borderRadius: 9, border: 'none', background: blue, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                            View Dashboard →
+                          </button>
+                          <button onClick={() => router.push('/founder/improve-qscore')} style={{ padding: '10px 22px', borderRadius: 9, border: `1px solid ${bdr}`, background: 'transparent', color: ink, fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
+                            Improve my score
+                          </button>
+                        </div>
+                      </div>
 
                       {/* Memo Header */}
                       <div style={{ padding: '32px 0 28px', borderBottom: `1px solid ${bdr}`, marginBottom: 28 }}>
@@ -2298,48 +2704,6 @@ export default function ProfileBuilderPage() {
                       <div style={{ marginBottom: 28, padding: '18px 20px', background: surf, borderLeft: `3px solid ${blue}`, borderRadius: '0 10px 10px 0', border: `1px solid ${bdr}`, borderLeftColor: blue }}>
                         <div style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>Assessment Summary</div>
                         <p style={{ margin: 0, fontSize: 13, color: ink, lineHeight: 1.7 }}>{narrative.overall}</p>
-                      </div>
-
-                      {/* Indicator detail */}
-                      <div style={{ marginBottom: 28 }}>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 14 }}>Indicator Detail</div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                          {submitResult.iqBreakdown.map(p => {
-                            const ps = toS100(p.averageScore)
-                            const psColor = ps >= 70 ? green : ps >= 45 ? amber : red
-                            return (
-                              <div key={p.id} style={{ borderRadius: 12, border: `1px solid ${bdr}`, overflow: 'hidden', background: bg }}>
-                                <div style={{ padding: '10px 16px', background: surf2, display: 'flex', alignItems: 'center', gap: 10, borderBottom: `1px solid ${bdr}` }}>
-                                  <div style={{ width: 22, height: 22, borderRadius: 5, background: surf, border: `1px solid ${bdr}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: muted, flexShrink: 0 }}>{p.id.toUpperCase()}</div>
-                                  <span style={{ fontSize: 13, fontWeight: 600, color: ink, flex: 1 }}>{p.name}</span>
-                                  <span style={{ fontSize: 13, fontWeight: 700, color: psColor }}>{ps}</span>
-                                  <span style={{ fontSize: 11, color: muted }}>/100</span>
-                                </div>
-                                <div>
-                                  {(p.indicators ?? []).map((ind, ii) => {
-                                    const score5 = ind.rawScore
-                                    const excl = ind.excluded
-                                    const dotColor = excl ? muted : score5 >= 4 ? green : score5 >= 2.5 ? amber : score5 > 0 ? red : muted
-                                    const scoreLabel = excl ? '—' : score5 === 0 ? '0.0' : score5.toFixed(1)
-                                    return (
-                                      <div key={ind.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 16px', borderBottom: ii < (p.indicators ?? []).length - 1 ? `1px solid ${bdr}` : 'none' }}>
-                                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: dotColor, flexShrink: 0 }} />
-                                        <span style={{ flex: 1, fontSize: 12, color: excl ? muted : ink, fontStyle: excl ? 'italic' : 'normal', lineHeight: 1.4 }}>{ind.name}</span>
-                                        {ind.percentileLabel && !excl && <span style={{ fontSize: 10, fontWeight: 500, color: muted, background: surf2, padding: '1px 7px', borderRadius: 20, flexShrink: 0 }}>{ind.percentileLabel}</span>}
-                                        {ind.vcAlert && !excl && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, color: amber, background: surf2, padding: '1px 7px', borderRadius: 20, flexShrink: 0 }}><AlertTriangle size={8} strokeWidth={2} />VC flag</span>}
-                                        {excl && <span style={{ fontSize: 10, color: muted, background: surf2, padding: '1px 7px', borderRadius: 20, flexShrink: 0 }}>{ind.exclusionReason ?? 'N/A'}</span>}
-                                        <div style={{ minWidth: 32, padding: '2px 6px', borderRadius: 5, background: surf2, textAlign: 'center', fontSize: 11, fontWeight: 700, color: dotColor, flexShrink: 0 }}>{scoreLabel}</div>
-                                      </div>
-                                    )
-                                  })}
-                                </div>
-                                {narrative.perParam[p.id] && (
-                                  <div style={{ padding: '10px 16px', borderTop: `1px solid ${bdr}`, background: surf, fontSize: 12, color: muted, lineHeight: 1.6 }}>{narrative.perParam[p.id]}</div>
-                                )}
-                              </div>
-                            )
-                          })}
-                        </div>
                       </div>
 
                       {/* Validation warnings */}
@@ -2430,50 +2794,6 @@ export default function ProfileBuilderPage() {
                       : `${completedCount}/5 sections complete. ${canSubmit ? 'Ready to calculate your IQ Score.' : 'Complete at least 1 section to submit.'}`}
                   </p>
                 </div>
-                {/* Live preview panel */}
-                {previewLoading && (
-                  <div style={{ padding: 24, borderRadius: 12, background: surf, border: `1px solid ${bdr}`, textAlign: 'center', fontSize: 13, color: muted }}>
-                    Calculating projected score…
-                  </div>
-                )}
-                {!previewLoading && previewData && (
-                  <div style={{ borderRadius: 14, border: `1px solid ${bdr}`, background: surf, overflow: 'hidden' }}>
-                    <div style={{ padding: '28px 28px 24px', display: 'flex', alignItems: 'center', gap: 24 }}>
-                      <div style={{ textAlign: 'center', minWidth: 80 }}>
-                        <div style={{
-                          fontSize: 64, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.04em',
-                          color: previewData.projectedScore >= 65 ? blue : previewData.projectedScore >= 45 ? amber : muted,
-                        }}>
-                          {previewData.projectedScore}
-                        </div>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: ink, marginTop: 4 }}>Grade {previewData.grade}</div>
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 14, fontWeight: 600, color: ink, marginBottom: 6 }}>Projected IQ Score</div>
-                        <div style={{ fontSize: 13, color: previewData.marketplaceUnlocked ? green : muted, marginBottom: 4, lineHeight: 1.4 }}>
-                          {previewData.marketplaceUnlocked
-                            ? 'Investor Marketplace unlocks at submission'
-                            : `Need ${70 - previewData.projectedScore} more pts to unlock Marketplace`}
-                        </div>
-                        <div style={{ fontSize: 12, color: muted }}>{previewData.sectionsComplete}/5 sections at 70%+</div>
-                      </div>
-                    </div>
-                    {previewData.boostActions.length > 0 && (
-                      <div style={{ padding: '0 28px 24px' }}>
-                        <div style={{ height: 1, background: bdr, marginBottom: 16 }} />
-                        <div style={{ fontSize: 11, fontWeight: 600, color: muted, marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Weakest parameters</div>
-                        {previewData.boostActions.slice(0, 3).map((a, i) => (
-                          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 8 }}>
-                            <div style={{ minWidth: 40, padding: '2px 6px', borderRadius: 4, background: '#EFF6FF', textAlign: 'center', fontSize: 11, fontWeight: 700, color: blue, flexShrink: 0 }}>
-                              {Math.round(a.currentScore * 20)}/100
-                            </div>
-                            <span style={{ fontSize: 12, color: ink, lineHeight: 1.4 }}>{a.action}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
 
                 {/* Section cards */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -2518,24 +2838,31 @@ export default function ProfileBuilderPage() {
 
                 {rateLimitUntil && (
                   <div style={{ padding: '16px 20px', borderRadius: 10, background: '#FFFBEB', border: `1px solid ${amber}44` }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: amber, marginBottom: 4 }}>Score locked</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: amber, marginBottom: 4 }}>Score recalculation locked for 24 hours</div>
                     <div style={{ fontSize: 13, color: '#92400E', lineHeight: 1.5 }}>
-                      You can recalculate your score again on{' '}
+                      Next calculation available{' '}
                       <strong>{rateLimitUntil.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</strong>
                       {' '}at{' '}
                       <strong>{rateLimitUntil.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</strong>.
+                      <br />
+                      <span style={{ fontSize: 12, opacity: 0.85 }}>You can still upload documents and add more detail to any section in the meantime.</span>
                     </div>
-                    <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
+                    <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <button onClick={() => setCurrentStep(0)} style={{
+                        padding: '8px 16px', borderRadius: 8, border: 'none',
+                        background: blue, color: '#fff', fontSize: 12, fontWeight: 600,
+                        cursor: 'pointer', fontFamily: 'inherit',
+                      }}>Upload more documents →</button>
                       <button onClick={() => router.push('/founder/improve-qscore')} style={{
                         padding: '8px 16px', borderRadius: 8, border: 'none',
                         background: amber, color: '#fff', fontSize: 12, fontWeight: 600,
                         cursor: 'pointer', fontFamily: 'inherit',
-                      }}>Use this time to improve →</button>
+                      }}>Improve my score →</button>
                       <button onClick={() => router.push('/founder/dashboard')} style={{
                         padding: '8px 16px', borderRadius: 8, border: `1px solid ${bdr}`,
                         background: bg, color: ink, fontSize: 12,
                         cursor: 'pointer', fontFamily: 'inherit',
-                      }}>Back to Dashboard</button>
+                      }}>Dashboard</button>
                     </div>
                   </div>
                 )}

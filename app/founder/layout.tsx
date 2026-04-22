@@ -2,7 +2,7 @@
 
 import { Suspense } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import FounderSidebar from "@/features/founder/components/FounderSidebar";
+import FounderSidebar, { FounderNotificationBell } from "@/features/founder/components/FounderSidebar";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 function LayoutInner({ children }: { children: React.ReactNode }) {
@@ -27,6 +27,10 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ background: "#F9F7F2", minHeight: "100vh" }}>
       <FounderSidebar />
+      {/* Top-right utility bar */}
+      <div style={{ position: "fixed", top: 12, right: 16, zIndex: 100, display: "flex", alignItems: "center", gap: 8 }}>
+        <FounderNotificationBell />
+      </div>
       {/* Offset by collapsed sidebar width so content is never hidden */}
       <div style={{ marginLeft: 52, minHeight: "100vh", overflowX: "hidden" }}>
         {children}

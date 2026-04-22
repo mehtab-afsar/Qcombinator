@@ -1,5 +1,6 @@
 "use client"
 
+import Image from 'next/image'
 import { bg, ink } from '@/lib/constants/colors'
 
 interface AvatarProps {
@@ -23,18 +24,12 @@ export function Avatar({ url, name, size, radius, fontSize, bgColor, fgColor }: 
 
   if (url) {
     return (
-      <img
+      <Image
         src={url}
         alt={name}
-        style={{
-          width: size, height: size, borderRadius: radius,
-          objectFit: 'cover', flexShrink: 0, display: 'block',
-        }}
-        onError={e => {
-          // On broken image, hide the img and show initials via a sibling
-          // Simplest: hide img, parent will need a fallback. We swap src to empty.
-          ;(e.currentTarget as HTMLImageElement).style.display = 'none'
-        }}
+        width={size}
+        height={size}
+        style={{ borderRadius: radius, objectFit: 'cover', flexShrink: 0, display: 'block' }}
       />
     )
   }

@@ -241,7 +241,7 @@ export default function InvestorDashboard() {
           unreadMessages:  unread.unreadMessages              ?? 0,
           topFounders,
           dealFlowTotal:   allFounders.length,
-          highSignalCount: allFounders.filter(f => (f.weightedQScore ?? f.qScore) >= 70 && f.hasScore).length,
+          highSignalCount: allFounders.filter(f => (f.weightedQScore ?? f.qScore) >= 60 && f.hasScore).length,
           portfolioCount:  stageCounts["portfolio"] ?? 0,
           inDDCount:       stageCounts["in_dd"]     ?? 0,
           meetingCount:    stageCounts["meeting"]   ?? 0,
@@ -299,25 +299,25 @@ export default function InvestorDashboard() {
           <StatCard
             icon={Briefcase} label="Active pipeline" color={blue}
             value={activeInPipeline}
-            sub={`${d.portfolioCount} portfolio · ${d.inDDCount} in DD · ${d.meetingCount} meetings`}
+            sub={activeInPipeline === 0 ? "Browse deal flow →" : `${d.portfolioCount} portfolio · ${d.inDDCount} in DD · ${d.meetingCount} meetings`}
             href="/investor/pipeline"
           />
           <StatCard
             icon={Star} label="High-signal founders" color={green}
             value={d.highSignalCount}
-            sub="Q-Score ≥ 70 in deal flow"
+            sub={d.highSignalCount === 0 ? "Adjust your criteria →" : "Q-Score ≥ 60 in deal flow"}
             href="/investor/deal-flow"
           />
           <StatCard
             icon={Users} label="Pending connections" color="#7C3AED"
             value={d.pendingRequests}
-            sub="awaiting your review"
+            sub={d.pendingRequests === 0 ? "Explore founders →" : "awaiting your review"}
             href="/investor/connections"
           />
           <StatCard
             icon={MessageSquare} label="Unread messages" color={amber}
             value={d.unreadMessages}
-            sub="from founders"
+            sub={d.unreadMessages === 0 ? "No messages yet" : "from founders"}
             href="/investor/messages"
           />
           <StatCard

@@ -74,6 +74,11 @@ function getSectorWeights(sector: string, stage: ScoreStage): number[] {
   return blendAndNormalizeWeights(base, stage)
 }
 
+/** Returns stage-blended, normalized parameter weights [p1..p6] for use in gap ranking. */
+export function getBlendedParamWeights(sector: string, stage: ScoreStage): number[] {
+  return getSectorWeights(normalizeSector(sector), stage)
+}
+
 // ── Average score for display ─────────────────────────────────────────────────
 
 function parameterAverage(indicators: IndicatorScore[]): number {

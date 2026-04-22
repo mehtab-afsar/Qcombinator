@@ -24,24 +24,30 @@ export async function GET() {
 
     const demoInvestorId = investorProfile?.demo_investor_id
 
-    // Build the base query — returns ALL statuses so the page can show pending / accepted / declined tabs.
-    let query = supabase
+    // Query via BOTH FK columns — a connection may have been created by the founder
+    // (demo_investor_id) or by the investor's outreach (investor_id). OR catches both.
+    const connOrFilter = demoInvestorId
+      ? `demo_investor_id.eq.${demoInvestorId},investor_id.eq.${user.id}`
+      : `investor_id.eq.${user.id}`
+
+    const { data: rawRequests, error } = await supabase
       .from('connection_requests')
       .select('id, founder_id, status, personal_message, founder_qscore, created_at, updated_at')
+      .or(connOrFilter)
       .order('created_at', { ascending: false })
-
-    if (demoInvestorId) {
-      query = query.eq('demo_investor_id', demoInvestorId)
-    } else {
-      query = query.eq('investor_id', user.id)
-    }
-
-    const { data: requests, error } = await query
 
     if (error) {
       log.error('GET /api/investor/connections', { error })
       return NextResponse.json({ error: 'Failed to fetch requests' }, { status: 500 })
     }
+
+    // Deduplicate by founder_id — keep the most-recent row per founder
+    const seenFounders = new Set<string>()
+    const requests = (rawRequests ?? []).filter(r => {
+      if (seenFounders.has(r.founder_id)) return false
+      seenFounders.add(r.founder_id)
+      return true
+    })
 
     const founderIds = (requests ?? []).map(r => r.founder_id).filter(Boolean)
 
@@ -166,6 +172,35 @@ export async function PATCH(request: NextRequest) {
         event_type: 'investor_decline_feedback',
         event_data: { request_id: requestId, reasons: feedback.reasons, text: feedback.text },
       })
+    }
+
+    // On accept: notify the founder in-app
+    if (action === 'accept') {
+      try {
+        const { data: connReqForNotif } = await supabase
+          .from('connection_requests')
+          .select('founder_id')
+          .eq('id', requestId)
+          .single()
+        if (connReqForNotif?.founder_id) {
+          const { data: ip } = await supabase
+            .from('investor_profiles')
+            .select('full_name, firm_name')
+            .eq('user_id', user.id)
+            .single()
+          const investorName = (ip as { full_name?: string } | null)?.full_name ?? 'An investor'
+          const firmName     = (ip as { firm_name?: string }  | null)?.firm_name  ?? ''
+          await supabase.from('notifications').insert({
+            user_id:  connReqForNotif.founder_id,
+            type:     'connection_accepted',
+            title:    `${investorName}${firmName ? ` from ${firmName}` : ''} accepted your connection request`,
+            read:     false,
+            metadata: { connection_id: requestId, investor_id: user.id },
+          })
+        }
+      } catch (notifErr) {
+        log.error('PATCH /api/investor/connections accept notification', { notifErr })
+      }
     }
 
     // On accept: fetch names/emails and send notification emails

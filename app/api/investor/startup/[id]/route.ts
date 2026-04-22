@@ -29,7 +29,7 @@ export async function GET(
     ] = await Promise.all([
       admin
         .from('founder_profiles')
-        .select('full_name, startup_name, industry, stage, tagline, location, funding, linkedin_url, website, updated_at, startup_profile_data')
+        .select('full_name, startup_name, industry, stage, tagline, location, funding, linkedin_url, website, updated_at, startup_profile_data, team_size, description')
         .eq('user_id', founderId)
         .single(),
 
@@ -97,22 +97,38 @@ export async function GET(
     const gtm  = latestByType['gtm_playbook']        ?? {}
 
     // Extract financial metrics from artifact content
+    // Pull startup_profile_data early so it can serve as fallback for artifact fields
+    const sp = (profile.startup_profile_data ?? {}) as Record<string, unknown>
+
+    // Financial metrics: artifact first, then profile-builder JSONB as fallback
     const financialMetrics = {
-      mrr:        extractValue(fin, ['mrr', 'MRR', 'monthlyRevenue', 'monthly_revenue']),
-      arr:        extractValue(fin, ['arr', 'ARR', 'annualRevenue', 'annual_revenue']),
-      growth:     extractValue(fin, ['growth', 'growthRate', 'growth_rate', 'mrrGrowth']),
-      runway:     extractValue(fin, ['runway', 'runwayMonths', 'runway_months']),
-      burnRate:   extractValue(fin, ['burn', 'burnRate', 'burn_rate', 'monthlyBurn']),
-      customers:  extractValue(fin, ['customers', 'customerCount', 'customer_count', 'activeCustomers']),
-      cac:        extractValue(fin, ['cac', 'CAC', 'customerAcquisitionCost']),
-      ltv:        extractValue(fin, ['ltv', 'LTV', 'lifetimeValue', 'lifetime_value']),
-      grossMargin:extractValue(fin, ['grossMargin', 'gross_margin', 'margin']),
+      mrr:        extractValue(fin, ['mrr', 'MRR', 'monthlyRevenue', 'monthly_revenue'])
+                  || (sp.mrr as string) || (sp.currentMRR as string) || (sp.monthlyRevenue as string) || '',
+      arr:        extractValue(fin, ['arr', 'ARR', 'annualRevenue', 'annual_revenue'])
+                  || (sp.arr as string) || (sp.annualRevenue as string) || '',
+      growth:     extractValue(fin, ['growth', 'growthRate', 'growth_rate', 'mrrGrowth'])
+                  || (sp.growth as string) || (sp.growthRate as string) || '',
+      runway:     extractValue(fin, ['runway', 'runwayMonths', 'runway_months'])
+                  || (sp.runway as string) || (sp.runwayMonths as string) || (sp.runwayRemaining as string) || '',
+      burnRate:   extractValue(fin, ['burn', 'burnRate', 'burn_rate', 'monthlyBurn'])
+                  || (sp.burnRate as string) || (sp.monthlyBurn as string) || '',
+      customers:  extractValue(fin, ['customers', 'customerCount', 'customer_count', 'activeCustomers'])
+                  || (sp.customers as string) || (sp.customerCount as string) || '',
+      cac:        extractValue(fin, ['cac', 'CAC', 'customerAcquisitionCost'])
+                  || (sp.cac as string) || '',
+      ltv:        extractValue(fin, ['ltv', 'LTV', 'lifetimeValue', 'lifetime_value'])
+                  || (sp.ltv as string) || '',
+      grossMargin:extractValue(fin, ['grossMargin', 'gross_margin', 'margin'])
+                  || (sp.grossMargin as string) || '',
     }
+    // Flag when data is from profile-builder (self-reported) vs agent artifact
+    const financialsFromArtifact = 'financial_summary' in latestByType
 
-    // Extract team from hiring plan artifact
+    // Extract team from hiring plan artifact, with profile-builder fallback
     const teamMembers = extractArray(hire, ['teamMembers', 'team_members', 'team', 'roles']) ?? []
+    const teamFromArtifact = 'hiring_plan' in latestByType
 
-    // Extract competitors from competitive matrix
+    // Extract competitors from competitive matrix, with profile-builder fallback
     const competitors = extractArray(comp, ['competitors', 'competitorAnalysis', 'matrix', 'companies']) ?? []
 
     // Build stage label
@@ -184,8 +200,7 @@ export async function GET(
       `Check agent deliverables for GTM and financial model depth`,
     ]
 
-    // Pull rich startup profile data (from the 6-step form)
-    const sp = (profile.startup_profile_data ?? {}) as Record<string, unknown>
+    // sp already declared above (financial fallback)
     const spCompetitors = (sp.competitors as string[] | undefined) ?? []
     const spAdvisors    = (sp.advisors    as string[] | undefined) ?? []
 
@@ -219,7 +234,9 @@ export async function GET(
       lastAssessed: qrow?.calculated_at ?? null,
 
       financials: financialMetrics,
+      financialsFromArtifact,
       teamMembers: teamMembers.slice(0, 6),
+      teamFromArtifact,
       competitors: competitors.length > 0
         ? competitors.slice(0, 4)
         // Fall back to names from startup profile form
@@ -235,12 +252,12 @@ export async function GET(
         uniquePosition: (sp.uniquePosition as string) || '',
         tamSize:        (sp.tamSize        as string) || '',
         marketGrowth:   (sp.marketGrowth   as string) || '',
-        customerType:   (sp.customerPersona as string) || '',
+        customerType:   (sp.customerPersona as string) || (sp.targetCustomer as string) || '',
         businessModel:  (sp.businessModel  as string) || '',
         differentiation:(sp.differentiation as string) || '',
         // Team
         equitySplit:    (sp.equitySplit    as string) || '',
-        teamSizeLabel:  (sp.teamSize       as string) || '',
+        teamSizeLabel:  (profile.team_size as string) || (sp.teamSize as string) || '',
         advisors:       spAdvisors,
         keyHires:       (sp.keyHires       as string[] | undefined) ?? [],
         // Fundraising

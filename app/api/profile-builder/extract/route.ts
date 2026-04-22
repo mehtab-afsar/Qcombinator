@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { EXTRACTION_PROMPTS, FOLLOW_UP_PROMPT } from '@/lib/profile-builder/extraction-prompts'
+import { EXTRACTION_PROMPTS, FOLLOW_UP_PROMPT, WHAT_ELSE_PROMPT } from '@/lib/profile-builder/extraction-prompts'
 import { getSectionCompletionPct, getMissingFields, FounderProfile } from '@/lib/profile-builder/question-engine'
 import { routedText } from '@/lib/llm/router'
 import { flattenConfidence } from '@/lib/profile-builder/utils'
@@ -71,10 +71,17 @@ export async function POST(req: NextRequest) {
       userMessage += `\n\n---\nUploaded document text:\n\n${uploadedDocumentText.slice(0, 4000)}`
     }
 
-    const raw = await routedText('extraction', [
-      { role: 'system', content: sectionPrompt },
-      { role: 'user', content: userMessage },
-    ])
+    let raw = ''
+    try {
+      raw = await routedText('extraction', [
+        { role: 'system', content: sectionPrompt },
+        { role: 'user', content: userMessage },
+      ])
+    } catch (llmErr) {
+      log.warn('[extract] LLM call failed — returning empty extraction', llmErr instanceof Error ? llmErr.message : llmErr)
+      // Return graceful empty rather than 500 so the UI can still advance
+      return NextResponse.json({ mergedFields: existingExtracted ?? {}, confidenceMap: existingConfidenceMap ?? {}, completionScore: 0, followUpQuestion: null })
+    }
 
     let extractedFields: Record<string, unknown> = {}
     let newConfidenceMap: Record<string, number> = {}
@@ -184,6 +191,39 @@ export async function POST(req: NextRequest) {
         if (!hasTimeEstimate) {
           followUpQuestion = "Got it — and roughly how many months would it take a well-funded competitor to replicate what you've built technically?"
         }
+      }
+    } else if (founderProfile && completionScore >= 60) {
+      // Section is complete — ask for more specific depth rather than returning null
+      const flatSummary = (() => {
+        const flat: Record<string, unknown> = {}
+        const flatten = (obj: Record<string, unknown>, prefix = '') => {
+          for (const [k, v] of Object.entries(obj)) {
+            const key = prefix ? `${prefix}.${k}` : k
+            if (v !== null && v !== undefined && typeof v === 'object' && !Array.isArray(v)) {
+              flatten(v as Record<string, unknown>, key)
+            } else if (v !== null && v !== undefined) {
+              flat[key] = v
+            }
+          }
+        }
+        flatten(merged)
+        return JSON.stringify(flat).slice(0, 1200)
+      })()
+
+      const whatElsePrompt = WHAT_ELSE_PROMPT
+        .replace('{section}', String(section))
+        .replace('{stage}', founderProfile.stage ?? 'unknown')
+        .replace('{industry}', founderProfile.industry ?? 'general')
+        .replace('{extractedSoFar}', flatSummary)
+
+      try {
+        const whatElseRaw = await routedText('generation', [
+          { role: 'system', content: whatElsePrompt },
+          { role: 'user', content: 'Write your reply.' },
+        ], { maxTokens: 200 })
+        followUpQuestion = whatElseRaw.trim() || null
+      } catch {
+        // non-blocking — null is fine
       }
     }
 

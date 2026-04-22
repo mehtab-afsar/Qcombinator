@@ -61,9 +61,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(session?.user ?? null);
         setLoading(false);
         // Redirect to login when token refresh fails mid-session
+        // Skip public routes so unauthenticated visitors to onboarding aren't bounced
         if (event === 'SIGNED_OUT' && typeof window !== 'undefined') {
           const { pathname } = window.location;
-          if (pathname.startsWith('/founder/') || pathname.startsWith('/investor/')) {
+          const isPublic = pathname.includes('/onboarding') || pathname.includes('/profile-builder')
+          if (!isPublic && (pathname.startsWith('/founder/') || pathname.startsWith('/investor/'))) {
             window.location.href = '/login';
           }
         }

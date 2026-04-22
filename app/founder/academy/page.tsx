@@ -1,18 +1,15 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Calendar, Users, Clock, Star,
   Award, ArrowRight, Video, Play, CheckCircle,
-  Sparkles, BookOpen, Zap, Brain,
+  Sparkles, BookOpen, Zap, Brain, Loader2,
 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import {
-  getUpcomingWorkshops, getPastWorkshops, mentors,
-  academyPrograms, getOpenPrograms,
-} from "@/features/academy/data/workshops";
+import type { Workshop, Mentor, AcademyProgram } from "@/features/academy/types/academy.types";
 import { bg, surf, bdr, ink, muted } from '@/lib/constants/colors'
 
 // ─── recommended resources per dimension ──────────────────────────────────────
@@ -43,10 +40,26 @@ function AcademyInner() {
   const [tab, setTab]               = useState("workshops");
   const [toast, setToast]           = useState(false);
   const [hoveredCard, setHoveredCard] = useState<string | null>(null);
+  const [loading, setLoading]         = useState(true);
+  const [workshops, setWorkshops]     = useState<Workshop[]>([]);
+  const [mentors, setMentors]         = useState<Mentor[]>([]);
+  const [academyPrograms, setAcademyPrograms] = useState<AcademyProgram[]>([]);
 
-  const upcomingWorkshops = getUpcomingWorkshops();
-  const pastWorkshops     = getPastWorkshops();
-  const openPrograms      = getOpenPrograms();
+  useEffect(() => {
+    fetch('/api/academy')
+      .then(r => r.ok ? r.json() : { workshops: [], mentors: [], programs: [] })
+      .then(d => {
+        setWorkshops(d.workshops ?? [])
+        setMentors(d.mentors ?? [])
+        setAcademyPrograms(d.programs ?? [])
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  const upcomingWorkshops = workshops.filter(w => w.status === 'upcoming' || w.status === 'live');
+  const pastWorkshops     = workshops.filter(w => w.status === 'past');
+  const openPrograms      = academyPrograms.filter(p => p.status === 'open');
 
   const showToast = () => {
     setToast(true);
@@ -80,12 +93,12 @@ function AcademyInner() {
               style={{
                 display: "inline-flex", alignItems: "center", gap: 8,
                 padding: "8px 14px", borderRadius: 99,
-                background: "#EEF2FF", border: "1px solid #C7D2FE",
-                fontSize: 12, fontWeight: 500, color: "#3730A3",
+                background: "#FFF7ED", border: "1px solid #FDE68A",
+                fontSize: 12, fontWeight: 500, color: "#92400E",
               }}
             >
-              <span style={{ height: 6, width: 6, borderRadius: "50%", background: "#6366F1", display: "inline-block" }} />
-              New workshops added weekly
+              <span style={{ height: 6, width: 6, borderRadius: "50%", background: "#F59E0B", display: "inline-block" }} />
+              Launching soon
             </div>
           </div>
         </motion.div>
@@ -160,8 +173,16 @@ function AcademyInner() {
           </div>
         </motion.div>
 
+        {/* ── Loading skeleton ─────────────────────────────────────── */}
+        {loading && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '48px 0', justifyContent: 'center' }}>
+            <Loader2 size={18} color={muted} style={{ animation: 'spin 1s linear infinite' }} />
+            <span style={{ fontSize: 13, color: muted }}>Loading academy…</span>
+          </div>
+        )}
+
         {/* ── Tab bar ─────────────────────────────────────────────────── */}
-        <motion.div
+        {!loading && <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.08 }}
@@ -192,10 +213,10 @@ function AcademyInner() {
               </button>
             );
           })}
-        </motion.div>
+        </motion.div>}
 
         {/* ── Content ─────────────────────────────────────────────────── */}
-        <AnimatePresence mode="wait">
+        {!loading && <AnimatePresence mode="wait">
           <motion.div
             key={tab}
             initial={{ opacity: 0, y: 12 }}
@@ -212,14 +233,33 @@ function AcademyInner() {
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
                     <h2 style={{ fontSize: 16, fontWeight: 500, color: ink }}>Upcoming Workshops</h2>
-                    <span style={{
-                      fontSize: 11, fontWeight: 600, padding: "2px 10px", borderRadius: 99,
-                      background: "#F0FDF4", color: "#166534", border: "1px solid #BBF7D0",
-                      letterSpacing: "0.06em", textTransform: "uppercase",
-                    }}>
-                      {upcomingWorkshops.length} live
-                    </span>
+                    {upcomingWorkshops.length > 0 && (
+                      <span style={{
+                        fontSize: 11, fontWeight: 600, padding: "2px 10px", borderRadius: 99,
+                        background: "#F0FDF4", color: "#166534", border: "1px solid #BBF7D0",
+                        letterSpacing: "0.06em", textTransform: "uppercase",
+                      }}>
+                        {upcomingWorkshops.length} live
+                      </span>
+                    )}
                   </div>
+
+                  {upcomingWorkshops.length === 0 ? (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      style={{
+                        background: surf, border: `2px dashed ${bdr}`, borderRadius: 16,
+                        padding: "48px 32px", textAlign: "center",
+                      }}
+                    >
+                      <Calendar style={{ width: 36, height: 36, color: "#C8C3BB", margin: "0 auto 14px" }} />
+                      <h3 style={{ fontSize: 16, fontWeight: 500, color: ink, marginBottom: 6 }}>No workshops scheduled yet</h3>
+                      <p style={{ fontSize: 13, fontWeight: 300, color: muted, maxWidth: 380, margin: "0 auto" }}>
+                        The first workshops are being planned. Check back soon — or work through the AI advisers below to get started now.
+                      </p>
+                    </motion.div>
+                  ) : (
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(480px, 1fr))", gap: 16 }}>
                     {upcomingWorkshops.map((w, i) => {
                       const topicStyle = TOPIC_COLORS[w.topic] ?? { bg: surf, text: muted };
@@ -310,9 +350,11 @@ function AcademyInner() {
                       );
                     })}
                   </div>
+                  )}
                 </div>
 
-                {/* Past / Recordings */}
+                {/* Past / Recordings — only show section if there are recordings */}
+                {pastWorkshops.length > 0 && (
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
                     <h2 style={{ fontSize: 16, fontWeight: 500, color: ink }}>Watch Recordings</h2>
@@ -393,6 +435,7 @@ function AcademyInner() {
                     })}
                   </div>
                 </div>
+                )}
               </div>
             )}
 
@@ -516,6 +559,22 @@ function AcademyInner() {
             {/* ── PROGRAMS ──────────────────────────────────────────── */}
             {tab === "programs" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                {academyPrograms.length === 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    style={{
+                      background: surf, border: `2px dashed ${bdr}`, borderRadius: 16,
+                      padding: "56px 32px", textAlign: "center",
+                    }}
+                  >
+                    <BookOpen style={{ width: 36, height: 36, color: "#C8C3BB", margin: "0 auto 14px" }} />
+                    <h3 style={{ fontSize: 16, fontWeight: 500, color: ink, marginBottom: 6 }}>Cohort programs coming soon</h3>
+                    <p style={{ fontSize: 13, fontWeight: 300, color: muted, maxWidth: 400, margin: "0 auto" }}>
+                      Structured cohort programs for founders at seed and Series A. Applications will open when the first cohort is ready.
+                    </p>
+                  </motion.div>
+                )}
                 {openPrograms.map((prog, i) => {
                   const pct = Math.round(((prog.cohortSize - prog.spotsLeft) / prog.cohortSize) * 100);
                   return (
@@ -647,7 +706,7 @@ function AcademyInner() {
             )}
 
           </motion.div>
-        </AnimatePresence>
+        </AnimatePresence>}
       </div>
 
       {/* ── Toast ─────────────────────────────────────────────────────── */}

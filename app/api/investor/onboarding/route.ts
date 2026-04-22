@@ -14,11 +14,14 @@ export async function POST(request: NextRequest) {
     if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
 
     const {
-      firstName, lastName, email, phone, linkedin,
+      firstName = '', lastName = '', email,
+      phone, linkedin,
       firmName, firmType, firmSize, aum, website, location,
       checkSize, stages, sectors, geography,
       thesis, dealFlow, decisionProcess, timeline,
     } = parsed.data
+
+    const fullName = [firstName, lastName].filter(Boolean).join(' ') || (email ? email.split('@')[0] : 'Investor')
 
     const supabase = await createClient()
 
@@ -27,8 +30,8 @@ export async function POST(request: NextRequest) {
       .upsert(
         {
           user_id:             user.id,
-          full_name:           `${firstName} ${lastName}`,
-          email,
+          full_name:           fullName,
+          email:               email || null,
           phone:               phone    || null,
           linkedin_url:        linkedin || null,
           firm_name:           firmName || null,
@@ -76,7 +79,7 @@ export async function POST(request: NextRequest) {
         const { data: demoRow } = await supabase
           .from('demo_investors')
           .insert({
-            name:          `${firstName} ${lastName}`,
+            name:          fullName,
             firm:          firmName  || 'Independent',
             title:         'Partner',
             location:      location  || 'United States',
@@ -87,6 +90,7 @@ export async function POST(request: NextRequest) {
             thesis:        thesis    || null,
             portfolio:     [],
             response_rate: 80,
+            is_active:     true,
           })
           .select('id')
           .single()
@@ -101,7 +105,7 @@ export async function POST(request: NextRequest) {
         await supabase
           .from('demo_investors')
           .update({
-            name:      `${firstName} ${lastName}`,
+            name:      fullName,
             firm:      firmName  || 'Independent',
             location:  location  || 'United States',
             check_sizes: checkSize || [],

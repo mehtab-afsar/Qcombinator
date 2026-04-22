@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import {
   Shield, Building2, Target, Sparkles, CheckCircle2,
   ArrowRight, TrendingUp, Users, DollarSign, Globe,
-  Eye, EyeOff, Loader2, Check, Lock,
+  Eye, EyeOff, Loader2, Check, Camera, Cpu, FileText, UploadCloud, X,
 } from 'lucide-react'
 import { bg, surf, bdr, ink, muted, blue, green } from '@/lib/constants/colors'
 
@@ -28,9 +29,9 @@ const INITIAL: FormData = {
   thesis: '', dealFlow: '', decisionProcess: '', timeline: '',
 }
 
-const STEP_LABELS = ['Account', 'Personal', 'Firm', 'Criteria', 'Thesis']
-const STEP_ICONS  = [Shield, Users, Building2, Target, Sparkles]
-const STEP_COLORS = [blue, green, '#7C3AED', '#D97706', '#DB2777']
+const STEP_LABELS = ['Account', 'Personal', 'Firm', 'Criteria', 'Thesis', 'Photo']
+const STEP_ICONS  = [Shield, Users, Building2, Target, Sparkles, Camera]
+const STEP_COLORS = [blue, green, '#7C3AED', '#D97706', '#DB2777', '#0891B2']
 
 type Mode = 'choice' | 'signin' | 'signup'
 
@@ -42,9 +43,14 @@ export default function InvestorOnboarding() {
   const [loading, setLoading]     = useState(false)
   const [error, setError]         = useState('')
   const [processingStep, setProcessingStep] = useState(0)
+  const [avatarUploading, setAvatarUploading] = useState(false)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [thesisUploading, setThesisUploading] = useState(false)
+  const [thesisFileName, setThesisFileName] = useState<string | null>(null)
+  const thesisInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
 
-  const totalSteps = 5
+  const totalSteps = 6
 
   useEffect(() => {
     import('@/features/auth/services/auth.service')
@@ -76,7 +82,7 @@ export default function InvestorOnboarding() {
 
   const handleCreateAccount = async () => {
     if (!form.email || !form.password) { setError('Email and password are required'); return }
-    if (form.password.length < 6) { setError('Password must be at least 6 characters'); return }
+    if (form.password.length < 8) { setError('Password must be at least 8 characters'); return }
     setError(''); setLoading(true)
     try {
       const res = await fetch('/api/auth/investor-signup', {
@@ -94,20 +100,63 @@ export default function InvestorOnboarding() {
     setLoading(false)
   }
 
-  const handleNext = () => setStep(s => Math.min(s + 1, totalSteps))
+  const handleNext = () => {
+    if (step === 2 && (!form.firstName.trim() || !form.lastName.trim())) {
+      setError('First name and last name are required')
+      return
+    }
+    setError('')
+    setStep(s => Math.min(s + 1, totalSteps))
+  }
   const handleBack = () => setStep(s => Math.max(s - 1, 1))
+
+  async function handleThesisUpload(file: File) {
+    setThesisUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/upload/thesis', { method: 'POST', body: fd })
+      const data = await res.json()
+      if (res.ok && data.text) {
+        set('thesis', data.text)
+        setThesisFileName(file.name)
+      }
+    } finally {
+      setThesisUploading(false)
+    }
+  }
+
+  async function handleAvatarUpload(file: File) {
+    setAvatarUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      fd.append('imageType', 'investor-avatar')
+      const res = await fetch('/api/upload/image', { method: 'POST', body: fd })
+      const data = await res.json()
+      if (res.ok && data.url) setAvatarUrl(data.url)
+    } finally {
+      setAvatarUploading(false)
+    }
+  }
 
   const handleSubmit = async () => {
     setLoading(true)
+    let savedOk = false
     try {
       const res = await fetch('/api/investor/onboarding', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       })
-      if (!res.ok) console.error('Investor onboarding save error:', await res.json())
+      if (res.ok) {
+        savedOk = true
+      } else {
+        const errBody = await res.json().catch(() => ({}))
+        console.error('Investor onboarding save error:', errBody)
+      }
     } catch (err) { console.error('Investor onboarding error:', err) }
 
-    setStep(6); setLoading(false)
+    setStep(7); setLoading(false)
 
     // Animate processing steps
     const msgs = ['Saving investor profile', 'Analysing your investment thesis', 'Scoring founders against your criteria', 'Curating personalised deal flow']
@@ -116,7 +165,10 @@ export default function InvestorOnboarding() {
       setProcessingStep(i + 1)
     }
 
-    try { await fetch('/api/investor/personalize', { method: 'POST' }) } catch { /* non-blocking */ }
+    // Only personalise if the profile was actually saved
+    if (savedOk) {
+      try { await fetch('/api/investor/personalize', { method: 'POST' }) } catch { /* non-blocking */ }
+    }
     await new Promise(r => setTimeout(r, 600))
     router.push('/investor/dashboard')
   }
@@ -341,44 +393,27 @@ export default function InvestorOnboarding() {
           <button
             onClick={() => setMode('signin')}
             style={{
-              padding: '14px 22px', borderRadius: 12,
-              border: `1.5px solid ${bdr}`, background: 'white',
-              color: ink, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              transition: 'border-color 0.15s, box-shadow 0.15s',
+              background: 'none', border: `1.5px solid ${bdr}`,
+              borderRadius: 10, padding: '12px 20px',
+              width: '100%', cursor: 'pointer', color: muted,
+              fontSize: 13, textAlign: 'center', transition: 'border-color 0.15s',
+              fontFamily: 'inherit',
             }}
-            onMouseEnter={e => {
-              e.currentTarget.style.borderColor = ink
-              e.currentTarget.style.boxShadow = '0 2px 8px rgba(24,22,15,0.06)'
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.borderColor = bdr
-              e.currentTarget.style.boxShadow = 'none'
-            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = ink }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = bdr }}
           >
-            <div>
-              <p style={{ fontSize: 11, color: muted, margin: '0 0 3px', fontWeight: 400 }}>Already have an account</p>
-              <p style={{ fontSize: 15, fontWeight: 600, color: ink, margin: 0 }}>Sign in</p>
-            </div>
-            <ArrowRight size={16} color={muted} />
+            Already have an account?{' '}
+            <strong style={{ color: ink, fontWeight: 600 }}>Sign in</strong>
           </button>
         </div>
 
-        {/* feature grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-          {[
-            { icon: TrendingUp, title: 'Q-Scored pipeline', desc: '6-dimension scoring before founders reach your inbox' },
-            { icon: Sparkles,   title: 'Thesis matching',   desc: 'AI ranks founders against your investment thesis' },
-            { icon: Lock,       title: 'Vetted founders',   desc: 'Only post-onboarding, assessment-completed founders' },
-          ].map(({ icon: Icon, title, desc }) => (
-            <div key={title} style={{
-              padding: '14px 12px', borderRadius: 10,
-              background: surf, border: `1px solid ${bdr}`,
-            }}>
-              <Icon size={17} color={blue} style={{ marginBottom: 8 }} />
-              <p style={{ fontSize: 11, fontWeight: 700, color: ink, margin: '0 0 4px' }}>{title}</p>
-              <p style={{ fontSize: 10, color: muted, margin: 0, lineHeight: 1.5 }}>{desc}</p>
-            </div>
+        {/* trust bar */}
+        <div style={{
+          display: 'flex', justifyContent: 'center', gap: 16, flexWrap: 'wrap',
+          padding: '10px 0', borderTop: `1px solid ${bdr}`, borderBottom: `1px solid ${bdr}`,
+        }}>
+          {['Invite-only beta', '500+ founders scored', 'Seed & Series A funds'].map(t => (
+            <span key={t} style={{ fontSize: 11, color: muted, fontWeight: 500 }}>· {t}</span>
           ))}
         </div>
       </div>
@@ -642,20 +677,30 @@ export default function InvestorOnboarding() {
     const sectors = ['AI/ML', 'SaaS', 'Fintech', 'Healthcare', 'E-commerce', 'Marketplace', 'DeepTech', 'Consumer', 'Enterprise', 'Climate', 'Crypto/Web3', 'EdTech']
     const geos    = ['North America', 'Europe', 'Asia Pacific', 'Latin America', 'Middle East', 'Global']
 
-    const group = (title: string, Icon: React.ElementType, items: string[], field: keyof FormData) => (
+    const cardStyle = (selected: boolean): React.CSSProperties => ({
+      padding: '10px 12px', borderRadius: 9, cursor: 'pointer', textAlign: 'center',
+      border: `1.5px solid ${selected ? blue : bdr}`,
+      background: selected ? '#EFF6FF' : 'white',
+      fontSize: 12, fontWeight: selected ? 600 : 400,
+      color: selected ? blue : ink, transition: 'all 0.13s',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+      minHeight: 44, userSelect: 'none',
+    })
+
+    const group = (title: string, Icon: React.ElementType, items: string[], field: keyof FormData, cols: number) => (
       <div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10 }}>
           <Icon size={13} color={muted} />
           <label style={{ ...labelStyle, margin: 0 }}>{title}</label>
         </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 7 }}>
           {items.map(item => {
             const selected = (form[field] as string[]).includes(item)
             return (
-              <span key={item} style={chipStyle(selected)} onClick={() => toggle(field, item)}>
-                {selected && <Check size={12} strokeWidth={3} />}
+              <div key={item} style={cardStyle(selected)} onClick={() => toggle(field, item)}>
+                {selected && <Check size={11} strokeWidth={3} />}
                 {item}
-              </span>
+              </div>
             )
           })}
         </div>
@@ -666,13 +711,20 @@ export default function InvestorOnboarding() {
       <div>
         {sectionHeader(4, 'Investment Criteria', 'Define what you look for in deals')}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          {group('Typical Check Size', DollarSign, checks, 'checkSize')}
+          {/* AI hint banner */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 13px', borderRadius: 9, background: `${blue}0A`, border: `1px solid ${blue}20` }}>
+            <Sparkles size={13} color={blue} />
+            <p style={{ fontSize: 12, color: muted, margin: 0, lineHeight: 1.5 }}>
+              Our AI reads these signals to rank founders by fit, not recency.
+            </p>
+          </div>
+          {group('Typical Check Size', DollarSign, checks, 'checkSize', 3)}
           <div style={{ height: 1, background: bdr }} />
-          {group('Investment Stages', TrendingUp, stages, 'stages')}
+          {group('Investment Stages', TrendingUp, stages, 'stages', 2)}
           <div style={{ height: 1, background: bdr }} />
-          {group('Preferred Sectors', Sparkles, sectors, 'sectors')}
+          {group('Preferred Sectors', Cpu, sectors, 'sectors', 3)}
           <div style={{ height: 1, background: bdr }} />
-          {group('Geographic Focus', Globe, geos, 'geography')}
+          {group('Geographic Focus', Globe, geos, 'geography', 2)}
           <div style={{ display: 'flex', gap: 12, paddingTop: 4 }}>
             <button style={btnSecondary} onClick={handleBack}
               onMouseEnter={e => (e.currentTarget.style.borderColor = ink)}
@@ -693,9 +745,68 @@ export default function InvestorOnboarding() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
         <div>
           <label style={labelStyle}>Your Investment Thesis</label>
-          <p style={{ fontSize: 12, color: muted, marginBottom: 8, margin: '0 0 8px' }}>
-            What types of companies excite you? What&apos;s your edge as an investor?
+          <p style={{ fontSize: 12, color: muted, margin: '0 0 10px' }}>
+            Upload a document or type directly below.
           </p>
+
+          {/* Upload zone */}
+          <label
+            htmlFor="thesis-doc-input"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              padding: '14px 16px', borderRadius: 10, marginBottom: 12,
+              border: `1.5px dashed ${thesisFileName ? green : bdr}`,
+              background: thesisFileName ? `${green}08` : surf,
+              cursor: thesisUploading ? 'default' : 'pointer',
+              transition: 'all 0.15s',
+            }}
+          >
+            {thesisUploading ? (
+              <Loader2 size={18} color={muted} style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }} />
+            ) : thesisFileName ? (
+              <FileText size={18} color={green} style={{ flexShrink: 0 }} />
+            ) : (
+              <UploadCloud size={18} color={muted} style={{ flexShrink: 0 }} />
+            )}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontSize: 13, fontWeight: 600, color: thesisFileName ? green : ink, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {thesisUploading ? 'Extracting text…' : thesisFileName ?? 'Upload PDF, Word, or .txt file'}
+              </p>
+              {!thesisUploading && !thesisFileName && (
+                <p style={{ fontSize: 11, color: muted, margin: 0, marginTop: 2 }}>
+                  Text will be extracted and pre-filled below
+                </p>
+              )}
+              {thesisFileName && !thesisUploading && (
+                <p style={{ fontSize: 11, color: green, margin: 0, marginTop: 2 }}>Extracted · edit below if needed</p>
+              )}
+            </div>
+            {thesisFileName && !thesisUploading && (
+              <button
+                onClick={e => { e.preventDefault(); setThesisFileName(null); set('thesis', '') }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: muted, padding: 0, flexShrink: 0 }}
+              >
+                <X size={14} />
+              </button>
+            )}
+            <input
+              id="thesis-doc-input"
+              ref={thesisInputRef}
+              type="file"
+              accept=".pdf,.docx,.doc,.txt"
+              disabled={thesisUploading}
+              onChange={e => { const f = e.target.files?.[0]; if (f) handleThesisUpload(f); e.target.value = '' }}
+              style={{ display: 'none' }}
+            />
+          </label>
+
+          {/* OR divider */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+            <div style={{ flex: 1, height: 1, background: bdr }} />
+            <span style={{ fontSize: 10, color: muted, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>or type directly</span>
+            <div style={{ flex: 1, height: 1, background: bdr }} />
+          </div>
+
           <textarea
             rows={4}
             style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6 } as React.CSSProperties}
@@ -768,16 +879,79 @@ export default function InvestorOnboarding() {
             onMouseEnter={e => (e.currentTarget.style.borderColor = ink)}
             onMouseLeave={e => (e.currentTarget.style.borderColor = bdr)}>← Back</button>
           <button
-            style={{ ...btnPrimary, flex: 1, justifyContent: 'center', background: green, boxShadow: '0 2px 12px rgba(22,163,74,0.22)' }}
-            onClick={handleSubmit} disabled={loading}>
-            {loading
-              ? <><Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> Saving…</>
-              : <><CheckCircle2 size={15} /> Complete Setup</>}
+            style={{ ...btnPrimary, flex: 1, justifyContent: 'center' }}
+            onClick={handleNext}>
+            Continue <ArrowRight size={15} />
           </button>
         </div>
       </div>
     </div>
   )
+
+  // ─── Step 6: Profile Photo ─────────────────────────────────────────────────
+  const renderStep6 = () => {
+    const initials = form.firstName
+      ? `${form.firstName[0] ?? ''}${form.lastName[0] ?? ''}`.toUpperCase()
+      : 'YO'
+    return (
+      <div>
+        {sectionHeader(6, 'Add your photo', 'A profile photo helps founders recognise you. Completely optional.')}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
+          {/* Label wraps the input — works in all browsers without ref.click() */}
+          <label htmlFor="investor-avatar-input" style={{ cursor: avatarUploading ? 'default' : 'pointer', display: 'inline-block', position: 'relative' }}>
+            <div style={{
+              width: 108, height: 108, borderRadius: '50%',
+              border: `2.5px dashed ${avatarUrl ? green : bdr}`,
+              background: surf, overflow: 'hidden',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'border-color 0.15s', position: 'relative',
+            }}>
+              {avatarUploading ? (
+                <Loader2 size={24} color={muted} style={{ animation: 'spin 1s linear infinite' }} />
+              ) : avatarUrl ? (
+                <Image src={avatarUrl} alt="Avatar" fill style={{ objectFit: 'cover' }} />
+              ) : (
+                <span style={{ fontSize: 30, fontWeight: 700, color: muted }}>{initials}</span>
+              )}
+              {!avatarUploading && (
+                <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'rgba(0,0,0,0)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.15s' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,0,0,0.25)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'rgba(0,0,0,0)')}>
+                  <Camera size={20} color="#fff" style={{ opacity: 0.9 }} />
+                </div>
+              )}
+            </div>
+            <input
+              id="investor-avatar-input"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              disabled={avatarUploading}
+              onChange={e => { const f = e.target.files?.[0]; if (f) handleAvatarUpload(f); e.target.value = '' }}
+              style={{ display: 'none' }}
+            />
+          </label>
+
+          <p style={{ fontSize: 13, color: avatarUrl ? '#059669' : muted, fontWeight: avatarUrl ? 500 : 400, margin: 0 }}>
+            {avatarUploading ? 'Uploading…' : avatarUrl ? 'Photo uploaded! Looking good.' : 'Click the circle to choose a photo.'}
+          </p>
+
+          <div style={{ display: 'flex', gap: 12, paddingTop: 8, width: '100%' }}>
+            <button style={btnSecondary} onClick={() => handleSubmit()}
+              onMouseEnter={e => (e.currentTarget.style.borderColor = ink)}
+              onMouseLeave={e => (e.currentTarget.style.borderColor = bdr)}>Skip for now</button>
+            <button
+              style={{ ...btnPrimary, flex: 1, justifyContent: 'center', background: green, boxShadow: '0 2px 12px rgba(22,163,74,0.22)', opacity: avatarUploading ? 0.55 : 1, cursor: avatarUploading ? 'not-allowed' : 'pointer' }}
+              onClick={() => handleSubmit()} disabled={avatarUploading || loading}>
+              {loading
+                ? <><Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> Saving…</>
+                : avatarUploading ? 'Uploading…'
+                : <><CheckCircle2 size={15} /> Complete Setup</>}
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   // ─── Processing ───────────────────────────────────────────────────────────
   const renderProcessing = () => {
@@ -857,31 +1031,23 @@ export default function InvestorOnboarding() {
   }
 
   // ─── layout ───────────────────────────────────────────────────────────────
-  const isProcessing = mode === 'signup' && step === 6
+  const isProcessing = mode === 'signup' && step === 7
   const isChoice     = mode === 'choice'
-  const showProgress = mode === 'signup' && step >= 1 && step <= 5
+  const showProgress = mode === 'signup' && step >= 1 && step <= 6
 
   return (
     <div style={{ minHeight: '100vh', background: bg, color: ink, fontFamily: 'inherit' }}>
       <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
 
-      {/* nav */}
+      {/* nav — minimal floating bar */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '16px 28px', borderBottom: `1px solid ${bdr}`, background: 'white',
+        padding: '12px 24px', background: 'transparent',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            height: 32, width: 32, borderRadius: 8, background: ink,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <span style={{ color: '#fff', fontWeight: 900, fontSize: 10, letterSpacing: '-0.02em' }}>EA</span>
-          </div>
-          <span style={{ fontWeight: 700, fontSize: 15, letterSpacing: '-0.02em', color: ink }}>Edge Alpha</span>
-          <span style={{
-            padding: '2px 8px', borderRadius: 999, fontSize: 10, fontWeight: 600,
-            background: '#EFF6FF', color: blue, letterSpacing: '0.06em', textTransform: 'uppercase',
-          }}>Investor</span>
+          <span style={{ fontWeight: 300, fontSize: 13, letterSpacing: '-0.02em', color: ink }}>Edge Alpha</span>
+          <span style={{ color: bdr }}>·</span>
+          <span style={{ fontSize: 10, fontWeight: 600, color: blue, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Investor</span>
         </div>
         {showProgress && (
           <span style={{ fontSize: 12, color: muted, fontWeight: 500 }}>Step {step} of {totalSteps}</span>
@@ -909,9 +1075,7 @@ export default function InvestorOnboarding() {
       </div>
 
       {/* body */}
-      <div style={{ maxWidth: isChoice ? 520 : 520, margin: '0 auto', padding: '48px 24px 80px' }}>
-        {showProgress && renderProgress()}
-
+      <div style={{ maxWidth: isChoice ? 560 : 640, margin: '0 auto', padding: '48px 24px 80px' }}>
         {isChoice && renderChoice()}
         {mode === 'signin' && renderSignIn()}
         {mode === 'signup' && step === 1 && renderStep1()}
@@ -919,7 +1083,15 @@ export default function InvestorOnboarding() {
         {mode === 'signup' && step === 3 && renderStep3()}
         {mode === 'signup' && step === 4 && renderStep4()}
         {mode === 'signup' && step === 5 && renderStep5()}
+        {mode === 'signup' && step === 6 && renderStep6()}
         {isProcessing && renderProcessing()}
+
+        {/* Step progress — bottom of content */}
+        {showProgress && (
+          <div style={{ marginTop: 32 }}>
+            {renderProgress()}
+          </div>
+        )}
       </div>
     </div>
   )

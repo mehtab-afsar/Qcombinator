@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
     if (!isFounder && !isInvestor) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
-    if (conn.status !== 'meeting_scheduled') {
+    if (conn.status !== 'meeting_scheduled' && conn.status !== 'accepted') {
       return NextResponse.json({ error: 'Can only message within an accepted connection' }, { status: 400 })
     }
 

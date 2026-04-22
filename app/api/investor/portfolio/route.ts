@@ -23,19 +23,28 @@ export async function GET() {
 
     const demoInvestorId = investorProfile?.demo_investor_id
 
-    // Find accepted connections for this investor — check both FKs
-    let connectionsQuery = supabase
+    // Find accepted connections for this investor — check BOTH FK columns.
+    // A founder may have connected via demo_investor_id; investor may also have
+    // sent outreach that set investor_id directly. Use OR to catch both.
+    const connOrFilter = demoInvestorId
+      ? `demo_investor_id.eq.${demoInvestorId},investor_id.eq.${user.id}`
+      : `investor_id.eq.${user.id}`
+
+    const { data: rawConnections } = await supabase
       .from('connection_requests')
       .select('id, founder_id, founder_qscore, personal_message, created_at, status')
       .in('status', ['accepted', 'viewed', 'meeting_scheduled'])
+      .or(connOrFilter)
       .order('created_at', { ascending: false })
-      .limit(20)
+      .limit(40)
 
-    connectionsQuery = demoInvestorId
-      ? connectionsQuery.eq('demo_investor_id', demoInvestorId)
-      : connectionsQuery.eq('investor_id', user.id)
-
-    const { data: connections } = await connectionsQuery
+    // Deduplicate by founder_id — keep the most-recent row per founder
+    const seenFounders = new Set<string>()
+    const connections = (rawConnections ?? []).filter(c => {
+      if (seenFounders.has(c.founder_id)) return false
+      seenFounders.add(c.founder_id)
+      return true
+    })
 
     if (!connections || connections.length === 0) {
       return NextResponse.json({ companies: [] })

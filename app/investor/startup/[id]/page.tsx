@@ -19,6 +19,10 @@ import {
   Download,
   RefreshCw,
   X,
+  MessageSquare,
+  Send,
+  Share2,
+  Search,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -126,18 +130,32 @@ export default function StartupDeepDive() {
   // Pipeline CRM
   const [pipelineStage, setPipelineStage] = useState<Stage | null>(null);
   const [pipelineOpen,  setPipelineOpen]  = useState(false);
-  const [notesText,     setNotesText]     = useState('');
-  const [showNotes,     setShowNotes]     = useState(false);
-  const [savingNote,    setSavingNote]    = useState(false);
   // Investment memo
   const [memoLoading,   setMemoLoading]   = useState(false);
   const [memoHtml,      setMemoHtml]      = useState<string | null>(null);
   const [memoError,     setMemoError]     = useState('');
+  // Investor outreach
+  const [showOutreach,  setShowOutreach]  = useState(false);
+  const [outreachMsg,   setOutreachMsg]   = useState('');
+  const [outreachSending, setOutreachSending] = useState(false);
+  const [outreachDone,  setOutreachDone]  = useState(false);
+  // AI chatbot
+  const [chatMessages, setChatMessages]   = useState<Array<{ role: 'bot' | 'user'; text: string }>>([]);
+  const [chatInput,    setChatInput]      = useState('');
+  const [chatLoading,  setChatLoading]    = useState(false);
+  // Investor sharing
+  const [showShare,    setShowShare]      = useState(false);
+  const [shareSearch,  setShareSearch]    = useState('');
+  const [shareTarget,  setShareTarget]    = useState<{ user_id: string; full_name: string; firm_name: string | null } | null>(null);
+  const [shareNote,    setShareNote]      = useState('');
+  const [shareSending, setShareSending]   = useState(false);
+  const [shareDone,    setShareDone]      = useState(false);
+  const [investors,    setInvestors]      = useState<Array<{ user_id: string; full_name: string; firm_name: string | null }>>([]);
 
   useEffect(() => {
     Promise.all([
-      fetch(`/api/investor/startup/${id}`).then(r => r.json()),
-      fetch('/api/investor/pipeline').then(r => r.json()).catch(() => ({ pipelineMap: {} })),
+      fetch(`/api/investor/startup/${id}`).then(r => { if (!r.ok) throw new Error(String(r.status)); return r.json() }),
+      fetch('/api/investor/pipeline').then(r => r.ok ? r.json() : { pipelineMap: {} }).catch(() => ({ pipelineMap: {} })),
     ]).then(([startupData, pipelineData]) => {
       if (startupData.error) setError(startupData.error);
       else setStartup(startupData.startup);
@@ -145,7 +163,6 @@ export default function StartupDeepDive() {
       if (entry) {
         const raw = entry.stage === 'interested' ? 'watching' : entry.stage;
         setPipelineStage(STAGES.includes(raw as Stage) ? (raw as Stage) : 'watching');
-        setNotesText(entry.notes ?? '');
       }
     }).catch(() => setError('Failed to load profile'))
       .finally(() => setLoading(false));
@@ -161,16 +178,6 @@ export default function StartupDeepDive() {
     });
   }
 
-  async function saveNotes() {
-    if (!pipelineStage) return; // notes require an explicit pipeline stage
-    setSavingNote(true);
-    await fetch('/api/investor/pipeline', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ founderId: id, stage: pipelineStage, notes: notesText }),
-    }).catch(() => {});
-    setSavingNote(false);
-  }
 
   async function handleGenerateMemo(regenerate = false) {
     if (!startup || memoLoading) return;
@@ -190,6 +197,46 @@ export default function StartupDeepDive() {
     } finally {
       setMemoLoading(false);
     }
+  }
+
+  async function handleSendOutreach() {
+    if (!startup || !outreachMsg.trim() || outreachSending) return
+    setOutreachSending(true)
+    try {
+      const res = await fetch('/api/investor/outreach', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ founderId: startup.founderId, message: outreachMsg.trim() }),
+      })
+      if (res.ok) { setOutreachDone(true); setOutreachMsg('') }
+    } finally {
+      setOutreachSending(false)
+    }
+  }
+
+  async function handleOpenShare() {
+    setShowShare(true)
+    setShareDone(false)
+    setShareTarget(null)
+    setShareSearch('')
+    setShareNote('')
+    if (investors.length === 0) {
+      const res = await fetch(`/api/investor/startup/${id}/share`)
+      if (res.ok) { const d = await res.json(); setInvestors(d.investors ?? []) }
+    }
+  }
+
+  async function handleSendShare() {
+    if (!shareTarget || shareSending) return
+    setShareSending(true)
+    try {
+      const res = await fetch(`/api/investor/startup/${id}/share`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetInvestorId: shareTarget.user_id, note: shareNote.trim() || undefined }),
+      })
+      if (res.ok) setShareDone(true)
+    } finally { setShareSending(false) }
   }
 
   function handleDownloadMemo() {
@@ -268,26 +315,42 @@ export default function StartupDeepDive() {
             <div style={{ height: 28, width: 1, background: bdr }} />
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
 
-              {/* Generate Memo button */}
-              <button
-                onClick={() => handleGenerateMemo(false)}
-                disabled={memoLoading}
-                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 999, fontSize: 12, fontWeight: 500, cursor: memoLoading ? "not-allowed" : "pointer", background: "#7C3AED15", color: "#7C3AED", border: "1px solid #C4B5FD", transition: "all 0.15s", opacity: memoLoading ? 0.7 : 1 }}
+              {/* Generate Memo button — rainbow gradient border */}
+              <div
+                onClick={memoLoading ? undefined : () => handleGenerateMemo(false)}
+                style={{
+                  display: "inline-flex", padding: "1.5px", borderRadius: 10,
+                  background: memoLoading ? bdr : 'linear-gradient(135deg, #6366f1, #8b5cf6, #ec4899, #f59e0b)',
+                  cursor: memoLoading ? "not-allowed" : "pointer",
+                  opacity: memoLoading ? 0.7 : 1,
+                  transition: "opacity 0.15s",
+                }}
               >
-                {memoLoading
-                  ? <Loader2 style={{ height: 12, width: 12, animation: "spin 1s linear infinite" }} />
-                  : <Sparkles style={{ height: 12, width: 12 }} />
-                }
-                {memoLoading ? "Generating…" : "Generate Memo"}
+                <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 13px", borderRadius: 9, background: bg, fontSize: 12, fontWeight: 600, color: ink, whiteSpace: "nowrap" }}>
+                  {memoLoading
+                    ? <Loader2 style={{ height: 12, width: 12, animation: "spin 1s linear infinite" }} />
+                    : <FileText style={{ height: 12, width: 12 }} />
+                  }
+                  {memoLoading ? "Generating…" : "Generate Memo"}
+                </div>
+              </div>
+
+              {/* Message Founder button */}
+              <button
+                onClick={() => { setShowOutreach(true); setOutreachDone(false) }}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 999, fontSize: 12, fontWeight: 500, cursor: "pointer", background: outreachDone ? `${green}14` : surf, color: outreachDone ? green : muted, border: `1px solid ${outreachDone ? green : bdr}`, transition: "all 0.15s" }}
+              >
+                <MessageSquare style={{ height: 12, width: 12 }} />
+                {outreachDone ? "Sent ✓" : "Message Founder"}
               </button>
 
-              {/* Notes button */}
+              {/* Share with Investor button */}
               <button
-                onClick={() => setShowNotes(v => !v)}
-                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 999, fontSize: 12, fontWeight: 500, cursor: "pointer", background: showNotes ? `${blue}10` : surf, color: showNotes ? blue : muted, border: `1px solid ${showNotes ? blue : bdr}`, transition: "all 0.15s" }}
+                onClick={handleOpenShare}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 13px", borderRadius: 999, fontSize: 12, fontWeight: 500, cursor: "pointer", background: surf, color: muted, border: `1px solid ${bdr}`, transition: "all 0.15s" }}
               >
-                <FileText style={{ height: 12, width: 12 }} />
-                Notes {notesText.trim() && !showNotes ? "✓" : ""}
+                <Share2 style={{ height: 12, width: 12 }} />
+                Share
               </button>
 
               {/* Pipeline stage selector */}
@@ -344,43 +407,182 @@ export default function StartupDeepDive() {
       </div>
 
       {/* ── private notes panel ────────────────────────────────────── */}
-      {showNotes && (
-        <div style={{ borderBottom: `1px solid ${bdr}`, background: '#FFFBEB', padding: "14px 28px" }}>
-          <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", alignItems: "flex-start", gap: 12 }}>
-            <FileText style={{ height: 14, width: 14, color: amber, flexShrink: 0, marginTop: 3 }} />
-            <div style={{ flex: 1 }}>
-              <p style={{ fontSize: 11, fontWeight: 700, color: amber, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>Private Notes — visible only to you</p>
-              {!pipelineStage && (
-                <p style={{ fontSize: 11, color: muted, marginBottom: 8, fontStyle: "italic" }}>
-                  Add this company to your pipeline first to save notes.
+      {/* Outreach modal */}
+      {showOutreach && (
+        <div
+          onClick={() => setShowOutreach(false)}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+        >
+          <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 480, background: bg, borderRadius: 16, border: `1px solid ${bdr}`, padding: "28px 28px 24px", boxShadow: "0 24px 64px rgba(0,0,0,0.12)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <MessageSquare style={{ height: 16, width: 16, color: blue }} />
+                <p style={{ fontSize: 15, fontWeight: 600, color: ink }}>Message {startup?.founderName}</p>
+              </div>
+              <button onClick={() => setShowOutreach(false)} style={{ background: "none", border: "none", cursor: "pointer", color: muted, padding: 4 }}>
+                <X style={{ height: 16, width: 16 }} />
+              </button>
+            </div>
+            {outreachDone ? (
+              <div style={{ textAlign: "center", padding: "20px 0" }}>
+                <p style={{ fontSize: 22 }}>✓</p>
+                <p style={{ fontSize: 14, color: green, fontWeight: 600, marginTop: 8 }}>Message sent!</p>
+                <p style={{ fontSize: 13, color: muted, marginTop: 4 }}>
+                  {startup?.founderName} will see your message in their inbox.
                 </p>
-              )}
-              <textarea
-                value={notesText}
-                onChange={e => setNotesText(e.target.value)}
-                onBlur={saveNotes}
-                disabled={!pipelineStage}
-                placeholder={pipelineStage ? "Add your private notes on this founder — thesis fit, meeting notes, concerns, questions to ask…" : "Add this company to your pipeline to unlock notes…"}
-                style={{
-                  width: "100%", minHeight: 80, padding: "10px 12px",
-                  border: `1px solid #FDE68A`, borderRadius: 8,
-                  background: pipelineStage ? "#fff" : "#FAFAF9",
-                  fontSize: 13, color: pipelineStage ? ink : muted, resize: "vertical",
-                  fontFamily: "system-ui, -apple-system, sans-serif", lineHeight: 1.6,
-                  outline: "none", opacity: pipelineStage ? 1 : 0.6,
-                }}
-              />
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", marginTop: 6, gap: 8 }}>
-                {savingNote && <span style={{ fontSize: 11, color: muted }}>Saving…</span>}
-                {!savingNote && notesText.trim() && <span style={{ fontSize: 11, color: green }}>✓ Auto-saved</span>}
-                <button
-                  onClick={saveNotes}
-                  style={{ fontSize: 11, fontWeight: 600, color: amber, background: "none", border: `1px solid #FDE68A`, borderRadius: 6, padding: "4px 10px", cursor: "pointer" }}
-                >
-                  Save
+                <button onClick={() => setShowOutreach(false)} style={{ marginTop: 18, padding: "9px 22px", borderRadius: 8, border: `1px solid ${bdr}`, background: surf, fontSize: 13, color: ink, cursor: "pointer", fontFamily: "inherit" }}>
+                  Close
                 </button>
               </div>
+            ) : (
+              <>
+                <p style={{ fontSize: 13, color: muted, marginBottom: 14, lineHeight: 1.55 }}>
+                  Introduce yourself and explain why you&apos;re interested in {startup?.name}. This goes directly to the founder.
+                </p>
+                <textarea
+                  value={outreachMsg}
+                  onChange={e => setOutreachMsg(e.target.value)}
+                  placeholder={`Hi ${startup?.founderName?.split(' ')[0] ?? 'there'}, I came across ${startup?.name} and would love to learn more…`}
+                  rows={5}
+                  style={{ width: "100%", padding: "11px 14px", borderRadius: 8, border: `1.5px solid ${bdr}`, background: surf, fontSize: 13, color: ink, fontFamily: "inherit", outline: "none", resize: "vertical", lineHeight: 1.5, boxSizing: "border-box" }}
+                  onFocus={e => (e.currentTarget.style.borderColor = blue)}
+                  onBlur={e => (e.currentTarget.style.borderColor = bdr)}
+                />
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 14 }}>
+                  <button onClick={() => setShowOutreach(false)} style={{ padding: "9px 18px", borderRadius: 8, border: `1px solid ${bdr}`, background: "transparent", fontSize: 13, color: muted, cursor: "pointer", fontFamily: "inherit" }}>
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSendOutreach}
+                    disabled={!outreachMsg.trim() || outreachSending}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 20px", borderRadius: 8, border: "none", background: outreachMsg.trim() ? blue : bdr, color: "#fff", fontSize: 13, fontWeight: 600, cursor: outreachMsg.trim() ? "pointer" : "not-allowed", opacity: outreachSending ? 0.6 : 1, fontFamily: "inherit" }}
+                  >
+                    {outreachSending ? <Loader2 style={{ height: 13, width: 13, animation: "spin 1s linear infinite" }} /> : <Send style={{ height: 13, width: 13 }} />}
+                    {outreachSending ? "Sending…" : "Send Message"}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Share with Investor modal ──────────────────────────── */}
+      {showShare && (
+        <div
+          onClick={() => { setShowShare(false) }}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+        >
+          <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 460, background: bg, borderRadius: 16, border: `1px solid ${bdr}`, padding: "24px 24px 20px", boxShadow: "0 24px 64px rgba(0,0,0,0.12)" }}>
+            {/* header */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Share2 style={{ height: 15, width: 15, color: blue }} />
+                <p style={{ fontSize: 14, fontWeight: 600, color: ink }}>Share {s.name}</p>
+              </div>
+              <button onClick={() => setShowShare(false)} style={{ background: "none", border: "none", cursor: "pointer", color: muted }}>
+                <X style={{ height: 15, width: 15 }} />
+              </button>
             </div>
+
+            {shareDone ? (
+              <div style={{ textAlign: "center", padding: "20px 0" }}>
+                <p style={{ fontSize: 22 }}>✓</p>
+                <p style={{ fontSize: 14, color: green, fontWeight: 600, marginTop: 8 }}>Shared!</p>
+                <p style={{ fontSize: 13, color: muted, marginTop: 4 }}>
+                  {shareTarget?.full_name} has been notified about {s.name}.
+                </p>
+                <button onClick={() => setShowShare(false)} style={{ marginTop: 16, padding: "8px 20px", borderRadius: 8, border: `1px solid ${bdr}`, background: surf, fontSize: 13, color: ink, cursor: "pointer", fontFamily: "inherit" }}>
+                  Done
+                </button>
+              </div>
+            ) : (
+              <>
+                <p style={{ fontSize: 12, color: muted, marginBottom: 12, lineHeight: 1.5 }}>
+                  Share this startup with a fellow investor on Edge Alpha. They'll receive a notification.
+                </p>
+
+                {/* investor search */}
+                {!shareTarget ? (
+                  <div>
+                    <div style={{ position: "relative", marginBottom: 10 }}>
+                      <Search style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", height: 13, width: 13, color: muted }} />
+                      <input
+                        value={shareSearch}
+                        onChange={e => setShareSearch(e.target.value)}
+                        placeholder="Search investors by name…"
+                        autoFocus
+                        style={{ width: "100%", padding: "9px 12px 9px 30px", borderRadius: 8, border: `1px solid ${bdr}`, background: surf, fontSize: 13, color: ink, outline: "none", boxSizing: "border-box", fontFamily: "inherit" }}
+                      />
+                    </div>
+                    <div style={{ maxHeight: 180, overflowY: "auto", borderRadius: 8, border: `1px solid ${bdr}`, background: bg }}>
+                      {investors
+                        .filter(inv => !shareSearch || inv.full_name.toLowerCase().includes(shareSearch.toLowerCase()) || (inv.firm_name ?? '').toLowerCase().includes(shareSearch.toLowerCase()))
+                        .slice(0, 12)
+                        .map(inv => (
+                          <button
+                            key={inv.user_id}
+                            onClick={() => setShareTarget(inv)}
+                            style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "10px 12px", border: "none", background: "transparent", cursor: "pointer", textAlign: "left", fontFamily: "inherit", borderBottom: `1px solid ${bdr}` }}
+                            onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = surf}
+                            onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "transparent"}
+                          >
+                            <div style={{ width: 32, height: 32, borderRadius: 8, background: `${blue}14`, border: `1px solid ${blue}30`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: blue, flexShrink: 0 }}>
+                              {inv.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                            </div>
+                            <div>
+                              <p style={{ fontSize: 13, fontWeight: 500, color: ink, lineHeight: 1.2 }}>{inv.full_name}</p>
+                              {inv.firm_name && <p style={{ fontSize: 11, color: muted }}>{inv.firm_name}</p>}
+                            </div>
+                          </button>
+                        ))}
+                      {investors.length === 0 && (
+                        <p style={{ fontSize: 12, color: muted, textAlign: "center", padding: "20px" }}>No other investors found</p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    {/* selected investor */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: `${blue}08`, border: `1px solid ${blue}20`, borderRadius: 8, marginBottom: 12 }}>
+                      <div style={{ width: 32, height: 32, borderRadius: 8, background: `${blue}14`, border: `1px solid ${blue}30`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: blue, flexShrink: 0 }}>
+                        {shareTarget.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ fontSize: 13, fontWeight: 500, color: ink }}>{shareTarget.full_name}</p>
+                        {shareTarget.firm_name && <p style={{ fontSize: 11, color: muted }}>{shareTarget.firm_name}</p>}
+                      </div>
+                      <button onClick={() => setShareTarget(null)} style={{ background: "none", border: "none", cursor: "pointer", color: muted }}>
+                        <X style={{ height: 13, width: 13 }} />
+                      </button>
+                    </div>
+                    {/* optional note */}
+                    <textarea
+                      value={shareNote}
+                      onChange={e => setShareNote(e.target.value)}
+                      placeholder={`Add a note for ${shareTarget.full_name}… (optional)`}
+                      rows={3}
+                      style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${bdr}`, background: surf, fontSize: 13, color: ink, fontFamily: "inherit", outline: "none", resize: "none", lineHeight: 1.5, boxSizing: "border-box" }}
+                      onFocus={e => (e.currentTarget.style.borderColor = blue)}
+                      onBlur={e => (e.currentTarget.style.borderColor = bdr)}
+                    />
+                    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12 }}>
+                      <button onClick={() => setShareTarget(null)} style={{ padding: "8px 16px", borderRadius: 8, border: `1px solid ${bdr}`, background: "transparent", fontSize: 12, color: muted, cursor: "pointer", fontFamily: "inherit" }}>
+                        Back
+                      </button>
+                      <button
+                        onClick={handleSendShare}
+                        disabled={shareSending}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 18px", borderRadius: 8, border: "none", background: blue, color: "#fff", fontSize: 13, fontWeight: 600, cursor: shareSending ? "not-allowed" : "pointer", opacity: shareSending ? 0.6 : 1, fontFamily: "inherit" }}
+                      >
+                        {shareSending ? <Loader2 style={{ height: 13, width: 13, animation: "spin 1s linear infinite" }} /> : <Share2 style={{ height: 13, width: 13 }} />}
+                        {shareSending ? "Sharing…" : "Share"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       )}
@@ -594,11 +796,34 @@ export default function StartupDeepDive() {
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <span style={{ fontSize: 20, fontWeight: 700, color: qColor(s.qScore) }}>{s.qScore || '—'}</span>
-                        {s.scoreVersion === 'v2_iq' && <span style={{ fontSize: 9, padding: "2px 7px", background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 999, color: blue, fontWeight: 600 }}>IQ v2</span>}
+                        {s.scoreVersion === 'v2_iq' && <span style={{ fontSize: 9, padding: "2px 7px", background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 999, color: blue, fontWeight: 600 }}>v2</span>}
                         {s.qScoreGrade && s.qScoreGrade !== '—' && <span style={{ fontSize: 11, padding: "2px 8px", background: surf, border: `1px solid ${bdr}`, borderRadius: 999, color: muted }}>{s.qScoreGrade}</span>}
                       </div>
                     </div>
-                    {s.qScoreBreakdown.length > 0 ? (
+                    {s.iqBreakdown && s.iqBreakdown.length > 0 ? (
+                      <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 13 }}>
+                        {s.iqBreakdown.map((p, i) => {
+                          const s100 = Math.round(p.averageScore * 20)
+                          return (
+                            <motion.div key={p.id} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.06 }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+                                <span style={{ fontSize: 12, color: ink, fontWeight: 500 }}>{p.name}</span>
+                                <span style={{ fontSize: 11, color: muted }}>{s100}/100</span>
+                              </div>
+                              <div style={{ height: 4, background: surf, border: `1px solid ${bdr}`, borderRadius: 999, overflow: "hidden" }}>
+                                <motion.div style={{ height: "100%", borderRadius: 999, background: scoreColor(s100) }} initial={{ width: 0 }} animate={{ width: `${s100}%` }} transition={{ delay: 0.2 + i * 0.06, duration: 0.6, ease: "easeOut" }} />
+                              </div>
+                              <p style={{ fontSize: 9, color: muted, marginTop: 2 }}>Weight: {Math.round(p.weight * 100)}%</p>
+                            </motion.div>
+                          )
+                        })}
+                        {s.lastAssessed && (
+                          <p style={{ fontSize: 10, color: muted, marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
+                            <Calendar size={9} /> Assessed {new Date(s.lastAssessed).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </p>
+                        )}
+                      </div>
+                    ) : s.qScoreBreakdown.length > 0 ? (
                       <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 13 }}>
                         {s.qScoreBreakdown.map((item, i) => (
                           <motion.div key={item.category} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.06 }}>
@@ -635,32 +860,6 @@ export default function StartupDeepDive() {
                     </div>
                   )}
 
-                  {/* IQ Score v2 — P1-P6 parameter breakdown */}
-                  {s.iqBreakdown && s.iqBreakdown.length > 0 && (
-                    <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 18, overflow: "hidden" }}>
-                      <div style={{ padding: "14px 20px", borderBottom: `1px solid ${bdr}` }}>
-                        <p style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: "uppercase", letterSpacing: "0.14em" }}>IQ Score Breakdown</p>
-                        <p style={{ fontSize: 10, color: muted, marginTop: 2 }}>30 indicators across 6 parameters</p>
-                      </div>
-                      <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
-                        {s.iqBreakdown.map((p, i) => {
-                          const s100 = Math.round(p.averageScore * 20)
-                          return (
-                            <motion.div key={p.id} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.06 }}>
-                              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
-                                <span style={{ fontSize: 12, color: ink, fontWeight: 500 }}>{p.name}</span>
-                                <span style={{ fontSize: 11, color: muted }}>{s100}/100</span>
-                              </div>
-                              <div style={{ height: 4, background: surf, border: `1px solid ${bdr}`, borderRadius: 999, overflow: "hidden" }}>
-                                <motion.div style={{ height: "100%", borderRadius: 999, background: scoreColor(s100) }} initial={{ width: 0 }} animate={{ width: `${s100}%` }} transition={{ delay: 0.2 + i * 0.06, duration: 0.6, ease: "easeOut" }} />
-                              </div>
-                              <p style={{ fontSize: 9, color: muted, marginTop: 2 }}>Weight: {Math.round(p.weight * 100)}%</p>
-                            </motion.div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
               </div>
@@ -669,43 +868,44 @@ export default function StartupDeepDive() {
             {/* ── FINANCIALS ────────────────────────────────────────── */}
             {activeTab === "financials" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-                {Object.values(s.financials).some(v => v !== '') ? (
-                  <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 18, overflow: "hidden" }}>
-                    <div style={{ padding: "16px 22px", borderBottom: `1px solid ${bdr}` }}>
-                      <p style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: "uppercase", letterSpacing: "0.14em" }}>Revenue & Unit Economics</p>
-                    </div>
-                    <div style={{ padding: "22px", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 18 }}>
-                      {[
-                        { label: "MRR",          value: fmt(s.financials.mrr, '$'),             color: blue  },
-                        { label: "ARR",          value: fmt(s.financials.arr, '$'),             color: blue  },
-                        { label: "Growth Rate",  value: fmt(s.financials.growth, '', '%'),     color: green },
-                        { label: "Customers",    value: fmt(s.financials.customers),            color: ink   },
-                        { label: "CAC",          value: fmt(s.financials.cac, '$'),             color: amber },
-                        { label: "LTV",          value: fmt(s.financials.ltv, '$'),             color: green },
-                        { label: "Gross Margin", value: fmt(s.financials.grossMargin, '', '%'),color: green },
-                        { label: "Burn Rate",    value: fmt(s.financials.burnRate, '$', '/mo'), color: red   },
-                        { label: "Runway",       value: fmt(s.financials.runway, '', ' mo'),    color: amber },
-                      ].map(({ label, value, color }) => (
-                        <div key={label} style={{ padding: "16px", background: surf, border: `1px solid ${bdr}`, borderRadius: 12 }}>
-                          <p style={{ fontSize: 10, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>{label}</p>
-                          <p style={{ fontSize: 18, fontWeight: 300, color, letterSpacing: "-0.02em" }}>{value}</p>
-                        </div>
-                      ))}
-                    </div>
+                <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 18, overflow: "hidden" }}>
+                  <div style={{ padding: "16px 22px", borderBottom: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <p style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: "uppercase", letterSpacing: "0.14em" }}>Revenue & Unit Economics</p>
+                    {!(s as unknown as Record<string, unknown>).financialsFromArtifact && (
+                      <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 999, background: "#FFFBEB", border: "1px solid #FDE68A", color: amber, fontWeight: 500 }}>Self-reported</span>
+                    )}
                   </div>
-                ) : (
-                  <div style={{ padding: "60px", textAlign: "center", background: surf, border: `1px solid ${bdr}`, borderRadius: 18 }}>
-                    <TrendingUp size={24} color={muted} style={{ margin: "0 auto 12px" }} />
-                    <p style={{ fontSize: 14, color: muted }}>Financial model not yet submitted</p>
-                    <p style={{ fontSize: 12, color: muted, marginTop: 6 }}>The founder has not completed the Felix financial agent yet.</p>
+                  <div style={{ padding: "22px", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 18 }}>
+                    {[
+                      { label: "MRR",          value: fmt(s.financials.mrr, '$'),             color: blue  },
+                      { label: "ARR",          value: fmt(s.financials.arr, '$'),             color: blue  },
+                      { label: "Growth Rate",  value: fmt(s.financials.growth, '', '%'),     color: green },
+                      { label: "Customers",    value: fmt(s.financials.customers),            color: ink   },
+                      { label: "CAC",          value: fmt(s.financials.cac, '$'),             color: amber },
+                      { label: "LTV",          value: fmt(s.financials.ltv, '$'),             color: green },
+                      { label: "Gross Margin", value: fmt(s.financials.grossMargin, '', '%'),color: green },
+                      { label: "Burn Rate",    value: fmt(s.financials.burnRate, '$', '/mo'), color: red   },
+                      { label: "Runway",       value: fmt(s.financials.runway, '', ' mo'),    color: amber },
+                    ].map(({ label, value, color }) => (
+                      <div key={label} style={{ padding: "16px", background: surf, border: `1px solid ${bdr}`, borderRadius: 12 }}>
+                        <p style={{ fontSize: 10, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>{label}</p>
+                        <p style={{ fontSize: 18, fontWeight: 300, color: value === '—' ? muted : color, letterSpacing: "-0.02em" }}>{value}</p>
+                      </div>
+                    ))}
                   </div>
-                )}
+                </div>
               </div>
             )}
 
             {/* ── TEAM ──────────────────────────────────────────────── */}
             {activeTab === "team" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                {!(s as unknown as Record<string, unknown>).teamFromArtifact && (s.teamMembers?.length > 0 || s.startupProfile?.advisors?.length > 0 || s.startupProfile?.keyHires?.length > 0) && (
+                  <div style={{ padding: "8px 14px", background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: 10, display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 999, background: "#FFFBEB", border: "1px solid #FDE68A", color: amber, fontWeight: 500 }}>Self-reported</span>
+                    <p style={{ fontSize: 11, color: amber }}>Team data sourced from profile builder — not yet verified via hiring plan artifact.</p>
+                  </div>
+                )}
                 <div style={{ background: bg, border: `2px solid ${blue}`, borderRadius: 18, overflow: "hidden" }}>
                   <div style={{ padding: "16px 22px", borderBottom: `1px solid ${bdr}`, display: "flex", alignItems: "center", gap: 8 }}>
                     <div style={{ height: 6, width: 6, borderRadius: "50%", background: blue }} />
@@ -770,7 +970,7 @@ export default function StartupDeepDive() {
             {activeTab === "market" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 {/* market size summary from startup profile */}
-                {(s.startupProfile?.tamSize || s.startupProfile?.marketGrowth || s.startupProfile?.differentiation) && (
+                {(s.startupProfile?.tamSize || s.startupProfile?.marketGrowth || s.startupProfile?.differentiation) ? (
                   <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 18, overflow: "hidden" }}>
                     <div style={{ padding: "16px 22px", borderBottom: `1px solid ${bdr}`, display: "flex", alignItems: "center", gap: 8 }}>
                       <TrendingUp size={14} color={muted} />
@@ -796,6 +996,12 @@ export default function StartupDeepDive() {
                         </div>
                       )}
                     </div>
+                  </div>
+                ) : (
+                  <div style={{ padding: "32px", textAlign: "center", background: surf, border: `1px solid ${bdr}`, borderRadius: 18 }}>
+                    <TrendingUp size={24} color={muted} style={{ margin: "0 auto 12px" }} />
+                    <p style={{ fontSize: 13, color: muted }}>No market data submitted yet</p>
+                    <p style={{ fontSize: 11, color: muted, marginTop: 4 }}>Ask the founder to complete their profile builder to surface market opportunity data.</p>
                   </div>
                 )}
 
@@ -870,32 +1076,145 @@ export default function StartupDeepDive() {
             )}
 
             {/* ── AI ANALYSIS ───────────────────────────────────────── */}
-            {activeTab === "analysis" && (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 18 }}>
-                {[
-                  { label: "Strengths",       items: s.aiAnalysis.strengths,       Icon: CheckCircle,   color: green, cardBg: "#ECFDF5", cardBorder: "#86EFAC" },
-                  { label: "Risks",           items: s.aiAnalysis.risks,           Icon: AlertTriangle, color: amber, cardBg: "#FFFBEB", cardBorder: "#FDE68A" },
-                  { label: "Recommendations", items: s.aiAnalysis.recommendations, Icon: Info,          color: blue,  cardBg: "#EFF6FF", cardBorder: "#93C5FD" },
-                ].map(({ label, items, Icon, color, cardBg, cardBorder }, col) => (
-                  <div key={label} style={{ background: cardBg, border: `1px solid ${bdr}`, borderRadius: 18, overflow: "hidden" }}>
-                    <div style={{ padding: "16px 20px", borderBottom: `1px solid ${bdr}`, display: "flex", alignItems: "center", gap: 8 }}>
-                      <div style={{ height: 28, width: 28, borderRadius: 8, background: cardBg, border: `1px solid ${cardBorder}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        <Icon style={{ height: 13, width: 13, color }} />
+            {activeTab === "analysis" && (() => {
+              const handleChatAsk = async () => {
+                const q = chatInput.trim()
+                if (!q || chatLoading) return
+                setChatInput('')
+                setChatMessages(prev => [...prev, { role: 'user', text: q }])
+                setChatLoading(true)
+                try {
+                  const res = await fetch(`/api/investor/startup/${s.founderId}/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question: q }),
+                  })
+                  const data = await res.json()
+                  if (data.unanswerable) {
+                    setChatMessages(prev => [...prev, {
+                      role: 'bot',
+                      text: `That information hasn't been submitted yet. Would you like to send a message to ${data.founderName ?? 'the founder'} asking for it?`,
+                    }])
+                  } else {
+                    setChatMessages(prev => [...prev, { role: 'bot', text: data.answer ?? 'No answer found.' }])
+                  }
+                } catch {
+                  setChatMessages(prev => [...prev, { role: 'bot', text: 'Sorry, something went wrong. Please try again.' }])
+                } finally {
+                  setChatLoading(false)
+                }
+              }
+
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+                  {/* Signals row */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                    <div style={{ background: "#ECFDF5", border: "1px solid #86EFAC", borderRadius: 16, padding: "18px 20px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 12 }}>
+                        <CheckCircle style={{ height: 13, width: 13, color: green }} />
+                        <p style={{ fontSize: 11, fontWeight: 600, color: green, textTransform: "uppercase", letterSpacing: "0.1em" }}>Strengths</p>
                       </div>
-                      <p style={{ fontSize: 11, fontWeight: 600, color: ink, textTransform: "uppercase", letterSpacing: "0.12em" }}>{label}</p>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                        {s.aiAnalysis.strengths.slice(0, 4).map((item, i) => (
+                          <span key={i} style={{ padding: "4px 10px", borderRadius: 999, background: "#fff", border: "1px solid #86EFAC", fontSize: 11, color: "#166534", fontWeight: 500 }}>
+                            {item.split(' — ')[0].replace(/\s\(.*\)$/, '')}
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                    <div style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
-                      {items.map((item, i) => (
-                        <motion.div key={i} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: col * 0.1 + i * 0.06 }} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                          <div style={{ height: 6, width: 6, borderRadius: "50%", background: color, flexShrink: 0, marginTop: 5 }} />
-                          <p style={{ fontSize: 13, color: muted, lineHeight: 1.55 }}>{item}</p>
-                        </motion.div>
+                    <div style={{ background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: 16, padding: "18px 20px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 12 }}>
+                        <AlertTriangle style={{ height: 13, width: 13, color: amber }} />
+                        <p style={{ fontSize: 11, fontWeight: 600, color: amber, textTransform: "uppercase", letterSpacing: "0.1em" }}>Risks</p>
+                      </div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                        {s.aiAnalysis.risks.slice(0, 4).map((item, i) => (
+                          <span key={i} style={{ padding: "4px 10px", borderRadius: 999, background: "#fff", border: "1px solid #FDE68A", fontSize: 11, color: "#92400E", fontWeight: 500 }}>
+                            {item.split(' — ')[0].replace(/\s\(.*\)$/, '')}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Recommendations */}
+                  <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 16, padding: "18px 20px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 12 }}>
+                      <Info style={{ height: 13, width: 13, color: blue }} />
+                      <p style={{ fontSize: 11, fontWeight: 600, color: blue, textTransform: "uppercase", letterSpacing: "0.1em" }}>Recommendations</p>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {s.aiAnalysis.recommendations.map((rec, i) => (
+                        <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: muted, width: 18, flexShrink: 0, marginTop: 1 }}>{i + 1}.</span>
+                          <p style={{ fontSize: 13, color: ink, lineHeight: 1.55 }}>{rec}</p>
+                        </div>
                       ))}
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
+
+                  {/* Chatbot */}
+                  <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 16, overflow: "hidden" }}>
+                    <div style={{ padding: "14px 18px", borderBottom: `1px solid ${bdr}`, display: "flex", alignItems: "center", gap: 8 }}>
+                      <div style={{ height: 26, width: 26, borderRadius: 7, background: "#F5F3FF", border: "1px solid #C4B5FD", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <Sparkles style={{ height: 12, width: 12, color: "#7C3AED" }} />
+                      </div>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>Ask about {s.name}</p>
+                      <span style={{ marginLeft: "auto", fontSize: 10, color: muted }}>Answers based on submitted data only</span>
+                    </div>
+
+                    {/* Messages */}
+                    <div style={{ minHeight: 160, maxHeight: 320, overflowY: "auto", padding: "16px", display: "flex", flexDirection: "column", gap: 12 }}>
+                      {chatMessages.length === 0 && (
+                        <div style={{ color: muted, fontSize: 13, lineHeight: 1.6 }}>
+                          <p style={{ fontStyle: "italic", marginBottom: 10 }}>
+                            I can answer questions about {s.name} based on their submitted data. Ask me about financials, team, market, or strategy.
+                          </p>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                            {["What is their MRR?", "How large is their team?", "What is their TAM?", "What's their burn rate?"].map(q => (
+                              <button key={q} onClick={() => { setChatInput(q); }} style={{ padding: "4px 12px", borderRadius: 999, border: `1px solid ${bdr}`, background: surf, fontSize: 11, color: muted, cursor: "pointer", fontFamily: "inherit" }}>
+                                {q}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {chatMessages.map((msg, i) => (
+                        <div key={i} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
+                          <div style={{ maxWidth: "80%", padding: "10px 14px", borderRadius: msg.role === "user" ? "14px 4px 14px 14px" : "4px 14px 14px 14px", background: msg.role === "user" ? blue : surf, border: msg.role === "bot" ? `1px solid ${bdr}` : "none", fontSize: 13, color: msg.role === "user" ? "#fff" : ink, lineHeight: 1.55 }}>
+                            {msg.text}
+                          </div>
+                        </div>
+                      ))}
+                      {chatLoading && (
+                        <div style={{ display: "flex", gap: 5, padding: "10px 14px", width: 56, background: surf, border: `1px solid ${bdr}`, borderRadius: "4px 14px 14px 14px" }}>
+                          {[0,1,2].map(i => <div key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: muted, animation: `bounce 0.6s ${i * 0.15}s infinite` }} />)}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Input */}
+                    <div style={{ borderTop: `1px solid ${bdr}`, display: "flex", alignItems: "center", gap: 10, padding: "10px 14px" }}>
+                      <input
+                        value={chatInput}
+                        onChange={e => setChatInput(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChatAsk(); } }}
+                        placeholder="Ask about financials, team, market…"
+                        disabled={chatLoading}
+                        style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: `1px solid ${bdr}`, background: surf, fontSize: 13, color: ink, outline: "none", fontFamily: "inherit" }}
+                      />
+                      <button
+                        onClick={handleChatAsk}
+                        disabled={!chatInput.trim() || chatLoading}
+                        style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: chatInput.trim() && !chatLoading ? blue : bdr, color: "#fff", fontSize: 12, fontWeight: 600, cursor: chatInput.trim() && !chatLoading ? "pointer" : "not-allowed", fontFamily: "inherit" }}
+                      >
+                        Ask
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )
+            })()}
 
           </motion.div>
         </AnimatePresence>

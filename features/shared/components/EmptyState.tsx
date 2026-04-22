@@ -1,5 +1,5 @@
 import { CSSProperties } from 'react'
-import { bg, bdr, ink, muted, blue } from '@/features/shared/tokens'
+import { bg, bdr, ink, muted } from '@/features/shared/tokens'
 import Link from 'next/link'
 
 interface EmptyStateProps {

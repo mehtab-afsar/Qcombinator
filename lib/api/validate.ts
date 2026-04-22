@@ -91,9 +91,9 @@ export type InvestorSignupInput = z.infer<typeof investorSignupSchema>
 // ─── Investor onboarding ──────────────────────────────────────────────────
 
 export const investorOnboardingSchema = z.object({
-  firstName:       z.string().min(1, 'First name is required').max(80),
-  lastName:        z.string().min(1, 'Last name is required').max(80),
-  email:           emailSchema,
+  firstName:       z.string().max(80).optional(),
+  lastName:        z.string().max(80).optional(),
+  email:           emailSchema.optional(),
   phone:           z.string().max(30).optional(),
   linkedin:        z.string().max(300).optional(),
   firmName:        z.string().max(120).optional(),

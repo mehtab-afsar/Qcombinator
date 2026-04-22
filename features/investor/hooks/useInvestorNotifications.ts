@@ -8,8 +8,10 @@ export interface InvestorNotification {
   icon: string
   type: string
   title: string
+  body?: string
   time: string
   read: boolean
+  metadata: Record<string, unknown>
 }
 
 const TYPE_ICONS: Record<string, string> = {
@@ -18,6 +20,7 @@ const TYPE_ICONS: Record<string, string> = {
   message:        '💬',
   agent_complete: '🤖',
   deal_flow:      '🔔',
+  startup_share:  '🔗',
 }
 
 export function useInvestorNotifications() {
@@ -29,7 +32,10 @@ export function useInvestorNotifications() {
     try {
       const res = await fetch('/api/notifications')
       const { notifications: rows } = await res.json() as { notifications: (InvestorNotification & { read?: boolean })[] }
-      const notifs = rows ?? []
+      const notifs = (rows ?? []).map((r: InvestorNotification & { read?: boolean }) => ({
+        ...r,
+        metadata: (r.metadata as Record<string, unknown>) ?? {},
+      }))
       setNotifications(notifs)
       setUnreadCount(notifs.filter(n => !n.read).length)
     } catch { /* non-critical */ }
@@ -49,10 +55,11 @@ export function useInvestorNotifications() {
           'postgres_changes',
           { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
           (payload) => {
-            const row = payload.new as { id: string; type: string; title: string; created_at: string }
+            const row = payload.new as { id: string; type: string; title: string; body?: string; metadata?: Record<string, unknown>; created_at: string }
             setNotifications(prev => [{
-              id: row.id, type: row.type, title: row.title, time: row.created_at,
-              icon: TYPE_ICONS[row.type] ?? '🔔', read: false,
+              id: row.id, type: row.type, title: row.title, body: row.body,
+              time: row.created_at, icon: TYPE_ICONS[row.type] ?? '🔔',
+              read: false, metadata: row.metadata ?? {},
             }, ...prev])
             setUnreadCount(c => c + 1)
           }

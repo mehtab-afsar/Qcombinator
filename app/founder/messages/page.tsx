@@ -1,15 +1,12 @@
 'use client';
 
 import { useState, useEffect, useRef, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
-import {
-  ArrowLeft, Send, TrendingUp, CheckCircle,
-  RefreshCw, ChevronRight,
-} from 'lucide-react';
+import { Send } from 'lucide-react';
+import { MessageGroupBlock, buildGroups } from '@/features/shared/components/MessageBubble';
 import { bg, surf, bdr, ink, muted, blue, green, amber } from '@/lib/constants/colors'
 
 // ─── agent colors ─────────────────────────────────────────────────────────────
@@ -63,20 +60,13 @@ interface AgentActivity {
 
 interface Connection {
   id: string;
-  demo_investor_id: string;
+  demo_investor_id: string | null;
+  investor_id: string | null;
   personal_message: string;
   status: string;
   created_at: string;
   investor_name?: string;
   investor_firm?: string;
-}
-
-interface Notification {
-  id: string;
-  agent_id: string;
-  action_type: string;
-  description: string;
-  created_at: string;
 }
 
 interface Message {
@@ -110,39 +100,63 @@ function StatusChip({ status }: { status: string }) {
   );
 }
 
-// ─── thread view ──────────────────────────────────────────────────────────────
-function ConversationThread({
+// ─── thread panel (right side of split layout) ───────────────────────────────
+function ThreadPanel({
   conn,
   myUserId,
-  onBack,
 }: {
   conn: Connection;
   myUserId: string | null;
-  onBack: () => void;
 }) {
-  const [messages,  setMessages]  = useState<Message[]>([]);
-  const [loading,   setLoading]   = useState(true);
-  const [input,     setInput]     = useState('');
-  const [sending,   setSending]   = useState(false);
-  const [toast,     setToast]     = useState<string | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [loading,  setLoading]  = useState(true);
+  const [input,    setInput]    = useState('');
+  const [sending,  setSending]  = useState(false);
+  const [toast,    setToast]    = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  const canMessage = conn.status === 'meeting_scheduled' || conn.status === 'accepted';
+  const investorInitials = (conn.investor_name ?? 'IN')
+    .split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase();
+
   useEffect(() => {
+    if (!canMessage) { setLoading(false); return; }
     setLoading(true);
     fetch(`/api/messages?connectionId=${conn.id}`)
       .then(r => r.ok ? r.json() : { messages: [] })
       .then(d => setMessages(d.messages ?? []))
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [conn.id]);
+
+    // Realtime — live incoming messages
+    let supabase: ReturnType<typeof createClient>;
+    let channel: ReturnType<ReturnType<typeof createClient>['channel']>;
+    try {
+      supabase = createClient();
+      channel = supabase
+        .channel(`founder_messages:${conn.id}`)
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'messages', filter: `connection_id=eq.${conn.id}` },
+          (payload) => {
+            const newMsg = payload.new as Message;
+            setMessages(prev => prev.some(m => m.id === newMsg.id) ? prev : [...prev, newMsg]);
+          }
+        )
+        .subscribe();
+    } catch { /* Realtime unavailable — graceful degradation */ }
+
+    return () => {
+      try { if (channel!) supabase!.removeChannel(channel!); } catch { /* ignore */ }
+    };
+  }, [conn.id, canMessage]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   function showToast(msg: string) {
-    setToast(msg);
-    setTimeout(() => setToast(null), 3000);
+    setToast(msg); setTimeout(() => setToast(null), 3000);
   }
 
   async function handleSend() {
@@ -150,46 +164,22 @@ function ConversationThread({
     setSending(true);
     try {
       const res = await fetch('/api/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ connectionId: conn.id, body: input.trim() }),
       });
       if (res.ok) {
         const d = await res.json();
         setMessages(prev => [...prev, d.message]);
         setInput('');
-      } else {
-        showToast('Failed to send — please try again');
-      }
-    } catch {
-      showToast('Failed to send — please try again');
-    } finally {
-      setSending(false);
-    }
+      } else { showToast('Failed to send — please try again'); }
+    } catch { showToast('Failed to send — please try again'); }
+    finally { setSending(false); }
   }
 
-  const investorInitials = (conn.investor_name ?? 'IN')
-    .split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase();
-
   return (
-    <div style={{ minHeight: '100vh', background: bg, color: ink, fontFamily: 'system-ui, sans-serif' }}>
-      {/* Header */}
-      <div style={{
-        borderBottom: `1px solid ${bdr}`, padding: '16px 24px',
-        display: 'flex', alignItems: 'center', gap: 12, background: bg,
-        position: 'sticky', top: 0, zIndex: 10,
-      }}>
-        <button
-          onClick={onBack}
-          style={{
-            width: 32, height: 32, borderRadius: 8,
-            border: `1px solid ${bdr}`, background: surf,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer',
-          }}
-        >
-          <ArrowLeft style={{ height: 14, width: 14, color: muted }} />
-        </button>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {/* Panel header */}
+      <div style={{ padding: '16px 20px', borderBottom: `1px solid ${bdr}`, display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
         <div style={{
           width: 38, height: 38, borderRadius: 10, flexShrink: 0,
           background: ink, color: bg,
@@ -199,182 +189,150 @@ function ConversationThread({
           {investorInitials}
         </div>
         <div>
-          <p style={{ fontSize: 14, fontWeight: 600, color: ink }}>
-            {conn.investor_name ?? 'Investor'}
-          </p>
-          {conn.investor_firm && (
-            <p style={{ fontSize: 11, color: muted }}>{conn.investor_firm}</p>
-          )}
+          <p style={{ fontSize: 14, fontWeight: 600, color: ink, margin: 0 }}>{conn.investor_name ?? 'Investor'}</p>
+          {conn.investor_firm && <p style={{ fontSize: 11, color: muted, margin: 0 }}>{conn.investor_firm}</p>}
         </div>
         <div style={{ marginLeft: 'auto' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <CheckCircle style={{ height: 11, width: 11, color: green }} />
-            <span style={{ fontSize: 11, color: green, fontWeight: 500 }}>Connected</span>
-          </div>
+          <StatusChip status={conn.status} />
         </div>
       </div>
 
-      {/* Thread */}
-      <div style={{ maxWidth: 680, margin: '0 auto', padding: '28px 24px' }}>
-        {/* Connection notice */}
-        <div style={{ textAlign: 'center', padding: '12px 0', marginBottom: 20 }}>
-          <span style={{
-            fontSize: 11, color: muted,
-            background: surf, padding: '4px 14px',
-            borderRadius: 999, border: `1px solid ${bdr}`,
-          }}>
-            Connection accepted · {relDate(conn.created_at)}
-          </span>
-        </div>
-
-        {/* Initial connection message */}
-        {conn.personal_message && (
-          <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-            <div style={{
-              width: 30, height: 30, borderRadius: 8, flexShrink: 0,
-              background: surf, border: `1px solid ${bdr}`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 11, fontWeight: 700, color: ink,
-            }}>
-              {investorInitials}
+      {/* Thread area */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+        {/* Pending state */}
+        {!canMessage && (
+          <div>
+            <div style={{ textAlign: 'center', padding: '12px 0', marginBottom: 20 }}>
+              <span style={{ fontSize: 11, color: muted, background: surf, padding: '4px 14px', borderRadius: 999, border: `1px solid ${bdr}` }}>
+                Request sent · {relDate(conn.created_at)} · Awaiting response
+              </span>
             </div>
-            <div style={{ flex: 1 }}>
-              <p style={{ fontSize: 10, color: muted, marginBottom: 3 }}>
-                {conn.investor_name ?? 'Investor'} · Connection request message
-              </p>
-              <div style={{
-                background: surf, border: `1px solid ${bdr}`,
-                borderRadius: '4px 12px 12px 12px', padding: '10px 14px',
-              }}>
-                <p style={{ fontSize: 13, color: ink, lineHeight: 1.6, margin: 0 }}>
-                  {conn.personal_message}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Messages */}
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: '24px 0' }}>
-            <RefreshCw style={{ height: 16, width: 16, color: muted, animation: 'spin 0.8s linear infinite', margin: '0 auto 8px' }} />
-            <p style={{ fontSize: 12, color: muted }}>Loading messages…</p>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
-            {messages.length === 0 && !conn.personal_message && (
-              <p style={{ fontSize: 12, color: muted, textAlign: 'center', padding: '20px 0' }}>
-                No messages yet. Send the first message below.
-              </p>
-            )}
-            {messages.map(msg => {
-              const isMine = msg.sender_id === myUserId;
-              return (
-                <div key={msg.id} style={{ display: 'flex', gap: 10, flexDirection: isMine ? 'row-reverse' : 'row' }}>
-                  <div style={{
-                    width: 30, height: 30, borderRadius: 8, flexShrink: 0,
-                    background: isMine ? ink : surf,
-                    border: `1px solid ${bdr}`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 10, fontWeight: 700,
-                    color: isMine ? bg : ink,
-                  }}>
-                    {isMine ? 'Me' : investorInitials}
-                  </div>
-                  <div style={{ maxWidth: '72%' }}>
-                    <p style={{ fontSize: 10, color: muted, marginBottom: 3, textAlign: isMine ? 'right' : 'left' }}>
-                      {relDate(msg.created_at)}
-                    </p>
-                    <div style={{
-                      background: isMine ? ink : surf,
-                      color: isMine ? bg : ink,
-                      border: `1px solid ${isMine ? ink : bdr}`,
-                      borderRadius: isMine ? '12px 4px 12px 12px' : '4px 12px 12px 12px',
-                      padding: '10px 14px',
-                    }}>
-                      <p style={{ fontSize: 13, lineHeight: 1.6, margin: 0 }}>{msg.body}</p>
-                    </div>
+            {conn.personal_message && (
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginBottom: 16 }}>
+                <div style={{ maxWidth: '72%' }}>
+                  <p style={{ fontSize: 10, color: muted, marginBottom: 3, textAlign: 'right' }}>Your message</p>
+                  <div style={{ background: ink, color: bg, borderRadius: '12px 4px 12px 12px', padding: '10px 14px' }}>
+                    <p style={{ fontSize: 13, lineHeight: 1.6, margin: 0 }}>{conn.personal_message}</p>
                   </div>
                 </div>
-              );
-            })}
-            <div ref={bottomRef} />
+              </div>
+            )}
+            <div style={{ textAlign: 'center', padding: '24px 0' }}>
+              <p style={{ fontSize: 12, color: muted }}>You&apos;ll be able to message once they accept your request.</p>
+            </div>
           </div>
         )}
 
-        {/* Compose */}
-        <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 12, overflow: 'hidden' }}>
-          <textarea
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSend(); }}
-            placeholder={`Message ${conn.investor_name ?? 'investor'}… (⌘+Enter to send)`}
-            rows={3}
-            style={{
-              width: '100%', border: 'none', outline: 'none', resize: 'none',
-              background: 'transparent', padding: '14px 16px',
-              fontSize: 13, color: ink, fontFamily: 'inherit', lineHeight: 1.6,
-              boxSizing: 'border-box',
-            }}
-          />
-          <div style={{
-            padding: '10px 16px', borderTop: `1px solid ${bdr}`,
-            display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8,
-          }}>
-            <span style={{ fontSize: 11, color: muted }}>{input.length}/4000</span>
-            <button
-              onClick={handleSend}
-              disabled={!input.trim() || sending || input.length > 4000}
-              style={{
-                padding: '7px 16px', borderRadius: 8, border: 'none',
-                background: ink, color: bg, fontSize: 12, fontWeight: 500,
-                cursor: (!input.trim() || sending) ? 'not-allowed' : 'pointer',
-                opacity: (!input.trim() || sending) ? 0.5 : 1,
-                display: 'flex', alignItems: 'center', gap: 5,
-              }}
-            >
-              <Send style={{ height: 11, width: 11 }} />
-              {sending ? 'Sending…' : 'Send'}
-            </button>
+        {/* Accepted thread */}
+        {canMessage && (
+          <div>
+            <div style={{ textAlign: 'center', padding: '8px 0', marginBottom: 16 }}>
+              <span style={{ fontSize: 11, color: muted, background: surf, padding: '4px 14px', borderRadius: 999, border: `1px solid ${bdr}` }}>
+                Connected · {relDate(conn.created_at)}
+              </span>
+            </div>
+            {conn.personal_message && (
+              <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+                <div style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0, background: surf, border: `1px solid ${bdr}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: ink }}>{investorInitials}</div>
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontSize: 10, color: muted, marginBottom: 3 }}>{conn.investor_name ?? 'Investor'} · Connection request</p>
+                  <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: '4px 12px 12px 12px', padding: '8px 12px' }}>
+                    <p style={{ fontSize: 13, color: ink, lineHeight: 1.6, margin: 0 }}>{conn.personal_message}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+            {loading ? (
+              <div style={{ textAlign: 'center', padding: '24px 0' }}>
+                <p style={{ fontSize: 12, color: muted }}>Loading messages…</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {messages.length === 0 && !conn.personal_message && (
+                  <p style={{ fontSize: 12, color: muted, textAlign: 'center', padding: '16px 0' }}>No messages yet. Be the first to say hello.</p>
+                )}
+                {buildGroups(messages, myUserId ?? '').map((group, gi) => (
+                  <MessageGroupBlock
+                    key={group.messages[0].id}
+                    group={group}
+                    senderInitials={investorInitials}
+                    myInitials="Me"
+                    isFirst={gi === 0}
+                  />
+                ))}
+                <div ref={bottomRef} />
+              </div>
+            )}
           </div>
-        </div>
+        )}
       </div>
 
-      {/* Toast */}
+      {/* Compose (only for accepted) */}
+      {canMessage && (
+        <div style={{ borderTop: `1px solid ${bdr}`, padding: '12px 16px', flexShrink: 0, background: bg }}>
+          <div style={{
+            display: 'flex', alignItems: 'flex-end', gap: 10,
+            background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: '10px 14px',
+          }}>
+            <textarea
+              value={input}
+              onChange={e => {
+                setInput(e.target.value)
+                const el = e.currentTarget
+                el.style.height = 'auto'
+                el.style.height = Math.min(el.scrollHeight, 140) + 'px'
+              }}
+              onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); handleSend(); } }}
+              placeholder={`Message ${conn.investor_name ?? 'investor'}…`}
+              rows={1}
+              style={{
+                flex: 1, border: 'none', outline: 'none', resize: 'none', overflow: 'hidden',
+                background: 'transparent', fontSize: 13, color: ink,
+                fontFamily: 'inherit', lineHeight: 1.6, maxHeight: 140,
+              }}
+            />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+              {input.length > 3500 && (
+                <span style={{ fontSize: 10, color: input.length > 4000 ? '#DC2626' : muted }}>{input.length}/4000</span>
+              )}
+              <button
+                onClick={handleSend}
+                disabled={!input.trim() || sending || input.length > 4000}
+                style={{
+                  width: 32, height: 32, borderRadius: 8, border: 'none',
+                  background: input.trim() && !sending ? ink : bdr,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: input.trim() && !sending ? 'pointer' : 'default',
+                  transition: 'background .12s',
+                }}
+              >
+                <Send style={{ height: 13, width: 13, color: input.trim() ? bg : muted }} />
+              </button>
+            </div>
+          </div>
+          <p style={{ fontSize: 10, color: muted, marginTop: 5, paddingLeft: 2 }}>⌘+Enter to send</p>
+        </div>
+      )}
+
       <AnimatePresence>
         {toast && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            style={{
-              position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
-              background: ink, color: bg, borderRadius: 10, padding: '10px 20px',
-              fontSize: 13, fontWeight: 500, zIndex: 9999, whiteSpace: 'nowrap',
-            }}
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }}
+            style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: ink, color: bg, borderRadius: 10, padding: '10px 20px', fontSize: 13, fontWeight: 500, zIndex: 9999, whiteSpace: 'nowrap' }}
           >
             {toast}
           </motion.div>
         )}
       </AnimatePresence>
-
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
 
 // ─── main inner ───────────────────────────────────────────────────────────────
 function MessagesInner() {
-  const router   = useRouter();
-  const params   = useSearchParams();
   const { user } = useAuth();
-
-  type TabKey = 'cxo' | 'investors' | 'notifications';
-  const activeTab = (params.get('tab') as TabKey) ?? 'cxo';
 
   const [agentActivity, setAgentActivity] = useState<AgentActivity[]>([]);
   const [connections,   setConnections]   = useState<Connection[]>([]);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading,       setLoading]       = useState(false);
   const [myUserId,      setMyUserId]      = useState<string | null>(null);
   const [selectedConn,  setSelectedConn]  = useState<Connection | null>(null);
@@ -387,408 +345,190 @@ function MessagesInner() {
     (async () => {
       try {
         const client = createClient();
-
         const { data: activityData } = await client
           .from('agent_activity')
           .select('id, agent_id, action_type, description, created_at')
           .eq('user_id', user.id)
           .order('created_at', { ascending: false })
-          .limit(50);
+          .limit(30);
 
         const { data: connData } = await client
           .from('connection_requests')
-          .select('id, demo_investor_id, personal_message, status, created_at')
+          .select('id, demo_investor_id, investor_id, personal_message, status, created_at')
           .eq('founder_id', user.id)
           .order('created_at', { ascending: false });
 
         if (cancelled) return;
 
-        // Enrich connections with investor names
-        let enrichedConns: Connection[] = connData ?? [];
-        if (enrichedConns.length > 0) {
-          const investorIds = enrichedConns.map(c => c.demo_investor_id).filter(Boolean);
-          if (investorIds.length > 0) {
-            const { data: investors } = await client
-              .from('demo_investors')
-              .select('id, name, firm')
-              .in('id', investorIds);
-            const invMap: Record<string, { name: string; firm: string }> = {};
-            (investors ?? []).forEach((inv: { id: string; name: string; firm: string }) => {
-              invMap[inv.id] = { name: inv.name, firm: inv.firm };
-            });
-            enrichedConns = enrichedConns.map(c => ({
-              ...c,
-              investor_name: invMap[c.demo_investor_id]?.name,
-              investor_firm: invMap[c.demo_investor_id]?.firm,
-            }));
-          }
-        }
+        // Deduplicate: if both a demo-investor and direct-investor connection exist
+        // for the same investor, keep only the most recent one (already ordered DESC).
+        const seenKey = new Set<string>()
+        const deduped = (connData ?? []).filter(c => {
+          const key = c.investor_id ?? c.demo_investor_id ?? c.id
+          if (seenKey.has(key)) return false
+          seenKey.add(key)
+          return true
+        })
 
-        const allActivity: AgentActivity[] = activityData ?? [];
-        const systemTypes = ['assessment_stale', 'score_milestone', 'score_boost'];
-        const notifData: Notification[] = allActivity
-          .filter(a => systemTypes.includes(a.action_type))
-          .map(a => ({ ...a }));
+        let enrichedConns: Connection[] = deduped.map(c => ({ ...c, investor_name: undefined, investor_firm: undefined }));
+        if (enrichedConns.length > 0) {
+          const demoIds  = enrichedConns.map(c => c.demo_investor_id).filter(Boolean);
+          const realIds  = enrichedConns.map(c => c.investor_id).filter(Boolean);
+
+          // Fetch both demo investor names and real investor profile names in parallel
+          const [demoRes, realRes] = await Promise.all([
+            demoIds.length > 0
+              ? client.from('demo_investors').select('id, name, firm').in('id', demoIds)
+              : Promise.resolve({ data: [] }),
+            realIds.length > 0
+              ? client.from('investor_profiles').select('user_id, full_name, firm_name').in('user_id', realIds)
+              : Promise.resolve({ data: [] }),
+          ]);
+
+          const demoMap: Record<string, { name: string; firm: string }> = {};
+          ((demoRes.data ?? []) as { id: string; name: string; firm: string }[])
+            .forEach(inv => { demoMap[inv.id] = inv; });
+
+          const realMap: Record<string, { name: string; firm: string }> = {};
+          ((realRes.data ?? []) as { user_id: string; full_name: string; firm_name: string }[])
+            .forEach(inv => { realMap[inv.user_id] = { name: inv.full_name, firm: inv.firm_name }; });
+
+          enrichedConns = enrichedConns.map(c => ({
+            ...c,
+            investor_name: c.demo_investor_id
+              ? demoMap[c.demo_investor_id]?.name
+              : c.investor_id
+                ? realMap[c.investor_id]?.name
+                : c.investor_name,
+            investor_firm: c.demo_investor_id
+              ? demoMap[c.demo_investor_id]?.firm
+              : c.investor_id
+                ? realMap[c.investor_id]?.firm
+                : c.investor_firm,
+          }));
+        }
 
         if (!cancelled) {
-          setAgentActivity(allActivity);
+          setAgentActivity(activityData ?? []);
           setConnections(enrichedConns);
-          setNotifications(notifData);
+          if (enrichedConns.length > 0) setSelectedConn(enrichedConns[0]);
         }
-      } catch {
-        // gracefully show empty states
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+      } catch { /* empty states */ }
+      finally { if (!cancelled) setLoading(false); }
     })();
     return () => { cancelled = true; };
   }, [user]);
 
-  // If a conversation is selected, render the thread view
-  if (selectedConn) {
-    return (
-      <ConversationThread
-        conn={selectedConn}
-        myUserId={myUserId}
-        onBack={() => setSelectedConn(null)}
-      />
-    );
-  }
-
-  function selectTab(tab: TabKey) {
-    router.push(`/founder/messages?tab=${tab}`);
-  }
-
-  const TABS: { key: TabKey; label: string }[] = [
-    { key: 'cxo',           label: 'CXO Updates'           },
-    { key: 'investors',     label: 'Investor Messages'      },
-    { key: 'notifications', label: 'Platform Notifications' },
-  ];
-
-  const acceptedConns = connections.filter(c => c.status === 'meeting_scheduled');
-  const pendingConns  = connections.filter(c => c.status !== 'meeting_scheduled');
-
   return (
-    <div style={{ minHeight: '100vh', background: bg, color: ink, padding: '36px 28px 72px', fontFamily: 'system-ui, sans-serif' }}>
-      <div style={{ maxWidth: 860, margin: '0 auto' }}>
+    <div style={{ height: '100vh', display: 'flex', background: bg, color: ink, fontFamily: 'system-ui, sans-serif', overflow: 'hidden' }}>
 
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          style={{ marginBottom: 28 }}
-        >
-          <p style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.2em', color: muted, fontWeight: 600, marginBottom: 5 }}>
-            Founder · Messages
-          </p>
-          <h1 style={{ fontSize: 'clamp(1.4rem,3vw,2rem)', fontWeight: 300, letterSpacing: '-0.03em', color: ink }}>
-            Messages &amp; Updates
-          </h1>
-        </motion.div>
-
-        {/* Tab bar */}
-        <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${bdr}`, marginBottom: 28 }}>
-          {TABS.map(t => (
-            <button
-              key={t.key}
-              onClick={() => selectTab(t.key)}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                padding: '10px 18px', fontSize: 12,
-                fontWeight: activeTab === t.key ? 600 : 400,
-                color: activeTab === t.key ? ink : muted,
-                background: 'none', border: 'none',
-                borderBottom: activeTab === t.key ? `2px solid ${ink}` : '2px solid transparent',
-                marginBottom: -1, cursor: 'pointer',
-                transition: 'color 0.15s, border-color 0.15s', whiteSpace: 'nowrap',
-                position: 'relative',
-              }}
-            >
-              {t.label}
-              {t.key === 'investors' && acceptedConns.length > 0 && (
-                <span style={{
-                  background: blue, color: '#fff',
-                  fontSize: 10, fontWeight: 700, borderRadius: 999,
-                  padding: '1px 6px',
-                }}>
-                  {acceptedConns.length}
-                </span>
-              )}
-            </button>
-          ))}
+      {/* ── Left sidebar ──────────────────────────────────────── */}
+      <div style={{
+        width: 280, flexShrink: 0, borderRight: `1px solid ${bdr}`,
+        display: 'flex', flexDirection: 'column', overflowY: 'auto',
+        background: surf,
+      }}>
+        {/* Sidebar header */}
+        <div style={{ padding: '20px 16px 14px', borderBottom: `1px solid ${bdr}` }}>
+          <p style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.18em', color: muted, fontWeight: 600, marginBottom: 4 }}>Messages</p>
+          <h2 style={{ fontSize: 18, fontWeight: 300, letterSpacing: '-0.02em', color: ink, margin: 0 }}>
+            {loading ? 'Loading…' : `${connections.length} connection${connections.length !== 1 ? 's' : ''}`}
+          </h2>
         </div>
 
-        {/* Loading */}
-        {loading && (
-          <div style={{ padding: '40px 0', textAlign: 'center' }}>
-            <div style={{
-              width: 20, height: 20, border: `2px solid ${bdr}`,
-              borderTopColor: blue, borderRadius: '50%',
-              animation: 'spin 0.8s linear infinite', margin: '0 auto 12px',
-            }} />
-            <p style={{ fontSize: 13, color: muted }}>Loading…</p>
+        {/* Investor connections */}
+        {connections.length === 0 && !loading && (
+          <div style={{ padding: '24px 16px', textAlign: 'center' }}>
+            <p style={{ fontSize: 12, color: muted, lineHeight: 1.6, marginBottom: 12 }}>No investor connections yet.</p>
+            <Link href="/founder/matching" style={{ fontSize: 12, color: blue, textDecoration: 'none', fontWeight: 500 }}>
+              Find Investors →
+            </Link>
           </div>
         )}
 
-        {/* CXO Updates */}
-        {!loading && activeTab === 'cxo' && (
-          <motion.div key="cxo" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22 }}>
-            {agentActivity.length === 0 ? (
-              <div style={{ padding: '56px 32px', textAlign: 'center', background: surf, borderRadius: 16, border: `1px dashed ${bdr}` }}>
-                <p style={{ fontSize: 14, fontWeight: 500, color: ink, marginBottom: 8 }}>No agent activity yet</p>
-                <p style={{ fontSize: 13, color: muted, lineHeight: 1.6 }}>
-                  Start a conversation in the CXO Suite to see updates here.
-                </p>
-                <Link
-                  href="/founder/cxo"
-                  style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 6,
-                    marginTop: 16, padding: '9px 20px',
-                    background: ink, color: bg,
-                    fontSize: 13, fontWeight: 500, borderRadius: 999, textDecoration: 'none',
-                  }}
-                >
-                  Open CXO Suite →
-                </Link>
+        {connections.map((c) => {
+          const inv = c.investor_name ?? 'Investor';
+          const initials2 = inv.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase();
+          const isActive = selectedConn?.id === c.id;
+          const canMsg = c.status === 'meeting_scheduled' || c.status === 'accepted';
+          return (
+            <button
+              key={c.id}
+              onClick={() => setSelectedConn(c)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '12px 14px', textAlign: 'left',
+                background: isActive ? bg : 'transparent',
+                border: 'none', borderBottom: `1px solid ${bdr}`,
+                cursor: 'pointer', width: '100%',
+                borderLeft: isActive ? `3px solid ${blue}` : '3px solid transparent',
+                transition: 'background .12s',
+              }}
+            >
+              <div style={{
+                width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+                background: canMsg ? ink : surf,
+                color: canMsg ? bg : muted,
+                border: `1px solid ${canMsg ? ink : bdr}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 11, fontWeight: 700,
+              }}>
+                {initials2}
               </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {agentActivity.map((a, i) => (
-                  <motion.div
-                    key={a.id}
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.03 }}
-                    style={{
-                      display: 'flex', alignItems: 'flex-start', gap: 12,
-                      padding: '14px 16px', borderRadius: 12,
-                      background: bg, border: `1px solid ${bdr}`, marginBottom: 4,
-                    }}
-                  >
-                    <div style={{
-                      width: 8, height: 8, borderRadius: '50%',
-                      background: agentColor(a.agent_id),
-                      marginTop: 5, flexShrink: 0,
-                    }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                        <span style={{ fontSize: 11, fontWeight: 600, color: agentColor(a.agent_id), textTransform: 'capitalize' }}>
-                          {a.agent_id}
-                        </span>
-                        <span style={{ fontSize: 10, color: muted }}>{timeAgo(a.created_at)}</span>
-                      </div>
-                      <p style={{ fontSize: 13, color: ink, lineHeight: 1.5, margin: 0 }}>{a.description}</p>
-                    </div>
-                    <a
-                      href={`/founder/cxo/${a.agent_id}`}
-                      style={{
-                        flexShrink: 0, fontSize: 11, fontWeight: 600, color: blue,
-                        textDecoration: 'none', padding: '4px 10px',
-                        background: `${blue}10`, borderRadius: 6,
-                      }}
-                    >
-                      View →
-                    </a>
-                  </motion.div>
-                ))}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inv}</span>
+                  <span style={{ fontSize: 10, color: muted, flexShrink: 0, marginLeft: 4 }}>{timeAgo(c.created_at)}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {c.investor_firm && <span style={{ fontSize: 11, color: muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.investor_firm}</span>}
+                  <StatusChip status={c.status} />
+                </div>
               </div>
-            )}
-          </motion.div>
+            </button>
+          );
+        })}
+
+        {/* CXO section */}
+        {agentActivity.length > 0 && (
+          <div>
+            <div style={{ padding: '12px 14px 6px', borderTop: `1px solid ${bdr}` }}>
+              <p style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', color: muted, fontWeight: 600 }}>CXO Updates</p>
+            </div>
+            {agentActivity.slice(0, 5).map(a => (
+              <Link
+                key={a.id}
+                href={`/founder/cxo/${a.agent_id}`}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '10px 14px', borderBottom: `1px solid ${bdr}`,
+                  textDecoration: 'none', transition: 'background .12s',
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = bg; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+              >
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: agentColor(a.agent_id), flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: agentColor(a.agent_id), textTransform: 'capitalize' }}>{a.agent_id}</span>
+                  <p style={{ fontSize: 11, color: muted, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.description}</p>
+                </div>
+                <span style={{ fontSize: 10, color: muted, flexShrink: 0 }}>{timeAgo(a.created_at)}</span>
+              </Link>
+            ))}
+          </div>
         )}
+      </div>
 
-        {/* Investor Messages */}
-        {!loading && activeTab === 'investors' && (
-          <motion.div key="investors" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22 }}>
-            {connections.length === 0 ? (
-              <div style={{ padding: '56px 32px', textAlign: 'center', background: surf, borderRadius: 16, border: `1px dashed ${bdr}` }}>
-                <p style={{ fontSize: 14, fontWeight: 500, color: ink, marginBottom: 8 }}>No investor connections yet</p>
-                <p style={{ fontSize: 13, color: muted, lineHeight: 1.6 }}>Visit Investor Matching to connect with investors.</p>
-                <a
-                  href="/founder/matching"
-                  style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 6,
-                    marginTop: 16, padding: '9px 20px',
-                    background: ink, color: bg,
-                    fontSize: 13, fontWeight: 500, borderRadius: 999, textDecoration: 'none',
-                  }}
-                >
-                  Find Investors →
-                </a>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-                {/* Accepted / active conversations */}
-                {acceptedConns.length > 0 && (
-                  <div>
-                    <p style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 10 }}>
-                      Active Conversations
-                    </p>
-                    <div style={{ border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden' }}>
-                      {acceptedConns.map((c, i) => {
-                        const inv = c.investor_name ?? 'Investor';
-                        const initials2 = inv.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase();
-                        return (
-                          <motion.div
-                            key={c.id}
-                            initial={{ opacity: 0, y: 4 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: i * 0.04 }}
-                            onClick={() => setSelectedConn(c)}
-                            style={{
-                              display: 'flex', alignItems: 'center', gap: 14,
-                              padding: '16px 18px', cursor: 'pointer',
-                              borderBottom: i < acceptedConns.length - 1 ? `1px solid ${bdr}` : 'none',
-                              background: bg, transition: 'background .12s',
-                            }}
-                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = surf; }}
-                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = bg; }}
-                          >
-                            <div style={{
-                              width: 40, height: 40, borderRadius: 10, flexShrink: 0,
-                              background: ink, color: bg,
-                              display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              fontSize: 12, fontWeight: 700,
-                            }}>
-                              {initials2}
-                            </div>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-                                <span style={{ fontSize: 13, fontWeight: 600, color: ink }}>{inv}</span>
-                                {c.investor_firm && (
-                                  <span style={{ fontSize: 11, color: muted }}>· {c.investor_firm}</span>
-                                )}
-                              </div>
-                              <p style={{ fontSize: 11, color: muted }}>Connected {timeAgo(c.created_at)}</p>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                                <TrendingUp style={{ height: 11, width: 11, color: green }} />
-                                <span style={{ fontSize: 11, color: green, fontWeight: 500 }}>Active</span>
-                              </div>
-                              <ChevronRight style={{ height: 14, width: 14, color: muted }} />
-                            </div>
-                          </motion.div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* Pending / other requests */}
-                {pendingConns.length > 0 && (
-                  <div>
-                    <p style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 10 }}>
-                      Requests Sent
-                    </p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      {pendingConns.map((c, i) => {
-                        const inv = c.investor_name ?? 'Investor';
-                        const initials2 = inv.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase();
-                        return (
-                          <motion.div
-                            key={c.id}
-                            initial={{ opacity: 0, y: 6 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: i * 0.04 }}
-                            style={{
-                              display: 'flex', alignItems: 'flex-start', gap: 14,
-                              padding: '16px 18px',
-                              background: bg, border: `1px solid ${bdr}`, borderRadius: 12,
-                            }}
-                          >
-                            <div style={{
-                              width: 38, height: 38, borderRadius: '50%', flexShrink: 0,
-                              background: surf, color: ink,
-                              display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              fontSize: 12, fontWeight: 700, border: `1px solid ${bdr}`,
-                            }}>
-                              {initials2}
-                            </div>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
-                                <span style={{ fontSize: 13, fontWeight: 600, color: ink }}>{inv}</span>
-                                {c.investor_firm && (
-                                  <span style={{ fontSize: 11, color: muted }}>· {c.investor_firm}</span>
-                                )}
-                                <StatusChip status={c.status} />
-                                <span style={{ fontSize: 10, color: muted, marginLeft: 'auto' }}>{timeAgo(c.created_at)}</span>
-                              </div>
-                              {c.personal_message && (
-                                <p style={{
-                                  fontSize: 12, color: muted, lineHeight: 1.5, margin: 0,
-                                  display: '-webkit-box',
-                                  WebkitLineClamp: 2,
-                                  WebkitBoxOrient: 'vertical',
-                                  overflow: 'hidden',
-                                }}>
-                                  {c.personal_message}
-                                </p>
-                              )}
-                            </div>
-                          </motion.div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-              </div>
-            )}
-          </motion.div>
+      {/* ── Right panel ───────────────────────────────────────── */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {!selectedConn ? (
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12 }}>
+            <p style={{ fontSize: 14, color: muted }}>Select a conversation to get started</p>
+            <Link href="/founder/matching" style={{ fontSize: 13, color: blue, textDecoration: 'none' }}>Browse investors →</Link>
+          </div>
+        ) : (
+          <ThreadPanel conn={selectedConn} myUserId={myUserId} />
         )}
-
-        {/* Platform Notifications */}
-        {!loading && activeTab === 'notifications' && (
-          <motion.div key="notifications" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22 }}>
-            {notifications.length === 0 ? (
-              <div style={{ padding: '56px 32px', textAlign: 'center', background: surf, borderRadius: 16, border: `1px dashed ${bdr}` }}>
-                <p style={{ fontSize: 14, fontWeight: 500, color: ink, marginBottom: 8 }}>All caught up</p>
-                <p style={{ fontSize: 13, color: muted, lineHeight: 1.6 }}>
-                  No system notifications. Score milestones and alerts will appear here.
-                </p>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {notifications.map((n, i) => {
-                  const iconMap: Record<string, string> = {
-                    score_milestone: '🎯',
-                    score_boost:     '⚡',
-                    assessment_stale:'⚠️',
-                  };
-                  const icon = iconMap[n.action_type] ?? '🔔';
-                  return (
-                    <motion.div
-                      key={n.id}
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: i * 0.04 }}
-                      style={{
-                        display: 'flex', alignItems: 'flex-start', gap: 12,
-                        padding: '14px 16px',
-                        background: bg, border: `1px solid ${bdr}`, borderRadius: 12,
-                      }}
-                    >
-                      <div style={{
-                        width: 32, height: 32, borderRadius: 9, flexShrink: 0,
-                        background: surf, border: `1px solid ${bdr}`,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14,
-                      }}>
-                        {icon}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <p style={{ fontSize: 13, color: ink, lineHeight: 1.5, marginBottom: 4 }}>{n.description}</p>
-                        <p style={{ fontSize: 11, color: muted }}>{timeAgo(n.created_at)}</p>
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            )}
-          </motion.div>
-        )}
-
       </div>
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>

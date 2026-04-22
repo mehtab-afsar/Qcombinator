@@ -323,10 +323,18 @@ export default function PortfolioPage() {
   const [tab,    setTab]    = useState<'requests' | 'connected' | 'declined'>('requests');
   const [toast,  setToast]  = useState<{ msg: string; ok: boolean } | null>(null);
 
+  // portfolio display config
+  const [displayCfg, setDisplayCfg] = useState({
+    showMRR: true, showRunway: true, showBurn: true,
+    showGrowth: true, showQScore: true, showHealth: true,
+  });
+
   const loadPortfolio = useCallback(async () => {
     setLoadingPort(true);
     try {
-      const d = await fetch("/api/investor/portfolio").then(r => r.json());
+      const r = await fetch("/api/investor/portfolio");
+      if (!r.ok) throw new Error(String(r.status));
+      const d = await r.json();
       if (d.companies) setCompanies(d.companies);
     } catch { /* ignore */ }
     finally { setLoadingPort(false); }
@@ -335,7 +343,9 @@ export default function PortfolioPage() {
   const loadRequests = useCallback(async () => {
     setLoadingReqs(true);
     try {
-      const d = await fetch("/api/investor/connections").then(r => r.json());
+      const r = await fetch("/api/investor/connections");
+      if (!r.ok) throw new Error(String(r.status));
+      const d = await r.json();
       setRequests(d.requests ?? []);
     } catch { setRequests([]); }
     finally { setLoadingReqs(false); }
@@ -344,6 +354,9 @@ export default function PortfolioPage() {
   useEffect(() => {
     loadPortfolio();
     loadRequests();
+    fetch('/api/investor/portfolio-config').then(r => r.json()).then(({ config }) => {
+      if (config) setDisplayCfg(c => ({ ...c, ...config }))
+    }).catch(() => {})
   }, [loadPortfolio, loadRequests]);
 
   function showToast(msg: string, ok: boolean) {
@@ -545,9 +558,13 @@ export default function PortfolioPage() {
                           </div>
 
                           <div>
-                            <p style={{ fontSize: 15, fontWeight: 300, color: company.qScore >= 60 ? green : company.qScore >= 40 ? amber : red, letterSpacing: "-0.02em" }}>
-                              {company.qScore || "—"}
-                            </p>
+                            {displayCfg.showQScore ? (
+                              <p style={{ fontSize: 15, fontWeight: 300, color: company.qScore >= 60 ? green : company.qScore >= 40 ? amber : red, letterSpacing: "-0.02em" }}>
+                                {company.qScore || "—"}
+                              </p>
+                            ) : (
+                              <p style={{ fontSize: 12, color: muted }}>—</p>
+                            )}
                           </div>
 
                           <p style={{ fontSize: 12, color: muted }}>{company.stage}</p>
@@ -572,19 +589,26 @@ export default function PortfolioPage() {
                                 {company.description}
                               </p>
                             )}
+                            {([
+                              { label: "Revenue",   value: company.metrics.revenue,  show: displayCfg.showMRR    },
+                              { label: "Growth",    value: company.metrics.growth,   show: displayCfg.showGrowth },
+                              { label: "Burn Rate", value: company.metrics.burnRate, show: displayCfg.showBurn   },
+                              { label: "Runway",    value: company.metrics.runway,   show: displayCfg.showRunway },
+                            ].filter(m => m.show).length > 0) && (
                             <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginBottom: 14 }}>
                               {[
-                                { label: "Revenue",   value: company.metrics.revenue },
-                                { label: "Growth",    value: company.metrics.growth },
-                                { label: "Burn Rate", value: company.metrics.burnRate },
-                                { label: "Runway",    value: company.metrics.runway },
-                              ].map((m, mi) => (
+                                { label: "Revenue",   value: company.metrics.revenue,  show: displayCfg.showMRR    },
+                                { label: "Growth",    value: company.metrics.growth,   show: displayCfg.showGrowth },
+                                { label: "Burn Rate", value: company.metrics.burnRate, show: displayCfg.showBurn   },
+                                { label: "Runway",    value: company.metrics.runway,   show: displayCfg.showRunway },
+                              ].filter(m => m.show).map((m, mi) => (
                                 <div key={mi} style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 8, padding: "10px 12px" }}>
                                   <p style={{ fontSize: 10, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>{m.label}</p>
                                   <p style={{ fontSize: 13, fontWeight: 600, color: m.value === "—" ? muted : ink }}>{m.value}</p>
                                 </div>
                               ))}
                             </div>
+                            )}
                             <p style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em", color: muted, marginBottom: 8 }}>Q-Score Breakdown</p>
                             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
                               {Object.entries(company.qScoreBreakdown).map(([dim, score]) => (

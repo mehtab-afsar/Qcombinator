@@ -156,7 +156,7 @@ export default function PublicPortfolio() {
   const overall = qScore?.overall ?? 0;
   const strokeDash = circumference * (1 - overall / 100);
   const ringColor = scoreColor(overall);
-  const initials = founder.name.split(" ").map(n => n[0]).slice(0, 2).join("").toUpperCase();
+  const _initials = founder.name.split(" ").map(n => n[0]).slice(0, 2).join("").toUpperCase();
 
   return (
     <div style={{ minHeight: "100vh", background: bg, color: ink, fontFamily: "inherit" }}>

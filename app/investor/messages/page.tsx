@@ -8,6 +8,8 @@ import {
   Inbox, MessageSquare,
 } from 'lucide-react'
 import { bg, surf, bdr, ink, muted, green, amber, red } from '@/lib/constants/colors'
+import { MessageGroupBlock, buildGroups } from '@/features/shared/components/MessageBubble'
+import { createClient } from '@/lib/supabase/client'
 
 // ─── types ────────────────────────────────────────────────────────────────────
 interface PendingRequest {
@@ -140,15 +142,48 @@ export default function InvestorMessagesPage() {
     }
   }, [loading]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load messages when conversation selected
+  // Load messages + subscribe to Realtime when conversation selected
   useEffect(() => {
     if (!panel || panel.type !== 'conversation') { setMessages([]); return }
+    const connectionId = panel.data.id
+
     setMsgLoading(true)
-    fetch(`/api/messages?connectionId=${panel.data.id}`)
+    fetch(`/api/messages?connectionId=${connectionId}`)
       .then(r => r.ok ? r.json() : { messages: [] })
       .then(d => setMessages(d.messages ?? []))
       .catch(() => {})
       .finally(() => setMsgLoading(false))
+
+    // Realtime subscription — append incoming messages without re-fetching
+    let supabase: ReturnType<typeof createClient>
+    let channel: ReturnType<ReturnType<typeof createClient>['channel']>
+    try {
+      supabase = createClient()
+      channel = supabase
+        .channel(`messages:${connectionId}`)
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'messages', filter: `connection_id=eq.${connectionId}` },
+          (payload) => {
+            const newMsg = payload.new as Message
+            setMessages(prev => {
+              if (prev.some(m => m.id === newMsg.id)) return prev
+              return [...prev, newMsg]
+            })
+            // Update last message preview in sidebar
+            setConversations(prev => prev.map(c =>
+              c.id === connectionId
+                ? { ...c, lastMessage: { body: newMsg.body, created_at: newMsg.created_at, senderId: newMsg.sender_id } }
+                : c
+            ))
+          }
+        )
+        .subscribe()
+    } catch { /* Realtime not available — graceful degradation */ }
+
+    return () => {
+      try { if (channel!) supabase!.removeChannel(channel!) } catch { /* ignore */ }
+    }
   }, [panel])
 
   // Scroll to bottom on new messages
@@ -329,9 +364,16 @@ export default function InvestorMessagesPage() {
                       <p style={{ fontSize: 13, fontWeight: 600, color: ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{req.startupName}</p>
                       <p style={{ fontSize: 10, color: muted, flexShrink: 0, marginLeft: 6 }}>{relDate(req.requestedDate)}</p>
                     </div>
-                    <p style={{ fontSize: 11, color: muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{req.founderName} · {req.industry}</p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                      <p style={{ fontSize: 11, color: muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{req.founderName} · {req.industry}</p>
+                      {req.qScore > 0 && (
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 999, background: qBg(req.qScore), color: qColor(req.qScore), border: `1px solid ${qBorder(req.qScore)}`, flexShrink: 0 }}>
+                          Q{req.qScore}
+                        </span>
+                      )}
+                    </div>
                     {req.personalMessage && (
-                      <p style={{ fontSize: 11, color: muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 3 }}>
+                      <p style={{ fontSize: 11, color: muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>
                         &quot;{req.personalMessage}&quot;
                       </p>
                     )}
@@ -498,7 +540,7 @@ export default function InvestorMessagesPage() {
               </div>
 
               {/* accept / decline footer */}
-              <div style={{ padding: '16px 28px', borderTop: `1px solid ${bdr}`, display: 'flex', gap: 10, justifyContent: 'flex-end', flexShrink: 0, background: bg }}>
+              <div style={{ padding: '16px 28px', borderTop: `1px solid ${bdr}`, display: 'flex', gap: 10, justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: bg }}>
                 <button
                   onClick={() => handleDecline(panel.data)}
                   disabled={actionLoading === panel.data.id}
@@ -506,14 +548,26 @@ export default function InvestorMessagesPage() {
                 >
                   <X style={{ height: 12, width: 12 }} /> Decline
                 </button>
-                <button
-                  onClick={() => handleAccept(panel.data)}
-                  disabled={actionLoading === panel.data.id}
-                  style={{ padding: '9px 24px', borderRadius: 9, border: 'none', background: ink, fontSize: 13, fontWeight: 500, color: bg, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: actionLoading === panel.data.id ? 0.6 : 1 }}
-                >
-                  <CheckCircle style={{ height: 12, width: 12 }} />
-                  {actionLoading === panel.data.id ? 'Accepting…' : 'Accept'}
-                </button>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={() => handleAccept(panel.data)}
+                    disabled={actionLoading === panel.data.id}
+                    style={{ padding: '9px 20px', borderRadius: 9, border: `1px solid ${bdr}`, background: surf, fontSize: 13, fontWeight: 500, color: ink, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: actionLoading === panel.data.id ? 0.6 : 1 }}
+                  >
+                    <CheckCircle style={{ height: 12, width: 12 }} />
+                    Accept
+                  </button>
+                  <button
+                    onClick={async () => {
+                      await handleAccept(panel.data)
+                    }}
+                    disabled={actionLoading === panel.data.id}
+                    style={{ padding: '9px 24px', borderRadius: 9, border: 'none', background: ink, fontSize: 13, fontWeight: 600, color: bg, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: actionLoading === panel.data.id ? 0.6 : 1 }}
+                  >
+                    <CheckCircle style={{ height: 12, width: 12 }} />
+                    {actionLoading === panel.data.id ? 'Accepting…' : 'Accept & Reply →'}
+                  </button>
+                </div>
               </div>
             </motion.div>
 
@@ -577,55 +631,15 @@ export default function InvestorMessagesPage() {
                   <p style={{ fontSize: 12, color: muted, textAlign: 'center', padding: '20px 0' }}>Loading messages…</p>
                 )}
 
-                {messages.map((msg, idx) => {
-                  const isMine = msg.sender_id === myUserId
-                  const prevMsg = messages[idx - 1]
-                  const showAvatar = !prevMsg || prevMsg.sender_id !== msg.sender_id
-                  const isLast = idx === messages.length - 1 || messages[idx + 1]?.sender_id !== msg.sender_id
-
-                  return (
-                    <div
-                      key={msg.id}
-                      style={{
-                        display: 'flex',
-                        flexDirection: isMine ? 'row-reverse' : 'row',
-                        alignItems: 'flex-end',
-                        gap: 8,
-                        marginTop: showAvatar ? 10 : 2,
-                      }}
-                    >
-                      {/* avatar placeholder for spacing */}
-                      <div style={{ width: 28, flexShrink: 0, display: 'flex', alignItems: 'flex-end', justifyContent: isMine ? 'flex-end' : 'flex-start' }}>
-                        {!isMine && isLast && (
-                          <div style={{ width: 28, height: 28, borderRadius: 7, background: surf, border: `1px solid ${bdr}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: ink }}>
-                            {initials(panel.data.founderName)}
-                          </div>
-                        )}
-                      </div>
-
-                      <div style={{ maxWidth: '68%', display: 'flex', flexDirection: 'column', alignItems: isMine ? 'flex-end' : 'flex-start' }}>
-                        <div style={{
-                          padding: '10px 14px',
-                          borderRadius: isMine
-                            ? (showAvatar ? '16px 4px 16px 16px' : '16px 16px 4px 16px')
-                            : (showAvatar ? '4px 16px 16px 16px' : '16px 16px 16px 4px'),
-                          background: isMine ? ink : surf,
-                          border: `1px solid ${isMine ? ink : bdr}`,
-                          color: isMine ? bg : ink,
-                        }}>
-                          <p style={{ fontSize: 13, lineHeight: 1.6, margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                            {msg.body}
-                          </p>
-                        </div>
-                        {isLast && (
-                          <p style={{ fontSize: 10, color: muted, marginTop: 3, paddingLeft: isMine ? 0 : 4, paddingRight: isMine ? 4 : 0 }}>
-                            {relDate(msg.created_at)}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
+                {buildGroups(messages, myUserId ?? '').map((group, gi) => (
+                  <MessageGroupBlock
+                    key={group.messages[0].id}
+                    group={group}
+                    senderInitials={initials(panel.data.founderName)}
+                    myInitials="Me"
+                    isFirst={gi === 0}
+                  />
+                ))}
                 <div ref={bottomRef} />
               </div>
 

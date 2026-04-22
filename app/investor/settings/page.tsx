@@ -11,7 +11,7 @@ import {
   saveInvestorNotifications,
   signOutInvestor,
 } from '@/features/investor/services/investor-settings.service'
-import { bg, surf, bdr, ink, muted, blue, green, red } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
 import { Avatar } from '@/features/shared/components/Avatar'
 
 // ─── types ────────────────────────────────────────────────────────────────────
@@ -72,6 +72,20 @@ export default function InvestorSettingsPage() {
   const [connectionReq, setConnectionReq] = useState(true)
   const [weeklyDigest,  setWeeklyDigest]  = useState(false)
 
+  // Portfolio display config
+  const [portfolioCfg, setPortfolioCfg] = useState({
+    showMRR: true, showRunway: true, showBurn: true,
+    showGrowth: true, showQScore: true, showHealth: true,
+  })
+  const [savingPortfolioCfg, setSavingPortfolioCfg] = useState(false)
+
+  // Q-Score dimension weights
+  const [weights, setWeights] = useState({
+    weight_market: 20, weight_product: 18, weight_gtm: 17,
+    weight_financial: 18, weight_team: 15, weight_traction: 12,
+  })
+  const [savingWeights, setSavingWeights] = useState(false)
+
   // Populate form once settings are loaded
   useEffect(() => {
     if (!initialSettings) return
@@ -90,6 +104,42 @@ export default function InvestorSettingsPage() {
     setAvatarUrl((initialSettings as unknown as Record<string, unknown>).avatarUrl as string | null ?? null)
     setFirmLogoUrl((initialSettings as unknown as Record<string, unknown>).firmLogoUrl as string | null ?? null)
   }, [initialSettings])
+
+  // Load portfolio config + weights on mount
+  useEffect(() => {
+    fetch('/api/investor/portfolio-config').then(r => r.json()).then(({ config }) => {
+      if (config) setPortfolioCfg(cfg => ({ ...cfg, ...config }))
+    }).catch(() => {})
+    fetch('/api/investor/weights').then(r => r.json()).then(({ weights: w }) => {
+      if (w) setWeights(wts => ({ ...wts, ...w }))
+    }).catch(() => {})
+  }, [])
+
+  async function handleSavePortfolioCfg() {
+    setSavingPortfolioCfg(true)
+    try {
+      await fetch('/api/investor/portfolio-config', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(portfolioCfg),
+      })
+      showToast('Portfolio display saved')
+    } catch { showToast('Failed to save', 'error') }
+    finally { setSavingPortfolioCfg(false) }
+  }
+
+  async function handleSaveWeights() {
+    setSavingWeights(true)
+    try {
+      await fetch('/api/investor/weights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(weights),
+      })
+      showToast('Q-Score weights saved')
+    } catch { showToast('Failed to save', 'error') }
+    finally { setSavingWeights(false) }
+  }
 
   function showToast(msg: string, type: 'success' | 'error' = 'success') {
     setToast({ msg, type })
@@ -530,6 +580,82 @@ export default function InvestorSettingsPage() {
               <Save style={{ height: 13, width: 13 }} />
               {saving ? 'Saving…' : 'Save preferences'}
             </button>
+
+            {/* Portfolio Display Configuration */}
+            <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden' }}>
+              <div style={{ padding: '16px 20px', borderBottom: `1px solid ${bdr}`, background: surf }}>
+                <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>Portfolio Display</p>
+                <p style={{ fontSize: 11, color: muted, marginTop: 2 }}>Choose which metrics to show on your portfolio view</p>
+              </div>
+              <div style={{ padding: '4px 0' }}>
+                {([
+                  { key: 'showQScore',  label: 'Q-Score',    sub: 'Composite investor readiness score' },
+                  { key: 'showHealth',  label: 'Health',     sub: 'Excellent / Good / Watch / Critical indicator' },
+                  { key: 'showMRR',     label: 'Revenue',    sub: 'Monthly recurring revenue (self-reported or Stripe)' },
+                  { key: 'showGrowth',  label: 'Growth',     sub: 'MoM or YoY growth rate' },
+                  { key: 'showBurn',    label: 'Burn Rate',  sub: 'Monthly cash burn' },
+                  { key: 'showRunway',  label: 'Runway',     sub: 'Months of cash remaining' },
+                ] as { key: keyof typeof portfolioCfg; label: string; sub: string }[]).map((item, i, arr) => (
+                  <div key={item.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: i < arr.length - 1 ? `1px solid ${bdr}` : 'none' }}>
+                    <div>
+                      <p style={{ fontSize: 13, fontWeight: 500, color: ink, marginBottom: 2 }}>{item.label}</p>
+                      <p style={{ fontSize: 11, color: muted }}>{item.sub}</p>
+                    </div>
+                    <button
+                      onClick={() => setPortfolioCfg(c => ({ ...c, [item.key]: !c[item.key] }))}
+                      style={{ width: 40, height: 22, borderRadius: 999, border: 'none', cursor: 'pointer', background: portfolioCfg[item.key] ? green : bdr, transition: 'background .2s', flexShrink: 0, position: 'relative' }}
+                    >
+                      <div style={{ position: 'absolute', top: 3, left: portfolioCfg[item.key] ? 20 : 3, width: 16, height: 16, borderRadius: '50%', background: '#fff', transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div style={{ padding: '14px 20px', borderTop: `1px solid ${bdr}`, display: 'flex', justifyContent: 'flex-end' }}>
+                <button onClick={handleSavePortfolioCfg} disabled={savingPortfolioCfg} style={{ padding: '8px 18px', borderRadius: 8, border: 'none', background: ink, color: bg, fontSize: 12, fontWeight: 500, cursor: savingPortfolioCfg ? 'not-allowed' : 'pointer', opacity: savingPortfolioCfg ? 0.7 : 1, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                  <Save style={{ height: 12, width: 12 }} />
+                  {savingPortfolioCfg ? 'Saving…' : 'Save display settings'}
+                </button>
+              </div>
+            </div>
+
+            {/* Q-Score Dimension Weights */}
+            <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden' }}>
+              <div style={{ padding: '16px 20px', borderBottom: `1px solid ${bdr}`, background: surf }}>
+                <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>Q-Score Dimension Weights</p>
+                <p style={{ fontSize: 11, color: muted, marginTop: 2 }}>Adjust how each dimension is weighted when ranking deal flow</p>
+              </div>
+              <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+                {([
+                  { key: 'weight_market',    label: 'Market',     color: blue },
+                  { key: 'weight_product',   label: 'Product',    color: green },
+                  { key: 'weight_gtm',       label: 'GTM',        color: amber },
+                  { key: 'weight_financial', label: 'Financial',  color: red },
+                  { key: 'weight_team',      label: 'Team',       color: blue },
+                  { key: 'weight_traction',  label: 'Traction',   color: green },
+                ] as { key: keyof typeof weights; label: string; color: string }[]).map(({ key, label, color }) => (
+                  <div key={key}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <label style={{ fontSize: 12, fontWeight: 500, color: ink }}>{label}</label>
+                      <span style={{ fontSize: 12, fontWeight: 600, color }}>{weights[key]}</span>
+                    </div>
+                    <input
+                      type="range" min={0} max={40} step={1} value={weights[key]}
+                      onChange={e => setWeights(w => ({ ...w, [key]: Number(e.target.value) }))}
+                      style={{ width: '100%', accentColor: color }}
+                    />
+                  </div>
+                ))}
+                <p style={{ fontSize: 11, color: muted }}>
+                  Total weight: <strong>{Object.values(weights).reduce((a, b) => a + b, 0)}</strong> (proportional — any total works)
+                </p>
+              </div>
+              <div style={{ padding: '14px 20px', borderTop: `1px solid ${bdr}`, display: 'flex', justifyContent: 'flex-end' }}>
+                <button onClick={handleSaveWeights} disabled={savingWeights} style={{ padding: '8px 18px', borderRadius: 8, border: 'none', background: ink, color: bg, fontSize: 12, fontWeight: 500, cursor: savingWeights ? 'not-allowed' : 'pointer', opacity: savingWeights ? 0.7 : 1, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                  <Save style={{ height: 12, width: 12 }} />
+                  {savingWeights ? 'Saving…' : 'Save weights'}
+                </button>
+              </div>
+            </div>
           </div>
         )}
 

@@ -6,6 +6,24 @@
 import AdmZip from 'adm-zip'
 import { log } from '@/lib/logger'
 
+// Instead of naively slicing the first N chars, sample from beginning + middle + end.
+// This ensures financials/appendix data (typically at end of deck) reaches the LLM.
+function smartSample(text: string, limit: number): string {
+  if (text.length <= limit) return text
+  const head = Math.floor(limit * 0.45)        // first 45%: company overview, product
+  const tail = Math.floor(limit * 0.35)        // last 35%: financials, appendix, asks
+  const mid  = limit - head - tail              // 20%: mid-document metrics section
+  const midStart = Math.floor((text.length - mid) / 2)
+  return [
+    text.slice(0, head),
+    text.slice(midStart, midStart + mid),
+    text.slice(-tail),
+  ].join('\n\n---\n\n')
+}
+
+const PDF_PAGE_LIMIT = 20    // max pages for large PDFs (> 2 MB)
+const PPTX_SLIDE_LIMIT = 25  // max slides for large PPTX (> 1 MB)
+
 export interface ParseResult {
   text: string
   structuredData?: Record<string, unknown>
@@ -19,9 +37,12 @@ export async function parsePDF(buffer: Buffer): Promise<ParseResult> {
     // Pass { data: buffer } in the constructor; it auto-converts Buffer → Uint8Array.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { PDFParse } = await import('pdf-parse' as any)
-    const parser = new PDFParse({ data: buffer })
+    // Large PDFs (> 2 MB) often contain images/embedded objects that slow parse time.
+    // Capping at 20 pages keeps the useful text content while avoiding timeouts.
+    const opts = buffer.length > 2 * 1024 * 1024 ? { max: PDF_PAGE_LIMIT } : {}
+    const parser = new PDFParse({ data: buffer, ...opts })
     const result = await parser.getText()
-    const text = (result.text ?? '').replace(/\s+/g, ' ').trim().slice(0, 8000)
+    const text = smartSample((result.text ?? '').replace(/\s+/g, ' ').trim(), 8000)
     return { text, confidence: text.length > 200 ? 0.85 : 0.5 }
   } catch (e) {
     log.warn('[parsePDF] failed, falling back to raw extraction:', e)
@@ -48,7 +69,7 @@ function parsePDFFallback(buffer: Buffer): ParseResult {
     }
   }
 
-  const text = textBlocks.join('\n').slice(0, 8000)
+  const text = smartSample(textBlocks.join('\n'), 8000)
   return { text, confidence: text.length > 200 ? 0.7 : 0.3 }
 }
 
@@ -76,11 +97,20 @@ export function parsePPTX(buffer: Buffer): ParseResult {
     const slideTexts: string[] = []
     const noteTexts: string[] = []
 
+    // For large PPTX files (> 1 MB) cap at PPTX_SLIDE_LIMIT slides.
+    // Sort slide entries so we pick the first N slides in order, not arbitrarily.
+    const slideEntries = entries
+      .filter(e => e.entryName.match(/ppt\/slides\/slide\d+\.xml/))
+      .sort((a, b) => a.entryName.localeCompare(b.entryName))
+    const isLargeFile = buffer.length > 1024 * 1024
+    const slideEntriesCapped = isLargeFile ? slideEntries.slice(0, PPTX_SLIDE_LIMIT) : slideEntries
+    const cappedNames = new Set(slideEntriesCapped.map(e => e.entryName))
+
     for (const entry of entries) {
       const xml = entry.getData().toString('utf8')
 
-      // Slide body text: ppt/slides/slideN.xml
-      if (entry.entryName.match(/ppt\/slides\/slide\d+\.xml/)) {
+      // Slide body text: ppt/slides/slideN.xml (capped for large files)
+      if (entry.entryName.match(/ppt\/slides\/slide\d+\.xml/) && cappedNames.has(entry.entryName)) {
         slideTexts.push(...extractDrawingMLText(xml))
       }
 
@@ -93,7 +123,7 @@ export function parsePPTX(buffer: Buffer): ParseResult {
 
     // Notes are high-signal — prepend them so the LLM sees them first within the char limit
     const combined = [...noteTexts, ...slideTexts]
-    const text = combined.join(' ').replace(/\s+/g, ' ').trim().slice(0, 8000)
+    const text = smartSample(combined.join(' ').replace(/\s+/g, ' ').trim(), 8000)
     return { text, confidence: text.length > 100 ? 0.80 : 0.4 }
   } catch (e) {
     log.warn('[parsePPTX] adm-zip failed:', e)
@@ -130,7 +160,7 @@ export function parseXLSX(buffer: Buffer): ParseResult {
       while ((m = vRegex.exec(xml)) !== null) numbers.push(m[1])
     }
 
-    const text = [...sharedStrings, ...numbers].join(' ').replace(/\s+/g, ' ').trim().slice(0, 8000)
+    const text = smartSample([...sharedStrings, ...numbers].join(' ').replace(/\s+/g, ' ').trim(), 8000)
 
     // Extract financial metrics from label→value adjacency
     const structuredData: Record<string, unknown> = {}
@@ -160,7 +190,7 @@ export function parseXLSX(buffer: Buffer): ParseResult {
 
 // ── CSV ───────────────────────────────────────────────────────────────────────
 export function parseCSV(text: string): ParseResult {
-  return { text: text.slice(0, 8000), confidence: 0.85 }
+  return { text: smartSample(text, 8000), confidence: 0.85 }
 }
 
 // ── Image ─────────────────────────────────────────────────────────────────────
@@ -178,14 +208,14 @@ async function parseDOCX(buffer: Buffer): Promise<ParseResult> {
     // mammoth extracts clean prose text from .docx files
     const mammoth = await import('mammoth')
     const result = await mammoth.extractRawText({ buffer })
-    const text = (result.value ?? '').replace(/\s+/g, ' ').trim().slice(0, 8000)
+    const text = smartSample((result.value ?? '').replace(/\s+/g, ' ').trim(), 8000)
     if (result.messages?.length) {
       log.warn('[parseDOCX] mammoth warnings:', result.messages.map((m: { message: string }) => m.message).join('; '))
     }
     return { text, confidence: text.length > 200 ? 0.80 : 0.50 }
   } catch (e) {
     log.warn('[parseDOCX] mammoth failed, falling back to raw text:', e)
-    return { text: buffer.toString('utf8').slice(0, 8000), confidence: 0.40 }
+    return { text: smartSample(buffer.toString('utf8'), 8000), confidence: 0.40 }
   }
 }
 
@@ -198,5 +228,5 @@ export async function parseDocument(buffer: Buffer, filename: string, mimeType: 
   if (lower.endsWith('.xlsx') || mimeType.includes('spreadsheetml')) return parseXLSX(buffer)
   if (lower.endsWith('.csv') || mimeType === 'text/csv') return parseCSV(buffer.toString('utf8'))
   if (['.png', '.jpg', '.jpeg', '.webp'].some(ext => lower.endsWith(ext))) return parseImage(buffer, filename)
-  return { text: buffer.toString('utf8').slice(0, 8000), confidence: 0.75 }
+  return { text: smartSample(buffer.toString('utf8'), 8000), confidence: 0.75 }
 }

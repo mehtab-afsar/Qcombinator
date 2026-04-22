@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { generateMatchRationale } from '@/features/matching/services/match-rationale'
-import { FF_AI_INVESTOR_MATCHING } from '@/lib/feature-flags'
 import { verifyAuth } from '@/lib/auth/verify'
 import { log } from '@/lib/logger'
 
@@ -60,23 +58,27 @@ export async function GET() {
       { data: allActivity },
       { data: allArtifacts },
     ] = await Promise.all([
-      // Latest Q-Score per founder — fetch all, pick latest in JS
+      // Latest Q-Score per founder — bounded to prevent full table scans at scale.
+      // Ordered DESC so the JS dedup map (below) keeps the latest per user.
       admin
         .from('qscore_history')
         .select('user_id, overall_score, market_score, product_score, gtm_score, financial_score, team_score, traction_score, percentile, calculated_at')
         .in('user_id', userIds)
-        .order('calculated_at', { ascending: false }),
+        .order('calculated_at', { ascending: false })
+        .limit(userIds.length * 5),   // at most 5 scores per founder; prevents O(N×M) scan
       // Weekly activity — fetch user_ids only and count in JS
       admin
         .from('agent_activity')
         .select('user_id')
         .in('user_id', userIds)
-        .gte('created_at', since7d),
+        .gte('created_at', since7d)
+        .limit(userIds.length * 20),  // bound: ~20 actions/week per founder is generous
       // Total deliverables — fetch user_ids only and count in JS
       admin
         .from('agent_artifacts')
         .select('user_id')
-        .in('user_id', userIds),
+        .in('user_id', userIds)
+        .limit(userIds.length * 50),  // bound: ~50 artifacts per founder
     ])
 
     // Build lookup maps from batched results
@@ -172,6 +174,19 @@ export async function GET() {
           visibilityGated:  (f as Record<string, unknown>).visibility_gated  ?? false,
           avatarUrl:        (f as Record<string, unknown>).avatar_url        ?? null,
           companyLogoUrl:   (f as Record<string, unknown>).company_logo_url  ?? null,
+          // Composite "hot deal" signal — OR of multiple independent signals
+          // so new investors qualify even without 30-day momentum history
+          get isHot() {
+            const momentum = ((f as Record<string, unknown>).momentum_score as number | null) ?? null
+            const stripe   = ((f as Record<string, unknown>).stripe_verified as boolean) ?? false
+            const qS       = qrow?.overall_score ?? 0
+            return (
+              (momentum !== null && momentum >= 4)     // improving Q-Score trajectory
+              || (stripe && qS >= 55)                  // Stripe-verified revenue + decent score
+              || (agentActionsThisWeek >= 5 && qS >= 60) // highly active + solid score
+              || (qS >= 80)                            // top-tier score regardless
+            )
+          },
         }
       })
 
@@ -242,52 +257,26 @@ export async function GET() {
 
     const visibleWithPrefs = visible.map(f => ({ ...f, matchesPreferences: matchesPrefs(f) }));
 
-    // Sort: preference matches first, then momentum, then match score, then Q-Score
+    // Sort: preference matches first, then momentum, then match score, then Q-Score, then recency
     visibleWithPrefs.sort((a, b) => {
       if (a.matchesPreferences !== b.matchesPreferences) return a.matchesPreferences ? -1 : 1;
       const mA = (a.momentumScore as number | null) ?? 0;
       const mB = (b.momentumScore as number | null) ?? 0;
       if (mB !== mA) return (mB as number) - (mA as number);
-      return b.matchScore - a.matchScore || b.qScore - a.qScore;
+      if (b.matchScore !== a.matchScore) return b.matchScore - a.matchScore;
+      if (b.qScore !== a.qScore) return b.qScore - a.qScore;
+      // Tiebreaker: most recently active first (new founders appear above old inactive ones)
+      return new Date(b.lastActive ?? 0).getTime() - new Date(a.lastActive ?? 0).getTime();
     });
 
-    // ── AI Match Summaries for top 5 founders (economy-tier, gated) ──────────
+    // AI match summaries come from the cached ai_personalization field (matchReason above).
+    // Do NOT generate them synchronously here — that blocks the response by 500ms-2s per request.
+    // Rationale is generated lazily via POST /api/investor/deal-flow/rationale and cached in DB.
     type FounderWithSummary = (typeof visibleWithPrefs)[0] & { aiMatchSummary: string | null }
-    const foundersWithSummary: FounderWithSummary[] = visibleWithPrefs.map(f => ({ ...f, aiMatchSummary: null }))
-
-    if (FF_AI_INVESTOR_MATCHING && investorProfile) {
-      const ip = investorProfile as Record<string, unknown>
-      const investorName = (ip.full_name as string) ?? 'Investor'
-      const investorFirm = (ip.firm_name as string) ?? ''
-      const investorThesis = (ip.thesis as string) ?? ''
-      const investorSectors = (ip.focus_sectors as string[]) ?? []
-      const investorStages = (ip.focus_stages as string[]) ?? []
-      const investorPortfolio = (ip.portfolio_companies as string[]) ?? []
-
-      const top5 = foundersWithSummary.slice(0, 5)
-      const rationaleResults = await Promise.allSettled(
-        top5.map(f =>
-          generateMatchRationale({
-            investorName,
-            investorFirm,
-            investorThesis,
-            investorSectors,
-            investorStages,
-            investorPortfolio,
-            matchScore: f.matchScore,
-            founderSector: f.sector,
-            founderStage: f.stage,
-            founderQScore: f.qScore,
-            startupOneLiner: f.tagline || undefined,
-          })
-        )
-      )
-      rationaleResults.forEach((result, i) => {
-        if (result.status === 'fulfilled') {
-          foundersWithSummary[i] = { ...foundersWithSummary[i], aiMatchSummary: result.value }
-        }
-      })
-    }
+    const foundersWithSummary: FounderWithSummary[] = visibleWithPrefs.map(f => ({
+      ...f,
+      aiMatchSummary: (aiMatches[f.id]?.reason as string | undefined) ?? null,
+    }))
 
     return NextResponse.json({
       founders: foundersWithSummary,

@@ -50,7 +50,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" data-scroll-behavior="smooth">
       <body className={`${inter.className} ${manrope.variable} ${fraunces.variable} ${jetbrainsMono.variable} antialiased`}>
         <AuthProvider>
           <QScoreProvider>

@@ -73,7 +73,10 @@ export async function GET() {
         response_rate: 80,
       }))
 
-    return NextResponse.json({ investors: [...realNormalised, ...demoNormalised] })
+    return NextResponse.json(
+      { investors: [...realNormalised, ...demoNormalised] },
+      { headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120' } },
+    )
   } catch (err) {
     log.error('GET /api/investors', { err })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

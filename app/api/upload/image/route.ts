@@ -56,8 +56,10 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer())
     const { bucket, path } = getBucketAndPath(imageType, user.id, ext)
 
-    // Use user-scoped client for storage upload (RLS policy allows owner to upload)
-    const { error: uploadErr } = await supabase.storage
+    // Use admin client for storage — bypasses RLS so upload always succeeds
+    // (identity already verified via createClient().auth.getUser() above)
+    const admin = createAdminClient()
+    const { error: uploadErr } = await admin.storage
       .from(bucket)
       .upload(path, buffer, { contentType: file.type, upsert: true })
 
@@ -69,13 +71,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: msg }, { status: 500 })
     }
 
-    const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(path)
+    const { data: { publicUrl } } = admin.storage.from(bucket).getPublicUrl(path)
 
     // Add cache-bust so browsers pick up the new image even though the path is the same
     const url = `${publicUrl}?t=${Date.now()}`
 
-    // Update DB column via admin client
-    const admin = createAdminClient()
+    // Update DB column via admin client (already declared above)
     const { table, column } = getDbTarget(imageType)
     const { error: dbErr } = await admin
       .from(table)

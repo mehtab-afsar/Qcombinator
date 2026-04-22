@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Search, ChevronRight, ChevronDown, Flame, ArrowUp, Minus, LayoutGrid, List } from "lucide-react";
+import { Search, ChevronRight, ChevronDown, Flame, ArrowUp, Minus, LayoutGrid, List, MessageSquare, Send, X, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
 import { Avatar } from '@/features/shared/components/Avatar'
@@ -40,6 +40,7 @@ interface Founder {
   matchesPreferences: boolean;
   companyLogoUrl: string | null;
   avatarUrl: string | null;
+  isHot?: boolean;
 }
 
 const PIPELINE_STAGES = [
@@ -75,12 +76,13 @@ function _freshnessDot(daysAgo: number | null) {
 
 // ─── founder card (compact horizontal) ───────────────────────────────────────
 function FounderCard({
-  founder, pipelineStage, onPipelineChange, onView,
+  founder, pipelineStage, onPipelineChange, onView, onMessage,
 }: {
   founder: Founder;
   pipelineStage: string | null;
   onPipelineChange: (id: string, stage: string) => void;
   onView: (id: string) => void;
+  onMessage: (founder: Founder) => void;
 }) {
   const [pipelineOpen, setPipelineOpen] = useState(false);
   const scoreColor = founder.hasScore ? qScoreColor(founder.weightedQScore) : muted;
@@ -199,6 +201,18 @@ function FounderCard({
         )}
       </div>
 
+      {/* message */}
+      <button
+        onClick={e => { e.stopPropagation(); onMessage(founder); }}
+        title="Message founder"
+        style={{
+          height: 30, width: 30, display: "flex", alignItems: "center", justifyContent: "center",
+          background: surf, border: `1px solid ${bdr}`, borderRadius: 7, cursor: "pointer", flexShrink: 0,
+        }}
+      >
+        <MessageSquare style={{ height: 12, width: 12, color: muted }} />
+      </button>
+
       {/* view */}
       <button
         onClick={e => { e.stopPropagation(); onView(founder.id); }}
@@ -272,11 +286,31 @@ export default function DealFlowPage() {
   const [selectedSector, setSelectedSector] = useState("all");
   const [activeTab,      setActiveTab]      = useState<"all" | "hot" | "pipeline">("all");
   const [viewMode,       setViewMode]       = useState<"cards" | "table">("cards");
+  // Outreach
+  const [outreachFounder,  setOutreachFounder]  = useState<Founder | null>(null);
+  const [outreachMsg,      setOutreachMsg]      = useState('');
+  const [outreachSending,  setOutreachSending]  = useState(false);
+  const [outreachDone,     setOutreachDone]     = useState(false);
+
+  async function handleSendOutreach() {
+    if (!outreachFounder || !outreachMsg.trim() || outreachSending) return
+    setOutreachSending(true)
+    try {
+      const res = await fetch('/api/investor/outreach', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ founderId: outreachFounder.id, message: outreachMsg.trim() }),
+      })
+      if (res.ok) setOutreachDone(true)
+    } finally {
+      setOutreachSending(false)
+    }
+  }
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/investor/deal-flow").then(r => r.json()),
-      fetch("/api/investor/pipeline").then(r => r.json()),
+      fetch("/api/investor/deal-flow").then(r => { if (!r.ok) throw new Error(String(r.status)); return r.json() }),
+      fetch("/api/investor/pipeline").then(r => r.ok ? r.json() : { pipelineMap: {} }).catch(() => ({ pipelineMap: {} })),
     ]).then(([flowData, pipeData]) => {
       if (pipeData.pipelineMap) setPipelineMap(pipeData.pipelineMap);
       if (flowData.founders) {
@@ -315,17 +349,17 @@ export default function DealFlowPage() {
     const matchStage   = selectedStage  === "all" || f.stage.toLowerCase().replace(/\s+/g, "-") === selectedStage;
     const matchSector  = selectedSector === "all" || f.sector.toLowerCase().replace(/[/\s]+/g, "-") === selectedSector;
     const matchTab     = activeTab === "all"
-      || (activeTab === "hot"      && (f.momentumScore ?? 0) >= 4)
+      || (activeTab === "hot"      && !!f.isHot)
       || (activeTab === "pipeline" && !!pipelineMap[f.id]);
     return matchSearch && matchStage && matchSector && matchTab;
   });
 
-  const hotCount      = founders.filter(f => (f.momentumScore ?? 0) >= 4).length;
+  const hotCount      = founders.filter(f => !!f.isHot).length;
   const pipelineCount = founders.filter(f => !!pipelineMap[f.id]).length;
 
   const tabs = [
     { key: "all"      as const, label: `All (${founders.length})` },
-    { key: "hot"      as const, label: `Hot 🔥 (${hotCount})` },
+    { key: "hot"      as const, label: `Hot 🔥 (${hotCount})`, tooltip: "High Q-Score (80+), Stripe-verified revenue, or strong weekly momentum" },
     { key: "pipeline" as const, label: `In My Pipeline (${pipelineCount})` },
   ];
 
@@ -333,6 +367,7 @@ export default function DealFlowPage() {
   const uniqueSectors = [...new Set(founders.map(f => f.sector).filter(Boolean))].sort();
 
   return (
+    <>
     <div style={{ minHeight: "100vh", background: bg, color: ink, padding: "36px 28px 72px" }}>
       <div style={{ maxWidth: 1060, margin: "0 auto" }}>
 
@@ -399,10 +434,12 @@ export default function DealFlowPage() {
         {/* ── tabs ─────────────────────────────────────────────────────── */}
         <div style={{ display: "flex", borderBottom: `1px solid ${bdr}`, marginBottom: 0 }}>
           {tabs.map(tab => (
-            <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-              style={{ padding: "10px 16px", fontSize: 12, fontWeight: 500, color: activeTab === tab.key ? ink : muted, background: "transparent", border: "none", cursor: "pointer", borderBottom: activeTab === tab.key ? `2px solid ${ink}` : "2px solid transparent", transition: "color .15s", fontFamily: "inherit" }}>
-              {tab.label}
-            </button>
+            <div key={tab.key} style={{ position: "relative" }} title={'tooltip' in tab ? (tab as { tooltip?: string }).tooltip : undefined}>
+              <button onClick={() => setActiveTab(tab.key)}
+                style={{ padding: "10px 16px", fontSize: 12, fontWeight: 500, color: activeTab === tab.key ? ink : muted, background: "transparent", border: "none", cursor: "pointer", borderBottom: activeTab === tab.key ? `2px solid ${ink}` : "2px solid transparent", transition: "color .15s", fontFamily: "inherit" }}>
+                {tab.label}
+              </button>
+            </div>
           ))}
         </div>
 
@@ -434,6 +471,7 @@ export default function DealFlowPage() {
                   pipelineStage={pipelineMap[founder.id] ?? null}
                   onPipelineChange={updatePipelineStage}
                   onView={id => router.push(`/investor/startup/${id}`)}
+                  onMessage={f => { setOutreachFounder(f); setOutreachMsg(''); setOutreachDone(false); }}
                 />
               </motion.div>
             ))}
@@ -466,5 +504,67 @@ export default function DealFlowPage() {
         )}
       </div>
     </div>
+
+    <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
+    {/* Outreach modal */}
+    {outreachFounder && (
+      <div
+        onClick={() => setOutreachFounder(null)}
+        style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+      >
+        <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 480, background: bg, borderRadius: 16, border: `1px solid ${bdr}`, padding: "28px 28px 24px", boxShadow: "0 24px 64px rgba(0,0,0,0.12)" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <MessageSquare style={{ height: 16, width: 16, color: blue }} />
+              <p style={{ fontSize: 15, fontWeight: 600, color: ink }}>Message {outreachFounder.founder.name}</p>
+            </div>
+            <button onClick={() => setOutreachFounder(null)} style={{ background: "none", border: "none", cursor: "pointer", color: muted, padding: 4 }}>
+              <X style={{ height: 16, width: 16 }} />
+            </button>
+          </div>
+          {outreachDone ? (
+            <div style={{ textAlign: "center", padding: "20px 0" }}>
+              <p style={{ fontSize: 22 }}>✓</p>
+              <p style={{ fontSize: 14, color: green, fontWeight: 600, marginTop: 8 }}>Message sent!</p>
+              <p style={{ fontSize: 13, color: muted, marginTop: 4 }}>
+                {outreachFounder.founder.name} will see your message in their inbox.
+              </p>
+              <button onClick={() => setOutreachFounder(null)} style={{ marginTop: 18, padding: "9px 22px", borderRadius: 8, border: `1px solid ${bdr}`, background: surf, fontSize: 13, color: ink, cursor: "pointer", fontFamily: "inherit" }}>
+                Close
+              </button>
+            </div>
+          ) : (
+            <>
+              <p style={{ fontSize: 13, color: muted, marginBottom: 14, lineHeight: 1.55 }}>
+                Introduce yourself and explain why you&apos;re interested in {outreachFounder.name}.
+              </p>
+              <textarea
+                value={outreachMsg}
+                onChange={e => setOutreachMsg(e.target.value)}
+                placeholder={`Hi ${outreachFounder.founder.name.split(' ')[0]}, I came across ${outreachFounder.name} and would love to learn more…`}
+                rows={5}
+                style={{ width: "100%", padding: "11px 14px", borderRadius: 8, border: `1.5px solid ${bdr}`, background: surf, fontSize: 13, color: ink, fontFamily: "inherit", outline: "none", resize: "vertical", lineHeight: 1.5, boxSizing: "border-box" }}
+                onFocus={e => (e.currentTarget.style.borderColor = blue)}
+                onBlur={e => (e.currentTarget.style.borderColor = bdr)}
+              />
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 14 }}>
+                <button onClick={() => setOutreachFounder(null)} style={{ padding: "9px 18px", borderRadius: 8, border: `1px solid ${bdr}`, background: "transparent", fontSize: 13, color: muted, cursor: "pointer", fontFamily: "inherit" }}>
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSendOutreach}
+                  disabled={!outreachMsg.trim() || outreachSending}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 20px", borderRadius: 8, border: "none", background: outreachMsg.trim() ? blue : bdr, color: "#fff", fontSize: 13, fontWeight: 600, cursor: outreachMsg.trim() ? "pointer" : "not-allowed", opacity: outreachSending ? 0.6 : 1, fontFamily: "inherit" }}
+                >
+                  {outreachSending ? <Loader2 style={{ height: 13, width: 13, animation: "spin 1s linear infinite" }} /> : <Send style={{ height: 13, width: 13 }} />}
+                  {outreachSending ? "Sending…" : "Send Message"}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    )}
+    </>
   );
 }

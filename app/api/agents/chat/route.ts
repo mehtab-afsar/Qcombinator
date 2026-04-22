@@ -17,6 +17,7 @@ import {
   rileySystemPrompt,
 } from '@/features/agents';
 import { getArtifactPrompt } from '@/features/agents/patel/prompts/artifact-prompts';
+import { postArtifactFeedEvent } from '@/lib/feed/auto-events';
 import { OpenRouterError } from '@/lib/openrouter';
 import { llmChat, llmStream } from '@/lib/llm/provider';
 import { routedText } from '@/lib/llm/router';
@@ -940,6 +941,7 @@ CONVERSATION RULES:
                     artifactId = saved?.id ?? null;
                   }
                   if (artifactId && userId) void scoreFromArtifact(userId, toolName, parsedContent, supabaseAdmin).catch(() => {});
+                  if (artifactId && userId) void postArtifactFeedEvent(userId, toolName, artifactTitle, supabaseAdmin);
                   if (FF_ARTIFACT_SELF_CRITIQUE && artifactId && userId) {
                     void (async () => { try { const critique = await critiqueArtifact(toolName, parsedContent); let fc = parsedContent; if (critique.needsPatch) fc = await patchArtifact(toolName, parsedContent, critique); await supabaseAdmin.from('agent_artifacts').update({ content: fc, critique_metadata: critique }).eq('id', artifactId!); } catch { /* non-critical */ } })();
                   }

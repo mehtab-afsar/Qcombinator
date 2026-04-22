@@ -164,19 +164,30 @@ function buildMemoHtml(opts: {
   stage: string; sector: string; investorName: string; firmName: string;
   today: string; founderId: string;
 }): string {
-  const { memoMd, companyName, founderName, qScore, stage, sector, investorName, firmName, today, founderId } = opts
+  const { memoMd, companyName, founderName, qScore, stage, sector, investorName, firmName, today } = opts
 
-  // Convert basic markdown to HTML (headers, bold, lists)
-  const mdToHtml = (md: string) =>
-    md
+  const scoreColor   = qScore >= 70 ? '#16A34A' : qScore >= 50 ? '#D97706' : '#DC2626'
+  const scoreLabel   = qScore >= 80 ? 'Strong' : qScore >= 65 ? 'Good' : qScore >= 50 ? 'Moderate' : 'Early'
+  const scoreBg      = qScore >= 70 ? '#F0FDF4' : qScore >= 50 ? '#FFFBEB' : '#FEF2F2'
+
+  // Parse memoMd into sections for structured rendering
+  const mdToHtml = (md: string) => {
+    let html = md
+      .replace(/^### (.+)$/gm, '<h3>$1</h3>')
       .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+      .replace(/^# (.+)$/gm, '')               // strip top-level # headers
       .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      .replace(/^(\d+)\. (.+)$/gm, '<li>$2</li>')
-      .replace(/((<li>.*<\/li>\n?)+)/g, '<ol>$1</ol>')
-      .replace(/^(?!<h2|<ol|<li|<strong)(.+)$/gm, '<p>$1</p>')
-      .replace(/<p><\/p>/g, '')
-
-  const scoreColor = qScore >= 70 ? '#16A34A' : qScore >= 50 ? '#D97706' : '#DC2626'
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/^- (.+)$/gm, '<li>$1</li>')
+      .replace(/^(\d+)\. (.+)$/gm, '<oli>$1</oli>')
+    // Wrap <li> groups in <ul>
+    html = html.replace(/((<li>[\s\S]*?<\/li>\n?)+)/g, '<ul>$1</ul>')
+    html = html.replace(/((<oli>[\s\S]*?<\/oli>\n?)+)/g, (_, g: string) => '<ol>' + g.replace(/<\/?oli>/g, (m: string) => m.replace('oli', 'li')) + '</ol>')
+    // Wrap remaining lines in <p>
+    html = html.replace(/^(?!<h[23]|<ul|<ol|<li|<\/ul|<\/ol)(.+)$/gm, '<p>$1</p>')
+    html = html.replace(/<p>\s*<\/p>/g, '')
+    return html
+  }
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -185,50 +196,127 @@ function buildMemoHtml(opts: {
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Investment Memo — ${companyName}</title>
 <style>
-  body { font-family: 'Georgia', serif; max-width: 800px; margin: 0 auto; padding: 48px 32px 80px; color: #18160F; background: #fff; font-size: 14px; line-height: 1.7; }
-  .header { border-bottom: 2px solid #18160F; padding-bottom: 20px; margin-bottom: 32px; }
-  .header h1 { font-size: 22px; font-weight: 700; margin: 0 0 4px; letter-spacing: -0.02em; }
-  .meta { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 12px; font-size: 12px; color: #8A867C; font-family: 'Arial', sans-serif; }
-  .badge { padding: 2px 10px; border-radius: 999px; border: 1px solid; font-weight: 600; font-family: 'Arial', sans-serif; font-size: 11px; }
-  .q-badge { background: ${scoreColor}15; color: ${scoreColor}; border-color: ${scoreColor}60; }
-  .stage-badge { background: #F0EDE6; color: #8A867C; border-color: #E2DDD5; }
-  .sector-badge { background: #EFF6FF; color: #2563EB; border-color: #BFDBFE; }
-  h2 { font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #18160F; margin: 28px 0 8px; border-bottom: 1px solid #E2DDD5; padding-bottom: 6px; }
-  p { margin: 0 0 10px; color: #3D3A35; }
-  ol { margin: 0 0 10px; padding-left: 20px; }
-  li { margin-bottom: 6px; color: #3D3A35; }
-  strong { color: #18160F; }
-  .footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid #E2DDD5; font-size: 11px; color: #8A867C; font-family: 'Arial', sans-serif; display: flex; justify-content: space-between; }
-  @media print { body { padding: 20px; } }
+  * { box-sizing: border-box; }
+  body {
+    font-family: Georgia, 'Times New Roman', serif;
+    max-width: 820px; margin: 0 auto;
+    padding: 56px 48px 80px;
+    color: #1a1714; background: #fff;
+    font-size: 14px; line-height: 1.75;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  /* ── Cover ────────────────────────────────────── */
+  .cover {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    padding-bottom: 24px; margin-bottom: 28px;
+    border-bottom: 2px solid #1a1714;
+  }
+  .cover-left {}
+  .cover-eyebrow {
+    font-family: Arial, sans-serif; font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.18em; color: #8A867C;
+    margin: 0 0 8px;
+  }
+  .cover-company {
+    font-size: 28px; font-weight: 700; letter-spacing: -0.03em;
+    color: #1a1714; margin: 0 0 4px;
+  }
+  .cover-founder { font-family: Arial, sans-serif; font-size: 13px; color: #8A867C; margin: 0; }
+  .cover-meta {
+    font-family: Arial, sans-serif; font-size: 12px; color: #8A867C;
+    text-align: right;
+  }
+  .cover-meta p { margin: 0; line-height: 1.6; }
+  /* ── Q-Score block ─────────────────────────────── */
+  .qscore-block {
+    display: flex; align-items: center; gap: 20px;
+    background: ${scoreBg}; border: 1px solid ${scoreColor}30;
+    border-left: 4px solid ${scoreColor};
+    border-radius: 10px; padding: 16px 20px; margin-bottom: 28px;
+  }
+  .qscore-num {
+    font-size: 52px; font-weight: 300; color: ${scoreColor};
+    letter-spacing: -0.05em; line-height: 1;
+  }
+  .qscore-sub { font-family: Arial, sans-serif; }
+  .qscore-sub .label { font-size: 11px; font-weight: 700; color: ${scoreColor}; text-transform: uppercase; letter-spacing: 0.1em; }
+  .qscore-sub .grade { font-size: 13px; color: #3D3A35; margin-top: 2px; }
+  .tags { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+  .tag {
+    font-family: Arial, sans-serif; font-size: 11px; font-weight: 600;
+    padding: 3px 10px; border-radius: 999px; border: 1px solid;
+  }
+  .tag-stage  { background: #F0EDE6; color: #6B6560; border-color: #D5D0C8; }
+  .tag-sector { background: #EFF6FF; color: #2563EB; border-color: #BFDBFE; }
+  /* ── Sections ──────────────────────────────────── */
+  h2 {
+    font-family: Arial, sans-serif; font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.14em; color: #8A867C;
+    margin: 36px 0 12px; padding-top: 14px;
+    border-top: 1px solid #2563EB;
+    border-top-width: 2px;
+  }
+  h3 {
+    font-size: 15px; font-weight: 700; color: #1a1714;
+    margin: 20px 0 8px; letter-spacing: -0.01em;
+  }
+  p { margin: 0 0 12px; color: #3D3A35; }
+  ul { margin: 0 0 12px; padding-left: 22px; }
+  ol { margin: 0 0 12px; padding-left: 22px; }
+  li { margin-bottom: 5px; color: #3D3A35; }
+  strong { color: #1a1714; }
+  em { color: #5a5650; }
+  /* ── Footer ────────────────────────────────────── */
+  .footer {
+    margin-top: 56px; padding-top: 16px;
+    border-top: 1px solid #E2DDD5;
+    font-family: Arial, sans-serif; font-size: 11px; color: #8A867C;
+    display: flex; justify-content: space-between; gap: 12;
+  }
+  @media print {
+    body { padding: 24px 32px; }
+    .qscore-block { -webkit-print-color-adjust: exact; }
+  }
 </style>
 </head>
 <body>
-<div class="header">
-  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
-    <div>
-      <p style="margin:0;font-size:11px;font-family:Arial,sans-serif;text-transform:uppercase;letter-spacing:0.15em;color:#8A867C;font-weight:600">Investment Memo</p>
-      <h1>${companyName}</h1>
-      <p style="margin:4px 0 0;font-size:13px;color:#8A867C;font-family:Arial,sans-serif">Founder: ${founderName}</p>
-    </div>
-    <div style="text-align:right;font-family:Arial,sans-serif;font-size:12px;color:#8A867C">
-      <p style="margin:0">${today}</p>
-      <p style="margin:2px 0 0">${firmName ? firmName + ' · ' : ''}${investorName}</p>
-    </div>
+
+<!-- Cover -->
+<div class="cover">
+  <div class="cover-left">
+    <p class="cover-eyebrow">Investment Memo</p>
+    <p class="cover-company">${companyName}</p>
+    <p class="cover-founder">Founder: ${founderName}</p>
   </div>
-  <div class="meta">
-    <span class="badge q-badge">Q-Score: ${qScore}/100</span>
-    <span class="badge stage-badge">${stage}</span>
-    <span class="badge sector-badge">${sector}</span>
-    <span style="font-size:11px;color:#8A867C;font-family:Arial,sans-serif;align-self:center">Powered by Edge Alpha · edgealpha.ai/p/${founderId}</span>
+  <div class="cover-meta">
+    <p>${today}</p>
+    ${firmName ? `<p>${firmName}</p>` : ''}
+    <p>${investorName}</p>
   </div>
 </div>
 
+<!-- Q-Score callout -->
+<div class="qscore-block">
+  <div class="qscore-num">${qScore}</div>
+  <div class="qscore-sub">
+    <div class="label">Q-Score</div>
+    <div class="grade">${scoreLabel} · Edge Alpha Assessment</div>
+  </div>
+  <div class="tags">
+    <span class="tag tag-stage">${stage}</span>
+    <span class="tag tag-sector">${sector}</span>
+  </div>
+</div>
+
+<!-- Body -->
 ${mdToHtml(memoMd)}
 
+<!-- Footer -->
 <div class="footer">
-  <span>Confidential — prepared for internal use only</span>
-  <span>Generated by Edge Alpha AI · ${today}</span>
+  <span>Confidential — prepared for ${firmName || investorName} internal use only</span>
+  <span>Edge Alpha · edgealpha.ai · ${today}</span>
 </div>
+
 </body>
 </html>`
 }

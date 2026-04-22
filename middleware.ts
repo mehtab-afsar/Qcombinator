@@ -74,7 +74,7 @@ function isPublicRoute(pathname: string): boolean {
 }
 
 function isProtectedRoute(pathname: string): boolean {
-  return pathname.startsWith('/founder/') || pathname.startsWith('/investor/')
+  return pathname.startsWith('/founder/') || pathname.startsWith('/investor/') || pathname === '/feed'
 }
 
 export async function middleware(request: NextRequest) {

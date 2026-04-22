@@ -7,22 +7,20 @@ import { routedText } from '@/lib/llm/router'
 import { getSectionCompletionPct, getMissingFields } from '@/lib/profile-builder/question-engine'
 import { flattenConfidence } from '@/lib/profile-builder/utils'
 import { log } from '@/lib/logger'
+import { rankMissingIndicators } from '@/lib/profile-builder/gap-ranker'
+import { semanticVerify } from '@/lib/profile-builder/semantic-verifier'
+import type { SemanticIssue } from '@/lib/profile-builder/semantic-verifier'
 
 // ── Vision extraction for image-based / scanned PDFs ─────────────────────────
 // When pdf-parse yields < 50 chars (scanned doc, password protected, image-only),
-// render each page as a PNG screenshot and send to a vision model.
-//
-// Priority:
-//   1. Anthropic SDK directly (ANTHROPIC_API_KEY) — PDF beta, most reliable
-//   2. OpenRouter + Gemini 2.0 Flash — PNG screenshots via image/png data URIs
-//   3. null → clear error message shown to user
+// send raw PDF bytes to Anthropic Claude vision (PDF beta).
+// Returns null on failure → caller shows the user a clear error.
 async function extractFieldsFromImagePDF(
   buffer: Buffer,
 ): Promise<{ fields: Record<string, unknown>; conf: Record<string, number> } | null> {
   const anthropicKey = process.env.ANTHROPIC_API_KEY
-  const openrouterKey = process.env.OPENROUTER_API_KEY
 
-  if (!anthropicKey && !openrouterKey) return null
+  if (!anthropicKey) return null
 
   const base64 = buffer.toString('base64')
 
@@ -74,49 +72,6 @@ async function extractFieldsFromImagePDF(
       )
     } catch (e) {
       log.warn('[upload] Anthropic vision failed:', e instanceof Error ? e.message : e)
-    }
-  }
-
-  // ── Path 2: OpenRouter + Gemini 2.0 Flash (native PDF support) ──────────
-  // Gemini accepts PDFs as data URIs directly — no screenshot rendering needed.
-  if (openrouterKey) {
-    try {
-      return await runSections(async sec => {
-        const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${openrouterKey}`,
-            'Content-Type': 'application/json',
-            'X-Title': 'EdgeAlpha ProfileBuilder',
-          },
-          body: JSON.stringify({
-            model: 'google/gemini-2.0-flash-001',
-            max_tokens: 800,
-            messages: [{
-              role: 'user',
-              content: [
-                {
-                  type: 'image_url',
-                  image_url: { url: `data:application/pdf;base64,${base64}` },
-                },
-                { type: 'text', text: EXTRACTION_PROMPTS[sec] },
-              ],
-            }],
-          }),
-        })
-        if (!res.ok) {
-          const errText = await res.text()
-          throw new Error(`OpenRouter ${res.status}: ${errText}`)
-        }
-        const data = await res.json()
-        const content = data.choices?.[0]?.message?.content
-        if (Array.isArray(content)) {
-          return content.filter((b: {type:string}) => b.type === 'text').map((b: {text:string}) => b.text).join('')
-        }
-        return (content ?? '') as string
-      })
-    } catch (e) {
-      log.warn('[upload] OpenRouter Gemini vision failed:', e instanceof Error ? e.message : e)
     }
   }
 
@@ -272,13 +227,23 @@ export async function POST(req: NextRequest) {
     })
     if (storageErr) log.warn('Storage upload failed (non-blocking):', storageErr.message)
 
+    // Generate a 1-hour signed URL so the client can open the file for preview
+    let fileUrl: string | null = null
+    if (!storageErr) {
+      const { data: signedData } = await supabase.storage
+        .from('uploads')
+        .createSignedUrl(storagePath, 3600)
+      fileUrl = signedData?.signedUrl ?? null
+    }
+
     // Read founder stage for completion scoring
     const { data: fp } = await supabase
       .from('founder_profiles')
-      .select('stage')
+      .select('stage, sector')
       .eq('user_id', userId)
       .single()
     const founderStage: string = fp?.stage ?? 'pre-product'
+    const founderSector: string = fp?.sector ?? 'default'
 
     let extractedFields: Record<string, unknown> = {}
     let confidenceMap: Record<string, number> = {}
@@ -463,6 +428,24 @@ export async function POST(req: NextRequest) {
       Object.assign(extractedFields, { financial: { ...(extractedFields.financial as object ?? {}), ...parsed.structuredData } })
     }
 
+    // ── Semantic verification pass ───────────────────────────────────────────
+    // Runs after full extraction for section-0 uploads only.
+    // Catches type errors (year-as-MRR, projected-as-current) that the haiku
+    // extraction pass misses. Non-blocking — original fields used on failure.
+    let semanticIssues: SemanticIssue[] = []
+    if (section === 0 && Object.keys(extractedFields).length > 0) {
+      try {
+        const verification = await semanticVerify(extractedFields, parsed.text)
+        if (verification.issues.length > 0) {
+          extractedFields = verification.corrected
+          semanticIssues = verification.issues
+          log.warn(`[upload] semantic verifier corrected ${verification.issues.filter(i => i.severity === 'corrected').length} field(s)`)
+        }
+      } catch (e) {
+        log.warn('[upload] semanticVerify failed (non-blocking):', e instanceof Error ? e.message : e)
+      }
+    }
+
     // Idempotency: skip insert if same file was uploaded within the last 60 seconds
     const { data: recentUpload } = await supabase
       .from('profile_builder_uploads')
@@ -589,6 +572,11 @@ export async function POST(req: NextRequest) {
     const totalDocLength = parsed.text.length
     const docTruncated = section === 0 && totalDocLength > DOC_CHAR_LIMIT
 
+    // Rank the highest-impact missing indicators so the UI can ask ≤3 targeted questions
+    const gapQuestions = section === 0
+      ? rankMissingIndicators(extractedFields, founderSector, founderStage, 3)
+      : []
+
     return NextResponse.json({
       uploadId,
       extractedPreview: preview.slice(0, 20),
@@ -602,6 +590,9 @@ export async function POST(req: NextRequest) {
       summary: `Extracted ${preview.length} fields from ${filename}`,
       sectionSummaries,  // populated only for step-0 uploads
       extractionError,   // non-null when extraction failed — surfaces the reason to the UI
+      gapQuestions,      // top 3 missing indicators ranked by scoring impact
+      fileUrl,           // signed URL for client-side file preview (1h validity)
+      semanticIssues,    // fields corrected or flagged by the semantic verification pass
     })
   } catch (err) {
     log.error('[profile-builder/upload]', err)

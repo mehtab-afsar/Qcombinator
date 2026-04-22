@@ -26,8 +26,7 @@ export const env = {
   get supabaseServiceKey() { return requireEnv('SUPABASE_SERVICE_ROLE_KEY') },
 
   // AI
-  get openrouterKey()      { return requireEnv('OPENROUTER_API_KEY') },
-  get anthropicKey()       { return optionalEnv('ANTHROPIC_API_KEY') },
+  get anthropicKey()       { return requireEnv('ANTHROPIC_API_KEY') },
 
   // Stripe
   get stripeSecretKey()    { return optionalEnv('STRIPE_SECRET_KEY') },
@@ -49,7 +48,7 @@ export function validateRequiredEnv(): void {
     'NEXT_PUBLIC_SUPABASE_URL',
     'NEXT_PUBLIC_SUPABASE_ANON_KEY',
     'SUPABASE_SERVICE_ROLE_KEY',
-    'OPENROUTER_API_KEY',
+    'ANTHROPIC_API_KEY',
   ]
   const missing = required.filter(k => !process.env[k])
   if (missing.length > 0) {

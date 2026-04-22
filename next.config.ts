@@ -2,6 +2,17 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ['pdf-parse'],
+  images: {
+    remotePatterns: [
+      { protocol: 'https', hostname: '*.supabase.co' },
+      { protocol: 'https', hostname: '*.supabase.in' },
+    ],
+  },
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '10mb',   // raises limit for both Server Actions and Route Handlers
+    },
+  },
   async redirects() {
     return [
       // Redirect old /founder/agents/:agentId → /founder/cxo/:agentId

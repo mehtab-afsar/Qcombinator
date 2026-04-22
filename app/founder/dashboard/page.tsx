@@ -394,7 +394,7 @@ export default function FounderDashboard() {
   const [stripeKey,        setStripeKey]        = useState("");
   const [stripeConnecting, setStripeConnecting] = useState(false);
   const [stripeError,      setStripeError]      = useState("");
-  const [showStripeForm,   setShowStripeForm]   = useState(false);
+  const [showStripeModal,  setShowStripeModal]  = useState(false);
 
   // Check profile_builder_completed
   useEffect(() => {
@@ -460,7 +460,7 @@ export default function FounderDashboard() {
           signalStrength: data.signalStrength,
           integrityIndex: data.integrityIndex,
         });
-        setShowStripeForm(false);
+        setShowStripeModal(false);
         setStripeKey("");
       }
     } catch {
@@ -580,11 +580,11 @@ export default function FounderDashboard() {
     {
       label: "Investor outreach",
       value: investorMatches !== null ? String(investorMatches) : "—",
-      sub: investorMatches !== null ? (investorMatches === 0 ? "connect at IQ 70+" : `connection${investorMatches !== 1 ? "s" : ""} sent`) : "loading…",
+      sub: investorMatches !== null ? (investorMatches === 0 ? "connect at IQ 60+" : `connection${investorMatches !== 1 ? "s" : ""} sent`) : "loading…",
       icon: Users, positive: true,
     },
     { label: "Score percentile",   value: qs.percentile !== null ? `${qs.percentile}th` : "—", sub: qs.percentile !== null ? "of all founders" : "submit score to rank", icon: BarChart3, positive: null  },
-    { label: "Next milestone",     value: isDemo ? "70" : String(Math.max(70, Math.ceil(qs.overall / 10) * 10)), sub: "target IQ Score", icon: Zap, positive: null },
+    { label: "Next milestone",     value: isDemo ? "80" : String(Math.max(80, Math.ceil(qs.overall / 10) * 10)), sub: "target IQ Score", icon: Zap, positive: null },
   ];
 
   return (
@@ -765,86 +765,98 @@ export default function FounderDashboard() {
           </motion.div>
         )}
 
-        {/* ── Stripe verification / Signal Strength banner ─────────── */}
+        {/* ── Stripe verification card ──────────────────────────────── */}
         {stripeStatus !== null && (
-          <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            style={{
-              display: "flex", alignItems: "flex-start", gap: 14,
-              padding: "14px 20px", borderRadius: 12, marginBottom: 16,
-              background: stripeStatus.verified ? "#EFF6FF" : "#FFFBEB",
-              border: `1px solid ${stripeStatus.verified ? "#BFDBFE" : "#FDE68A"}`,
-            }}
-          >
-            <div style={{
-              height: 36, width: 36, borderRadius: 9, flexShrink: 0,
-              background: stripeStatus.verified ? "#DBEAFE" : "#FEF3C7",
-              display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17,
-            }}>
-              {stripeStatus.verified ? "✓" : "⚡"}
-            </div>
-            <div style={{ flex: 1 }}>
-              {stripeStatus.verified ? (
-                <>
+          <>
+            {stripeStatus.verified ? (
+              <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+                style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 20px", borderRadius: 12, marginBottom: 16, background: "#EFF6FF", border: "1px solid #BFDBFE" }}
+              >
+                <div style={{ height: 36, width: 36, borderRadius: 9, flexShrink: 0, background: "#DBEAFE", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17 }}>✓</div>
+                <div style={{ flex: 1 }}>
                   <p style={{ fontSize: 13, fontWeight: 600, color: "#1D4ED8", marginBottom: 2 }}>
-                    Revenue verified via Stripe
-                    {stripeStatus.mrr !== undefined && ` · $${stripeStatus.mrr.toLocaleString()} MRR`}
+                    Revenue verified via Stripe{stripeStatus.mrr !== undefined && ` · $${stripeStatus.mrr.toLocaleString()} MRR`}
                   </p>
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 4 }}>
-                    {stripeStatus.signalStrength !== undefined && (
-                      <span style={{ fontSize: 11, color: blue }}>
-                        Signal Strength: <strong>{stripeStatus.signalStrength}</strong>/100
-                      </span>
-                    )}
-                    {stripeStatus.integrityIndex !== undefined && (
-                      <span style={{ fontSize: 11, color: blue }}>
-                        Integrity Index: <strong>{stripeStatus.integrityIndex}</strong>/100
-                      </span>
-                    )}
+                    {stripeStatus.signalStrength !== undefined && <span style={{ fontSize: 11, color: blue }}>Signal Strength: <strong>{stripeStatus.signalStrength}</strong>/100</span>}
+                    {stripeStatus.integrityIndex !== undefined && <span style={{ fontSize: 11, color: blue }}>Integrity Index: <strong>{stripeStatus.integrityIndex}</strong>/100</span>}
                   </div>
-                </>
-              ) : (
-                <>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: "#92400E", marginBottom: 2 }}>
-                    Boost your Signal Strength — verify revenue with Stripe
-                  </p>
-                  <p style={{ fontSize: 12, color: "#A16207", marginBottom: showStripeForm ? 10 : 0 }}>
-                    Stripe-verified metrics raise your confidence multiplier from 0.55× to 1.0×, increasing your Q-Score and investor trust.
-                  </p>
-                  {showStripeForm && (
-                    <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 4, flexWrap: "wrap" }}>
-                      <input
-                        value={stripeKey}
-                        onChange={e => setStripeKey(e.target.value)}
-                        placeholder="rk_live_…  (read-only restricted key)"
-                        style={{ flex: 1, minWidth: 240, padding: "7px 12px", background: "#fff", border: `1px solid ${stripeError ? red : bdr}`, borderRadius: 8, fontSize: 12, color: ink, outline: "none", fontFamily: "inherit" }}
-                      />
-                      <button
-                        onClick={handleStripeConnect}
-                        disabled={stripeConnecting}
-                        style={{ padding: "7px 18px", background: blue, color: "#fff", border: "none", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: stripeConnecting ? "not-allowed" : "pointer", opacity: stripeConnecting ? 0.6 : 1, fontFamily: "inherit" }}
-                      >
-                        {stripeConnecting ? "Connecting…" : "Verify"}
-                      </button>
-                      <button onClick={() => { setShowStripeForm(false); setStripeError(""); }} style={{ padding: "7px 12px", background: "transparent", color: muted, border: "none", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
-                        Cancel
-                      </button>
-                      {stripeError && <p style={{ width: "100%", fontSize: 11, color: red, marginTop: 4 }}>{stripeError}</p>}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-            {!stripeStatus.verified && !showStripeForm && (
-              <button
-                onClick={() => setShowStripeForm(true)}
-                style={{ flexShrink: 0, padding: "7px 16px", background: amber, color: "#fff", border: "none", borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+                style={{ padding: "20px 24px", borderRadius: 14, marginBottom: 16, background: bg, border: `1px solid ${bdr}` }}
               >
-                Connect Stripe
-              </button>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 16 }}>
+                  <div style={{ height: 44, width: 44, borderRadius: 11, flexShrink: 0, background: "#F0EDFF", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                      <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 18a8 8 0 100-16 8 8 0 000 16zm-1-11h2v6h-2zm0-4h2v2h-2z" fill="#635BFF"/>
+                    </svg>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: ink, marginBottom: 4 }}>Stripe Revenue Verification</p>
+                    <p style={{ fontSize: 12, color: muted, lineHeight: 1.6, marginBottom: 16 }}>
+                      Connect your Stripe account to verify revenue and raise your Signal Strength to 1.0×. Verified metrics unlock higher investor trust, better deal flow ranking, and an integrity badge.
+                    </p>
+                    <button
+                      onClick={() => { setShowStripeModal(true); setStripeError(""); }}
+                      style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 20px", background: "#635BFF", color: "#fff", border: "none", borderRadius: 9, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 2px 10px rgba(99,91,255,0.3)" }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 18a8 8 0 100-16 8 8 0 000 16z" fill="white" fillOpacity="0.7"/><path d="M9 9h6M9 12h6M9 15h4" stroke="white" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                      Connect with Stripe
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
             )}
-          </motion.div>
+
+            {/* Stripe connect modal */}
+            {showStripeModal && (
+              <>
+                <div onClick={() => { setShowStripeModal(false); setStripeError(""); }} style={{ position: "fixed", inset: 0, zIndex: 59, background: "rgba(0,0,0,0.3)" }} />
+                <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 60, width: 460, background: bg, border: `1px solid ${bdr}`, borderRadius: 16, padding: "28px", boxShadow: "0 24px 64px rgba(0,0,0,0.15)" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <div style={{ height: 36, width: 36, borderRadius: 9, background: "#F0EDFF", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 18a8 8 0 100-16 8 8 0 000 16zm-1-11h2v6h-2zm0-4h2v2h-2z" fill="#635BFF"/></svg>
+                      </div>
+                      <p style={{ fontSize: 15, fontWeight: 600, color: ink }}>Connect Stripe</p>
+                    </div>
+                    <button onClick={() => { setShowStripeModal(false); setStripeError(""); }} style={{ height: 28, width: 28, display: "flex", alignItems: "center", justifyContent: "center", background: "transparent", border: `1px solid ${bdr}`, borderRadius: 7, cursor: "pointer", color: muted, fontSize: 16 }}>×</button>
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
+                    {[
+                      { step: 1, text: <>In Stripe Dashboard → <strong>Developers</strong> → <strong>Restricted keys</strong> → Create new key</> },
+                      { step: 2, text: <>Enable <strong>Read</strong> access on Revenue, Subscriptions, and Customers</> },
+                      { step: 3, text: <>Paste the key below — it starts with <code style={{ background: surf, padding: "1px 5px", borderRadius: 4, fontSize: 11 }}>rk_live_</code></> },
+                    ].map(({ step, text }) => (
+                      <div key={step} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                        <div style={{ height: 22, width: 22, borderRadius: "50%", background: "#635BFF", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#fff", flexShrink: 0, marginTop: 1 }}>{step}</div>
+                        <p style={{ fontSize: 13, color: ink, lineHeight: 1.6 }}>{text}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <input
+                    value={stripeKey}
+                    onChange={e => setStripeKey(e.target.value)}
+                    placeholder="rk_live_…"
+                    style={{ width: "100%", padding: "10px 14px", background: surf, border: `1px solid ${stripeError ? red : bdr}`, borderRadius: 9, fontSize: 13, color: ink, outline: "none", fontFamily: "inherit", marginBottom: 10, boxSizing: "border-box" }}
+                  />
+                  {stripeError && <p style={{ fontSize: 11, color: red, marginBottom: 10 }}>{stripeError}</p>}
+
+                  <button
+                    onClick={handleStripeConnect}
+                    disabled={stripeConnecting}
+                    style={{ width: "100%", padding: "11px", background: "#635BFF", color: "#fff", border: "none", borderRadius: 9, fontSize: 13, fontWeight: 600, cursor: stripeConnecting ? "not-allowed" : "pointer", opacity: stripeConnecting ? 0.7 : 1, fontFamily: "inherit" }}
+                  >
+                    {stripeConnecting ? "Verifying…" : "Verify & Connect"}
+                  </button>
+                </div>
+              </>
+            )}
+          </>
         )}
 
         {/* ── hero: Q-Score + dimensions ────────────────────────────── */}

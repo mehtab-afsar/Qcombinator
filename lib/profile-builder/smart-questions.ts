@@ -42,7 +42,7 @@ const SECTION_LABELS: Record<string, string> = {
 
 // ── Question bank ─────────────────────────────────────────────────────────────
 
-interface QuestionDef {
+export interface QuestionDef {
   text: string
   getContext: (extracted: Record<string, unknown>) => string
   helpText: string
@@ -50,7 +50,7 @@ interface QuestionDef {
   priority: number
 }
 
-const FIELD_QUESTIONS: Record<string, QuestionDef> = {
+export const FIELD_QUESTIONS: Record<string, QuestionDef> = {
   // Section 1 — Market Validation
   customerCommitment: {
     sectionKey: '1', priority: 10,

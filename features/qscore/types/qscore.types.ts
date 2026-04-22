@@ -25,15 +25,17 @@ export interface RAGMetadata {
 
 export type Grade = 'A+' | 'A' | 'B+' | 'B' | 'C+' | 'C' | 'D' | 'F';
 
-// Grade thresholds
+// Grade thresholds — calibrated for real startup data quality.
+// Document-extracted data with typical confidence (0.60–0.75) and 10–20 active
+// indicators lands in the 35–60 range. These thresholds reflect that reality.
 export const GRADE_THRESHOLDS = {
-  'A+': 95,
-  'A': 90,
-  'B+': 85,
-  'B': 80,
-  'C+': 75,
-  'C': 70,
-  'D': 60,
+  'A+': 80,
+  'A': 68,
+  'B+': 60,
+  'B': 52,
+  'C+': 44,
+  'C': 36,
+  'D': 26,
   'F': 0
 } as const;
 

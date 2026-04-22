@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import {
   Bell, Brain, ChevronsUpDown,
   ClipboardList, CreditCard, GraduationCap, Home, LogOut, MessageSquare,
-  Settings, Target, UserCircle,
+  Settings, Target, UserCircle, Rss,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -24,6 +24,7 @@ const BASE_NAV = [
   { name: "CXO Suite",         href: "/founder/cxo",             icon: Brain,         badge: "9"     },
   { name: "Investor Matching", href: "/founder/matching",        icon: Target,        badge: "Smart" },
   { name: "Academy",           href: "/founder/academy",         icon: GraduationCap, badge: "NEW"   },
+  { name: "Pulse",             href: "/feed",                    icon: Rss,           badge: "New"   },
   { name: "Messages",          href: "/founder/messages",        icon: MessageSquare, badge: null    },
 ];
 
@@ -31,6 +32,7 @@ const BADGE: Record<string, { bg: string; color: string }> = {
   "9":     { bg: "#EEF2FF", color: "#3730A3" },
   "Smart": { bg: "#F0FDF4", color: "#166534" },
   "NEW":   { bg: "#FDF4FF", color: "#6B21A8" },
+  "New":   { bg: "#F5F3FF", color: "#6B21A8" },
 };
 
 function msgBadgeStyle(count: number): { bg: string; color: string } {
@@ -58,12 +60,12 @@ function NotificationPanel({
       />
       {/* Panel */}
       <div style={{
-        position: "fixed", left: 60, top: 0, bottom: 0, zIndex: 50,
+        position: "fixed", right: 0, top: 0, bottom: 0, zIndex: 50,
         width: 320,
         background: bg,
-        borderRight: `1px solid ${bdr}`,
+        borderLeft: `1px solid ${bdr}`,
         display: "flex", flexDirection: "column",
-        boxShadow: "4px 0 24px rgba(0,0,0,0.08)",
+        boxShadow: "-4px 0 24px rgba(0,0,0,0.08)",
       }}>
         {/* Header */}
         <div style={{
@@ -280,12 +282,7 @@ export default function FounderSidebar() {
   const { user, signOut } = useAuth();
 
   const msgCount                            = usePendingConnections();
-  const { notifications, unreadCount, markAllRead } = useNotifications();
-
-  function openNotifications() {
-    setNotifOpen(true);
-    markAllRead();
-  }
+  const { notifications } = useNotifications();
 
   // Build nav with dynamic message badge
   const nav = BASE_NAV.map(item =>
@@ -355,61 +352,6 @@ export default function FounderSidebar() {
 
         {/* ── middle: nav links ────────────────────────────────────────── */}
         <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "8px 6px" }}>
-
-          {/* Notification bell */}
-          <button
-            onClick={openNotifications}
-            style={{
-              display: "flex", alignItems: "center",
-              height: 36, width: "100%",
-              borderRadius: 8, padding: "0 10px",
-              marginBottom: 2,
-              background: notifOpen ? `${blue}10` : "transparent",
-              border: "none", cursor: "pointer",
-              transition: "background .12s",
-              position: "relative",
-            }}
-            onMouseEnter={e => { if (!notifOpen) (e.currentTarget as HTMLElement).style.background = surf; }}
-            onMouseLeave={e => { if (!notifOpen) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-          >
-            <div style={{ position: "relative", flexShrink: 0 }}>
-              <Bell style={{ height: 16, width: 16, color: notifOpen ? blue : muted }} />
-              {unreadCount > 0 && (
-                <span style={{
-                  position: "absolute", top: -4, right: -5,
-                  width: 14, height: 14, borderRadius: "50%",
-                  background: "#DC2626", color: "#fff",
-                  fontSize: 8, fontWeight: 700,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  border: `1.5px solid ${bg}`,
-                }}>
-                  {unreadCount > 9 ? "9+" : unreadCount}
-                </span>
-              )}
-            </div>
-            <motion.div
-              animate={{ opacity: expanded ? 1 : 0, x: expanded ? 0 : -4 }}
-              transition={{ duration: 0.15 }}
-              style={{
-                marginLeft: 10, display: "flex", alignItems: "center",
-                flex: 1, overflow: "hidden", whiteSpace: "nowrap",
-              }}
-            >
-              <span style={{ fontSize: 13, fontWeight: 500, color: notifOpen ? blue : ink }}>
-                Notifications
-              </span>
-              {unreadCount > 0 && (
-                <span style={{
-                  marginLeft: "auto", flexShrink: 0,
-                  padding: "1px 7px", borderRadius: 999,
-                  fontSize: 10, fontWeight: 600,
-                  background: "#FEF2F2", color: "#DC2626",
-                }}>
-                  {unreadCount}
-                </span>
-              )}
-            </motion.div>
-          </button>
 
           {/* Divider */}
           <div style={{ height: 1, background: bdr, margin: "6px 4px 8px" }} />
@@ -539,6 +481,52 @@ export default function FounderSidebar() {
         <NotificationPanel
           notifications={notifications}
           onClose={() => setNotifOpen(false)}
+        />
+      )}
+    </>
+  );
+}
+
+// ─── exported top-right notification bell ─────────────────────────────────────
+export function FounderNotificationBell() {
+  const [open, setOpen] = useState(false);
+  const { notifications, unreadCount, markAllRead } = useNotifications();
+
+  function handleOpen() {
+    setOpen(v => !v);
+    if (!open && unreadCount > 0) markAllRead();
+  }
+
+  return (
+    <>
+      <button
+        onClick={handleOpen}
+        style={{
+          position: "relative", width: 36, height: 36, borderRadius: 10,
+          background: open ? `${blue}10` : surf,
+          border: `1px solid ${open ? blue : bdr}`,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          cursor: "pointer", transition: "all .15s",
+        }}
+      >
+        <Bell style={{ height: 15, width: 15, color: open ? blue : muted }} />
+        {unreadCount > 0 && (
+          <span style={{
+            position: "absolute", top: -4, right: -4,
+            width: 16, height: 16, borderRadius: "50%",
+            background: "#DC2626", color: "#fff",
+            fontSize: 9, fontWeight: 700,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            border: `2px solid ${bg}`,
+          }}>
+            {unreadCount > 9 ? "9+" : unreadCount}
+          </span>
+        )}
+      </button>
+      {open && (
+        <NotificationPanel
+          notifications={notifications}
+          onClose={() => setOpen(false)}
         />
       )}
     </>

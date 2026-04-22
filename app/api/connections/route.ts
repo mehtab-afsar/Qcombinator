@@ -99,6 +99,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to save connection request' }, { status: 500 });
     }
 
+    // Notify the real investor (demo investors have no user account to notify)
+    if (investor_id) {
+      try {
+        const { data: fp } = await supabase
+          .from('founder_profiles')
+          .select('full_name, startup_name')
+          .eq('user_id', user.id)
+          .single()
+        const founderName   = (fp as { full_name?: string } | null)?.full_name  ?? 'A founder'
+        const companyName   = (fp as { startup_name?: string } | null)?.startup_name ?? 'their startup'
+        await supabase.from('notifications').insert({
+          user_id:  investor_id,
+          type:     'connection_request',
+          title:    `${founderName} from ${companyName} wants to connect`,
+          read:     false,
+          metadata: { connection_id: data.id, founder_id: user.id },
+        })
+      } catch (notifErr) {
+        log.error('POST /api/connections notification', { notifErr })
+      }
+    }
+
     return NextResponse.json({ status: data.status, id: data.id });
   } catch (err) {
     log.error('POST /api/connections unexpected', { err });

@@ -25,8 +25,10 @@ export interface MatchingInvestor {
   type: 'demo' | 'real'
   name: string
   firm: string
+  title: string
   matchScore: number
   investmentFocus: string[]
+  stages: string[]
   checkSize: string
   location: string
   portfolio: string[]

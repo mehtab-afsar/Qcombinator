@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
+import { postQScoreFeedEvent } from '@/lib/feed/auto-events'
 import { verifyAuth } from '@/lib/auth/verify'
 import { log } from '@/lib/logger'
 import { mergeToAssessmentData } from '@/lib/profile-builder/data-merger'
@@ -259,6 +260,7 @@ export async function POST(_req: NextRequest) {
 
     // 17. Score milestone check — notify when crossing 70 for the first time
     const prevOverallScore = (prevScore as { id: string; overall_score: number } | null)?.overall_score ?? 0
+    void postQScoreFeedEvent(userId, finalScore, prevOverallScore, finalGrade, supabase)
     const crossedMarketplace = finalScore >= 70 && prevOverallScore < 70
     if (crossedMarketplace) {
       // Fire-and-forget: activity event + email notification
