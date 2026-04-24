@@ -653,7 +653,7 @@ export async function POST(request: NextRequest) {
         FF_CROSS_AGENT_ORCHESTRATION
           ? orchestrate(agentId, userId, message, supabaseAdmin)
           : Promise.resolve({ subAgentResults: [], contextInjection: '', subCallsUsed: 0 }),
-        getFounderProfileContext(userId, supabaseAdmin),
+        getFounderProfileContext(userId, supabaseAdmin, agentId),
         getStartupState(userId, supabaseAdmin),
       ];
       const [ctxResult, orchResult, founderCtxResult, stateResult] = await Promise.allSettled(parallelTasks);
@@ -799,6 +799,35 @@ CONVERSATION RULES:
       schedule_followup:      'Scheduling follow-up',
     };
 
+    // ── Patel prerequisite chain ───────────────────────────────────────────────
+    const PATEL_PREREQUISITE_CHAIN: Record<string, string[]> = {
+      pains_gains_triggers:  ['icp_document'],
+      buyer_journey:         ['icp_document', 'pains_gains_triggers'],
+      positioning_messaging: ['icp_document', 'pains_gains_triggers', 'buyer_journey'],
+    }
+    const PATEL_DELIVERABLE_NAMES: Record<string, string> = {
+      icp_document:          'D1 ICP Definition',
+      pains_gains_triggers:  'D2 Pains, Gains & Triggers',
+      buyer_journey:         'D3 Buyer Journey',
+      positioning_messaging: 'D4 Positioning & Messaging',
+    }
+
+    async function checkPatelPrerequisites(requestedType: string): Promise<string | null> {
+      if (agentId !== 'patel' || !userId) return null
+      const required = PATEL_PREREQUISITE_CHAIN[requestedType]
+      if (!required || required.length === 0) return null
+      const { data: existing } = await supabaseAdmin
+        .from('agent_artifacts')
+        .select('artifact_type')
+        .eq('user_id', userId)
+        .in('artifact_type', required)
+      const completed = new Set((existing ?? []).map((r: { artifact_type: string }) => r.artifact_type))
+      const missing = required.filter(r => !completed.has(r))
+      if (missing.length === 0) return null
+      const missingNames = missing.map(m => PATEL_DELIVERABLE_NAMES[m] ?? m).join(' and ')
+      return `Before building ${PATEL_DELIVERABLE_NAMES[requestedType]}, you need to complete: ${missingNames}. Complete those first — each deliverable builds directly on the previous one.`
+    }
+
     async function generateArtifactJSON(prompt: string): Promise<Record<string, unknown>> {
       const raw = await routedText('generation', [
         { role: 'system', content: prompt },
@@ -906,7 +935,13 @@ CONVERSATION RULES:
                 break;
 
               } else {
-                // Artifact tool
+                // Artifact tool — check Patel prerequisites first
+                const prereqError = await checkPatelPrerequisites(toolName)
+                if (prereqError) {
+                  send({ type: 'delta', text: prereqError })
+                  break
+                }
+
                 const toolLabel = toolCtx.type as string || toolName;
                 send({ type: 'tool_start', toolName, label: `Building ${toolLabel.replace(/_/g, ' ')}…` });
                 const t0A = Date.now();

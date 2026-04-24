@@ -7,12 +7,14 @@ import {
   Send, TrendingUp, FileText, CheckCircle2,
   Paperclip, Mail, Users, BarChart3, Swords, BookOpen,
   MessageSquare, Package, ListChecks, ChevronRight, X,
-  RefreshCw, ExternalLink,
+  RefreshCw, ExternalLink, Target, Compass, Megaphone,
 } from "lucide-react";
 import { bg, surf, bdr, ink, muted, blue } from "@/features/agents/shared/constants/colors";
 import { ARTIFACT_META } from "@/features/agents/shared/constants/artifact-meta";
 import { DeliverablePanel } from "@/features/agents/shared/components/DeliverablePanel";
 import { WorkspaceSidebar } from "@/features/agents/shared/components/WorkspaceSidebar";
+import { DiagnosticSidebar } from "@/features/agents/patel/components/DiagnosticSidebar";
+import { ClosingRecommendationCard } from "@/features/agents/patel/components/ClosingRecommendationCard";
 import type { ArtifactData } from "@/features/agents/types/agent.types";
 
 // ─── constants ────────────────────────────────────────────────────────────────
@@ -20,21 +22,24 @@ import type { ArtifactData } from "@/features/agents/types/agent.types";
 const accent = blue;
 
 const PATEL_DELIVERABLES = [
-  { type: "icp_document",      icon: FileText,  label: "ICP Document",        description: "Define your ideal customer profile" },
-  { type: "outreach_sequence", icon: Mail,      label: "Outreach Sequence",   description: "5-step personalised email sequence" },
-  { type: "battle_card",       icon: Swords,    label: "Battle Card",         description: "Win vs your top competitor" },
-  { type: "gtm_playbook",      icon: BookOpen,  label: "GTM Playbook",        description: "Full go-to-market execution plan" },
-  { type: "lead_list",         icon: Users,     label: "Lead List",           description: "Apollo-sourced target contacts" },
-  { type: "campaign_report",   icon: BarChart3, label: "Campaign Report",     description: "Email + channel performance analysis" },
+  { type: "icp_document",           icon: FileText,  label: "D1 · ICP Definition",      description: "Define your ideal customer profile" },
+  { type: "pains_gains_triggers",   icon: Target,    label: "D2 · Pains & Gains",        description: "Map buyer pain, triggers & objections" },
+  { type: "buyer_journey",          icon: Compass,   label: "D3 · Buyer Journey",         description: "Stage-by-stage GTM motion map" },
+  { type: "positioning_messaging",  icon: Megaphone, label: "D4 · Positioning",           description: "Value prop, pillars & channel copy" },
+  { type: "outreach_sequence",      icon: Mail,      label: "Outreach Sequence",          description: "5-step personalised email sequence" },
+  { type: "battle_card",            icon: Swords,    label: "Battle Card",                description: "Win vs your top competitor" },
+  { type: "gtm_playbook",           icon: BookOpen,  label: "GTM Playbook",               description: "Full go-to-market execution plan" },
+  { type: "lead_list",              icon: Users,     label: "Lead List",                  description: "Apollo-sourced target contacts" },
+  { type: "campaign_report",        icon: BarChart3, label: "Campaign Report",            description: "Email + channel performance analysis" },
 ];
 
 const SUGGESTED = [
-  "Help me define my ICP for B2B SaaS",
-  "Which acquisition channels should I test first?",
-  "Create a 90-day GTM launch plan",
+  "Build D1 ICP Definition for my startup",
+  "Build D2 Pains & Gains map for my startup",
+  "Build D3 Buyer Journey map for my startup",
+  "Build D4 Positioning & Messaging for my startup",
   "Find 20 B2B SaaS CTOs and send them our outreach",
   "Build a battle card against our top competitor",
-  "What's my CAC and how do I reduce it?",
 ];
 
 // ─── types ────────────────────────────────────────────────────────────────────
@@ -318,6 +323,9 @@ export default function PatelWorkspace() {
         }))}
       />
 
+      {/* ── diagnostic sidebar ───────────────────────────────────────────── */}
+      {userId && <DiagnosticSidebar userId={userId} />}
+
       {/* ════════════════════════════════════════════════════════════════════
           MAIN CONTENT AREA
       ════════════════════════════════════════════════════════════════════ */}
@@ -465,6 +473,21 @@ export default function PatelWorkspace() {
                         ))}
                       </div>
                     </motion.div>
+                  )}
+                  {/* closing recommendation — shows bottleneck + next step */}
+                  {userId && !typing && uiMessages.length > 0 && (
+                    <ClosingRecommendationCard
+                      userId={userId}
+                      onAction={deliverable => {
+                        const labels: Record<string, string> = {
+                          icp_document:          "Build D1 ICP Definition for my startup",
+                          pains_gains_triggers:  "Build D2 Pains & Gains map for my startup",
+                          buyer_journey:         "Build D3 Buyer Journey map for my startup",
+                          positioning_messaging: "Build D4 Positioning & Messaging for my startup",
+                        };
+                        handleSend(labels[deliverable] ?? `Build ${deliverable}`);
+                      }}
+                    />
                   )}
                   <div ref={chatEndRef} />
                 </div>

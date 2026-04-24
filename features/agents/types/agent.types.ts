@@ -45,7 +45,10 @@ export type ArtifactType =
   | "interview_notes"
   | "competitive_matrix"
   | "strategic_plan"
-  // Patel
+  // Patel — AI-native GTM deliverables (D1→D2→D3→D4)
+  | "pains_gains_triggers"
+  | "buyer_journey"
+  | "positioning_messaging"
   | "lead_list"
   | "campaign_report"
   | "ab_test_result"

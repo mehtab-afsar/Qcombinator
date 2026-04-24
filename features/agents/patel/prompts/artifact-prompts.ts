@@ -10,8 +10,10 @@ export function getArtifactPrompt(
   const ctx = JSON.stringify(context, null, 2);
 
   const prompts: Record<string, string> = {
-    // ── ICP Document ────────────────────────────────────────────────────────
-    icp_document: `You are generating a structured ICP (Ideal Customer Profile) document for an early-stage startup.
+    // ── D1: ICP Definition ─────────────────────────────────────────────────
+    // Primary targeting interface — consumed by D2, D3, D4, Apollo, outbound agent
+    icp_document: `You are generating a structured ICP (Ideal Customer Profile) — the targeting interface for this startup's GTM system.
+This is D1 in the Patel delivery chain. It will be consumed by downstream deliverables (D2 Pains, D3 Journey, D4 Messaging) and execution agents (lead generation, outbound).
 
 Context gathered from the conversation:
 ${ctx}
@@ -20,6 +22,8 @@ Return a JSON object with this EXACT structure (no markdown fences, no extra tex
 {
   "title": "ICP: [descriptive title based on their product/market]",
   "summary": "2-3 sentence executive summary of who they should target and why",
+  "confidence": 0.75,
+  "evidence_type": "validated",
   "buyerPersona": {
     "title": "Primary buyer's job title",
     "role": "Their functional role and responsibilities",
@@ -36,22 +40,249 @@ Return a JSON object with this EXACT structure (no markdown fences, no extra tex
     "techStack": ["tool1", "tool2"]
   },
   "painPoints": [
-    { "pain": "description of the pain point", "severity": "high", "currentSolution": "how they solve it today" },
-    { "pain": "another pain point", "severity": "medium", "currentSolution": "current workaround" }
+    { "pain": "description of the pain point", "severity": "high", "currentSolution": "how they solve it today", "evidence": "validated|inferred|assumed" }
   ],
-  "buyingTriggers": ["trigger1", "trigger2", "trigger3", "trigger4"],
+  "buyingTriggers": ["trigger1", "trigger2", "trigger3"],
   "channels": [
-    { "channel": "channel name", "priority": "primary", "rationale": "why this channel works for this ICP" },
-    { "channel": "another channel", "priority": "secondary", "rationale": "supporting rationale" }
+    { "channel": "channel name", "priority": "primary", "rationale": "why this channel works for this ICP" }
   ],
-  "qualificationCriteria": ["criterion1", "criterion2", "criterion3", "criterion4"]
+  "qualificationCriteria": ["criterion1", "criterion2", "criterion3"],
+  "execution_path": {
+    "consumed_by": ["pains_gains_triggers", "buyer_journey", "positioning_messaging", "lead_list", "outbound-agent"],
+    "enables": "Build targeted lead list from firmographics; ground D2 pain map in specific buyer context",
+    "downstream_dependency": "D2 Pains & Gains cannot be built without this ICP definition",
+    "next_step_for_founder": "Confirm the ICP is accurate — especially the firmographics and buyer title. Then Patel will map the pain triggers that drive purchase decisions."
+  }
 }
 
 RULES:
 - Be specific to THEIR product and market. No generic placeholders.
+- confidence: 0.0–1.0 (reflect how strongly evidence supports the ICP — lower if based on assumptions)
+- evidence_type: "validated" (founder confirmed with customers) / "inferred" (reasonable from data) / "assumed" (hypothesis only)
 - Include 3-5 pain points, 3-5 buying triggers, 2-4 channels, 3-5 qualification criteria.
-- Severity must be "high", "medium", or "low".
-- Channel priority must be "primary" or "secondary".
+- Severity must be "high", "medium", or "low". Channel priority must be "primary" or "secondary".
+- execution_path is MANDATORY. Never omit it.
+- Return ONLY valid JSON. No markdown, no explanation.`,
+
+    // ── D2: Pains, Gains & Triggers ────────────────────────────────────────
+    // Demand model — maps what drives purchase decisions for the ICP
+    // Requires D1. Consumed by D3 (Buyer Journey) and D4 (Messaging).
+    pains_gains_triggers: `You are generating a Pains, Gains & Triggers structured interface for an early-stage startup.
+This is D2 in the Patel delivery chain. It requires a completed ICP (D1). It will be consumed by the Buyer Journey (D3) and Positioning/Messaging (D4) deliverables, and by the outbound agent for personalization.
+
+Context gathered from the conversation (includes ICP from D1):
+${ctx}
+
+Return a JSON object with this EXACT structure (no markdown fences, no extra text):
+{
+  "title": "Pains, Gains & Triggers: [ICP buyer title from D1]",
+  "target_context": "One sentence describing the specific ICP this applies to (from D1)",
+  "confidence": 0.70,
+  "evidence_type": "validated",
+  "core_pains": [
+    {
+      "pain": "Specific pain point — be concrete, not generic",
+      "severity": 5,
+      "current_workaround": "How they solve it today (even if badly)",
+      "cost_of_pain": "What this costs them in time/money/risk",
+      "evidence": "validated|inferred|assumed"
+    }
+  ],
+  "desired_gains": [
+    "What the buyer actually wants as an outcome (not your product features)"
+  ],
+  "trigger_events": [
+    {
+      "trigger": "The specific event that makes them actively look for a solution",
+      "urgency": "high|medium|low",
+      "example": "e.g. missed a quarterly target, hired a new VP Sales, raised a Series A"
+    }
+  ],
+  "proof_expectations": [
+    "What evidence they need to see before buying (case studies, ROI data, trial, etc.)"
+  ],
+  "common_objections": [
+    {
+      "objection": "The specific objection",
+      "root_cause": "Why they have this objection",
+      "handle": "How to address it"
+    }
+  ],
+  "execution_path": {
+    "consumed_by": ["buyer_journey", "positioning_messaging", "outbound-agent", "content-agent"],
+    "enables": "Ground messaging in real pain triggers; identify the right moment to reach buyers; personalize outbound with specific pain context",
+    "downstream_dependency": "D3 Buyer Journey uses trigger events to map the entry point. D4 Messaging uses core pains as the foundation of value proposition.",
+    "next_step_for_founder": "Confirm the trigger events are accurate — these determine when to reach buyers and what to say first. Then Patel will map the full buyer journey from awareness to decision."
+  }
+}
+
+RULES:
+- core_pains: 3-5 pains, severity 1-5 (5 = business-critical), be specific not generic
+- desired_gains: 3-4 outcomes the buyer wants (outcomes, not features)
+- trigger_events: 3-4 real events that create urgency — be specific to their market
+- proof_expectations: 2-3 types of evidence the buyer needs before committing
+- common_objections: 2-4 objections with handles
+- confidence: 0.0–1.0 based on how much real customer evidence backs this up
+- evidence_type: "validated" / "inferred" / "assumed"
+- execution_path is MANDATORY. Never omit it.
+- Return ONLY valid JSON. No markdown, no explanation.`,
+
+    // ── D3: Buyer Journey ───────────────────────────────────────────────────
+    // Conversion system — maps how buyers move from unaware to committed
+    // Requires D1 + D2. Consumed by D4 (Messaging) and execution agents.
+    buyer_journey: `You are generating a Buyer Journey structured interface for an early-stage startup.
+This is D3 in the Patel delivery chain. It requires ICP (D1) and Pains/Triggers (D2). It defines the conversion system — how buyers move from unaware to committed — and will be consumed by D4 Positioning/Messaging and by sales and content execution agents.
+
+Context gathered from the conversation (includes ICP from D1 and Pains from D2):
+${ctx}
+
+Return a JSON object with this EXACT structure (no markdown fences, no extra text):
+{
+  "title": "Buyer Journey: [ICP buyer title] → [product/outcome]",
+  "entry_condition": "What must be true for a buyer to enter the funnel (specific trigger from D2)",
+  "confidence": 0.65,
+  "evidence_type": "inferred",
+  "stages": [
+    {
+      "name": "Unaware",
+      "buyer_state": "What the buyer believes and feels at this stage",
+      "buyer_action": "What they are doing (or not doing) at this stage",
+      "gtm_touchpoint": "What we do to reach them and move them forward",
+      "friction": "What stops them from moving to the next stage",
+      "trust_signal": "What would reduce friction and build trust here"
+    },
+    {
+      "name": "Problem Aware",
+      "buyer_state": "...",
+      "buyer_action": "...",
+      "gtm_touchpoint": "...",
+      "friction": "...",
+      "trust_signal": "..."
+    },
+    {
+      "name": "Solution Aware",
+      "buyer_state": "...",
+      "buyer_action": "...",
+      "gtm_touchpoint": "...",
+      "friction": "...",
+      "trust_signal": "..."
+    },
+    {
+      "name": "Evaluation",
+      "buyer_state": "...",
+      "buyer_action": "...",
+      "gtm_touchpoint": "...",
+      "friction": "...",
+      "trust_signal": "..."
+    },
+    {
+      "name": "Decision",
+      "buyer_state": "...",
+      "buyer_action": "...",
+      "gtm_touchpoint": "...",
+      "friction": "...",
+      "trust_signal": "..."
+    }
+  ],
+  "buyer_roles": [
+    { "role": "Champion", "description": "Who advocates internally for the purchase" },
+    { "role": "Decision Maker", "description": "Who has final budget authority" },
+    { "role": "Blocker", "description": "Who might kill the deal" }
+  ],
+  "decision_criteria": [
+    "What criteria they use to choose — ordered by importance"
+  ],
+  "pilot_path": "How a typical pilot/POC is structured — timeline, success criteria, stakeholders",
+  "drop_off_risks": [
+    { "stage": "Evaluation", "risk": "What causes deals to stall or die here", "mitigation": "How to prevent it" }
+  ],
+  "execution_path": {
+    "consumed_by": ["positioning_messaging", "outbound-agent", "content-agent", "sales-agent"],
+    "enables": "Build channel strategy aligned to where buyers are at each stage; create content for each stage; train outbound agent on timing and messaging by stage",
+    "downstream_dependency": "D4 Positioning & Messaging uses stage-specific GTM touchpoints to define what to say at each point in the journey",
+    "next_step_for_founder": "Confirm which stage your current pipeline is stuck at — that's where messaging needs to be sharpest. Then Patel will build the full positioning system."
+  }
+}
+
+RULES:
+- 5 stages: Unaware → Problem Aware → Solution Aware → Evaluation → Decision (adjust names to fit their context)
+- buyer_roles: at minimum Champion and Decision Maker; add Blocker if relevant
+- decision_criteria: 3-5 criteria in priority order
+- drop_off_risks: 2-3 highest-risk stages with specific mitigations
+- confidence: 0.0–1.0; evidence_type: "validated" / "inferred" / "assumed"
+- execution_path is MANDATORY. Never omit it.
+- Return ONLY valid JSON. No markdown, no explanation.`,
+
+    // ── D4: Positioning & Messaging ─────────────────────────────────────────
+    // Communication engine — the complete message architecture
+    // Requires D1 + D2 + D3. Consumed by all execution agents.
+    positioning_messaging: `You are generating a Positioning & Messaging structured interface for an early-stage startup.
+This is D4 — the final deliverable in the Patel chain. It requires ICP (D1), Pains/Triggers (D2), and Buyer Journey (D3). This is the communication engine: every message, script, and channel touchpoint the startup uses flows from this output. It will be consumed by outbound, content, sales, and marketing agents.
+
+Context gathered from the conversation (includes D1 ICP, D2 Pains, D3 Journey):
+${ctx}
+
+Return a JSON object with this EXACT structure (no markdown fences, no extra text):
+{
+  "title": "Positioning & Messaging: [startup name / product name]",
+  "confidence": 0.72,
+  "evidence_type": "inferred",
+  "foundation": {
+    "positioning_statement": "For [ICP], who [problem], [product name] is the [category] that [key benefit], unlike [alternative] which [weakness of alternative].",
+    "value_proposition": "One sentence — the specific, measurable outcome we deliver for the ICP",
+    "elevator_pitch": "2-3 sentences — what we do, who for, and why it matters right now"
+  },
+  "message_pillars": [
+    {
+      "pillar": "Pillar name (3-5 words)",
+      "claim": "The specific claim we make",
+      "proof": "Specific evidence or example that supports this claim",
+      "objection_handle": "The objection this pillar preemptively addresses"
+    }
+  ],
+  "icp_variants": {
+    "hero_headline": "Website H1 — 8-12 words, outcome-focused",
+    "sub_headline": "Website subheadline — 15-25 words, specific and credible",
+    "outbound_hook": "First sentence of cold email/LinkedIn — creates curiosity or surfaces pain",
+    "voicemail_script": "15-second voicemail if leaving a message",
+    "cta": "Primary call to action — specific action, not 'Learn More'"
+  },
+  "channel_messages": [
+    {
+      "channel": "Cold email",
+      "tone": "conversational",
+      "opening": "Subject line + first line",
+      "body_structure": "Pain → Trigger → Result → CTA in 4-5 sentences",
+      "example": "Full example message"
+    },
+    {
+      "channel": "LinkedIn outreach",
+      "tone": "professional-casual",
+      "opening": "Connection request note (< 300 chars)",
+      "body_structure": "...",
+      "example": "Full example message"
+    }
+  ],
+  "forbidden_claims": [
+    "Claims that are generic, unverifiable, or that every competitor also makes"
+  ],
+  "competitive_differentiation": "One paragraph on what makes this positioning defensible and hard to copy",
+  "execution_path": {
+    "consumed_by": ["outbound-agent", "content-agent", "sales-agent", "website-copy", "campaign-agent"],
+    "enables": "All GTM execution — every channel, message, and touchpoint flows from this positioning. Outbound agent uses channel_messages directly. Content agent uses message_pillars for topic selection and tone.",
+    "downstream_dependency": "No further Patel deliverables required. Next phase: execution and iteration based on market response.",
+    "next_step_for_founder": "Test the outbound hook in 20 cold contacts this week. Report back on reply rate. Patel will refine based on what resonates vs. what falls flat."
+  }
+}
+
+RULES:
+- foundation: all three fields are mandatory — positioning_statement follows the classic format exactly
+- message_pillars: 3-4 pillars, each with claim + proof + objection_handle
+- icp_variants: all 5 fields mandatory — be specific, not generic
+- channel_messages: minimum cold email + LinkedIn; add others if relevant
+- forbidden_claims: list 3-5 phrases the startup must never use because they are generic
+- competitive_differentiation: 1 paragraph, specific and honest about what makes this defensible
+- execution_path is MANDATORY. Never omit it.
 - Return ONLY valid JSON. No markdown, no explanation.`,
 
     // ── Outreach Sequence ───────────────────────────────────────────────────

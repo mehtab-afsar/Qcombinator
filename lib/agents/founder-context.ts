@@ -20,10 +20,11 @@ import type { SectionData } from '../profile-builder/data-merger'
 
 export async function getFounderProfileContext(
   userId: string,
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
+  agentId?: string
 ): Promise<string> {
   // Both queries run in parallel
-  const [profileResult, sectionsResult, scoreResult] = await Promise.all([
+  const [profileResult, sectionsResult, scoreResult, patelResult] = await Promise.all([
     supabase
       .from('founder_profiles')
       .select('startup_name, industry, stage, description, is_impact_focused')
@@ -37,15 +38,25 @@ export async function getFounderProfileContext(
 
     supabase
       .from('qscore_history')
-      .select('overall_score, grade, track, score_version')
+      .select('overall_score, grade, track, score_version, iq_breakdown')
       .eq('user_id', userId)
       .order('calculated_at', { ascending: false })
       .limit(1)
       .single(),
+
+    // Only fetch Patel deliverable status when in a Patel session
+    agentId === 'patel'
+      ? supabase
+          .from('agent_artifacts')
+          .select('artifact_type')
+          .eq('user_id', userId)
+          .in('artifact_type', ['icp_document', 'pains_gains_triggers', 'buyer_journey', 'positioning_messaging'])
+      : Promise.resolve({ data: null }),
   ])
 
   const fp = profileResult.data
   const rows = sectionsResult.data ?? []
+  const completedArtifactTypes = new Set((patelResult.data ?? []).map((r: { artifact_type: string }) => r.artifact_type))
 
   // No profile data yet — return empty (founder hasn't done profile builder)
   if (!fp && rows.length === 0) return ''
@@ -130,5 +141,43 @@ export async function getFounderProfileContext(
 
   if (lines.length === 0) return ''
 
-  return `\n\nFOUNDER PROFILE (from their completed profile assessment — use as your baseline; always prefer specifics they share in conversation over this summary):\n${lines.join('\n')}`
+  let profileBlock = `\n\nFOUNDER PROFILE (from their completed profile assessment — use as your baseline; always prefer specifics they share in conversation over this summary):\n${lines.join('\n')}`
+
+  // ── Patel-specific: P1 sub-scores + deliverable status ──────────────────────
+  if (agentId === 'patel' && score) {
+    const iq = (score.iq_breakdown ?? {}) as Record<string, unknown>
+
+    // Extract P1 sub-scores from iq_breakdown JSONB — try multiple key formats
+    const p1Overall = Number(iq.p1_overall ?? iq.marketReadiness ?? 0)
+    const p1_1 = Number(iq.p1_1_icp_clarity ?? iq.icp_clarity ?? iq.p1_1 ?? 0)
+    const p1_2 = Number(iq.p1_2_customer_insight ?? iq.customer_insight ?? iq.p1_2 ?? 0)
+    const p1_3 = Number(iq.p1_3_channel_focus ?? iq.channel_focus ?? iq.p1_3 ?? 0)
+    const p1_4 = Number(iq.p1_4_message_clarity ?? iq.message_clarity ?? iq.p1_4 ?? 0)
+
+    const d1 = completedArtifactTypes.has('icp_document')
+    const d2 = completedArtifactTypes.has('pains_gains_triggers')
+    const d3 = completedArtifactTypes.has('buyer_journey')
+    const d4 = completedArtifactTypes.has('positioning_messaging')
+
+    const d2Status = d1 ? (d2 ? '✓ Complete' : '○ Ready to build') : '🔒 Locked — complete D1 first'
+    const d3Status = (d1 && d2) ? (d3 ? '✓ Complete' : '○ Ready to build') : '🔒 Locked'
+    const d4Status = (d1 && d2 && d3) ? (d4 ? '✓ Complete' : '○ Ready to build') : '🔒 Locked'
+
+    profileBlock += `
+
+P1 MARKET READINESS DIAGNOSTIC:
+  Overall P1: ${p1Overall || 'not yet scored'}/100
+  P1.1 ICP Clarity:      ${p1_1 || '—'}/100
+  P1.2 Customer Insight: ${p1_2 || '—'}/100
+  P1.3 Channel Focus:    ${p1_3 || '—'}/100
+  P1.4 Message Clarity:  ${p1_4 || '—'}/100
+
+DELIVERABLE STATUS:
+  D1 ICP Definition:        ${d1 ? '✓ Complete' : '○ Not started'}
+  D2 Pains & Gains:         ${d2Status}
+  D3 Buyer Journey:         ${d3Status}
+  D4 Positioning/Messaging: ${d4Status}`
+  }
+
+  return profileBlock
 }

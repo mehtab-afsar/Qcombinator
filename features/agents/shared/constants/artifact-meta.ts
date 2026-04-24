@@ -23,7 +23,10 @@ export const ARTIFACT_META: Record<string, { icon: typeof FileText; label: strin
   competitive_matrix:      { icon: Search,        label: "Competitive Analysis",      color: "#DC2626" },
   strategic_plan:          { icon: Compass,       label: "Strategic Plan",            color: "#2563EB" },
 
-  // ── Patel ─────────────────────────────────────────────────────────────────
+  // ── Patel — AI-native GTM deliverables (D1→D2→D3→D4) ─────────────────────
+  pains_gains_triggers:    { icon: Target,        label: "Pains, Gains & Triggers",   color: "#2563EB" },
+  buyer_journey:           { icon: Compass,       label: "Buyer Journey",             color: "#2563EB" },
+  positioning_messaging:   { icon: Megaphone,     label: "Positioning & Messaging",   color: "#2563EB" },
   lead_list:               { icon: List,          label: "Lead List",                 color: "#2563EB" },
   campaign_report:         { icon: TrendingUp,    label: "Campaign Report",           color: "#2563EB" },
   ab_test_result:          { icon: FlaskConical,  label: "A/B Test Result",           color: "#2563EB" },

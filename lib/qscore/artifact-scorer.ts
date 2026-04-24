@@ -63,19 +63,51 @@ function extractPatchFields(
     }
 
     case 'icp_document': {
-      // Patel's ICP — maps to Section 1 customer signals
+      // D1 — ICP maps to Section 1 customer signals (P1.1 ICP Clarity)
       const bp = content.buyerPersona as Record<string, unknown> | undefined
       const fm = content.firmographics as Record<string, unknown> | undefined
 
       const fields: PatchMap = {}
       const ct = safeStr(bp?.title ?? bp?.jobTitle ?? fm?.companyType ?? content.customerSegment)
       if (ct) fields['customerType'] = ct
-      // ICP frustrations → customer quote signal
       const pain = Array.isArray(bp?.frustrations)
         ? (bp!.frustrations as string[]).join('; ')
         : safeStr(bp?.mainPain ?? content.primaryPain)
       if (pain) fields['customerQuote'] = pain
+      // Buying triggers → customer commitment signal
+      const triggers = Array.isArray(content.buyingTriggers) ? content.buyingTriggers.length : 0
+      if (triggers > 0) fields['customerCommitment'] = 'defined'
 
+      return Object.keys(fields).length > 0 ? { section: 1, fields } : null
+    }
+
+    case 'pains_gains_triggers': {
+      // D2 — maps to Section 1 customer insight (P1.2 Customer Insight)
+      const corePains = Array.isArray(content.core_pains) ? content.core_pains : []
+      const triggers  = Array.isArray(content.trigger_events) ? content.trigger_events : []
+      const fields: PatchMap = {}
+      if (corePains.length > 0) fields['hasPayingCustomers'] = corePains.some((p: Record<string,unknown>) => (p.severity as number) >= 4)
+      if (triggers.length > 0) fields['conversationCount'] = Math.max(3, triggers.length * 2) // proxy for validation depth
+      return Object.keys(fields).length > 0 ? { section: 1, fields } : null
+    }
+
+    case 'buyer_journey': {
+      // D3 — maps to Section 1 channel + retention signals (P1.3 Channel Focus)
+      const stages = Array.isArray(content.stages) ? content.stages as Record<string,unknown>[] : []
+      const fields: PatchMap = {}
+      const channels = stages.map(s => s.gtm_touchpoint).filter(Boolean) as string[]
+      if (channels.length > 0) fields['channelsTried'] = channels.slice(0, 4)
+      if (content.pilot_path) fields['hasRetention'] = true
+      return Object.keys(fields).length > 0 ? { section: 1, fields } : null
+    }
+
+    case 'positioning_messaging': {
+      // D4 — maps to Section 1 messaging clarity (P1.4 Message Clarity)
+      const fields: PatchMap = {}
+      const vp = safeStr((content.foundation as Record<string,unknown>)?.value_proposition ?? content.valueProposition)
+      if (vp) fields['customerQuote'] = vp
+      const pillars = Array.isArray(content.message_pillars) ? content.message_pillars.length : 0
+      if (pillars > 0) fields['salesCycleLength'] = pillars <= 2 ? 'short' : pillars <= 4 ? 'medium' : 'long'
       return Object.keys(fields).length > 0 ? { section: 1, fields } : null
     }
 

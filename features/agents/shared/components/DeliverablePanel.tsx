@@ -9,6 +9,9 @@ import { CopyBtn } from './CopyBtn'
 import { ShareModal } from './ShareModal'
 import type { ArtifactCritiqueMetadata } from '../../types/agent.types'
 import { ICPRenderer } from '../../patel/components/ICPRenderer'
+import { PainsGainsRenderer } from '../../patel/components/PainsGainsRenderer'
+import { BuyerJourneyRenderer } from '../../patel/components/BuyerJourneyRenderer'
+import { PositioningRenderer } from '../../patel/components/PositioningRenderer'
 import { OutreachRenderer } from '../../patel/components/OutreachRenderer'
 import { BattleCardRenderer } from '../../patel/components/BattleCardRenderer'
 import { PlaybookRenderer } from '../../patel/components/PlaybookRenderer'
@@ -216,7 +219,10 @@ export function DeliverablePanel({
 
   const renderContent = () => {
     switch (artifact.type) {
-      case "icp_document":       return <ICPRenderer data={artifact.content} />;
+      case "icp_document":             return <ICPRenderer data={artifact.content} />;
+      case "pains_gains_triggers":    return <PainsGainsRenderer data={artifact.content} />;
+      case "buyer_journey":           return <BuyerJourneyRenderer data={artifact.content} />;
+      case "positioning_messaging":   return <PositioningRenderer data={artifact.content} />;
       case "outreach_sequence":  return <OutreachRenderer data={artifact.content} artifactId={artifact.id ?? undefined} sequenceName={artifact.title} />;
       case "battle_card":        return <BattleCardRenderer data={artifact.content} />;
       case "gtm_playbook":       return <PlaybookRenderer data={artifact.content} artifactId={artifact.id ?? undefined} />;
