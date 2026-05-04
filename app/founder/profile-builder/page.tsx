@@ -2586,92 +2586,127 @@ export default function ProfileBuilderPage() {
                     }
                   }
 
-                  // Derive top strengths/risks from iqBreakdown
-                  const sorted = [...submitResult.iqBreakdown].sort((a, b) => b.averageScore - a.averageScore)
-                  const strengths = sorted.slice(0, 2).map(p => p.name)
-                  const risks     = [...submitResult.iqBreakdown].sort((a, b) => a.averageScore - b.averageScore).slice(0, 2).map(p => p.name)
+                  // Derive top strengths/risks from iqBreakdown with indicator detail
+                  const sortedParams = [...submitResult.iqBreakdown].sort((a, b) => b.averageScore - a.averageScore)
+                  const strengthParams = sortedParams.slice(0, 2)
+                  const riskParams = [...submitResult.iqBreakdown].sort((a, b) => a.averageScore - b.averageScore).slice(0, 2)
+                  const scoreColor = submitResult.score >= 70 ? green : submitResult.score >= 45 ? amber : red
 
                   return (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
 
-                      {/* ── Q-Score Snapshot Hero ── */}
-                      <div style={{ padding: '28px 0 24px', marginBottom: 28, borderBottom: `1px solid ${bdr}` }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-                          {/* Score + grade */}
-                          <div style={{ padding: '24px', background: surf, border: `1px solid ${bdr}`, borderRadius: 16, textAlign: 'center' }}>
-                            <div style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 12 }}>Your Q-Score</div>
-                            <div style={{ fontSize: 72, fontWeight: 800, color: submitResult.score >= 70 ? green : submitResult.score >= 45 ? amber : red, lineHeight: 1, letterSpacing: '-0.04em', marginBottom: 8 }}>
-                              {submitResult.score}
-                            </div>
-                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '4px 12px', background: bg, border: `1px solid ${bdr}`, borderRadius: 20, marginBottom: 8 }}>
-                              <span style={{ fontSize: 13, fontWeight: 700, color: ink }}>Grade {submitResult.grade}</span>
-                              {Boolean((submitResult.iqBreakdown[0] as Record<string, unknown>)?.percentileLabel) && (
-                                <span style={{ fontSize: 11, color: muted }}>· {String((submitResult.iqBreakdown[0] as Record<string, unknown>).percentileLabel)}</span>
-                              )}
-                            </div>
-                            {submitResult.track && <div style={{ fontSize: 11, color: muted, marginTop: 4 }}>{submitResult.track} track</div>}
-                          </div>
-
-                          {/* Strengths + risks */}
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                            {strengths.length > 0 && (
-                              <div style={{ padding: '16px', background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: 12 }}>
-                                <div style={{ fontSize: 10, fontWeight: 700, color: green, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>Strengths</div>
-                                {strengths.map(s => (
-                                  <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: green, flexShrink: 0 }} />
-                                    <span style={{ fontSize: 12, color: ink }}>{s}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                            {risks.length > 0 && (
-                              <div style={{ padding: '16px', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 12 }}>
-                                <div style={{ fontSize: 10, fontWeight: 700, color: amber, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>Improve</div>
-                                {risks.map(r => (
-                                  <div key={r} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: amber, flexShrink: 0 }} />
-                                    <span style={{ fontSize: 12, color: ink }}>{r}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-                          <button onClick={() => router.push('/founder/dashboard')} style={{ padding: '10px 22px', borderRadius: 9, border: 'none', background: blue, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                            View Dashboard →
-                          </button>
-                          <button onClick={() => router.push('/founder/improve-qscore')} style={{ padding: '10px 22px', borderRadius: 9, border: `1px solid ${bdr}`, background: 'transparent', color: ink, fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
-                            Improve my score
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Memo Header */}
+                      {/* ── Single premium result header ── */}
                       <div style={{ padding: '32px 0 28px', borderBottom: `1px solid ${bdr}`, marginBottom: 28 }}>
-                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 20 }}>
+
+                        {/* Brand + company + score row */}
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 20, marginBottom: 24 }}>
                           <div>
-                            <div style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 6 }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: 'uppercase', letterSpacing: '0.14em', marginBottom: 8 }}>
                               Edge Alpha · IQ Score Memo
                             </div>
-                            <div style={{ fontSize: 28, fontWeight: 800, color: ink, letterSpacing: '-0.02em', lineHeight: 1.1, marginBottom: 6 }}>
+                            <div style={{ fontSize: 26, fontWeight: 800, color: ink, letterSpacing: '-0.02em', lineHeight: 1.1, marginBottom: 5 }}>
                               {companyLabel}
                             </div>
                             <div style={{ fontSize: 12, color: muted }}>{dateStr}</div>
                           </div>
                           <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                            <div style={{ fontSize: 56, fontWeight: 800, color: ink, lineHeight: 1, letterSpacing: '-0.03em' }}>{submitResult.score}</div>
-                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 6, padding: '3px 10px', background: surf2, borderRadius: 20 }}>
-                              <span style={{ fontSize: 12, fontWeight: 700, color: ink }}>Grade {submitResult.grade}</span>
+                            <div style={{ fontSize: 64, fontWeight: 800, color: scoreColor, lineHeight: 1, letterSpacing: '-0.04em' }}>
+                              {submitResult.score}
                             </div>
-                            {submitResult.track && <div style={{ marginTop: 6, fontSize: 11, fontWeight: 500, color: muted }}>{submitResult.track} track</div>}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end', marginTop: 6 }}>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: ink, padding: '3px 10px', background: surf, border: `1px solid ${bdr}`, borderRadius: 20 }}>Grade {submitResult.grade}</span>
+                              {submitResult.track && <span style={{ fontSize: 11, color: muted }}>{submitResult.track} track</span>}
+                            </div>
                           </div>
                         </div>
-                        <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
-                          <button onClick={() => router.push('/founder/dashboard')} style={{ padding: '10px 22px', borderRadius: 9, border: 'none', background: blue, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', boxShadow: `0 2px 10px ${blue}33` }}>Go to Dashboard →</button>
-                          <button onClick={() => router.push('/founder/improve-qscore')} style={{ padding: '10px 22px', borderRadius: 9, border: `1px solid ${bdr}`, background: 'transparent', color: ink, fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>Improve my score</button>
+
+                        {/* Strengths + areas to improve side by side */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 24 }}>
+
+                          {/* Strengths */}
+                          <div style={{ padding: '18px', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 12 }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: '#16A34A', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 14 }}>
+                              Strengths
+                            </div>
+                            {strengthParams.map(p => {
+                              const ps = toS100(p.averageScore)
+                              const topIndicators = [...p.indicators]
+                                .filter(ind => !ind.excluded && ind.rawScore > 0)
+                                .sort((a, b) => b.rawScore - a.rawScore)
+                                .slice(0, 2)
+                              return (
+                                <div key={p.id} style={{ marginBottom: 14 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+                                    <span style={{ fontSize: 12, fontWeight: 700, color: ink }}>{p.name}</span>
+                                    <span style={{ fontSize: 12, fontWeight: 800, color: '#16A34A' }}>{ps}</span>
+                                  </div>
+                                  <div style={{ height: 3, background: '#BBF7D0', borderRadius: 2, marginBottom: 7, overflow: 'hidden' }}>
+                                    <div style={{ height: '100%', width: `${ps}%`, background: '#16A34A', borderRadius: 2 }} />
+                                  </div>
+                                  {topIndicators.map(ind => (
+                                    <div key={ind.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 3 }}>
+                                      <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#16A34A', flexShrink: 0, marginTop: 4 }} />
+                                      <span style={{ fontSize: 11, color: '#166534', lineHeight: 1.45 }}>{ind.name} — {ind.rawScore.toFixed(1)}/5</span>
+                                    </div>
+                                  ))}
+                                  {topIndicators.length === 0 && (
+                                    <span style={{ fontSize: 11, color: muted, fontStyle: 'italic' }}>Broad coverage across indicators</span>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+
+                          {/* Areas to improve */}
+                          <div style={{ padding: '18px', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 12 }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: '#B45309', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 14 }}>
+                              Areas to Improve
+                            </div>
+                            {riskParams.map(p => {
+                              const ps = toS100(p.averageScore)
+                              const weakIndicators = [...p.indicators]
+                                .filter(ind => !ind.excluded && ind.rawScore > 0)
+                                .sort((a, b) => a.rawScore - b.rawScore)
+                                .slice(0, 2)
+                              const missingIndicators = p.indicators.filter(ind => ind.excluded).slice(0, 1)
+                              return (
+                                <div key={p.id} style={{ marginBottom: 14 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+                                    <span style={{ fontSize: 12, fontWeight: 700, color: ink }}>{p.name}</span>
+                                    <span style={{ fontSize: 12, fontWeight: 800, color: '#B45309' }}>{ps}</span>
+                                  </div>
+                                  <div style={{ height: 3, background: '#FDE68A', borderRadius: 2, marginBottom: 7, overflow: 'hidden' }}>
+                                    <div style={{ height: '100%', width: `${ps}%`, background: '#D97706', borderRadius: 2 }} />
+                                  </div>
+                                  {weakIndicators.map(ind => (
+                                    <div key={ind.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 3 }}>
+                                      <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#D97706', flexShrink: 0, marginTop: 4 }} />
+                                      <span style={{ fontSize: 11, color: '#92400E', lineHeight: 1.45 }}>{ind.name} — {ind.rawScore.toFixed(1)}/5</span>
+                                    </div>
+                                  ))}
+                                  {missingIndicators.map(ind => (
+                                    <div key={ind.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 3 }}>
+                                      <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#D97706', flexShrink: 0, marginTop: 4 }} />
+                                      <span style={{ fontSize: 11, color: '#92400E', lineHeight: 1.45 }}>{ind.name} — not assessed</span>
+                                    </div>
+                                  ))}
+                                  {weakIndicators.length === 0 && missingIndicators.length === 0 && (
+                                    <span style={{ fontSize: 11, color: muted, fontStyle: 'italic' }}>Add more data to improve this dimension</span>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Single CTA row */}
+                        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                          <button onClick={() => router.push('/founder/dashboard')} style={{ padding: '10px 22px', borderRadius: 9, border: 'none', background: blue, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', boxShadow: `0 2px 10px ${blue}33` }}>
+                            Go to Dashboard →
+                          </button>
+                          <button onClick={() => router.push('/founder/improve-qscore')} style={{ padding: '10px 22px', borderRadius: 9, border: `1px solid ${bdr}`, background: 'transparent', color: ink, fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
+                            Improve my score
+                          </button>
                           <button onClick={generateMemoPDF} style={{ padding: '10px 18px', borderRadius: 9, border: `1px solid ${bdr}`, background: 'transparent', color: muted, fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
                             <FileText size={13} strokeWidth={1.75} /> Download PDF
                           </button>
