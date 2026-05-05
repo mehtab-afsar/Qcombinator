@@ -16,8 +16,8 @@ export interface DashPriority {
 export interface DashboardData {
   usedAgentIds: Set<string>
   scoreHistory: Array<{
-    overall: number; market: number; product: number; gtm: number
-    financial: number; team: number; traction: number
+    overall: number; p1: number; p2: number; p3: number
+    p4: number; p5: number; p6: number
     date: string; source: string
   }>
   weeklyActivity: number
@@ -76,7 +76,7 @@ export async function fetchDashboardData(): Promise<DashboardData> {
 
     supabase
       .from('qscore_history')
-      .select('overall_score, market_score, product_score, gtm_score, financial_score, team_score, traction_score, calculated_at, data_source')
+      .select('overall_score, p1_score, p2_score, p3_score, p4_score, p5_score, p6_score, calculated_at, data_source')
       .eq('user_id', user.id)
       .order('calculated_at', { ascending: true })
       .limit(20),
@@ -115,19 +115,19 @@ export async function fetchDashboardData(): Promise<DashboardData> {
     (artifactRows ?? []).map((r: { agent_id: string }) => r.agent_id)
   )
   const scoreHistory = (scoreRows ?? []).map((r: {
-    overall_score: number; market_score: number; product_score: number;
-    gtm_score: number; financial_score: number; team_score: number;
-    traction_score: number; calculated_at: string; data_source: string;
+    overall_score: number; p1_score: number; p2_score: number;
+    p3_score: number; p4_score: number; p5_score: number;
+    p6_score: number; calculated_at: string; data_source: string;
   }) => ({
-    overall:   r.overall_score   ?? 0,
-    market:    r.market_score    ?? 0,
-    product:   r.product_score   ?? 0,
-    gtm:       r.gtm_score       ?? 0,
-    financial: r.financial_score ?? 0,
-    team:      r.team_score      ?? 0,
-    traction:  r.traction_score  ?? 0,
-    date:      r.calculated_at,
-    source:    r.data_source ?? 'assessment',
+    overall: r.overall_score ?? 0,
+    p1:      r.p1_score      ?? 0,
+    p2:      r.p2_score      ?? 0,
+    p3:      r.p3_score      ?? 0,
+    p4:      r.p4_score      ?? 0,
+    p5:      r.p5_score      ?? 0,
+    p6:      r.p6_score      ?? 0,
+    date:    r.calculated_at,
+    source:  r.data_source ?? 'assessment',
   }))
   const portfolioViews = analyticsRes && typeof analyticsRes.totalViews === 'number'
     ? { total: analyticsRes.totalViews, last7: analyticsRes.last7Days ?? 0 }

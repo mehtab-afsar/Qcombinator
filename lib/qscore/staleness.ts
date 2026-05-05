@@ -10,7 +10,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { DIMENSIONS } from '@/lib/constants/dimensions';
+import { ALL_PARAMS } from '@/lib/constants/dimensions';
 import { ARTIFACT_TYPES } from '@/lib/constants/artifact-types';
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
@@ -39,7 +39,7 @@ export async function checkAssessmentStaleness(
 
     supabase
       .from('qscore_history')
-      .select('overall_score, gtm_score, assessment_data, calculated_at')
+      .select('overall_score, p1_score, assessment_data, calculated_at')
       .eq('user_id', userId)
       .order('calculated_at', { ascending: false })
       .limit(1)
@@ -71,7 +71,7 @@ export async function checkAssessmentStaleness(
   const assessmentData   = (latestScore.assessment_data ?? {}) as Record<string, unknown>;
   const customerCount    = (assessmentData.payingCustomers as number | undefined) ?? 0;
   const teamSize         = (assessmentData.teamSize as number | undefined) ?? 0;
-  const gtmScore         = latestScore.gtm_score ?? 0;
+  const p1Score          = latestScore.p1_score ?? 0;
   const lastAssessmentAt = new Date(latestScore.calculated_at);
   const daysSince        = Math.floor((Date.now() - lastAssessmentAt.getTime()) / 86_400_000);
 
@@ -87,9 +87,9 @@ export async function checkAssessmentStaleness(
     reasons.push(`You've collected ${surveyCount} PMF survey responses since your last assessment ${daysSince} days ago.`);
   }
 
-  // Condition 3: Landing page deployed AND GTM score < 40
-  if (hasLandingPage && gtmScore < 40) {
-    reasons.push(`Your landing page is live but your GTM score (${gtmScore}) may not reflect this milestone.`);
+  // Condition 3: Landing page deployed AND Market Readiness (P1) score < 40
+  if (hasLandingPage && p1Score < 40) {
+    reasons.push(`Your landing page is live but your Market Readiness score (${p1Score}) may not reflect this milestone.`);
   }
 
   // Condition 4: Hiring plan exists AND assessment team size < 3
@@ -122,7 +122,7 @@ export async function checkAssessmentStaleness(
     description: 'Your Q-Score assessment may be out of date.',
     metadata: {
       reasons,
-      dimensions_affected: Object.values(DIMENSIONS),
+      dimensions_affected: ALL_PARAMS,
       days_since_assessment: daysSince,
     },
   });

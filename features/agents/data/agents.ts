@@ -1,5 +1,5 @@
 import { Agent, AgentPillar } from "@/features/agents/types/agent.types";
-import { DIMENSIONS } from "@/lib/constants/dimensions";
+import { PARAMS } from "@/lib/constants/dimensions";
 import { ARTIFACT_TYPES } from "@/lib/constants/artifact-types";
 import { AGENT_IDS } from "@/lib/constants/agent-ids";
 
@@ -29,7 +29,7 @@ export const agents: Agent[] = [
       'Should I focus on outbound or inbound first?',
       'How do I build a sales playbook from scratch?'
     ],
-    improvesScore: DIMENSIONS.GTM,
+    improvesScore: PARAMS.P1,
     color: 'blue',
     // artifactType handled by Patel's own tool_call system (icp_document, outreach_sequence, battle_card, gtm_playbook)
   },
@@ -50,7 +50,7 @@ export const agents: Agent[] = [
       'What metrics should I track in my sales funnel?',
       'How do I scale from founder-led sales?'
     ],
-    improvesScore: DIMENSIONS.TRACTION,
+    improvesScore: PARAMS.P1,
     color: 'blue',
     artifactType: ARTIFACT_TYPES.SALES_SCRIPT,
   },
@@ -71,7 +71,7 @@ export const agents: Agent[] = [
       'What makes a great founder story?',
       'Should I invest in SEO or paid content?'
     ],
-    improvesScore: DIMENSIONS.GTM,
+    improvesScore: PARAMS.P1,
     color: 'blue',
     artifactType: ARTIFACT_TYPES.BRAND_MESSAGING,
   },
@@ -96,7 +96,7 @@ export const agents: Agent[] = [
       'How do I forecast ARR growth?',
       'What metrics do investors care about most?'
     ],
-    improvesScore: 'financial',
+    improvesScore: PARAMS.P6,
     color: 'green',
     artifactType: ARTIFACT_TYPES.FINANCIAL_SUMMARY,
   },
@@ -117,7 +117,7 @@ export const agents: Agent[] = [
       'What terms should be in my Terms of Service?',
       'Do I need a trademark for my brand?'
     ],
-    improvesScore: 'team',
+    improvesScore: PARAMS.P4,
     color: 'green',
     artifactType: ARTIFACT_TYPES.LEGAL_CHECKLIST,
   },
@@ -138,7 +138,7 @@ export const agents: Agent[] = [
       'How do I structure equity for employees?',
       'What makes a great first 10 hires?'
     ],
-    improvesScore: 'team',
+    improvesScore: PARAMS.P4,
     color: 'green',
     artifactType: ARTIFACT_TYPES.HIRING_PLAN,
   },
@@ -163,7 +163,7 @@ export const agents: Agent[] = [
       'Should I pivot or persevere?',
       'Build a feature prioritization matrix'
     ],
-    improvesScore: 'product',
+    improvesScore: PARAMS.P3,
     color: 'purple',
     artifactType: ARTIFACT_TYPES.PMF_SURVEY,
   },
@@ -184,7 +184,7 @@ export const agents: Agent[] = [
       'How do I differentiate in a crowded market?',
       'Create a competitive battle card'
     ],
-    improvesScore: 'market',
+    improvesScore: PARAMS.P2,
     color: 'purple',
     artifactType: ARTIFACT_TYPES.COMPETITIVE_MATRIX,
   },
@@ -205,7 +205,7 @@ export const agents: Agent[] = [
       'What milestones matter for Series A?',
       'Create an OKR framework for my startup'
     ],
-    improvesScore: 'market',
+    improvesScore: PARAMS.P5,
     color: 'purple',
     artifactType: ARTIFACT_TYPES.STRATEGIC_PLAN,
   },
@@ -230,7 +230,7 @@ export const agents: Agent[] = [
       'How do I build a health score for my accounts?',
       'Design a churn prevention playbook',
     ],
-    improvesScore: DIMENSIONS.TRACTION,
+    improvesScore: PARAMS.P1,
     color: 'pink',
     artifactType: ARTIFACT_TYPES.CUSTOMER_HEALTH_REPORT,
   },
@@ -251,7 +251,7 @@ export const agents: Agent[] = [
       'How do I reduce my CAC?',
       'Build a viral loop into my product',
     ],
-    improvesScore: DIMENSIONS.TRACTION,
+    improvesScore: PARAMS.P1,
     color: 'amber',
     artifactType: ARTIFACT_TYPES.GROWTH_MODEL,
   },

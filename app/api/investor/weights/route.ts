@@ -14,14 +14,14 @@ export async function GET() {
     const supabase = await createClient()
     const { data } = await supabase
       .from('investor_parameter_weights')
-      .select('weight_market, weight_product, weight_gtm, weight_financial, weight_team, weight_traction')
+      .select('weight_p1, weight_p2, weight_p3, weight_p4, weight_p5, weight_p6')
       .eq('investor_user_id', user.id)
       .single()
 
     return NextResponse.json({
       weights: data ?? {
-        weight_market: 20, weight_product: 18, weight_gtm: 17,
-        weight_financial: 18, weight_team: 15, weight_traction: 12,
+        weight_p1: 20, weight_p2: 17, weight_p3: 18,
+        weight_p4: 15, weight_p5: 12, weight_p6: 18,
       },
     })
   } catch (err) {

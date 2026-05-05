@@ -1,36 +1,32 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { calculateGrade } from '@/features/qscore/types/qscore.types';
 import { ARTIFACT_TYPES, type ArtifactType } from '@/lib/constants/artifact-types';
-import { DIMENSION_DB_COLUMN } from '@/lib/constants/dimensions';
 import { AGENTS } from '@/lib/edgealpha.config';
 import { fetchDimensionWeights } from '@/features/qscore/services/threshold-config';
 import { log } from '@/lib/logger'
 
 /**
- * Dimension boost config per artifact type.
+ * P1-P6 boost config per artifact type.
  * Points are one-time: once this artifact type has been boosted for a user,
  * subsequent generations of the same type are ignored.
  *
- * Caps: no single dimension can exceed 100, and the boost is conservative
+ * Caps: no single parameter can exceed 100, and the boost is conservative
  * (max +6 pts) — the real assessment drives meaningful score changes.
  */
-// Canonical dimension mappings — remapped to IQ Score v2 P1–P6 parameter labels
-// dbColumn kept as legacy for backward compat (qscore_history legacy rows)
-// Exported so cxo-config.ts can derive dimensionBoost without mirroring the points.
 export const ARTIFACT_BOOST: Record<string, { dbColumn: string; label: string; paramId: string; points: number }> = {
-  [ARTIFACT_TYPES.ICP_DOCUMENT]:       { dbColumn: DIMENSION_DB_COLUMN.gtm,      label: 'P2: Market Potential',    paramId: 'p2', points: 5 },
-  [ARTIFACT_TYPES.OUTREACH_SEQUENCE]:  { dbColumn: DIMENSION_DB_COLUMN.gtm,      label: 'P1: Market Readiness',    paramId: 'p1', points: 3 },
-  [ARTIFACT_TYPES.BATTLE_CARD]:        { dbColumn: DIMENSION_DB_COLUMN.market,   label: 'P2: Market Potential',    paramId: 'p2', points: 4 },
-  [ARTIFACT_TYPES.GTM_PLAYBOOK]:       { dbColumn: DIMENSION_DB_COLUMN.gtm,      label: 'P1: Market Readiness',    paramId: 'p1', points: 6 },
-  [ARTIFACT_TYPES.SALES_SCRIPT]:       { dbColumn: DIMENSION_DB_COLUMN.traction, label: 'P1: Market Readiness',    paramId: 'p1', points: 4 },
-  [ARTIFACT_TYPES.BRAND_MESSAGING]:    { dbColumn: DIMENSION_DB_COLUMN.product,  label: 'P2: Market Potential',    paramId: 'p2', points: 3 },
-  [ARTIFACT_TYPES.FINANCIAL_SUMMARY]:  { dbColumn: DIMENSION_DB_COLUMN.financial,label: 'P6: Financials',          paramId: 'p6', points: 6 },
-  [ARTIFACT_TYPES.LEGAL_CHECKLIST]:    { dbColumn: DIMENSION_DB_COLUMN.team,     label: 'P3: IP / Defensibility',  paramId: 'p3', points: 3 },
-  [ARTIFACT_TYPES.HIRING_PLAN]:        { dbColumn: DIMENSION_DB_COLUMN.team,     label: 'P4: Founder / Team',      paramId: 'p4', points: 5 },
-  [ARTIFACT_TYPES.PMF_SURVEY]:         { dbColumn: DIMENSION_DB_COLUMN.traction, label: 'P1: Market Readiness',    paramId: 'p1', points: 5 },
-  [ARTIFACT_TYPES.INTERVIEW_NOTES]:    { dbColumn: DIMENSION_DB_COLUMN.product,  label: 'P1: Market Readiness',    paramId: 'p1', points: 3 },
-  [ARTIFACT_TYPES.COMPETITIVE_MATRIX]: { dbColumn: DIMENSION_DB_COLUMN.market,   label: 'P2: Market Potential',    paramId: 'p2', points: 5 },
-  [ARTIFACT_TYPES.STRATEGIC_PLAN]:     { dbColumn: DIMENSION_DB_COLUMN.market,   label: 'P2: Market Potential',    paramId: 'p2', points: 4 },
+  [ARTIFACT_TYPES.ICP_DOCUMENT]:       { dbColumn: 'p2_score', label: 'P2: Market Potential',   paramId: 'p2', points: 5 },
+  [ARTIFACT_TYPES.OUTREACH_SEQUENCE]:  { dbColumn: 'p1_score', label: 'P1: Market Readiness',   paramId: 'p1', points: 3 },
+  [ARTIFACT_TYPES.BATTLE_CARD]:        { dbColumn: 'p2_score', label: 'P2: Market Potential',   paramId: 'p2', points: 4 },
+  [ARTIFACT_TYPES.GTM_PLAYBOOK]:       { dbColumn: 'p1_score', label: 'P1: Market Readiness',   paramId: 'p1', points: 6 },
+  [ARTIFACT_TYPES.SALES_SCRIPT]:       { dbColumn: 'p1_score', label: 'P1: Market Readiness',   paramId: 'p1', points: 4 },
+  [ARTIFACT_TYPES.BRAND_MESSAGING]:    { dbColumn: 'p2_score', label: 'P2: Market Potential',   paramId: 'p2', points: 3 },
+  [ARTIFACT_TYPES.FINANCIAL_SUMMARY]:  { dbColumn: 'p6_score', label: 'P6: Financials',         paramId: 'p6', points: 6 },
+  [ARTIFACT_TYPES.LEGAL_CHECKLIST]:    { dbColumn: 'p3_score', label: 'P3: IP & Defensibility', paramId: 'p3', points: 3 },
+  [ARTIFACT_TYPES.HIRING_PLAN]:        { dbColumn: 'p4_score', label: 'P4: Founder & Team',     paramId: 'p4', points: 5 },
+  [ARTIFACT_TYPES.PMF_SURVEY]:         { dbColumn: 'p1_score', label: 'P1: Market Readiness',   paramId: 'p1', points: 5 },
+  [ARTIFACT_TYPES.INTERVIEW_NOTES]:    { dbColumn: 'p1_score', label: 'P1: Market Readiness',   paramId: 'p1', points: 3 },
+  [ARTIFACT_TYPES.COMPETITIVE_MATRIX]: { dbColumn: 'p2_score', label: 'P2: Market Potential',   paramId: 'p2', points: 5 },
+  [ARTIFACT_TYPES.STRATEGIC_PLAN]:     { dbColumn: 'p2_score', label: 'P2: Market Potential',   paramId: 'p2', points: 4 },
 };
 
 interface SignalResult {
@@ -105,7 +101,7 @@ export async function applyAgentScoreSignal(
   // Fetch latest score row
   const { data: latest } = await supabase
     .from('qscore_history')
-    .select('id, assessment_id, overall_score, percentile, grade, market_score, product_score, gtm_score, financial_score, team_score, traction_score')
+    .select('id, assessment_id, overall_score, percentile, grade, p1_score, p2_score, p3_score, p4_score, p5_score, p6_score')
     .eq('user_id', userId)
     .order('calculated_at', { ascending: false })
     .limit(1)
@@ -113,14 +109,14 @@ export async function applyAgentScoreSignal(
 
   if (!latest) return { boosted: false }; // No base score to nudge
 
-  // Apply dimension boost (cap at 100)
+  // Apply parameter boost (cap at 100)
   const scores = {
-    market_score:    latest.market_score    ?? 0,
-    product_score:   latest.product_score   ?? 0,
-    gtm_score:       latest.gtm_score       ?? 0,
-    financial_score: latest.financial_score ?? 0,
-    team_score:      latest.team_score      ?? 0,
-    traction_score:  latest.traction_score  ?? 0,
+    p1_score: latest.p1_score ?? 0,
+    p2_score: latest.p2_score ?? 0,
+    p3_score: latest.p3_score ?? 0,
+    p4_score: latest.p4_score ?? 0,
+    p5_score: latest.p5_score ?? 0,
+    p6_score: latest.p6_score ?? 0,
   };
 
   const col = boost.dbColumn as keyof typeof scores;
@@ -136,26 +132,25 @@ export async function applyAgentScoreSignal(
   const dimWeights = await fetchDimensionWeights(supabase, sector);
 
   const w = {
-    market:    dimWeights.get('market')     ?? 0.20,
-    product:   dimWeights.get('product')    ?? 0.18,
-    gtm:       dimWeights.get('goToMarket') ?? dimWeights.get('gtm') ?? 0.17,
-    financial: dimWeights.get('financial')  ?? 0.18,
-    team:      dimWeights.get('team')       ?? 0.15,
-    traction:  dimWeights.get('traction')   ?? 0.12,
+    p1: dimWeights.get('p1') ?? dimWeights.get('market')     ?? 0.20,
+    p2: dimWeights.get('p2') ?? dimWeights.get('goToMarket') ?? 0.17,
+    p3: dimWeights.get('p3') ?? dimWeights.get('product')    ?? 0.18,
+    p4: dimWeights.get('p4') ?? dimWeights.get('team')       ?? 0.15,
+    p5: dimWeights.get('p5') ?? dimWeights.get('traction')   ?? 0.12,
+    p6: dimWeights.get('p6') ?? dimWeights.get('financial')  ?? 0.18,
   };
 
   // Recalculate weighted overall using founder's sector weights
   const newOverall = Math.min(100, Math.round(
-    scores.market_score    * w.market +
-    scores.product_score   * w.product +
-    scores.gtm_score       * w.gtm +
-    scores.financial_score * w.financial +
-    scores.team_score      * w.team +
-    scores.traction_score  * w.traction,
+    scores.p1_score * w.p1 +
+    scores.p2_score * w.p2 +
+    scores.p3_score * w.p3 +
+    scores.p4_score * w.p4 +
+    scores.p5_score * w.p5 +
+    scores.p6_score * w.p6,
   ));
 
   // Insert new history row (linked via previous_score_id for delta tracking)
-  // score_version = 'v1_prd' — agent boosts are minor nudges on legacy scores
   const { error } = await supabase
     .from('qscore_history')
     .insert({
@@ -167,7 +162,7 @@ export async function applyAgentScoreSignal(
       grade:                calculateGrade(newOverall),
       data_source:          'agent_completion',
       source_artifact_type: artifactType,
-      score_version:        'v1_prd',
+      score_version:        'v2_iq',
       ...scores,
     });
 

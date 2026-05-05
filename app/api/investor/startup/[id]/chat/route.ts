@@ -39,7 +39,7 @@ export async function POST(
         .single(),
       admin
         .from('qscore_history')
-        .select('overall_score, percentile, grade, market_score, product_score, gtm_score, financial_score, team_score, traction_score, calculated_at, iq_breakdown')
+        .select('overall_score, percentile, grade, p1_score, p2_score, p3_score, p4_score, p5_score, p6_score, calculated_at, iq_breakdown')
         .eq('user_id', founderId)
         .order('calculated_at', { ascending: false })
         .limit(1)
@@ -95,12 +95,12 @@ export async function POST(
         overall: qrow.overall_score,
         percentile: qrow.percentile,
         grade: qrow.grade,
-        market: qrow.market_score,
-        product: qrow.product_score,
-        gtm: qrow.gtm_score,
-        financial: qrow.financial_score,
-        team: qrow.team_score,
-        traction: qrow.traction_score,
+        p1MarketReadiness:   qrow.p1_score,
+        p2MarketPotential:   qrow.p2_score,
+        p3IpDefensibility:   qrow.p3_score,
+        p4FounderTeam:       qrow.p4_score,
+        p5StructuralImpact:  qrow.p5_score,
+        p6Financials:        qrow.p6_score,
         calculatedAt: qrow.calculated_at,
       } : null,
       financials: {

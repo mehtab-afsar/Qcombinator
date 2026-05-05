@@ -40,7 +40,7 @@ export async function POST() {
       { data: staleDealData },
     ] = await Promise.all([
       admin.from('founder_profiles').select('startup_name, stage, startup_profile_data').eq('user_id', user.id).single(),
-      admin.from('qscore_history').select('overall_score, traction_score, product_score, gtm_score, team_score, market_score, calculated_at').eq('user_id', user.id).order('calculated_at', { ascending: false }).limit(1).single(),
+      admin.from('qscore_history').select('overall_score, p1_score, p2_score, p3_score, p4_score, p5_score, p6_score, calculated_at').eq('user_id', user.id).order('calculated_at', { ascending: false }).limit(1).single(),
       admin.from('qscore_history').select('overall_score').eq('user_id', user.id).order('calculated_at', { ascending: false }).limit(2),
       admin.from('agent_artifacts').select('content').eq('user_id', user.id).eq('agent_id', 'felix').eq('artifact_type', 'financial_summary').order('created_at', { ascending: false }).limit(1).maybeSingle(),
       admin.from('deals').select('company, stage, value, updated_at').eq('user_id', user.id).not('stage', 'in', '("won","lost")').order('updated_at', { ascending: false }).limit(20),
@@ -66,7 +66,7 @@ export async function POST() {
     const contextLines = [
       `Company: ${profile?.startup_name ?? 'Unknown'} | Stage: ${profile?.stage ?? 'unknown'}`,
       `Q-Score: ${latestScore?.overall_score ?? 0}/100${scoreDelta !== null ? ` (${scoreDelta >= 0 ? '+' : ''}${scoreDelta} this week)` : ''}`,
-      `Dim — Market: ${latestScore?.market_score ?? 0}, Product: ${latestScore?.product_score ?? 0}, GTM: ${latestScore?.gtm_score ?? 0}, Traction: ${latestScore?.traction_score ?? 0}, Team: ${latestScore?.team_score ?? 0}`,
+      `P1 Market Readiness: ${latestScore?.p1_score ?? 0}, P2 Market Potential: ${latestScore?.p2_score ?? 0}, P3 IP & Defensibility: ${latestScore?.p3_score ?? 0}, P4 Founder & Team: ${latestScore?.p4_score ?? 0}, P5 Structural Impact: ${latestScore?.p5_score ?? 0}, P6 Financials: ${latestScore?.p6_score ?? 0}`,
       fin.mrr ? `MRR: $${fin.mrr} | Burn: $${fin.monthlyBurn ?? 'n/a'}/mo | Runway: ${fin.runway ?? 'n/a'}` : 'No financial data',
       `Active pipeline: ${(activeDeals ?? []).length} deals, $${activePipelineValue.toLocaleString()}`,
       wonThisWeek > 0 ? `Won this week: $${wonThisWeek.toLocaleString()}` : 'No wins this week',

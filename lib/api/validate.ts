@@ -138,12 +138,12 @@ export type PipelinePatchInput = z.infer<typeof pipelinePatchSchema>
 const weightField = z.number().min(0).max(100)
 
 export const weightsSchema = z.object({
-  weight_market:    weightField,
-  weight_product:   weightField,
-  weight_gtm:       weightField,
-  weight_financial: weightField,
-  weight_team:      weightField,
-  weight_traction:  weightField,
+  weight_p1: weightField,
+  weight_p2: weightField,
+  weight_p3: weightField,
+  weight_p4: weightField,
+  weight_p5: weightField,
+  weight_p6: weightField,
 })
 
 export type WeightsInput = z.infer<typeof weightsSchema>

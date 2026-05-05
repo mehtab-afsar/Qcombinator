@@ -1,27 +1,46 @@
 /**
- * Canonical Q-Score dimension string literals.
- * Values match the DB column prefix (e.g. DIMENSIONS.GTM → gtm_score column).
+ * Canonical Q-Score parameter string literals (P1–P6).
+ * These are the real parameters from the IQ Score v2 calculator.
+ * The old 6-column schema (market/product/gtm/financial/team/traction) is retired.
  */
-export const DIMENSIONS = {
-  MARKET:    'market',
-  PRODUCT:   'product',
-  GTM:       'gtm',
-  FINANCIAL: 'financial',
-  TEAM:      'team',
-  TRACTION:  'traction',
-} as const;
+export const PARAMS = {
+  P1: 'p1',
+  P2: 'p2',
+  P3: 'p3',
+  P4: 'p4',
+  P5: 'p5',
+  P6: 'p6',
+} as const
 
-export type Dimension = typeof DIMENSIONS[keyof typeof DIMENSIONS];
+export type Param = typeof PARAMS[keyof typeof PARAMS]
 
-/** All dimension values — useful for iteration */
-export const ALL_DIMENSIONS = Object.values(DIMENSIONS) as Dimension[];
+export const ALL_PARAMS = Object.values(PARAMS) as Param[]
 
-/** Maps dimension → Supabase qscore_history column name */
-export const DIMENSION_DB_COLUMN: Record<Dimension, string> = {
-  market:    'market_score',
-  product:   'product_score',
-  gtm:       'gtm_score',
-  financial: 'financial_score',
-  team:      'team_score',
-  traction:  'traction_score',
-};
+export const PARAM_LABELS: Record<Param, string> = {
+  p1: 'Market Readiness',
+  p2: 'Market Potential',
+  p3: 'IP & Defensibility',
+  p4: 'Founder & Team',
+  p5: 'Structural Impact',
+  p6: 'Financials',
+}
+
+export const PARAM_DB_COLUMN: Record<Param, string> = {
+  p1: 'p1_score',
+  p2: 'p2_score',
+  p3: 'p3_score',
+  p4: 'p4_score',
+  p5: 'p5_score',
+  p6: 'p6_score',
+}
+
+// Legacy alias so old DIMENSIONS.GTM-style references get a compile error immediately
+// instead of silently using the wrong schema
+/** @deprecated Use PARAMS instead */
+export const DIMENSIONS = PARAMS
+/** @deprecated Use PARAM_DB_COLUMN instead */
+export const DIMENSION_DB_COLUMN = PARAM_DB_COLUMN
+
+// Legacy type alias for backward compat during migration
+/** @deprecated Use Param instead */
+export type Dimension = Param

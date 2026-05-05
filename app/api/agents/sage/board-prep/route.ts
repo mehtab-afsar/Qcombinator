@@ -39,7 +39,7 @@ export async function POST() {
       { data: recentActivity },
     ] = await Promise.all([
       admin.from('founder_profiles').select('startup_name, full_name, industry, stage, startup_profile_data').eq('user_id', user.id).single(),
-      admin.from('qscore_history').select('overall_score, market_score, product_score, gtm_score, traction_score, team_score, calculated_at').eq('user_id', user.id).order('calculated_at', { ascending: false }).limit(1).single(),
+      admin.from('qscore_history').select('overall_score, p1_score, p2_score, p3_score, p4_score, p5_score, p6_score, calculated_at').eq('user_id', user.id).order('calculated_at', { ascending: false }).limit(1).single(),
       admin.from('qscore_history').select('overall_score').eq('user_id', user.id).order('calculated_at', { ascending: false }).limit(2),
       admin.from('agent_artifacts').select('content').eq('user_id', user.id).eq('agent_id', 'felix').eq('artifact_type', 'financial_summary').order('created_at', { ascending: false }).limit(1).maybeSingle(),
       admin.from('deals').select('stage, company, value, updated_at, contact_name').eq('user_id', user.id).order('updated_at', { ascending: false }).limit(30),
@@ -69,7 +69,7 @@ export async function POST() {
     const contextLines = [
       `Company: ${profile?.startup_name ?? 'Unknown'} | Stage: ${profile?.stage ?? 'unknown'} | Industry: ${profile?.industry ?? 'unknown'}`,
       `Q-Score: ${latestScore?.overall_score ?? 0}/100 (prev: ${prevScore?.overall_score ?? 'n/a'})`,
-      `Dimension breakdown — Market: ${latestScore?.market_score ?? 0}, Product: ${latestScore?.product_score ?? 0}, GTM: ${latestScore?.gtm_score ?? 0}, Traction: ${latestScore?.traction_score ?? 0}, Team: ${latestScore?.team_score ?? 0}`,
+      `P1 Market Readiness: ${latestScore?.p1_score ?? 0}, P2 Market Potential: ${latestScore?.p2_score ?? 0}, P3 IP & Defensibility: ${latestScore?.p3_score ?? 0}, P4 Founder & Team: ${latestScore?.p4_score ?? 0}, P5 Structural Impact: ${latestScore?.p5_score ?? 0}, P6 Financials: ${latestScore?.p6_score ?? 0}`,
       fin.mrr ? `MRR: $${fin.mrr} | ARR: $${fin.arr ?? 'n/a'} | Burn: $${fin.monthlyBurn ?? 'n/a'}/mo | Runway: ${fin.runway ?? 'n/a'}` : 'No financial data connected',
       fin.churnRate ? `Churn rate: ${fin.churnRate}%` : '',
       `Pipeline: ${activeDeals.length} active deals, $${pipelineValue.toLocaleString()} value | Won this period: $${totalARR.toLocaleString()}`,

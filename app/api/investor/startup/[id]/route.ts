@@ -35,7 +35,7 @@ export async function GET(
 
       admin
         .from('qscore_history')
-        .select('overall_score, percentile, grade, market_score, product_score, gtm_score, financial_score, team_score, traction_score, calculated_at, assessment_data, score_version, iq_breakdown')
+        .select('overall_score, percentile, grade, p1_score, p2_score, p3_score, p4_score, p5_score, p6_score, calculated_at, assessment_data, score_version, iq_breakdown')
         .eq('user_id', founderId)
         .order('calculated_at', { ascending: false })
         .limit(1)
@@ -153,12 +153,12 @@ export async function GET(
             weight: `${Math.round(p.weight * 100)}%`,
           }))
         : [
-            { category: 'Market',   score: qrow.market_score ?? 0,    weight: '20%' },
-            { category: 'Product',  score: qrow.product_score ?? 0,   weight: '20%' },
-            { category: 'GTM',      score: qrow.gtm_score ?? 0,       weight: '15%' },
-            { category: 'Team',     score: qrow.team_score ?? 0,      weight: '20%' },
-            { category: 'Financial',score: qrow.financial_score ?? 0, weight: '15%' },
-            { category: 'Traction', score: qrow.traction_score ?? 0,  weight: '10%' },
+            { category: 'Market Readiness',  score: qrow.p1_score ?? 0, weight: '20%' },
+            { category: 'Market Potential',  score: qrow.p2_score ?? 0, weight: '17%' },
+            { category: 'IP & Defensibility',score: qrow.p3_score ?? 0, weight: '18%' },
+            { category: 'Founder & Team',    score: qrow.p4_score ?? 0, weight: '15%' },
+            { category: 'Structural Impact', score: qrow.p5_score ?? 0, weight: '12%' },
+            { category: 'Financials',        score: qrow.p6_score ?? 0, weight: '18%' },
           ])
       : []
 
@@ -173,18 +173,18 @@ export async function GET(
           if (s100 < 60)  risks.push(`${p.name} below benchmark (${s100}/100) — needs further evidence`)
         }
       } else {
-        if ((qrow.team_score ?? 0) >= 70)     strengths.push(`Strong team score (${qrow.team_score}/100) — founders have relevant domain expertise`)
-        if ((qrow.market_score ?? 0) >= 70)   strengths.push(`Well-defined market opportunity with clear TAM (market score ${qrow.market_score}/100)`)
-        if ((qrow.traction_score ?? 0) >= 70) strengths.push(`Solid traction signals — customers + revenue evidence verified (${qrow.traction_score}/100)`)
-        if ((qrow.product_score ?? 0) >= 70)  strengths.push(`Product differentiation validated — clear PMF signals (${qrow.product_score}/100)`)
-        if ((qrow.gtm_score ?? 0) >= 70)      strengths.push(`Go-to-market strategy is structured with defined channels (${qrow.gtm_score}/100)`)
-        if ((qrow.financial_score ?? 0) >= 70)strengths.push(`Financial model shows healthy unit economics (${qrow.financial_score}/100)`)
+        if ((qrow.p4_score ?? 0) >= 70) strengths.push(`Strong Founder & Team score (${qrow.p4_score}/100) — founders have relevant domain expertise`)
+        if ((qrow.p1_score ?? 0) >= 70) strengths.push(`Strong Market Readiness (${qrow.p1_score}/100) — clear ICP and go-to-market evidence`)
+        if ((qrow.p2_score ?? 0) >= 70) strengths.push(`Well-defined Market Potential with clear TAM (${qrow.p2_score}/100)`)
+        if ((qrow.p3_score ?? 0) >= 70) strengths.push(`IP & Defensibility validated — clear moat and defensibility signals (${qrow.p3_score}/100)`)
+        if ((qrow.p5_score ?? 0) >= 70) strengths.push(`Strong Structural Impact signals (${qrow.p5_score}/100)`)
+        if ((qrow.p6_score ?? 0) >= 70) strengths.push(`Financial model shows healthy unit economics (${qrow.p6_score}/100)`)
 
-        if ((qrow.team_score ?? 0) < 60)      risks.push(`Team score (${qrow.team_score}/100) below benchmark — key hires or advisor gaps`)
-        if ((qrow.market_score ?? 0) < 60)    risks.push(`Market sizing may need more rigorous validation (${qrow.market_score}/100)`)
-        if ((qrow.traction_score ?? 0) < 60)  risks.push(`Traction is early-stage — limited customer or revenue evidence (${qrow.traction_score}/100)`)
-        if ((qrow.financial_score ?? 0) < 60) risks.push(`Financial projections need more supporting data (${qrow.financial_score}/100)`)
-        if ((qrow.gtm_score ?? 0) < 60)       risks.push(`GTM strategy lacks specificity — CAC/LTV and channel mix unclear (${qrow.gtm_score}/100)`)
+        if ((qrow.p4_score ?? 0) < 60) risks.push(`Founder & Team score (${qrow.p4_score}/100) below benchmark — key hires or advisor gaps`)
+        if ((qrow.p1_score ?? 0) < 60) risks.push(`Market Readiness signals are weak — ICP and channel evidence needed (${qrow.p1_score}/100)`)
+        if ((qrow.p2_score ?? 0) < 60) risks.push(`Market Potential sizing may need more rigorous validation (${qrow.p2_score}/100)`)
+        if ((qrow.p6_score ?? 0) < 60) risks.push(`Financial projections need more supporting data (${qrow.p6_score}/100)`)
+        if ((qrow.p3_score ?? 0) < 60) risks.push(`IP & Defensibility unclear — moat and competitive barriers need strengthening (${qrow.p3_score}/100)`)
       }
     }
     if (strengths.length === 0) strengths.push('Assessment data not yet available — ask founder to complete Q-Score interview')
@@ -192,7 +192,7 @@ export async function GET(
 
     const weakestDim = iqParams.length > 0
       ? iqParams.slice().sort((a, b) => a.averageScore - b.averageScore)[0]?.name ?? 'overall'
-      : weakest(qrow)
+      : weakestParam(qrow)
     const recommendations = [
       `Q-Score of ${qrow?.overall_score ?? 0} puts this founder in the ${qrow?.percentile ?? 0}th percentile`,
       `Review the ${weakestDim} dimension before proceeding to a call`,
@@ -337,15 +337,15 @@ function extractArray(obj: Record<string, unknown>, keys: string[]): unknown[] |
   return null
 }
 
-function weakest(qrow: { market_score?: number; product_score?: number; gtm_score?: number; financial_score?: number; team_score?: number; traction_score?: number } | null): string {
+function weakestParam(qrow: { p1_score?: number; p2_score?: number; p3_score?: number; p4_score?: number; p5_score?: number; p6_score?: number } | null): string {
   if (!qrow) return 'overall'
-  const dims = [
-    { name: 'market',   score: qrow.market_score ?? 100 },
-    { name: 'product',  score: qrow.product_score ?? 100 },
-    { name: 'GTM',      score: qrow.gtm_score ?? 100 },
-    { name: 'financial',score: qrow.financial_score ?? 100 },
-    { name: 'team',     score: qrow.team_score ?? 100 },
-    { name: 'traction', score: qrow.traction_score ?? 100 },
+  const params = [
+    { name: 'Market Readiness',   score: qrow.p1_score ?? 100 },
+    { name: 'Market Potential',   score: qrow.p2_score ?? 100 },
+    { name: 'IP & Defensibility', score: qrow.p3_score ?? 100 },
+    { name: 'Founder & Team',     score: qrow.p4_score ?? 100 },
+    { name: 'Structural Impact',  score: qrow.p5_score ?? 100 },
+    { name: 'Financials',         score: qrow.p6_score ?? 100 },
   ]
-  return dims.sort((a, b) => a.score - b.score)[0].name
+  return params.sort((a, b) => a.score - b.score)[0].name
 }

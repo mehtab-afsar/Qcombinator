@@ -59,7 +59,7 @@ export async function GET(
 
       supabase
         .from('qscore_history')
-        .select('overall_score, percentile, grade, market_score, product_score, gtm_score, financial_score, team_score, traction_score, calculated_at')
+        .select('overall_score, percentile, grade, p1_score, p2_score, p3_score, p4_score, p5_score, p6_score, calculated_at')
         .eq('user_id', userId)
         .order('calculated_at', { ascending: false })
         .limit(1)
@@ -128,12 +128,12 @@ export async function GET(
     const hasStartupProfile = Object.keys(sp).length > 0
 
     const scoreBreakdown = qrow ? {
-      market:     qrow.market_score    ?? 0,
-      product:    qrow.product_score   ?? 0,
-      goToMarket: qrow.gtm_score       ?? 0,
-      financial:  qrow.financial_score ?? 0,
-      team:       qrow.team_score      ?? 0,
-      traction:   qrow.traction_score  ?? 0,
+      marketReadiness:  qrow.p1_score ?? 0,
+      marketPotential:  qrow.p2_score ?? 0,
+      ipDefensibility:  qrow.p3_score ?? 0,
+      founderTeam:      qrow.p4_score ?? 0,
+      structuralImpact: qrow.p5_score ?? 0,
+      financials:       qrow.p6_score ?? 0,
     } : null
 
     return NextResponse.json({

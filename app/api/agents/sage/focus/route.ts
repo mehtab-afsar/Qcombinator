@@ -35,7 +35,7 @@ export async function POST() {
       { data: milestones },
     ] = await Promise.all([
       supabase.from('founder_profiles').select('startup_name, full_name, industry, stage').eq('user_id', user.id).single(),
-      supabase.from('qscore_history').select('overall_score, market_score, product_score, gtm_score, financial_score, team_score, traction_score, calculated_at').eq('user_id', user.id).order('calculated_at', { ascending: false }).limit(1).single(),
+      supabase.from('qscore_history').select('overall_score, p1_score, p2_score, p3_score, p4_score, p5_score, p6_score, calculated_at').eq('user_id', user.id).order('calculated_at', { ascending: false }).limit(1).single(),
       admin.from('deals').select('stage, company, value, updated_at').eq('user_id', user.id).not('stage', 'in', '("won","lost")').order('updated_at', { ascending: true }).limit(10),
       admin.from('agent_activity').select('agent_id, action_type, description, created_at').eq('user_id', user.id).gte('created_at', since30d).order('created_at', { ascending: false }).limit(30),
       admin.from('agent_artifacts').select('agent_id, artifact_type, created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(20),
@@ -45,13 +45,17 @@ export async function POST() {
 
     // Build context
     const scores = {
-      overall:   (latestScore?.overall_score  as number | undefined) ?? 0,
-      market:    (latestScore?.market_score   as number | undefined) ?? 0,
-      product:   (latestScore?.product_score  as number | undefined) ?? 0,
-      gtm:       (latestScore?.gtm_score      as number | undefined) ?? 0,
-      financial: (latestScore?.financial_score as number | undefined) ?? 0,
-      team:      (latestScore?.team_score     as number | undefined) ?? 0,
-      traction:  (latestScore?.traction_score as number | undefined) ?? 0,
+      overall: (latestScore?.overall_score as number | undefined) ?? 0,
+      p1:      (latestScore?.p1_score      as number | undefined) ?? 0,
+      p2:      (latestScore?.p2_score      as number | undefined) ?? 0,
+      p3:      (latestScore?.p3_score      as number | undefined) ?? 0,
+      p4:      (latestScore?.p4_score      as number | undefined) ?? 0,
+      p5:      (latestScore?.p5_score      as number | undefined) ?? 0,
+      p6:      (latestScore?.p6_score      as number | undefined) ?? 0,
+    }
+    const paramLabels: Record<string, string> = {
+      p1: 'Market Readiness', p2: 'Market Potential', p3: 'IP & Defensibility',
+      p4: 'Founder & Team', p5: 'Structural Impact', p6: 'Financials',
     }
     const lowestDim = Object.entries(scores)
       .filter(([k]) => k !== 'overall')
@@ -72,8 +76,8 @@ export async function POST() {
 
     const context = `
 Company: ${profile?.startup_name ?? 'Unknown'} | Stage: ${profile?.stage ?? 'unknown'} | Industry: ${profile?.industry ?? 'unknown'}
-Q-Score: ${scores.overall}/100 | Weakest dimension: ${lowestDim?.[0] ?? 'unknown'} (${lowestDim?.[1] ?? 0}/100)
-Dimension scores: ${JSON.stringify(scores)}
+Q-Score: ${scores.overall}/100 | Weakest parameter: ${lowestDim?.[0] ? (paramLabels[lowestDim[0]] ?? lowestDim[0]) : 'unknown'} (${lowestDim?.[1] ?? 0}/100)
+Parameter scores: ${JSON.stringify(scores)}
 Active pipeline deals: ${pipeline?.length ?? 0}${stalestDeal ? ` | Stalest deal: ${stalestDeal.company} (${staleDays} days idle, stage: ${stalestDeal.stage})` : ''}
 Open deal reminders: ${openReminders?.length ?? 0}
 Recent actions (30d): ${[...recentActionTypes].join(', ') || 'none'}

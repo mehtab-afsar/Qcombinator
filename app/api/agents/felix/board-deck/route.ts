@@ -33,7 +33,7 @@ export async function POST() {
     ] = await Promise.all([
       admin.from('founder_profiles').select('startup_name, full_name, startup_profile_data').eq('user_id', user.id).single(),
       admin.from('agent_artifacts').select('content').eq('user_id', user.id).eq('agent_id', 'felix').eq('artifact_type', 'financial_summary').order('created_at', { ascending: false }).limit(1).maybeSingle(),
-      admin.from('qscore_history').select('overall_score, traction_score, calculated_at').eq('user_id', user.id).gte('calculated_at', since90d).order('calculated_at', { ascending: true }).limit(12),
+      admin.from('qscore_history').select('overall_score, p1_score, calculated_at').eq('user_id', user.id).gte('calculated_at', since90d).order('calculated_at', { ascending: true }).limit(12),
       admin.from('agent_artifacts').select('content').eq('user_id', user.id).eq('agent_id', 'felix').eq('artifact_type', 'actuals_report').order('created_at', { ascending: false }).limit(1).maybeSingle(),
     ])
 
@@ -45,7 +45,7 @@ export async function POST() {
     const scoreTrend = (scoreHistory ?? []).map(s => ({
       date: new Date(s.calculated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
       score: s.overall_score,
-      traction: s.traction_score,
+      p1: s.p1_score,
     }))
 
     const financialContext = [
@@ -133,7 +133,7 @@ Use real numbers from context. If a metric is missing, note it as 'TBD' and expl
 function generateBoardDeckHTML(
   company: string,
   slides: Record<string, unknown>[],
-  _scoreTrend: { date: string; score: number; traction: number }[]
+  _scoreTrend: { date: string; score: number; p1: number }[]
 ): string {
   const slideHTML = slides.map((slide, idx) => {
     const nums = (slide.keyNumbers as { label: string; value: string; change: string | null; trend: string | null }[] | undefined) ?? []

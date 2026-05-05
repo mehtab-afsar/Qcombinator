@@ -18,8 +18,8 @@ import {
   type ArtifactType,
 } from '@/lib/constants/artifact-types';
 import {
-  DIMENSIONS,
-  type Dimension,
+  PARAMS,
+  type Param,
 } from '@/lib/constants/dimensions';
 import {
   AGENT_IDS,
@@ -38,8 +38,8 @@ export interface AgentConfig {
   dataTools: string[];
   /** Action IDs this agent can trigger from its UI. */
   actions: string[];
-  /** Q-Score dimension boosts granted when this agent generates an artifact. Points are cumulative per dimension. */
-  qscoreBoosts: Partial<Record<Dimension, number>>;
+  /** Q-Score parameter boosts granted when this agent generates an artifact. Points are cumulative per parameter. */
+  qscoreBoosts: Partial<Record<Param, number>>;
   /** Agents whose artifacts are ALWAYS injected into this agent's context. */
   highRelevanceAgents: AgentId[];
   /** Agents whose artifacts are injected when topic matches. */
@@ -72,8 +72,8 @@ const AGENTS: AgentConfig[] = [
     dataTools: ['lead_enrich', 'apollo_search', 'send_outreach_sequence', 'bulk_enrich_pipeline', 'schedule_followup'],
     actions: ['deploy_landing_page', 'gmail_compose', 'google_alert'],
     qscoreBoosts: {
-      [DIMENSIONS.GTM]:      11, // icp_document(5) + gtm_playbook(6)
-      [DIMENSIONS.TRACTION]:  4, // outreach_sequence(4)
+      [PARAMS.P1]: 9,  // gtm_playbook(6) + outreach_sequence(3)
+      [PARAMS.P2]: 5,  // icp_document(5)
     },
     highRelevanceAgents: [AGENT_IDS.ATLAS, AGENT_IDS.MAYA],
     mediumRelevanceAgents: [AGENT_IDS.FELIX, AGENT_IDS.SUSI],
@@ -87,7 +87,7 @@ const AGENTS: AgentConfig[] = [
     dataTools: ['lead_enrich', 'create_deal', 'initiate_voice_call', 'schedule_followup'],
     actions: ['gmail_compose', 'create_deal'],
     qscoreBoosts: {
-      [DIMENSIONS.TRACTION]: 4, // sales_script(4)
+      [PARAMS.P1]: 4, // sales_script(4)
     },
     highRelevanceAgents: [AGENT_IDS.PATEL, AGENT_IDS.ATLAS],
     mediumRelevanceAgents: [AGENT_IDS.FELIX],
@@ -101,7 +101,7 @@ const AGENTS: AgentConfig[] = [
     dataTools: [],
     actions: ['deploy_landing_page', 'download_social_templates', 'blog_post'],
     qscoreBoosts: {
-      [DIMENSIONS.GTM]: 4, // brand_messaging(4)
+      [PARAMS.P2]: 3, // brand_messaging(3)
     },
     highRelevanceAgents: [AGENT_IDS.PATEL],
     mediumRelevanceAgents: [AGENT_IDS.ATLAS, AGENT_IDS.NOVA],
@@ -117,7 +117,7 @@ const AGENTS: AgentConfig[] = [
     dataTools: ['fetch_stripe_metrics'],
     actions: ['send_investor_update', 'download_csv'],
     qscoreBoosts: {
-      [DIMENSIONS.FINANCIAL]: 6, // financial_summary(6)
+      [PARAMS.P6]: 6, // financial_summary(6)
     },
     highRelevanceAgents: [AGENT_IDS.SAGE],
     mediumRelevanceAgents: [AGENT_IDS.PATEL, AGENT_IDS.NOVA, AGENT_IDS.SUSI],
@@ -131,7 +131,7 @@ const AGENTS: AgentConfig[] = [
     dataTools: [],
     actions: ['generate_nda', 'clerky_start', 'stripe_atlas'],
     qscoreBoosts: {
-      [DIMENSIONS.FINANCIAL]: 3, // legal_checklist(3)
+      [PARAMS.P3]: 3, // legal_checklist(3)
     },
     highRelevanceAgents: [],
     mediumRelevanceAgents: [AGENT_IDS.HARPER, AGENT_IDS.FELIX],
@@ -145,7 +145,7 @@ const AGENTS: AgentConfig[] = [
     dataTools: [],
     actions: ['wellfound_post', 'screen_resume'],
     qscoreBoosts: {
-      [DIMENSIONS.TEAM]: 5, // hiring_plan(5)
+      [PARAMS.P4]: 5, // hiring_plan(5)
     },
     highRelevanceAgents: [AGENT_IDS.PATEL],
     mediumRelevanceAgents: [AGENT_IDS.ATLAS, AGENT_IDS.FELIX],
@@ -161,7 +161,7 @@ const AGENTS: AgentConfig[] = [
     dataTools: [],
     actions: ['host_survey', 'download_survey_html'],
     qscoreBoosts: {
-      [DIMENSIONS.PRODUCT]: 8, // pmf_survey(5) + interview_notes(3)
+      [PARAMS.P1]: 8, // pmf_survey(5) + interview_notes(3)
     },
     highRelevanceAgents: [AGENT_IDS.PATEL, AGENT_IDS.ATLAS],
     mediumRelevanceAgents: [AGENT_IDS.SUSI, AGENT_IDS.SAGE],
@@ -175,7 +175,7 @@ const AGENTS: AgentConfig[] = [
     dataTools: ['web_research'],
     actions: ['google_alert', 'track_competitor'],
     qscoreBoosts: {
-      [DIMENSIONS.MARKET]: 9, // competitive_matrix(5) + battle_card(4)
+      [PARAMS.P2]: 9, // competitive_matrix(5) + battle_card(4)
     },
     highRelevanceAgents: [AGENT_IDS.PATEL, AGENT_IDS.NOVA],
     mediumRelevanceAgents: [AGENT_IDS.SAGE, AGENT_IDS.SUSI],
@@ -196,7 +196,7 @@ const AGENTS: AgentConfig[] = [
     dataTools: [],
     actions: ['send_investor_update', 'linear_export'],
     qscoreBoosts: {
-      [DIMENSIONS.PRODUCT]: 4,
+      [PARAMS.P2]: 4, // strategic_plan(4)
     },
     // Sage synthesises everything — always injects all other agents' context
     highRelevanceAgents: [
@@ -224,7 +224,7 @@ const AGENTS: AgentConfig[] = [
     dataTools: ['posthog_query', 'fetch_stripe_metrics', 'calendly_link'],
     actions: ['send_customer_checkin', 'schedule_qbr', 'send_nps_survey'],
     qscoreBoosts: {
-      [DIMENSIONS.TRACTION]: 6, // customer_health_report(3) + churn_analysis(3)
+      [PARAMS.P1]: 6, // customer_health_report(3) + churn_analysis(3) → Market Readiness evidence
     },
     highRelevanceAgents: [AGENT_IDS.NOVA, AGENT_IDS.SUSI],
     mediumRelevanceAgents: [AGENT_IDS.FELIX, AGENT_IDS.PATEL],
@@ -245,8 +245,8 @@ const AGENTS: AgentConfig[] = [
     dataTools: ['apollo_search', 'web_research', 'posthog_query'],
     actions: ['launch_paid_campaign', 'setup_referral_program', 'deploy_landing_page'],
     qscoreBoosts: {
-      [DIMENSIONS.TRACTION]: 5, // growth_model(3) + growth_report(2)
-      [DIMENSIONS.GTM]:      3, // paid_campaign(3)
+      [PARAMS.P1]: 5, // growth_model(3) + growth_report(2) → Market Readiness evidence
+      [PARAMS.P2]: 3, // paid_campaign(3) → Market Potential
     },
     highRelevanceAgents: [AGENT_IDS.PATEL, AGENT_IDS.NOVA],
     mediumRelevanceAgents: [AGENT_IDS.ATLAS, AGENT_IDS.CARTER, AGENT_IDS.MAYA],

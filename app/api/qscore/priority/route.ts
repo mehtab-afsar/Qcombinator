@@ -34,7 +34,7 @@ export async function GET() {
         .single(),
       supabase
         .from('qscore_history')
-        .select('id, overall_score, market_score, product_score, gtm_score, financial_score, team_score, traction_score, ai_actions, calculated_at')
+        .select('id, overall_score, p1_score, p2_score, p3_score, p4_score, p5_score, p6_score, ai_actions, calculated_at')
         .eq('user_id', user.id)
         .order('calculated_at', { ascending: false })
         .limit(1)
@@ -142,12 +142,12 @@ export async function GET() {
     // Build context snapshot for the LLM
     const scores = latestScore ?? {}
     const dimScores = {
-      market:    (scores as Record<string, number>).market_score    ?? 0,
-      product:   (scores as Record<string, number>).product_score   ?? 0,
-      gtm:       (scores as Record<string, number>).gtm_score       ?? 0,
-      financial: (scores as Record<string, number>).financial_score ?? 0,
-      team:      (scores as Record<string, number>).team_score      ?? 0,
-      traction:  (scores as Record<string, number>).traction_score  ?? 0,
+      'Market Readiness':   (scores as Record<string, number>).p1_score ?? 0,
+      'Market Potential':   (scores as Record<string, number>).p2_score ?? 0,
+      'IP & Defensibility': (scores as Record<string, number>).p3_score ?? 0,
+      'Founder & Team':     (scores as Record<string, number>).p4_score ?? 0,
+      'Structural Impact':  (scores as Record<string, number>).p5_score ?? 0,
+      'Financials':         (scores as Record<string, number>).p6_score ?? 0,
     }
     const overall = (scores as Record<string, number>).overall_score ?? 0
 
@@ -177,8 +177,12 @@ ${overdueDeal ? `⚠️ Overdue deal: "${overdueDeal.contact_name}" has a past-d
 `.trim()
 
     const AGENT_MAP: Record<string, string> = {
-      market: 'atlas', product: 'nova', gtm: 'patel',
-      financial: 'felix', team: 'harper', traction: 'susi',
+      'Market Readiness':   'patel',
+      'Market Potential':   'atlas',
+      'IP & Defensibility': 'nova',
+      'Founder & Team':     'harper',
+      'Structural Impact':  'sage',
+      'Financials':         'felix',
     }
 
     const raw = await callOpenRouter(

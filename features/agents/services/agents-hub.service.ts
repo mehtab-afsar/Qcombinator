@@ -11,14 +11,14 @@ export interface AgentHubData {
   recommendedIds: string[]
 }
 
-/** Dimension → agent ID mapping (mirrors DIMENSION_AGENT in the agents hub page). */
+/** Param → agent ID mapping (P1-P6 schema). */
 const DIMENSION_AGENT: Record<string, string> = {
-  market:     AGENT_IDS.ATLAS,
-  product:    AGENT_IDS.NOVA,
-  goToMarket: AGENT_IDS.PATEL,
-  financial:  AGENT_IDS.FELIX,
-  team:       AGENT_IDS.HARPER,
-  traction:   AGENT_IDS.SUSI,
+  p1: AGENT_IDS.PATEL,
+  p2: AGENT_IDS.ATLAS,
+  p3: AGENT_IDS.NOVA,
+  p4: AGENT_IDS.HARPER,
+  p5: AGENT_IDS.SAGE,
+  p6: AGENT_IDS.FELIX,
 }
 
 /** Fetches completed agent IDs and recommended agents based on Q-Score. */
@@ -37,10 +37,10 @@ export async function fetchAgentHubData(): Promise<AgentHubData> {
     artifacts?.map((a: { agent_id: string }) => a.agent_id) ?? []
   )
 
-  // Latest Q-Score dimensions to determine recommendations
+  // Latest Q-Score params to determine recommendations
   const { data: score } = await supabase
     .from('qscore_history')
-    .select('market_score, product_score, gtm_score, financial_score, team_score, traction_score')
+    .select('p1_score, p2_score, p3_score, p4_score, p5_score, p6_score')
     .eq('user_id', user.id)
     .order('calculated_at', { ascending: false })
     .limit(1)
@@ -49,12 +49,12 @@ export async function fetchAgentHubData(): Promise<AgentHubData> {
   let recommendedIds: string[] = []
   if (score) {
     const dimScores: Record<string, number> = {
-      market:     score.market_score    ?? 0,
-      product:    score.product_score   ?? 0,
-      goToMarket: score.gtm_score       ?? 0,
-      financial:  score.financial_score ?? 0,
-      team:       score.team_score      ?? 0,
-      traction:   score.traction_score  ?? 0,
+      p1: score.p1_score ?? 0,
+      p2: score.p2_score ?? 0,
+      p3: score.p3_score ?? 0,
+      p4: score.p4_score ?? 0,
+      p5: score.p5_score ?? 0,
+      p6: score.p6_score ?? 0,
     }
     recommendedIds = Object.entries(dimScores)
       .sort((a, b) => a[1] - b[1])

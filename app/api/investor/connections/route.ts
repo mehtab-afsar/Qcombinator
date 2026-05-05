@@ -59,13 +59,13 @@ export async function GET() {
         .in('user_id', founderIds),
       supabase
         .from('qscore_history')
-        .select('user_id, overall_score, market_score, product_score, gtm_score, financial_score, team_score, traction_score, percentile, calculated_at')
+        .select('user_id, overall_score, p1_score, p2_score, p3_score, p4_score, p5_score, p6_score, percentile, calculated_at')
         .in('user_id', founderIds)
         .order('calculated_at', { ascending: false }),
     ])
 
     type ProfileRow = { user_id: string; full_name: string; startup_name: string; industry: string; stage: string; tagline?: string; avatar_url?: string | null; company_logo_url?: string | null }
-    type QRow = { user_id: string; overall_score: number; market_score: number; product_score: number; gtm_score: number; financial_score: number; team_score: number; traction_score: number; percentile: number }
+    type QRow = { user_id: string; overall_score: number; p1_score: number; p2_score: number; p3_score: number; p4_score: number; p5_score: number; p6_score: number; percentile: number }
 
     const profileMap = new Map<string, ProfileRow>()
     for (const p of (profiles ?? []) as ProfileRow[]) profileMap.set(p.user_id, p)
@@ -91,12 +91,12 @@ export async function GET() {
         qScore: qrow?.overall_score ?? req.founder_qscore ?? 0,
         qScorePercentile: qrow?.percentile ?? 0,
         qScoreBreakdown: {
-          market: qrow?.market_score ?? 0,
-          product: qrow?.product_score ?? 0,
-          goToMarket: qrow?.gtm_score ?? 0,
-          financial: qrow?.financial_score ?? 0,
-          team: qrow?.team_score ?? 0,
-          traction: qrow?.traction_score ?? 0,
+          p1: qrow?.p1_score ?? 0,
+          p2: qrow?.p2_score ?? 0,
+          p3: qrow?.p3_score ?? 0,
+          p4: qrow?.p4_score ?? 0,
+          p5: qrow?.p5_score ?? 0,
+          p6: qrow?.p6_score ?? 0,
         },
         status: req.status as 'pending' | 'viewed' | 'accepted' | 'declined' | 'meeting_scheduled',
         personalMessage: req.personal_message ?? undefined,

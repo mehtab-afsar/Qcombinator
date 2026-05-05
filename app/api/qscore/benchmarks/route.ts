@@ -22,7 +22,7 @@ export async function GET(_request: NextRequest) {
     // Fetch all users' latest score rows (one per user, ordered by most recent first)
     const { data: allRows, error } = await supabase
       .from('qscore_history')
-      .select('user_id, overall_score, market_score, product_score, gtm_score, financial_score, team_score, traction_score, calculated_at')
+      .select('user_id, overall_score, p1_score, p2_score, p3_score, p4_score, p5_score, p6_score, calculated_at')
       .order('calculated_at', { ascending: false });
 
     if (error || !allRows || allRows.length === 0) {
@@ -42,7 +42,7 @@ export async function GET(_request: NextRequest) {
     const mine = latestByUser.get(user.id);
     if (!mine) return NextResponse.json({ benchmarks: null });
 
-    type ScoreRow = { overall_score: number; market_score: number; product_score: number; gtm_score: number; financial_score: number; team_score: number; traction_score: number };
+    type ScoreRow = { overall_score: number; p1_score: number; p2_score: number; p3_score: number; p4_score: number; p5_score: number; p6_score: number };
 
     function pct(myScore: number, col: keyof ScoreRow): number {
       const scores = cohort.map(r => ((r as unknown as ScoreRow)[col]) ?? 0);
@@ -52,13 +52,13 @@ export async function GET(_request: NextRequest) {
 
     const m = mine as unknown as ScoreRow;
     const benchmarks = {
-      overall:    pct(m.overall_score   ?? 0, 'overall_score'),
-      market:     pct(m.market_score    ?? 0, 'market_score'),
-      product:    pct(m.product_score   ?? 0, 'product_score'),
-      goToMarket: pct(m.gtm_score       ?? 0, 'gtm_score'),
-      financial:  pct(m.financial_score ?? 0, 'financial_score'),
-      team:       pct(m.team_score      ?? 0, 'team_score'),
-      traction:   pct(m.traction_score  ?? 0, 'traction_score'),
+      overall:          pct(m.overall_score ?? 0, 'overall_score'),
+      marketReadiness:  pct(m.p1_score      ?? 0, 'p1_score'),
+      marketPotential:  pct(m.p2_score      ?? 0, 'p2_score'),
+      ipDefensibility:  pct(m.p3_score      ?? 0, 'p3_score'),
+      founderTeam:      pct(m.p4_score      ?? 0, 'p4_score'),
+      structuralImpact: pct(m.p5_score      ?? 0, 'p5_score'),
+      financials:       pct(m.p6_score      ?? 0, 'p6_score'),
       cohortSize: cohort.length,
     };
 

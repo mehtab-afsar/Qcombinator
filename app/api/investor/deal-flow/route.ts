@@ -62,7 +62,7 @@ export async function GET() {
       // Ordered DESC so the JS dedup map (below) keeps the latest per user.
       admin
         .from('qscore_history')
-        .select('user_id, overall_score, market_score, product_score, gtm_score, financial_score, team_score, traction_score, percentile, calculated_at')
+        .select('user_id, overall_score, p1_score, p2_score, p3_score, p4_score, p5_score, p6_score, percentile, calculated_at')
         .in('user_id', userIds)
         .order('calculated_at', { ascending: false })
         .limit(userIds.length * 5),   // at most 5 scores per founder; prevents O(N×M) scan
@@ -82,7 +82,7 @@ export async function GET() {
     ])
 
     // Build lookup maps from batched results
-    type QScoreRow = { user_id: string; overall_score: number; market_score: number; product_score: number; gtm_score: number; financial_score: number; team_score: number; traction_score: number; percentile: number; calculated_at: string }
+    type QScoreRow = { user_id: string; overall_score: number; p1_score: number; p2_score: number; p3_score: number; p4_score: number; p5_score: number; p6_score: number; percentile: number; calculated_at: string }
     const latestQScore = new Map<string, QScoreRow>()
     for (const row of (allQScores ?? []) as QScoreRow[]) {
       if (!latestQScore.has(row.user_id)) latestQScore.set(row.user_id, row)
@@ -199,33 +199,33 @@ export async function GET() {
         .single(),
       admin
         .from('investor_parameter_weights')
-        .select('weight_market, weight_product, weight_gtm, weight_financial, weight_team, weight_traction')
+        .select('weight_p1, weight_p2, weight_p3, weight_p4, weight_p5, weight_p6')
         .eq('investor_user_id', user.id)
         .single(),
     ]);
 
     const aiMatches = (investorProfile?.ai_personalization as { matches?: Record<string, { score: number; reason: string }> } | null)?.matches ?? {}
 
-    type WeightRow = { weight_market: number; weight_product: number; weight_gtm: number; weight_financial: number; weight_team: number; weight_traction: number } | null;
+    type WeightRow = { weight_p1: number; weight_p2: number; weight_p3: number; weight_p4: number; weight_p5: number; weight_p6: number } | null;
     const iw = investorWeights as WeightRow;
 
     // Apply personalized match scores + custom weighted Q-Score
     const withMatch = enriched.map(f => {
       // base match kept for reference; actual match score computed below with custom weights
       // If investor has custom weights, recalculate match score using them
-      // (uses dimension scores from qscore_history if available via latestQScore map)
+      // (uses p-score columns from qscore_history if available via latestQScore map)
       const qrow = latestQScore.get(f.id);
       let weightedQScore = f.qScore;
       if (iw && qrow) {
-        const total = iw.weight_market + iw.weight_product + iw.weight_gtm + iw.weight_financial + iw.weight_team + iw.weight_traction;
+        const total = (iw.weight_p1 ?? 0) + (iw.weight_p2 ?? 0) + (iw.weight_p3 ?? 0) + (iw.weight_p4 ?? 0) + (iw.weight_p5 ?? 0) + (iw.weight_p6 ?? 0);
         if (total > 0) {
           weightedQScore = Math.round(
-            (qrow.market_score   * iw.weight_market   +
-             qrow.product_score  * iw.weight_product  +
-             qrow.gtm_score      * iw.weight_gtm      +
-             qrow.financial_score* iw.weight_financial +
-             qrow.team_score     * iw.weight_team     +
-             qrow.traction_score * iw.weight_traction) / total
+            (qrow.p1_score * (iw.weight_p1 ?? 0) +
+             qrow.p2_score * (iw.weight_p2 ?? 0) +
+             qrow.p3_score * (iw.weight_p3 ?? 0) +
+             qrow.p4_score * (iw.weight_p4 ?? 0) +
+             qrow.p5_score * (iw.weight_p5 ?? 0) +
+             qrow.p6_score * (iw.weight_p6 ?? 0)) / total
           );
         }
       }

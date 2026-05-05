@@ -64,7 +64,7 @@ export async function GET() {
     // Fetch latest Q-Score per founder
     const { data: scores } = await admin
       .from('qscore_history')
-      .select('user_id, overall_score, team_score, market_score, traction_score, gtm_score, product_score, calculated_at')
+      .select('user_id, overall_score, p1_score, p2_score, p3_score, p4_score, p5_score, p6_score, calculated_at')
       .in('user_id', founderIds)
       .order('calculated_at', { ascending: false })
 
@@ -92,7 +92,7 @@ export async function GET() {
       }
     }
 
-    type ScoreRow = { user_id: string; overall_score: number; team_score: number; market_score: number; traction_score: number; gtm_score: number; product_score: number; calculated_at: string }
+    type ScoreRow = { user_id: string; overall_score: number; p1_score: number; p2_score: number; p3_score: number; p4_score: number; p5_score: number; p6_score: number; calculated_at: string }
     type FounderRow = { user_id: string; startup_name: string; industry: string; stage: string; description: string; full_name: string }
 
     // Build a map: user_id → latest score
@@ -137,11 +137,12 @@ export async function GET() {
         description:      (fp.description  as string) || conn.personal_message || '',
         qScore:           overallScore,
         qScoreBreakdown: {
-          team:    qs?.team_score    ?? 0,
-          market:  qs?.market_score  ?? 0,
-          traction:qs?.traction_score?? 0,
-          gtm:     qs?.gtm_score     ?? 0,
-          product: qs?.product_score ?? 0,
+          p1: qs?.p1_score ?? 0,
+          p2: qs?.p2_score ?? 0,
+          p3: qs?.p3_score ?? 0,
+          p4: qs?.p4_score ?? 0,
+          p5: qs?.p5_score ?? 0,
+          p6: qs?.p6_score ?? 0,
         },
         health:           healthScore,
         connectedAt:      conn.created_at,

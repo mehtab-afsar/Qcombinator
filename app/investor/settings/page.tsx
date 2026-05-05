@@ -79,10 +79,10 @@ export default function InvestorSettingsPage() {
   })
   const [savingPortfolioCfg, setSavingPortfolioCfg] = useState(false)
 
-  // Q-Score dimension weights
+  // Q-Score parameter weights (P1-P6)
   const [weights, setWeights] = useState({
-    weight_market: 20, weight_product: 18, weight_gtm: 17,
-    weight_financial: 18, weight_team: 15, weight_traction: 12,
+    weight_p1: 20, weight_p2: 17, weight_p3: 18,
+    weight_p4: 15, weight_p5: 12, weight_p6: 18,
   })
   const [savingWeights, setSavingWeights] = useState(false)
 
@@ -626,12 +626,12 @@ export default function InvestorSettingsPage() {
               </div>
               <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 18 }}>
                 {([
-                  { key: 'weight_market',    label: 'Market',     color: blue },
-                  { key: 'weight_product',   label: 'Product',    color: green },
-                  { key: 'weight_gtm',       label: 'GTM',        color: amber },
-                  { key: 'weight_financial', label: 'Financial',  color: red },
-                  { key: 'weight_team',      label: 'Team',       color: blue },
-                  { key: 'weight_traction',  label: 'Traction',   color: green },
+                  { key: 'weight_p1', label: 'P1: Market Readiness',   color: blue },
+                  { key: 'weight_p2', label: 'P2: Market Potential',   color: green },
+                  { key: 'weight_p3', label: 'P3: IP & Defensibility', color: amber },
+                  { key: 'weight_p4', label: 'P4: Founder & Team',     color: red },
+                  { key: 'weight_p5', label: 'P5: Structural Impact',  color: blue },
+                  { key: 'weight_p6', label: 'P6: Financials',         color: green },
                 ] as { key: keyof typeof weights; label: string; color: string }[]).map(({ key, label, color }) => (
                   <div key={key}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>

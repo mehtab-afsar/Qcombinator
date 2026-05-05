@@ -196,13 +196,13 @@ export async function POST(_req: NextRequest) {
       .insert({
         user_id: userId,
         overall_score: finalScore,
-        // Legacy dimension fields — mapped from closest IQ parameters for backward compat
-        market_score:   Math.round((paramMap['p1']?.averageScore ?? 0) * 20),
-        product_score:  Math.round((paramMap['p3']?.averageScore ?? 0) * 20),
-        gtm_score:      Math.round((paramMap['p2']?.averageScore ?? 0) * 20),
-        financial_score:Math.round((paramMap['p6']?.averageScore ?? 0) * 20),
-        team_score:     Math.round((paramMap['p4']?.averageScore ?? 0) * 20),
-        traction_score: Math.round((paramMap['p1']?.averageScore ?? 0) * 20),
+        // P1-P6 parameter scores from IQ Score v2 calculator
+        p1_score: Math.round((paramMap['p1']?.averageScore ?? 0) * 20),
+        p2_score: Math.round((paramMap['p2']?.averageScore ?? 0) * 20),
+        p3_score: Math.round((paramMap['p3']?.averageScore ?? 0) * 20),
+        p4_score: Math.round((paramMap['p4']?.averageScore ?? 0) * 20),
+        p5_score: Math.round((paramMap['p5']?.averageScore ?? 0) * 20),
+        p6_score: Math.round((paramMap['p6']?.averageScore ?? 0) * 20),
         grade: finalGrade,
         data_source: 'profile_builder',
         ai_actions: (scoreIntelligence as ScoreIntelligence | null) ?? null,

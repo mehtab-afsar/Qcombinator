@@ -28,7 +28,7 @@ export async function GET() {
       log.warn('qscore_with_delta view error, falling back to direct query:', viewError.message);
       const { data: directData, error: directError } = await supabase
         .from('qscore_history')
-        .select('id, user_id, overall_score, percentile, grade, market_score, product_score, gtm_score, financial_score, team_score, traction_score, calculated_at, ai_actions, data_source, source_artifact_type, score_version, iq_breakdown, available_iq, track')
+        .select('id, user_id, overall_score, percentile, grade, p1_score, p2_score, p3_score, p4_score, p5_score, p6_score, calculated_at, ai_actions, data_source, source_artifact_type, score_version, iq_breakdown, available_iq, track')
         .eq('user_id', user.id)
         .order('calculated_at', { ascending: false })
         .limit(1)
@@ -107,41 +107,41 @@ export async function GET() {
       partialIQ,
       answeredParameters,
       breakdown: {
-        market: {
-          score: latest.market_score,
+        marketReadiness: {
+          score: latest.p1_score,
           weight: 0.20,
-          change: num(latest.market_change),
-          trend: getTrend(num(latest.market_change)),
+          change: num(latest.p1_change),
+          trend: getTrend(num(latest.p1_change)),
         },
-        product: {
-          score: latest.product_score,
-          weight: 0.18,
-          change: num(latest.product_change),
-          trend: getTrend(num(latest.product_change)),
-        },
-        goToMarket: {
-          score: latest.gtm_score,
+        marketPotential: {
+          score: latest.p2_score,
           weight: 0.17,
-          change: num(latest.gtm_change),
-          trend: getTrend(num(latest.gtm_change)),
+          change: num(latest.p2_change),
+          trend: getTrend(num(latest.p2_change)),
         },
-        financial: {
-          score: latest.financial_score,
+        ipDefensibility: {
+          score: latest.p3_score,
           weight: 0.18,
-          change: num(latest.financial_change),
-          trend: getTrend(num(latest.financial_change)),
+          change: num(latest.p3_change),
+          trend: getTrend(num(latest.p3_change)),
         },
-        team: {
-          score: latest.team_score,
+        founderTeam: {
+          score: latest.p4_score,
           weight: 0.15,
-          change: num(latest.team_change),
-          trend: getTrend(num(latest.team_change)),
+          change: num(latest.p4_change),
+          trend: getTrend(num(latest.p4_change)),
         },
-        traction: {
-          score: latest.traction_score,
+        structuralImpact: {
+          score: latest.p5_score,
           weight: 0.12,
-          change: num(latest.traction_change),
-          trend: getTrend(num(latest.traction_change)),
+          change: num(latest.p5_change),
+          trend: getTrend(num(latest.p5_change)),
+        },
+        financials: {
+          score: latest.p6_score,
+          weight: 0.18,
+          change: num(latest.p6_change),
+          trend: getTrend(num(latest.p6_change)),
         },
       },
       calculatedAt: new Date(latest.calculated_at as string),

@@ -33,6 +33,9 @@ CREATE INDEX IF NOT EXISTS idx_qscore_history_previous
 -- in a single query without application-level N+1s.
 -- ============================================================
 
+-- NOTE: qscore_with_delta is recreated by migration 20260506000001_retire_legacy_dimensions.sql
+-- with P1-P6 columns. This original definition is kept for historical reference only.
+-- The active view definition lives in 20260506000001_retire_legacy_dimensions.sql.
 CREATE OR REPLACE VIEW qscore_with_delta AS
 SELECT
   cur.id,
@@ -42,24 +45,24 @@ SELECT
   cur.overall_score,
   cur.percentile,
   cur.grade,
-  cur.market_score,
-  cur.product_score,
-  cur.gtm_score,
-  cur.financial_score,
-  cur.team_score,
-  cur.traction_score,
+  cur.p1_score,
+  cur.p2_score,
+  cur.p3_score,
+  cur.p4_score,
+  cur.p5_score,
+  cur.p6_score,
   cur.calculated_at,
 
   -- Overall change
-  cur.overall_score   - COALESCE(prev.overall_score,   cur.overall_score) AS overall_change,
+  cur.overall_score - COALESCE(prev.overall_score, cur.overall_score) AS overall_change,
 
-  -- Dimension changes
-  cur.market_score    - COALESCE(prev.market_score,    cur.market_score)  AS market_change,
-  cur.product_score   - COALESCE(prev.product_score,   cur.product_score) AS product_change,
-  cur.gtm_score       - COALESCE(prev.gtm_score,       cur.gtm_score)     AS gtm_change,
-  cur.financial_score - COALESCE(prev.financial_score, cur.financial_score) AS financial_change,
-  cur.team_score      - COALESCE(prev.team_score,      cur.team_score)    AS team_change,
-  cur.traction_score  - COALESCE(prev.traction_score,  cur.traction_score) AS traction_change
+  -- Parameter changes (P1-P6)
+  cur.p1_score - COALESCE(prev.p1_score, cur.p1_score) AS p1_change,
+  cur.p2_score - COALESCE(prev.p2_score, cur.p2_score) AS p2_change,
+  cur.p3_score - COALESCE(prev.p3_score, cur.p3_score) AS p3_change,
+  cur.p4_score - COALESCE(prev.p4_score, cur.p4_score) AS p4_change,
+  cur.p5_score - COALESCE(prev.p5_score, cur.p5_score) AS p5_change,
+  cur.p6_score - COALESCE(prev.p6_score, cur.p6_score) AS p6_change
 
 FROM qscore_history cur
 LEFT JOIN qscore_history prev ON cur.previous_score_id = prev.id;

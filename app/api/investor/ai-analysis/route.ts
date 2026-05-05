@@ -29,13 +29,13 @@ export async function GET() {
     const { data: scores } = founderIds.length > 0
       ? await supabase
           .from('qscore_history')
-          .select('user_id, overall_score, team_score, market_score, product_score, traction_score, gtm_score, financial_score, calculated_at')
+          .select('user_id, overall_score, p1_score, p2_score, p3_score, p4_score, p5_score, p6_score, calculated_at')
           .in('user_id', founderIds)
           .order('calculated_at', { ascending: false })
       : { data: [] }
 
     // Keep only the latest score per founder
-    const latestScore: Record<string, { overall_score: number; team_score: number; market_score: number; product_score: number; traction_score: number; gtm_score: number; financial_score: number; calculated_at: string }> = {}
+    const latestScore: Record<string, { overall_score: number; p1_score: number; p2_score: number; p3_score: number; p4_score: number; p5_score: number; p6_score: number; calculated_at: string }> = {}
     for (const s of (scores ?? [])) {
       if (!latestScore[s.user_id]) latestScore[s.user_id] = s
     }
@@ -181,11 +181,12 @@ export async function GET() {
           sector: f.industry || 'Unknown',
           stage: f.stage || '',
           qScore: latestScore[f.user_id]?.overall_score ?? 0,
-          teamScore: latestScore[f.user_id]?.team_score ?? 0,
-          marketScore: latestScore[f.user_id]?.market_score ?? 0,
-          productScore: latestScore[f.user_id]?.product_score ?? 0,
-          financialScore: latestScore[f.user_id]?.financial_score ?? 0,
-          tractionScore: latestScore[f.user_id]?.traction_score ?? 0,
+          p1Score: latestScore[f.user_id]?.p1_score ?? 0,
+          p2Score: latestScore[f.user_id]?.p2_score ?? 0,
+          p3Score: latestScore[f.user_id]?.p3_score ?? 0,
+          p4Score: latestScore[f.user_id]?.p4_score ?? 0,
+          p5Score: latestScore[f.user_id]?.p5_score ?? 0,
+          p6Score: latestScore[f.user_id]?.p6_score ?? 0,
         })),
     })
   } catch (err) {

@@ -11,12 +11,12 @@ function scoreColor(s: number) {
 }
 
 const DIMENSION_LABELS: Record<string, string> = {
-  market:    'Market',
-  product:   'Product',
-  gtm:       'GTM',
-  financial: 'Financial',
-  team:      'Team',
-  traction:  'Traction',
+  marketReadiness:  'Market Readiness',
+  marketPotential:  'Market Potential',
+  ipDefensibility:  'IP & Defensibility',
+  founderTeam:      'Founder & Team',
+  structuralImpact: 'Structural Impact',
+  financials:       'Financials',
 };
 
 // ─── page ─────────────────────────────────────────────────────────────────────
@@ -42,7 +42,7 @@ export default async function PublicPortfolioPage({ params }: Props) {
   // Fetch latest Q-Score
   const { data: qscoreRow } = await supabase
     .from('qscore_history')
-    .select('overall_score, market_score, product_score, gtm_score, financial_score, team_score, traction_score, created_at')
+    .select('overall_score, p1_score, p2_score, p3_score, p4_score, p5_score, p6_score, created_at')
     .eq('user_id', profile.user_id)
     .order('created_at', { ascending: false })
     .limit(1)
@@ -57,12 +57,12 @@ export default async function PublicPortfolioPage({ params }: Props) {
 
   const overall = qscoreRow?.overall_score ?? 0;
   const dimensions = qscoreRow ? {
-    market:    qscoreRow.market_score    ?? 0,
-    product:   qscoreRow.product_score   ?? 0,
-    gtm:       qscoreRow.gtm_score       ?? 0,
-    financial: qscoreRow.financial_score ?? 0,
-    team:      qscoreRow.team_score      ?? 0,
-    traction:  qscoreRow.traction_score  ?? 0,
+    marketReadiness:  qscoreRow.p1_score ?? 0,
+    marketPotential:  qscoreRow.p2_score ?? 0,
+    ipDefensibility:  qscoreRow.p3_score ?? 0,
+    founderTeam:      qscoreRow.p4_score ?? 0,
+    structuralImpact: qscoreRow.p5_score ?? 0,
+    financials:       qscoreRow.p6_score ?? 0,
   } : null;
 
   const circumference = 2 * Math.PI * 52;

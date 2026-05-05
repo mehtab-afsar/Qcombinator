@@ -15,12 +15,12 @@ import { AssessmentData } from '@/features/qscore/types/qscore.types';
  */
 
 const DIMENSION_AGENTS: Record<string, { agentId: string; agentName: string; label: string }> = {
-  market:     { agentId: 'atlas',  agentName: 'Atlas',  label: 'Market' },
-  product:    { agentId: 'nova',   agentName: 'Nova',   label: 'Product' },
-  goToMarket: { agentId: 'patel',  agentName: 'Patel',  label: 'Go-to-Market' },
-  financial:  { agentId: 'felix',  agentName: 'Felix',  label: 'Financial' },
-  team:       { agentId: 'harper', agentName: 'Harper', label: 'Team' },
-  traction:   { agentId: 'susi',   agentName: 'Susi',   label: 'Traction' },
+  'Market Readiness':   { agentId: 'patel',  agentName: 'Patel',  label: 'P1: Market Readiness' },
+  'Market Potential':   { agentId: 'atlas',  agentName: 'Atlas',  label: 'P2: Market Potential' },
+  'IP & Defensibility': { agentId: 'nova',   agentName: 'Nova',   label: 'P3: IP & Defensibility' },
+  'Founder & Team':     { agentId: 'harper', agentName: 'Harper', label: 'P4: Founder & Team' },
+  'Structural Impact':  { agentId: 'sage',   agentName: 'Sage',   label: 'P5: Structural Impact' },
+  'Financials':         { agentId: 'felix',  agentName: 'Felix',  label: 'P6: Financials' },
 };
 
 
@@ -34,7 +34,7 @@ export async function GET(_request: NextRequest) {
     // Fetch latest score row (includes cached ai_actions)
     const { data: latest, error: scoreError } = await supabase
       .from('qscore_history')
-      .select('id, ai_actions, overall_score, market_score, product_score, gtm_score, financial_score, team_score, traction_score, assessment_id, assessment_data')
+      .select('id, ai_actions, overall_score, p1_score, p2_score, p3_score, p4_score, p5_score, p6_score, assessment_id, assessment_data')
       .eq('user_id', user.id)
       .order('calculated_at', { ascending: false })
       .limit(1)
@@ -63,12 +63,12 @@ export async function GET(_request: NextRequest) {
 
     // ── Generate personalized actions via LLM + RAG ────────────────────────
     const scores: Record<string, number> = {
-      market:     latest.market_score    ?? 0,
-      product:    latest.product_score   ?? 0,
-      goToMarket: latest.gtm_score       ?? 0,
-      financial:  latest.financial_score ?? 0,
-      team:       latest.team_score      ?? 0,
-      traction:   latest.traction_score  ?? 0,
+      'Market Readiness':   latest.p1_score ?? 0,
+      'Market Potential':   latest.p2_score ?? 0,
+      'IP & Defensibility': latest.p3_score ?? 0,
+      'Founder & Team':     latest.p4_score ?? 0,
+      'Structural Impact':  latest.p5_score ?? 0,
+      'Financials':         latest.p6_score ?? 0,
     };
 
     // Sorted worst → best

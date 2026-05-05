@@ -39,7 +39,7 @@ export async function POST() {
       { data: checkins },
     ] = await Promise.all([
       supabase.from('founder_profiles').select('startup_name, full_name, industry, stage').eq('user_id', user.id).single(),
-      supabase.from('qscore_history').select('overall_score, market_score, product_score, gtm_score, traction_score, calculated_at').eq('user_id', user.id).order('calculated_at', { ascending: false }).limit(1).single(),
+      supabase.from('qscore_history').select('overall_score, p1_score, p2_score, p3_score, p4_score, p5_score, p6_score, calculated_at').eq('user_id', user.id).order('calculated_at', { ascending: false }).limit(1).single(),
       supabase.from('qscore_history').select('overall_score').eq('user_id', user.id).lt('calculated_at', since30d).order('calculated_at', { ascending: false }).limit(1).single(),
       // Last 3 score snapshots for trend
       supabase.from('qscore_history').select('overall_score, calculated_at').eq('user_id', user.id).order('calculated_at', { ascending: false }).limit(5),
