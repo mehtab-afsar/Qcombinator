@@ -3,16 +3,70 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Send, TrendingUp, CheckCircle2, RefreshCw, FileText, Copy, Share2, ChevronLeft } from 'lucide-react'
+import { Send, TrendingUp, CheckCircle2, RefreshCw, FileText, Copy, ChevronLeft } from 'lucide-react'
 import { useAgentWorkspace }    from '../hooks/useAgentWorkspace'
 import { AgentLeftPanel }       from './AgentLeftPanel'
 import { renderArtifactContent } from '../utils/renderArtifactContent'
 import { ARTIFACT_META }        from '../constants/artifact-meta'
-import { bg, surf, bdr, ink, muted, green, amber } from '../constants/colors'
+import { bg, surf, bdr, ink, muted, green } from '../constants/colors'
 import type { DeliverableConfig }   from './AgentLeftPanel'
 import type { ArtifactRecord, AgentWorkspaceState } from '../hooks/useAgentWorkspace'
 
 export type { DeliverableConfig }
+
+// ─── inline markdown renderer ─────────────────────────────────────────────────
+
+function inlineMd(text: string): React.ReactNode {
+  // Match **bold** before *italic* so ** isn't treated as two * wrappers
+  const parts = text.split(/(\*\*[^*\n]+\*\*|\*(?!\*)[^*\n]+\*)/g)
+  return parts.map((p, i) => {
+    if (p.startsWith('**') && p.endsWith('**')) return <strong key={i}>{p.slice(2, -2)}</strong>
+    if (p.startsWith('*')  && p.endsWith('*'))  return <em key={i}>{p.slice(1, -1)}</em>
+    return p
+  })
+}
+
+function renderMd(raw: string): React.ReactNode {
+  const lines = raw.split('\n')
+  const nodes: React.ReactNode[] = []
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+
+    // Blank line → breathing room between paragraphs
+    if (line.trim() === '') {
+      nodes.push(<div key={`sp-${i}`} style={{ height: 6 }} />)
+      continue
+    }
+
+    // Heading
+    if (/^#{1,3} /.test(line)) {
+      const lvl = (line.match(/^(#{1,3}) /)?.[1].length ?? 1)
+      nodes.push(
+        <div key={i} style={{ fontWeight: 700, fontSize: lvl === 1 ? 14 : 13, marginTop: 4 }}>
+          {inlineMd(line.replace(/^#{1,3} /, ''))}
+        </div>
+      )
+      continue
+    }
+
+    // List item
+    if (/^\s*[-•*] /.test(line)) {
+      nodes.push(
+        <div key={i} style={{ display: 'flex', gap: 7, paddingLeft: 4 }}>
+          <span style={{ flexShrink: 0, opacity: 0.45, marginTop: 1 }}>·</span>
+          <span>{inlineMd(line.replace(/^\s*[-•*] /, ''))}</span>
+        </div>
+      )
+      continue
+    }
+
+    // Normal paragraph line
+    nodes.push(<div key={i}>{inlineMd(line)}</div>)
+  }
+
+  return <>{nodes}</>
+}
 
 export interface CustomPanel {
   id:     string
@@ -38,8 +92,8 @@ export interface AgentWorkspaceProps {
 // ─── action list ──────────────────────────────────────────────────────────────
 
 function ActionsView({
-  workspace, accent,
-}: { workspace: AgentWorkspaceState; accent: string }) {
+  workspace,
+}: { workspace: AgentWorkspaceState }) {
   const pending = workspace.actions.filter(a => a.status !== 'done')
   return (
     <div style={{ flex: 1, overflowY: 'auto', padding: '28px 28px' }}>
@@ -154,7 +208,7 @@ function ArtifactView({
 // ─── main component ────────────────────────────────────────────────────────────
 
 export function AgentWorkspace({
-  agentId, name, role, emoji, accent, badge,
+  agentId, name, role, emoji: _emoji, accent, badge,
   deliverables, suggestedPrompts, customPanel, extras,
 }: AgentWorkspaceProps) {
   const searchParams = useSearchParams()
@@ -217,10 +271,18 @@ export function AgentWorkspace({
 
       {/* left panel */}
       <AgentLeftPanel
-        name={name} role={role} emoji={emoji} accent={accent} badge={badge}
+        accent={accent}
         deliverables={deliverables} artifacts={workspace.artifacts}
         actionsCount={pendingActionsCount}
         activeView={activeView} onViewChange={setActiveView}
+        onBuildDeliverable={(label) => {
+          setActiveView('chat')
+          workspace.send(`Build ${label} for my startup`)
+        }}
+        conversations={workspace.conversations}
+        activeConversationId={workspace.conversationId}
+        onNewConversation={() => { workspace.newConversation(); setActiveView('chat') }}
+        onSwitchConversation={(id) => { workspace.switchConversation(id); setActiveView('chat') }}
         customPanel={customPanel ? {
           id: customPanel.id, label: customPanel.label, icon: customPanel.icon,
           badge: customPanel.badge?.(workspace),
@@ -327,9 +389,9 @@ export function AgentWorkspace({
                         borderTopLeftRadius:  msg.role === 'agent' ? 4 : 14,
                         borderTopRightRadius: msg.role === 'user'  ? 4 : 14,
                         padding: '10px 14px', fontSize: 13, lineHeight: 1.65,
-                        maxWidth: '78%', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                        maxWidth: '78%', wordBreak: 'break-word',
                       }}>
-                        {msg.text}
+                        {msg.role === 'user' ? msg.text : renderMd(msg.text)}
                       </div>
                     )}
                   </motion.div>
@@ -372,7 +434,7 @@ export function AgentWorkspace({
 
           {/* ACTIONS */}
           {activeView === 'actions' && (
-            <ActionsView workspace={workspace} accent={accent} />
+            <ActionsView workspace={workspace} />
           )}
 
           {/* persistent input bar — always visible */}

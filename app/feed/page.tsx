@@ -135,6 +135,7 @@ function FeedCard({
       </p>
 
       {post.mediaUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
         <img src={post.mediaUrl} alt="" style={{ borderRadius: 8, maxWidth: '100%', border: `1px solid ${bdr}` }} />
       )}
 
@@ -298,6 +299,7 @@ function CreatePostModal({ onClose, onPost }: { onClose: () => void; onPost: () 
         {/* image preview */}
         {imagePreview && (
           <div style={{ position: 'relative', marginTop: 10, borderRadius: 8, overflow: 'hidden', border: `1px solid ${bdr}` }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={imagePreview} alt="" style={{ width: '100%', maxHeight: 200, objectFit: 'cover', display: 'block' }} />
             <button
               onClick={removeImage}

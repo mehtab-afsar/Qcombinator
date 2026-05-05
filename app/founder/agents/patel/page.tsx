@@ -1,7 +1,6 @@
 'use client'
 
 import { AgentWorkspace } from '@/features/agents/shared/components/AgentWorkspace'
-import { ClosingRecommendationCard } from '@/features/agents/patel/components/ClosingRecommendationCard'
 import { FileText, Target, Compass, Megaphone, Mail, Swords, BookOpen, Users, BarChart3 } from 'lucide-react'
 import { blue } from '@/features/agents/shared/constants/colors'
 
@@ -37,22 +36,6 @@ export default function PatelWorkspace() {
       badge="AGENTIC GTM"
       deliverables={DELIVERABLES}
       suggestedPrompts={SUGGESTED}
-      extras={({ workspace }) =>
-        workspace.userId ? (
-          <ClosingRecommendationCard
-            userId={workspace.userId}
-            onAction={deliverable => {
-              const labels: Record<string, string> = {
-                icp_document:          'Build D1 ICP Definition for my startup',
-                pains_gains_triggers:  'Build D2 Pains & Gains map for my startup',
-                buyer_journey:         'Build D3 Buyer Journey map for my startup',
-                positioning_messaging: 'Build D4 Positioning & Messaging for my startup',
-              }
-              workspace.send(labels[deliverable] ?? `Build ${deliverable}`)
-            }}
-          />
-        ) : null
-      }
     />
   )
 }

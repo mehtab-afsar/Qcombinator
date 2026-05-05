@@ -29,6 +29,7 @@ import { critiqueArtifact, patchArtifact } from '@/lib/agents/critique';
 import { extractKeyFields } from '@/lib/agents/context-compressor';
 import { getFounderProfileContext } from '@/lib/agents/founder-context';
 import { scoreFromArtifact } from '@/lib/qscore/artifact-scorer';
+import { applyAgentScoreSignal } from '@/features/qscore/services/agent-signal';
 import {
   FF_ARTIFACT_SELF_CRITIQUE,
   FF_CROSS_AGENT_ORCHESTRATION,
@@ -583,6 +584,47 @@ async function executeInitiateVoiceCall(
   return `Voice call initiated: AI SDR dialing **${ctx.lead_name ?? phoneNumber}**${ctx.company ? ` at ${ctx.company}` : ''}. Call ID: ${data.callId ?? 'pending'}.`;
 }
 
+// ─── GET: load conversation history ──────────────────────────────────────────
+
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const agentId = searchParams.get('agentId')
+    const limit   = Math.min(parseInt(searchParams.get('limit') ?? '40', 10), 100)
+
+    const supabase = await createUserClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ messages: [], conversationId: null })
+    if (!agentId) return NextResponse.json({ messages: [], conversationId: null })
+
+    // Find specific conversation or fall back to most recent
+    const specificId = searchParams.get('conversationId')
+    const convQuery = supabase
+      .from('agent_conversations')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('agent_id', agentId)
+    const { data: conv } = specificId
+      ? await convQuery.eq('id', specificId).single()
+      : await convQuery.order('last_message_at', { ascending: false }).limit(1).single()
+
+    if (!conv) return NextResponse.json({ messages: [], conversationId: null })
+
+    // Load messages newest-first then reverse for chronological order
+    const { data: rows } = await supabase
+      .from('agent_messages')
+      .select('role, content')
+      .eq('conversation_id', conv.id)
+      .order('created_at', { ascending: false })
+      .limit(limit)
+
+    const messages = (rows ?? []).reverse()
+    return NextResponse.json({ messages, conversationId: conv.id })
+  } catch {
+    return NextResponse.json({ messages: [], conversationId: null })
+  }
+}
+
 // ─── main handler ────────────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
@@ -752,11 +794,12 @@ export async function POST(request: NextRequest) {
     const CONVERSATION_RULES = `
 
 CONVERSATION RULES:
-- Ask ONE focused question at a time.
-- Keep responses concise: 2–4 sentences for conversational replies; use structured formatting only when delivering a framework or plan the founder requested.
-- When a founder gives a vague answer, push for specifics: numbers, examples, timelines.
-- Be direct, warm, and occasionally sharp — never sycophantic.
-- If you don't know their specific market or product, ask before advising.`;
+- Write in short, separated paragraphs — 1 to 3 sentences each, then a blank line. Never write one long unbroken block of text.
+- Ask ONE focused question per message. Put the question on its own line at the end, after a blank line.
+- No **bold labels**, no header stamps, no rigid end-of-message templates in conversational replies. Use formatting (headers, lists, bold) only when delivering a framework or analysis the founder asked for.
+- Be direct and sharp. Say one thing well, then stop.
+- When a founder gives a vague answer, push for specifics: numbers, names, examples.
+- If you don't know their specific situation, ask before advising.`;
 
     // Build conversation context
     const messages = [
@@ -975,6 +1018,12 @@ CONVERSATION RULES:
                     const { data: saved } = await supabaseAdmin.from('agent_artifacts').insert({ conversation_id: existingConversationId ?? null, user_id: userId, agent_id: agentId, artifact_type: toolName, title: artifactTitle, content: parsedContent, key_fields: extractKeyFields(toolName, parsedContent) }).select('id').single();
                     artifactId = saved?.id ?? null;
                   }
+                  // Await score nudge before scoreFromArtifact inserts its own qscore_history row
+                  // for this artifact type — avoids tripping the idempotency guard in applyAgentScoreSignal
+                  let scoreSignal: Awaited<ReturnType<typeof applyAgentScoreSignal>> = { boosted: false };
+                  if (artifactId && userId) {
+                    try { scoreSignal = await applyAgentScoreSignal(supabaseAdmin, userId, toolName); } catch { /* non-critical */ }
+                  }
                   if (artifactId && userId) void scoreFromArtifact(userId, toolName, parsedContent, supabaseAdmin).catch(() => {});
                   if (artifactId && userId) void postArtifactFeedEvent(userId, toolName, artifactTitle, supabaseAdmin);
                   if (FF_ARTIFACT_SELF_CRITIQUE && artifactId && userId) {
@@ -994,6 +1043,9 @@ CONVERSATION RULES:
                   }
                   logToolExecution(supabaseAdmin, userId, agentId, toolName, t0A, 'success', undefined, 'standard');
                   send({ type: 'artifact', artifact: { id: artifactId, type: toolName, title: artifactTitle, content: parsedContent } });
+                  if (scoreSignal.boosted) {
+                    send({ type: 'score_signal', boosted: true, points: scoreSignal.pointsAdded, dimension: scoreSignal.dimensionLabel, newScore: scoreSignal.newOverall });
+                  }
                   send({ type: 'tool_done', toolName, summary: `${artifactTitle} ready` });
                 } catch (err) {
                   log.error('Artifact streaming error:', err);

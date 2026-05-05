@@ -94,7 +94,7 @@ interface MessageGroupProps {
   isFirst: boolean
 }
 
-export function MessageGroupBlock({ group, senderInitials, myInitials, isFirst }: MessageGroupProps) {
+export function MessageGroupBlock({ group, senderInitials, myInitials: _myInitials, isFirst }: MessageGroupProps) {
   const { isMine, messages, isLastRead } = group
   const lastMsg = messages[messages.length - 1]
 

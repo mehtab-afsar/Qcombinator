@@ -31,7 +31,7 @@ interface DealRow {
 
 interface ActivityRow {
   id: string;
-  event_type: string;
+  action_type: string;
   agent_id: string;
   metadata: Record<string, unknown> | null;
   created_at: string;
@@ -166,7 +166,7 @@ export function CXODashboard({ config, agentId, artifacts, dimensionScore, onSta
     if (!userId) return;
     createClient()
       .from('agent_activity')
-      .select('id, event_type, agent_id, metadata, created_at')
+      .select('id, action_type, agent_id, metadata, created_at')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(6)
@@ -566,7 +566,7 @@ export function CXODashboard({ config, agentId, artifacts, dimensionScore, onSta
                       <p style={{ fontSize: 12, color: ink, margin: 0, lineHeight: 1.4 }}>
                         {(ev.metadata as Record<string, unknown> | null)?.artifact_type
                           ? `Generated ${String((ev.metadata as Record<string, unknown>).artifact_type).replace(/_/g, ' ')}`
-                          : ev.event_type.replace(/_/g, ' ')}
+                          : ev.action_type.replace(/_/g, ' ')}
                       </p>
                       <p style={{ fontSize: 10, color: muted, margin: '2px 0 0' }}>
                         {timeAgo(ev.created_at)}

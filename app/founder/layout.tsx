@@ -18,7 +18,8 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
     pathname.includes("/onboarding") ||
     pathname.includes("/assessment") ||
     pathname.includes("/profile-builder") ||
-    /\/founder\/cxo\/.+/.test(pathname);
+    /\/founder\/cxo\/.+/.test(pathname) ||
+    pathname.startsWith("/founder/agents");
 
   if (hideSidebar) {
     return <>{children}</>;

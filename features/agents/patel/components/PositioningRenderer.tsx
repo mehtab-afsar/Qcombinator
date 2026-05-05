@@ -76,7 +76,7 @@ export function PositioningRenderer({ data }: { data: Record<string, unknown> })
             {d.message_pillars.map((p, i) => (
               <div key={i} style={{ borderLeft: `3px solid ${blue}`, paddingLeft: 12 }}>
                 <p style={{ fontSize: 12, fontWeight: 700, color: blue, marginBottom: 4 }}>{p.pillar}</p>
-                <p style={{ fontSize: 12, color: ink, marginBottom: 4 }}>"{p.claim}"</p>
+                <p style={{ fontSize: 12, color: ink, marginBottom: 4 }}>&quot;{p.claim}&quot;</p>
                 {p.proof && <p style={{ fontSize: 11, color: green, marginBottom: 4 }}>Proof: {p.proof}</p>}
                 {p.objection_handle && <p style={{ fontSize: 11, color: amber }}>Handles: {p.objection_handle}</p>}
               </div>

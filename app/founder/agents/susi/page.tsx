@@ -110,7 +110,7 @@ function DealCard({ deal, onMove, onChat }: {
   )
 }
 
-function SusiPipelinePanel({ onSend, accent: a }: { onSend: (text: string) => void; accent: string }) {
+function SusiPipelinePanel({ onSend, accent: _a }: { onSend: (text: string) => void; accent: string }) {
   const [deals, setDeals]               = useState<Deal[]>([])
   const [reminders, setReminders]       = useState<Reminder[]>([])
   const [loading, setLoading]           = useState(true)

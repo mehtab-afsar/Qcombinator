@@ -2,7 +2,7 @@
 
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { bg, bdr, ink, muted, green, amber, red, blue } from '../../shared/constants/colors'
+import { ink, muted, green, amber, red, blue } from '../../shared/constants/colors'
 
 const SEVERITY_COLOR = (n: number) => n >= 4 ? red : n >= 3 ? amber : green
 const URGENCY_COLOR: Record<string, string> = { high: red, medium: amber, low: green }

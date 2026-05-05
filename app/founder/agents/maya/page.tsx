@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Palette, Calendar, Search, Newspaper, Rss, TrendingUp, Zap } from 'lucide-react'
 import { AgentWorkspace } from '@/features/agents/shared/components/AgentWorkspace'
-import { bg, surf, bdr, ink, muted } from '@/features/agents/shared/constants/colors'
+import { bg, bdr, ink, muted } from '@/features/agents/shared/constants/colors'
 
 const accent = '#EC4899'
 

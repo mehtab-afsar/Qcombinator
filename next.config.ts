@@ -15,14 +15,6 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     return [
-      // Redirect old /founder/agents/:agentId → /founder/cxo/:agentId
-      // missing _embed=1 ensures iframes (which add ?_embed=1) bypass this redirect
-      {
-        source: '/founder/agents/:agentId',
-        destination: '/founder/cxo/:agentId',
-        permanent: false,
-        missing: [{ type: 'query', key: '_embed' }],
-      },
       { source: '/founder/workspace',       destination: '/founder/cxo',                  permanent: false },
       { source: '/founder/pitch-deck',      destination: '/founder/cxo/sage',             permanent: false },
       { source: '/founder/metrics',         destination: '/founder/dashboard',            permanent: false },

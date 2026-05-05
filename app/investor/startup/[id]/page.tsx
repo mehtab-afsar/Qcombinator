@@ -499,7 +499,7 @@ export default function StartupDeepDive() {
             ) : (
               <>
                 <p style={{ fontSize: 12, color: muted, marginBottom: 12, lineHeight: 1.5 }}>
-                  Share this startup with a fellow investor on Edge Alpha. They'll receive a notification.
+                  Share this startup with a fellow investor on Edge Alpha. They&apos;ll receive a notification.
                 </p>
 
                 {/* investor search */}

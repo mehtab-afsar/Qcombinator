@@ -1,12 +1,9 @@
 'use client'
 
 import Link from 'next/link'
-import {
-  ChevronLeft, CheckCircle2, Lock, Circle,
-  MessageSquare, ListChecks,
-} from 'lucide-react'
+import { CheckCircle2, Lock, Circle, ListChecks, Plus, MessageSquare } from 'lucide-react'
 import { surf, bdr, ink, muted, green } from '../constants/colors'
-import type { ArtifactRecord } from '../hooks/useAgentWorkspace'
+import type { ArtifactRecord, ConversationSummary } from '../hooks/useAgentWorkspace'
 
 export interface DeliverableConfig {
   type:             string
@@ -24,23 +21,38 @@ export interface CustomPanelConfig {
 }
 
 interface Props {
-  name:          string
-  role:          string
-  emoji:         string
-  accent:        string
-  badge:         string
-  deliverables:  DeliverableConfig[]
-  artifacts:     ArtifactRecord[]
-  actionsCount:  number
-  activeView:    string
-  onViewChange:  (view: string) => void
-  customPanel?:  CustomPanelConfig
+  accent:               string
+  deliverables:         DeliverableConfig[]
+  artifacts:            ArtifactRecord[]
+  actionsCount:         number
+  activeView:           string
+  onViewChange:         (view: string) => void
+  onBuildDeliverable:   (label: string) => void
+  conversations:        ConversationSummary[]
+  activeConversationId: string | null
+  onNewConversation:    () => void
+  onSwitchConversation: (id: string) => void
+  customPanel?:         CustomPanelConfig
+}
+
+function convDateLabel(iso: string | null): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const now = new Date()
+  const diffDays = Math.floor((now.getTime() - d.getTime()) / 86400000)
+  if (diffDays === 0) return 'today'
+  if (diffDays === 1) return 'yesterday'
+  if (diffDays < 7) return d.toLocaleDateString('en', { weekday: 'short' })
+  return d.toLocaleDateString('en', { month: 'short', day: 'numeric' })
 }
 
 export function AgentLeftPanel({
-  name, role, emoji, accent, badge,
+  accent,
   deliverables, artifacts, actionsCount,
-  activeView, onViewChange, customPanel,
+  activeView, onViewChange, onBuildDeliverable,
+  conversations, activeConversationId,
+  onNewConversation, onSwitchConversation,
+  customPanel,
 }: Props) {
   const builtTypes = new Set(artifacts.map(a => a.type))
 
@@ -51,63 +63,96 @@ export function AgentLeftPanel({
   }
 
   const activeArtifactId = activeView.startsWith('artifact:') ? activeView.slice(9) : null
+  const isChat = activeView === 'chat' && !activeArtifactId
 
   return (
     <div style={{
-      width: 220, minWidth: 220, height: '100vh',
+      width: 232, minWidth: 232, height: '100vh',
       background: surf, borderRight: `1px solid ${bdr}`,
       display: 'flex', flexDirection: 'column',
       overflowY: 'auto', overflowX: 'hidden',
     }}>
-      {/* back */}
-      <div style={{ padding: '16px 14px 10px', flexShrink: 0 }}>
+
+      {/* top bar: back + new chat */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '14px 12px 12px', flexShrink: 0,
+        borderBottom: `1px solid ${bdr}`,
+      }}>
         <Link href="/founder/agents" style={{
           display: 'flex', alignItems: 'center', gap: 5, textDecoration: 'none',
           color: muted, fontSize: 11, fontWeight: 500,
         }}>
-          <ChevronLeft size={12} />
-          CXO Suite
+          ← All agents
         </Link>
+        <button
+          onClick={onNewConversation}
+          title="New conversation"
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 24, height: 24, borderRadius: 6, border: `1px solid ${bdr}`,
+            background: 'transparent', cursor: 'pointer', color: muted,
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = `${bdr}80`; (e.currentTarget as HTMLElement).style.color = ink }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = muted }}
+        >
+          <Plus size={12} />
+        </button>
       </div>
 
-      {/* agent identity */}
-      <div style={{ padding: '0 14px 14px', borderBottom: `1px solid ${bdr}`, flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-          <div style={{
-            width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-            background: `${accent}15`, border: `1.5px solid ${accent}35`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17,
-          }}>
-            {emoji}
-          </div>
-          <div style={{ minWidth: 0 }}>
-            <p style={{ fontSize: 13, fontWeight: 700, color: ink, lineHeight: 1.25, margin: 0 }}>{name}</p>
-            <p style={{ fontSize: 11, color: muted, lineHeight: 1.3, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{role}</p>
-          </div>
-        </div>
-        <span style={{
-          display: 'inline-block',
-          fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em',
-          padding: '2px 7px', borderRadius: 4,
-          background: `${accent}12`, color: accent, border: `1px solid ${accent}28`,
-        }}>
-          {badge}
-        </span>
-      </div>
+      {/* conversations */}
+      <div style={{ padding: '10px 8px 4px', flexShrink: 0 }}>
+        <p style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.13em', color: muted, padding: '0 6px', marginBottom: 4 }}>
+          Conversations
+        </p>
 
-      {/* nav items */}
-      <div style={{ padding: '8px 8px 0', flexShrink: 0 }}>
-        <NavItem label="Chat" icon={MessageSquare} active={activeView === 'chat'} accent={accent}
-          onClick={() => onViewChange('chat')} />
-        {customPanel && (
-          <NavItem label={customPanel.label} icon={customPanel.icon}
-            active={activeView === 'custom'} accent={accent}
-            badge={customPanel.badge} onClick={() => onViewChange('custom')} />
+        {conversations.length === 0 ? (
+          <button
+            onClick={onNewConversation}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 7, width: '100%',
+              padding: '6px 8px', borderRadius: 7, border: 'none', textAlign: 'left',
+              background: isChat ? `${accent}10` : 'transparent', cursor: 'pointer',
+            }}
+            onMouseEnter={e => { if (!isChat) (e.currentTarget as HTMLElement).style.background = `${bdr}60` }}
+            onMouseLeave={e => { if (!isChat) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+          >
+            <MessageSquare size={12} style={{ color: isChat ? accent : muted, flexShrink: 0 }} />
+            <span style={{ fontSize: 11, color: isChat ? accent : muted, fontWeight: isChat ? 600 : 400 }}>New conversation</span>
+          </button>
+        ) : (
+          conversations.map(conv => {
+            const isActive = conv.id === activeConversationId
+            return (
+              <button
+                key={conv.id}
+                onClick={() => onSwitchConversation(conv.id)}
+                style={{
+                  display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+                  gap: 6, width: '100%', padding: '5px 8px', borderRadius: 7,
+                  border: 'none', textAlign: 'left', cursor: 'pointer',
+                  background: isActive ? `${accent}10` : 'transparent',
+                }}
+                onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = `${bdr}60` }}
+                onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+              >
+                <span style={{
+                  fontSize: 11, color: isActive ? accent : ink, fontWeight: isActive ? 600 : 400,
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1,
+                }}>
+                  {conv.title ?? 'Untitled'}
+                </span>
+                <span style={{ fontSize: 9, color: muted, flexShrink: 0 }}>
+                  {convDateLabel(conv.last_message_at)}
+                </span>
+              </button>
+            )
+          })
         )}
       </div>
 
       {/* deliverables */}
-      <div style={{ padding: '14px 8px 0', flex: 1, minHeight: 0 }}>
+      <div style={{ padding: '12px 8px 0', flex: 1, minHeight: 0, borderTop: `1px solid ${bdr}`, marginTop: 8 }}>
         <p style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.13em', color: muted, padding: '0 6px', marginBottom: 5 }}>
           Deliverables
         </p>
@@ -117,20 +162,24 @@ export function AgentLeftPanel({
           const latest  = built[built.length - 1]
           const isActive = !!activeArtifactId && built.some(a => a.id === activeArtifactId)
 
+          const lockedTitle = status === 'locked'
+            ? `Requires: ${(d.prerequisiteTypes ?? []).map(t => deliverables.find(x => x.type === t)?.label ?? t).join(', ')}`
+            : undefined
+
           return (
             <button
               key={d.type}
+              title={lockedTitle}
               onClick={() => {
                 if (status === 'locked') return
                 if (latest) onViewChange(`artifact:${latest.id}`)
-                else onViewChange('chat')
+                else onBuildDeliverable(d.label)
               }}
               style={{
                 display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-                padding: '6px 8px', borderRadius: 7, border: 'none', textAlign: 'left',
+                padding: '5px 8px', borderRadius: 7, border: 'none', textAlign: 'left',
                 background: isActive ? `${accent}10` : 'transparent',
                 cursor: status === 'locked' ? 'not-allowed' : 'pointer',
-                transition: 'background .12s',
               }}
               onMouseEnter={e => { if (status !== 'locked' && !isActive) (e.currentTarget as HTMLElement).style.background = `${bdr}60` }}
               onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
@@ -144,7 +193,7 @@ export function AgentLeftPanel({
               <span style={{
                 fontSize: 11, lineHeight: 1.3, flex: 1,
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                color: status === 'locked' ? muted : isActive ? accent : status === 'done' ? ink : ink,
+                color: status === 'locked' ? muted : isActive ? accent : ink,
                 fontWeight: isActive ? 600 : 400,
                 opacity: status === 'locked' ? 0.5 : 1,
               }}>
@@ -158,10 +207,22 @@ export function AgentLeftPanel({
         })}
       </div>
 
-      {/* actions — pinned to bottom */}
-      <div style={{ padding: '10px 8px 12px', borderTop: `1px solid ${bdr}`, flexShrink: 0 }}>
-        <NavItem label="Actions" icon={ListChecks} active={activeView === 'actions'} accent={accent}
-          badge={actionsCount || undefined} onClick={() => onViewChange('actions')} />
+      {/* bottom: custom panel + actions */}
+      <div style={{ padding: '8px 8px 12px', borderTop: `1px solid ${bdr}`, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        {customPanel && (
+          <NavItem
+            label={customPanel.label} icon={customPanel.icon}
+            active={activeView === 'custom'} accent={accent}
+            badge={customPanel.badge}
+            onClick={() => onViewChange('custom')}
+          />
+        )}
+        <NavItem
+          label="Actions" icon={ListChecks}
+          active={activeView === 'actions'} accent={accent}
+          badge={actionsCount || undefined}
+          onClick={() => onViewChange('actions')}
+        />
       </div>
     </div>
   )
@@ -184,7 +245,6 @@ function NavItem({
         display: 'flex', alignItems: 'center', gap: 8, width: '100%',
         padding: '6px 8px', borderRadius: 7, border: 'none', textAlign: 'left',
         cursor: 'pointer', background: active ? `${accent}12` : 'transparent',
-        transition: 'background .12s',
       }}
       onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = `${bdr}60` }}
       onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'transparent' }}

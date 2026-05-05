@@ -16,27 +16,36 @@ export interface ArtifactRecord {
   id: string; type: string; title: string
   content: Record<string, unknown>; created_at?: string
 }
+export interface ConversationSummary {
+  id: string
+  title: string | null
+  last_message_at: string | null
+  message_count: number
+}
 
 export interface AgentWorkspaceState {
-  userId:          string | null
-  conversationId:  string | null
-  uiMessages:      UiMessage[]
-  apiMessages:     ApiMessage[]
-  input:           string
-  setInput:        (v: string) => void
-  typing:          boolean
-  showPrompts:     boolean
-  loading:         boolean
-  artifacts:       ArtifactRecord[]
-  actions:         ActionItem[]
-  extracting:      boolean
-  scoreBoost:      { points: number; dimension: string } | null
-  latestArtifact:  ArtifactRecord | null
-  send:            (text?: string) => void
-  handleKeyDown:   (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
-  toggleAction:    (id: string, status: string) => Promise<void>
-  extractActions:  () => Promise<void>
-  bottomRef:       React.RefObject<HTMLDivElement | null>
+  userId:               string | null
+  conversationId:       string | null
+  uiMessages:           UiMessage[]
+  apiMessages:          ApiMessage[]
+  input:                string
+  setInput:             (v: string) => void
+  typing:               boolean
+  showPrompts:          boolean
+  loading:              boolean
+  artifacts:            ArtifactRecord[]
+  actions:              ActionItem[]
+  extracting:           boolean
+  scoreBoost:           { points: number; dimension: string } | null
+  latestArtifact:       ArtifactRecord | null
+  conversations:        ConversationSummary[]
+  send:                 (text?: string) => void
+  handleKeyDown:        (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
+  toggleAction:         (id: string, status: string) => Promise<void>
+  extractActions:       () => Promise<void>
+  switchConversation:   (id: string) => Promise<void>
+  newConversation:      () => void
+  bottomRef:            React.RefObject<HTMLDivElement | null>
 }
 
 interface RawArtifact {
@@ -58,6 +67,7 @@ export function useAgentWorkspace(agentId: string): AgentWorkspaceState {
   const [extracting,     setExtracting]    = useState(false)
   const [scoreBoost,     setScoreBoost]    = useState<{ points: number; dimension: string } | null>(null)
   const [latestArtifact, setLatestArtifact]= useState<ArtifactRecord | null>(null)
+  const [conversations,  setConversations] = useState<ConversationSummary[]>([])
 
   const bottomRef = useRef<HTMLDivElement>(null)
   const abortRef  = useRef<AbortController | null>(null)
@@ -69,11 +79,18 @@ export function useAgentWorkspace(agentId: string): AgentWorkspaceState {
     })
   }, [])
 
-  // Load history + artifacts + actions once userId is known
+  const refreshConversations = useCallback(() => {
+    fetch(`/api/agents/conversations?agentId=${agentId}`)
+      .then(r => r.json())
+      .then(d => setConversations(d.conversations ?? []))
+      .catch(() => {})
+  }, [agentId])
+
+  // Load history + artifacts + actions + conversations once userId is known
   useEffect(() => {
     if (!userId) return
     async function load() {
-      // Messages
+      // Messages (most recent conversation)
       const hr = await fetch(`/api/agents/chat?agentId=${agentId}&limit=40`)
       if (hr.ok) {
         const hd = await hr.json()
@@ -87,8 +104,12 @@ export function useAgentWorkspace(agentId: string): AgentWorkspaceState {
       }
       setLoading(false)
 
-      // Artifacts
-      const ar = await fetch(`/api/agents/artifacts?agentId=${agentId}&limit=30`)
+      // Artifacts, Actions, Conversations in parallel
+      const [ar, acr, cr] = await Promise.all([
+        fetch(`/api/agents/artifacts?agentId=${agentId}&limit=30`),
+        fetch(`/api/agents/actions?agentId=${agentId}`),
+        fetch(`/api/agents/conversations?agentId=${agentId}`),
+      ])
       if (ar.ok) {
         const ad = await ar.json()
         setArtifacts((ad.artifacts ?? []).map((a: RawArtifact) => ({
@@ -96,13 +117,8 @@ export function useAgentWorkspace(agentId: string): AgentWorkspaceState {
           content: a.content, created_at: a.created_at,
         })))
       }
-
-      // Actions
-      const acr = await fetch(`/api/agents/actions?agentId=${agentId}`)
-      if (acr.ok) {
-        const acd = await acr.json()
-        setActions(acd.actions ?? [])
-      }
+      if (acr.ok) setActions((await acr.json()).actions ?? [])
+      if (cr.ok)  setConversations((await cr.json()).conversations ?? [])
     }
     load()
   }, [userId, agentId])
@@ -111,6 +127,25 @@ export function useAgentWorkspace(agentId: string): AgentWorkspaceState {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [uiMessages, typing])
+
+  const switchConversation = useCallback(async (id: string) => {
+    setUiMessages([]); setApiMessages([]); setShowPrompts(false)
+    const hr = await fetch(`/api/agents/chat?agentId=${agentId}&conversationId=${id}&limit=40`)
+    if (hr.ok) {
+      const hd = await hr.json()
+      const msgs = (hd.messages ?? []).map((m: ApiMessage) => ({
+        role: m.role === 'assistant' ? 'agent' : 'user', text: m.content,
+      }))
+      setUiMessages(msgs)
+      setApiMessages((hd.messages ?? []).map((m: ApiMessage) => ({ role: m.role, content: m.content })))
+      setConvId(id)
+    }
+  }, [agentId])
+
+  const newConversation = useCallback(() => {
+    setUiMessages([]); setApiMessages([])
+    setConvId(null); setShowPrompts(true)
+  }, [])
 
   const send = useCallback(async (text?: string) => {
     const msg = (text ?? input).trim()
@@ -131,7 +166,7 @@ export function useAgentWorkspace(agentId: string): AgentWorkspaceState {
       const res = await fetch('/api/agents/chat', {
         method: 'POST', signal: ctrl.signal,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agentId, messages: nextApi, stream: true, conversationId }),
+        body: JSON.stringify({ agentId, message: msg, conversationHistory: apiMessages, stream: true, conversationId }),
       })
       if (!res.body) throw new Error('No stream')
       const reader = res.body.getReader(); const dec = new TextDecoder()
@@ -172,6 +207,7 @@ export function useAgentWorkspace(agentId: string): AgentWorkspaceState {
             setTimeout(() => setScoreBoost(null), 4000)
           } else if (evt.type === 'conversation_id' && evt.id) {
             setConvId(evt.id as string)
+            refreshConversations()
           }
         }
       }
@@ -181,7 +217,7 @@ export function useAgentWorkspace(agentId: string): AgentWorkspaceState {
         setUiMessages(p => [...p, { role: 'agent', text: 'Something went wrong. Please try again.' }])
       }
     } finally { setTyping(false) }
-  }, [typing, apiMessages, conversationId, agentId, input])
+  }, [typing, apiMessages, conversationId, agentId, input, refreshConversations])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() }
@@ -213,7 +249,9 @@ export function useAgentWorkspace(agentId: string): AgentWorkspaceState {
     uiMessages, apiMessages,
     input, setInput, typing, showPrompts, loading,
     artifacts, actions, extracting, scoreBoost, latestArtifact,
+    conversations,
     send, handleKeyDown, toggleAction, extractActions,
+    switchConversation, newConversation,
     bottomRef,
   }
 }
