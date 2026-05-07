@@ -178,6 +178,8 @@ export default function ProfileBuilderPage() {
   } | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [rateLimitUntil, setRateLimitUntil] = useState<Date | null>(null)
+  const [isRetake, setIsRetake] = useState(false)
+  const [retakeLoading, setRetakeLoading] = useState(false)
   const [_previewData, setPreviewData] = useState<PreviewData | null>(null)
   const [_previewLoading, setPreviewLoading] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -435,6 +437,16 @@ export default function ProfileBuilderPage() {
     let initialQ: string
     if (currentStep === 'pitch') {
       initialQ = YC_QUESTIONS[0]
+    } else if (isRetake && Object.keys(sec.extractedFields ?? {}).length > 0) {
+      // Redo flow — acknowledge prior data and ask what's changed
+      const RETAKE_OPENERS: Record<number, string> = {
+        1: `Welcome back. I have your traction and market data from last time — things like your customer count, revenue, and sales cycle. What's changed or improved since then? Walk me through any new wins, numbers that have moved, or context you'd like to update.`,
+        2: `I already have your market sizing and competitive context on file. Since your last assessment, has anything shifted — new competitors, market events, or a sharper view of your TAM/SAM? Tell me what's changed.`,
+        3: `Your IP and defensibility data is still on file. Have you filed new patents, hit new milestones on your technical moat, or gathered evidence that makes replication harder? What's new here?`,
+        4: `I have your team profile from before. Any changes — new hires, advisors, exits, or co-founder updates — that would strengthen this section? Even small additions matter.`,
+        5: `Your financials from last time are still here. Walk me through what's changed: updated MRR, runway, burn rate, or any new metrics that paint a clearer picture of the business.`,
+      }
+      initialQ = RETAKE_OPENERS[currentStep as number] ?? `Your previous answers are on file. What's changed or improved in this area since your last assessment?`
     } else {
       const hasExtracted = Object.keys(sec.extractedFields ?? {}).length > 0
       if (hasExtracted) {
@@ -549,28 +561,45 @@ export default function ProfileBuilderPage() {
       },
     }))
 
-    // Pitch: YC-style sequential questions
+    // Pitch: LLM-driven adaptive follow-up
     if (currentStep === 'pitch') {
       setIsTyping(true)
-      await new Promise(r => setTimeout(r, 400))
-      const nextIdx = ycPitchIdx + 1
-      const isLastQuestion = ycPitchIdx >= YC_QUESTIONS.length - 1
-      const reply = isLastQuestion
-        ? "Great answers — your pitch practice is complete. These responses give investors a clear picture of your opportunity."
-        : YC_QUESTIONS[nextIdx]
+      try {
+        const pitchSec = sections['pitch'] ?? initSection()
+        const pitchConversation = pitchSec.conversation + `\nFounder: ${userText}`
+        const res = await fetch('/api/profile-builder/extract', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ section: 'pitch', conversationText: pitchConversation }),
+        })
+        const extracted = await res.json()
+        const reply: string = extracted.followUpQuestion
+          ?? (ycPitchIdx < YC_QUESTIONS.length - 1
+            ? YC_QUESTIONS[ycPitchIdx + 1]
+            : "Pitch practice complete — strong answers across all dimensions.")
+        const isComplete = extracted.completionScore >= 80
 
-      setSections(prev => ({
-        ...prev,
-        pitch: {
-          ...prev['pitch'],
-          messages: [...(prev['pitch']?.messages ?? []), { role: 'agent' as const, text: reply }],
-          completionScore: Math.round(((nextIdx) / YC_QUESTIONS.length) * 100),
-          isComplete: isLastQuestion,
-        },
-      }))
-      if (!isLastQuestion) setYcPitchIdx(nextIdx)
-      else setYcPitchIdx(YC_QUESTIONS.length - 1)
-      setIsTyping(false)
+        setSections(prev => ({
+          ...prev,
+          pitch: {
+            ...prev['pitch'],
+            messages: [...(prev['pitch']?.messages ?? []), { role: 'agent' as const, text: reply }],
+            conversation: pitchConversation + '\nAgent: ' + reply,
+            completionScore: extracted.completionScore ?? 0,
+            isComplete,
+            extractedFields: { ...(prev['pitch']?.extractedFields ?? {}), ...(extracted.mergedFields ?? {}) },
+          },
+        }))
+        if (!isComplete && ycPitchIdx < YC_QUESTIONS.length - 1) setYcPitchIdx(ycPitchIdx + 1)
+      } catch {
+        const fallbackReply = ycPitchIdx < YC_QUESTIONS.length - 1 ? YC_QUESTIONS[ycPitchIdx + 1] : "Pitch practice complete."
+        setSections(prev => ({
+          ...prev,
+          pitch: { ...prev['pitch'], messages: [...(prev['pitch']?.messages ?? []), { role: 'agent' as const, text: fallbackReply }] },
+        }))
+      } finally {
+        setIsTyping(false)
+      }
       return
     }
 
@@ -990,6 +1019,35 @@ export default function ProfileBuilderPage() {
       setSubmitError('Network error — please try again')
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  // ── retake assessment — clears completion flag, goes back to section 1 ───
+  async function handleRetake() {
+    if (!token || retakeLoading) return
+    setRetakeLoading(true)
+    try {
+      const res = await fetch('/api/profile-builder/reset', {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        if (res.status === 429 && data.retakeAvailableAt) {
+          setRateLimitUntil(new Date(data.retakeAvailableAt))
+        } else {
+          setSubmitError(data.error ?? 'Reset failed')
+        }
+        return
+      }
+      // Mark as retake so sections show context-aware opening messages
+      setIsRetake(true)
+      setSubmitResult(null)
+      setCurrentStep(1)
+    } catch {
+      setSubmitError('Network error — please try again')
+    } finally {
+      setRetakeLoading(false)
     }
   }
 
@@ -2700,12 +2758,19 @@ export default function ProfileBuilderPage() {
                         </div>
 
                         {/* Single CTA row */}
-                        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                           <button onClick={() => router.push('/founder/dashboard')} style={{ padding: '10px 22px', borderRadius: 9, border: 'none', background: blue, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', boxShadow: `0 2px 10px ${blue}33` }}>
                             Go to Dashboard →
                           </button>
                           <button onClick={() => router.push('/founder/improve-qscore')} style={{ padding: '10px 22px', borderRadius: 9, border: `1px solid ${bdr}`, background: 'transparent', color: ink, fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
                             Improve my score
+                          </button>
+                          <button
+                            onClick={handleRetake}
+                            disabled={retakeLoading}
+                            style={{ padding: '10px 18px', borderRadius: 9, border: `1px solid ${bdr}`, background: 'transparent', color: retakeLoading ? muted : ink, fontSize: 13, fontWeight: 500, cursor: retakeLoading ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6 }}
+                          >
+                            {retakeLoading ? 'Checking…' : '↺ Retake Assessment'}
                           </button>
                           <button onClick={generateMemoPDF} style={{ padding: '10px 18px', borderRadius: 9, border: `1px solid ${bdr}`, background: 'transparent', color: muted, fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
                             <FileText size={13} strokeWidth={1.75} /> Download PDF

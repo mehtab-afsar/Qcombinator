@@ -22,6 +22,8 @@ export interface CustomPanelConfig {
 
 interface Props {
   accent:               string
+  agentName:            string
+  agentRole:            string
   deliverables:         DeliverableConfig[]
   artifacts:            ArtifactRecord[]
   actionsCount:         number
@@ -48,6 +50,7 @@ function convDateLabel(iso: string | null): string {
 
 export function AgentLeftPanel({
   accent,
+  agentName, agentRole,
   deliverables, artifacts, actionsCount,
   activeView, onViewChange, onBuildDeliverable,
   conversations, activeConversationId,
@@ -76,7 +79,7 @@ export function AgentLeftPanel({
       {/* top bar: back + new chat */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '14px 12px 12px', flexShrink: 0,
+        padding: '12px 12px 10px', flexShrink: 0,
         borderBottom: `1px solid ${bdr}`,
       }}>
         <Link href="/founder/agents" style={{
@@ -100,9 +103,27 @@ export function AgentLeftPanel({
         </button>
       </div>
 
+      {/* agent identity */}
+      <div style={{ padding: '14px 14px 12px', borderBottom: `1px solid ${bdr}`, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{
+            width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+            background: `${accent}15`, border: `1.5px solid ${accent}40`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 13, fontWeight: 700, color: accent,
+          }}>
+            {agentName[0]}
+          </div>
+          <div>
+            <p style={{ fontSize: 13, fontWeight: 600, color: ink, margin: 0, lineHeight: 1.2 }}>{agentName}</p>
+            <p style={{ fontSize: 10, color: muted, margin: '2px 0 0', lineHeight: 1.2 }}>{agentRole}</p>
+          </div>
+        </div>
+      </div>
+
       {/* conversations */}
       <div style={{ padding: '10px 8px 4px', flexShrink: 0 }}>
-        <p style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.13em', color: muted, padding: '0 6px', marginBottom: 4 }}>
+        <p style={{ fontSize: 10, fontWeight: 500, color: muted, padding: '0 6px', marginBottom: 4 }}>
           Conversations
         </p>
 
@@ -152,8 +173,8 @@ export function AgentLeftPanel({
       </div>
 
       {/* deliverables */}
-      <div style={{ padding: '12px 8px 0', flex: 1, minHeight: 0, borderTop: `1px solid ${bdr}`, marginTop: 8 }}>
-        <p style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.13em', color: muted, padding: '0 6px', marginBottom: 5 }}>
+      <div style={{ padding: '10px 8px 4px', borderTop: `1px solid ${bdr}` }}>
+        <p style={{ fontSize: 10, fontWeight: 500, color: muted, padding: '0 6px', marginBottom: 4 }}>
           Deliverables
         </p>
         {deliverables.map(d => {
@@ -207,23 +228,27 @@ export function AgentLeftPanel({
         })}
       </div>
 
-      {/* bottom: custom panel + actions */}
-      <div style={{ padding: '8px 8px 12px', borderTop: `1px solid ${bdr}`, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {customPanel && (
-          <NavItem
-            label={customPanel.label} icon={customPanel.icon}
-            active={activeView === 'custom'} accent={accent}
-            badge={customPanel.badge}
-            onClick={() => onViewChange('custom')}
-          />
-        )}
-        <NavItem
-          label="Actions" icon={ListChecks}
-          active={activeView === 'actions'} accent={accent}
-          badge={actionsCount || undefined}
-          onClick={() => onViewChange('actions')}
-        />
-      </div>
+      {/* bottom: custom panel + actions (only shown when relevant) */}
+      {(customPanel || actionsCount > 0) && (
+        <div style={{ padding: '8px 8px 12px', borderTop: `1px solid ${bdr}`, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 2, marginTop: 'auto' }}>
+          {customPanel && (
+            <NavItem
+              label={customPanel.label} icon={customPanel.icon}
+              active={activeView === 'custom'} accent={accent}
+              badge={customPanel.badge}
+              onClick={() => onViewChange('custom')}
+            />
+          )}
+          {actionsCount > 0 && (
+            <NavItem
+              label="Actions" icon={ListChecks}
+              active={activeView === 'actions'} accent={accent}
+              badge={actionsCount}
+              onClick={() => onViewChange('actions')}
+            />
+          )}
+        </div>
+      )}
     </div>
   )
 }

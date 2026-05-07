@@ -272,6 +272,8 @@ export function AgentWorkspace({
       {/* left panel */}
       <AgentLeftPanel
         accent={accent}
+        agentName={name}
+        agentRole={role}
         deliverables={deliverables} artifacts={workspace.artifacts}
         actionsCount={pendingActionsCount}
         activeView={activeView} onViewChange={setActiveView}
@@ -314,11 +316,11 @@ export function AgentWorkspace({
               <span style={{ fontSize: 13, fontWeight: 600, color: ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 420 }}>{activeArtifact.title}</span>
             </div>
           ) : (
-            <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>
+            <p style={{ fontSize: 13, fontWeight: 500, color: muted }}>
               {activeView === 'actions'
                 ? 'Actions'
                 : activeView === 'custom' ? (customPanel?.label ?? 'Overview')
-                : `${name} · ${role}`}
+                : workspace.conversations.find(c => c.id === workspace.conversationId)?.title ?? 'Chat'}
             </p>
           )}
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 10px', background: surf, border: `1px solid ${bdr}`, borderRadius: 999, fontSize: 10, color: muted, flexShrink: 0 }}>
@@ -339,21 +341,30 @@ export function AgentWorkspace({
                 <AnimatePresence>
                   {workspace.showPrompts && (
                     <motion.div key="prompts" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}>
-                      <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
-                        <div style={{ height: 28, width: 28, borderRadius: 8, flexShrink: 0, marginTop: 2, background: surf, border: `2px solid ${accent}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: accent }}>
+                      <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+                        <div style={{ height: 32, width: 32, borderRadius: 10, flexShrink: 0, marginTop: 2, background: `${accent}15`, border: `1.5px solid ${accent}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: accent }}>
                           {name[0]}
                         </div>
-                        <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 14, borderTopLeftRadius: 4, padding: '12px 16px', fontSize: 13, lineHeight: 1.65, color: ink, maxWidth: '82%' }}>
-                          I&apos;m {name}, your {role}. How can I help you today?
+                        <div style={{ paddingTop: 4, fontSize: 13, lineHeight: 1.7, color: ink, maxWidth: '82%' }}>
+                          <span style={{ fontWeight: 600 }}>{name}</span> — ready when you are.
                         </div>
                       </div>
-                      <div style={{ paddingLeft: 38, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      <div style={{ paddingLeft: 44, display: 'flex', flexDirection: 'column', gap: 4 }}>
                         {suggestedPrompts.map((p, i) => (
                           <button key={i} onClick={() => workspace.send(p)}
-                            style={{ padding: '7px 14px', borderRadius: 999, fontSize: 12, background: bg, border: `1px solid ${bdr}`, color: muted, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s' }}
-                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = ink; (e.currentTarget as HTMLElement).style.color = ink }}
-                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = bdr; (e.currentTarget as HTMLElement).style.color = muted }}
-                          >{p}</button>
+                            style={{
+                              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                              padding: '9px 12px', borderRadius: 8, fontSize: 12,
+                              background: 'transparent', border: `1px solid ${bdr}`,
+                              color: muted, cursor: 'pointer', fontFamily: 'inherit',
+                              textAlign: 'left', transition: 'all .15s',
+                            }}
+                            onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = `${accent}60`; el.style.color = ink; el.style.background = `${accent}05` }}
+                            onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = bdr; el.style.color = muted; el.style.background = 'transparent' }}
+                          >
+                            <span style={{ flex: 1 }}>{p}</span>
+                            <span style={{ fontSize: 11, opacity: 0.4, flexShrink: 0 }}>↗</span>
+                          </button>
                         ))}
                       </div>
                     </motion.div>
@@ -363,35 +374,40 @@ export function AgentWorkspace({
                 {/* messages */}
                 {workspace.uiMessages.map((msg, idx) => (
                   <motion.div key={idx} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
-                    style={{ display: 'flex', gap: 10, flexDirection: msg.role === 'user' ? 'row-reverse' : 'row' }}
+                    style={{ display: 'flex', gap: 12, flexDirection: msg.role === 'user' ? 'row-reverse' : 'row' }}
                   >
                     {msg.role !== 'user' && (
-                      <div style={{ height: 28, width: 28, borderRadius: 8, flexShrink: 0, marginTop: 2, background: surf, border: `2px solid ${accent}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: accent }}>
+                      <div style={{ height: 32, width: 32, borderRadius: 10, flexShrink: 0, marginTop: 1, background: `${accent}15`, border: `1.5px solid ${accent}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: accent }}>
                         {msg.role === 'tool' ? '⚡' : name[0]}
                       </div>
                     )}
                     {msg.role === 'tool' && msg.toolActivity ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', background: surf, border: `1px solid ${bdr}`, borderRadius: 10, fontSize: 12, color: muted, maxWidth: '72%' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', background: surf, border: `1px solid ${bdr}`, borderRadius: 8, fontSize: 12, color: muted, maxWidth: '72%' }}>
                         {msg.toolActivity.status === 'running'
-                          ? <motion.div style={{ width: 7, height: 7, borderRadius: '50%', background: accent, flexShrink: 0 }} animate={{ opacity: [1, 0.3, 1] }} transition={{ repeat: Infinity, duration: 0.9 }} />
-                          : <CheckCircle2 size={12} style={{ color: green, flexShrink: 0 }} />
+                          ? <motion.div style={{ width: 6, height: 6, borderRadius: '50%', background: accent, flexShrink: 0 }} animate={{ opacity: [1, 0.3, 1] }} transition={{ repeat: Infinity, duration: 0.9 }} />
+                          : <CheckCircle2 size={11} style={{ color: green, flexShrink: 0 }} />
                         }
                         <span style={{ color: msg.toolActivity.status === 'running' ? ink : muted }}>
                           {msg.toolActivity.status === 'running' ? msg.toolActivity.label : (msg.toolActivity.summary ?? msg.toolActivity.label)}
                         </span>
                       </div>
+                    ) : msg.role === 'user' ? (
+                      <div style={{
+                        background: `${accent}0D`,
+                        border: `1px solid ${accent}25`,
+                        borderRadius: 10,
+                        padding: '9px 14px', fontSize: 13, lineHeight: 1.65,
+                        maxWidth: '72%', wordBreak: 'break-word', color: ink,
+                      }}>
+                        {msg.text}
+                      </div>
                     ) : (
                       <div style={{
-                        background: msg.role === 'user' ? ink : surf,
-                        color:      msg.role === 'user' ? bg  : ink,
-                        border:     msg.role === 'user' ? 'none' : `1px solid ${bdr}`,
-                        borderRadius: 14,
-                        borderTopLeftRadius:  msg.role === 'agent' ? 4 : 14,
-                        borderTopRightRadius: msg.role === 'user'  ? 4 : 14,
-                        padding: '10px 14px', fontSize: 13, lineHeight: 1.65,
-                        maxWidth: '78%', wordBreak: 'break-word',
+                        fontSize: 13, lineHeight: 1.72, color: ink,
+                        maxWidth: '80%', wordBreak: 'break-word',
+                        paddingTop: 4,
                       }}>
-                        {msg.role === 'user' ? msg.text : renderMd(msg.text)}
+                        {renderMd(msg.text)}
                       </div>
                     )}
                   </motion.div>
@@ -399,11 +415,11 @@ export function AgentWorkspace({
 
                 {/* typing indicator */}
                 {workspace.typing && workspace.uiMessages[workspace.uiMessages.length - 1]?.role !== 'agent' && (
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ display: 'flex', gap: 10 }}>
-                    <div style={{ height: 28, width: 28, borderRadius: 8, flexShrink: 0, background: surf, border: `2px solid ${accent}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: accent }}>
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ display: 'flex', gap: 12 }}>
+                    <div style={{ height: 32, width: 32, borderRadius: 10, flexShrink: 0, background: `${accent}15`, border: `1.5px solid ${accent}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: accent }}>
                       {name[0]}
                     </div>
-                    <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 14, borderTopLeftRadius: 4, padding: '10px 14px', display: 'flex', gap: 4, alignItems: 'center' }}>
+                    <div style={{ paddingTop: 10, display: 'flex', gap: 4, alignItems: 'center' }}>
                       {[0, 1, 2].map(j => (
                         <motion.span key={j} style={{ height: 5, width: 5, borderRadius: '50%', background: muted, display: 'inline-block' }}
                           animate={{ opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 1, delay: j * 0.2 }} />
@@ -438,25 +454,39 @@ export function AgentWorkspace({
           )}
 
           {/* persistent input bar — always visible */}
-          <div style={{ flexShrink: 0, padding: '10px 20px 16px', borderTop: `1px solid ${bdr}`, background: bg }}>
+          <div style={{ flexShrink: 0, padding: '10px 24px 18px', borderTop: `1px solid ${bdr}`, background: bg }}>
             <div style={{ maxWidth: 700, margin: '0 auto' }}>
-              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, padding: '10px 14px', background: surf, border: `1px solid ${bdr}`, borderRadius: 12 }}>
+              <div style={{
+                display: 'flex', alignItems: 'flex-end', gap: 10,
+                padding: '10px 14px 10px 16px',
+                background: surf, border: `1px solid ${bdr}`,
+                borderRadius: 14,
+                boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+              }}>
                 <textarea
                   value={workspace.input}
                   onChange={e => workspace.setInput(e.target.value)}
                   onKeyDown={workspace.handleKeyDown}
-                  placeholder={activeArtifact ? `Refine ${activeArtifact.title}…` : `Ask ${name}…`}
+                  placeholder={activeArtifact ? `Refine ${activeArtifact.title}…` : `Message ${name}…`}
                   rows={1}
-                  style={{ flex: 1, background: 'none', border: 'none', outline: 'none', fontSize: 14, color: ink, fontFamily: 'inherit', resize: 'none', lineHeight: 1.5, maxHeight: 120, overflowY: 'auto' }}
+                  style={{ flex: 1, background: 'none', border: 'none', outline: 'none', fontSize: 14, color: ink, fontFamily: 'inherit', resize: 'none', lineHeight: 1.5, maxHeight: 120, overflowY: 'auto', paddingTop: 1 }}
                 />
                 <button
                   onClick={() => { if (activeArtifact && workspace.input.trim()) setActiveView('chat'); workspace.send() }}
                   disabled={!workspace.input.trim() || workspace.typing}
-                  style={{ height: 32, width: 32, borderRadius: 8, flexShrink: 0, background: !workspace.input.trim() || workspace.typing ? bdr : ink, border: 'none', cursor: !workspace.input.trim() || workspace.typing ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background .15s' }}
+                  style={{
+                    height: 32, width: 32, borderRadius: 9, flexShrink: 0,
+                    background: !workspace.input.trim() || workspace.typing ? `${bdr}` : accent,
+                    border: 'none',
+                    cursor: !workspace.input.trim() || workspace.typing ? 'default' : 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    transition: 'background .15s',
+                  }}
                 >
-                  <Send size={14} style={{ color: !workspace.input.trim() || workspace.typing ? muted : bg }} />
+                  <Send size={13} style={{ color: !workspace.input.trim() || workspace.typing ? muted : '#fff' }} />
                 </button>
               </div>
+              <p style={{ fontSize: 10, color: muted, textAlign: 'center', marginTop: 6, opacity: 0.6 }}>Enter to send · Shift+Enter for new line</p>
             </div>
           </div>
         </div>

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { EXTRACTION_PROMPTS, FOLLOW_UP_PROMPT, WHAT_ELSE_PROMPT } from '@/lib/profile-builder/extraction-prompts'
+import { EXTRACTION_PROMPTS, PITCH_EXTRACTION_PROMPT, FOLLOW_UP_PROMPT, WHAT_ELSE_PROMPT } from '@/lib/profile-builder/extraction-prompts'
 import { getSectionCompletionPct, getMissingFields, FounderProfile } from '@/lib/profile-builder/question-engine'
 import { routedText } from '@/lib/llm/router'
 import { flattenConfidence } from '@/lib/profile-builder/utils'
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
       existingExtracted,
       existingConfidenceMap,
     }: {
-      section: number
+      section: number | 'pitch'
       conversationText: string
       uploadedDocumentText?: string
       founderProfile?: FounderProfile
@@ -43,7 +43,61 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'section and conversationText required' }, { status: 400 })
     }
 
-    const sectionPrompt = EXTRACTION_PROMPTS[section]
+    // Pitch section: extract pitch quality + generate adaptive follow-up
+    if (section === 'pitch') {
+      const pitchConversation = conversationText
+      let followUpQuestion: string | null = null
+      let extractedFields: Record<string, unknown> = {}
+
+      try {
+        const raw = await routedText('extraction', [
+          { role: 'system', content: PITCH_EXTRACTION_PROMPT },
+          { role: 'user', content: `Conversation:\n${pitchConversation}` },
+        ])
+        const jsonMatch = raw.match(/\{[\s\S]*\}/)
+        if (jsonMatch) {
+          try { extractedFields = JSON.parse(jsonMatch[0]) } catch { /* ignore */ }
+        }
+      } catch { /* non-blocking */ }
+
+      // Always generate an adaptive follow-up for pitch
+      try {
+        const followUpRaw = await routedText('generation', [
+          {
+            role: 'system',
+            content: `You are a sharp VC analyst running a YC-style pitch interview. The founder is answering five pitch dimensions: what they do, who has the problem, why now, team advantage, and business model.
+
+Read the conversation so far and identify the WEAKEST or most incomplete answer. Ask ONE sharp probing question about that specific point.
+
+Rules:
+- Never ask a question already answered clearly
+- If an answer is vague, push for specifics: real numbers, names, timelines
+- If they said "hey" or gave a non-answer, acknowledge it briefly and ask the first open question about what their company does
+- Do not explain what you're doing — just ask the question
+- 1–2 sentences max
+- Do NOT use phrases like "Great answer" or "I'd be happy to"`,
+          },
+          { role: 'user', content: `Pitch conversation:\n${pitchConversation}\n\nWrite your follow-up question:` },
+        ], { maxTokens: 120 })
+        followUpQuestion = followUpRaw.trim() || null
+      } catch { /* non-blocking */ }
+
+      // Hard fallback — only if LLM entirely failed
+      if (!followUpQuestion) {
+        followUpQuestion = "Walk me through what your company does — one sentence, as if you're explaining it to a smart friend who's never heard of it."
+      }
+
+      return NextResponse.json({
+        extractedFields,
+        mergedFields: { ...(existingExtracted ?? {}), ...extractedFields },
+        confidenceMap: existingConfidenceMap ?? {},
+        completionScore: Object.keys(extractedFields).length >= 4 ? 80 : 40,
+        missingFields: [],
+        followUpQuestion,
+      })
+    }
+
+    const sectionPrompt = EXTRACTION_PROMPTS[section as number]
     if (!sectionPrompt) return NextResponse.json({ error: 'Invalid section' }, { status: 400 })
 
     // Section compaction: long conversations are summarised before extraction.
@@ -146,6 +200,7 @@ export async function POST(req: NextRequest) {
     // Use effectiveConversation (already summarised if >4000 chars) so the model
     // sees the full context without the 1500-char truncation that caused re-asks.
     let followUpQuestion: string | null = null
+    const sectionNum = section as number
     if (missingFields.length > 0 && founderProfile) {
       const followUpPrompt = FOLLOW_UP_PROMPT
         .replace('{section}', String(section))
@@ -192,6 +247,18 @@ export async function POST(req: NextRequest) {
           followUpQuestion = "Got it — and roughly how many months would it take a well-funded competitor to replicate what you've built technically?"
         }
       }
+    } else if (!founderProfile && missingFields.length > 0) {
+      // founderProfile not provided — still generate an adaptive follow-up
+      try {
+        const minimalFollowUp = await routedText('generation', [
+          {
+            role: 'system',
+            content: `You are a sharp startup advisor. Based on this conversation, write ONE short follow-up question (1-2 sentences) that asks about the most important detail still missing. Acknowledge what was just said. Be specific, not generic.`,
+          },
+          { role: 'user', content: `Section: ${sectionNum}\nConversation:\n${effectiveConversation}\nWrite your follow-up:` },
+        ], { maxTokens: 120 })
+        followUpQuestion = minimalFollowUp.trim() || null
+      } catch { /* non-blocking */ }
     } else if (founderProfile && completionScore >= 60) {
       // Section is complete — ask for more specific depth rather than returning null
       const flatSummary = (() => {

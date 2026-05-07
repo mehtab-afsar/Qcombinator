@@ -158,7 +158,7 @@ export function useAgentWorkspace(agentId: string): AgentWorkspaceState {
     abortRef.current?.abort()
     const ctrl = new AbortController()
     abortRef.current = ctrl
-    let toolIdx = -1; let agentText = ''
+    let toolIdx = -1; let agentText = ''; let isFirstDelta = true
 
     try {
       const res = await fetch('/api/agents/chat', {
@@ -179,12 +179,12 @@ export function useAgentWorkspace(agentId: string): AgentWorkspaceState {
 
           if (evt.type === 'delta') {
             agentText += evt.text as string
-            setUiMessages(p => {
-              const idx = p.findLastIndex(m => m.role === 'agent')
-              return idx === -1
-                ? [...p, { role: 'agent', text: agentText }]
-                : p.map((m, i) => i === idx ? { ...m, text: agentText } : m)
-            })
+            if (isFirstDelta) {
+              isFirstDelta = false
+              setUiMessages(p => [...p, { role: 'agent', text: agentText }])
+            } else {
+              setUiMessages(p => p.map((m, i) => i === p.length - 1 ? { ...m, text: agentText } : m))
+            }
           } else if (evt.type === 'tool_start') {
             const tm: UiMessage = { role: 'tool', text: '', toolActivity: { toolName: evt.toolName as string, label: evt.label as string, status: 'running' } }
             setUiMessages(p => { toolIdx = p.length; return [...p, tm] })
