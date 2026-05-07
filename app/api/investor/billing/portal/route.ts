@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { stripe } from '@/lib/stripe'
+import { getStripe } from '@/lib/stripe'
 import { verifyAuth } from '@/lib/auth/verify'
 import { log } from '@/lib/logger'
 
@@ -21,7 +21,7 @@ export async function POST() {
       return NextResponse.json({ error: 'No billing account found' }, { status: 404 })
     }
 
-    const session = await stripe.billingPortal.sessions.create({
+    const session = await getStripe().billingPortal.sessions.create({
       customer: profile.stripe_customer_id,
       return_url: `${process.env.NEXT_PUBLIC_APP_URL}/investor/billing`,
     })

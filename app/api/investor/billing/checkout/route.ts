@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { stripe } from '@/lib/stripe'
+import { getStripe } from '@/lib/stripe'
 import { verifyAuth } from '@/lib/auth/verify'
 import { log } from '@/lib/logger'
 
@@ -19,7 +19,7 @@ export async function POST() {
 
     // If already pro, redirect to billing portal instead
     if (profile?.subscription_tier === 'pro') {
-      const portalSession = await stripe.billingPortal.sessions.create({
+      const portalSession = await getStripe().billingPortal.sessions.create({
         customer: profile.stripe_customer_id!,
         return_url: `${process.env.NEXT_PUBLIC_APP_URL}/investor/billing`,
       })
@@ -29,7 +29,7 @@ export async function POST() {
     // Create or retrieve Stripe customer
     let customerId = profile?.stripe_customer_id
     if (!customerId) {
-      const customer = await stripe.customers.create({
+      const customer = await getStripe().customers.create({
         email: user.email,
         name: (profile?.full_name as string) || user.email,
         metadata: { user_id: user.id, role: 'investor' },
@@ -41,7 +41,7 @@ export async function POST() {
         .eq('user_id', user.id)
     }
 
-    const session = await stripe.checkout.sessions.create({
+    const session = await getStripe().checkout.sessions.create({
       customer: customerId,
       mode: 'subscription',
       line_items: [{ price: process.env.STRIPE_INVESTOR_PRO_PRICE_ID!, quantity: 1 }],
