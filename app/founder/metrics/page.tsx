@@ -10,6 +10,7 @@ import {
 import { useMetrics } from "@/features/founder/hooks/useFounderData";
 import Link from "next/link";
 import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
+import { PageSpinner } from '@/features/shared/components/Spinner'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 function trendColor(v: number) { return v > 0 ? green : v < 0 ? red : muted; }
@@ -247,16 +248,7 @@ export default function MetricsTracker() {
     }
   }
 
-  if (loading) {
-    return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: bg }}>
-        <div style={{ textAlign: "center" }}>
-          <RefreshCw style={{ width: 28, height: 28, color: muted, margin: "0 auto 12px" }} className="animate-spin" />
-          <p style={{ fontSize: 14, fontWeight: 300, color: muted }}>Loading metrics…</p>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <PageSpinner label="Loading metrics…" />
 
   if (!metrics && !editing) {
     return (

@@ -5,12 +5,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Calendar, Users, Clock, Star,
   Award, ArrowRight, Video, Play, CheckCircle,
-  Sparkles, BookOpen, Zap, Brain, Loader2,
+  Sparkles, BookOpen, Zap, Brain,
 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import type { Workshop, Mentor, AcademyProgram } from "@/features/academy/types/academy.types";
 import { bg, surf, bdr, ink, muted } from '@/lib/constants/colors'
+import { SectionSpinner } from '@/features/shared/components/Spinner'
 
 // ─── recommended resources per dimension ──────────────────────────────────────
 const RECOMMENDED = [
@@ -173,13 +174,7 @@ function AcademyInner() {
           </div>
         </motion.div>
 
-        {/* ── Loading skeleton ─────────────────────────────────────── */}
-        {loading && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '48px 0', justifyContent: 'center' }}>
-            <Loader2 size={18} color={muted} style={{ animation: 'spin 1s linear infinite' }} />
-            <span style={{ fontSize: 13, color: muted }}>Loading academy…</span>
-          </div>
-        )}
+        {loading && <SectionSpinner label="Loading academy…" minHeight={120} />}
 
         {/* ── Tab bar ─────────────────────────────────────────────────── */}
         {!loading && <motion.div

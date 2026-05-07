@@ -90,8 +90,13 @@ export function useAgentWorkspace(agentId: string): AgentWorkspaceState {
   useEffect(() => {
     if (!userId) return
     async function load() {
-      // Messages (most recent conversation)
-      const hr = await fetch(`/api/agents/chat?agentId=${agentId}&limit=40`)
+      // Fire all 4 requests simultaneously — no waterfall
+      const [hr, ar, acr, cr] = await Promise.all([
+        fetch(`/api/agents/chat?agentId=${agentId}&limit=40`),
+        fetch(`/api/agents/artifacts?agentId=${agentId}&limit=30`),
+        fetch(`/api/agents/actions?agentId=${agentId}`),
+        fetch(`/api/agents/conversations?agentId=${agentId}`),
+      ])
       if (hr.ok) {
         const hd = await hr.json()
         const msgs = (hd.messages ?? []).map((m: ApiMessage) => ({
@@ -103,13 +108,6 @@ export function useAgentWorkspace(agentId: string): AgentWorkspaceState {
         if (hd.conversationId) setConvId(hd.conversationId)
       }
       setLoading(false)
-
-      // Artifacts, Actions, Conversations in parallel
-      const [ar, acr, cr] = await Promise.all([
-        fetch(`/api/agents/artifacts?agentId=${agentId}&limit=30`),
-        fetch(`/api/agents/actions?agentId=${agentId}`),
-        fetch(`/api/agents/conversations?agentId=${agentId}`),
-      ])
       if (ar.ok) {
         const ad = await ar.json()
         setArtifacts((ad.artifacts ?? []).map((a: RawArtifact) => ({

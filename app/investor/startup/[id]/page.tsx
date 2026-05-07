@@ -28,6 +28,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
 import { Avatar } from '@/features/shared/components/Avatar'
+import { PageSpinner } from '@/features/shared/components/Spinner'
 
 // ─── types ────────────────────────────────────────────────────────────────────
 const TABS = ["overview", "financials", "team", "market", "documents", "analysis"] as const;
@@ -251,15 +252,7 @@ export default function StartupDeepDive() {
     URL.revokeObjectURL(a.href);
   }
 
-  if (loading) {
-    return (
-      <div style={{ minHeight: '100vh', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12 }}>
-        <Loader2 size={20} color={muted} style={{ animation: 'spin 1s linear infinite' }} />
-        <p style={{ fontSize: 13, color: muted }}>Loading profile…</p>
-        <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-      </div>
-    );
-  }
+  if (loading) return <PageSpinner label="Loading profile…" />
 
   if (error || !startup) {
     return (

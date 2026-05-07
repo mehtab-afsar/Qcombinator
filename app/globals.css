@@ -149,6 +149,11 @@
   }
 }
 
+/* ── Spinner animations ─────────────────────────────────────────────────────── */
+@keyframes ea-spin    { to { transform: rotate(360deg); } }
+@keyframes spin       { to { transform: rotate(360deg); } }
+@keyframes ea-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
 /* ── Marquee animations ─────────────────────────────────────────────────────── */
 @keyframes marquee-left {
   from { transform: translateX(0); }

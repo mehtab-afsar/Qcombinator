@@ -12,6 +12,7 @@ import { useFounderData } from "@/features/founder/hooks/useFounderData";
 import { agents } from "@/features/agents/data/agents";
 import Link from "next/link";
 import { bg, surf, bdr, ink, muted } from '@/lib/constants/colors'
+import { PageSpinner } from '@/features/shared/components/Spinner'
 
 // ─── SVG completion ring (like the Q-Score ring in dashboard) ─────────────────
 function CompletionRing({ pct }: { pct: number }) {
@@ -142,16 +143,7 @@ export default function ProfileBuilder() {
     });
   }
 
-  if (loading) {
-    return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: bg }}>
-        <div style={{ textAlign: "center" }}>
-          <RefreshCw style={{ width: 28, height: 28, color: muted, margin: "0 auto 12px" }} className="animate-spin" />
-          <p style={{ fontSize: 14, fontWeight: 300, color: muted }}>Loading profile…</p>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <PageSpinner label="Loading profile…" />
 
   if (!profile) {
     return (

@@ -11,17 +11,14 @@ interface SkeletonProps {
 /** Single skeleton shimmer block */
 export function Skeleton({ width = '100%', height = 16, radius = 6, style }: SkeletonProps) {
   return (
-    <>
-      <div style={{
-        width, height, borderRadius: radius,
-        background: `linear-gradient(90deg, ${surf} 25%, ${bdr} 50%, ${surf} 75%)`,
-        backgroundSize: '200% 100%',
-        animation: 'ea-shimmer 1.4s ease-in-out infinite',
-        flexShrink: 0,
-        ...style,
-      }} />
-      <style>{`@keyframes ea-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }`}</style>
-    </>
+    <div style={{
+      width, height, borderRadius: radius,
+      background: `linear-gradient(90deg, ${surf} 25%, ${bdr} 50%, ${surf} 75%)`,
+      backgroundSize: '200% 100%',
+      animation: 'ea-shimmer 1.4s ease-in-out infinite',
+      flexShrink: 0,
+      ...style,
+    }} />
   )
 }
 

@@ -1,5 +1,5 @@
 import { CSSProperties } from 'react'
-import { blue, bdr } from '@/features/shared/tokens'
+import { blue, bdr, muted } from '@/features/shared/tokens'
 
 interface SpinnerProps {
   size?: 'sm' | 'md' | 'lg' | 'xl'
@@ -14,23 +14,20 @@ export function Spinner({ size = 'md', color = blue, style }: SpinnerProps) {
   const px = SIZE_MAP[size]
   const bw = BORDER_MAP[size]
   return (
-    <>
-      <div
-        style={{
-          width: px, height: px, borderRadius: '50%',
-          border: `${bw}px solid ${bdr}`,
-          borderTopColor: color,
-          animation: 'ea-spin 0.7s linear infinite',
-          flexShrink: 0,
-          ...style,
-        }}
-      />
-      <style>{`@keyframes ea-spin { to { transform: rotate(360deg); } }`}</style>
-    </>
+    <div
+      style={{
+        width: px, height: px, borderRadius: '50%',
+        border: `${bw}px solid ${bdr}`,
+        borderTopColor: color,
+        animation: 'ea-spin 0.7s linear infinite',
+        flexShrink: 0,
+        ...style,
+      }}
+    />
   )
 }
 
-/** Full-page centered spinner with optional label */
+/** Full-page centered spinner with optional label — use for page-level loading states */
 export function PageSpinner({ label = 'Loading…' }: { label?: string }) {
   return (
     <div style={{
@@ -40,12 +37,12 @@ export function PageSpinner({ label = 'Loading…' }: { label?: string }) {
       gap: 16, background: '#F9F7F2', zIndex: 9999,
     }}>
       <Spinner size="xl" />
-      {label && <p style={{ fontSize: 14, color: '#8A867C', margin: 0 }}>{label}</p>}
+      {label && <p style={{ fontSize: 14, color: muted, margin: 0 }}>{label}</p>}
     </div>
   )
 }
 
-/** Inline section-level loading state */
+/** Inline section-level loading state — use for content areas that are still loading */
 export function SectionSpinner({ label = 'Loading…', minHeight = 200 }: { label?: string; minHeight?: number }) {
   return (
     <div style={{
@@ -53,7 +50,7 @@ export function SectionSpinner({ label = 'Loading…', minHeight = 200 }: { labe
       justifyContent: 'center', gap: 12, minHeight, padding: 32,
     }}>
       <Spinner size="md" />
-      {label && <p style={{ fontSize: 13, color: '#8A867C', margin: 0 }}>{label}</p>}
+      {label && <p style={{ fontSize: 13, color: muted, margin: 0 }}>{label}</p>}
     </div>
   )
 }
