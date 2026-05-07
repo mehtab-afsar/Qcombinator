@@ -107,24 +107,24 @@ function gradeLabel(s: number) {
 // ─── score history types ──────────────────────────────────────────────────────
 interface ScorePoint {
   overall: number;
-  market: number;
-  product: number;
-  gtm: number;
-  financial: number;
-  team: number;
-  traction: number;
+  p1: number;
+  p2: number;
+  p3: number;
+  p4: number;
+  p5: number;
+  p6: number;
   date: string;
   source: string;
 }
 
 // ─── score chart ──────────────────────────────────────────────────────────────
 const DIM_COLORS: Record<string, string> = {
-  market:    "#2563EB",
-  product:   "#7C3AED",
-  gtm:       "#16A34A",
-  financial: "#D97706",
-  team:      "#DC2626",
-  traction:  "#0891B2",
+  p1: "#2563EB",
+  p2: "#7C3AED",
+  p3: "#16A34A",
+  p4: "#D97706",
+  p5: "#DC2626",
+  p6: "#0891B2",
 };
 const DIM_LABELS: Record<string, string> = {
   p1: "Market Readiness", p2: "Market Potential", p3: "IP / Defensibility",
