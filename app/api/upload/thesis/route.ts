@@ -31,7 +31,9 @@ export async function POST(req: NextRequest) {
     let text = ''
 
     if (file.type === 'application/pdf') {
-      const pdfParse = (await import('pdf-parse')).default
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pdfMod = await import('pdf-parse') as any
+      const pdfParse = pdfMod.default ?? pdfMod
       const parsed = await pdfParse(buffer)
       text = parsed.text
     } else if (
