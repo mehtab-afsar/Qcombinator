@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/atlas/positioning-map
 // No body — pulls competitive_matrix + gtm_playbook for context
@@ -79,7 +79,7 @@ Return JSON only (no markdown):
   "verdict": "1-sentence positioning health summary"
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 900 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 900 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let map: Record<string, unknown> = {}
     try { map = JSON.parse(cleaned) } catch {

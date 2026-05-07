@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 import { log } from '@/lib/logger'
 
 // POST /api/webhook/lead?uid=USER_ID
@@ -48,11 +48,11 @@ export async function POST(request: NextRequest) {
     const founderName = (profile?.full_name as string | undefined) ?? 'The Founder'
     const calendlyUrl = (profile?.calendly_url as string | undefined) ?? null
 
-    // Generate personalized response via OpenRouter
+    // Generate personalized response via Claude
     let responseEmail = ''
 
     try {
-      responseEmail = (await callOpenRouter(
+      responseEmail = (await callClaude(
         [
           {
             role: 'system',

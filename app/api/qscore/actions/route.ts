@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { verifyAuth } from '@/lib/auth/verify';
 import { log } from '@/lib/logger';
-import { callOpenRouter } from '@/lib/openrouter';
-import { retrieveActionsContext, inferSector, loadKnowledgeBase } from '@/features/qscore/rag/retrieval';
+import { callClaude } from '@/lib/claude';
+import { retrieveActionsContext, inferSector, loadKnowledgeBase } from '@/features/qscore/scoring/retrieval';
 import { AssessmentData } from '@/features/qscore/types/qscore.types';
 
 /**
@@ -153,7 +153,7 @@ Return ONLY valid JSON. No markdown, no explanation.`;
     // Track which chunks were used (for analytics)
     void chunkIds; // Available for future logging
 
-    const raw = await callOpenRouter([
+    const raw = await callClaude([
       { role: 'system', content: systemPrompt },
       { role: 'user', content: 'Generate the 5 personalized actions now.' },
     ], { maxTokens: 1600, temperature: 0.5 });

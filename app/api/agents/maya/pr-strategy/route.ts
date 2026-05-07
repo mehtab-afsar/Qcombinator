@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/maya/pr-strategy
 // No body — pulls brand_messaging + gtm_playbook for context
@@ -88,7 +88,7 @@ Return JSON only (no markdown):
   "quickWin": "fastest thing to do this week to get PR coverage"
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 1000 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 1000 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let strategy: Record<string, unknown> = {}
     try { strategy = JSON.parse(cleaned) } catch {

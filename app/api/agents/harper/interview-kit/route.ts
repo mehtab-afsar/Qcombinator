@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/harper/interview-kit
 // Body: { role: string, level?: string, focusAreas?: string[] }
@@ -77,7 +77,7 @@ Return JSON only (no markdown):
   "offerConsiderations": "key points to negotiate or highlight when making the offer"
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 1000 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 1000 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let kit: Record<string, unknown> = {}
     try { kit = JSON.parse(cleaned) } catch {

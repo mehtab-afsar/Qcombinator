@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 import { log } from '@/lib/logger'
 
 // POST /api/agents/leo/cap-table
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     const sp = (fp?.startup_profile_data ?? {}) as Record<string, unknown>
     const legalContent = (legalArtifact?.content ?? {}) as Record<string, unknown>
 
-    const raw = await callOpenRouter(
+    const raw = await callClaude(
       [
         {
           role: 'system',

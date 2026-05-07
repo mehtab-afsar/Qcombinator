@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 import { log } from '@/lib/logger'
 
 // POST /api/agents/patel/icp-validation
@@ -85,7 +85,7 @@ export async function POST() {
     const segmentsText = segments.map(s => `${s.segment}: sent=${s.sent}, open=${s.openRate}%, reply=${s.replyRate}%`).join('\n')
     const overallText = `Overall: sent=${totalSent}, open=${overallOpenRate}%, reply=${overallReplyRate}%`
 
-    const raw = await callOpenRouter(
+    const raw = await callClaude(
       [
         {
           role: 'system',

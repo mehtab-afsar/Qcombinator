@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 import { log } from '@/lib/logger'
 
 // POST /api/agents/felix/runway-cuts
@@ -72,7 +72,7 @@ Return ONLY valid JSON (no markdown) with this exact shape:
   ]
 }`
 
-    const raw = await callOpenRouter(
+    const raw = await callClaude(
       [{ role: 'user', content: prompt }],
       { maxTokens: 900, temperature: 0.3 },
     )

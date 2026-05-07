@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/felix/board-update
 // Body: { recipients?: string[], subject?: string }
@@ -86,7 +86,7 @@ Return JSON only (no markdown):
   "riskFlag": "biggest risk on the horizon (be honest)"
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 700 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 700 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let narrative: Record<string, unknown> = {}
     try { narrative = JSON.parse(cleaned) } catch {

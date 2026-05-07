@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/atlas/market-map
 // No body — uses founder_profiles industry/description + competitive_matrix for context
@@ -74,7 +74,7 @@ Return JSON only (no markdown):
   "bottomLine": "1-sentence verdict on the market opportunity for ${startupName}"
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 900 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 900 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let map: Record<string, unknown> = {}
     try { map = JSON.parse(cleaned) } catch {

@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 import { log } from '@/lib/logger'
 
 // POST /api/agents/atlas/review-analysis
 // Body: { competitorName, reviews: string (paste of G2/Capterra/TrustPilot reviews) }
-// Uses OpenRouter to cluster reviews into: top complaints, top praise, feature gaps, sales angles
+// Uses Claude to cluster reviews into: top complaints, top praise, feature gaps, sales angles
 
 export async function POST(request: NextRequest) {
   try {
@@ -45,7 +45,7 @@ Return ONLY valid JSON (no markdown fences):
   "keyQuote": "The single most damning quote from the reviews (if any)"
 }`
 
-    const raw = await callOpenRouter(
+    const raw = await callClaude(
       [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: `Competitor: ${competitorName}\n\nReviews:\n${reviews.slice(0, 8000)}` },

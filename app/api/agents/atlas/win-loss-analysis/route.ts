@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/atlas/win-loss-analysis
 // No body — pulls competitive_matrix + sales_script + gtm_playbook for context
@@ -85,7 +85,7 @@ Return JSON only (no markdown):
   "priorityFix": "the single most impactful change to improve win rate in the next 30 days"
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 900 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 900 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let analysis: Record<string, unknown> = {}
     try { analysis = JSON.parse(cleaned) } catch {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 import { log } from '@/lib/logger'
 
 // POST /api/agents/harper/source
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
       .map(r => `URL: ${r.url}\nTitle: ${r.title}\nSnippet: ${r.content?.slice(0, 250)}`)
       .join('\n\n---\n\n')
 
-    const raw = await callOpenRouter(
+    const raw = await callClaude(
       [
         {
           role: 'system',

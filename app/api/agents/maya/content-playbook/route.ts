@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/maya/content-playbook
 // No body — pulls brand_messaging + gtm_playbook for ICP/voice context
@@ -73,7 +73,7 @@ Return JSON only (no markdown):
   "quickWins": ["quick win 1 — can do this week", "quick win 2", "quick win 3"]
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 900 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 900 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let playbook: Record<string, unknown> = {}
     try { playbook = JSON.parse(cleaned) } catch {

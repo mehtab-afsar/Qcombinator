@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/patel/reply-draft
 // Body: { prospectMessage: string, context?: string, tone?: 'assertive' | 'consultative' | 'friendly' }
@@ -95,7 +95,7 @@ Return JSON only (no markdown):
   "nextBestAction": "recommended next action after sending this reply"
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 700 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 700 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let result: Record<string, unknown> = {}
     try { result = JSON.parse(cleaned) } catch {

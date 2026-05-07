@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/patel/ab-test
 // Body: { element: string, currentVersion: string, goal?: string, audience?: string }
@@ -102,7 +102,7 @@ Return JSON only (no markdown):
   "pitfalls": ["common mistake to avoid 1", "pitfall 2"]
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 700 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 700 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let test: Record<string, unknown> = {}
     try { test = JSON.parse(cleaned) } catch {

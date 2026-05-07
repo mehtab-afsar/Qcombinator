@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 import { log } from '@/lib/logger'
 
 // POST /api/agents/sage/focus
@@ -86,7 +86,7 @@ Missing artifacts (0 of 12): ${missingArtifacts.slice(0, 4).join(', ')}
 Completed milestones: ${completedMilestoneIdxs.size}
 `.trim()
 
-    const raw = await callOpenRouter(
+    const raw = await callClaude(
       [
         {
           role: 'system',

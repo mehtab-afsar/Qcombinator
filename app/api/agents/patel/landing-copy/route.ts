@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/patel/landing-copy
 // No body — pulls gtm_playbook + brand_messaging for ICP/positioning context
@@ -80,7 +80,7 @@ Return JSON only (no markdown):
   "metaDescription": "SEO meta description (max 155 chars) — benefit + keyword + CTA"
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 1200 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 1200 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let copy: Record<string, unknown> = {}
     try { copy = JSON.parse(cleaned) } catch {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 import { log } from '@/lib/logger'
 
 // POST /api/agents/maya/blog-post
@@ -54,7 +54,7 @@ ${brandContext ? `BRAND CONTEXT (write in this voice):\n${brandContext}\n\n` : '
 
 Return ONLY the blog post content as clean HTML (no <html>/<head>/<body> wrapper tags). Use these HTML tags only: <h1>, <h2>, <p>, <ul>, <li>, <strong>, <em>, <blockquote>. Start with the <h1> title tag.`
 
-    const html = (await callOpenRouter(
+    const html = (await callClaude(
       [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: `Write a blog post about: ${topic.trim()}` },

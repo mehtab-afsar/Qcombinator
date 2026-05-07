@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 import { log } from '@/lib/logger'
 
 function getAdminClient() {
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     if (!linkedinUrl) return NextResponse.json({ skipped: true, reason: 'No LinkedIn URL' })
 
     // Ask LLM to infer likely profile data from the URL alone (no scraping)
-    const raw = await callOpenRouter([
+    const raw = await callClaude([
       {
         role: 'system',
         content: `You are a LinkedIn profile analyst. Given a LinkedIn URL, infer what you can about the person's professional background.

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/susi/deal-playbook
 // Body: { dealId?: string } — or uses top open deal
@@ -88,7 +88,7 @@ Return JSON only (no markdown):
   "negotiationGuide": { "floorPrice": "minimum acceptable", "walkAwayConditions": "when to walk", "concessions": ["concession you can offer 1", "concession 2"] }
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 900 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 900 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let playbook: Record<string, unknown> = {}
     try { playbook = JSON.parse(cleaned) } catch {

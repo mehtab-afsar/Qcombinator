@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/susi/score-deals
 // No body — pulls all active deals, AI scores each 0–100 for likelihood to close.
@@ -77,7 +77,7 @@ Return JSON array only (no markdown, no extra keys):
 
     let scored: { company: string; score: number; grade: string; reasoning: string; nextAction: string; urgency: string }[] = []
     try {
-      const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 800 })
+      const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 800 })
       const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
       scored = JSON.parse(cleaned)
     } catch {

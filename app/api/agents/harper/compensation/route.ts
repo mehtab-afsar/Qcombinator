@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/harper/compensation
 // No body — pulls hiring_plan artifact + founder_profiles for stage/industry
@@ -97,7 +97,7 @@ Return JSON only (no markdown):
   "keyInsight": "single most important compensation insight for ${startupName} right now"
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 1100 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 1100 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let framework: Record<string, unknown> = {}
     try { framework = JSON.parse(cleaned) } catch {

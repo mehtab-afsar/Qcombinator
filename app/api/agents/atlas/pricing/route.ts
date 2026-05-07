@@ -2,7 +2,7 @@ import { withCircuitBreaker } from '@/lib/circuit-breaker'
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/atlas/pricing
 // No body — pulls tracked_competitors + competitive_matrix artifact, uses Tavily to find live pricing.
@@ -115,7 +115,7 @@ Return JSON only (no markdown):
   }
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 900 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 900 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let result: { pricing: unknown[]; insights: unknown } = { pricing: [], insights: {} }
     try { result = JSON.parse(cleaned) } catch {

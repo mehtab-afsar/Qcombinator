@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/maya/content-calendar
 // Body: { weeks?: number } — pulls brand_messaging + gtm_playbook for context
@@ -90,7 +90,7 @@ Return JSON only (no markdown):
   "batchingStrategy": "how to batch-create content efficiently (e.g. 2-hour Sunday session)"
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 1200 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 1200 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let calendar: Record<string, unknown> = {}
     try { calendar = JSON.parse(cleaned) } catch {

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/harper/job-descriptions
 // Body: { role: string, level?: string, department?: string }
@@ -72,7 +72,7 @@ Return JSON only (no markdown):
   "linkedInPost": "LinkedIn job post intro (2-3 sentences for the post, engaging)"
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 900 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 900 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let jd: Record<string, unknown> = {}
     try { jd = JSON.parse(cleaned) } catch {

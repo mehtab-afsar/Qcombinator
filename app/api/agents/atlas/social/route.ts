@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 import { withCircuitBreaker } from '@/lib/circuit-breaker'
 import { log } from '@/lib/logger'
 
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
       ? searchResults.map(r => `[${r.source}] ${r.title}\n${r.content}`).join('\n\n---\n\n')
       : 'No live results available. Analyze based on competitor names only.'
 
-    const raw = await callOpenRouter(
+    const raw = await callClaude(
       [
         {
           role: 'system',

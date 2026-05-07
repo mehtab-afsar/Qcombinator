@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/felix/cash-flow
 // No body — pulls financial_summary artifact for actuals
@@ -110,7 +110,7 @@ Return JSON only (no markdown):
   "fundraisingImplication": "1-2 sentences on when/if to raise based on these scenarios"
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 1200 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 1200 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let forecast: Record<string, unknown> = {}
     try { forecast = JSON.parse(cleaned) } catch {

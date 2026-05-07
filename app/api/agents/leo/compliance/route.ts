@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/leo/compliance
 // No body — uses startup industry/stage from founder_profiles + legal_checklist artifact
@@ -72,7 +72,7 @@ Return JSON only (no markdown):
   "disclaimer": "Leo is not a lawyer. This is for educational purposes only — consult a licensed attorney before acting."
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 800 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 800 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let report: Record<string, unknown> = {}
     try { report = JSON.parse(cleaned) } catch {

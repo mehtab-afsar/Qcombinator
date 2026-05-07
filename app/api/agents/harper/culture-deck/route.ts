@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/harper/culture-deck
 // No body — pulls hiring_plan + founder_profiles for context
@@ -83,7 +83,7 @@ Return JSON only (no markdown):
   "closingStatement": "1-2 sentences that inspire the right candidate to apply"
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 900 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 900 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let deck: Record<string, unknown> = {}
     try { deck = JSON.parse(cleaned) } catch {

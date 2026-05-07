@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/patel/launch-plan
 // No body — pulls GTM playbook artifact + brand messaging for context
@@ -71,7 +71,7 @@ Return JSON only (no markdown):
   "topRisk": "biggest launch risk and how to mitigate it"
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 1200 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 1200 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let plan: {
       preLaunch?: { day: number; task: string; description: string; channel: string; priority: string }[];

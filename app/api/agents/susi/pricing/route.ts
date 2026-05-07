@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/susi/pricing
 // No body — pulls financial_summary + competitive_matrix + gtm_playbook artifacts for context
@@ -84,7 +84,7 @@ Return JSON only (no markdown):
   "keyInsight": "single most important pricing insight for ${startupName} right now"
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 900 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 900 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let strategy: Record<string, unknown> = {}
     try { strategy = JSON.parse(cleaned) } catch {

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/leo/contractor
 // Body: { contractorName, contractorRole, compensationType: 'hourly'|'project', rate: string,
@@ -67,7 +67,7 @@ Return JSON only (no markdown):
   ]
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 1200 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 1200 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let parsed: { clauses?: { title: string; body: string }[] } = {}
     try { parsed = JSON.parse(cleaned) } catch {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 import { log } from '@/lib/logger'
 
 // POST /api/agents/leo/diff
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     // Truncate to avoid token overflow
     const truncate = (s: string, max = 3000) => s.trim().length > max ? s.trim().slice(0, max) + '\n[... truncated ...]' : s.trim()
 
-    const raw = await callOpenRouter(
+    const raw = await callClaude(
       [
         {
           role: 'system',

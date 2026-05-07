@@ -12,9 +12,9 @@ import { applyReconciliationFlags } from '@/lib/profile-builder/reconciliation-e
 import type { ReconciliationResult } from '@/lib/profile-builder/reconciliation-engine'
 import type { IndicatorScore } from '../types/qscore.types'
 
-// Mock callOpenRouter so no real API calls are made
-jest.mock('@/lib/openrouter', () => ({
-  callOpenRouter: jest.fn(),
+// Mock callClaude so no real API calls are made
+jest.mock('@/lib/claude', () => ({
+  callClaude: jest.fn(),
 }))
 
 // Mock cache to prevent cross-test pollution
@@ -25,11 +25,11 @@ jest.mock('@/lib/cache/qscore-cache', () => ({
   setCachedSectorWeights: jest.fn(),
 }))
 
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 import { reconcileIndicators } from '@/lib/profile-builder/reconciliation-engine'
 import type { AssessmentData } from '../types/qscore.types'
 
-const mockedCallOpenRouter = callOpenRouter as jest.Mock
+const mockedCallClaude = callClaude as jest.Mock
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -197,11 +197,11 @@ describe('applyReconciliationFlags', () => {
 
 describe('reconcileIndicators — LLM mocked', () => {
   beforeEach(() => {
-    mockedCallOpenRouter.mockClear()
+    mockedCallClaude.mockClear()
   })
 
   test('returns 4 results (one per indicator)', async () => {
-    mockedCallOpenRouter.mockResolvedValue(
+    mockedCallClaude.mockResolvedValue(
       JSON.stringify({ aiSamUsd: 1_000_000_000, reasoning: 'test', confidence: 0.8 })
     )
 
@@ -212,7 +212,7 @@ describe('reconcileIndicators — LLM mocked', () => {
 
   test('LLM timeout → applied=false, no throw', async () => {
     // Simulate timeout on all calls
-    mockedCallOpenRouter.mockImplementation(
+    mockedCallClaude.mockImplementation(
       () => new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 100))
     )
 
@@ -223,7 +223,7 @@ describe('reconcileIndicators — LLM mocked', () => {
   }, 10_000)
 
   test('LLM error → applied=false with error field', async () => {
-    mockedCallOpenRouter.mockRejectedValue(new Error('API rate limit exceeded'))
+    mockedCallClaude.mockRejectedValue(new Error('API rate limit exceeded'))
 
     const results = await reconcileIndicators(baseData(), 'user-error')
     for (const r of results) {
@@ -233,7 +233,7 @@ describe('reconcileIndicators — LLM mocked', () => {
   })
 
   test('LLM returns malformed JSON → applied=false', async () => {
-    mockedCallOpenRouter.mockResolvedValue('not valid json at all')
+    mockedCallClaude.mockResolvedValue('not valid json at all')
 
     const results = await reconcileIndicators(baseData(), 'user-bad-json')
     // malformed JSON causes parse error → applied=false
@@ -244,7 +244,7 @@ describe('reconcileIndicators — LLM mocked', () => {
 
   test('2.5 low deviation → no vcAlert', async () => {
     // Founder says 3 competitors, AI says 4 — small deviation
-    mockedCallOpenRouter.mockImplementation((msgs: unknown[]) => {
+    mockedCallClaude.mockImplementation((msgs: unknown[]) => {
       const system = (msgs as Array<{role:string;content:string}>)[0]?.content ?? ''
       if (system.includes('competitive intelligence')) {
         return Promise.resolve(JSON.stringify({
@@ -265,7 +265,7 @@ describe('reconcileIndicators — LLM mocked', () => {
 
   test('extreme deviation on 3.5 → vcAlert set, rawScore untouched', async () => {
     // Founder says $3M replication cost, AI says $50K
-    mockedCallOpenRouter.mockImplementation((msgs: unknown[]) => {
+    mockedCallClaude.mockImplementation((msgs: unknown[]) => {
       const system = (msgs as Array<{role:string;content:string}>)[0]?.content ?? ''
       if (system.includes('technical due diligence')) {
         return Promise.resolve(JSON.stringify({

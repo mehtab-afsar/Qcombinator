@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 import { log } from '@/lib/logger'
 
 // POST /api/agents/leo/clauses
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     const company = fp?.startup_name ?? 'the company'
     const industry = fp?.industry ?? 'technology'
 
-    const raw = await callOpenRouter(
+    const raw = await callClaude(
       [
         {
           role: 'system',

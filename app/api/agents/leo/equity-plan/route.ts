@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/leo/equity-plan
 // Body: { totalShares?, optionPoolPercent?, vestingYears?, cliffMonths?, founders? }
@@ -109,7 +109,7 @@ Return JSON only (no markdown):
   "keyInsight": "single most important equity planning insight for this stage"
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 1000 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 1000 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let plan: Record<string, unknown> = {}
     try { plan = JSON.parse(cleaned) } catch {

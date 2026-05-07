@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/sage/board-communication
 // No body — pulls strategic_plan + financial_summary + board_deck for context
@@ -90,7 +90,7 @@ Return JSON only (no markdown):
   "priorityAction": "single highest-leverage board communication action to take this month"
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 900 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 900 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let framework: Record<string, unknown> = {}
     try { framework = JSON.parse(cleaned) } catch {

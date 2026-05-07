@@ -1,7 +1,7 @@
 import { withCircuitBreaker } from '@/lib/circuit-breaker'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 import { log } from '@/lib/logger'
 
 // POST /api/agents/atlas/techstack
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
     const allResults = [...stackResults, ...jobResults]
     const context = allResults.map((r, i) => `[${i + 1}] ${r.title}\n${r.content}`).join('\n\n')
 
-    const raw = await callOpenRouter(
+    const raw = await callClaude(
       [
         {
           role: 'system',

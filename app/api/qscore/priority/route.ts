@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { log } from '@/lib/logger'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // GET /api/qscore/priority
 // Returns AI-generated top 3 priorities for the founder to work on TODAY.
@@ -185,7 +185,7 @@ ${overdueDeal ? `⚠️ Overdue deal: "${overdueDeal.contact_name}" has a past-d
       'Financials':         'felix',
     }
 
-    const raw = await callOpenRouter(
+    const raw = await callClaude(
       [
         {
           role: 'system',

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 import { log } from '@/lib/logger'
 
 // POST /api/agents/atlas/job-postings
@@ -64,7 +64,7 @@ Return ONLY valid JSON in this exact shape:
 
 Group roles into meaningful patterns (AI/ML, enterprise sales, infra, product, design, etc.). Mark urgency as high if 3+ roles in the same area (signals major investment), medium for 1-2 focused roles, low for scattered individual hires. Be specific and actionable.`
 
-    const raw = await callOpenRouter(
+    const raw = await callClaude(
       [{ role: 'user', content: prompt }],
       { maxTokens: 800, temperature: 0.3 },
     )

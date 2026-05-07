@@ -12,7 +12,7 @@
  *  - No pgvector infra or artifact_embeddings table required
  */
 
-import { callOpenRouter } from '@/lib/openrouter';
+import { callClaude } from '@/lib/claude';
 
 export interface MatchResult {
   claim: string;
@@ -88,7 +88,7 @@ Return ONLY a valid JSON array, one object per claim, in order:
 [{"verdict":"corroborated"|"conflicting"|"unverified","evidence":"<exact snippet text that matched, or empty string>","artifactType":"<artifact type, or empty>"}]`;
 
   try {
-    const raw = await callOpenRouter(
+    const raw = await callClaude(
       [{ role: 'user', content: prompt }],
       { maxTokens: 400, temperature: 0.0 },
     );

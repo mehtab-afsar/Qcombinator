@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/leo/fundraising-checklist
 // No body — pulls term_sheet + strategic_plan + qscore_history for context
@@ -93,7 +93,7 @@ Return JSON only (no markdown):
   "priorityAction": "single most important fundraising prep action to take this week"
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 900 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 900 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let checklist: Record<string, unknown> = {}
     try { checklist = JSON.parse(cleaned) } catch {

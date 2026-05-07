@@ -244,7 +244,7 @@ ${conversationText.slice(0, 4000)}`
 
       // RAG embedding
       if (artifactId && !isCircuitOpen('openai_embeddings')) {
-        import('@/features/qscore/rag/embeddings/embedding-pipeline')
+        import('@/features/qscore/scoring/embeddings/embedding-pipeline')
           .then(({ embedArtifact }) =>
             withCircuitBreaker('openai_embeddings', () =>
               embedArtifact({ id: artifactId!, user_id: userId, artifact_type: artifactType, content: parsedContent })

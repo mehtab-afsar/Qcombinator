@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 import { log } from '@/lib/logger'
 
 // POST /api/agents/leo/cofounder
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
     const cliffDate = `${cliffMonths} months`
     const vestingSchedule = `${vestingYears}-year vesting with ${cliffDate} cliff`
 
-    const raw = await callOpenRouter(
+    const raw = await callClaude(
       [
         {
           role: 'system',

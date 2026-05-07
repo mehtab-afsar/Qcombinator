@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 import { log } from '@/lib/logger'
 
 // POST /api/agents/harper/scorecard
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     const requirements = matchedRole?.requirements?.slice(0, 5).join(', ') ?? ''
     const responsibilities = matchedRole?.responsibilities?.slice(0, 3).join('; ') ?? ''
 
-    const raw = await callOpenRouter(
+    const raw = await callClaude(
       [
         {
           role: 'system',

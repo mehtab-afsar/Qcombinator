@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 import { log } from '@/lib/logger'
 
 // POST /api/agents/harper/onboarding
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
       hiring.cultureValues && Array.isArray(hiring.cultureValues) ? `Culture values: ${(hiring.cultureValues as string[]).join(', ')}` : '',
     ].filter(Boolean).join('\n')
 
-    const raw = await callOpenRouter(
+    const raw = await callClaude(
       [
         {
           role: 'system',

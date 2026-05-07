@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 import { log } from '@/lib/logger'
 
 // GET  /api/agents/sage/milestone — returns milestone status derived from strategic_plan artifact
@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
     if (!allMilestones?.length) return NextResponse.json({ ok: true })
 
     // LLM assessment of milestone progress
-    const raw = await callOpenRouter(
+    const raw = await callClaude(
       [
         {
           role: 'system',

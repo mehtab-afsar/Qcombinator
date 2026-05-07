@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 import { log } from '@/lib/logger'
 
 interface PitchAnalysis {
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      const content = await callOpenRouter(
+      const content = await callClaude(
         [
           {
             role: 'system',

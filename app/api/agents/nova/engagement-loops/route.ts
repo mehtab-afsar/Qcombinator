@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/nova/engagement-loops
 // No body — pulls pmf_survey + customer_insight + onboarding_flow for context
@@ -103,7 +103,7 @@ Return JSON only (no markdown):
   "priorityBuild": "the single engagement feature to build next for maximum retention impact"
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 900 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 900 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let loops: Record<string, unknown> = {}
     try { loops = JSON.parse(cleaned) } catch {

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/felix/model
 // No body — pulls latest financial_summary artifact for seed data
@@ -79,7 +79,7 @@ Return JSON only (no markdown):
   "recommendation": "2-3 sentence strategic recommendation based on the model"
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 1500 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 1500 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let model: Record<string, unknown> = {}
     try { model = JSON.parse(cleaned) } catch {

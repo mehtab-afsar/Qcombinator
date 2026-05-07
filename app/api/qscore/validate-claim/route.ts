@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { verifyAuth } from '@/lib/auth/verify';
 import { log } from '@/lib/logger';
-import { embedText } from '@/features/qscore/rag/embeddings/embedder';
+import { embedText } from '@/features/qscore/scoring/embeddings/embedder';
 
 /**
  * POST /api/qscore/validate-claim

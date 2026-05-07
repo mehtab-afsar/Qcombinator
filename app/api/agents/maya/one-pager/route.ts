@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/maya/one-pager
 // No body — pulls brand_messaging + financial_summary + gtm_playbook + competitive_matrix artifacts
@@ -88,7 +88,7 @@ Return JSON only (no markdown):
   "callToAction": "closing line for the tear sheet"
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 700 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 700 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let content: Record<string, unknown> = {}
     try { content = JSON.parse(cleaned) } catch {

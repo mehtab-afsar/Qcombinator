@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 import { log } from '@/lib/logger'
 
 // POST /api/agents/patel/directories
@@ -42,7 +42,7 @@ export async function POST() {
     const industry = fp?.industry ?? ''
     const targetCustomer = (icp.targetProfile as string) ?? (sp.targetCustomer as string) ?? ''
 
-    const raw = await callOpenRouter(
+    const raw = await callClaude(
       [
         {
           role: 'system',

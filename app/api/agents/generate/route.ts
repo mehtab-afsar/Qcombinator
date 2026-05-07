@@ -327,7 +327,7 @@ export async function POST(request: NextRequest) {
 
             // ── RAG: embed artifact (fire-and-forget, skipped if circuit open) ─
             if (artifactId && !isCircuitOpen('openai_embeddings')) {
-              import('@/features/qscore/rag/embeddings/embedding-pipeline')
+              import('@/features/qscore/scoring/embeddings/embedding-pipeline')
                 .then(({ embedArtifact }) =>
                   withCircuitBreaker('openai_embeddings', () =>
                     embedArtifact({

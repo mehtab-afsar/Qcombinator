@@ -18,7 +18,7 @@ import {
 } from '@/features/agents';
 import { getArtifactPrompt } from '@/features/agents/patel/prompts/artifact-prompts';
 import { postArtifactFeedEvent } from '@/lib/feed/auto-events';
-import { OpenRouterError } from '@/lib/openrouter';
+import { ClaudeError } from '@/lib/claude';
 import { llmChat, llmStream } from '@/lib/llm/provider';
 import { routedText } from '@/lib/llm/router';
 import { getToolsForAgent } from '@/lib/llm/tools';
@@ -52,6 +52,10 @@ import {
   markDelegationRunning,
   triggerProactiveDelegations,
 } from '@/lib/agents/delegation';
+import { GLOBAL_CONSTITUTION } from '@/lib/agents/constitution';
+import { getAgentMemory } from '@/lib/agents/memory-loader';
+import { updateAgentMemory } from '@/lib/agents/memory-updater';
+import { summariseAndSaveSession } from '@/lib/agents/session-summarizer';
 
 // ─── dedicated system prompt registry ────────────────────────────────────────
 
@@ -679,7 +683,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Use dedicated system prompt if available, fall back to built one
-    let systemPrompt = AGENT_SYSTEM_PROMPTS[agentId] ?? buildAgentSystemPrompt(agent, userContext);
+    // Constitution is prepended first — it cannot be overridden by agent-specific instructions below it
+    let systemPrompt = GLOBAL_CONSTITUTION + '\n\n' + (AGENT_SYSTEM_PROMPTS[agentId] ?? buildAgentSystemPrompt(agent, userContext));
 
     // ── Agent memory + cross-agent context (registry-driven, fail-open) ──────
     let startupState: StartupState | null = null;
@@ -750,6 +755,26 @@ export async function POST(request: NextRequest) {
           });
         }
       }
+
+      // Load relationship memory + last session summary in parallel (fail-open, never delays response)
+      const [memoryResult, summaryResult] = await Promise.allSettled([
+        getAgentMemory(agentId, userId, supabaseAdmin),
+        existingConversationId
+          ? supabaseAdmin.from('agent_conversations').select('summary').eq('id', existingConversationId).single()
+          : Promise.resolve(null),
+      ]);
+
+      // Prepend relationship memory — the agent should know its history with this founder
+      if (memoryResult.status === 'fulfilled' && memoryResult.value) {
+        const { session_count, relationship_tier, key_facts } = memoryResult.value;
+        systemPrompt = `YOU AND THIS FOUNDER:\nThis is session ${session_count} with this founder. Relationship: ${relationship_tier}.\n${key_facts ?? 'First session — no prior history.'}\n\n` + systemPrompt;
+      }
+
+      // Append last session summary so the agent picks up where it left off
+      if (summaryResult.status === 'fulfilled' && summaryResult.value) {
+        const summary = (summaryResult.value as { data?: { summary?: string | null } | null })?.data?.summary;
+        if (summary) systemPrompt += `\n\nLAST SESSION SUMMARY:\n${summary}`;
+      }
     }
 
     // ── Knowledge library RAG injection ──────────────────────────────────────
@@ -799,7 +824,8 @@ CONVERSATION RULES:
 - No **bold labels**, no header stamps, no rigid end-of-message templates in conversational replies. Use formatting (headers, lists, bold) only when delivering a framework or analysis the founder asked for.
 - Be direct and sharp. Say one thing well, then stop.
 - When a founder gives a vague answer, push for specifics: numbers, names, examples.
-- If you don't know their specific situation, ask before advising.`;
+- If you don't know their specific situation, ask before advising.
+- NEVER use these phrases: "Great question", "I'd be happy to", "Let me break this down", "Absolutely!", "Certainly!", "Of course!", "I understand your concern", "I hope this helps", "That's a great point". These are chatbot phrases. You are a specialist advisor, not a customer service bot.`;
 
     // Build conversation context
     const messages = [
@@ -807,7 +833,7 @@ CONVERSATION RULES:
         role: "system" as const,
         content: systemPrompt + CONVERSATION_RULES,
       },
-      ...(conversationHistory || []).slice(-10).map((msg: { role: string; content: string }) => ({
+      ...(conversationHistory || []).slice(-30).map((msg: { role: string; content: string }) => ({
         role: msg.role === 'user' ? 'user' as const : 'assistant' as const,
         content: msg.content,
       })),
@@ -1071,6 +1097,16 @@ CONVERSATION RULES:
                 if (usageId) await incrementUsage(usageId, supabaseAdmin);
               } catch { /* non-critical */ }
             })();
+
+            // Async session summary + relationship memory update (fire-and-forget, Haiku)
+            const allMsgs = [
+              ...(conversationHistory || []),
+              { role: 'user', content: message },
+            ];
+            if (existingConversationId) {
+              void summariseAndSaveSession(existingConversationId, allMsgs, supabaseAdmin).catch(() => {});
+            }
+            void updateAgentMemory(userId, agentId, allMsgs, supabaseAdmin).catch(() => {});
           }
         },
       });
@@ -1338,6 +1374,17 @@ Reply with ONLY a JSON object: { "qualityScore": <0–100>, "gaps": ["..."] }`;
       if (usageId) {
         try { await incrementUsage(usageId, supabaseAdmin); } catch { /* non-critical */ }
       }
+
+      // Async session summary + relationship memory update (fire-and-forget, Haiku)
+      const allMsgs = [
+        ...(conversationHistory || []),
+        { role: 'user', content: message },
+        { role: 'assistant', content: chatReply ?? '' },
+      ];
+      if (conversationId) {
+        void summariseAndSaveSession(conversationId, allMsgs, supabaseAdmin).catch(() => {});
+      }
+      void updateAgentMemory(userId, agentId, allMsgs, supabaseAdmin).catch(() => {});
     }
 
     return NextResponse.json({
@@ -1356,7 +1403,7 @@ Reply with ONLY a JSON object: { "qualityScore": <0–100>, "gaps": ["..."] }`;
     let userMessage: string;
     let httpStatus = 500;
 
-    if (error instanceof OpenRouterError) {
+    if (error instanceof ClaudeError) {
       if (error.isTimeout) {
         userMessage = "The AI took too long to respond. Please try again — shorter messages tend to be faster.";
         httpStatus = 504;

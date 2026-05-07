@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/patel/sequence
 // Body: { targetRole: string, targetIndustry: string, painPoint: string, valueProposition: string }
@@ -72,7 +72,7 @@ Return JSON only (no markdown):
   ]
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 900 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 900 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let result: { sequenceStrategy?: string; sequence?: unknown[] } = {}
     try { result = JSON.parse(cleaned) } catch {

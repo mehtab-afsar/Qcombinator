@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/susi/deal-coaching
 // Body: { dealName, stage, dealValue?, lastActivity?, notes? }
@@ -96,7 +96,7 @@ Return JSON only (no markdown):
   }
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 700 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 700 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let coaching: Record<string, unknown> = {}
     try { coaching = JSON.parse(cleaned) } catch {

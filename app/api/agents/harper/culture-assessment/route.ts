@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/harper/culture-assessment
 // No body — pulls hiring_plan + founder_profiles for context
@@ -84,7 +84,7 @@ Return JSON only (no markdown):
   "priorityAction": "single most impactful culture-building action to take this month"
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 900 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 900 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let assessment: Record<string, unknown> = {}
     try { assessment = JSON.parse(cleaned) } catch {

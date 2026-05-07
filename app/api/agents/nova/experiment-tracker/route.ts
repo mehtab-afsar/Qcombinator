@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/nova/experiment-tracker
 // Body: { hypothesis: string, metric: string, variants?: string[], duration?: string }
@@ -73,7 +73,7 @@ Return JSON only (no markdown):
   "stopEarlyCriteria": "condition under which to stop the experiment early"
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 800 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 800 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let experiment: Record<string, unknown> = {}
     try { experiment = JSON.parse(cleaned) } catch {

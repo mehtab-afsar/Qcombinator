@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/nova/growth-experiment
 // Body: { focus?: string } — optional focus area (e.g. "acquisition", "activation", "retention")
@@ -90,7 +90,7 @@ Return JSON only (no markdown):
   "pitfalls": ["common experimentation mistake 1", "pitfall 2", "pitfall 3"]
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 1000 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 1000 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let experiments: Record<string, unknown> = {}
     try { experiments = JSON.parse(cleaned) } catch {

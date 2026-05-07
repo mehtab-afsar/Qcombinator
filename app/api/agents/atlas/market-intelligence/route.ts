@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/atlas/market-intelligence
 // No body — pulls competitive_matrix + founder_profiles for context
@@ -99,7 +99,7 @@ Return JSON only (no markdown):
   "prioritySignal": "the single most important market development to act on this week"
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 900 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 900 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let intelligence: Record<string, unknown> = {}
     try { intelligence = JSON.parse(cleaned) } catch {

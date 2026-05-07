@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { log } from '@/lib/logger'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/investor/startup/:id/memo
 // Auth required (investor). Generates an AI investment memo for a founder.
@@ -123,7 +123,7 @@ Write the investment memo in this EXACT structure (use markdown headers):
 ---
 Be analytical. Avoid superlatives. Cite specific Q-Score dimensions where relevant. If data is missing, say so directly (e.g. "financial data not yet available"). Aim for ~400-500 words total.`
 
-    const memoMd = (await callOpenRouter(
+    const memoMd = (await callClaude(
       [{ role: 'user', content: prompt }],
       { maxTokens: 900, temperature: 0.4 },
     )).trim()

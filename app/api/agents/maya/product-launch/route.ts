@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/maya/product-launch
 // Body: { launchDate?, productName?, launchType? } — pulls brand_messaging + gtm artifacts for context
@@ -125,7 +125,7 @@ Return JSON only (no markdown):
   "priorityAction": "single most important thing to do right now to ensure a successful launch"
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 900 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 900 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let plan: Record<string, unknown> = {}
     try { plan = JSON.parse(cleaned) } catch {

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/sage/crisis-playbook
 // Body: { crisisType?: string } — e.g. "funding", "churn", "PR", "cofounder", "technical"
@@ -77,7 +77,7 @@ Return JSON only (no markdown):
   "lessonsFromOthers": ["what other founders learned from this crisis type 1", "lesson 2"]
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 1000 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 1000 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let playbook: Record<string, unknown> = {}
     try { playbook = JSON.parse(cleaned) } catch {

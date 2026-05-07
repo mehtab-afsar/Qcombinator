@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/nova/user-segmentation
 // No body — pulls pmf_survey + user_personas artifacts for context
@@ -106,7 +106,7 @@ Return JSON only (no markdown):
   "priorityAction": "single most impactful segmentation action to take this week"
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 900 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 900 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let segmentation: Record<string, unknown> = {}
     try { segmentation = JSON.parse(cleaned) } catch {

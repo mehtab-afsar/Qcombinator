@@ -1,6 +1,6 @@
 /**
  * Shared types for the LLM abstraction layer.
- * Provider-agnostic — used by both OpenRouter and Anthropic paths.
+ * Provider-agnostic — used by the Anthropic Claude SDK.
  */
 
 export interface ToolDefinition {

@@ -2,7 +2,7 @@ import { withCircuitBreaker } from '@/lib/circuit-breaker'
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/atlas/market-size
 // No body — pulls tracked_competitors + competitive_matrix, Tavily-researches each for
@@ -110,7 +110,7 @@ Return JSON only (no markdown):
   "confidence": "high | medium | low"
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 800 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 800 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let result: Record<string, unknown> = {}
     try { result = JSON.parse(cleaned) } catch {

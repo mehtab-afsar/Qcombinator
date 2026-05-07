@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/sage/okr-tracker
 // No body — pulls strategic_plan + founder_profiles for context
@@ -87,7 +87,7 @@ Return JSON only (no markdown):
   "successDefinition": "what does a successful OKR quarter look like for ${startupName}"
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 1000 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 1000 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let okrs: Record<string, unknown> = {}
     try { okrs = JSON.parse(cleaned) } catch {

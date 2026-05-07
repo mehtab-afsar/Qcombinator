@@ -4,7 +4,7 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
-import { OpenRouterError } from '@/lib/openrouter';
+import { ClaudeError } from '@/lib/claude';
 import type { ToolDefinition, LLMChatResponse } from './types';
 
 let _client: Anthropic | null = null;
@@ -12,7 +12,7 @@ let _client: Anthropic | null = null;
 function getClient(): Anthropic {
   if (!_client) {
     const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) throw new OpenRouterError('ANTHROPIC_API_KEY is not configured', 0);
+    if (!apiKey) throw new ClaudeError('ANTHROPIC_API_KEY is not configured', 0);
     _client = new Anthropic({ apiKey });
   }
   return _client;
@@ -77,11 +77,11 @@ export async function llmChat(params: {
     return { text, toolCall };
   } catch (err) {
     if (err instanceof Anthropic.RateLimitError)
-      throw new OpenRouterError('Anthropic rate limit exceeded — please try again later', 429);
+      throw new ClaudeError('Anthropic rate limit exceeded — please try again later', 429);
     if (err instanceof Anthropic.AuthenticationError)
-      throw new OpenRouterError('Anthropic authentication failed — check ANTHROPIC_API_KEY', 401);
+      throw new ClaudeError('Anthropic authentication failed — check ANTHROPIC_API_KEY', 401);
     if (err instanceof Anthropic.APIError)
-      throw new OpenRouterError(`Anthropic error: ${err.status} ${err.message}`, err.status ?? 500);
+      throw new ClaudeError(`Anthropic error: ${err.status} ${err.message}`, err.status ?? 500);
     throw err;
   }
 }
@@ -136,9 +136,9 @@ export async function* llmStream(params: {
     }
   } catch (err) {
     if (err instanceof Anthropic.RateLimitError)
-      throw new OpenRouterError('Anthropic rate limit exceeded — please try again later', 429);
+      throw new ClaudeError('Anthropic rate limit exceeded — please try again later', 429);
     if (err instanceof Anthropic.APIError)
-      throw new OpenRouterError(`Anthropic stream error: ${err.status} ${err.message}`, err.status ?? 500);
+      throw new ClaudeError(`Anthropic stream error: ${err.status} ${err.message}`, err.status ?? 500);
     throw err;
   }
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 import { log } from '@/lib/logger'
 
 // GET  /api/agents/sage/decisions — returns decision journal entries
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
     const admin = getAdmin()
 
     // LLM gives a Sage-style assessment of the decision
-    const raw = await callOpenRouter(
+    const raw = await callClaude(
       [
         {
           role: 'system',

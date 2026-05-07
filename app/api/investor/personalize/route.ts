@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 import { log } from '@/lib/logger'
 
 // POST /api/investor/personalize
@@ -112,7 +112,7 @@ If there are no founders, return an empty matches object. Score based on sector 
     const matches: Record<string, { score: number; reason: string }> = {}
 
     try {
-      const raw = await callOpenRouter(
+      const raw = await callClaude(
         [{ role: 'user', content: prompt }],
         { maxTokens: 1024, temperature: 0.3 },
       )

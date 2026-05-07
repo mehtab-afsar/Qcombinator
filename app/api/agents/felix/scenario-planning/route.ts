@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/felix/scenario-planning
 // No body — pulls financial_summary + qscore_history for financial context
@@ -89,7 +89,7 @@ Return JSON only (no markdown):
   "priorityAction": "single most important financial action to take this week regardless of scenario"
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 900 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 900 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let scenarios: Record<string, unknown> = {}
     try { scenarios = JSON.parse(cleaned) } catch {

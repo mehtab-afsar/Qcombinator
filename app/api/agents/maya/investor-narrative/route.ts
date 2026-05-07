@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/maya/investor-narrative
 // No body — pulls brand_messaging + financial_summary + gtm_playbook + competitive_matrix
@@ -90,7 +90,7 @@ Return JSON only (no markdown):
   ]
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 1100 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 1100 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let narrative: Record<string, unknown> = {}
     try { narrative = JSON.parse(cleaned) } catch {

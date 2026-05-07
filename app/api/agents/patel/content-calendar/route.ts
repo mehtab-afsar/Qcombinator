@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 import { log } from '@/lib/logger'
 
 function getAdmin() {
@@ -41,7 +41,7 @@ export async function POST() {
       (sp.oneLiner as string) ? `One liner: ${sp.oneLiner as string}` : '',
     ].filter(Boolean).join('\n')
 
-    const raw = await callOpenRouter(
+    const raw = await callClaude(
       [
         {
           role: 'system',

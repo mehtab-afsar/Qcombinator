@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/maya/social-strategy
 // No body — pulls brand_messaging + content_playbook + gtm_playbook for context
@@ -97,7 +97,7 @@ Return JSON only (no markdown):
   "toolStack": ["recommended tool 1 (purpose)", "tool 2 (purpose)", "tool 3 (purpose)"]
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 1000 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 1000 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let strategy: Record<string, unknown> = {}
     try { strategy = JSON.parse(cleaned) } catch {

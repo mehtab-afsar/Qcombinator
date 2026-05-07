@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 import { log } from '@/lib/logger'
 
 // POST /api/agents/maya/brand-check
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
           sp.problem ? `Problem we solve: ${sp.problem}` : '',
         ].filter(Boolean).join('\n') || 'No brand guidelines — evaluate against startup communication best practices'
 
-    const raw = await callOpenRouter(
+    const raw = await callClaude(
       [
         {
           role: 'system',

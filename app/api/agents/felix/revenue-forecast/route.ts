@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/felix/revenue-forecast
 // Body: { forecastMonths?: number, growthLevers?: string[] }
@@ -105,7 +105,7 @@ Return JSON only (no markdown):
   "fundraisingSignal": "what this forecast suggests about fundraising timing and size"
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 1000 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 1000 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let forecast: Record<string, unknown> = {}
     try { forecast = JSON.parse(cleaned) } catch {

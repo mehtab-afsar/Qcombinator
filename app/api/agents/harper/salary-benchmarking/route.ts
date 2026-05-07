@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/harper/salary-benchmarking
 // Body: { roles?: string[], location?: string }
@@ -88,7 +88,7 @@ Return JSON only (no markdown):
   "benefitsToOffer": ["minimum viable benefits for attracting talent 1", "benefit 2", "benefit 3"]
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 900 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 900 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let benchmarks: Record<string, unknown> = {}
     try { benchmarks = JSON.parse(cleaned) } catch {

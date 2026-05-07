@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 import { log } from '@/lib/logger'
 
 // POST /api/agents/maya/repurpose
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
       ? `Company: ${fp?.startup_name ?? 'Unknown'} — ${sp.solution}`
       : `Founder: ${fp?.full_name ?? 'Founder'} at ${fp?.startup_name ?? 'Unknown'}`
 
-    const raw = await callOpenRouter(
+    const raw = await callClaude(
       [
         {
           role: 'system',

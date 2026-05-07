@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/leo/term-sheet-analyzer
 // Body: { instrument?: string, raiseAmount?: string, valuation?: string, leadInvestor?: string }
@@ -81,7 +81,7 @@ Return JSON only (no markdown):
   "lawyerBrief": "2-3 sentence brief to give your lawyer on what to focus on in negotiation"
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 1000 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 1000 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let analysis: Record<string, unknown> = {}
     try { analysis = JSON.parse(cleaned) } catch {

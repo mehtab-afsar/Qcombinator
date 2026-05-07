@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 import { log } from '@/lib/logger'
 
 // POST /api/agents/nova/interview-notes
@@ -109,7 +109,7 @@ Return ONLY valid JSON in this exact shape:
 
 Be specific and use direct language from the notes where possible. Identify 2-5 themes, 1-4 pain points, 1-4 feature requests, and 2-5 key quotes.`
 
-    const raw = (await callOpenRouter(
+    const raw = (await callClaude(
       [{ role: 'user', content: prompt }],
       { maxTokens: 900, temperature: 0.3 },
     )).trim()

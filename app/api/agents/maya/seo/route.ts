@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/maya/seo
 // Body: { blogContent: string, targetAudience?: string, targetKeyword?: string }
@@ -102,7 +102,7 @@ Return JSON only (no markdown):
   "tldrSummary": "one-sentence summary of the SEO opportunity"
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 700 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 700 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let seo: Record<string, unknown> = {}
     try { seo = JSON.parse(cleaned) } catch {

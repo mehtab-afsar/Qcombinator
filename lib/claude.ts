@@ -1,25 +1,18 @@
-/**
- * Compatibility wrapper — all calls go to Anthropic Claude.
- * Replaces the old Groq/OpenRouter implementation.
- * Keeps exported function signatures identical so the 100+ agent routes
- * that import callOpenRouter/streamOpenRouter need no changes.
- */
-
 import Anthropic from '@anthropic-ai/sdk';
 
-export interface OpenRouterMessage {
+export interface ClaudeMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
 }
 
-export class OpenRouterError extends Error {
+export class ClaudeError extends Error {
   constructor(
     message: string,
     public readonly statusCode: number,
     public readonly isTimeout = false
   ) {
     super(message);
-    this.name = 'OpenRouterError';
+    this.name = 'ClaudeError';
   }
 }
 
@@ -29,13 +22,13 @@ let _client: Anthropic | null = null;
 function getClient(): Anthropic {
   if (!_client) {
     const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) throw new OpenRouterError('ANTHROPIC_API_KEY is not configured', 0);
+    if (!apiKey) throw new ClaudeError('ANTHROPIC_API_KEY is not configured', 0);
     _client = new Anthropic({ apiKey });
   }
   return _client;
 }
 
-function splitMessages(messages: OpenRouterMessage[]): {
+function splitMessages(messages: ClaudeMessage[]): {
   system: string;
   chat: Array<{ role: 'user' | 'assistant'; content: string }>;
 } {
@@ -51,8 +44,8 @@ function splitMessages(messages: OpenRouterMessage[]): {
   return { system, chat };
 }
 
-export async function callOpenRouter(
-  messages: OpenRouterMessage[],
+export async function callClaude(
+  messages: ClaudeMessage[],
   options: { maxTokens?: number; temperature?: number } = {}
 ): Promise<string> {
   const { maxTokens = 500, temperature = 0.7 } = options;
@@ -72,18 +65,17 @@ export async function callOpenRouter(
       .join('');
   } catch (err) {
     if (err instanceof Anthropic.RateLimitError)
-      throw new OpenRouterError('Anthropic rate limit exceeded — please try again later', 429);
+      throw new ClaudeError('Anthropic rate limit exceeded — please try again later', 429);
     if (err instanceof Anthropic.AuthenticationError)
-      throw new OpenRouterError('Anthropic authentication failed — check ANTHROPIC_API_KEY', 401);
+      throw new ClaudeError('Anthropic authentication failed — check ANTHROPIC_API_KEY', 401);
     if (err instanceof Anthropic.APIError)
-      throw new OpenRouterError(`Anthropic error: ${err.status} ${err.message}`, err.status ?? 500);
+      throw new ClaudeError(`Anthropic error: ${err.status} ${err.message}`, err.status ?? 500);
     throw err;
   }
 }
 
-// streamOpenRouter: returns a Response with SSE body, same contract as before.
-export async function streamOpenRouter(
-  messages: OpenRouterMessage[],
+export async function streamClaude(
+  messages: ClaudeMessage[],
   options: { maxTokens?: number; temperature?: number } = {}
 ): Promise<Response> {
   const { maxTokens = 1000, temperature = 0.7 } = options;

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 import { log } from '@/lib/logger'
 
 // POST /api/agents/harper/reference
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     const roles = (hiringContent.roles ?? hiringContent.nextHires ?? []) as { title: string; mustHaves?: string[]; niceToHave?: string[] }[]
     const roleDetail = roles.find(r => r.title?.toLowerCase().includes(role.toLowerCase()))
 
-    const raw = await callOpenRouter(
+    const raw = await callClaude(
       [
         {
           role: 'system',

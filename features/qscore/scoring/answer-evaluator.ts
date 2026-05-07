@@ -9,7 +9,7 @@
  * Falls back to heuristic estimates if the LLM call fails.
  */
 
-import { callOpenRouter } from '@/lib/openrouter';
+import { callClaude } from '@/lib/claude';
 import { AssessmentData } from '../types/qscore.types';
 import { SemanticEvaluation, AnswerQualityScores, MarketValidation } from './types';
 import { log } from '@/lib/logger'
@@ -144,7 +144,7 @@ Return ONLY valid JSON, no explanation:
 }`;
 
   try {
-    const raw = await callOpenRouter(
+    const raw = await callClaude(
       [{ role: 'user', content: prompt }],
       { maxTokens: 150, temperature: 0.1 }
     );
@@ -303,7 +303,7 @@ export async function evaluateAssessmentAnswers(
     const evaluationPrompt = buildEvaluationPrompt(fields, rubricContext);
 
     const [qualityRaw, marketValidation] = await Promise.all([
-      callOpenRouter(
+      callClaude(
         [{ role: 'user', content: evaluationPrompt }],
         { maxTokens: 300, temperature: 0.1 }
       ),

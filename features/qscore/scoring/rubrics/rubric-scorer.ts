@@ -8,7 +8,7 @@
  * Batch B: GTM + Team fields (icpDescription, messagingResults, advantageExplanation)
  */
 
-import { callOpenRouter } from '@/lib/openrouter';
+import { callClaude } from '@/lib/claude';
 import { AnswerQualityScores } from '../types';
 import {
   BATCH_A_FIELDS,
@@ -116,7 +116,7 @@ export async function scoreWithRubrics(
   for (const config of batchConfigs) {
     const prompt = buildBatchPrompt(config.fields, config.rubrics);
     promises.push(
-      callOpenRouter(
+      callClaude(
         [{ role: 'user', content: prompt }],
         { maxTokens: 200, temperature: 0.1 }
       ).then(parseBatchScores)

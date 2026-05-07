@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 import { log } from '@/lib/logger'
 
 // POST /api/agents/leo/term-sheet
@@ -65,7 +65,7 @@ Return ONLY valid JSON with this exact shape:
   ]
 }`
 
-    const raw = await callOpenRouter(
+    const raw = await callClaude(
       [{ role: 'user', content: prompt }],
       { maxTokens: 1200, temperature: 0.2 },
     )

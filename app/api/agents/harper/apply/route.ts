@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 import { log } from '@/lib/logger'
 
 // POST /api/agents/harper/apply — public, submit a job application
@@ -18,7 +18,7 @@ async function scoreResumeWithLLM(
   roleDescription: string,
   resumeText: string
 ): Promise<{ score: number; notes: string }> {
-  const rawContent = await callOpenRouter(
+  const rawContent = await callClaude(
     [
       {
         role: 'system',
@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Score the resume with OpenRouter
+    // Score the resume with Claude
     let score = 0
     let scoreNotes = ''
     try {

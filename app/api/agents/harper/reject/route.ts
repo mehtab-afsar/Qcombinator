@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 import { Resend } from 'resend'
 import { log } from '@/lib/logger'
 
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
     }
 
     // LLM-generated rejection email
-    const raw = await callOpenRouter(
+    const raw = await callClaude(
       [
         {
           role: 'system',

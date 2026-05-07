@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 import { log } from '@/lib/logger'
 
 // GET  /api/agents/sage/goals  — return current goals + check-in history
@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
       `- "${g.objective}" → ${g.progress}% complete${g.blocker ? ` (blocker: ${g.blocker})` : ''}`
     ).join('\n')
 
-    const raw = await callOpenRouter(
+    const raw = await callClaude(
       [
         {
           role: 'system',

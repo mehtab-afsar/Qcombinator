@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 import { log } from '@/lib/logger'
 
 // POST /api/agents/leo/privacy-policy
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     // Build privacy policy HTML
     let privacyHtml = ''
     if (genPrivacy) {
-      const raw = await callOpenRouter(
+      const raw = await callClaude(
         [
           {
             role: 'system',
@@ -83,7 +83,7 @@ Effective date: ${today}`,
     // Build ToS HTML
     let tosHtml = ''
     if (genTos) {
-      const raw = await callOpenRouter(
+      const raw = await callClaude(
         [
           {
             role: 'system',

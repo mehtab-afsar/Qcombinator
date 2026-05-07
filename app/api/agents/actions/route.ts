@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 import { log } from '@/lib/logger'
 
 // GET /api/agents/actions?conversationId=<uuid>
@@ -87,8 +87,8 @@ Return ONLY valid JSON, no markdown fences, no explanation:
   ]
 }`
 
-    // Call OpenRouter for extraction
-    const rawContent = await callOpenRouter(
+    // Call Claude for extraction
+    const rawContent = await callClaude(
       [
         { role: 'system', content: extractionPrompt },
         { role: 'user', content: 'Extract the action items now.' },

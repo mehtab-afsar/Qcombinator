@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
-import { callOpenRouter } from '@/lib/openrouter'
+import { callClaude } from '@/lib/claude'
 
 // POST /api/agents/susi/proposal
 // Body: { dealId?: string, prospectName?: string, prospectCompany?: string, dealValue?: string }
@@ -84,7 +84,7 @@ Return JSON only (no markdown):
   "termsHighlights": ["key term 1 (e.g. 30-day notice to cancel)", "key term 2", "key term 3"]
 }`
 
-    const raw = await callOpenRouter([{ role: 'user', content: prompt }], { maxTokens: 1000 })
+    const raw = await callClaude([{ role: 'user', content: prompt }], { maxTokens: 1000 })
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let p: Record<string, unknown> = {}
     try { p = JSON.parse(cleaned) } catch {
