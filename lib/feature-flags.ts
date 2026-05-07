@@ -26,7 +26,7 @@ export const FF_CROSS_AGENT_ORCHESTRATION = flag('CROSS_AGENT_ORCHESTRATION', tr
 /** 5.4 — 2-pass artifact quality self-critique */
 export const FF_ARTIFACT_SELF_CRITIQUE = flag('ARTIFACT_SELF_CRITIQUE', true)
 
-/** 5.5 — IQ Score unlock recommender */
+/** 5.5 — Q-Score unlock recommender */
 export const FF_AI_SCORE_INTELLIGENCE = flag('AI_SCORE_INTELLIGENCE', true)
 
 /** 5.6 — AI investor match rationale */

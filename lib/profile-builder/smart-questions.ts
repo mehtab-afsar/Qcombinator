@@ -4,7 +4,7 @@
  */
 
 import { getRequiredFields } from './question-engine'
-import { getSectionWeightsBySector } from '@/features/qscore/calculators/iq-score-calculator'
+import { getSectionWeightsBySector } from '@/features/qscore/calculators/q-score-calculator'
 
 export interface SmartQuestion {
   id: string
@@ -344,7 +344,7 @@ export const FIELD_QUESTIONS: Record<string, QuestionDef> = {
 
 // ── IQ parameter weights (sector-agnostic default) ───────────────────────────
 // Used to rank which weak section is most worth asking about.
-// Matches the 'default' sector weights in iq-score-calculator.ts.
+// Matches the 'default' sector weights in q-score-calculator.ts.
 const SECTION_IQ_WEIGHT: Record<string, number> = {
   '1': 0.20,  // P1 Market Readiness
   '2': 0.20,  // P2 Market Potential
@@ -363,7 +363,7 @@ const SECTION_IQ_WEIGHT: Record<string, number> = {
  *  2. Filter to sections that are STRICTLY WEAK: completionPct < 60 (≡ avg score < 3/5).
  *     If no completionPct data is provided all sections with missing fields are candidates.
  *  3. Rank weak sections by impact = (1 − completionPct/100) × iqWeight.
- *  4. Return the top 3 questions — the ones that would move the IQ score most.
+ *  4. Return the top 3 questions — the ones that would move the Q-Score most.
  */
 export function generateSmartQuestions(
   extractedBySections: Record<string, Record<string, unknown>>,

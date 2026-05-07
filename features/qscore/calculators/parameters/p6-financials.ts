@@ -1,5 +1,5 @@
 /**
- * Edge Alpha IQ Score v2 — P6: Financials
+ * Edge Alpha Q-Score v2 — P6: Financials
  * 5 indicators: Revenue Scale, Burn Efficiency, Runway,
  *               Unit Economics, Gross Margin
  *

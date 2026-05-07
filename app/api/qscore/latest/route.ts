@@ -81,7 +81,7 @@ export async function GET() {
     const dataPenalty = hasVerifiedData ? 0.7 : 1.0;
     const scoreRange = Math.max(2, Math.round(10 * (1 - ragConf) * dataPenalty));
 
-    const scoreVersion = (latest.score_version as string) ?? 'v2_iq'
+    const scoreVersion = (latest.score_version as string) ?? 'v2_q'
     const iqBreakdown = (latest.iq_breakdown as Record<string, unknown>) ?? null
     const availableIQ = (latest.available_iq as number) ?? null
     const track = (latest.track as string) ?? null

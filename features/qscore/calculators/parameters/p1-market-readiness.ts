@@ -1,5 +1,5 @@
 /**
- * Edge Alpha IQ Score v2 — P1: Market Readiness
+ * Edge Alpha Q-Score v2 — P1: Market Readiness
  * 5 indicators: Early Signal, Willingness to Pay, Speed, Durability, Scale
  *
  * rawScore: 1.0–5.0 in 0.5 increments (0 = excluded)

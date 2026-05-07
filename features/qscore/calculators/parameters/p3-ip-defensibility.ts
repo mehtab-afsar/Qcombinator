@@ -1,5 +1,5 @@
 /**
- * Edge Alpha IQ Score v2 — P3: IP / Defensibility
+ * Edge Alpha Q-Score v2 — P3: IP / Defensibility
  * 5 indicators: IP Protection, Technical Depth, Know-How Density,
  *               Build Complexity, Replication Barrier (AI flag)
  *
@@ -280,7 +280,7 @@ export function scoreP3(
   ]
 }
 
-/** @deprecated Use scoreP3() in the IQ Score v2 pipeline */
+/** @deprecated Use scoreP3() in the Q-Score v2 pipeline */
 export function scoreP3IPDefensibility(
   data: AssessmentData
 ): { score: number; rawPoints: number; maxPoints: number; sub: Record<string, number> } {

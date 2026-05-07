@@ -1,5 +1,5 @@
 /**
- * Edge Alpha IQ Score v2 — Cross-Indicator Consistency Validator
+ * Edge Alpha Q-Score v2 — Cross-Indicator Consistency Validator
  *
  * 6 rules (V01–V06). Blocking violations prevent submit (400).
  * Warnings stored in assessment_data.validationWarnings.

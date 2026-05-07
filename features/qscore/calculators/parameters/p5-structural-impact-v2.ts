@@ -1,5 +1,5 @@
 /**
- * Edge Alpha IQ Score v2 — P5: Structural Impact
+ * Edge Alpha Q-Score v2 — P5: Structural Impact
  * 5 indicators: Climate Leverage (AI flag), Resource Efficiency,
  *               Development Relevance, Business Model Alignment, Strategic Relevance
  *

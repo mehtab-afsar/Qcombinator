@@ -1,5 +1,5 @@
 /**
- * IQ Score Calculator — v1 (threshold-based, no LLM)
+ * Q-Score Calculator — v1 (threshold-based, no LLM)
  *
  * Computes a 0–100 investment-readiness score from 25 indicators across 5 parameters.
  * DB-driven thresholds via `iq_indicators` table (seeded from Bessemer, YC, Carta).
@@ -14,7 +14,7 @@
  * Overall score = weighted sum of parameter scores, normalized to 0–100.
  *
  * Indicators with no extractable data are EXCLUDED (not penalized as 0).
- * This means the IQ Score is always "partial" until the founder fills all fields.
+ * This means the Q-Score is always "partial" until the founder fills all fields.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -42,7 +42,7 @@ export interface IQParameterResult {
   indicatorsExcluded: number;
 }
 
-export interface IQScoreResult {
+export interface QScoreResult {
   overallScore: number;       // 0–5 weighted
   normalizedScore: number;    // 0–100 for display
   grade: 'A+' | 'A' | 'B' | 'C' | 'D' | 'F';
@@ -365,7 +365,7 @@ const CONFIDENCE_BY_SOURCE: Record<IQIndicatorResult['dataSource'], number> = {
 
 // ─── Grade ────────────────────────────────────────────────────────────────────
 
-function computeGrade(score: number): IQScoreResult['grade'] {
+function computeGrade(score: number): QScoreResult['grade'] {
   if (score >= 95) return 'A+';
   if (score >= 80) return 'A';
   if (score >= 65) return 'B';
@@ -376,11 +376,11 @@ function computeGrade(score: number): IQScoreResult['grade'] {
 
 // ─── Main calculator ──────────────────────────────────────────────────────────
 
-export async function computeIQScore(
+export async function computeQScore(
   supabase: SupabaseClient,
   assessmentData: AssessmentData,
   sector: string = 'default',
-): Promise<IQScoreResult> {
+): Promise<QScoreResult> {
   // 1. Load active indicators from DB
   const { data: dbIndicators } = await supabase
     .from('iq_indicators')
@@ -473,7 +473,7 @@ export async function computeIQScore(
   const normalizedScore = Math.round((rawOverall / 5) * 100);
   const indicatorsUsed = results.filter(r => r.dataSource !== 'excluded').length;
   const indicatorsExcluded = results.filter(r => r.dataSource === 'excluded').length;
-  const scoringMethod: IQScoreResult['scoringMethod'] = indicatorsUsed >= 20 ? 'full' : indicatorsUsed >= 10 ? 'partial' : 'estimated';
+  const scoringMethod: QScoreResult['scoringMethod'] = indicatorsUsed >= 20 ? 'full' : indicatorsUsed >= 10 ? 'partial' : 'estimated';
 
   return {
     overallScore: parseFloat(rawOverall.toFixed(2)),
@@ -488,13 +488,13 @@ export async function computeIQScore(
 }
 
 /**
- * Persist IQ Score to DB (iq_scores + iq_indicator_scores).
+ * Persist Q-Score to DB (iq_scores + iq_indicator_scores).
  * Returns the inserted iq_score row id.
  */
-export async function saveIQScore(
+export async function saveQScore(
   supabase: SupabaseClient,
   userId: string,
-  result: IQScoreResult,
+  result: QScoreResult,
   previousScoreId: string | null,
   sector: string,
 ): Promise<string | null> {

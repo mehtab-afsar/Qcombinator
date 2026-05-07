@@ -195,11 +195,11 @@ export interface AssessmentData {
   replicationTimeMonths?: number;
   teamChurnRecent?: boolean;
   /** IQ v2 score version tag */
-  scoreVersion?: 'v1_prd' | 'v2_iq';
+  scoreVersion?: 'v1_prd' | 'v2_q';
 }
 
 // ============================================================================
-// EDGE ALPHA IQ SCORE v2 TYPES (30 indicators, constant denominator 150)
+// EDGE ALPHA Q-SCORE v2 TYPES (30 indicators, constant denominator 150)
 // ============================================================================
 
 import type { DataQuality } from './data-quality.types'
@@ -234,8 +234,8 @@ export interface ParameterScore {
   averageScore: number
 }
 
-/** Full IQ Score result */
-export interface IQScoreResult {
+/** Full Q-Score result */
+export interface QScoreResult {
   /** Final score: Σ(all 30 rawScores) / 150 × 100 */
   finalIQ: number
   /** Coverage-adjusted score: finalIQ × (answeredParameters / 6). Use this when not all parameters are answered. */

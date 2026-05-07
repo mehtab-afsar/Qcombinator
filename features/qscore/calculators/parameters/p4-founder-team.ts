@@ -1,5 +1,5 @@
 /**
- * Edge Alpha IQ Score v2 — P4: Founder / Team
+ * Edge Alpha Q-Score v2 — P4: Founder / Team
  * 5 indicators: Domain Depth, Founder-Market Fit, Founder Experience,
  *               Leadership Coverage, Team Cohesion
  *
@@ -319,7 +319,7 @@ export function scoreP4(
   ]
 }
 
-/** @deprecated Use scoreP4() in the IQ Score v2 pipeline */
+/** @deprecated Use scoreP4() in the Q-Score v2 pipeline */
 export function scoreP4FounderTeam(
   data: AssessmentData
 ): { score: number; rawPoints: number; maxPoints: number; sub: Record<string, number> } {

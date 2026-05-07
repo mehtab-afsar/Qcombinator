@@ -9,7 +9,7 @@
  * founder gets financial/market questions first; a biotech founder gets IP/team questions first.
  */
 
-import { getBlendedParamWeights, inferStage } from '@/features/qscore/calculators/iq-score-calculator'
+import { getBlendedParamWeights, inferStage } from '@/features/qscore/calculators/q-score-calculator'
 import { FIELD_QUESTIONS, getNestedValue } from '@/lib/profile-builder/smart-questions'
 
 export interface GapQuestion {
@@ -31,7 +31,7 @@ const PARAM_LABELS = [
   'Financials',
 ]
 
-// Each field maps to the parameter index (0-based) it contributes to in the IQ score.
+// Each field maps to the parameter index (0-based) it contributes to in the Q-Score.
 const INDICATOR_PARAM: Record<string, number> = {
   // P1 — Market Readiness
   customerCommitment:        0,
@@ -71,7 +71,7 @@ const INDICATOR_PARAM: Record<string, number> = {
 
 /**
  * Given extracted AssessmentData fields + sector + stage, returns the top N
- * missing indicator questions ranked by their contribution to the IQ score.
+ * missing indicator questions ranked by their contribution to the Q-Score.
  */
 export function rankMissingIndicators(
   extracted: Record<string, unknown>,

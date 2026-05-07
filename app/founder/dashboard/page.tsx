@@ -45,7 +45,7 @@ const DEMO_QSCORE = {
 };
 
 const DIMENSION_META: Record<string, { label: string; weight: number }> = {
-  // IQ Score v2 parameters (P1–P6)
+  // Q-Score v2 parameters (P1–P6)
   p1:         { label: "Market Readiness",   weight: 20 },
   p2:         { label: "Market Potential",   weight: 20 },
   p3:         { label: "IP / Defensibility", weight: 17 },
@@ -73,7 +73,7 @@ const DIM_BOOSTS: Record<string, { agent: string; artifact: string; pts: number 
   traction:   [{ agent: "susi",   artifact: "outreach_sequence",  pts: 4 }, { agent: "susi",   artifact: "sales_script",   pts: 4 }],
 };
 
-// Maps each IQ Score v2 parameter (and legacy dimension) to the best agent to challenge it
+// Maps each Q-Score v2 parameter (and legacy dimension) to the best agent to challenge it
 const DIMENSION_AGENT: Record<string, { agentId: string; agentName: string; label: string }> = {
   // IQ v2 P1–P6
   p1:         { agentId: "patel",  agentName: "Patel",  label: "GTM Playbook"         },
@@ -584,7 +584,7 @@ export default function FounderDashboard() {
       icon: Users, positive: true,
     },
     { label: "Score percentile",   value: qs.percentile !== null ? `${qs.percentile}th` : "—", sub: qs.percentile !== null ? "of all founders" : "submit score to rank", icon: BarChart3, positive: null  },
-    { label: "Next milestone",     value: isDemo ? "80" : String(Math.max(80, Math.ceil(qs.overall / 10) * 10)), sub: "target IQ Score", icon: Zap, positive: null },
+    { label: "Next milestone",     value: isDemo ? "80" : String(Math.max(80, Math.ceil(qs.overall / 10) * 10)), sub: "target Q-Score", icon: Zap, positive: null },
   ];
 
   return (
@@ -892,7 +892,7 @@ export default function FounderDashboard() {
                   </div>
                 </div>
                 <div style={{ textAlign: "center" }}>
-                  <p style={{ fontSize: 14, fontWeight: 500, color: "#F9F7F2", marginBottom: 6 }}>Get your IQ Score</p>
+                  <p style={{ fontSize: 14, fontWeight: 500, color: "#F9F7F2", marginBottom: 6 }}>Get your Q-Score</p>
                   <p style={{ fontSize: 12, color: "rgba(249,247,242,0.5)", lineHeight: 1.55, maxWidth: 200, margin: "0 auto" }}>
                     Complete the Profile Builder to receive your personalised investment-readiness score across 6 dimensions.
                   </p>
@@ -929,7 +929,7 @@ export default function FounderDashboard() {
                   <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
                     <span style={{ fontSize: 38, fontWeight: 600, color: "#F9F7F2", lineHeight: 1 }}>{displayScore}</span>
                     <span style={{ fontSize: 10, color: "rgba(249,247,242,0.5)", marginTop: 3, textTransform: "uppercase", letterSpacing: "0.12em" }}>
-                      {isPartial ? `${answeredParameters}/6 params` : "IQ Score"}
+                      {isPartial ? `${answeredParameters}/6 params` : "Q-Score"}
                     </span>
                   </div>
                 </div>
@@ -1656,7 +1656,7 @@ export default function FounderDashboard() {
                   <p style={{ fontSize: 14, fontWeight: 500, color: ink }}>Locked — need {45 - qs.overall} more pts</p>
                 </div>
                 <p style={{ fontSize: 11, color: muted, marginBottom: 14 }}>
-                  Reach IQ Score 45 to access 500+ investors.
+                  Reach Q-Score 45 to access 500+ investors.
                 </p>
                 <Link href="/founder/assessment" style={{
                   display: "inline-flex", alignItems: "center", gap: 6,

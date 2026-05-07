@@ -1,5 +1,5 @@
 /**
- * Edge Alpha IQ Score v2 — Seed: qscore_benchmarks
+ * Edge Alpha Q-Score v2 — Seed: qscore_benchmarks
  *
  * 75 rows: 5 key indicators × 5 sectors × 3 stages
  * Indicators: 1.2, 2.1, 6.1, 6.2, 6.3

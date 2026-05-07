@@ -133,10 +133,10 @@ export async function getFounderProfileContext(
   if (d.p4?.founderMarketFit) teamParts.push(d.p4.founderMarketFit.slice(0, 60))
   if (teamParts.length) lines.push(`Team: ${teamParts.join(' · ')}`)
 
-  // IQ Score
+  // Q-Score
   if (score) {
     const trackLabel = score.track === 'impact' ? ' · impact track' : ''
-    lines.push(`IQ Score: ${score.overall_score}/100 — Grade ${score.grade}${trackLabel}`)
+    lines.push(`Q-Score: ${score.overall_score}/100 — Grade ${score.grade}${trackLabel}`)
   }
 
   if (lines.length === 0) return ''

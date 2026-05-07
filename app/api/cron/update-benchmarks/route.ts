@@ -1,5 +1,5 @@
 /**
- * Edge Alpha IQ Score v2 — Monthly Benchmark Refresh
+ * Edge Alpha Q-Score v2 — Monthly Benchmark Refresh
  * Aggregates qscore_history where sample_size >= 20, updates qscore_benchmarks
  * Called by monthly cron job. Requires CRON_SECRET header.
  */
@@ -43,8 +43,8 @@ export async function POST(req: NextRequest) {
       const { data: scores, error } = await supabase
         .from('qscore_history')
         .select('iq_breakdown')
-        .eq('score_version', 'v2_iq')
-        .eq('assessment_data->scoreVersion', 'v2_iq')
+        .eq('score_version', 'v2_q')
+        .eq('assessment_data->scoreVersion', 'v2_q')
         .not('iq_breakdown', 'is', null)
         .limit(1000)
 

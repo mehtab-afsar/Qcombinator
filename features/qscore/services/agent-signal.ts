@@ -162,7 +162,7 @@ export async function applyAgentScoreSignal(
       grade:                calculateGrade(newOverall),
       data_source:          'agent_completion',
       source_artifact_type: artifactType,
-      score_version:        'v2_iq',
+      score_version:        'v2_q',
       ...scores,
     });
 

@@ -1,5 +1,5 @@
 /**
- * Edge Alpha IQ Score v2 — Benchmark Engine
+ * Edge Alpha Q-Score v2 — Benchmark Engine
  *
  * Calculates percentile rank for each indicator score vs. cohort.
  * Fallback chain: sector+stage → sector-only → indicator-only → null

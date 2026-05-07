@@ -55,7 +55,7 @@ const slide = {
 // ── step config (page 1 = account, then startup, traction, problem) ───────────
 const STEP_CONFIGS = [
   { icon: UserCheck,  color: '#059669', title: 'Create account',   sub: 'Secure your profile — takes 30 seconds.'                            },
-  { icon: Building2,  color: blue,      title: 'Your startup',     sub: 'This calibrates your IQ Score from day one.'                        },
+  { icon: Building2,  color: blue,      title: 'Your startup',     sub: 'This calibrates your Q-Score from day one.'                        },
   { icon: TrendingUp, color: '#D97706', title: 'Traction & team',  sub: 'Honest answers give you a more useful baseline.'                    },
   { icon: Lightbulb,  color: '#7C3AED', title: 'The problem',      sub: "Describe what you're building and who it's for."                    },
 ]

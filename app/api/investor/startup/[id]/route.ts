@@ -140,7 +140,7 @@ export async function GET(
 
     // IQ v2 parameters from iq_breakdown JSONB
     type IQParam = { id: string; name: string; weight: number; averageScore: number; indicatorCount?: number }
-    const iqParams: IQParam[] = (qrow?.score_version === 'v2_iq' && Array.isArray((qrow?.iq_breakdown as Record<string, unknown> | null)?.parameters))
+    const iqParams: IQParam[] = (qrow?.score_version === 'v2_q' && Array.isArray((qrow?.iq_breakdown as Record<string, unknown> | null)?.parameters))
       ? ((qrow!.iq_breakdown as Record<string, unknown>).parameters as IQParam[])
       : []
 

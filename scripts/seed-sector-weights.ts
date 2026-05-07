@@ -1,5 +1,5 @@
 /**
- * Edge Alpha IQ Score v2 — Seed Sector Weight Profiles
+ * Edge Alpha Q-Score v2 — Seed Sector Weight Profiles
  * Idempotent: upserts all 11 sector profiles
  * Run: npx ts-node scripts/seed-sector-weights.ts
  */

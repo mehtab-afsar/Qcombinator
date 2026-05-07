@@ -1,5 +1,5 @@
 /**
- * Edge Alpha IQ Score v2 — Unit Tests: Reconciliation Engine
+ * Edge Alpha Q-Score v2 — Unit Tests: Reconciliation Engine
  * Tests that:
  * 1. rawScore is NEVER changed by reconciliation
  * 2. Only vcAlert and confidence are adjusted

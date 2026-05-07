@@ -796,7 +796,7 @@ export default function StartupDeepDive() {
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <span style={{ fontSize: 20, fontWeight: 700, color: qColor(s.qScore) }}>{s.qScore || '—'}</span>
-                        {s.scoreVersion === 'v2_iq' && <span style={{ fontSize: 9, padding: "2px 7px", background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 999, color: blue, fontWeight: 600 }}>v2</span>}
+                        {s.scoreVersion === 'v2_q' && <span style={{ fontSize: 9, padding: "2px 7px", background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 999, color: blue, fontWeight: 600 }}>v2</span>}
                         {s.qScoreGrade && s.qScoreGrade !== '—' && <span style={{ fontSize: 11, padding: "2px 8px", background: surf, border: `1px solid ${bdr}`, borderRadius: 999, color: muted }}>{s.qScoreGrade}</span>}
                       </div>
                     </div>

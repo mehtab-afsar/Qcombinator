@@ -1,5 +1,5 @@
 /**
- * Edge Alpha IQ Score v2 — Unit Tests: P6 Financials
+ * Edge Alpha Q-Score v2 — Unit Tests: P6 Financials
  * Tests exclusion logic per stage and fractional scoring.
  */
 

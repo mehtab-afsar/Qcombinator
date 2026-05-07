@@ -319,7 +319,7 @@ export default function ImproveQScorePage() {
             </h1>
             <p style={{ fontSize: 13, color: muted, margin: 0, lineHeight: 1.5 }}>
               {!hasScore
-                ? "Complete your profile assessment to get your IQ Score."
+                ? "Complete your profile assessment to get your Q-Score."
                 : isUnlocked
                   ? "Marketplace unlocked. These actions will raise your score and improve investor matches."
                   : `${pointsNeeded} more points needed to access 500+ vetted investors.`}

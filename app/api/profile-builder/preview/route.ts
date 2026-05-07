@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { mergeToAssessmentData } from '@/lib/profile-builder/data-merger'
-import { calculateIQScore, inferStage, normalizeSector } from '@/features/qscore/calculators/iq-score-calculator'
+import { calculateQScore, inferStage, normalizeSector } from '@/features/qscore/calculators/q-score-calculator'
 import { validateConsistency } from '@/features/qscore/validators/consistency-validator'
 import { getAllIndicatorPercentiles } from '@/features/qscore/benchmarking/benchmark-engine'
 import type { SectionData } from '@/lib/profile-builder/data-merger'
@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
         boostActions: [],
         marketplaceUnlocked: false,
         sectionsComplete: 0,
-        scoreVersion: 'v2_iq',
+        scoreVersion: 'v2_q',
       })
     }
 
@@ -78,7 +78,7 @@ export async function GET(req: NextRequest) {
     const stage = inferStage(fp?.stage ?? 'mid')
     const isImpactFocused = fp?.is_impact_focused ?? false
 
-    const iqResult = calculateIQScore(
+    const iqResult = calculateQScore(
       assessmentData,
       stage,
       sector,
@@ -138,7 +138,7 @@ export async function GET(req: NextRequest) {
       marketplaceUnlocked: iqResult.finalIQ >= 70,
       sectionsComplete,
       track: iqResult.track,
-      scoreVersion: 'v2_iq',
+      scoreVersion: 'v2_q',
     })
   } catch (err) {
     log.error('[profile-builder/preview]', err)

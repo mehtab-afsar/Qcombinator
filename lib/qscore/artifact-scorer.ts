@@ -4,7 +4,7 @@
  * When an agent generates a structured artifact (financial_summary, icp_document, etc.)
  * this module extracts assessment-relevant fields and:
  *   1. Patches profile_builder_data only where values are currently absent
- *   2. Re-runs calculateIQScore and inserts a new qscore_history row with
+ *   2. Re-runs calculateQScore and inserts a new qscore_history row with
  *      data_source = 'agent_artifact' — closing the agent → score feedback loop.
  *
  * INVARIANT: Never overwrites founder-provided data (non-null fields in profile_builder_data).
@@ -13,7 +13,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { mergeToAssessmentData } from '../profile-builder/data-merger'
-import { calculateIQScore, inferStage, normalizeSector } from '../../features/qscore/calculators/iq-score-calculator'
+import { calculateQScore, inferStage, normalizeSector } from '../../features/qscore/calculators/q-score-calculator'
 import { calculateGrade } from '../../features/qscore/types/qscore.types'
 import { getCachedSectorWeights } from '../cache/qscore-cache'
 import type { SectionData } from '../profile-builder/data-merger'
@@ -274,8 +274,8 @@ export async function scoreFromArtifact(
     }
   }
 
-  // 6. Calculate updated IQ score
-  const iqResult = calculateIQScore(
+  // 6. Calculate updated Q-Score
+  const iqResult = calculateQScore(
     assessmentData,
     stage,
     sector,
@@ -311,9 +311,9 @@ export async function scoreFromArtifact(
       grade,
       data_source: 'agent_artifact',
       source_artifact_type: artifactType,
-      assessment_data: { ...assessmentData, scoreVersion: 'v2_iq' },
+      assessment_data: { ...assessmentData, scoreVersion: 'v2_q' },
       previous_score_id: (prevScore as { id: string } | null)?.id ?? null,
-      score_version: 'v2_iq',
+      score_version: 'v2_q',
       iq_breakdown: iqResult,
       available_iq: iqResult.availableIQ,
       track: iqResult.track,

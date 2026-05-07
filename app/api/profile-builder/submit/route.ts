@@ -8,10 +8,10 @@ import { enrichDataQuality } from '@/lib/profile-builder/confidence-engine'
 import { reconcileIndicators, applyReconciliationFlags } from '@/lib/profile-builder/reconciliation-engine'
 import { validateConsistency } from '@/features/qscore/validators/consistency-validator'
 import {
-  calculateIQScore,
+  calculateQScore,
   inferStage,
   normalizeSector,
-} from '@/features/qscore/calculators/iq-score-calculator'
+} from '@/features/qscore/calculators/q-score-calculator'
 import { calculateGrade } from '@/features/qscore/types/qscore.types'
 import { getCachedSectorWeights, setCachedSectorWeights } from '@/lib/cache/qscore-cache'
 import { getAllIndicatorPercentiles } from '@/features/qscore/benchmarking/benchmark-engine'
@@ -122,8 +122,8 @@ export async function POST(_req: NextRequest) {
       // non-blocking
     }
 
-    // 9. Calculate IQ Score
-    const iqResult = calculateIQScore(
+    // 9. Calculate Q-Score
+    const iqResult = calculateQScore(
       assessmentData,
       stage,
       sector,
@@ -190,13 +190,13 @@ export async function POST(_req: NextRequest) {
     const paramMap = Object.fromEntries(iqResultWithWarnings.parameters.map(p => [p.id, p]))
     const finalGrade = calculateGrade(finalScore)
 
-    // 14. INSERT qscore_history with score_version='v2_iq'
+    // 14. INSERT qscore_history with score_version='v2_q'
     const { error: insertErr } = await supabase
       .from('qscore_history')
       .insert({
         user_id: userId,
         overall_score: finalScore,
-        // P1-P6 parameter scores from IQ Score v2 calculator
+        // P1-P6 parameter scores from Q-Score v2 calculator
         p1_score: Math.round((paramMap['p1']?.averageScore ?? 0) * 20),
         p2_score: Math.round((paramMap['p2']?.averageScore ?? 0) * 20),
         p3_score: Math.round((paramMap['p3']?.averageScore ?? 0) * 20),
@@ -206,10 +206,10 @@ export async function POST(_req: NextRequest) {
         grade: finalGrade,
         data_source: 'profile_builder',
         ai_actions: (scoreIntelligence as ScoreIntelligence | null) ?? null,
-        assessment_data: { ...assessmentData, scoreVersion: 'v2_iq' },
+        assessment_data: { ...assessmentData, scoreVersion: 'v2_q' },
         previous_score_id: prevScore?.id ?? null,
         // v2 specific
-        score_version: 'v2_iq',
+        score_version: 'v2_q',
         iq_breakdown: {
           ...iqResultWithWarnings,
           percentiles: Object.fromEntries(percentileMap),
@@ -270,7 +270,7 @@ export async function POST(_req: NextRequest) {
             user_id: userId,
             agent_id: 'system',
             action_type: 'score_milestone',
-            description: `IQ Score crossed 70 — Investor Marketplace now unlocked (${finalScore}/100)`,
+            description: `Q-Score crossed 70 — Investor Marketplace now unlocked (${finalScore}/100)`,
             metadata: { previousScore: prevOverallScore, newScore: finalScore, milestone: 70 },
           })
 
@@ -295,7 +295,7 @@ export async function POST(_req: NextRequest) {
                 to: fp.email,
                 subject: `You hit 70 — Investor Marketplace is now live`,
                 html: `<p>Hi ${name},</p>
-<p>Your IQ Score just crossed <strong>70/100</strong> — your profile is now visible to investors in the Marketplace.</p>
+<p>Your Q-Score just crossed <strong>70/100</strong> — your profile is now visible to investors in the Marketplace.</p>
 <p>Your current score: <strong>${finalScore}/100 (Grade ${finalGrade})</strong></p>
 <p>To keep improving:<br>
 • Use your AI agents to build deliverables that boost your weakest parameters<br>
@@ -341,7 +341,7 @@ export async function POST(_req: NextRequest) {
       track: iqResultWithWarnings.track,
       reconciliationFlags: iqResultWithWarnings.reconciliationFlags,
       validationWarnings: warningMessages,
-      scoreVersion: 'v2_iq',
+      scoreVersion: 'v2_q',
       unlockCards: (scoreIntelligence as ScoreIntelligence | null)?.unlockCards ?? [],
       readinessSummary: (scoreIntelligence as ScoreIntelligence | null)?.readinessSummary ?? '',
     })

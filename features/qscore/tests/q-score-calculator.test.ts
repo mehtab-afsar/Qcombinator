@@ -1,9 +1,9 @@
 /**
- * Edge Alpha IQ Score v2 — Unit Tests: IQ Score Calculator
+ * Edge Alpha Q-Score v2 — Unit Tests: Q-Score Calculator
  * Tests the core formula and key invariants.
  */
 
-import { calculateIQScore, inferStage, normalizeSector } from '../calculators/iq-score-calculator'
+import { calculateQScore, inferStage, normalizeSector } from '../calculators/q-score-calculator'
 import type { AssessmentData } from '../types/qscore.types'
 
 // ── Base test data ─────────────────────────────────────────────────────────────
@@ -63,7 +63,7 @@ function baseData(): AssessmentData {
 
 test('constant denominator: Σ/150 regardless of exclusions', () => {
   const data = baseData()
-  const result = calculateIQScore(data, 'growth', 'b2b_saas')
+  const result = calculateQScore(data, 'growth', 'b2b_saas')
 
   // Denominator must always be 150 (30 × 5)
   const totalRaw = result.parameters.flatMap(p => p.indicators).reduce((s, i) => s + i.rawScore, 0)
@@ -79,7 +79,7 @@ test('pre-product stage: all P6 rawScore=0, still counted in denominator', () =>
   data.hasPayingCustomers = false
   data.conversationCount = 2
 
-  const result = calculateIQScore(data, 'early', 'b2b_saas')
+  const result = calculateQScore(data, 'early', 'b2b_saas')
 
   const p6 = result.parameters.find(p => p.id === 'p6')!
   expect(p6.indicators.every(i => i.excluded || i.rawScore === 0)).toBe(true)
@@ -95,7 +95,7 @@ test('pre-product stage: all P6 rawScore=0, still counted in denominator', () =>
 
 test('commercial track: P5 all excluded, still in denominator', () => {
   const data = baseData()
-  const result = calculateIQScore(data, 'mid', 'b2b_saas', 'commercial')
+  const result = calculateQScore(data, 'mid', 'b2b_saas', 'commercial')
 
   const p5 = result.parameters.find(p => p.id === 'p5')!
   expect(p5.indicators.every(i => i.excluded)).toBe(true)
@@ -118,7 +118,7 @@ test('impact track: P5 is scored', () => {
     viksitBharatAlignment: 'Aligned with Make in India and Atmanirbhar Bharat — supporting domestic procurement.',
   }
 
-  const result = calculateIQScore(data, 'growth', 'climate', 'impact')
+  const result = calculateQScore(data, 'growth', 'climate', 'impact')
 
   const p5 = result.parameters.find(p => p.id === 'p5')!
   expect(p5.indicators.some(i => i.rawScore > 0)).toBe(true)
@@ -131,7 +131,7 @@ test('MRR $15K mid-stage → 6.1 Revenue Scale ~3.5', () => {
   const data = baseData()
   data.financial = { mrr: 15_000, arr: 180_000, monthlyBurn: 5000, runway: 12, cogs: 2000 }
 
-  const result = calculateIQScore(data, 'mid', 'b2b_saas')
+  const result = calculateQScore(data, 'mid', 'b2b_saas')
   const p6 = result.parameters.find(p => p.id === 'p6')!
   const ind61 = p6.indicators.find(i => i.id === '6.1')!
 
@@ -144,7 +144,7 @@ test('MRR $15K mid-stage → 6.1 Revenue Scale ~3.5', () => {
 
 test('finalIQ is between 0 and 100', () => {
   const data = baseData()
-  const result = calculateIQScore(data, 'mid', 'b2b_saas')
+  const result = calculateQScore(data, 'mid', 'b2b_saas')
   expect(result.finalIQ).toBeGreaterThanOrEqual(0)
   expect(result.finalIQ).toBeLessThanOrEqual(100)
 })
@@ -154,7 +154,7 @@ test('availableIQ >= finalIQ (non-excluded indicators always score higher)', () 
   data.financial = { monthlyBurn: 5000 }
   data.hasPayingCustomers = false
 
-  const result = calculateIQScore(data, 'early', 'b2b_saas')
+  const result = calculateQScore(data, 'early', 'b2b_saas')
   expect(result.availableIQ).toBeGreaterThanOrEqual(result.finalIQ)
 })
 
@@ -162,8 +162,8 @@ test('availableIQ >= finalIQ (non-excluded indicators always score higher)', () 
 
 test('unknown sector falls back to default weights without error', () => {
   const data = baseData()
-  expect(() => calculateIQScore(data, 'mid', 'unknown_sector_xyz')).not.toThrow()
-  const result = calculateIQScore(data, 'mid', 'unknown_sector_xyz')
+  expect(() => calculateQScore(data, 'mid', 'unknown_sector_xyz')).not.toThrow()
+  const result = calculateQScore(data, 'mid', 'unknown_sector_xyz')
   expect(result.finalIQ).toBeGreaterThan(0)
 })
 
@@ -193,7 +193,7 @@ test('normalizeSector maps known sectors', () => {
 
 test('exactly 30 indicators are returned', () => {
   const data = baseData()
-  const result = calculateIQScore(data, 'mid', 'b2b_saas')
+  const result = calculateQScore(data, 'mid', 'b2b_saas')
   const total = result.parameters.flatMap(p => p.indicators).length
   expect(total).toBe(30)
 })
@@ -202,7 +202,7 @@ test('exactly 30 indicators are returned', () => {
 
 test('all rawScores are in 0.5 increments', () => {
   const data = baseData()
-  const result = calculateIQScore(data, 'mid', 'b2b_saas')
+  const result = calculateQScore(data, 'mid', 'b2b_saas')
   for (const param of result.parameters) {
     for (const ind of param.indicators) {
       // Score is either 0 (excluded) or 1.0–5.0 in 0.5 steps

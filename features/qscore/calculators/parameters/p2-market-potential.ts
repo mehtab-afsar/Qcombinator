@@ -1,5 +1,5 @@
 /**
- * Edge Alpha IQ Score v2 — P2: Market Potential
+ * Edge Alpha Q-Score v2 — P2: Market Potential
  * 5 indicators: Market Size (AI flag), Market Urgency, Value Pool,
  *               Expansion Potential, Competitive Space (AI flag)
  *

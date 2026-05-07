@@ -1,5 +1,5 @@
 /**
- * Edge Alpha IQ Score v2 — AI Reconciliation Engine
+ * Edge Alpha Q-Score v2 — AI Reconciliation Engine
  *
  * CRITICAL INVARIANT:
  *   reconciledValue = founderValue ALWAYS

@@ -1,7 +1,7 @@
 /**
  * Profile Builder — Data Merger
  * Combines extracted fields from all 5 sections into a single AssessmentData
- * object that can be passed directly to calculateIQScore().
+ * object that can be passed directly to calculateQScore().
  *
  * Also builds the dataSourceMap so confidence multipliers are applied correctly.
  */

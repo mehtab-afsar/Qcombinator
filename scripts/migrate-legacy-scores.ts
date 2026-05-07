@@ -1,10 +1,10 @@
 /**
- * Edge Alpha IQ Score v2 — Legacy Score Migration
+ * Edge Alpha Q-Score v2 — Legacy Score Migration
  *
  * Strategy: Freeze legacy scores, do NOT re-score.
  * 1. Add score_version column to qscore_history (via migration SQL)
  * 2. Backfill existing rows: score_version = 'v1_prd'
- * 3. All new submissions: score_version = 'v2_iq'
+ * 3. All new submissions: score_version = 'v2_q'
  *
  * Run: npx ts-node scripts/migrate-legacy-scores.ts
  */

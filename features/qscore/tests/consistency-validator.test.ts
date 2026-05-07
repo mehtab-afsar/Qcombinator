@@ -1,5 +1,5 @@
 /**
- * Edge Alpha IQ Score v2 — Unit Tests: Consistency Validator
+ * Edge Alpha Q-Score v2 — Unit Tests: Consistency Validator
  * Tests all 6 rules (V01–V06) with pass and fail cases.
  */
 

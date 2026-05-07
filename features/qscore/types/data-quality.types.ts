@@ -1,5 +1,5 @@
 /**
- * Edge Alpha IQ Score v2 — Data Quality Types
+ * Edge Alpha Q-Score v2 — Data Quality Types
  *
  * DataQuality.confidence is applied as a multiplier in the finalIQ formula:
  *   effectiveScore = rawScore × clamp(confidence / 0.90, 0.50, 1.00)

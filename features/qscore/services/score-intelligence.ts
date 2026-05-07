@@ -1,7 +1,7 @@
 /**
  * AI Score Intelligence
  *
- * Generates personalised "unlock" cards after IQ Score submission.
+ * Generates personalised "unlock" cards after Q-Score submission.
  * Each card tells the founder exactly what to do to improve their score,
  * which indicator to target, and the estimated point impact.
  *
@@ -12,7 +12,7 @@
  */
 
 import { tieredText } from '@/lib/llm/router';
-import type { ParameterScore, IndicatorScore } from '../calculators/iq-score-calculator';
+import type { ParameterScore, IndicatorScore } from '../calculators/q-score-calculator';
 
 export interface UnlockCard {
   indicatorId: string;
@@ -59,9 +59,9 @@ export async function generateScoreIntelligence(
     .sort((a, b) => a.rawScore - b.rawScore)
     .slice(0, 6);
 
-  const prompt = `You are a venture capital associate analysing a startup's IQ Score to identify the highest-leverage improvement opportunities.
+  const prompt = `You are a venture capital associate analysing a startup's Q-Score to identify the highest-leverage improvement opportunities.
 
-IQ Score: ${score}/100 (Grade ${grade})
+Q-Score: ${score}/100 (Grade ${grade})
 Sector: ${sector}
 Stage: ${stage}
 

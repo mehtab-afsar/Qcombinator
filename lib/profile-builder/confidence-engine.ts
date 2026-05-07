@@ -1,5 +1,5 @@
 /**
- * Edge Alpha IQ Score v2 — Confidence Engine
+ * Edge Alpha Q-Score v2 — Confidence Engine
  *
  * Enriches AssessmentData with DataQuality metadata per field.
  * NEVER modifies rawScore. Returns DataQuality map only.

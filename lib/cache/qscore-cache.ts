@@ -1,5 +1,5 @@
 /**
- * Edge Alpha IQ Score v2 — In-Memory LRU Cache
+ * Edge Alpha Q-Score v2 — In-Memory LRU Cache
  *
  * No Redis dependency. Sufficient for this load.
  * Three TTL tiers:

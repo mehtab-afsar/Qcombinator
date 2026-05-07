@@ -1,5 +1,5 @@
 /**
- * Edge Alpha IQ Score v2 — Orchestrator
+ * Edge Alpha Q-Score v2 — Orchestrator
  *
  * Core formula: Final IQ = Σ(confidence-adjusted rawScores) / (activeCount × 5) × 100
  *   effectiveScore = rawScore × clamp(confidence / 0.90, 0.50, 1.00)
@@ -19,14 +19,14 @@ import { scoreP6 } from './parameters/p6-financials'
 import { calculateGrade } from '../types/qscore.types'
 import type {
   AssessmentData,
-  IQScoreResult,
+  QScoreResult,
   IndicatorScore,
   ParameterScore,
   ScoreStage,
   StartupTrack,
 } from '../types/qscore.types'
 
-export { type IQScoreResult, type ParameterScore, type IndicatorScore }
+export { type QScoreResult, type ParameterScore, type IndicatorScore }
 
 // ── Sector weight profiles (fallback when DB unavailable) ─────────────────────
 
@@ -89,13 +89,13 @@ function parameterAverage(indicators: IndicatorScore[]): number {
 
 // ── Main calculator ───────────────────────────────────────────────────────────
 
-export function calculateIQScore(
+export function calculateQScore(
   data: AssessmentData,
   stage: ScoreStage,
   sector: string,
   track?: StartupTrack,
   customWeights?: number[]
-): IQScoreResult {
+): QScoreResult {
   const resolvedTrack: StartupTrack = track ?? determineTrack(data)
 
   // Score all 6 parameters

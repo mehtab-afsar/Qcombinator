@@ -1045,7 +1045,7 @@ export default function ProfileBuilderPage() {
     const weakest = sorted[sorted.length - 1]
 
     const overall = [
-      'Your IQ Score of ' + score + ' (Grade ' + grade + ') reflects ' +
+      'Your Q-Score of ' + score + ' (Grade ' + grade + ') reflects ' +
         (score >= 70 ? 'a well-evidenced startup with strong fundamentals.'
           : score >= 50 ? 'a startup with solid foundations but meaningful gaps to close before a Series A.'
           : score >= 35 ? 'an early-stage startup where key signals still need to be validated.'
@@ -1293,14 +1293,14 @@ export default function ProfileBuilderPage() {
                 Upload your pitch deck
               </h2>
               <p style={{ fontSize: 14, color: muted, margin: '0 0 20px', lineHeight: 1.6 }}>
-                We analyse it, identify your weakest parameters, and give you a partial IQ Score in under 5 minutes.
+                We analyse it, identify your weakest parameters, and give you a partial Q-Score in under 5 minutes.
               </p>
               {/* Flow preview */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0, marginBottom: 20 }}>
                 {[
                   { step: '1', label: 'Upload', sub: 'PDF, PPTX, DOCX' },
                   { step: '2', label: '3 questions', sub: 'Weakest params only' },
-                  { step: '3', label: 'Instant score', sub: 'Partial IQ Score' },
+                  { step: '3', label: 'Instant score', sub: 'Partial Q-Score' },
                 ].map(({ step, label, sub }, i) => (
                   <React.Fragment key={step}>
                     <div style={{ textAlign: 'center', minWidth: 96 }}>
@@ -1858,7 +1858,7 @@ export default function ProfileBuilderPage() {
                 We pre-filled your profile
               </h2>
               <p style={{ fontSize: 14, color: muted, margin: '0 0 28px', lineHeight: 1.6, maxWidth: 480, marginLeft: 'auto', marginRight: 'auto' }}>
-                Your documents gave us a head start. The fields we extracted directly raise your IQ Score — the more complete your profile, the higher your investor match rate.
+                Your documents gave us a head start. The fields we extracted directly raise your Q-Score — the more complete your profile, the higher your investor match rate.
               </p>
 
               {/* Stats row */}
@@ -2032,7 +2032,7 @@ export default function ProfileBuilderPage() {
                     {smartQuestions.length} {smartQuestions.length === 1 ? 'question' : 'questions'} — your {smartQuestions.length} weakest parameter{smartQuestions.length !== 1 ? 's' : ''}
                   </div>
                   <div style={{ fontSize: 12, color: muted, lineHeight: 1.5 }}>
-                    Each scored below 3/5. Answering moves these the most. Your IQ Score calculates automatically after.
+                    Each scored below 3/5. Answering moves these the most. Your Q-Score calculates automatically after.
                   </div>
                 </div>
                 <div style={{ fontSize: 12, fontWeight: 600, color: amber, flexShrink: 0 }}>~{smartQuestions.length * 45}s</div>
@@ -2051,7 +2051,7 @@ export default function ProfileBuilderPage() {
                 </div>
                 <div>
                   <div style={{ fontSize: 14, fontWeight: 700, color: ink, marginBottom: 2 }}>All parameters score ≥ 3/5</div>
-                  <div style={{ fontSize: 12, color: muted }}>Your documents covered everything well. Calculating your IQ Score now.</div>
+                  <div style={{ fontSize: 12, color: muted }}>Your documents covered everything well. Calculating your Q-Score now.</div>
                 </div>
               </div>
             )}
@@ -2494,7 +2494,7 @@ export default function ProfileBuilderPage() {
 <html>
 <head>
 <meta charset="utf-8">
-<title>IQ Score Memo — ${companyLabel}</title>
+<title>Q-Score Memo — ${companyLabel}</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#FAFAF9;color:#2A2826}
@@ -2602,7 +2602,7 @@ export default function ProfileBuilderPage() {
                         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 20, marginBottom: 24 }}>
                           <div>
                             <div style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: 'uppercase', letterSpacing: '0.14em', marginBottom: 8 }}>
-                              Edge Alpha · IQ Score Memo
+                              Edge Alpha · Q-Score Memo
                             </div>
                             <div style={{ fontSize: 26, fontWeight: 800, color: ink, letterSpacing: '-0.02em', lineHeight: 1.1, marginBottom: 5 }}>
                               {companyLabel}
@@ -2811,7 +2811,7 @@ export default function ProfileBuilderPage() {
                     </div>
                     <div>
                       <h2 style={{ fontSize: 22, fontWeight: 700, color: ink, margin: '0 0 8px', letterSpacing: '-0.02em' }}>
-                        Calculating your IQ Score…
+                        Calculating your Q-Score…
                       </h2>
                       <p style={{ fontSize: 14, color: muted, margin: 0, lineHeight: 1.6 }}>
                         Scoring all parameters, running benchmarks and AI reconciliation.
@@ -2821,12 +2821,12 @@ export default function ProfileBuilderPage() {
                 ) : null}
                 <div style={{ textAlign: 'center', display: flowMode === 'fast' && isSubmitting ? 'none' : undefined }}>
                   <h2 style={{ fontSize: 24, fontWeight: 700, color: ink, margin: '0 0 8px', letterSpacing: '-0.02em' }}>
-                    {flowMode === 'fast' ? 'Your partial IQ Score' : 'Review & Submit'}
+                    {flowMode === 'fast' ? 'Your partial Q-Score' : 'Review & Submit'}
                   </h2>
                   <p style={{ fontSize: 14, color: muted, margin: 0 }}>
                     {flowMode === 'fast'
                       ? `Based on ${Object.values(sections).filter(s => s.completionScore >= 30).length}/5 parameters answered. Add more sections to raise it.`
-                      : `${completedCount}/5 sections complete. ${canSubmit ? 'Ready to calculate your IQ Score.' : 'Complete at least 1 section to submit.'}`}
+                      : `${completedCount}/5 sections complete. ${canSubmit ? 'Ready to calculate your Q-Score.' : 'Complete at least 1 section to submit.'}`}
                   </p>
                 </div>
 
@@ -2918,7 +2918,7 @@ export default function ProfileBuilderPage() {
                     fontFamily: 'inherit', opacity: (!canSubmit || isSubmitting) ? 0.6 : 1,
                   }}
                 >
-                  {isSubmitting ? 'Calculating IQ Score…' : 'Calculate My IQ Score →'}
+                  {isSubmitting ? 'Calculating Q-Score…' : 'Calculate My Q-Score →'}
                 </button>
 
                 <button

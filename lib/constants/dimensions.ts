@@ -1,6 +1,6 @@
 /**
  * Canonical Q-Score parameter string literals (P1–P6).
- * These are the real parameters from the IQ Score v2 calculator.
+ * These are the real parameters from the Q-Score v2 calculator.
  * The old 6-column schema (market/product/gtm/financial/team/traction) is retired.
  */
 export const PARAMS = {
