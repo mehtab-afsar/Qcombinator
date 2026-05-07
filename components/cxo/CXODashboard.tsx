@@ -261,7 +261,7 @@ export function CXODashboard({ config, agentId, artifacts, dimensionScore, onSta
       </div>
 
       {/* ── Metric cards row ──────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 28 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 28 }}>
 
         {/* Dimension score */}
         <div style={{ background: '#fff', border: `1px solid ${bdr}`, borderRadius: 12, padding: '16px 18px' }}>
@@ -321,7 +321,7 @@ export function CXODashboard({ config, agentId, artifacts, dimensionScore, onSta
       </div>
 
       {/* ── Main grid ─────────────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20 }}>
 
         {/* LEFT column */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>

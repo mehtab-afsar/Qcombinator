@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import {
-  ArrowLeft, BarChart2, CheckSquare, GitBranch, BookOpen, MessageCircle, LayoutDashboard,
+  ArrowLeft, BarChart2, CheckSquare, GitBranch, MessageCircle, LayoutDashboard,
 } from 'lucide-react';
 import { DeliverableItem } from './DeliverableItem';
 import { ConnectedDataItem } from './ConnectedDataItem';
@@ -93,8 +93,7 @@ function SectionRow({
 
 // ─── component ────────────────────────────────────────────────────────────────
 export function CXOSidebar({ config, artifacts, agentId, dimensionScore, view, onViewChange }: CXOSidebarProps) {
-  const [expanded,      setExpanded]      = useState(false);
-  const [resourcesOpen, setResourcesOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   // Deliverable stats
   const doneTypes  = new Set(artifacts.map(a => a.artifact_type));
@@ -137,7 +136,7 @@ export function CXOSidebar({ config, artifacts, agentId, dimensionScore, view, o
       animate={{ width: expanded ? W_OPEN : W_CLOSED }}
       transition={{ ease: 'easeOut', duration: 0.2 }}
       onMouseEnter={() => setExpanded(true)}
-      onMouseLeave={() => { setExpanded(false); setResourcesOpen(false); }}
+      onMouseLeave={() => setExpanded(false)}
     >
 
       {/* ── Top: back + role identity ────────────────────────────────── */}
@@ -331,7 +330,7 @@ export function CXOSidebar({ config, artifacts, agentId, dimensionScore, view, o
           </div>
         </motion.div>
 
-        <div style={{ height: 1, background: bdr, margin: '0 4px 6px' }} />
+        <div style={{ height: 1, background: bdr, margin: '0 4px 4px' }} />
 
         {/* ── Deliverables ───────────────────────────────────────────── */}
         <SectionRow icon={CheckSquare} label="Deliverables" expanded={expanded} accent={doneCount === totalCount ? '#16A34A' : muted} />
@@ -404,61 +403,6 @@ export function CXOSidebar({ config, artifacts, agentId, dimensionScore, view, o
           </>
         )}
 
-        {/* ── Resources (collapsible section) ───────────────────────── */}
-        {config.resources.length > 0 && (
-          <>
-            <div style={{ height: 1, background: bdr, margin: '0 4px 6px' }} />
-            <button
-              onClick={() => setResourcesOpen(o => !o)}
-              style={{
-                display: 'flex', alignItems: 'center',
-                height: 34, padding: '0 10px', marginBottom: 2,
-                width: '100%', background: 'none', border: 'none',
-                cursor: expanded ? 'pointer' : 'default',
-                borderRadius: 8,
-                transition: 'background 0.12s',
-              }}
-              onMouseEnter={e => { if (expanded) (e.currentTarget as HTMLElement).style.background = surf; }}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'none'}
-            >
-              <BookOpen style={{ height: 15, width: 15, flexShrink: 0, color: muted }} />
-              <motion.div
-                animate={{ opacity: expanded ? 1 : 0, x: expanded ? 0 : -4 }}
-                transition={{ duration: 0.15 }}
-                style={{
-                  marginLeft: 10, display: 'flex', alignItems: 'center',
-                  flex: 1, overflow: 'hidden', whiteSpace: 'nowrap',
-                }}
-              >
-                <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.14em', color: muted }}>
-                  Resources
-                </span>
-                <span style={{ marginLeft: 'auto', fontSize: 10, color: muted, transition: 'transform 0.15s', transform: resourcesOpen ? 'rotate(90deg)' : 'none', display: 'inline-block' }}>
-                  ▶
-                </span>
-              </motion.div>
-            </button>
-
-            {resourcesOpen && expanded && config.resources.map((r, i) => (
-              <a
-                key={i}
-                href={r.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: 'block', padding: '7px 10px',
-                  borderRadius: 8, textDecoration: 'none',
-                  transition: 'background 0.12s',
-                }}
-                onMouseEnter={e => (e.currentTarget.style.background = surf)}
-                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-              >
-                <p style={{ fontSize: 11, fontWeight: 500, color: ink, margin: 0, lineHeight: 1.3 }}>{r.title}</p>
-                <p style={{ fontSize: 10, color: muted, margin: '1px 0 0', lineHeight: 1.3 }}>{r.source} ↗</p>
-              </a>
-            ))}
-          </>
-        )}
       </div>
 
     </motion.nav>
