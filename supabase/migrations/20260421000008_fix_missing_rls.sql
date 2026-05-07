@@ -34,11 +34,3 @@ CREATE POLICY "delegation_tasks: service role full access"
   ON delegation_tasks FOR ALL TO service_role
   USING (true) WITH CHECK (true);
 
--- ─── agent_messages_embedding ─────────────────────────────────────────────────
--- Embeddings are accessed via service role only (vector search happens server-side).
--- Authenticated users must not directly query this table.
-ALTER TABLE agent_messages_embedding ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "agent_messages_embedding: service role full access"
-  ON agent_messages_embedding FOR ALL TO service_role
-  USING (true) WITH CHECK (true);

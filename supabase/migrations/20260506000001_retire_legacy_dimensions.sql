@@ -24,7 +24,9 @@ WHERE iq_breakdown IS NOT NULL
   AND jsonb_typeof(iq_breakdown->'parameters') = 'array'
   AND jsonb_array_length(iq_breakdown->'parameters') >= 6;
 
--- Step 3: Drop legacy columns
+-- Step 3: Drop dependent view first, then legacy columns
+DROP VIEW IF EXISTS qscore_with_delta;
+
 ALTER TABLE qscore_history
   DROP COLUMN IF EXISTS market_score,
   DROP COLUMN IF EXISTS product_score,
