@@ -846,7 +846,7 @@ CONVERSATION RULES:
     // ── Pass 1: LLM chat call with native tool calling ─────────────────────
     // Programmatic "no tools in first 3 messages" enforcement
     const userMsgCount = (conversationHistory || []).filter((m: { role: string }) => m.role === 'user').length;
-    const agentTools = userMsgCount >= 3 ? getToolsForAgent(agentId) : [];
+    const agentTools = userMsgCount >= 2 ? getToolsForAgent(agentId) : [];
 
     // ── Shared observe-loop constants (used by both streaming + non-streaming) ─
     const MAX_ITERATIONS = 5;
@@ -903,7 +903,11 @@ CONVERSATION RULES:
         { role: 'user', content: 'Generate the deliverable now. Return ONLY valid JSON, no markdown fences, no explanation text.' },
       ], { maxTokens: 3000 });
       const clean = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
-      return JSON.parse(clean);
+      try {
+        return JSON.parse(clean);
+      } catch {
+        return { raw_output: clean, _parse_error: true };
+      }
     }
 
     // ── SSE streaming path — full observe loop with tool activity events ───────

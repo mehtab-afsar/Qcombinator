@@ -20,6 +20,9 @@ export const ARTIFACT_TYPES = {
   STRATEGIC_PLAN:     'strategic_plan',
 
   // ── Patel (CMO) ───────────────────────────────────────────────────────────
+  PAINS_GAINS_TRIGGERS: 'pains_gains_triggers',
+  BUYER_JOURNEY:        'buyer_journey',
+  POSITIONING_MESSAGING:'positioning_messaging',
   LEAD_LIST:          'lead_list',
   CAMPAIGN_REPORT:    'campaign_report',
   AB_TEST_RESULT:     'ab_test_result',

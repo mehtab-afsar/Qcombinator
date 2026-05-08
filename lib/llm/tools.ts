@@ -411,6 +411,21 @@ const icpDocument = artifactTool(
   'Generate an Ideal Customer Profile document. Use when the founder has described their target market, product, current customers, and pain points.',
 );
 
+const painsGainsTriggers = artifactTool(
+  ARTIFACT_TYPES.PAINS_GAINS_TRIGGERS,
+  "Generate a Pains, Gains & Triggers card: ICP's core pains, desired gains, urgency triggers, current workarounds, and proof expectations. Use after D1 (icp_document) is complete.",
+);
+
+const buyerJourney = artifactTool(
+  ARTIFACT_TYPES.BUYER_JOURNEY,
+  'Generate a Buyer Journey map from trigger to decision. Includes stakeholders, friction points, trust moments, and recommended touchpoints. Use after D2 (pains_gains_triggers) is complete.',
+);
+
+const positioningMessaging = artifactTool(
+  ARTIFACT_TYPES.POSITIONING_MESSAGING,
+  'Generate a Positioning & Messaging System with value prop, message pillars, ICP variants, website copy, outbound hooks, and sales script. Use after D3 (buyer_journey) is complete.',
+);
+
 const outreachSequence = artifactTool(
   ARTIFACT_TYPES.OUTREACH_SEQUENCE,
   'Generate a 5-7 step outreach sequence (email/LinkedIn/call) with personalization tokens. Use when ICP is clear and value proposition is defined.',
@@ -561,6 +576,9 @@ export const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
   strategic_plan:           strategicPlan,
 
   // New artifact tools — Patel
+  pains_gains_triggers:     painsGainsTriggers,
+  buyer_journey:            buyerJourney,
+  positioning_messaging:    positioningMessaging,
   lead_list:                leadList,
   campaign_report:          campaignReport,
   ab_test_result:           abTestResult,
