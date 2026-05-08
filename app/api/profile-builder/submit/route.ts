@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { postQScoreFeedEvent } from '@/lib/feed/auto-events'
 import { verifyAuth } from '@/lib/auth/verify'
 import { log } from '@/lib/logger'
+import { triggerDealFlowAlerts } from '@/lib/agents/deal-flow-alerts'
 import { mergeToAssessmentData } from '@/lib/profile-builder/data-merger'
 import { enrichDataQuality } from '@/lib/profile-builder/confidence-engine'
 import { reconcileIndicators, applyReconciliationFlags } from '@/lib/profile-builder/reconciliation-engine'
@@ -226,6 +227,9 @@ export async function POST(_req: NextRequest) {
       log.error('POST /api/profile-builder/submit insert', { insertErr })
       return NextResponse.json({ error: `Score save failed: ${insertErr.message}` }, { status: 500 })
     }
+
+    // Fire deal-flow alerts if score improved significantly (fire-and-forget)
+    void triggerDealFlowAlerts(userId, finalScore).catch(() => {})
 
     // 15. Log reconciliation results for observability
     const loggable = reconciliationResults.filter(r => r.applied || r.error)

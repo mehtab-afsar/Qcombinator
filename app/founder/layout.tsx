@@ -9,10 +9,7 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
   const pathname     = usePathname();
   const searchParams = useSearchParams();
 
-  // Hide sidebar when:
-  // 1. Embedded inside CXOChat iframe (?_embed=1)
-  // 2. Onboarding / assessment flows
-  // 3. CXO workspace pages (/founder/cxo/[agentId]) — those have their own sidebar
+  // Hide sidebar when embedded in iframe, onboarding flows, or agent/CXO pages (those have their own sidebar)
   const hideSidebar =
     searchParams.get("_embed") === "1" ||
     pathname.includes("/onboarding") ||

@@ -1,16 +1,10 @@
 'use client';
 
-import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useRef } from 'react';
 import Link from 'next/link';
-import {
-  ArrowLeft, BarChart2, CheckSquare, GitBranch, MessageCircle, LayoutDashboard,
-} from 'lucide-react';
-import { DeliverableItem } from './DeliverableItem';
-import { ConnectedDataItem } from './ConnectedDataItem';
+import { ArrowLeft, Plus, Pencil } from 'lucide-react';
 import type { CXOConfig } from '@/lib/cxo/cxo-config';
 
-// ─── palette ──────────────────────────────────────────────────────────────────
 const bg    = '#F9F7F2';
 const surf  = '#F0EDE6';
 const bdr   = '#E2DDD5';
@@ -26,385 +20,232 @@ export interface AgentArtifact {
   created_at: string;
 }
 
+export interface ConversationSummary {
+  id: string;
+  title: string | null;
+  last_message_at: string | null;
+}
+
 interface CXOSidebarProps {
-  config: CXOConfig;
-  artifacts: AgentArtifact[];
-  agentId: string;
-  dimensionScore: number | null;
-  view: 'dashboard' | 'chat';
-  onViewChange: (v: 'dashboard' | 'chat') => void;
+  config:              CXOConfig;
+  agentId:             string;
+  artifacts:           AgentArtifact[];
+  conversations:       ConversationSummary[];
+  activeConvId:        string | null;
+  onSwitchConversation:(id: string) => void;
+  onNewConversation:   () => void;
+  onRenameConversation:(id: string, title: string) => void;
+  tab:                 'dashboard' | 'chat';
+  onTabChange:         (tab: 'dashboard' | 'chat') => void;
 }
 
-const DIMENSION_LABEL: Record<string, string> = {
-  market:     'Market',
-  product:    'Product',
-  goToMarket: 'GTM',
-  financial:  'Financial',
-  team:       'Team',
-  traction:   'Traction',
-};
+const SIDEBAR_W = 260;
 
-function timeAgo(iso: string): string {
-  const diff  = Date.now() - new Date(iso).getTime();
-  const mins  = Math.floor(diff / 60000);
-  const hours = Math.floor(diff / 3600000);
-  const days  = Math.floor(diff / 86400000);
-  if (days > 0)  return `${days}d ago`;
-  if (hours > 0) return `${hours}h ago`;
-  if (mins > 0)  return `${mins}m ago`;
-  return 'just now';
+function convDateLabel(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const now = new Date();
+  const diffDays = Math.floor((now.getTime() - d.getTime()) / 86400000);
+  if (diffDays === 0) return 'today';
+  if (diffDays === 1) return 'yesterday';
+  if (diffDays < 7)  return d.toLocaleDateString('en', { weekday: 'short' });
+  return d.toLocaleDateString('en', { month: 'short', day: 'numeric' });
 }
 
-const W_OPEN   = 260;
-const W_CLOSED = 52;
-
-// ─── icon row (shared collapsed + expanded item) ──────────────────────────────
-function SectionRow({
-  icon: Icon,
-  label,
-  expanded,
-  accent,
+function ConvRow({
+  conv, isActive, accent, onSelect, onRename,
 }: {
-  icon: React.ElementType;
-  label: string;
-  expanded: boolean;
-  accent?: string;
+  conv: ConversationSummary;
+  isActive: boolean;
+  accent: string;
+  onSelect: () => void;
+  onRename: (title: string) => void;
 }) {
+  const [hovering,  setHovering]  = useState(false);
+  const [editing,   setEditing]   = useState(false);
+  const [draft,     setDraft]     = useState(conv.title ?? '');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  function startEdit(e: React.MouseEvent) {
+    e.stopPropagation();
+    setDraft(conv.title ?? '');
+    setEditing(true);
+    setTimeout(() => inputRef.current?.select(), 0);
+  }
+
+  function commit() {
+    setEditing(false);
+    const trimmed = draft.trim();
+    if (trimmed && trimmed !== conv.title) onRename(trimmed);
+  }
+
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center',
-      height: 34, padding: '0 10px', marginBottom: 2,
-    }}>
-      <Icon style={{ height: 15, width: 15, flexShrink: 0, color: accent ?? muted }} />
-      <motion.span
-        animate={{ opacity: expanded ? 1 : 0, x: expanded ? 0 : -4 }}
-        transition={{ duration: 0.15 }}
-        style={{
-          marginLeft: 10, fontSize: 10, fontWeight: 700,
-          textTransform: 'uppercase', letterSpacing: '0.14em',
-          color: muted, whiteSpace: 'nowrap', overflow: 'hidden',
-        }}
-      >
-        {label}
-      </motion.span>
+    <div
+      style={{ position: 'relative' }}
+      onMouseEnter={() => setHovering(true)}
+      onMouseLeave={() => setHovering(false)}
+    >
+      {editing ? (
+        <div style={{ padding: '4px 8px' }}>
+          <input
+            ref={inputRef}
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commit(); } if (e.key === 'Escape') setEditing(false); }}
+            onBlur={commit}
+            autoFocus
+            style={{
+              width: '100%', padding: '4px 8px', borderRadius: 6,
+              border: `1.5px solid ${accent}60`, outline: 'none',
+              fontSize: 11, color: ink, background: bg, fontFamily: 'inherit',
+              boxSizing: 'border-box',
+            }}
+          />
+        </div>
+      ) : (
+        <button
+          onClick={onSelect}
+          style={{
+            display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
+            gap: 4, width: '100%', padding: '5px 8px', borderRadius: 7,
+            border: 'none', textAlign: 'left', cursor: 'pointer',
+            background: isActive ? `${accent}12` : hovering ? `${bdr}60` : 'transparent',
+            fontFamily: 'inherit', transition: 'background 0.1s',
+          }}
+        >
+          <span style={{
+            fontSize: 11, color: isActive ? accent : ink,
+            fontWeight: isActive ? 600 : 400,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            flex: 1, minWidth: 0,
+          }}>
+            {conv.title ?? 'Untitled'}
+          </span>
+          {hovering && !isActive ? (
+            <span
+              role="button"
+              onClick={startEdit}
+              style={{ padding: '1px 3px', cursor: 'pointer', flexShrink: 0, color: muted, display: 'flex', alignItems: 'center' }}
+              title="Rename"
+            >
+              <Pencil style={{ width: 10, height: 10 }} />
+            </span>
+          ) : (
+            <span style={{ fontSize: 9, color: muted, flexShrink: 0, whiteSpace: 'nowrap' }}>
+              {convDateLabel(conv.last_message_at)}
+            </span>
+          )}
+        </button>
+      )}
     </div>
   );
 }
 
-// ─── component ────────────────────────────────────────────────────────────────
-export function CXOSidebar({ config, artifacts, agentId, dimensionScore, view, onViewChange }: CXOSidebarProps) {
-  const [expanded, setExpanded] = useState(false);
-
-  // Deliverable stats
-  const doneTypes  = new Set(artifacts.map(a => a.artifact_type));
-  const earned     = config.deliverables
-    .filter(d => doneTypes.has(d.artifactType))
-    .reduce((sum, d) => sum + d.dimensionBoost, 0);
-  const totalPts   = config.maxScoreContribution;
-  const doneCount  = config.deliverables.filter(d => doneTypes.has(d.artifactType)).length;
-  const totalCount = config.deliverables.length;
-  const lastArtifact = artifacts[0];
-
-  // Dimension score bar colour
-  const dimScore   = dimensionScore ?? 0;
-  const dimPct     = dimensionScore !== null ? dimScore / 100 : null;
-  const barColour  = dimPct === null ? surf : dimPct >= 0.7 ? '#16A34A' : dimPct >= 0.5 ? config.colour : '#D97706';
-  const dimLabel   = DIMENSION_LABEL[config.primaryDimension] ?? 'Score';
-
-  // Role first letter for the collapsed icon
-  const roleInitial = config.role[0]?.toUpperCase() ?? '?';
-
-  function deliverableHref(type: string, artifactId?: string): string {
-    if (artifactId) return `/founder/cxo/${agentId}?artifact=${artifactId}`;
-    return `/founder/cxo/${agentId}?prompt=${encodeURIComponent(`Let's create a ${type.replace(/_/g, ' ')}.`)}`;
-  }
-
+export function CXOSidebar({
+  config, agentId: _agentId, artifacts: _artifacts, conversations,
+  activeConvId, onSwitchConversation, onNewConversation, onRenameConversation,
+  tab, onTabChange,
+}: CXOSidebarProps) {
   return (
-    <motion.nav
-      style={{
-        position:      'fixed',
-        left:          0, top: 0,
-        zIndex:        40,
-        height:        '100vh',
-        background:    bg,
-        borderRight:   `1px solid ${bdr}`,
-        overflow:      'hidden',
-        display:       'flex',
-        flexDirection: 'column',
-        fontFamily:    'system-ui, sans-serif',
-      }}
-      animate={{ width: expanded ? W_OPEN : W_CLOSED }}
-      transition={{ ease: 'easeOut', duration: 0.2 }}
-      onMouseEnter={() => setExpanded(true)}
-      onMouseLeave={() => setExpanded(false)}
-    >
+    <nav style={{
+      width: SIDEBAR_W, minWidth: SIDEBAR_W, height: '100vh',
+      background: bg, borderRight: `1px solid ${bdr}`,
+      display: 'flex', flexDirection: 'column',
+      fontFamily: 'system-ui, sans-serif', flexShrink: 0,
+    }}>
 
-      {/* ── Top: back + role identity ────────────────────────────────── */}
+      {/* ── Header: back + agent name ─────────────────────────────────── */}
       <div style={{
         height: 52, flexShrink: 0,
         borderBottom: `1px solid ${bdr}`,
         display: 'flex', alignItems: 'center',
-        padding: '0 10px', gap: 10,
+        padding: '0 12px', gap: 10,
       }}>
-        {/* Back arrow — always visible */}
         <Link
           href="/founder/cxo"
           style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            width: 28, height: 28, flexShrink: 0,
-            borderRadius: 7,
+            width: 28, height: 28, flexShrink: 0, borderRadius: 7,
             background: surf, border: `1px solid ${bdr}`,
             color: muted, textDecoration: 'none',
-            transition: 'background 0.12s',
           }}
           title="Back to CXO Suite"
         >
           <ArrowLeft style={{ width: 13, height: 13 }} />
         </Link>
-
-        {/* Role label — fades in when expanded */}
-        <motion.div
-          animate={{ opacity: expanded ? 1 : 0, x: expanded ? 0 : -4 }}
-          transition={{ duration: 0.15 }}
-          style={{ overflow: 'hidden', whiteSpace: 'nowrap' }}
-        >
-          <p style={{ fontSize: 12, fontWeight: 700, color: ink, lineHeight: 1.2, margin: 0 }}>
+        <div style={{ overflow: 'hidden', minWidth: 0 }}>
+          <p style={{ fontSize: 12, fontWeight: 700, color: ink, lineHeight: 1.2, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {config.name}
           </p>
-          <p style={{ fontSize: 10, color: muted, margin: 0 }}>
-            {dimLabel} · {dimensionScore !== null ? `${dimensionScore}/100` : '—'}
+          <p style={{ fontSize: 10, color: muted, margin: 0, whiteSpace: 'nowrap' }}>
+            {config.role.split('—')[1]?.trim() ?? config.role}
           </p>
-        </motion.div>
-      </div>
-
-      {/* ── View switcher: Dashboard | Chat ─────────────────────────── */}
-      <div style={{
-        flexShrink: 0,
-        padding: '6px 6px 0',
-        display: 'flex',
-        gap: 4,
-        borderBottom: `1px solid ${bdr}`,
-        paddingBottom: 6,
-      }}>
-        {([
-          { id: 'dashboard' as const, icon: LayoutDashboard, label: 'Dashboard' },
-          { id: 'chat'      as const, icon: MessageCircle,   label: 'Chat'      },
-        ] as { id: 'dashboard' | 'chat'; icon: React.ElementType; label: string }[]).map(({ id, icon: Icon, label }) => {
-          const active = view === id;
-          return (
-            <button
-              key={id}
-              onClick={() => onViewChange(id)}
-              title={label}
-              style={{
-                flex: 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: expanded ? 'flex-start' : 'center',
-                gap: 6,
-                height: 32,
-                padding: expanded ? '0 10px' : '0',
-                borderRadius: 8,
-                border: 'none',
-                cursor: 'pointer',
-                fontFamily: 'system-ui, sans-serif',
-                background: active ? config.colour + '18' : 'transparent',
-                transition: 'background 0.12s',
-              }}
-              onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = surf; }}
-              onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-            >
-              <Icon style={{ width: 14, height: 14, flexShrink: 0, color: active ? config.colour : muted }} />
-              <motion.span
-                animate={{ opacity: expanded ? 1 : 0, width: expanded ? 'auto' : 0 }}
-                transition={{ duration: 0.15 }}
-                style={{
-                  fontSize: 11, fontWeight: active ? 600 : 400,
-                  color: active ? config.colour : muted,
-                  whiteSpace: 'nowrap', overflow: 'hidden',
-                }}
-              >
-                {label}
-              </motion.span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* ── Middle: scrollable content ───────────────────────────────── */}
-      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '8px 6px' }}>
-
-        {/* Role colour badge row — always visible as accent dot, expands to header */}
-        <div style={{
-          display: 'flex', alignItems: 'center',
-          padding: '0 10px', height: 40,
-          marginBottom: 4,
-          borderLeft: expanded ? `3px solid ${config.colour}` : '3px solid transparent',
-          transition: 'border-color 0.2s',
-        }}>
-          {/* Colour dot (collapsed) / role initial (always) */}
-          <div style={{
-            width: 28, height: 28, borderRadius: 7, flexShrink: 0,
-            background: config.colour,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 11, fontWeight: 700, color: '#fff',
-          }}>
-            {roleInitial}
-          </div>
-
-          <motion.div
-            animate={{ opacity: expanded ? 1 : 0, x: expanded ? 0 : -4 }}
-            transition={{ duration: 0.15 }}
-            style={{ marginLeft: 10, overflow: 'hidden', whiteSpace: 'nowrap' }}
-          >
-            <p style={{ fontSize: 12, fontWeight: 600, color: ink, margin: 0, lineHeight: 1.3 }}>
-              {config.role.split('—')[0]?.trim()}
-            </p>
-            <p style={{ fontSize: 10, color: muted, margin: 0, lineHeight: 1.3 }}>
-              {config.role.split('—')[1]?.trim()}
-            </p>
-          </motion.div>
         </div>
+      </div>
 
-        <div style={{ height: 1, background: bdr, margin: '4px 4px 6px' }} />
+      {/* ── Tab toggle (controls main content area) ───────────────────── */}
+      <div style={{
+        display: 'flex', gap: 2, padding: '8px 10px', flexShrink: 0,
+        borderBottom: `1px solid ${bdr}`,
+      }}>
+        {(['dashboard', 'chat'] as const).map(t => (
+          <button
+            key={t}
+            onClick={() => onTabChange(t)}
+            style={{
+              flex: 1, padding: '5px 0', borderRadius: 6, border: 'none',
+              background: tab === t ? surf : 'transparent',
+              color: tab === t ? ink : muted,
+              fontSize: 11, fontWeight: tab === t ? 600 : 400,
+              cursor: 'pointer', fontFamily: 'inherit',
+              borderBottom: tab === t ? `2px solid ${config.colour}` : '2px solid transparent',
+              transition: 'all 0.12s',
+            }}
+          >
+            {t === 'dashboard' ? 'Dashboard' : 'Chat'}
+          </button>
+        ))}
+      </div>
 
-        {/* ── Dashboard ──────────────────────────────────────────────── */}
-        <SectionRow icon={BarChart2} label="Dashboard" expanded={expanded} />
+      {/* ── Conversation history (always visible, both tabs) ─────────── */}
+      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '10px 6px 8px' }}>
 
-        <motion.div
-          animate={{ opacity: expanded ? 1 : 0 }}
-          transition={{ duration: 0.15 }}
-          style={{ padding: '0 10px 10px', overflow: 'hidden' }}
-        >
-          {/* Score bar */}
-          <div style={{ marginBottom: 8 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-              <span style={{ fontSize: 11, color: muted }}>{dimLabel} Score</span>
-              <span style={{ fontSize: 12, fontWeight: 700, color: ink }}>
-                {dimensionScore !== null ? dimensionScore : '—'}
-              </span>
-            </div>
-            <div style={{ height: 4, background: surf, borderRadius: 999, overflow: 'hidden', border: `1px solid ${bdr}` }}>
-              <div style={{
-                height: '100%',
-                width: dimPct !== null ? `${dimPct * 100}%` : '0%',
-                background: barColour,
-                borderRadius: 999,
-                transition: 'width 0.5s ease',
-              }} />
-            </div>
-          </div>
-
-          {/* Stats */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 11, color: muted }}>Deliverables</span>
-              <span style={{ fontSize: 11, fontWeight: 600, color: ink }}>{doneCount}/{totalCount}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 11, color: muted }}>Pts earned</span>
-              <span style={{ fontSize: 11, fontWeight: 600, color: config.colour }}>+{earned}/{totalPts}</span>
-            </div>
-            {lastArtifact && (
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 11, color: muted }}>Last active</span>
-                <span style={{ fontSize: 11, color: muted }}>{timeAgo(lastArtifact.created_at)}</span>
-              </div>
-            )}
-          </div>
-        </motion.div>
-
-        {/* Collapsed dashboard: just a small progress pill */}
-        <motion.div
-          animate={{ opacity: expanded ? 0 : dimPct !== null ? 1 : 0 }}
-          transition={{ duration: 0.1 }}
-          style={{ padding: '0 10px 8px', pointerEvents: 'none' }}
-        >
-          <div style={{ height: 3, background: surf, borderRadius: 999, overflow: 'hidden' }}>
-            <div style={{
-              height: '100%',
-              width: dimPct !== null ? `${dimPct * 100}%` : '0%',
-              background: barColour,
-              borderRadius: 999,
-            }} />
-          </div>
-        </motion.div>
-
-        <div style={{ height: 1, background: bdr, margin: '0 4px 4px' }} />
-
-        {/* ── Deliverables ───────────────────────────────────────────── */}
-        <SectionRow icon={CheckSquare} label="Deliverables" expanded={expanded} accent={doneCount === totalCount ? '#16A34A' : muted} />
-
-        {/* Expanded: full list */}
-        <motion.div
-          animate={{ opacity: expanded ? 1 : 0 }}
-          transition={{ duration: 0.15 }}
-          style={{ padding: '0 4px 4px', overflow: 'hidden' }}
-        >
-          {config.deliverables.map(d => {
-            const isDone   = doneTypes.has(d.artifactType);
-            const artifact = artifacts.find(a => a.artifact_type === d.artifactType);
-            const prereqMet = d.prerequisite ? doneTypes.has(d.prerequisite) : true;
-            return (
-              <DeliverableItem
-                key={d.artifactType}
-                artifactType={d.artifactType}
-                label={d.label}
-                status={isDone ? 'done' : 'missing'}
-                boostPts={d.dimensionBoost}
-                href={deliverableHref(d.artifactType, isDone && artifact ? artifact.id : undefined)}
-                prerequisiteMet={prereqMet}
-              />
-            );
-          })}
-        </motion.div>
-
-        {/* Collapsed: deliverable dots */}
-        <motion.div
-          animate={{ opacity: expanded ? 0 : 1 }}
-          transition={{ duration: 0.1 }}
+        <button
+          onClick={onNewConversation}
           style={{
-            display: 'flex', flexWrap: 'wrap', gap: 4,
-            padding: '0 14px 8px', pointerEvents: 'none',
+            display: 'flex', alignItems: 'center', gap: 7,
+            width: '100%', padding: '7px 10px', marginBottom: 6,
+            borderRadius: 8, border: `1px dashed ${bdr}`,
+            background: 'transparent', cursor: 'pointer',
+            color: muted, fontSize: 11, fontFamily: 'inherit',
+            transition: 'all 0.12s',
           }}
+          onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.color = ink; el.style.borderColor = `${config.colour}60`; el.style.background = `${config.colour}06` }}
+          onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.color = muted; el.style.borderColor = bdr; el.style.background = 'transparent' }}
         >
-          {config.deliverables.map(d => (
-            <div
-              key={d.artifactType}
-              style={{
-                width: 7, height: 7, borderRadius: '50%',
-                background: doneTypes.has(d.artifactType) ? config.colour : bdr,
-                border: `1.5px solid ${doneTypes.has(d.artifactType) ? config.colour : muted}`,
-              }}
-            />
-          ))}
-        </motion.div>
+          <Plus style={{ width: 11, height: 11, flexShrink: 0 }} />
+          New conversation
+        </button>
 
-        {/* ── Cross-agent context ────────────────────────────────────── */}
-        {config.connectedSources.length > 0 && (
-          <>
-            <div style={{ height: 1, background: bdr, margin: '0 4px 6px' }} />
-            <SectionRow icon={GitBranch} label="Context" expanded={expanded} />
-            <motion.div
-              animate={{ opacity: expanded ? 1 : 0 }}
-              transition={{ duration: 0.15 }}
-              style={{ padding: '0 4px 4px', overflow: 'hidden' }}
-            >
-              {config.connectedSources.map(src => (
-                <ConnectedDataItem
-                  key={src.agentId}
-                  agentId={src.agentId}
-                  label={src.label}
-                  relevance={src.relevance}
-                  hasArtifacts={false}
-                />
-              ))}
-            </motion.div>
-          </>
+        {conversations.length === 0 ? (
+          <p style={{ fontSize: 11, color: muted, padding: '8px 10px', opacity: 0.6 }}>
+            No conversations yet
+          </p>
+        ) : (
+          conversations.map(conv => (
+            <ConvRow
+              key={conv.id}
+              conv={conv}
+              isActive={conv.id === activeConvId}
+              accent={config.colour}
+              onSelect={() => onSwitchConversation(conv.id)}
+              onRename={title => onRenameConversation(conv.id, title)}
+            />
+          ))
         )}
 
       </div>
 
-    </motion.nav>
+    </nav>
   );
 }

@@ -984,6 +984,30 @@ export default function FounderDashboard() {
                 >
                   Improve score <ArrowRight style={{ height: 12, width: 12 }} />
                 </Link>
+                {/* Share Pitch Profile */}
+                {user && (
+                  <button
+                    onClick={() => {
+                      const url = `${window.location.origin}/pitch/${user.id}`;
+                      navigator.clipboard.writeText(url).then(() => {
+                        setLinkCopied(true);
+                        setTimeout(() => setLinkCopied(false), 2500);
+                      });
+                    }}
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 6,
+                      padding: "9px 20px",
+                      background: linkCopied ? "rgba(22,163,74,0.25)" : "rgba(37,99,235,0.15)",
+                      border: `1px solid ${linkCopied ? "rgba(22,163,74,0.4)" : "rgba(37,99,235,0.3)"}`,
+                      borderRadius: 999, fontSize: 12,
+                      color: linkCopied ? "#86EFAC" : "#93C5FD",
+                      fontWeight: 500, cursor: "pointer",
+                      transition: "all 0.2s", whiteSpace: "nowrap",
+                    }}
+                  >
+                    {linkCopied ? "Link copied!" : "Share Pitch Profile →"}
+                  </button>
+                )}
               </>
             )}
           </motion.div>

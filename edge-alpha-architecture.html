@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Edge Alpha — System Architecture</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    background: #FAFAF9;
+    color: #18160F;
+    padding: 48px 40px;
+    max-width: 1120px;
+    margin: 0 auto;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  h1 {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #18160F;
+    margin-bottom: 4px;
+  }
+  .subtitle {
+    font-size: 11px;
+    color: #8A867C;
+    margin-bottom: 48px;
+    letter-spacing: 0.04em;
+  }
+
+  .section {
+    margin-bottom: 64px;
+  }
+  .section-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #8A867C;
+    margin-bottom: 20px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #E2DDD5;
+  }
+
+  /* ── boxes ── */
+  .box {
+    border: 1px solid #C8C4BC;
+    background: #FFFFFF;
+    padding: 12px 16px;
+  }
+  .box-title {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #8A867C;
+    margin-bottom: 8px;
+  }
+  .box-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: #18160F;
+    margin-bottom: 4px;
+  }
+  .box-items {
+    font-size: 11px;
+    color: #5A5750;
+    list-style: none;
+  }
+  .box-items li { padding: 1px 0; }
+  .box-items li::before { content: "· "; color: #8A867C; }
+
+  .box-dark {
+    border: 1px solid #18160F;
+    background: #18160F;
+    color: #FAFAF9;
+    padding: 12px 16px;
+  }
+  .box-dark .box-title { color: #8A867C; }
+  .box-dark .box-name { color: #FAFAF9; }
+  .box-dark .box-items { color: #C8C4BC; }
+
+  /* ── arrow ── */
+  .arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    color: #8A867C;
+    gap: 4px;
+    padding: 4px 0;
+  }
+  .arrow-label {
+    font-size: 10px;
+    color: #8A867C;
+    letter-spacing: 0.04em;
+  }
+
+  /* ── HLD grid ── */
+  .hld-outer {
+    border: 1px solid #C8C4BC;
+    background: #F0EDE6;
+    padding: 20px;
+  }
+  .hld-top {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr 1fr;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .hld-api {
+    border: 1px solid #C8C4BC;
+    background: #FFFFFF;
+    padding: 12px 16px;
+  }
+  .hld-portal {
+    border: 1px solid #C8C4BC;
+    background: #FFFFFF;
+    padding: 12px 16px;
+  }
+  .hld-bottom {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+    margin-top: 12px;
+  }
+  .hld-center-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    color: #8A867C;
+    margin: 4px 0;
+  }
+
+  /* ── flow diagram ── */
+  .flow {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  .flow-step {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 0;
+    border-top: 1px solid #E2DDD5;
+    padding: 14px 0;
+  }
+  .flow-step:last-child { border-bottom: 1px solid #E2DDD5; }
+  .flow-phase {
+    font-size: 10px;
+    font-weight: 700;
+    color: #8A867C;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding-right: 20px;
+    padding-top: 2px;
+  }
+  .flow-content { }
+  .flow-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #18160F;
+    margin-bottom: 6px;
+  }
+  .flow-detail {
+    font-size: 11px;
+    color: #5A5750;
+    line-height: 1.6;
+  }
+  .flow-stores {
+    margin-top: 6px;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .store-tag {
+    font-size: 10px;
+    padding: 2px 8px;
+    border: 1px solid #C8C4BC;
+    color: #5A5750;
+    background: #F0EDE6;
+    letter-spacing: 0.04em;
+  }
+  .store-tag.dark {
+    border-color: #18160F;
+    background: #18160F;
+    color: #FAFAF9;
+  }
+
+  /* ── agent LLD ── */
+  .agent-grid {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 20px;
+  }
+  .agent-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .agent-card {
+    border: 1px solid #C8C4BC;
+    background: #FFFFFF;
+    padding: 10px 14px;
+  }
+  .agent-id {
+    font-size: 12px;
+    font-weight: 700;
+    color: #18160F;
+    margin-bottom: 2px;
+  }
+  .agent-role {
+    font-size: 10px;
+    color: #8A867C;
+    margin-bottom: 6px;
+  }
+  .agent-tags {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+  .tag {
+    font-size: 9px;
+    padding: 1px 6px;
+    border: 1px solid #C8C4BC;
+    color: #8A867C;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  /* ── context stack ── */
+  .context-stack {
+    border: 1px solid #C8C4BC;
+    background: #FFFFFF;
+  }
+  .stack-row {
+    display: grid;
+    grid-template-columns: 30px 160px 1fr;
+    gap: 12px;
+    padding: 10px 16px;
+    border-bottom: 1px solid #E2DDD5;
+    align-items: start;
+  }
+  .stack-row:last-child { border-bottom: none; }
+  .stack-num {
+    font-size: 10px;
+    color: #8A867C;
+    font-weight: 700;
+    padding-top: 1px;
+  }
+  .stack-layer {
+    font-size: 11px;
+    font-weight: 700;
+    color: #18160F;
+  }
+  .stack-detail {
+    font-size: 10px;
+    color: #5A5750;
+    line-height: 1.55;
+  }
+
+  /* ── tool loop ── */
+  .tool-loop {
+    border: 1px solid #C8C4BC;
+    background: #FFFFFF;
+    margin-top: 20px;
+  }
+  .loop-header {
+    padding: 10px 16px;
+    border-bottom: 1px solid #E2DDD5;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #8A867C;
+  }
+  .loop-row {
+    display: grid;
+    grid-template-columns: 160px 1fr 120px;
+    gap: 12px;
+    padding: 10px 16px;
+    border-bottom: 1px solid #E2DDD5;
+    align-items: start;
+  }
+  .loop-row:last-child { border-bottom: none; }
+  .loop-tool { font-size: 11px; font-weight: 700; color: #18160F; }
+  .loop-action { font-size: 10px; color: #5A5750; line-height: 1.55; }
+  .loop-result { font-size: 10px; color: #8A867C; text-align: right; }
+
+  /* ── scoring pipeline ── */
+  .score-pipeline {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0;
+    border: 1px solid #C8C4BC;
+  }
+  .score-stage {
+    border-right: 1px solid #C8C4BC;
+    padding: 14px 12px;
+    background: #FFFFFF;
+  }
+  .score-stage:last-child { border-right: none; }
+  .score-stage-num {
+    font-size: 9px;
+    color: #8A867C;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+  }
+  .score-stage-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: #18160F;
+    margin-bottom: 8px;
+  }
+  .score-stage-detail {
+    font-size: 10px;
+    color: #5A5750;
+    line-height: 1.55;
+  }
+
+  /* ── db table ── */
+  .db-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+  .db-group {
+    border: 1px solid #C8C4BC;
+    background: #FFFFFF;
+    padding: 12px 14px;
+  }
+  .db-group-title {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #8A867C;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #E2DDD5;
+  }
+  .db-table {
+    font-size: 10px;
+    color: #5A5750;
+    padding: 2px 0;
+    border-bottom: 1px solid #F0EDE6;
+  }
+  .db-table:last-child { border-bottom: none; }
+
+  /* ── memory graph ── */
+  .memory-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+    border: 1px solid #C8C4BC;
+  }
+  .memory-agent {
+    padding: 14px;
+    border-right: 1px solid #C8C4BC;
+    background: #FFFFFF;
+  }
+  .memory-agent:last-child { border-right: none; }
+  .memory-agent-name {
+    font-size: 12px;
+    font-weight: 700;
+    color: #18160F;
+    margin-bottom: 4px;
+  }
+  .memory-agent-injects {
+    font-size: 10px;
+    color: #8A867C;
+    margin-bottom: 6px;
+  }
+  .memory-link {
+    font-size: 10px;
+    color: #5A5750;
+    padding: 2px 0;
+  }
+  .memory-link::before { content: "← "; color: #8A867C; }
+
+  /* ── divider ── */
+  .divider {
+    height: 1px;
+    background: #E2DDD5;
+    margin: 32px 0;
+  }
+
+  /* ── formula box ── */
+  .formula {
+    border: 1px solid #C8C4BC;
+    background: #F0EDE6;
+    padding: 14px 18px;
+    font-size: 11px;
+    color: #18160F;
+    line-height: 1.8;
+    margin-top: 12px;
+  }
+  .formula .comment { color: #8A867C; }
+
+  @media print {
+    body { padding: 24px; }
+    .section { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Edge Alpha</h1>
+<div class="subtitle">System Architecture — HLD + Data Flow + AI Agent LLD · Generated 2026-05-08</div>
+
+<!-- ════════════════════════════════════════════════════════
+     1. HIGH-LEVEL DESIGN
+     ════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-label">01 · High-Level Design — System Overview</div>
+
+  <div class="hld-outer">
+
+    <!-- top: portals -->
+    <div class="hld-top">
+      <div class="hld-portal">
+        <div class="box-title">Founder Portal</div>
+        <ul class="box-items">
+          <li>Onboarding · /founder/onboarding</li>
+          <li>Profile Builder · /founder/profile-builder</li>
+          <li>Dashboard · /founder/dashboard</li>
+          <li>CXO Suite · /founder/cxo/[agentId]</li>
+          <li>Investor Matching · /founder/matching</li>
+          <li>Messages · /founder/messages</li>
+        </ul>
+      </div>
+
+      <div class="hld-api">
+        <div class="box-title">API Layer — Next.js Route Handlers (~65 routes)</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;">
+          <div>
+            <div style="font-size:10px;color:#8A867C;margin-bottom:4px;">Founder</div>
+            <ul class="box-items">
+              <li>/api/profile-builder/*</li>
+              <li>/api/qscore/*</li>
+              <li>/api/iq/*</li>
+              <li>/api/founder/*</li>
+            </ul>
+          </div>
+          <div>
+            <div style="font-size:10px;color:#8A867C;margin-bottom:4px;">Agent</div>
+            <ul class="box-items">
+              <li>/api/agents/chat</li>
+              <li>/api/agents/generate</li>
+              <li>/api/agents/[name]/*</li>
+              <li>/api/agents/coordinate</li>
+            </ul>
+          </div>
+          <div>
+            <div style="font-size:10px;color:#8A867C;margin-bottom:4px;">Investor</div>
+            <ul class="box-items">
+              <li>/api/investor/deal-flow</li>
+              <li>/api/investor/pipeline</li>
+              <li>/api/investor/startup/[id]</li>
+              <li>/api/investor/portfolio</li>
+            </ul>
+          </div>
+          <div>
+            <div style="font-size:10px;color:#8A867C;margin-bottom:4px;">System</div>
+            <ul class="box-items">
+              <li>/api/cron/*</li>
+              <li>/api/webhooks/*</li>
+              <li>/api/notifications</li>
+              <li>/api/upload/*</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="hld-portal">
+        <div class="box-title">Investor Portal</div>
+        <ul class="box-items">
+          <li>Onboarding · /investor/onboarding</li>
+          <li>Deal Flow · /investor/deal-flow</li>
+          <li>Pipeline · /investor/pipeline</li>
+          <li>Startup Deep Dive · /investor/startup/[id]</li>
+          <li>Portfolio · /investor/portfolio</li>
+          <li>Messages · /investor/messages</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- center arrow -->
+    <div class="hld-center-arrow">↓ &nbsp; ↓ &nbsp; ↓</div>
+
+    <!-- bottom: infrastructure -->
+    <div class="hld-bottom">
+      <div class="box-dark">
+        <div class="box-title">Anthropic Claude</div>
+        <div class="box-name">LLM Layer</div>
+        <ul class="box-items" style="margin-top:6px;">
+          <li>Haiku 4.5 — extraction, classification, summarisation</li>
+          <li>Sonnet 4.6 — generation, reasoning, streaming</li>
+          <li>Routing via lib/llm/router.ts</li>
+          <li>Tool use (native Anthropic API)</li>
+        </ul>
+      </div>
+
+      <div class="box-dark">
+        <div class="box-title">Supabase</div>
+        <div class="box-name">Persistence Layer</div>
+        <ul class="box-items" style="margin-top:6px;">
+          <li>PostgreSQL — 35+ tables</li>
+          <li>Row-Level Security on all user data</li>
+          <li>Realtime channels (score updates)</li>
+          <li>Storage — avatars, logos, documents</li>
+          <li>Auth — JWT sessions</li>
+        </ul>
+      </div>
+
+      <div class="box">
+        <div class="box-title">External APIs (optional)</div>
+        <div class="box-name">Integrations</div>
+        <ul class="box-items" style="margin-top:6px;">
+          <li>Tavily — web research (Atlas)</li>
+          <li>Apollo — lead search (Patel/Riley)</li>
+          <li>Hunter.io — lead enrichment</li>
+          <li>Stripe — live MRR pull (Felix)</li>
+          <li>Resend — transactional email</li>
+          <li>Netlify — landing page deploy</li>
+        </ul>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- deployment note -->
+  <div style="margin-top:12px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+    <div class="box">
+      <div class="box-title">Deployment</div>
+      <ul class="box-items">
+        <li>Vercel — serverless functions</li>
+        <li>Auto-deploy on git push to master</li>
+        <li>3 cron jobs via vercel.json</li>
+      </ul>
+    </div>
+    <div class="box">
+      <div class="box-title">Auth &amp; Routing</div>
+      <ul class="box-items">
+        <li>middleware.ts guards /founder/* /investor/*</li>
+        <li>Supabase JWT validated per request</li>
+        <li>Role-based redirect on login</li>
+      </ul>
+    </div>
+    <div class="box">
+      <div class="box-title">Rate Limiting</div>
+      <ul class="box-items">
+        <li>In-memory sliding window (per instance)</li>
+        <li>/api/agents/chat — 12 req/min</li>
+        <li>/api/agents/generate — 5 req/min</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     2. DATA FLOW
+     ════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-label">02 · Data Flow — Two Core Journeys</div>
+
+  <!-- Journey A -->
+  <div style="font-size:11px;font-weight:700;color:#18160F;margin-bottom:12px;">A — Founder Scoring Journey</div>
+  <div class="flow">
+
+    <div class="flow-step">
+      <div class="flow-phase">Onboarding</div>
+      <div class="flow-content">
+        <div class="flow-title">Account Creation (4 screens)</div>
+        <div class="flow-detail">Founder enters name, email, password, company name, industry, stage, revenue status, problem statement. Supabase auth creates user. Row inserted into founder_profiles.</div>
+        <div class="flow-stores">
+          <span class="store-tag dark">auth.users</span>
+          <span class="store-tag dark">founder_profiles</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="flow-phase">Document Upload</div>
+      <div class="flow-content">
+        <div class="flow-title">POST /api/profile-builder/upload</div>
+        <div class="flow-detail">PDF/DOCX → pdf-parse extracts text. Claude Haiku runs extraction prompt → returns structured field map + confidence scores per field. File stored in Supabase Storage.</div>
+        <div class="flow-stores">
+          <span class="store-tag dark">profile_builder_uploads</span>
+          <span class="store-tag">supabase storage</span>
+          <span class="store-tag">Claude Haiku</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="flow-phase">Smart Q&amp;A (5 sections)</div>
+      <div class="flow-content">
+        <div class="flow-title">POST /api/profile-builder/extract — per message</div>
+        <div class="flow-detail">User answers targeted questions. Each answer → Haiku extracts fields → returns {extractedFields, confidenceMap, completionScore, followUpQuestion}. Saved per section. Sections: (1) Market Validation (2) Market &amp; Competition (3) IP &amp; Technology (4) Team (5) Financials.</div>
+        <div class="flow-stores">
+          <span class="store-tag dark">profile_builder_data[section 1–5]</span>
+          <span class="store-tag">founder_profiles.profile_builder_flow</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="flow-phase">Score Calculation</div>
+      <div class="flow-content">
+        <div class="flow-title">POST /api/profile-builder/submit</div>
+        <div class="flow-detail">Merges all 5 sections → AssessmentData. Runs calculateQScore() across 30 indicators × 6 parameters. Applies confidence multipliers (stripe=1.0×, document=0.85×, self_reported=0.55×). Sector + stage adaptive weighting. Outputs finalIQ (0–100), grade, iqBreakdown[6], reconciliationFlags, unlockCards.</div>
+        <div class="flow-stores">
+          <span class="store-tag dark">qscore_history</span>
+          <span class="store-tag dark">iq_indicator_scores</span>
+          <span class="store-tag">founder_profiles.assessment_completed</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="flow-phase">Post-Score</div>
+      <div class="flow-content">
+        <div class="flow-title">Async tasks after submission</div>
+        <div class="flow-detail">AI Actions generated (LLM: "What 5 actions reach 80?") → cached in qscore_history.ai_actions. Feed milestone auto-posted. Score delta computed vs previous_score_id chain. Dashboard realtime update via Supabase channel subscription.</div>
+        <div class="flow-stores">
+          <span class="store-tag">qscore_history.ai_actions (JSONB)</span>
+          <span class="store-tag">feed_posts</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- Journey B -->
+  <div style="font-size:11px;font-weight:700;color:#18160F;margin-bottom:12px;">B — Agent Chat → Artifact → Score Signal Journey</div>
+  <div class="flow">
+
+    <div class="flow-step">
+      <div class="flow-phase">Message Received</div>
+      <div class="flow-content">
+        <div class="flow-title">POST /api/agents/chat</div>
+        <div class="flow-detail">Auth validated. conversationId resolved (create new or load existing agent_conversations row). Usage counter checked against subscription_usage table.</div>
+        <div class="flow-stores">
+          <span class="store-tag dark">agent_conversations</span>
+          <span class="store-tag">subscription_usage</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="flow-phase">Context Assembly</div>
+      <div class="flow-content">
+        <div class="flow-title">8-layer system prompt built before any LLM call</div>
+        <div class="flow-detail">Parallel queries: (1) founder_profiles (2) qscore_history latest (3) own agent artifacts [ownArtifacts limit] (4) high-relevance agents' artifacts [always] (5) medium-relevance agents' artifacts [if topic matches] (6) agent_activity events (7) knowledge_library RAG chunks (8) agent_memory session summary. All assembled into one system prompt ≤6000 chars.</div>
+        <div class="flow-stores">
+          <span class="store-tag">agent_artifacts</span>
+          <span class="store-tag">agent_activity</span>
+          <span class="store-tag">agent_memory</span>
+          <span class="store-tag">knowledge_library</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="flow-phase">LLM Observe Loop</div>
+      <div class="flow-content">
+        <div class="flow-title">Claude Sonnet — max 5 iterations</div>
+        <div class="flow-detail">LLM responds. If tool_call detected: data tools (Tavily/Apollo) execute → result re-injected → loop continues. If artifact tool called: breaks loop → enters 2-pass artifact generation. If execution tool called: runs action → breaks loop.</div>
+        <div class="flow-stores">
+          <span class="store-tag">Claude Sonnet 4.6</span>
+          <span class="store-tag">Tavily / Apollo (conditional)</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="flow-phase">Artifact Generation</div>
+      <div class="flow-content">
+        <div class="flow-title">2-pass: extract context → generate artifact</div>
+        <div class="flow-detail">Pass 1 (Haiku, extraction): parse conversation history into sparse facts JSON. Pass 2 (Sonnet, generation): build specialized prompt + context → generate structured artifact JSON (3000 tokens, temp 0.55). Quality evaluation (Sonnet, reasoning): score 0–100 completeness, actionability. Self-critique if score &lt; 70 → regenerate with feedback. Saved to agent_artifacts.</div>
+        <div class="flow-stores">
+          <span class="store-tag dark">agent_artifacts</span>
+          <span class="store-tag">artifact_jobs</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="flow-phase">Score Signal</div>
+      <div class="flow-content">
+        <div class="flow-title">applyAgentScoreSignal() — fires after every artifact save</div>
+        <div class="flow-detail">Looks up artifact_type → dimension + boost points from ARTIFACT_BOOST map. Checks qscore_history for source_artifact_type duplicate (prevents double-counting). If new: inserts qscore_history row with data_source='agent_completion'. Also inserts score_evidence row with status='verified'. Dashboard updates in realtime via Supabase channel.</div>
+        <div class="flow-stores">
+          <span class="store-tag dark">qscore_history</span>
+          <span class="store-tag dark">score_evidence</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-step">
+      <div class="flow-phase">Persistence</div>
+      <div class="flow-content">
+        <div class="flow-title">Messages + memory saved after response</div>
+        <div class="flow-detail">User message + assistant reply inserted to agent_messages. agent_conversations.last_message_at + message_count updated. Session compressed by LLM → agent_memory upserted for next conversation. Cross-agent delegation_tasks created if orchestration enabled.</div>
+        <div class="flow-stores">
+          <span class="store-tag dark">agent_messages</span>
+          <span class="store-tag">agent_memory</span>
+          <span class="store-tag">delegation_tasks</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     3. DATABASE SCHEMA MAP
+     ════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-label">03 · Database Schema — 35+ Tables</div>
+  <div class="db-grid">
+
+    <div class="db-group">
+      <div class="db-group-title">Profiles</div>
+      <div class="db-table">founder_profiles</div>
+      <div class="db-table">investor_profiles</div>
+      <div class="db-table">demo_investors</div>
+      <div class="db-table">startup_state</div>
+    </div>
+
+    <div class="db-group">
+      <div class="db-group-title">Scoring</div>
+      <div class="db-table">qscore_history ← primary</div>
+      <div class="db-table">iq_scores</div>
+      <div class="db-table">iq_indicators</div>
+      <div class="db-table">iq_indicator_scores</div>
+      <div class="db-table">iq_parameter_weights</div>
+      <div class="db-table">score_evidence</div>
+    </div>
+
+    <div class="db-group">
+      <div class="db-group-title">Agent System</div>
+      <div class="db-table">agent_conversations</div>
+      <div class="db-table">agent_messages</div>
+      <div class="db-table">agent_artifacts</div>
+      <div class="db-table">agent_actions</div>
+      <div class="db-table">agent_goals</div>
+      <div class="db-table">agent_memory</div>
+      <div class="db-table">agent_activity</div>
+      <div class="db-table">artifact_jobs</div>
+      <div class="db-table">delegation_tasks</div>
+      <div class="db-table">scheduled_actions</div>
+    </div>
+
+    <div class="db-group">
+      <div class="db-group-title">Connections &amp; Social</div>
+      <div class="db-table">connection_requests</div>
+      <div class="db-table">messages</div>
+      <div class="db-table">investor_pipeline</div>
+      <div class="db-table">feed_posts</div>
+      <div class="db-table">feed_comments</div>
+      <div class="db-table">feed_reactions</div>
+      <div class="db-table">notifications</div>
+      <div class="db-table">outreach_sends</div>
+      <div class="db-table">deals</div>
+      <div class="db-table">proposals</div>
+    </div>
+
+    <div class="db-group">
+      <div class="db-group-title">Profile Builder</div>
+      <div class="db-table">profile_builder_data</div>
+      <div class="db-table">profile_builder_uploads</div>
+    </div>
+
+    <div class="db-group">
+      <div class="db-group-title">Knowledge</div>
+      <div class="db-table">knowledge_library</div>
+      <div class="db-table">academy_courses</div>
+      <div class="db-table">academy_modules</div>
+      <div class="db-table">academy_lessons</div>
+      <div class="db-table">course_progress</div>
+    </div>
+
+    <div class="db-group">
+      <div class="db-group-title">System</div>
+      <div class="db-table">subscription_usage</div>
+      <div class="db-table">investor_billing</div>
+      <div class="db-table">rag_retrievals</div>
+      <div class="db-table">pending_actions</div>
+      <div class="db-table">analytics_events</div>
+    </div>
+
+    <div class="db-group">
+      <div class="db-group-title">Storage Buckets</div>
+      <div class="db-table">avatars/ — public read</div>
+      <div class="db-table">logos/ — public read</div>
+      <div class="db-table">feed-media/ — auth write</div>
+      <div class="db-table">documents/ — owner only</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     4. AI AGENT ARCHITECTURE (LLD)
+     ════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-label">04 · AI Agent Architecture — Low-Level Design</div>
+
+  <!-- agent registry -->
+  <div style="font-size:10px;font-weight:700;color:#8A867C;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:12px;">Agent Registry (edgealpha.config.ts — single source of truth)</div>
+
+  <div class="agent-grid">
+    <div class="agent-list">
+
+      <div class="agent-card">
+        <div class="agent-id">Patel — CMO</div>
+        <div class="agent-role">Sales &amp; Marketing pillar</div>
+        <div class="agent-tags">
+          <span class="tag">icp_document</span>
+          <span class="tag">gtm_playbook</span>
+          <span class="tag">outreach_sequence</span>
+        </div>
+        <div style="font-size:10px;color:#8A867C;margin-top:6px;">data: apollo, hunter, email · boosts GTM +11, Traction +4</div>
+        <div style="font-size:10px;color:#8A867C;">always loads: Atlas, Maya</div>
+      </div>
+
+      <div class="agent-card">
+        <div class="agent-id">Felix — CFO</div>
+        <div class="agent-role">Operations &amp; Finance pillar</div>
+        <div class="agent-tags">
+          <span class="tag">financial_summary</span>
+        </div>
+        <div style="font-size:10px;color:#8A867C;margin-top:6px;">data: stripe_metrics · boosts Financial +6</div>
+        <div style="font-size:10px;color:#8A867C;">always loads: Sage</div>
+      </div>
+
+      <div class="agent-card">
+        <div class="agent-id">Atlas — Competitive Intel</div>
+        <div class="agent-role">Product &amp; Strategy pillar</div>
+        <div class="agent-tags">
+          <span class="tag">competitive_matrix</span>
+          <span class="tag">battle_card</span>
+        </div>
+        <div style="font-size:10px;color:#8A867C;margin-top:6px;">data: web_research (Tavily) · boosts Market +9</div>
+        <div style="font-size:10px;color:#8A867C;">always loads: Patel, Nova</div>
+      </div>
+
+      <div class="agent-card">
+        <div class="agent-id">Nova — CPO</div>
+        <div class="agent-role">Product &amp; Strategy pillar</div>
+        <div class="agent-tags">
+          <span class="tag">pmf_survey</span>
+          <span class="tag">interview_notes</span>
+        </div>
+        <div style="font-size:10px;color:#8A867C;margin-top:6px;">actions: host_survey · boosts Product +8</div>
+        <div style="font-size:10px;color:#8A867C;">always loads: Patel, Atlas</div>
+      </div>
+
+      <div class="agent-card">
+        <div class="agent-id">Sage — Strategy</div>
+        <div class="agent-role">Product &amp; Strategy pillar</div>
+        <div class="agent-tags">
+          <span class="tag">strategic_plan</span>
+          <span class="tag">board_deck</span>
+          <span class="tag">okr_health</span>
+        </div>
+        <div style="font-size:10px;color:#8A867C;margin-top:6px;">actions: linear_export, investor_update · boosts Product +4</div>
+        <div style="font-size:10px;color:#8A867C;font-weight:700;">always loads: ALL 9 other agents</div>
+      </div>
+
+      <div class="agent-card">
+        <div class="agent-id">Harper / Leo / Maya / Susi / Carter / Riley</div>
+        <div class="agent-role">Operations, Legal, Brand, Sales, CS, Growth</div>
+        <div style="font-size:10px;color:#8A867C;margin-top:6px;">Each owns 1–6 artifact types. Each boosts 1–2 dimensions. Each has curated highRelevance + mediumRelevance agent list.</div>
+      </div>
+
+    </div>
+
+    <!-- context stack -->
+    <div>
+      <div style="font-size:10px;font-weight:700;color:#8A867C;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px;">System Prompt Assembly — 8 Layers (injected every request)</div>
+      <div class="context-stack">
+        <div class="stack-row">
+          <div class="stack-num">1</div>
+          <div class="stack-layer">Global Constitution</div>
+          <div class="stack-detail">Safety guardrails, role framing, output format rules. Prepended to every agent.</div>
+        </div>
+        <div class="stack-row">
+          <div class="stack-num">2</div>
+          <div class="stack-layer">Agent System Prompt</div>
+          <div class="stack-detail">Agent-specific persona, domain expertise, artifact ownership rules. Defined in AGENT_SYSTEM_PROMPTS[agentId].</div>
+        </div>
+        <div class="stack-row">
+          <div class="stack-num">3</div>
+          <div class="stack-layer">Founder Profile</div>
+          <div class="stack-detail">industry, stage, tagline, IQ Score breakdown (p1–p6), funding status. Fetched from founder_profiles + qscore_history.</div>
+        </div>
+        <div class="stack-row">
+          <div class="stack-num">4</div>
+          <div class="stack-layer">Startup State</div>
+          <div class="stack-detail">Live world model: ARR, runway, headcount, customer count, fundraising status. From startup_state table.</div>
+        </div>
+        <div class="stack-row">
+          <div class="stack-num">5</div>
+          <div class="stack-layer">Own Memory</div>
+          <div class="stack-detail">Last N own artifacts (limit = config.memory.ownArtifacts). E.g., Patel loads last 3 ICPs/playbooks. Labelled "What you built together".</div>
+        </div>
+        <div class="stack-row">
+          <div class="stack-num">6</div>
+          <div class="stack-layer">Cross-Agent Context</div>
+          <div class="stack-detail">highRelevanceAgents: always loaded. mediumRelevanceAgents: loaded if message topic matches domain keywords. Limit = config.memory.otherArtifacts. Labelled "Other advisers built these".</div>
+        </div>
+        <div class="stack-row">
+          <div class="stack-num">7</div>
+          <div class="stack-layer">Knowledge Library RAG</div>
+          <div class="stack-detail">2 curated domain resources retrieved per message. Semantic search filtered by founder's stage + sector. From knowledge_library table. (Future: per-agent knowledge bases)</div>
+        </div>
+        <div class="stack-row">
+          <div class="stack-num">8</div>
+          <div class="stack-layer">Conversation Rules + Goals</div>
+          <div class="stack-detail">Agent goal (agent_goals), pending delegations (delegation_tasks), session summary (agent_memory), conversation rules block. Budget enforced: ≤6000 chars total.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- tool execution loop -->
+  <div style="font-size:10px;font-weight:700;color:#8A867C;letter-spacing:0.1em;text-transform:uppercase;margin-top:32px;margin-bottom:8px;">Tool Execution Loop — Observe → Act (max 5 iterations)</div>
+  <div class="tool-loop">
+    <div class="loop-header">Tool Type · What fires · Result</div>
+    <div class="loop-row">
+      <div class="loop-tool">Data Tool<br><span style="font-weight:400;color:#8A867C">web_research, apollo_search, lead_enrich, fetch_stripe_metrics</span></div>
+      <div class="loop-action">Executes synchronously. Result re-injected into conversation as [Tool result: X]. LLM loop continues for next iteration. Agent can chain multiple data calls before responding.</div>
+      <div class="loop-result">Loop continues ↺</div>
+    </div>
+    <div class="loop-row">
+      <div class="loop-tool">Artifact Tool<br><span style="font-weight:400;color:#8A867C">icp_document, gtm_playbook, financial_summary, …</span></div>
+      <div class="loop-action">Breaks loop immediately. Enters 2-pass artifact generation: (1) Haiku extraction pass → sparse context JSON. (2) Sonnet generation pass → full structured artifact. Quality eval + optional self-critique. Saves to agent_artifacts. Fires score signal.</div>
+      <div class="loop-result">Loop ends → artifact saved</div>
+    </div>
+    <div class="loop-row">
+      <div class="loop-tool">Execution Tool<br><span style="font-weight:400;color:#8A867C">create_deal, send_outreach, initiate_call, schedule_followup</span></div>
+      <div class="loop-action">Runs action against external service or DB. Result appended to chat reply. Loop terminates. Logged to agent_activity table for audit trail and cross-agent context.</div>
+      <div class="loop-result">Loop ends → action logged</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     5. SCORING PIPELINE
+     ════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-label">05 · IQ Score Calculation Pipeline</div>
+
+  <div class="score-pipeline">
+    <div class="score-stage">
+      <div class="score-stage-num">Step 1</div>
+      <div class="score-stage-title">Input Merge</div>
+      <div class="score-stage-detail">5 profile_builder_data sections merged → AssessmentData struct. DataSourceMap tags each field: stripe | document | self_reported.</div>
+    </div>
+    <div class="score-stage">
+      <div class="score-stage-num">Step 2</div>
+      <div class="score-stage-title">30 Indicators Scored</div>
+      <div class="score-stage-detail">6 parameter scorers run in parallel (P1–P6). Each indicator: rawScore 0–5 in 0.5 steps. Excluded if data missing.</div>
+    </div>
+    <div class="score-stage">
+      <div class="score-stage-num">Step 3</div>
+      <div class="score-stage-title">Confidence Adjustment</div>
+      <div class="score-stage-detail">effectiveScore = rawScore × (confidence / 0.90), clamped 0.5–1.0×. Stripe=1.0×, document=0.85×, self_reported=0.55×.</div>
+    </div>
+    <div class="score-stage">
+      <div class="score-stage-num">Step 4</div>
+      <div class="score-stage-title">Sector + Stage Weighting</div>
+      <div class="score-stage-detail">Base sector weights × stage multiplier (early/mid/growth). Renormalised to sum=1.0. 8 sectors defined.</div>
+    </div>
+    <div class="score-stage">
+      <div class="score-stage-num">Step 5</div>
+      <div class="score-stage-title">Final IQ</div>
+      <div class="score-stage-detail">Σ(effectiveScores) / (activeCount × 5) × 100 − sparsityPenalty. Grade A+→F. Reconciliation flags (vcAlerts) attached, never override score.</div>
+    </div>
+  </div>
+
+  <div class="formula">
+    <span class="comment">// Core formula</span><br>
+    finalIQ = ( Σ(rawScore_i × confidenceMultiplier_i) / (activeCount × 5) ) × 100 − sparsityPenalty<br>
+    <br>
+    <span class="comment">// Confidence multiplier</span><br>
+    confidenceMultiplier = clamp( confidence / 0.90,  min=0.50,  max=1.00 )<br>
+    <br>
+    <span class="comment">// Sparsity penalty (max −5 pts)</span><br>
+    sparsityPenalty = max(0,  (20 − activeIndicatorCount) × 0.5)<br>
+    <br>
+    <span class="comment">// Grade thresholds</span><br>
+    A+ ≥ 80 · A ≥ 68 · B+ ≥ 60 · B ≥ 52 · C+ ≥ 44 · C ≥ 36 · D ≥ 26 · F &lt; 26
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     6. CROSS-AGENT MEMORY GRAPH
+     ════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-label">06 · Cross-Agent Memory Graph — Who Loads Whose Context</div>
+  <div class="memory-grid">
+
+    <div class="memory-agent">
+      <div class="memory-agent-name">Sage (Strategy)</div>
+      <div class="memory-agent-injects">Loads context from all 9 agents · ownArtifacts:2 · otherArtifacts:10 · events:15</div>
+      <div class="memory-link">Felix</div>
+      <div class="memory-link">Patel</div>
+      <div class="memory-link">Nova</div>
+      <div class="memory-link">Atlas</div>
+      <div class="memory-link">Susi · Maya · Harper · Leo · Carter · Riley</div>
+    </div>
+
+    <div class="memory-agent">
+      <div class="memory-agent-name">Patel (CMO)</div>
+      <div class="memory-agent-injects">always: Atlas, Maya · conditional: Felix, Susi · ownArtifacts:3 · otherArtifacts:5</div>
+      <div class="memory-link">Atlas — competitive_matrix, battle_card</div>
+      <div class="memory-link">Maya — brand_messaging</div>
+      <div class="memory-link">Felix — financial_summary (if topic)</div>
+      <div class="memory-link">Susi — sales_script (if topic)</div>
+    </div>
+
+    <div class="memory-agent">
+      <div class="memory-agent-name">Atlas (Competitive)</div>
+      <div class="memory-agent-injects">always: Patel, Nova · conditional: Sage, Susi · otherArtifacts:4</div>
+      <div class="memory-link">Patel — icp_document, gtm_playbook</div>
+      <div class="memory-link">Nova — pmf_survey, interview_notes</div>
+    </div>
+
+    <div class="memory-agent">
+      <div class="memory-agent-name">Felix (CFO)</div>
+      <div class="memory-agent-injects">always: Sage · conditional: Patel, Nova, Susi · otherArtifacts:4</div>
+      <div class="memory-link">Sage — strategic_plan</div>
+      <div class="memory-link">Patel — gtm_playbook (if topic)</div>
+    </div>
+
+    <div class="memory-agent">
+      <div class="memory-agent-name">Nova (CPO)</div>
+      <div class="memory-agent-injects">always: Patel, Atlas · conditional: Susi, Sage · otherArtifacts:4</div>
+      <div class="memory-link">Patel — icp_document</div>
+      <div class="memory-link">Atlas — competitive_matrix</div>
+    </div>
+
+    <div class="memory-agent">
+      <div class="memory-agent-name">Harper / Leo / Maya / Susi / Carter / Riley</div>
+      <div class="memory-agent-injects">Each has 2–4 high-relevance agents. All load at minimum: their pillar lead + most relevant collaborator.</div>
+      <div class="memory-link">Harper ← Patel (hiring for GTM roles)</div>
+      <div class="memory-link">Susi ← Patel (sales follows ICP)</div>
+      <div class="memory-link">Maya ← Patel (brand supports GTM)</div>
+      <div class="memory-link">Carter ← Nova, Susi (CS follows product + sales)</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- footer -->
+<div style="margin-top:48px;padding-top:16px;border-top:1px solid #E2DDD5;font-size:10px;color:#8A867C;display:flex;justify-content:space-between;">
+  <span>Edge Alpha · System Architecture</span>
+  <span>Generated 2026-05-08 · Claude Sonnet 4.6</span>
+</div>
+
+</body>
+</html>

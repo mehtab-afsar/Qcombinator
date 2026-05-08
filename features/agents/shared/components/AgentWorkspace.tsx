@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Send, TrendingUp, CheckCircle2, RefreshCw, FileText, Copy, ChevronLeft } from 'lucide-react'
@@ -10,18 +10,22 @@ import { renderArtifactContent } from '../utils/renderArtifactContent'
 import { ARTIFACT_META }        from '../constants/artifact-meta'
 import { bg, surf, bdr, ink, muted, green } from '../constants/colors'
 import type { DeliverableConfig }   from './AgentLeftPanel'
-import type { ArtifactRecord, AgentWorkspaceState } from '../hooks/useAgentWorkspace'
+import type { ArtifactRecord, AgentWorkspaceState, SourceItem } from '../hooks/useAgentWorkspace'
 
 export type { DeliverableConfig }
 
-// ─── inline markdown renderer ─────────────────────────────────────────────────
+// ─── markdown renderer ────────────────────────────────────────────────────────
 
 function inlineMd(text: string): React.ReactNode {
-  // Match **bold** before *italic* so ** isn't treated as two * wrappers
-  const parts = text.split(/(\*\*[^*\n]+\*\*|\*(?!\*)[^*\n]+\*)/g)
+  // inline code first, then bold, then italic
+  const parts = text.split(/(`[^`]+`|\*\*[^*\n]+\*\*|\*(?!\*)[^*\n]+\*)/g)
   return parts.map((p, i) => {
-    if (p.startsWith('**') && p.endsWith('**')) return <strong key={i}>{p.slice(2, -2)}</strong>
-    if (p.startsWith('*')  && p.endsWith('*'))  return <em key={i}>{p.slice(1, -1)}</em>
+    if (p.startsWith('`') && p.endsWith('`'))
+      return <code key={i} style={{ fontFamily: 'ui-monospace, monospace', fontSize: '0.88em', background: '#F0EDE6', padding: '1px 5px', borderRadius: 4, color: '#18160F' }}>{p.slice(1, -1)}</code>
+    if (p.startsWith('**') && p.endsWith('**'))
+      return <strong key={i} style={{ fontWeight: 700, color: '#18160F' }}>{p.slice(2, -2)}</strong>
+    if (p.startsWith('*') && p.endsWith('*'))
+      return <em key={i}>{p.slice(1, -1)}</em>
     return p
   })
 }
@@ -29,43 +33,255 @@ function inlineMd(text: string): React.ReactNode {
 function renderMd(raw: string): React.ReactNode {
   const lines = raw.split('\n')
   const nodes: React.ReactNode[] = []
+  let listBuffer: React.ReactNode[] = []
+  let orderedBuffer: React.ReactNode[] = []
+  let orderedCounter = 0
+
+  function flushLists() {
+    if (listBuffer.length > 0) {
+      nodes.push(
+        <ul key={`ul-${nodes.length}`} style={{ margin: '6px 0 8px', paddingLeft: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 3 }}>
+          {listBuffer}
+        </ul>
+      )
+      listBuffer = []
+    }
+    if (orderedBuffer.length > 0) {
+      nodes.push(
+        <ol key={`ol-${nodes.length}`} style={{ margin: '6px 0 8px', paddingLeft: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 3, counterReset: 'none' }}>
+          {orderedBuffer}
+        </ol>
+      )
+      orderedBuffer = []
+      orderedCounter = 0
+    }
+  }
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
 
-    // Blank line → breathing room between paragraphs
+    // Blank line
     if (line.trim() === '') {
-      nodes.push(<div key={`sp-${i}`} style={{ height: 6 }} />)
+      flushLists()
+      nodes.push(<div key={`sp-${i}`} style={{ height: 10 }} />)
       continue
     }
 
-    // Heading
-    if (/^#{1,3} /.test(line)) {
-      const lvl = (line.match(/^(#{1,3}) /)?.[1].length ?? 1)
+    // Horizontal rule
+    if (/^[-*_]{3,}$/.test(line.trim())) {
+      flushLists()
+      nodes.push(<hr key={i} style={{ border: 'none', borderTop: '1px solid #E2DDD5', margin: '12px 0' }} />)
+      continue
+    }
+
+    // H1
+    if (/^# /.test(line)) {
+      flushLists()
       nodes.push(
-        <div key={i} style={{ fontWeight: 700, fontSize: lvl === 1 ? 14 : 13, marginTop: 4 }}>
-          {inlineMd(line.replace(/^#{1,3} /, ''))}
+        <div key={i} style={{ fontSize: 15, fontWeight: 700, color: '#18160F', marginTop: 18, marginBottom: 6, lineHeight: 1.4 }}>
+          {inlineMd(line.replace(/^# /, ''))}
         </div>
       )
       continue
     }
 
-    // List item
+    // H2
+    if (/^## /.test(line)) {
+      flushLists()
+      nodes.push(
+        <div key={i} style={{ fontSize: 14, fontWeight: 700, color: '#18160F', marginTop: 14, marginBottom: 5, lineHeight: 1.4 }}>
+          {inlineMd(line.replace(/^## /, ''))}
+        </div>
+      )
+      continue
+    }
+
+    // H3
+    if (/^### /.test(line)) {
+      flushLists()
+      nodes.push(
+        <div key={i} style={{ fontSize: 13, fontWeight: 700, color: '#3D3A35', marginTop: 12, marginBottom: 4, lineHeight: 1.4 }}>
+          {inlineMd(line.replace(/^### /, ''))}
+        </div>
+      )
+      continue
+    }
+
+    // Blockquote
+    if (/^> /.test(line)) {
+      flushLists()
+      nodes.push(
+        <div key={i} style={{ borderLeft: '3px solid #E2DDD5', paddingLeft: 12, marginLeft: 0, margin: '6px 0', color: '#8A867C', fontStyle: 'italic', fontSize: 13, lineHeight: 1.65 }}>
+          {inlineMd(line.replace(/^> /, ''))}
+        </div>
+      )
+      continue
+    }
+
+    // Unordered list
     if (/^\s*[-•*] /.test(line)) {
-      nodes.push(
-        <div key={i} style={{ display: 'flex', gap: 7, paddingLeft: 4 }}>
-          <span style={{ flexShrink: 0, opacity: 0.45, marginTop: 1 }}>·</span>
-          <span>{inlineMd(line.replace(/^\s*[-•*] /, ''))}</span>
-        </div>
+      if (orderedBuffer.length > 0) { flushLists() }
+      const text = line.replace(/^\s*[-•*] /, '')
+      listBuffer.push(
+        <li key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', paddingLeft: 4, lineHeight: 1.65, fontSize: 13 }}>
+          <span style={{ flexShrink: 0, marginTop: '0.35em', width: 5, height: 5, borderRadius: '50%', background: '#8A867C', display: 'inline-block' }} />
+          <span>{inlineMd(text)}</span>
+        </li>
       )
       continue
     }
 
-    // Normal paragraph line
-    nodes.push(<div key={i}>{inlineMd(line)}</div>)
+    // Ordered list
+    const ordMatch = line.match(/^\s*(\d+)\. (.+)/)
+    if (ordMatch) {
+      if (listBuffer.length > 0) { flushLists() }
+      orderedCounter++
+      orderedBuffer.push(
+        <li key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', paddingLeft: 4, lineHeight: 1.65, fontSize: 13 }}>
+          <span style={{ flexShrink: 0, minWidth: 18, fontWeight: 600, color: '#8A867C', fontSize: 12, marginTop: '0.1em', textAlign: 'right' }}>{orderedCounter}.</span>
+          <span>{inlineMd(ordMatch[2])}</span>
+        </li>
+      )
+      continue
+    }
+
+    // Normal paragraph
+    flushLists()
+    nodes.push(
+      <div key={i} style={{ fontSize: 13, lineHeight: 1.75, color: '#18160F', marginBottom: 2 }}>
+        {inlineMd(line)}
+      </div>
+    )
   }
 
-  return <>{nodes}</>
+  flushLists()
+  return <div style={{ display: 'flex', flexDirection: 'column' }}>{nodes}</div>
+}
+
+// ─── typing phrase (replaces 3-dot indicator) ────────────────────────────────
+
+function TypingPhrase({ accent }: { accent: string }) {
+  const [idx,     setIdx]     = useState(0)
+  const [visible, setVisible] = useState(true)
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      setVisible(false)
+      setTimeout(() => { setIdx(i => (i + 1) % STARTUP_PHRASES.length); setVisible(true) }, 300)
+    }, 2200)
+    return () => clearInterval(t)
+  }, [])
+
+  return (
+    <div style={{ paddingTop: 9, display: 'flex', alignItems: 'center', gap: 7 }}>
+      <motion.span
+        style={{ width: 6, height: 6, borderRadius: '50%', background: accent, display: 'inline-block', flexShrink: 0 }}
+        animate={{ opacity: [0.4, 1, 0.4] }}
+        transition={{ repeat: Infinity, duration: 1.1 }}
+      />
+      <span style={{ fontSize: 13, color: muted, opacity: visible ? 1 : 0, transition: 'opacity 0.28s ease' }}>
+        {STARTUP_PHRASES[idx]}
+      </span>
+    </div>
+  )
+}
+
+// ─── source citation chips ────────────────────────────────────────────────────
+
+const SOURCE_ICONS: Record<SourceItem['type'], string> = {
+  profile:     '📋',
+  memory:      '💬',
+  artifact:    '📄',
+  cross_agent: '🔗',
+}
+
+function SourceChips({ sources }: { sources: SourceItem[] }) {
+  if (!sources.length) return null
+  return (
+    <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 5, alignItems: 'center' }}>
+      <span style={{ fontSize: 9, color: muted, opacity: 0.55, textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 600, flexShrink: 0 }}>
+        Referenced from
+      </span>
+      {sources.map((src, i) => (
+        <span key={i} style={{
+          display: 'inline-flex', alignItems: 'center', gap: 4,
+          fontSize: 10, color: muted,
+          background: `${ink}07`, border: `1px solid ${bdr}`,
+          borderRadius: 99, padding: '2px 8px', fontWeight: 500,
+        }}>
+          <span style={{ fontSize: 9 }}>{SOURCE_ICONS[src.type]}</span>
+          {src.label}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+// ─── premium input bar ────────────────────────────────────────────────────────
+
+function InputBar({
+  value, onChange, onKeyDown, onSend, disabled, placeholder, accent,
+}: {
+  value:       string
+  onChange:    (v: string) => void
+  onKeyDown:   (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
+  onSend:      () => void
+  disabled:    boolean
+  placeholder: string
+  accent:      string
+}) {
+  const [focused, setFocused] = React.useState(false)
+  const hasText = value.trim().length > 0
+
+  return (
+    <div style={{ flexShrink: 0, padding: '10px 40px 20px', background: bg }}>
+      <div style={{ maxWidth: 760, margin: '0 auto' }}>
+        <div style={{
+          display: 'flex', alignItems: 'flex-end', gap: 10,
+          padding: '12px 12px 12px 18px',
+          background: '#fff',
+          borderRadius: 18,
+          boxShadow: focused
+            ? `0 0 0 2px ${accent}35, 0 2px 12px rgba(0,0,0,0.08)`
+            : `0 0 0 1.5px ${bdr}, 0 2px 8px rgba(0,0,0,0.05)`,
+          transition: 'box-shadow 0.18s',
+        }}>
+          <textarea
+            value={value}
+            onChange={e => onChange(e.target.value)}
+            onKeyDown={onKeyDown}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            placeholder={placeholder}
+            rows={1}
+            style={{
+              flex: 1, background: 'none', border: 'none', outline: 'none',
+              fontSize: 14, color: ink, fontFamily: 'inherit',
+              resize: 'none', lineHeight: 1.6, maxHeight: 140, overflowY: 'auto',
+              paddingTop: 2, paddingBottom: 2,
+            }}
+          />
+          <button
+            onClick={onSend}
+            disabled={disabled}
+            style={{
+              height: 36, width: 36, borderRadius: '50%', flexShrink: 0,
+              background: hasText ? accent : bdr,
+              border: 'none',
+              cursor: hasText ? 'pointer' : 'default',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'background 0.15s, transform 0.1s',
+              transform: hasText ? 'scale(1)' : 'scale(0.92)',
+            }}
+            onMouseEnter={e => { if (hasText) (e.currentTarget as HTMLElement).style.transform = 'scale(1.06)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = hasText ? 'scale(1)' : 'scale(0.92)' }}
+          >
+            <Send size={14} style={{ color: hasText ? '#fff' : muted }} />
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export interface CustomPanel {
@@ -87,6 +303,53 @@ export interface AgentWorkspaceProps {
   suggestedPrompts: string[]
   customPanel?:    CustomPanel
   extras?:         (args: { workspace: AgentWorkspaceState }) => React.ReactNode
+}
+
+// ─── startup loader ───────────────────────────────────────────────────────────
+
+const STARTUP_PHRASES = [
+  'Analyzing market signals…',
+  'Building your GTM strategy…',
+  'Mapping the competitive landscape…',
+  'Stress-testing your ICP…',
+  'Calculating unicorn potential…',
+  'Reviewing your go-to-market fit…',
+  'Synthesizing customer insights…',
+  'Identifying your ideal buyer…',
+  'Structuring your sales motion…',
+  'Pressure-testing assumptions…',
+  'Charting the billion-dollar path…',
+  'Triangulating market signals…',
+]
+
+function StartupLoader({ accent }: { accent: string }) {
+  const [phraseIdx, setPhraseIdx] = React.useState(0)
+  const [visible, setVisible]     = React.useState(true)
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setVisible(false)
+      setTimeout(() => {
+        setPhraseIdx(i => (i + 1) % STARTUP_PHRASES.length)
+        setVisible(true)
+      }, 300)
+    }, 1600)
+    return () => clearInterval(interval)
+  }, [])
+
+  return (
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: bg, gap: 16 }}>
+      <div style={{ width: 8, height: 8, borderRadius: '50%', background: accent, opacity: 0.7 }} />
+      <p style={{
+        fontSize: 13, color: muted, fontFamily: 'system-ui, sans-serif', letterSpacing: '0.01em',
+        opacity: visible ? 1 : 0,
+        transition: 'opacity 0.28s ease',
+        minHeight: 20,
+      }}>
+        {STARTUP_PHRASES[phraseIdx]}
+      </p>
+    </div>
+  )
 }
 
 // ─── action list ──────────────────────────────────────────────────────────────
@@ -213,8 +476,17 @@ export function AgentWorkspace({
 }: AgentWorkspaceProps) {
   const searchParams = useSearchParams()
   const targetId     = searchParams.get('artifact')
+  const convParam    = searchParams.get('conv')
+  const isEmbed      = searchParams.get('_embed') === '1'
   const workspace    = useAgentWorkspace(agentId)
   const [activeView, setActiveView] = useState<string>('chat')
+
+  // Switch to a specific conversation from URL param
+  useEffect(() => {
+    if (!convParam || workspace.loading) return
+    workspace.switchConversation(convParam)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [convParam, workspace.loading])
 
   // Open artifact from URL param
   useEffect(() => {
@@ -233,16 +505,7 @@ export function AgentWorkspace({
     : null
 
   if (workspace.loading) {
-    return (
-      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: bg }}>
-        <div style={{ display: 'flex', gap: 5 }}>
-          {[0, 1, 2].map(i => (
-            <motion.div key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: muted }}
-              animate={{ opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 0.9, delay: i * 0.2 }} />
-          ))}
-        </div>
-      </div>
-    )
+    return <StartupLoader accent={accent} />
   }
 
   const pendingActionsCount = workspace.actions.filter(a => a.status !== 'done').length
@@ -269,27 +532,29 @@ export function AgentWorkspace({
         )}
       </AnimatePresence>
 
-      {/* left panel */}
-      <AgentLeftPanel
-        accent={accent}
-        agentName={name}
-        agentRole={role}
-        deliverables={deliverables} artifacts={workspace.artifacts}
-        actionsCount={pendingActionsCount}
-        activeView={activeView} onViewChange={setActiveView}
-        onBuildDeliverable={(label) => {
-          setActiveView('chat')
-          workspace.send(`Build ${label} for my startup`)
-        }}
-        conversations={workspace.conversations}
-        activeConversationId={workspace.conversationId}
-        onNewConversation={() => { workspace.newConversation(); setActiveView('chat') }}
-        onSwitchConversation={(id) => { workspace.switchConversation(id); setActiveView('chat') }}
-        customPanel={customPanel ? {
-          id: customPanel.id, label: customPanel.label, icon: customPanel.icon,
-          badge: customPanel.badge?.(workspace),
-        } : undefined}
-      />
+      {/* left panel — hidden when embedded in CXO iframe */}
+      {!isEmbed && (
+        <AgentLeftPanel
+          accent={accent}
+          agentName={name}
+          agentRole={role}
+          deliverables={deliverables} artifacts={workspace.artifacts}
+          actionsCount={pendingActionsCount}
+          activeView={activeView} onViewChange={setActiveView}
+          onBuildDeliverable={(label) => {
+            setActiveView('chat')
+            workspace.send(`Build ${label} for my startup`)
+          }}
+          conversations={workspace.conversations}
+          activeConversationId={workspace.conversationId}
+          onNewConversation={() => { workspace.newConversation(); setActiveView('chat') }}
+          onSwitchConversation={(id) => { workspace.switchConversation(id); setActiveView('chat') }}
+          customPanel={customPanel ? {
+            id: customPanel.id, label: customPanel.label, icon: customPanel.icon,
+            badge: customPanel.badge?.(workspace),
+          } : undefined}
+        />
+      )}
 
       {/* main content */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
@@ -334,8 +599,8 @@ export function AgentWorkspace({
 
           {/* CHAT */}
           {activeView === 'chat' && (
-            <div style={{ flex: 1, overflowY: 'auto', padding: '24px 28px' }}>
-              <div style={{ maxWidth: 700, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '28px 40px' }}>
+              <div style={{ maxWidth: 760, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
 
                 {/* suggested prompts (empty state) */}
                 <AnimatePresence>
@@ -377,7 +642,7 @@ export function AgentWorkspace({
                     style={{ display: 'flex', gap: 12, flexDirection: msg.role === 'user' ? 'row-reverse' : 'row' }}
                   >
                     {msg.role !== 'user' && (
-                      <div style={{ height: 32, width: 32, borderRadius: 10, flexShrink: 0, marginTop: 1, background: `${accent}15`, border: `1.5px solid ${accent}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: accent }}>
+                      <div style={{ height: 34, width: 34, borderRadius: 10, flexShrink: 0, marginTop: 1, background: `${accent}15`, border: `1.5px solid ${accent}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: accent }}>
                         {msg.role === 'tool' ? '⚡' : name[0]}
                       </div>
                     )}
@@ -395,19 +660,18 @@ export function AgentWorkspace({
                       <div style={{
                         background: `${accent}0D`,
                         border: `1px solid ${accent}25`,
-                        borderRadius: 10,
-                        padding: '9px 14px', fontSize: 13, lineHeight: 1.65,
-                        maxWidth: '72%', wordBreak: 'break-word', color: ink,
+                        borderRadius: 14,
+                        padding: '11px 16px', fontSize: 13, lineHeight: 1.65,
+                        maxWidth: '68%', wordBreak: 'break-word', color: ink,
                       }}>
                         {msg.text}
                       </div>
                     ) : (
-                      <div style={{
-                        fontSize: 13, lineHeight: 1.72, color: ink,
-                        maxWidth: '80%', wordBreak: 'break-word',
-                        paddingTop: 4,
-                      }}>
-                        {renderMd(msg.text)}
+                      <div style={{ maxWidth: '86%', wordBreak: 'break-word', paddingTop: 4 }}>
+                        <div style={{ fontSize: 14, lineHeight: 1.78, color: ink }}>
+                          {renderMd(msg.text)}
+                        </div>
+                        {msg.sources && <SourceChips sources={msg.sources} />}
                       </div>
                     )}
                   </motion.div>
@@ -416,15 +680,10 @@ export function AgentWorkspace({
                 {/* typing indicator */}
                 {workspace.typing && workspace.uiMessages[workspace.uiMessages.length - 1]?.role !== 'agent' && (
                   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ display: 'flex', gap: 12 }}>
-                    <div style={{ height: 32, width: 32, borderRadius: 10, flexShrink: 0, background: `${accent}15`, border: `1.5px solid ${accent}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: accent }}>
+                    <div style={{ height: 34, width: 34, borderRadius: 10, flexShrink: 0, background: `${accent}15`, border: `1.5px solid ${accent}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: accent }}>
                       {name[0]}
                     </div>
-                    <div style={{ paddingTop: 10, display: 'flex', gap: 4, alignItems: 'center' }}>
-                      {[0, 1, 2].map(j => (
-                        <motion.span key={j} style={{ height: 5, width: 5, borderRadius: '50%', background: muted, display: 'inline-block' }}
-                          animate={{ opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 1, delay: j * 0.2 }} />
-                      ))}
-                    </div>
+                    <TypingPhrase accent={accent} />
                   </motion.div>
                 )}
 
@@ -453,42 +712,16 @@ export function AgentWorkspace({
             <ActionsView workspace={workspace} />
           )}
 
-          {/* persistent input bar — always visible */}
-          <div style={{ flexShrink: 0, padding: '10px 24px 18px', borderTop: `1px solid ${bdr}`, background: bg }}>
-            <div style={{ maxWidth: 700, margin: '0 auto' }}>
-              <div style={{
-                display: 'flex', alignItems: 'flex-end', gap: 10,
-                padding: '10px 14px 10px 16px',
-                background: surf, border: `1px solid ${bdr}`,
-                borderRadius: 14,
-                boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
-              }}>
-                <textarea
-                  value={workspace.input}
-                  onChange={e => workspace.setInput(e.target.value)}
-                  onKeyDown={workspace.handleKeyDown}
-                  placeholder={activeArtifact ? `Refine ${activeArtifact.title}…` : `Message ${name}…`}
-                  rows={1}
-                  style={{ flex: 1, background: 'none', border: 'none', outline: 'none', fontSize: 14, color: ink, fontFamily: 'inherit', resize: 'none', lineHeight: 1.5, maxHeight: 120, overflowY: 'auto', paddingTop: 1 }}
-                />
-                <button
-                  onClick={() => { if (activeArtifact && workspace.input.trim()) setActiveView('chat'); workspace.send() }}
-                  disabled={!workspace.input.trim() || workspace.typing}
-                  style={{
-                    height: 32, width: 32, borderRadius: 9, flexShrink: 0,
-                    background: !workspace.input.trim() || workspace.typing ? `${bdr}` : accent,
-                    border: 'none',
-                    cursor: !workspace.input.trim() || workspace.typing ? 'default' : 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    transition: 'background .15s',
-                  }}
-                >
-                  <Send size={13} style={{ color: !workspace.input.trim() || workspace.typing ? muted : '#fff' }} />
-                </button>
-              </div>
-              <p style={{ fontSize: 10, color: muted, textAlign: 'center', marginTop: 6, opacity: 0.6 }}>Enter to send · Shift+Enter for new line</p>
-            </div>
-          </div>
+          {/* persistent input bar */}
+          <InputBar
+            value={workspace.input}
+            onChange={workspace.setInput}
+            onKeyDown={workspace.handleKeyDown}
+            onSend={() => { if (activeArtifact && workspace.input.trim()) setActiveView('chat'); workspace.send() }}
+            disabled={!workspace.input.trim() || workspace.typing}
+            placeholder={activeArtifact ? `Refine ${activeArtifact.title}…` : `Message ${name}…`}
+            accent={accent}
+          />
         </div>
       </div>
 

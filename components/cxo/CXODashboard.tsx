@@ -1,617 +1,497 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import {
-  MessageCircle, ExternalLink, TrendingUp, CheckCircle, Circle,
-  Zap, Users, Target, BarChart2, FileText, ArrowRight,
-} from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
-import { useAuth } from '@/features/auth/hooks/useAuth';
+import { useState } from 'react';
+import { CheckCircle2, Circle, Lock, Clock, Copy, X, ArrowRight, Layers,
+         Rocket, Mail, Bell, Globe, Users, Eye, FileText,
+         BookOpen, BarChart2, Zap, TrendingUp, Brain, ArrowUpRight } from 'lucide-react';
+import { renderArtifactContent } from '@/features/agents/shared/utils/renderArtifactContent';
+import { CXO_CONFIGS } from '@/lib/cxo/cxo-config';
 import type { CXOConfig } from '@/lib/cxo/cxo-config';
 import type { AgentArtifact } from './CXOSidebar';
 
-// ─── palette ──────────────────────────────────────────────────────────────────
 const bg    = '#F9F7F2';
 const surf  = '#F0EDE6';
 const bdr   = '#E2DDD5';
 const ink   = '#18160F';
 const muted = '#8A867C';
 const green = '#16A34A';
-const amber = '#D97706';
 
-// ─── types ────────────────────────────────────────────────────────────────────
-
-interface DealRow {
-  id: string;
-  company: string;
-  stage: string;
-  value: string | null;
-}
-
-interface ActivityRow {
-  id: string;
-  action_type: string;
-  agent_id: string;
-  metadata: Record<string, unknown> | null;
-  created_at: string;
-}
-
-interface CrossArtifact {
-  agentId: string;
-  agentName: string;
-  artifactType: string;
-  title: string;
-  createdAt: string;
-}
-
-interface DashboardProps {
-  config: CXOConfig;
-  agentId: string;
-  artifacts: AgentArtifact[];
-  dimensionScore: number | null;
-  onStartChat: (prompt?: string) => void;
-}
-
-// ─── per-agent quick actions ──────────────────────────────────────────────────
-
-const QUICK_ACTIONS: Record<string, { label: string; prompt: string; icon: React.ElementType }[]> = {
-  patel: [
-    { label: 'Refine ICP',         prompt: "Let's refine my ideal customer profile based on recent wins.",        icon: Target },
-    { label: 'Build Sequence',     prompt: "Create a 5-step cold outreach sequence for my top ICP segment.",      icon: Zap },
-    { label: 'Enrich Leads',       prompt: "Enrich my lead list — find key contacts at my target companies.",      icon: Users },
-    { label: 'GTM Audit',          prompt: "Run a GTM audit — where are we leaking in the funnel?",               icon: BarChart2 },
-  ],
-  susi: [
-    { label: 'Review Pipeline',    prompt: "Walk me through my pipeline — what needs attention?",                  icon: BarChart2 },
-    { label: 'Write Sales Script', prompt: "Write a discovery call script for my top ICP segment.",               icon: FileText },
-    { label: 'Deal Objections',    prompt: "What are the top objections I'll face and how should I handle them?",  icon: Zap },
-    { label: 'Follow-up Draft',    prompt: "Draft a follow-up email for a deal that went quiet.",                  icon: MessageCircle },
-  ],
-  maya: [
-    { label: 'Brand Voice',        prompt: "Define my brand voice and messaging pillars.",                         icon: Target },
-    { label: 'Blog Post',          prompt: "Write a thought leadership post for my target audience.",               icon: FileText },
-    { label: 'Launch Copy',        prompt: "Write launch copy for my landing page.",                               icon: Zap },
-    { label: 'Positioning',        prompt: "Help me nail my positioning against the top 3 competitors.",           icon: BarChart2 },
-  ],
-  felix: [
-    { label: 'Unit Economics',     prompt: "Analyze my unit economics — LTV, CAC, payback period.",                icon: BarChart2 },
-    { label: 'Runway Model',       prompt: "Build a runway model — at current burn, when do I need to raise?",     icon: TrendingUp },
-    { label: 'Investor Update',    prompt: "Draft a YC-style investor update for this month.",                     icon: FileText },
-    { label: 'Pricing Strategy',   prompt: "Should I change my pricing? Walk me through the analysis.",            icon: Zap },
-  ],
-  leo: [
-    { label: 'NDA Generator',      prompt: "Generate an NDA for a new partnership discussion.",                    icon: FileText },
-    { label: 'SAFE Terms',         prompt: "Explain the SAFE terms I should use for my next raise.",               icon: Target },
-    { label: 'IP Checklist',       prompt: "Run me through the IP checklist — what do I need to protect?",         icon: CheckCircle },
-    { label: 'Cap Table Review',   prompt: "Review my cap table structure — any red flags for investors?",          icon: BarChart2 },
-  ],
-  harper: [
-    { label: 'Hiring Plan',        prompt: "Build a hiring plan for the next 6 months based on my roadmap.",       icon: Users },
-    { label: 'Job Description',    prompt: "Write a compelling JD for my first engineering hire.",                  icon: FileText },
-    { label: 'Culture Doc',        prompt: "Help me write a culture and values document for candidates.",           icon: Target },
-    { label: 'Comp Benchmarks',    prompt: "What should I pay my first 5 hires? Give me market benchmarks.",        icon: BarChart2 },
-  ],
-  nova: [
-    { label: 'PMF Survey',         prompt: "Design a PMF survey for my current user base.",                        icon: Target },
-    { label: 'User Interview',     prompt: "Generate 10 discovery interview questions for my ICP.",                icon: MessageCircle },
-    { label: 'Feature Prioritize', prompt: "Help me prioritize my product backlog against user pain points.",       icon: Zap },
-    { label: 'Retention Analysis', prompt: "Analyze my retention funnel — where are users dropping off?",           icon: BarChart2 },
-  ],
-  atlas: [
-    { label: 'Competitive Matrix', prompt: "Build a competitive matrix against my top 4 rivals.",                  icon: BarChart2 },
-    { label: 'Market Sizing',      prompt: "Help me calculate a defensible TAM/SAM/SOM for my pitch.",             icon: Target },
-    { label: 'Track Competitors',  prompt: "Set up competitor tracking for my top 3 rivals.",                      icon: TrendingUp },
-    { label: 'Blue Ocean',         prompt: "Where is the whitespace in my market that I can own?",                  icon: Zap },
-  ],
-  sage: [
-    { label: 'Strategic Plan',     prompt: "Build a 12-month strategic plan with OKRs.",                           icon: Target },
-    { label: 'Fundraise Prep',     prompt: "Help me prepare for my Series A — what do investors want to see?",     icon: TrendingUp },
-    { label: 'Moat Analysis',      prompt: "What is my defensible moat and how do I communicate it?",               icon: Zap },
-    { label: 'Board Narrative',    prompt: "Draft a board narrative for our next board meeting.",                   icon: FileText },
-  ],
+const ACTION_ICONS: Record<string, React.ComponentType<{ size?: number; style?: React.CSSProperties }>> = {
+  deploy_landing_page:   Rocket,
+  gmail_compose:         Mail,
+  google_alert:          Bell,
+  send_investor_update:  TrendingUp,
+  generate_nda:          FileText,
+  blog_post:             BookOpen,
+  host_survey:           BarChart2,
+  track_competitor:      Eye,
+  lead_enrich:           Users,
+  web_research:          Globe,
+  screen_resume:         Users,
+  wellfound_post:        Zap,
 };
 
-// ─── per-agent key metrics labels ─────────────────────────────────────────────
-
-const DIMENSION_LABEL: Record<string, string> = {
-  market: 'Market Score', product: 'Product Score',
-  goToMarket: 'GTM Score', financial: 'Financial Score',
-  team: 'Team Score', traction: 'Traction Score',
-};
-
-// ─── helpers ──────────────────────────────────────────────────────────────────
+interface CXODashboardProps {
+  config:                   CXOConfig;
+  agentId:                  string;
+  artifacts:                AgentArtifact[];
+  userId?:                  string | null;
+  onSwitchToChat?:          () => void;
+  connectedArtifactCounts?: Record<string, number>;
+}
 
 function timeAgo(iso: string): string {
-  const diff  = Date.now() - new Date(iso).getTime();
-  const days  = Math.floor(diff / 86400000);
-  const hours = Math.floor(diff / 3600000);
-  const mins  = Math.floor(diff / 60000);
-  if (days > 0)  return `${days}d ago`;
-  if (hours > 0) return `${hours}h ago`;
-  if (mins > 0)  return `${mins}m ago`;
-  return 'just now';
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1)  return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24)  return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7)  return `${days}d ago`;
+  return new Date(iso).toLocaleDateString('en', { month: 'short', day: 'numeric' });
 }
 
-const STAGE_ORDER = ['lead', 'qualified', 'proposal', 'negotiating', 'won', 'lost'];
-const STAGE_COLOUR: Record<string, string> = {
-  lead: '#8A867C', qualified: '#2563EB', proposal: '#D97706',
-  negotiating: '#9333EA', won: '#16A34A', lost: '#DC2626',
-};
+function SectionLabel({
+  icon: Icon, label,
+}: { icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }>; label: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14 }}>
+      <Icon size={11} style={{ color: muted }} />
+      <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.14em', color: muted }}>
+        {label}
+      </span>
+    </div>
+  );
+}
 
-// ─── component ────────────────────────────────────────────────────────────────
+export function CXODashboard({ config, artifacts, userId, onSwitchToChat, connectedArtifactCounts = {} }: CXODashboardProps) {
+  const [selectedType,     setSelectedType]     = useState<string | null>(null);
+  const [selectedArtifact, setSelectedArtifact] = useState<AgentArtifact | null>(null);
+  const [copied,           setCopied]           = useState(false);
 
-export function CXODashboard({ config, agentId, artifacts, dimensionScore, onStartChat }: DashboardProps) {
-  const { user }            = useAuth();
-  const [deals, setDeals]   = useState<DealRow[]>([]);
-  const [activity, setActivity] = useState<ActivityRow[]>([]);
-  const [crossArtifacts, setCrossArtifacts] = useState<CrossArtifact[]>([]);
+  const builtTypes  = new Set(artifacts.map(a => a.artifact_type));
+  const doneCount   = config.deliverables.filter(d => builtTypes.has(d.artifactType)).length;
+  const totalCount  = config.deliverables.length;
+  const totalPts    = config.deliverables
+    .filter(d => builtTypes.has(d.artifactType))
+    .reduce((s, d) => s + d.dimensionBoost, 0);
+  const maxPts      = config.deliverables.reduce((s, d) => s + d.dimensionBoost, 0);
+  const coveragePct = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
+  const panelOpen   = selectedType !== null && selectedArtifact !== null;
 
-  const userId = user?.id;
+  function versionsFor(type: string): AgentArtifact[] {
+    return artifacts
+      .filter(a => a.artifact_type === type)
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }
 
-  // Fetch deals (for pipeline snapshot)
-  useEffect(() => {
-    if (!userId) return;
-    createClient()
-      .from('deals')
-      .select('id, company, stage, value')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(50)
-      .then(({ data }) => setDeals((data as DealRow[]) ?? []));
-  }, [userId]);
+  function delivStatus(type: string, prereq?: string): 'done' | 'locked' | 'available' {
+    if (builtTypes.has(type))              return 'done';
+    if (prereq && !builtTypes.has(prereq)) return 'locked';
+    return 'available';
+  }
 
-  // Fetch recent agent activity
-  useEffect(() => {
-    if (!userId) return;
-    createClient()
-      .from('agent_activity')
-      .select('id, action_type, agent_id, metadata, created_at')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(6)
-      .then(({ data }) => setActivity((data as ActivityRow[]) ?? []));
-  }, [userId]);
+  function openCard(type: string) {
+    const versions = versionsFor(type);
+    if (versions.length === 0) return;
+    setSelectedType(type);
+    setSelectedArtifact(versions[0]);
+  }
 
-  // Fetch cross-agent artifacts (connected sources)
-  useEffect(() => {
-    if (!userId || config.connectedSources.length === 0) return;
-    const connectedIds = config.connectedSources.map(s => s.agentId);
-    createClient()
-      .from('agent_artifacts')
-      .select('id, agent_id, artifact_type, title, created_at')
-      .eq('user_id', userId)
-      .in('agent_id', connectedIds)
-      .order('created_at', { ascending: false })
-      .limit(6)
-      .then(({ data }) => {
-        if (!data) return;
-        setCrossArtifacts(data.map(row => ({
-          agentId:      row.agent_id,
-          agentName:    config.connectedSources.find(s => s.agentId === row.agent_id)?.label.split('—')[0]?.trim() ?? row.agent_id,
-          artifactType: row.artifact_type,
-          title:        row.title,
-          createdAt:    row.created_at,
-        })));
-      });
-  }, [userId, config.connectedSources]);
+  function closePanel() { setSelectedType(null); setSelectedArtifact(null); }
 
-  // Derived stats
-  const doneTypes    = new Set(artifacts.map(a => a.artifact_type));
-  const doneCount    = config.deliverables.filter(d => doneTypes.has(d.artifactType)).length;
-  const totalCount   = config.deliverables.length;
-  const earnedPts    = config.deliverables.filter(d => doneTypes.has(d.artifactType)).reduce((s, d) => s + d.dimensionBoost, 0);
-  const remainingPts = config.maxScoreContribution - earnedPts;
+  function copyContent() {
+    if (!selectedArtifact) return;
+    navigator.clipboard.writeText(JSON.stringify(selectedArtifact.content, null, 2)).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  }
 
-  const dimPct      = dimensionScore !== null ? dimensionScore / 100 : null;
-  const barColour   = dimPct === null ? bdr : dimPct >= 0.7 ? green : dimPct >= 0.5 ? config.colour : amber;
-  const dimLabel    = DIMENSION_LABEL[config.primaryDimension] ?? 'Score';
-
-  // Deal pipeline
-  const dealsByStage = STAGE_ORDER.reduce<Record<string, DealRow[]>>((acc, s) => {
-    acc[s] = deals.filter(d => d.stage === s);
-    return acc;
-  }, {} as Record<string, DealRow[]>);
-  const pipelineDeals = deals.filter(d => !['won', 'lost'].includes(d.stage));
-
-  const quickActions = QUICK_ACTIONS[agentId] ?? QUICK_ACTIONS.patel;
+  const stats = [
+    { label: 'Completed',  value: `${doneCount}/${totalCount}`, sub: 'deliverables',    coloured: doneCount > 0 },
+    { label: 'Pts Earned', value: `+${totalPts}`,               sub: `of ${maxPts} max`, coloured: totalPts > 0 },
+    { label: 'Coverage',   value: `${coveragePct}%`,            sub: 'scope done',       coloured: coveragePct === 100 },
+    { label: 'Iterations', value: `${artifacts.length}`,        sub: 'total versions',   coloured: false },
+  ];
 
   return (
-    <div style={{
-      flex: 1, overflowY: 'auto', background: bg,
-      fontFamily: 'system-ui, sans-serif', padding: '32px 40px',
-      minHeight: '100vh',
-    }}>
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: bg, fontFamily: 'system-ui, sans-serif' }}>
 
-      {/* ── Page header ───────────────────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 32 }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
+      {/* ── Main scrollable panel ── */}
+      <div style={{
+        width: panelOpen ? 480 : '100%',
+        minWidth: panelOpen ? 480 : undefined,
+        height: '100vh', overflowY: 'auto',
+        borderRight: panelOpen ? `1px solid ${bdr}` : 'none',
+        flexShrink: 0,
+      }}>
+
+        {/* ── Header ── */}
+        <div style={{ padding: '32px 32px 0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 28 }}>
             <div style={{
-              width: 36, height: 36, borderRadius: 10,
+              width: 44, height: 44, borderRadius: 12, flexShrink: 0,
               background: config.colour,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 14, fontWeight: 700, color: '#fff',
+              fontSize: 18, fontWeight: 700, color: '#fff',
+              boxShadow: `0 2px 8px ${config.colour}40`,
             }}>
-              {config.role[0]?.toUpperCase()}
+              {config.name[0]}
             </div>
             <div>
-              <h1 style={{ fontSize: 20, fontWeight: 700, color: ink, margin: 0, lineHeight: 1.2 }}>
+              <p style={{ fontSize: 16, fontWeight: 700, color: ink, margin: 0, lineHeight: 1.2 }}>
                 {config.name}
-              </h1>
-              <p style={{ fontSize: 12, color: muted, margin: 0 }}>{config.role}</p>
+              </p>
+              <p style={{ fontSize: 11, color: muted, margin: '3px 0 0' }}>
+                {config.role.split('—')[1]?.trim() ?? config.role}
+              </p>
             </div>
           </div>
-        </div>
 
-        <button
-          onClick={() => onStartChat()}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            padding: '9px 16px', borderRadius: 10,
-            background: config.colour, border: 'none',
-            color: '#fff', fontSize: 13, fontWeight: 600,
-            cursor: 'pointer', fontFamily: 'system-ui, sans-serif',
-            boxShadow: `0 1px 6px ${config.colour}44`,
-          }}
-        >
-          <MessageCircle style={{ width: 14, height: 14 }} />
-          Chat with {config.name.split(' ')[0]}
-        </button>
-      </div>
-
-      {/* ── Metric cards row ──────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 28 }}>
-
-        {/* Dimension score */}
-        <div style={{ background: '#fff', border: `1px solid ${bdr}`, borderRadius: 12, padding: '16px 18px' }}>
-          <p style={{ fontSize: 11, color: muted, margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 600 }}>
-            {dimLabel}
-          </p>
-          <p style={{ fontSize: 26, fontWeight: 700, color: ink, margin: '0 0 8px', lineHeight: 1 }}>
-            {dimensionScore !== null ? dimensionScore : '—'}
-            {dimensionScore !== null && <span style={{ fontSize: 13, fontWeight: 400, color: muted }}>/100</span>}
-          </p>
-          <div style={{ height: 4, background: surf, borderRadius: 999, overflow: 'hidden' }}>
-            <div style={{
-              height: '100%', width: dimPct !== null ? `${dimPct * 100}%` : '0%',
-              background: barColour, borderRadius: 999, transition: 'width 0.5s',
-            }} />
-          </div>
-        </div>
-
-        {/* Deliverables */}
-        <div style={{ background: '#fff', border: `1px solid ${bdr}`, borderRadius: 12, padding: '16px 18px' }}>
-          <p style={{ fontSize: 11, color: muted, margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 600 }}>
-            Deliverables
-          </p>
-          <p style={{ fontSize: 26, fontWeight: 700, color: ink, margin: '0 0 4px', lineHeight: 1 }}>
-            {doneCount}<span style={{ fontSize: 13, fontWeight: 400, color: muted }}>/{totalCount}</span>
-          </p>
-          <p style={{ fontSize: 11, color: earnedPts > 0 ? green : muted, margin: 0 }}>
-            +{earnedPts} pts earned{remainingPts > 0 ? ` · ${remainingPts} remaining` : ''}
-          </p>
-        </div>
-
-        {/* Pipeline (if deals exist, else artifacts count) */}
-        <div style={{ background: '#fff', border: `1px solid ${bdr}`, borderRadius: 12, padding: '16px 18px' }}>
-          <p style={{ fontSize: 11, color: muted, margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 600 }}>
-            Active Deals
-          </p>
-          <p style={{ fontSize: 26, fontWeight: 700, color: ink, margin: '0 0 4px', lineHeight: 1 }}>
-            {pipelineDeals.length}
-          </p>
-          <p style={{ fontSize: 11, color: muted, margin: 0 }}>
-            {deals.filter(d => d.stage === 'won').length} won · {deals.filter(d => d.stage === 'lost').length} lost
-          </p>
-        </div>
-
-        {/* Last activity */}
-        <div style={{ background: '#fff', border: `1px solid ${bdr}`, borderRadius: 12, padding: '16px 18px' }}>
-          <p style={{ fontSize: 11, color: muted, margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 600 }}>
-            Last Active
-          </p>
-          <p style={{ fontSize: 18, fontWeight: 700, color: ink, margin: '0 0 4px', lineHeight: 1 }}>
-            {artifacts[0] ? timeAgo(artifacts[0].created_at) : '—'}
-          </p>
-          <p style={{ fontSize: 11, color: muted, margin: 0 }}>
-            {artifacts.length} artifact{artifacts.length !== 1 ? 's' : ''} built
-          </p>
-        </div>
-      </div>
-
-      {/* ── Main grid ─────────────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20 }}>
-
-        {/* LEFT column */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-
-          {/* Deliverables checklist */}
-          <section style={{ background: '#fff', border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden' }}>
-            <div style={{
-              padding: '14px 20px', borderBottom: `1px solid ${bdr}`,
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            }}>
-              <h2 style={{ fontSize: 13, fontWeight: 600, color: ink, margin: 0 }}>Deliverables</h2>
-              <span style={{ fontSize: 11, color: muted }}>{doneCount}/{totalCount} complete</span>
-            </div>
-            <div>
-              {config.deliverables.map(d => {
-                const done = doneTypes.has(d.artifactType);
-                const artifact = artifacts.find(a => a.artifact_type === d.artifactType);
-                return (
-                  <div
-                    key={d.artifactType}
-                    style={{
-                      display: 'flex', alignItems: 'center',
-                      padding: '11px 20px', gap: 12,
-                      borderBottom: `1px solid ${bdr}`,
-                      background: done ? `${green}06` : 'transparent',
-                    }}
-                  >
-                    {done
-                      ? <CheckCircle style={{ width: 16, height: 16, color: green, flexShrink: 0 }} />
-                      : <Circle      style={{ width: 16, height: 16, color: bdr,   flexShrink: 0 }} />
-                    }
-                    <div style={{ flex: 1 }}>
-                      <p style={{ fontSize: 13, fontWeight: 500, color: done ? ink : muted, margin: 0 }}>
-                        {d.label}
-                      </p>
-                      {artifact && (
-                        <p style={{ fontSize: 11, color: muted, margin: '2px 0 0' }}>
-                          {timeAgo(artifact.created_at)}
-                        </p>
-                      )}
-                    </div>
-                    <span style={{
-                      fontSize: 11, fontWeight: 600,
-                      color: done ? green : config.colour,
-                      padding: '2px 7px', borderRadius: 6,
-                      background: done ? `${green}12` : `${config.colour}12`,
-                    }}>
-                      +{d.dimensionBoost}
-                    </span>
-                    <Link
-                      href={
-                        done && artifact
-                          ? `/founder/cxo/${agentId}?artifact=${artifact.id}`
-                          : `/founder/cxo/${agentId}?prompt=${encodeURIComponent(`Let's create a ${d.label}.`)}`
-                      }
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 4,
-                        fontSize: 11, color: done ? muted : config.colour,
-                        textDecoration: 'none', fontWeight: 500,
-                      }}
-                      onClick={() => { if (!done) onStartChat(`Let's create a ${d.label}.`); }}
-                    >
-                      {done ? 'View' : 'Build'}
-                      <ArrowRight style={{ width: 11, height: 11 }} />
-                    </Link>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-
-          {/* Pipeline snapshot (deals) */}
-          {deals.length > 0 && (
-            <section style={{ background: '#fff', border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden' }}>
-              <div style={{
-                padding: '14px 20px', borderBottom: `1px solid ${bdr}`,
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          {/* ── Stats ── */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 24 }}>
+            {stats.map(s => (
+              <div key={s.label} style={{
+                padding: '14px 16px', borderRadius: 12,
+                background: '#fff', border: `1px solid ${bdr}`,
+                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
               }}>
-                <h2 style={{ fontSize: 13, fontWeight: 600, color: ink, margin: 0 }}>Pipeline Snapshot</h2>
-                <span style={{ fontSize: 11, color: muted }}>{deals.length} total deals</span>
-              </div>
-              <div style={{ padding: '16px 20px' }}>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {STAGE_ORDER.filter(s => dealsByStage[s]?.length > 0).map(stage => (
-                    <div
-                      key={stage}
-                      style={{
-                        display: 'flex', flexDirection: 'column', alignItems: 'center',
-                        padding: '10px 14px', borderRadius: 10,
-                        background: `${STAGE_COLOUR[stage]}12`,
-                        border: `1px solid ${STAGE_COLOUR[stage]}30`,
-                        minWidth: 72,
-                      }}
-                    >
-                      <span style={{ fontSize: 18, fontWeight: 700, color: STAGE_COLOUR[stage], lineHeight: 1 }}>
-                        {dealsByStage[stage]?.length ?? 0}
-                      </span>
-                      <span style={{ fontSize: 10, color: muted, marginTop: 3, textTransform: 'capitalize' }}>
-                        {stage}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Recent deals */}
-                <div style={{ marginTop: 14 }}>
-                  {deals.slice(0, 4).map(deal => (
-                    <div key={deal.id} style={{
-                      display: 'flex', alignItems: 'center', gap: 10,
-                      padding: '8px 0', borderBottom: `1px solid ${bdr}`,
-                    }}>
-                      <div style={{
-                        width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
-                        background: STAGE_COLOUR[deal.stage] ?? muted,
-                      }} />
-                      <span style={{ flex: 1, fontSize: 12, fontWeight: 500, color: ink }}>{deal.company}</span>
-                      {deal.value && (
-                        <span style={{ fontSize: 11, color: muted }}>{deal.value}</span>
-                      )}
-                      <span style={{
-                        fontSize: 10, color: STAGE_COLOUR[deal.stage] ?? muted,
-                        textTransform: 'capitalize', fontWeight: 500,
-                      }}>
-                        {deal.stage}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </section>
-          )}
-
-          {/* Cross-agent intelligence */}
-          {crossArtifacts.length > 0 && (
-            <section style={{ background: '#fff', border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden' }}>
-              <div style={{ padding: '14px 20px', borderBottom: `1px solid ${bdr}` }}>
-                <h2 style={{ fontSize: 13, fontWeight: 600, color: ink, margin: 0 }}>Cross-Agent Intelligence</h2>
-                <p style={{ fontSize: 11, color: muted, margin: '2px 0 0' }}>
-                  Context from your other advisors that {config.name.split(' ')[0]} can use
+                <p style={{ fontSize: 20, fontWeight: 700, color: s.coloured ? config.colour : ink, margin: 0, lineHeight: 1, letterSpacing: '-0.02em' }}>
+                  {s.value}
                 </p>
+                <p style={{ fontSize: 10, color: muted, margin: '6px 0 0', fontWeight: 600 }}>{s.label}</p>
+                <p style={{ fontSize: 9, color: muted, margin: '1px 0 0', opacity: 0.6, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{s.sub}</p>
               </div>
-              <div>
-                {crossArtifacts.map((ca, i) => {
-                  const src = config.connectedSources.find(s => s.agentId === ca.agentId);
-                  return (
-                    <div key={i} style={{
-                      display: 'flex', alignItems: 'center', gap: 12,
-                      padding: '11px 20px', borderBottom: i < crossArtifacts.length - 1 ? `1px solid ${bdr}` : 'none',
-                    }}>
-                      <div style={{
-                        width: 28, height: 28, borderRadius: 8, flexShrink: 0,
-                        background: surf, border: `1px solid ${bdr}`,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 10, fontWeight: 700, color: muted,
-                      }}>
-                        {ca.agentName[0]?.toUpperCase()}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <p style={{ fontSize: 12, fontWeight: 500, color: ink, margin: 0 }}>
-                          {ca.title || ca.artifactType.replace(/_/g, ' ')}
-                        </p>
-                        <p style={{ fontSize: 11, color: muted, margin: '1px 0 0' }}>
-                          {ca.agentName} · {timeAgo(ca.createdAt)}
-                        </p>
-                      </div>
-                      <span style={{
-                        fontSize: 10, fontWeight: 600, padding: '2px 6px', borderRadius: 5,
-                        background: src?.relevance === 'high' ? `${config.colour}15` : surf,
-                        color: src?.relevance === 'high' ? config.colour : muted,
-                        border: `1px solid ${src?.relevance === 'high' ? config.colour + '30' : bdr}`,
-                      }}>
-                        {src?.relevance ?? 'context'}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          )}
+            ))}
+          </div>
         </div>
 
-        {/* RIGHT column */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        {/* ── Progress bar ── */}
+        <div style={{ padding: '0 32px 28px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: muted }}>Overall Progress</span>
+            <span style={{ fontSize: 10, color: doneCount === totalCount ? green : muted, fontWeight: 600 }}>{coveragePct}% complete</span>
+          </div>
+          <div style={{ height: 5, background: surf, borderRadius: 999, overflow: 'hidden', border: `1px solid ${bdr}` }}>
+            <div style={{ height: '100%', width: `${coveragePct}%`, background: doneCount === totalCount ? green : config.colour, borderRadius: 999, transition: 'width 0.5s cubic-bezier(0.4,0,0.2,1)' }} />
+          </div>
+        </div>
 
-          {/* Quick actions */}
-          <section style={{ background: '#fff', border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden' }}>
-            <div style={{ padding: '14px 18px', borderBottom: `1px solid ${bdr}` }}>
-              <h2 style={{ fontSize: 13, fontWeight: 600, color: ink, margin: 0 }}>Quick Actions</h2>
-              <p style={{ fontSize: 11, color: muted, margin: '2px 0 0' }}>Start a focused session</p>
-            </div>
-            <div style={{ padding: '10px 10px' }}>
-              {quickActions.map((action, i) => {
-                const Icon = action.icon;
+        {/* ── Deliverables grid ── */}
+        <div style={{ padding: '0 32px 32px' }}>
+          <SectionLabel icon={Layers} label="Deliverables" />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+            {config.deliverables.map(d => {
+              const status     = delivStatus(d.artifactType, d.prerequisite);
+              const versions   = versionsFor(d.artifactType);
+              const isSelected = selectedType === d.artifactType;
+              const isDone     = status === 'done';
+
+              return (
+                <button
+                  key={d.artifactType}
+                  onClick={() => { if (isDone) openCard(d.artifactType); }}
+                  style={{
+                    display: 'flex', flexDirection: 'column', padding: '14px 16px',
+                    borderRadius: 12, textAlign: 'left', fontFamily: 'inherit',
+                    border: `1.5px solid ${isSelected ? config.colour + '70' : bdr}`,
+                    borderLeft: isDone
+                      ? `4px solid ${isSelected ? config.colour : green}`
+                      : `4px solid ${status === 'locked' ? '#D1CEC8' : bdr}`,
+                    background: isSelected ? `${config.colour}08` : isDone ? '#fff' : surf,
+                    cursor: isDone ? 'pointer' : 'default',
+                    opacity: status === 'locked' ? 0.42 : 1,
+                    boxShadow: isSelected ? `0 0 0 2px ${config.colour}20` : isDone ? '0 1px 3px rgba(0,0,0,0.05)' : 'none',
+                    transition: 'all 0.14s', minHeight: 88,
+                  }}
+                  onMouseEnter={e => { if (isDone && !isSelected) { (e.currentTarget as HTMLElement).style.background = `${config.colour}05`; (e.currentTarget as HTMLElement).style.borderColor = `${config.colour}40`; } }}
+                  onMouseLeave={e => { if (!isSelected) { (e.currentTarget as HTMLElement).style.background = isDone ? '#fff' : surf; (e.currentTarget as HTMLElement).style.borderColor = bdr; } }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                    {isDone ? <CheckCircle2 style={{ width: 15, height: 15, color: green }} />
+                      : status === 'locked' ? <Lock style={{ width: 13, height: 13, color: muted }} />
+                        : <Circle style={{ width: 13, height: 13, color: muted, opacity: 0.5 }} />}
+                    {isDone && <ArrowRight style={{ width: 12, height: 12, color: isSelected ? config.colour : muted }} />}
+                  </div>
+                  <p style={{ fontSize: 12, fontWeight: isDone ? 600 : 400, color: isDone ? ink : muted, margin: 0, lineHeight: 1.3, flex: 1 }}>
+                    {d.label}
+                  </p>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+                    <span style={{ fontSize: 10, color: muted, opacity: versions.length > 0 ? 1 : 0.6 }}>
+                      {versions.length > 0 ? `${versions.length > 1 ? `v${versions.length}` : 'v1'} · ${timeAgo(versions[0].created_at)}` : status === 'locked' ? 'Locked' : 'Not built yet'}
+                    </span>
+                    {d.dimensionBoost > 0 && (
+                      <span style={{ fontSize: 10, fontWeight: 600, color: isDone ? config.colour : muted, opacity: isDone ? 1 : 0.5 }}>
+                        +{d.dimensionBoost}pts
+                      </span>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── Quick Actions — card grid ── */}
+        {config.quickActions.length > 0 && (
+          <div style={{ padding: '0 32px 32px' }}>
+            <div style={{ height: 1, background: bdr, marginBottom: 28 }} />
+            <SectionLabel icon={Zap} label="Quick Actions" />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+              {config.quickActions.map(action => {
+                const locked   = !!action.requires && !builtTypes.has(action.requires);
+                const Icon     = ACTION_ICONS[action.actionId] ?? Zap;
+                const reqLabel = action.requires
+                  ? config.deliverables.find(d => d.artifactType === action.requires)?.label ?? action.requires
+                  : null;
+
                 return (
                   <button
-                    key={i}
-                    onClick={() => onStartChat(action.prompt)}
+                    key={action.id}
+                    onClick={() => { if (!locked) onSwitchToChat?.(); }}
                     style={{
-                      width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-                      padding: '9px 10px', borderRadius: 9,
-                      background: 'transparent', border: 'none',
-                      cursor: 'pointer', fontFamily: 'system-ui, sans-serif',
-                      textAlign: 'left', marginBottom: 2,
-                      transition: 'background 0.12s',
+                      display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
+                      padding: '16px', borderRadius: 14,
+                      border: `1.5px solid ${locked ? bdr : bdr}`,
+                      background: locked ? surf : '#fff',
+                      cursor: locked ? 'default' : 'pointer',
+                      opacity: locked ? 0.5 : 1,
+                      fontFamily: 'inherit', textAlign: 'left',
+                      boxShadow: locked ? 'none' : '0 1px 4px rgba(0,0,0,0.05)',
+                      transition: 'all 0.14s',
+                      minHeight: 110,
                     }}
-                    onMouseEnter={e => (e.currentTarget.style.background = surf)}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    onMouseEnter={e => { if (!locked) { const el = e.currentTarget as HTMLElement; el.style.borderColor = `${config.colour}60`; el.style.background = `${config.colour}06`; el.style.boxShadow = `0 4px 16px ${config.colour}18`; } }}
+                    onMouseLeave={e => { if (!locked) { const el = e.currentTarget as HTMLElement; el.style.borderColor = bdr; el.style.background = '#fff'; el.style.boxShadow = '0 1px 4px rgba(0,0,0,0.05)'; } }}
                   >
+                    {/* Icon block */}
                     <div style={{
-                      width: 30, height: 30, borderRadius: 8, flexShrink: 0,
-                      background: `${config.colour}15`,
+                      width: 36, height: 36, borderRadius: 10, marginBottom: 12,
+                      background: locked ? `${muted}14` : `${config.colour}14`,
+                      border: `1.5px solid ${locked ? bdr : `${config.colour}28`}`,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      flexShrink: 0,
                     }}>
-                      <Icon style={{ width: 14, height: 14, color: config.colour }} />
+                      <Icon size={15} style={{ color: locked ? muted : config.colour }} />
                     </div>
-                    <span style={{ fontSize: 12, fontWeight: 500, color: ink }}>{action.label}</span>
-                    <ArrowRight style={{ width: 12, height: 12, color: muted, marginLeft: 'auto' }} />
+
+                    {/* Label */}
+                    <p style={{ fontSize: 12, fontWeight: 600, color: locked ? muted : ink, margin: '0 0 auto', lineHeight: 1.35 }}>
+                      {action.label}
+                    </p>
+
+                    {/* Footer */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 10, width: '100%' }}>
+                      {locked
+                        ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <Lock size={9} style={{ color: muted, opacity: 0.7 }} />
+                            <span style={{ fontSize: 9, color: muted, opacity: 0.7, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 }}>
+                              {reqLabel ? `Needs ${reqLabel.split(' ')[0]}` : 'Locked'}
+                            </span>
+                          </div>
+                        )
+                        : (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: green, flexShrink: 0 }} />
+                            <span style={{ fontSize: 9, color: green, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Ready</span>
+                          </div>
+                        )
+                      }
+                    </div>
                   </button>
                 );
               })}
             </div>
-          </section>
+          </div>
+        )}
 
-          {/* Recent activity */}
-          {activity.length > 0 && (
-            <section style={{ background: '#fff', border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden' }}>
-              <div style={{ padding: '14px 18px', borderBottom: `1px solid ${bdr}` }}>
-                <h2 style={{ fontSize: 13, fontWeight: 600, color: ink, margin: 0 }}>Recent Activity</h2>
-              </div>
-              <div style={{ padding: '4px 0' }}>
-                {activity.map((ev, i) => (
-                  <div key={i} style={{
-                    display: 'flex', alignItems: 'flex-start', gap: 10,
-                    padding: '9px 18px',
-                    borderBottom: i < activity.length - 1 ? `1px solid ${bdr}` : 'none',
+        {/* ── Intelligence Network — 2-col agent cards ── */}
+        {config.connectedSources.length > 0 && (
+          <div style={{ padding: '0 32px 32px' }}>
+            <div style={{ height: 1, background: bdr, marginBottom: 28 }} />
+            <SectionLabel icon={Brain} label="Intelligence Network" />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+              {config.connectedSources.map(src => {
+                const srcConfig   = CXO_CONFIGS[src.agentId];
+                const colour      = srcConfig?.colour ?? muted;
+                const isHigh      = src.relevance === 'high';
+                const rolePart    = srcConfig?.role.split('—')[1]?.trim() ?? '';
+                const artCount    = connectedArtifactCounts[src.agentId] ?? 0;
+                const hasArtifacts = artCount > 0;
+
+                return (
+                  <div key={src.agentId} style={{
+                    display: 'flex', flexDirection: 'column',
+                    padding: '16px', borderRadius: 14,
+                    background: '#fff',
+                    border: `1.5px solid ${hasArtifacts ? `${colour}30` : bdr}`,
+                    boxShadow: hasArtifacts ? `0 1px 6px ${colour}10` : '0 1px 4px rgba(0,0,0,0.04)',
                   }}>
-                    <div style={{
-                      width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
-                      background: config.colour, marginTop: 5,
-                    }} />
-                    <div style={{ flex: 1 }}>
-                      <p style={{ fontSize: 12, color: ink, margin: 0, lineHeight: 1.4 }}>
-                        {(ev.metadata as Record<string, unknown> | null)?.artifact_type
-                          ? `Generated ${String((ev.metadata as Record<string, unknown>).artifact_type).replace(/_/g, ' ')}`
-                          : ev.action_type.replace(/_/g, ' ')}
-                      </p>
-                      <p style={{ fontSize: 10, color: muted, margin: '2px 0 0' }}>
-                        {timeAgo(ev.created_at)}
-                      </p>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
+                      <div style={{
+                        width: 40, height: 40, borderRadius: 12, flexShrink: 0,
+                        background: `${colour}18`,
+                        border: `2px solid ${colour}30`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 16, fontWeight: 700, color: colour,
+                      }}>
+                        {(srcConfig?.name ?? src.agentId)[0].toUpperCase()}
+                      </div>
+                      <span style={{
+                        fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em',
+                        padding: '3px 8px', borderRadius: 99,
+                        background: isHigh ? `${colour}12` : surf,
+                        color: isHigh ? colour : muted,
+                        border: `1px solid ${isHigh ? `${colour}25` : bdr}`,
+                        marginTop: 2,
+                      }}>
+                        {isHigh ? '● High' : '○ Med'}
+                      </span>
+                    </div>
+
+                    <p style={{ fontSize: 13, fontWeight: 700, color: ink, margin: 0, lineHeight: 1.2 }}>
+                      {srcConfig?.name ?? src.agentId}
+                    </p>
+                    <p style={{ fontSize: 10, color: muted, margin: '3px 0 0', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {rolePart}
+                    </p>
+
+                    {/* Live artifact status */}
+                    <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: hasArtifacts ? green : bdr, flexShrink: 0 }} />
+                      <span style={{ fontSize: 10, color: hasArtifacts ? green : muted, fontWeight: hasArtifacts ? 600 : 400 }}>
+                        {hasArtifacts ? `${artCount} deliverable${artCount > 1 ? 's' : ''} ready` : 'No data yet'}
+                      </span>
                     </div>
                   </div>
-                ))}
-              </div>
-            </section>
-          )}
+                );
+              })}
+            </div>
+          </div>
+        )}
 
-          {/* Resources */}
-          {config.resources.length > 0 && (
-            <section style={{ background: '#fff', border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden' }}>
-              <div style={{ padding: '14px 18px', borderBottom: `1px solid ${bdr}` }}>
-                <h2 style={{ fontSize: 13, fontWeight: 600, color: ink, margin: 0 }}>Learning Resources</h2>
-              </div>
-              <div style={{ padding: '4px 0' }}>
-                {config.resources.map((r, i) => (
-                  <a
-                    key={i}
-                    href={r.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 10,
-                      padding: '10px 18px', textDecoration: 'none',
-                      borderBottom: i < config.resources.length - 1 ? `1px solid ${bdr}` : 'none',
-                      transition: 'background 0.12s',
-                    }}
-                    onMouseEnter={e => (e.currentTarget.style.background = surf)}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                  >
-                    <div style={{ flex: 1 }}>
-                      <p style={{ fontSize: 12, fontWeight: 500, color: ink, margin: 0 }}>{r.title}</p>
-                      <p style={{ fontSize: 11, color: muted, margin: '1px 0 0' }}>{r.source}</p>
-                    </div>
-                    <ExternalLink style={{ width: 12, height: 12, color: muted, flexShrink: 0 }} />
-                  </a>
-                ))}
-              </div>
-            </section>
-          )}
-        </div>
+        {/* ── Resources — 3-col cards ── */}
+        {config.resources.length > 0 && (
+          <div style={{ padding: '0 32px 48px' }}>
+            <div style={{ height: 1, background: bdr, marginBottom: 28 }} />
+            <SectionLabel icon={BookOpen} label="Resources" />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+              {config.resources.map((r, i) => (
+                <a
+                  key={i}
+                  href={r.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+                    padding: '14px', borderRadius: 14, textDecoration: 'none',
+                    background: '#fff', border: `1.5px solid ${bdr}`,
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                    minHeight: 96, cursor: 'pointer',
+                    transition: 'all 0.14s',
+                  }}
+                  onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = `${config.colour}50`; el.style.background = `${config.colour}05`; el.style.boxShadow = `0 4px 14px ${config.colour}14`; }}
+                  onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = bdr; el.style.background = '#fff'; el.style.boxShadow = '0 1px 4px rgba(0,0,0,0.04)'; }}
+                >
+                  {/* Top: source badge */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <span style={{
+                      fontSize: 9, fontWeight: 700, color: config.colour,
+                      background: `${config.colour}12`, padding: '2px 7px',
+                      borderRadius: 99, textTransform: 'uppercase', letterSpacing: '0.07em',
+                    }}>
+                      {r.source.split(' ')[0]}
+                    </span>
+                    <ArrowUpRight size={12} style={{ color: muted, opacity: 0.5 }} />
+                  </div>
+
+                  {/* Title */}
+                  <p style={{ fontSize: 11, fontWeight: 600, color: ink, margin: 0, lineHeight: 1.4, flex: 1 }}>
+                    {r.title}
+                  </p>
+
+                  {/* Source name */}
+                  <p style={{ fontSize: 10, color: muted, margin: '8px 0 0', opacity: 0.8 }}>
+                    {r.source}
+                  </p>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
       </div>
+
+      {/* ── Artifact viewer panel ── */}
+      {panelOpen && selectedArtifact && (() => {
+        const versions    = versionsFor(selectedType!);
+        const delivConfig = config.deliverables.find(d => d.artifactType === selectedType);
+        const artifactRecord = {
+          id:      selectedArtifact.id,
+          type:    selectedArtifact.artifact_type,
+          title:   selectedArtifact.title,
+          content: selectedArtifact.content as Record<string, unknown>,
+        };
+
+        return (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, height: '100vh' }}>
+
+            <div style={{ flexShrink: 0, height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', borderBottom: `1px solid ${bdr}`, background: bg }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
+                <p style={{ fontSize: 13, fontWeight: 600, color: ink, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {selectedArtifact.title}
+                </p>
+                {delivConfig && (
+                  <span style={{ fontSize: 10, color: config.colour, background: `${config.colour}12`, padding: '2px 8px', borderRadius: 99, fontWeight: 600, flexShrink: 0 }}>
+                    {delivConfig.label}
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                <button onClick={copyContent} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 11px', borderRadius: 7, border: `1px solid ${bdr}`, background: bg, color: muted, cursor: 'pointer', fontSize: 11, fontFamily: 'inherit' }}>
+                  <Copy style={{ width: 11, height: 11 }} /> {copied ? 'Copied!' : 'Copy'}
+                </button>
+                <button onClick={closePanel} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 7, border: `1px solid ${bdr}`, background: bg, color: muted, cursor: 'pointer' }}>
+                  <X style={{ width: 13, height: 13 }} />
+                </button>
+              </div>
+            </div>
+
+            {versions.length > 1 && (
+              <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4, padding: '8px 24px', borderBottom: `1px solid ${bdr}`, background: bg, overflowX: 'auto' }}>
+                <span style={{ fontSize: 10, color: muted, fontWeight: 600, marginRight: 4, flexShrink: 0 }}>Version:</span>
+                {versions.map((v, idx) => {
+                  const isActive = v.id === selectedArtifact.id;
+                  return (
+                    <button key={v.id} onClick={() => setSelectedArtifact(v)} style={{
+                      flexShrink: 0, padding: '4px 11px', borderRadius: 6,
+                      border: `1px solid ${isActive ? config.colour + '50' : bdr}`,
+                      background: isActive ? `${config.colour}10` : bg,
+                      color: isActive ? config.colour : muted,
+                      fontSize: 11, fontWeight: isActive ? 600 : 400,
+                      cursor: 'pointer', fontFamily: 'inherit',
+                      display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.12s',
+                    }}>
+                      <Clock style={{ width: 10, height: 10 }} />
+                      v{versions.length - idx}
+                      <span style={{ fontSize: 9, opacity: 0.65 }}>{timeAgo(v.created_at)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            <div style={{ flex: 1, overflowY: 'auto', padding: '28px 32px' }}>
+              <div style={{ maxWidth: 800, margin: '0 auto' }}>
+                {renderArtifactContent(artifactRecord, userId)}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
     </div>
   );
 }

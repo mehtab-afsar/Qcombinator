@@ -16,6 +16,17 @@ export async function GET() {
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
     const supabase = await createClient()
 
+    // ── Subscription tier gate — AI analysis is a Pro feature ────────────────
+    const { data: investorTierProfile } = await supabase
+      .from('investor_profiles')
+      .select('subscription_tier')
+      .eq('user_id', auth.user.id)
+      .single()
+
+    if (!investorTierProfile || investorTierProfile.subscription_tier === 'free') {
+      return NextResponse.json({ error: 'Pro subscription required' }, { status: 403 })
+    }
+
     // ── 1. Fetch recent founders (onboarding completed) ──────────────────────
     const { data: founders } = await supabase
       .from('founder_profiles')

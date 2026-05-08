@@ -65,7 +65,7 @@ const PUBLIC_PATHS = [
 ]
 
 // Prefixes that are always public (no session refresh needed)
-const PUBLIC_PREFIXES = ['/s/', '/apply/', '/_next/', '/favicon.ico']
+const PUBLIC_PREFIXES = ['/s/', '/apply/', '/pitch/', '/_next/', '/favicon.ico']
 
 function isPublicRoute(pathname: string): boolean {
   if (PUBLIC_PREFIXES.some(prefix => pathname.startsWith(prefix))) return true
@@ -92,6 +92,27 @@ export async function middleware(request: NextRequest) {
         { error: 'Too many requests — please wait a moment and try again.' },
         { status: 429, headers: { 'Retry-After': '60' } }
       )
+    }
+  }
+
+  // ── CSRF: verify Origin header on state-changing API requests ─────────────
+  // The Origin header is only present on cross-origin requests and on same-origin
+  // requests for non-GET/HEAD methods in modern browsers. We only block when the
+  // header IS present and does NOT match, to avoid false positives on server-to-server
+  // calls (which omit Origin entirely).
+  if (pathname.startsWith('/api/') && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) {
+    const origin = request.headers.get('origin')
+    const host = request.headers.get('host')
+    if (origin && host) {
+      try {
+        const originHost = new URL(origin).host
+        if (originHost !== host) {
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        }
+      } catch {
+        // Malformed Origin header — reject the request
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
     }
   }
 

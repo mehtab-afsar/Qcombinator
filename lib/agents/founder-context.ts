@@ -15,6 +15,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { mergeToAssessmentData } from '../profile-builder/data-merger'
 import type { SectionData } from '../profile-builder/data-merger'
+import { PATEL_DIMENSIONS, PATEL_INDICATORS } from '../constants/patel-indicators'
+import type { PatelScores, PatelConfidence } from '../constants/patel-indicators'
 
 // ── Fetch ─────────────────────────────────────────────────────────────────────
 
@@ -23,8 +25,8 @@ export async function getFounderProfileContext(
   supabase: SupabaseClient,
   agentId?: string
 ): Promise<string> {
-  // Both queries run in parallel
-  const [profileResult, sectionsResult, scoreResult, patelResult] = await Promise.all([
+  // All queries run in parallel
+  const [profileResult, sectionsResult, scoreResult, patelResult, patelScoresResult] = await Promise.all([
     supabase
       .from('founder_profiles')
       .select('startup_name, industry, stage, description, is_impact_focused')
@@ -52,11 +54,22 @@ export async function getFounderProfileContext(
           .eq('user_id', userId)
           .in('artifact_type', ['icp_document', 'pains_gains_triggers', 'buyer_journey', 'positioning_messaging'])
       : Promise.resolve({ data: null }),
+
+    // Only fetch Patel 20-indicator scores when in a Patel session
+    agentId === 'patel'
+      ? supabase
+          .from('patel_diagnostic_scores')
+          .select('scores, confidence')
+          .eq('user_id', userId)
+          .single()
+      : Promise.resolve({ data: null }),
   ])
 
   const fp = profileResult.data
   const rows = sectionsResult.data ?? []
   const completedArtifactTypes = new Set((patelResult.data ?? []).map((r: { artifact_type: string }) => r.artifact_type))
+  const patelScores = (patelScoresResult?.data?.scores ?? {}) as PatelScores
+  const patelConfidence = (patelScoresResult?.data?.confidence ?? {}) as PatelConfidence
 
   // No profile data yet — return empty (founder hasn't done profile builder)
   if (!fp && rows.length === 0) return ''
@@ -177,6 +190,29 @@ DELIVERABLE STATUS:
   D2 Pains & Gains:         ${d2Status}
   D3 Buyer Journey:         ${d3Status}
   D4 Positioning/Messaging: ${d4Status}`
+
+    // ── 20-Indicator GTM Diagnostic ──────────────────────────────────────────
+    const indicatorLines: string[] = []
+    for (const dim of PATEL_DIMENSIONS) {
+      indicatorLines.push(`  ${dim.label}:`)
+      for (const id of dim.indicatorIds) {
+        const indicator = PATEL_INDICATORS[id]
+        const score = patelScores[id]
+        const conf = patelConfidence[id] ?? 'not_assessed'
+        if (score) {
+          const rubricText = indicator.rubric[score as keyof typeof indicator.rubric]
+          const tag = conf === 'validated' ? '[VALIDATED]' : conf === 'inferred' ? '[INFERRED]' : '[ASSUMED]'
+          indicatorLines.push(`    ${indicator.name}: ${score}/5 — ${rubricText.slice(0, 70)} ${tag}`)
+        } else {
+          indicatorLines.push(`    ${indicator.name}: — (not yet assessed)`)
+        }
+      }
+    }
+
+    profileBlock += `
+
+GTM QUALITY DIAGNOSTIC (20 indicators — use this to identify the active constraint and route your questions):
+${indicatorLines.join('\n')}`
   }
 
   return profileBlock

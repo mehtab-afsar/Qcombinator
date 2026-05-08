@@ -686,6 +686,10 @@ export async function POST(request: NextRequest) {
     // Constitution is prepended first — it cannot be overridden by agent-specific instructions below it
     let systemPrompt = GLOBAL_CONSTITUTION + '\n\n' + (AGENT_SYSTEM_PROMPTS[agentId] ?? buildAgentSystemPrompt(agent, userContext));
 
+    // ── Source citations — collected during context loading, emitted as first SSE event ──
+    type SourceItem = { label: string; type: 'profile' | 'memory' | 'artifact' | 'cross_agent' }
+    const sourcesUsed: SourceItem[] = []
+
     // ── Agent memory + cross-agent context (registry-driven, fail-open) ──────
     let startupState: StartupState | null = null;
     if (userId) {
@@ -774,6 +778,23 @@ export async function POST(request: NextRequest) {
       if (summaryResult.status === 'fulfilled' && summaryResult.value) {
         const summary = (summaryResult.value as { data?: { summary?: string | null } | null })?.data?.summary;
         if (summary) systemPrompt += `\n\nLAST SESSION SUMMARY:\n${summary}`;
+      }
+
+      // ── Build sources_used list for client-side citation chips ──────────────
+      if (founderCtxResult.status === 'fulfilled' && founderCtxResult.value?.trim())
+        sourcesUsed.push({ label: 'Your Profile', type: 'profile' });
+      if (memoryResult.status === 'fulfilled' && (memoryResult.value as { key_facts?: string | null } | null)?.key_facts?.trim())
+        sourcesUsed.push({ label: 'Session Memory', type: 'memory' });
+      if (ctxResult.status === 'fulfilled') {
+        if (ctxResult.value.ownArtifacts.length > 0)
+          sourcesUsed.push({ label: 'Your Deliverables', type: 'artifact' });
+        const seenAgents = new Set<string>();
+        for (const a of ctxResult.value.crossAgentArtifacts) {
+          if (!seenAgents.has(a.agent_id)) {
+            seenAgents.add(a.agent_id);
+            sourcesUsed.push({ label: getAgentById(a.agent_id)?.name ?? a.agent_id, type: 'cross_agent' });
+          }
+        }
       }
     }
 
@@ -917,6 +938,8 @@ CONVERSATION RULES:
         async start(controller) {
           const send = (event: Record<string, unknown>) =>
             controller.enqueue(enc.encode(`data: ${JSON.stringify(event)}\n\n`));
+
+          if (sourcesUsed.length > 0) send({ type: 'sources_used', sources: sourcesUsed });
 
           let loopMessages = [...messages];
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { createHash } from 'crypto'
 import { log } from '@/lib/logger'
 
 // GET /api/p/:userId
@@ -84,14 +85,19 @@ export async function GET(
     }
 
     // Log view (fire-and-forget — service role bypasses RLS)
-    const viewerIp = _req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+    // GDPR: raw IPs are never stored — we hash with a server-side salt so the value
+    // is pseudonymous and cannot be trivially reversed.
+    const rawIp = _req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
       ?? _req.headers.get('x-real-ip')
       ?? null
+    const viewerIpHash = rawIp
+      ? createHash('sha256').update(rawIp + (process.env.IP_HASH_SALT ?? '')).digest('hex')
+      : null
     void (async () => {
       try {
         await supabase.from('portfolio_views').insert({
           founder_id: userId,
-          viewer_ip:  viewerIp,
+          viewer_ip:  viewerIpHash,
           referrer:   _req.headers.get('referer') ?? null,
         })
       } catch { /* non-fatal */ }

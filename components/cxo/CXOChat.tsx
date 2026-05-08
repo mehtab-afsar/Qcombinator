@@ -1,21 +1,23 @@
 'use client';
 
 interface CXOChatProps {
-  agentId: string;
+  agentId:     string;
   artifactId?: string;
-  challenge?: string;
-  prompt?: string;
+  challenge?:  string;
+  prompt?:     string;
+  convId?:     string;
 }
 
 /**
  * Wraps the existing agent chat page in an iframe.
  * Uses ?_embed=1 so next.config.ts redirects are bypassed (no infinite loop).
  */
-export function CXOChat({ agentId, artifactId, challenge, prompt }: CXOChatProps) {
+export function CXOChat({ agentId, artifactId, challenge, prompt, convId }: CXOChatProps) {
   let src = `/founder/agents/${agentId}?_embed=1`;
   if (artifactId) src += `&artifact=${encodeURIComponent(artifactId)}`;
   if (challenge)  src += `&challenge=${encodeURIComponent(challenge)}`;
   if (prompt)     src += `&prompt=${encodeURIComponent(prompt)}`;
+  if (convId)     src += `&conv=${encodeURIComponent(convId)}`;
 
   return (
     <iframe

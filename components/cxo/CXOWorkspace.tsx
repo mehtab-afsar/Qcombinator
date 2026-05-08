@@ -1,121 +1,171 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { CXOSidebar, type AgentArtifact } from './CXOSidebar';
+import { useState, useEffect, useCallback } from 'react';
 import { CXOChat } from './CXOChat';
 import { CXODashboard } from './CXODashboard';
+import { CXOSidebar, type ConversationSummary, type AgentArtifact } from './CXOSidebar';
 import type { CXOConfig } from '@/lib/cxo/cxo-config';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 
 interface CXOWorkspaceProps {
-  config: CXOConfig;
-  agentId: string;
+  config:    CXOConfig;
+  agentId:   string;
   artifactId?: string;
-  challenge?: string;
-  prompt?: string;
+  challenge?:  string;
+  prompt?:     string;
 }
 
 export function CXOWorkspace({ config, agentId, artifactId, challenge, prompt }: CXOWorkspaceProps) {
-  const { user }                          = useAuth();
-  const [artifacts, setArtifacts]         = useState<AgentArtifact[]>([]);
-  const [dimensionScore, setDimensionScore] = useState<number | null>(null);
-  const [view, setView]                   = useState<'dashboard' | 'chat'>('dashboard');
-  const [chatPrompt, setChatPrompt]       = useState<string | undefined>(prompt);
-
+  const { user }                                        = useAuth();
+  const [artifacts, setArtifacts]                       = useState<AgentArtifact[]>([]);
+  const [conversations, setConversations]               = useState<ConversationSummary[]>([]);
+  const [activeConvId, setActiveConvId]                 = useState<string | null>(null);
+  const [tab, setTab]                                   = useState<'dashboard' | 'chat'>('chat');
+  const [connectedCounts, setConnectedCounts]           = useState<Record<string, number>>({});
   const userId = user?.id;
 
-  // Fetch primary dimension score from Q-Score
-  useEffect(() => {
-    fetch('/api/qscore/latest')
-      .then(r => r.ok ? r.json() : null)
-      .then(d => {
-        if (d?.qScore?.breakdown) {
-          const dim = config.primaryDimension;
-          const score = (d.qScore.breakdown[dim] as { score?: number } | undefined)?.score ?? null;
-          setDimensionScore(typeof score === 'number' ? score : null);
-        }
-      })
-      .catch(() => {});
-  }, [config.primaryDimension]);
+  // ── fetch conversations ──────────────────────────────────────────────
+  const refreshConversations = useCallback(async () => {
+    if (!agentId) return;
+    try {
+      const res = await fetch(`/api/agents/conversations?agentId=${agentId}`);
+      const json = await res.json();
+      setConversations(json.conversations ?? []);
+    } catch { /* silent */ }
+  }, [agentId]);
 
-  // Fetch artifacts for this agent
+  useEffect(() => { refreshConversations(); }, [refreshConversations]);
+
+  // ── fetch artifacts ──────────────────────────────────────────────────
   useEffect(() => {
     if (!userId) return;
     let cancelled = false;
-
-    async function load() {
-      const client = createClient();
-      const { data } = await client
-        .from('agent_artifacts')
-        .select('id, agent_id, artifact_type, title, content, created_at')
-        .eq('user_id', userId)
-        .eq('agent_id', agentId)
-        .order('created_at', { ascending: false });
-      if (!cancelled) setArtifacts((data as AgentArtifact[]) ?? []);
-    }
-
-    load();
+    const client = createClient();
+    client
+      .from('agent_artifacts')
+      .select('id, agent_id, artifact_type, title, content, created_at')
+      .eq('user_id', userId)
+      .eq('agent_id', agentId)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => { if (!cancelled) setArtifacts((data as AgentArtifact[]) ?? []); });
     return () => { cancelled = true; };
   }, [userId, agentId]);
 
-  // Real-time subscription: refresh on new artifact for this agent
+  // ── fetch connected-agent artifact counts ───────────────────────────
+  useEffect(() => {
+    if (!userId || config.connectedSources.length === 0) return;
+    let cancelled = false;
+    const client = createClient();
+    const ids = config.connectedSources.map(s => s.agentId);
+    client
+      .from('agent_artifacts')
+      .select('agent_id')
+      .eq('user_id', userId)
+      .in('agent_id', ids)
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        const counts: Record<string, number> = {};
+        for (const row of data) {
+          counts[row.agent_id] = (counts[row.agent_id] ?? 0) + 1;
+        }
+        setConnectedCounts(counts);
+      });
+    return () => { cancelled = true; };
+  }, [userId, config.connectedSources]);
+
+  // ── real-time artifact subscription ─────────────────────────────────
   useEffect(() => {
     if (!userId) return;
     const client  = createClient();
     const channel = client
       .channel(`cxo-artifacts-${agentId}`)
       .on('postgres_changes', {
-        event:  '*',
-        schema: 'public',
-        table:  'agent_artifacts',
+        event: '*', schema: 'public', table: 'agent_artifacts',
         filter: `user_id=eq.${userId}`,
       }, () => {
-        // Refetch when anything changes
+        // refresh own artifacts
         client
           .from('agent_artifacts')
           .select('id, agent_id, artifact_type, title, content, created_at')
-          .eq('user_id', userId)
-          .eq('agent_id', agentId)
+          .eq('user_id', userId).eq('agent_id', agentId)
           .order('created_at', { ascending: false })
           .then(({ data }) => setArtifacts((data as AgentArtifact[]) ?? []));
+        // refresh connected counts
+        if (config.connectedSources.length > 0) {
+          const ids = config.connectedSources.map(s => s.agentId);
+          client
+            .from('agent_artifacts')
+            .select('agent_id')
+            .eq('user_id', userId)
+            .in('agent_id', ids)
+            .then(({ data }) => {
+              if (!data) return;
+              const counts: Record<string, number> = {};
+              for (const row of data) counts[row.agent_id] = (counts[row.agent_id] ?? 0) + 1;
+              setConnectedCounts(counts);
+            });
+        }
       })
       .subscribe();
-
     return () => { client.removeChannel(channel); };
-  }, [userId, agentId]);
+  }, [userId, agentId, config.connectedSources]);
+
+  function handleSwitchConversation(id: string) {
+    setActiveConvId(id);
+    setTab('chat');  // switch to chat tab when a conversation is selected
+  }
+
+  function handleNewConversation() {
+    setActiveConvId(null);
+    setTab('chat');
+    setTimeout(refreshConversations, 1500);
+  }
+
+  async function handleRenameConversation(id: string, title: string) {
+    try {
+      await fetch(`/api/agents/conversations/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title }),
+      });
+      await refreshConversations();
+    } catch { /* silent */ }
+  }
 
   return (
-    <div style={{
-      display:    'flex',
-      height:     '100vh',
-      overflow:   'hidden',
-      fontFamily: 'system-ui, sans-serif',
-      marginLeft: 52, // offset for the fixed CXOSidebar (collapsed width)
-    }}>
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', fontFamily: 'system-ui, sans-serif' }}>
       <CXOSidebar
         config={config}
-        artifacts={artifacts}
         agentId={agentId}
-        dimensionScore={dimensionScore}
-        view={view}
-        onViewChange={setView}
+        artifacts={artifacts}
+        conversations={conversations}
+        activeConvId={activeConvId}
+        onSwitchConversation={handleSwitchConversation}
+        onNewConversation={handleNewConversation}
+        onRenameConversation={handleRenameConversation}
+        tab={tab}
+        onTabChange={setTab}
       />
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        {view === 'dashboard' ? (
+
+      <div style={{ flex: 1, height: '100vh', overflow: 'hidden' }}>
+        {tab === 'dashboard' ? (
           <CXODashboard
             config={config}
             agentId={agentId}
             artifacts={artifacts}
-            dimensionScore={dimensionScore}
-            onStartChat={(p) => { if (p) setChatPrompt(p); setView('chat'); }}
+            userId={userId}
+            onSwitchToChat={() => setTab('chat')}
+            connectedArtifactCounts={connectedCounts}
           />
         ) : (
           <CXOChat
+            key={`${agentId}-${activeConvId ?? 'new'}-${artifactId ?? ''}`}
             agentId={agentId}
             artifactId={artifactId}
             challenge={challenge}
-            prompt={chatPrompt}
+            prompt={prompt}
+            convId={activeConvId ?? undefined}
           />
         )}
       </div>

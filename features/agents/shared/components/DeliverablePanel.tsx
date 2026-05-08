@@ -23,6 +23,63 @@ import { HiringPlanRenderer } from '../../harper/components/HiringPlanRenderer'
 import { PMFSurveyRenderer } from '../../nova/components/PMFSurveyRenderer'
 import { CompetitiveMatrixRenderer } from '../../atlas/components/CompetitiveMatrixRenderer'
 import { StrategicPlanRenderer } from '../../sage/components/StrategicPlanRenderer'
+// Susi
+import { PipelineReportRenderer } from '../../susi/components/PipelineReportRenderer'
+import { CallPlaybookRenderer } from '../../susi/components/CallPlaybookRenderer'
+import { ProposalRenderer } from '../../susi/components/ProposalRenderer'
+import { WinLossRenderer } from '../../susi/components/WinLossRenderer'
+// Maya
+import { ContentCalendarRenderer } from '../../maya/components/ContentCalendarRenderer'
+import { SEOAuditRenderer } from '../../maya/components/SEOAuditRenderer'
+import { PressKitRenderer } from '../../maya/components/PressKitRenderer'
+import { NewsletterRenderer } from '../../maya/components/NewsletterRenderer'
+import { BrandHealthRenderer } from '../../maya/components/BrandHealthRenderer'
+// Felix
+import { FinancialModelRenderer } from '../../felix/components/FinancialModelRenderer'
+import { InvestorUpdateRenderer } from '../../felix/components/InvestorUpdateRenderer'
+import { BoardDeckRenderer } from '../../felix/components/BoardDeckRenderer'
+import { CapTableRenderer } from '../../felix/components/CapTableRenderer'
+import { FundraisingNarrativeRenderer } from '../../felix/components/FundraisingNarrativeRenderer'
+// Leo
+import { NDARenderer } from '../../leo/components/NDARenderer'
+import { SAFENoteRenderer } from '../../leo/components/SAFENoteRenderer'
+import { ContractorAgreementRenderer } from '../../leo/components/ContractorAgreementRenderer'
+import { PrivacyPolicyRenderer } from '../../leo/components/PrivacyPolicyRenderer'
+import { IPAuditRenderer } from '../../leo/components/IPAuditRenderer'
+import { TermSheetRedlineRenderer } from '../../leo/components/TermSheetRedlineRenderer'
+// Harper
+import { JobDescriptionRenderer } from '../../harper/components/JobDescriptionRenderer'
+import { InterviewScorecardRenderer } from '../../harper/components/InterviewScorecardRenderer'
+import { OfferLetterRenderer } from '../../harper/components/OfferLetterRenderer'
+import { OnboardingPlanRenderer } from '../../harper/components/OnboardingPlanRenderer'
+import { CompBenchmarkRenderer } from '../../harper/components/CompBenchmarkRenderer'
+// Nova
+import { ProductInsightRenderer } from '../../nova/components/ProductInsightRenderer'
+import { ExperimentDesignRenderer } from '../../nova/components/ExperimentDesignRenderer'
+import { RoadmapRenderer } from '../../nova/components/RoadmapRenderer'
+import { UserPersonaRenderer } from '../../nova/components/UserPersonaRenderer'
+// Atlas
+import { CompetitorWeeklyRenderer } from '../../atlas/components/CompetitorWeeklyRenderer'
+import { MarketMapRenderer } from '../../atlas/components/MarketMapRenderer'
+import { ReviewIntelligenceRenderer } from '../../atlas/components/ReviewIntelligenceRenderer'
+// Sage
+import { InvestorReadinessRenderer } from '../../sage/components/InvestorReadinessRenderer'
+import { ContradictionRenderer } from '../../sage/components/ContradictionRenderer'
+import { OKRHealthRenderer } from '../../sage/components/OKRHealthRenderer'
+import { CrisisPlaybookRenderer } from '../../sage/components/CrisisPlaybookRenderer'
+// Carter
+import { CustomerHealthReportRenderer } from '../../carter/components/CustomerHealthReportRenderer'
+import { ChurnAnalysisRenderer } from '../../carter/components/ChurnAnalysisRenderer'
+import { QBRDeckRenderer } from '../../carter/components/QBRDeckRenderer'
+import { ExpansionPlaybookRenderer } from '../../carter/components/ExpansionPlaybookRenderer'
+import { CSPlaybookRenderer } from '../../carter/components/CSPlaybookRenderer'
+// Riley
+import { GrowthModelRenderer } from '../../riley/components/GrowthModelRenderer'
+import { PaidCampaignRenderer } from '../../riley/components/PaidCampaignRenderer'
+import { ReferralProgramRenderer } from '../../riley/components/ReferralProgramRenderer'
+import { LaunchPlaybookRenderer } from '../../riley/components/LaunchPlaybookRenderer'
+import { GrowthReportRenderer } from '../../riley/components/GrowthReportRenderer'
+import { ExperimentResultsRenderer } from '../../riley/components/ExperimentResultsRenderer'
 import type { ArtifactData } from '../../types/agent.types'
 
 export function DeliverablePanel({
@@ -232,9 +289,66 @@ export function DeliverablePanel({
       case "legal_checklist":    return <LegalChecklistRenderer data={artifact.content} artifactId={artifact.id ?? undefined} />;
       case "hiring_plan":        return <HiringPlanRenderer data={artifact.content} artifactId={artifact.id ?? undefined} userId={userId ?? undefined} />;
       case "pmf_survey":         return <PMFSurveyRenderer data={artifact.content} artifactId={artifact.id ?? undefined} userId={userId ?? undefined} />;
-      case "competitive_matrix": return <CompetitiveMatrixRenderer data={artifact.content} artifactId={artifact.id ?? undefined} />;
-      case "strategic_plan":     return <StrategicPlanRenderer data={artifact.content} artifactId={artifact.id ?? undefined} />;
-      default:                   return <pre style={{ fontSize: 11, color: muted, whiteSpace: "pre-wrap" }}>{JSON.stringify(artifact.content, null, 2)}</pre>;
+      case "competitive_matrix":        return <CompetitiveMatrixRenderer data={artifact.content} artifactId={artifact.id ?? undefined} />;
+      case "strategic_plan":            return <StrategicPlanRenderer data={artifact.content} artifactId={artifact.id ?? undefined} />;
+      // Susi
+      case "pipeline_report":           return <PipelineReportRenderer data={artifact.content} />;
+      case "call_playbook":             return <CallPlaybookRenderer data={artifact.content} />;
+      case "proposal":                  return <ProposalRenderer data={artifact.content} />;
+      case "win_loss_analysis":         return <WinLossRenderer data={artifact.content} />;
+      // Maya
+      case "content_calendar":          return <ContentCalendarRenderer data={artifact.content} />;
+      case "seo_audit":                 return <SEOAuditRenderer data={artifact.content} />;
+      case "press_kit":                 return <PressKitRenderer data={artifact.content} />;
+      case "newsletter_issue":          return <NewsletterRenderer data={artifact.content} />;
+      case "brand_health_report":       return <BrandHealthRenderer data={artifact.content} />;
+      // Felix
+      case "financial_model":           return <FinancialModelRenderer data={artifact.content} />;
+      case "investor_update":           return <InvestorUpdateRenderer data={artifact.content} />;
+      case "board_deck":                return <BoardDeckRenderer data={artifact.content} />;
+      case "cap_table_summary":         return <CapTableRenderer data={artifact.content} />;
+      case "fundraising_narrative":     return <FundraisingNarrativeRenderer data={artifact.content} />;
+      // Leo
+      case "nda":                       return <NDARenderer data={artifact.content} />;
+      case "safe_note":                 return <SAFENoteRenderer data={artifact.content} />;
+      case "contractor_agreement":      return <ContractorAgreementRenderer data={artifact.content} />;
+      case "privacy_policy":            return <PrivacyPolicyRenderer data={artifact.content} />;
+      case "ip_audit_report":           return <IPAuditRenderer data={artifact.content} />;
+      case "term_sheet_redline":        return <TermSheetRedlineRenderer data={artifact.content} />;
+      // Harper
+      case "job_description":           return <JobDescriptionRenderer data={artifact.content} />;
+      case "interview_scorecard":       return <InterviewScorecardRenderer data={artifact.content} />;
+      case "offer_letter":              return <OfferLetterRenderer data={artifact.content} />;
+      case "onboarding_plan":           return <OnboardingPlanRenderer data={artifact.content} />;
+      case "comp_benchmark_report":     return <CompBenchmarkRenderer data={artifact.content} />;
+      // Nova
+      case "product_insight_report":    return <ProductInsightRenderer data={artifact.content} />;
+      case "experiment_design":         return <ExperimentDesignRenderer data={artifact.content} />;
+      case "roadmap":                   return <RoadmapRenderer data={artifact.content} />;
+      case "user_persona":              return <UserPersonaRenderer data={artifact.content} />;
+      // Atlas
+      case "competitor_weekly":         return <CompetitorWeeklyRenderer data={artifact.content} />;
+      case "market_map":                return <MarketMapRenderer data={artifact.content} />;
+      case "review_intelligence_report": return <ReviewIntelligenceRenderer data={artifact.content} />;
+      // Sage
+      case "investor_readiness_report": return <InvestorReadinessRenderer data={artifact.content} />;
+      case "contradiction_report":      return <ContradictionRenderer data={artifact.content} />;
+      case "okr_health_report":         return <OKRHealthRenderer data={artifact.content} />;
+      case "crisis_playbook":           return <CrisisPlaybookRenderer data={artifact.content} />;
+      // Carter
+      case "customer_health_report":    return <CustomerHealthReportRenderer data={artifact.content} />;
+      case "churn_analysis":            return <ChurnAnalysisRenderer data={artifact.content} />;
+      case "qbr_deck":                  return <QBRDeckRenderer data={artifact.content} />;
+      case "expansion_playbook":        return <ExpansionPlaybookRenderer data={artifact.content} />;
+      case "cs_playbook":               return <CSPlaybookRenderer data={artifact.content} />;
+      // Riley
+      case "growth_model":              return <GrowthModelRenderer data={artifact.content} />;
+      case "paid_campaign":             return <PaidCampaignRenderer data={artifact.content} />;
+      case "referral_program":          return <ReferralProgramRenderer data={artifact.content} />;
+      case "launch_playbook":           return <LaunchPlaybookRenderer data={artifact.content} />;
+      case "growth_report":             return <GrowthReportRenderer data={artifact.content} />;
+      case "experiment_results":        return <ExperimentResultsRenderer data={artifact.content} />;
+      default:                          return <pre style={{ fontSize: 11, color: muted, whiteSpace: "pre-wrap" }}>{JSON.stringify(artifact.content, null, 2)}</pre>;
     }
   };
 

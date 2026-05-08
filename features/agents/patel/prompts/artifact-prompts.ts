@@ -2,18 +2,53 @@
 // Each prompt produces a structured JSON deliverable from gathered conversation context.
 // Called as a second-pass generation after Patel triggers a <tool_call>.
 
+import { PATEL_INDICATORS } from '@/lib/constants/patel-indicators'
+import type { PatelScores, PatelConfidence, IndicatorDimension } from '@/lib/constants/patel-indicators'
+
+function buildIndicatorContext(dimension: IndicatorDimension, scores: PatelScores, confidence: PatelConfidence): string {
+  const dim = { icp: ['icp.specificity','icp.validation','icp.commercial_alignment','icp.iteration','icp.team_alignment'],
+    insight: ['insight.problem','insight.context','insight.validation_depth','insight.buying','insight.value_proof'],
+    channel: ['channel.clarity','channel.icp_fit','channel.focus_discipline','channel.execution_consistency','channel.learning_loop'],
+    message: ['message.simplicity','message.proof','message.icp_relevance','message.differentiation','message.comprehension'],
+  }[dimension]
+
+  const lines = dim.map(id => {
+    const ind = PATEL_INDICATORS[id]
+    const score = scores[id]
+    const conf = confidence[id] ?? 'not_assessed'
+    if (!score) return `- ${ind.name}: NOT ASSESSED → label all fields using this indicator as ASSUMED`
+    const rubric = ind.rubric[score as keyof typeof ind.rubric]
+    const tag = conf === 'validated' ? 'VALIDATED' : conf === 'inferred' ? 'INFERRED' : 'ASSUMED'
+    return `- ${ind.name}: ${score}/5 (${tag}) — ${rubric.slice(0, 80)}`
+  })
+
+  return lines.join('\n')
+}
+
 export function getArtifactPrompt(
   type: string,
   context: Record<string, unknown>,
-  researchData?: Record<string, unknown> | null
+  researchData?: Record<string, unknown> | null,
+  patelScores?: PatelScores,
+  patelConfidence?: PatelConfidence,
 ): string {
   const ctx = JSON.stringify(context, null, 2);
+  const scores = patelScores ?? {}
+  const conf = patelConfidence ?? {}
+  const icpCtx = buildIndicatorContext('icp', scores, conf)
+  const insightCtx = buildIndicatorContext('insight', scores, conf)
+  const channelCtx = buildIndicatorContext('channel', scores, conf)
+  const messageCtx = buildIndicatorContext('message', scores, conf)
 
   const prompts: Record<string, string> = {
     // ── D1: ICP Definition ─────────────────────────────────────────────────
     // Primary targeting interface — consumed by D2, D3, D4, Apollo, outbound agent
     icp_document: `You are generating a structured ICP (Ideal Customer Profile) — the targeting interface for this startup's GTM system.
 This is D1 in the Patel delivery chain. It will be consumed by downstream deliverables (D2 Pains, D3 Journey, D4 Messaging) and execution agents (lead generation, outbound).
+
+INDICATOR SCORES FOR THIS DELIVERABLE (P1.1 ICP Quality):
+${icpCtx}
+Use these scores to calibrate confidence: fields backed by VALIDATED indicators can be stated confidently; fields where the indicator is NOT ASSESSED or score ≤ 2 must use evidence_type "assumed" for that specific field.
 
 Context gathered from the conversation:
 ${ctx}
@@ -69,6 +104,10 @@ RULES:
     // Requires D1. Consumed by D3 (Buyer Journey) and D4 (Messaging).
     pains_gains_triggers: `You are generating a Pains, Gains & Triggers structured interface for an early-stage startup.
 This is D2 in the Patel delivery chain. It requires a completed ICP (D1). It will be consumed by the Buyer Journey (D3) and Positioning/Messaging (D4) deliverables, and by the outbound agent for personalization.
+
+INDICATOR SCORES FOR THIS DELIVERABLE (P1.2 Customer Insight):
+${insightCtx}
+Use these scores to calibrate confidence: fields backed by VALIDATED indicators can be stated confidently; fields where the indicator is NOT ASSESSED or score ≤ 2 must use evidence_type "assumed" for that specific field.
 
 Context gathered from the conversation (includes ICP from D1):
 ${ctx}
@@ -132,6 +171,10 @@ RULES:
     // Requires D1 + D2. Consumed by D4 (Messaging) and execution agents.
     buyer_journey: `You are generating a Buyer Journey structured interface for an early-stage startup.
 This is D3 in the Patel delivery chain. It requires ICP (D1) and Pains/Triggers (D2). It defines the conversion system — how buyers move from unaware to committed — and will be consumed by D4 Positioning/Messaging and by sales and content execution agents.
+
+INDICATOR SCORES FOR THIS DELIVERABLE (P1.3 Channel Focus):
+${channelCtx}
+Use these scores to calibrate confidence: fields backed by VALIDATED indicators can be stated confidently; fields where the indicator is NOT ASSESSED or score ≤ 2 must use evidence_type "assumed" for that specific field.
 
 Context gathered from the conversation (includes ICP from D1 and Pains from D2):
 ${ctx}
@@ -218,6 +261,10 @@ RULES:
     // Requires D1 + D2 + D3. Consumed by all execution agents.
     positioning_messaging: `You are generating a Positioning & Messaging structured interface for an early-stage startup.
 This is D4 — the final deliverable in the Patel chain. It requires ICP (D1), Pains/Triggers (D2), and Buyer Journey (D3). This is the communication engine: every message, script, and channel touchpoint the startup uses flows from this output. It will be consumed by outbound, content, sales, and marketing agents.
+
+INDICATOR SCORES FOR THIS DELIVERABLE (P1.4 Message Clarity):
+${messageCtx}
+Use these scores to calibrate confidence: fields backed by VALIDATED indicators can be stated confidently; fields where the indicator is NOT ASSESSED or score ≤ 2 must use evidence_type "assumed" for that specific field.
 
 Context gathered from the conversation (includes D1 ICP, D2 Pains, D3 Journey):
 ${ctx}
@@ -1763,6 +1810,1201 @@ Return a JSON object with this EXACT structure (no markdown fences, no extra tex
 
 RULES:
 - Health must be data-driven — no "we're feeling good about this".
+- Return ONLY valid JSON. No markdown, no explanation.`,
+
+    // ── Lead List ────────────────────────────────────────────────────────────
+    lead_list: `You are generating a structured lead list matching the ICP for an early-stage startup.
+
+Context gathered from the conversation:
+${ctx}
+
+Return a JSON object with this EXACT structure (no markdown fences, no extra text):
+{
+  "title": "Lead List: [ICP title / segment]",
+  "targetICP": "Brief description of the ICP these leads match",
+  "source": "Apollo / LinkedIn Sales Navigator / Manual research",
+  "totalLeads": 0,
+  "leads": [
+    {
+      "name": "Full name",
+      "title": "Job title",
+      "company": "Company name",
+      "email": "email@company.com",
+      "linkedinUrl": "https://linkedin.com/in/handle",
+      "industry": "Industry vertical",
+      "companySize": "e.g. 50-200 employees",
+      "location": "City, Country",
+      "relevanceScore": 8,
+      "icpMatch": "strong",
+      "outreachPriority": "immediate"
+    }
+  ],
+  "apolloFilters": {
+    "titles": ["Job title filter 1", "Title filter 2"],
+    "industries": ["Industry 1", "Industry 2"],
+    "companySizeMin": 50,
+    "companySizeMax": 500,
+    "geography": ["Region 1"],
+    "technologies": ["Tool they use"]
+  },
+  "nextAction": "Specific recommended next step for this list"
+}
+
+RULES:
+- Generate 10-25 realistic example leads matching the ICP from context.
+- relevanceScore: 1-10 based on ICP fit (10 = perfect match).
+- icpMatch must be "strong", "good", or "marginal".
+- outreachPriority must be "immediate", "this-week", or "pipeline".
+- Use realistic but fictional names, emails, and LinkedIn URLs — these are examples.
+- Return ONLY valid JSON. No markdown, no explanation.`,
+
+    // ── Campaign Report ──────────────────────────────────────────────────────
+    campaign_report: `You are generating a campaign performance report for a startup.
+
+Context gathered from the conversation:
+${ctx}
+
+Return a JSON object with this EXACT structure (no markdown fences, no extra text):
+{
+  "title": "Campaign Report: [campaign name / period]",
+  "period": "Date range (e.g. Apr 1 – Apr 30, 2025)",
+  "summary": "2-3 sentence executive summary of campaign performance",
+  "overview": {
+    "emailsSent": 0,
+    "openRate": "X%",
+    "replyRate": "X%",
+    "meetingsBooked": 0,
+    "cac": "$0"
+  },
+  "topPerformingVariant": {
+    "subject": "Subject line of the best-performing email",
+    "openRate": "X%",
+    "replyRate": "X%"
+  },
+  "learnings": ["Key learning 1 from this campaign", "Learning 2", "Learning 3"],
+  "nextCampaignRecommendation": "Specific recommendation for the next campaign based on what worked"
+}
+
+RULES:
+- All rates as percentages (e.g. "24%").
+- Learnings must be specific and actionable, not generic.
+- Return ONLY valid JSON. No markdown, no explanation.`,
+
+    // ── A/B Test Result ──────────────────────────────────────────────────────
+    ab_test_result: `You are documenting the results of an A/B test for a startup.
+
+Context gathered from the conversation:
+${ctx}
+
+Return a JSON object with this EXACT structure (no markdown fences, no extra text):
+{
+  "title": "A/B Test Result: [test name]",
+  "testName": "Descriptive name for the test",
+  "hypothesis": "We believed [X] would increase [metric] by [Y%] because [reason]",
+  "variants": [
+    {
+      "name": "Control",
+      "sampleSize": 0,
+      "metric": "What was measured",
+      "result": "X% conversion / X clicks / etc."
+    },
+    {
+      "name": "Variant A",
+      "sampleSize": 0,
+      "metric": "What was measured",
+      "result": "Y% conversion / Y clicks / etc."
+    }
+  ],
+  "winner": "Control | Variant A | Inconclusive",
+  "lift": "X% improvement over control",
+  "statisticalSignificance": "X% confidence (significant: true/false)",
+  "keyLearning": "The specific insight this test produced",
+  "recommendation": "ship | kill | iterate — and what to do next"
+}
+
+RULES:
+- Statistical significance must be addressed explicitly.
+- lift must be quantified where possible.
+- Return ONLY valid JSON. No markdown, no explanation.`,
+
+    // ── SEO Audit ────────────────────────────────────────────────────────────
+    seo_audit: `You are generating an SEO audit for a startup's website.
+
+Context gathered from the conversation:
+${ctx}
+
+${researchData ? `Web research data:\n${JSON.stringify(researchData, null, 2)}` : "No web research data available."}
+
+Return a JSON object with this EXACT structure (no markdown fences, no extra text):
+{
+  "title": "SEO Audit: [company/domain]",
+  "summary": "2-3 sentence overview of current SEO health and biggest opportunity",
+  "overallScore": 62,
+  "topKeywords": [
+    {
+      "keyword": "Target keyword",
+      "searchVolume": "X/mo",
+      "difficulty": 0,
+      "currentRank": "Not ranking | Position X",
+      "opportunity": "Why this keyword is worth pursuing"
+    }
+  ],
+  "contentGaps": [
+    {
+      "topic": "Topic/theme missing from the site",
+      "intent": "informational | commercial | transactional",
+      "competitorRanking": "Which competitor ranks for this"
+    }
+  ],
+  "technicalIssues": [
+    {
+      "issue": "Specific technical issue",
+      "severity": "high | medium | low",
+      "fix": "What to do to fix it"
+    }
+  ],
+  "priorityActions": [
+    {
+      "action": "Specific SEO action to take",
+      "estimatedImpact": "Expected organic traffic lift",
+      "effort": "low | medium | high"
+    }
+  ],
+  "quickWins": ["Quick win 1 that can be done this week", "Quick win 2", "Quick win 3"]
+}
+
+RULES:
+- overallScore: 0-100.
+- difficulty: 0-100 (Ahrefs/Moz scale).
+- Include 5-8 top keywords, 3-5 content gaps, 3-6 technical issues, 3-5 priority actions.
+- Return ONLY valid JSON. No markdown, no explanation.`,
+
+    // ── Press Kit ────────────────────────────────────────────────────────────
+    press_kit: `You are generating a press kit for an early-stage startup.
+
+Context gathered from the conversation:
+${ctx}
+
+Return a JSON object with this EXACT structure (no markdown fences, no extra text):
+{
+  "title": "Press Kit: [company name]",
+  "companyOverview": "2-3 paragraph company overview — what we do, who we serve, why we exist",
+  "founderBios": [
+    {
+      "name": "Founder full name",
+      "title": "Co-founder & CEO",
+      "bio": "2-3 sentence bio highlighting relevant background and why they're uniquely suited",
+      "linkedinUrl": "https://linkedin.com/in/handle or null"
+    }
+  ],
+  "productDescription": "1-2 paragraph product description for journalists — clear, jargon-free",
+  "keyStats": [
+    { "stat": "Stat label", "value": "Value or milestone" }
+  ],
+  "mediaBoilerplate": "Standard 'About [company]' paragraph — 3-4 sentences, used at the end of press releases",
+  "logoGuidelines": "Instructions for logo usage — colors, spacing, dos/don'ts",
+  "pressContacts": [
+    { "name": "Contact name", "email": "press@company.com", "role": "Founder / PR lead" }
+  ],
+  "recentMilestones": ["Milestone 1 — date and what happened", "Milestone 2", "Milestone 3"]
+}
+
+RULES:
+- keyStats: 4-8 stats (customers, revenue, funding, growth rate, etc.) — use real numbers from context.
+- founderBios: one entry per founder mentioned in context.
+- mediaBoilerplate must be written for journalist use — no marketing fluff.
+- Return ONLY valid JSON. No markdown, no explanation.`,
+
+    // ── Newsletter Issue ─────────────────────────────────────────────────────
+    newsletter_issue: `You are generating a newsletter issue for a startup.
+
+Context gathered from the conversation:
+${ctx}
+
+Return a JSON object with this EXACT structure (no markdown fences, no extra text):
+{
+  "title": "Newsletter: [company name] — Issue #[N]",
+  "issueNumber": 1,
+  "publishDate": "Month Day, Year",
+  "subject": "Email subject line — compelling, specific, not generic",
+  "previewText": "50-90 character preview text that extends the subject",
+  "hook": "Opening 2-3 sentences that grab attention and set the context for this issue",
+  "sections": [
+    {
+      "sectionTitle": "Section title",
+      "content": "Section body — 2-4 sentences, specific and valuable",
+      "cta": "Call to action for this section (or null if none)"
+    }
+  ],
+  "productUpdate": "1-2 sentences on the latest product update or feature (or null if not applicable)",
+  "footerCta": "Closing call to action — what you want the reader to do",
+  "estimatedReadTime": "X min read"
+}
+
+RULES:
+- sections: 3-5 sections with distinct angles (e.g. insight, case study, tip, product update, community).
+- Subject line must create curiosity or deliver clear value — no "Monthly Update".
+- estimatedReadTime based on total word count (~200 words/minute).
+- Return ONLY valid JSON. No markdown, no explanation.`,
+
+    // ── Brand Health Report ──────────────────────────────────────────────────
+    brand_health_report: `You are generating a brand health report for a startup.
+
+Context gathered from the conversation:
+${ctx}
+
+Return a JSON object with this EXACT structure (no markdown fences, no extra text):
+{
+  "title": "Brand Health Report: [company name] — [period]",
+  "period": "Date range",
+  "overallScore": 0,
+  "mentionVolume": {
+    "total": 0,
+    "trend": "up | flat | down"
+  },
+  "sentimentBreakdown": {
+    "positive": "X%",
+    "neutral": "X%",
+    "negative": "X%"
+  },
+  "shareOfVoice": [
+    { "competitor": "Competitor or 'Us'", "percentage": 0 }
+  ],
+  "topContent": [
+    {
+      "piece": "Content title or description",
+      "reach": "X impressions / X people",
+      "engagement": "X% engagement rate"
+    }
+  ],
+  "recommendations": ["Specific action to improve brand health 1", "Action 2", "Action 3"]
+}
+
+RULES:
+- overallScore: 0-100.
+- sentimentBreakdown percentages must sum to 100.
+- shareOfVoice percentages must sum to 100.
+- topContent: 3-5 best-performing content pieces this period.
+- Return ONLY valid JSON. No markdown, no explanation.`,
+
+    // ── Board Deck ────────────────────────────────────────────────────────────
+    board_deck: `You are generating a quarterly board deck for an early-stage startup.
+
+Context gathered from the conversation:
+${ctx}
+
+Return a JSON object with this EXACT structure (no markdown fences, no extra text):
+{
+  "title": "Board Deck: [company name] — Q[X] [Year]",
+  "quarter": "Q1 2025",
+  "keyMessage": "The single most important message for the board this quarter — one sentence",
+  "slides": [
+    {
+      "slideTitle": "Company Snapshot",
+      "content": {
+        "bullets": ["Key company stat 1", "Key stat 2", "Stage and funding status"],
+        "narrative": "1-2 sentence context for the board"
+      }
+    },
+    {
+      "slideTitle": "Q vs Last Q",
+      "content": {
+        "metric": "Primary metric comparison (e.g. MRR: $120K vs $80K last Q)",
+        "bullets": ["Key metric 1: X vs Y last Q", "Key metric 2: X vs Y last Q"],
+        "narrative": "What the numbers tell the story of"
+      }
+    },
+    {
+      "slideTitle": "OKR Progress",
+      "content": {
+        "bullets": ["OKR 1: [objective] — X% complete", "OKR 2: [objective] — X% complete"],
+        "narrative": "Honest assessment of OKR performance"
+      }
+    },
+    {
+      "slideTitle": "Financial Summary",
+      "content": {
+        "bullets": ["MRR: $X (X% MoM)", "Burn: $X/mo", "Runway: X months", "Gross Margin: X%"],
+        "narrative": "Financial health narrative"
+      }
+    },
+    {
+      "slideTitle": "Product Milestones",
+      "content": {
+        "bullets": ["Shipped: [feature/milestone]", "In progress: [what's being built]", "Next: [roadmap item]"],
+        "narrative": "Product direction and what it unlocks"
+      }
+    },
+    {
+      "slideTitle": "GTM Update",
+      "content": {
+        "bullets": ["New customers: X", "Pipeline: $X", "Top channel: X", "CAC: $X"],
+        "narrative": "GTM motion update — what's working and what's not"
+      }
+    },
+    {
+      "slideTitle": "Team Updates",
+      "content": {
+        "bullets": ["Headcount: X (was Y)", "New hires: [names/roles]", "Open reqs: [roles]"],
+        "narrative": "Team narrative"
+      }
+    },
+    {
+      "slideTitle": "Risks & Asks",
+      "content": {
+        "bullets": ["Risk 1: [description] — mitigation: [approach]", "Risk 2"],
+        "chart": "Asks: [specific ask 1], [specific ask 2]",
+        "narrative": "What you need from the board this quarter"
+      }
+    }
+  ]
+}
+
+RULES:
+- Exactly 8 slides in the order shown.
+- keyMessage must be honest and specific — not "we're making great progress".
+- All bullets must use real numbers from context where available.
+- Return ONLY valid JSON. No markdown, no explanation.`,
+
+    // ── Cap Table Summary ─────────────────────────────────────────────────────
+    cap_table_summary: `You are generating a cap table summary for an early-stage startup.
+
+Context gathered from the conversation:
+${ctx}
+
+Return a JSON object with this EXACT structure (no markdown fences, no extra text):
+{
+  "title": "Cap Table Summary: [company name]",
+  "totalShares": 0,
+  "preMoney": "$0",
+  "postMoney": "$0",
+  "shareholders": [
+    {
+      "name": "Shareholder name",
+      "type": "founder | investor | employee | advisor",
+      "shares": 0,
+      "percentage": "X%",
+      "vestingSchedule": "4yr / 1yr cliff or N/A"
+    }
+  ],
+  "optionPool": {
+    "authorized": "X%",
+    "issued": "X%",
+    "available": "X%"
+  },
+  "dilutionScenarios": [
+    {
+      "scenario": "Scenario name (e.g. Seed $2M at $8M cap)",
+      "newInvestor": "Investor name or 'New investor'",
+      "investmentAmount": "$0",
+      "founderDilution": "X% → Y% post-round",
+      "newCap": "$0M post-money"
+    }
+  ],
+  "nextRoundProjection": "What the cap table looks like after the next funding round — 2-3 sentences"
+}
+
+RULES:
+- shareholder percentages must sum to 100%.
+- type must be "founder", "investor", "employee", or "advisor".
+- dilutionScenarios: 2-3 scenarios (e.g. seed, Series A, bridge).
+- Return ONLY valid JSON. No markdown, no explanation.`,
+
+    // ── Fundraising Narrative ─────────────────────────────────────────────────
+    fundraising_narrative: `You are generating a fundraising narrative for an early-stage startup.
+
+Context gathered from the conversation:
+${ctx}
+
+Return a JSON object with this EXACT structure (no markdown fences, no extra text):
+{
+  "title": "Fundraising Narrative: [company name]",
+  "investmentThesis": "1-2 sentence thesis — why this company is worth investing in right now",
+  "problem": "The specific problem this company solves — 2-3 sentences with market context",
+  "solution": "How the product solves it — 2-3 sentences, specific and concrete",
+  "traction": {
+    "headline": "The most impressive traction stat in one sentence",
+    "metrics": ["Traction metric 1", "Traction metric 2", "Traction metric 3"]
+  },
+  "market": {
+    "tam": "$XB TAM with source/rationale",
+    "sam": "$XM SAM — serviceable segment",
+    "som": "$XM SOM — realistic 3-year capture"
+  },
+  "businessModel": "How the company makes money — pricing, unit economics, expansion path",
+  "whyNow": "Why this is the right time for this company — market timing, regulatory shift, technology unlock, etc.",
+  "team": "Why this specific team is uniquely qualified to win — 2-3 sentences",
+  "ask": {
+    "amount": "$X",
+    "use": "How the capital will be used — top 3 allocations",
+    "milestones": "What milestones this round achieves — 18-month horizon"
+  },
+  "closingHook": "Memorable closing statement that reinforces the investment thesis — 1-2 sentences"
+}
+
+RULES:
+- whyNow must be specific — avoid generic "the market is ready" language.
+- traction metrics must use real numbers from context.
+- market sizing must be bottoms-up or clearly cited.
+- Return ONLY valid JSON. No markdown, no explanation.`,
+
+    // ── NDA ───────────────────────────────────────────────────────────────────
+    nda: `You are generating a Non-Disclosure Agreement (NDA) structured output for a startup.
+
+Context gathered from the conversation:
+${ctx}
+
+Return a JSON object with this EXACT structure (no markdown fences, no extra text):
+{
+  "title": "NDA: [Company A] / [Company B]",
+  "type": "mutual | one-way",
+  "parties": [
+    { "name": "Party 1 legal name", "role": "Disclosing Party", "address": "Address or 'TBD'" },
+    { "name": "Party 2 legal name", "role": "Receiving Party", "address": "Address or 'TBD'" }
+  ],
+  "effectiveDate": "Date or 'Upon execution'",
+  "disclosingParty": "Name of the party sharing confidential information",
+  "receivingParty": "Name of the party receiving confidential information",
+  "confidentialInformation": "Description of what is considered confidential under this agreement",
+  "exclusions": ["Information already public", "Information independently developed", "Information received from a third party", "Information required by law to disclose"],
+  "obligations": ["Keep information confidential", "Use only for the stated purpose", "Limit disclosure to need-to-know employees", "Return or destroy upon request"],
+  "term": "Duration of confidentiality obligations (e.g. 2 years from effective date)",
+  "returnOrDestroy": "Obligation to return or destroy confidential materials upon termination",
+  "remedies": "Remedies for breach — typically injunctive relief plus damages",
+  "jurisdiction": "Governing law and jurisdiction",
+  "keyTerms": ["Key term or clause 1", "Key term 2", "Key term 3"],
+  "signatoryBlock": {
+    "party1": { "signatory": "Name and title", "company": "Company name", "date": "Date" },
+    "party2": { "signatory": "Name and title", "company": "Company name", "date": "Date" }
+  }
+}
+
+RULES:
+- type must be "mutual" or "one-way".
+- exclusions must include the 4 standard exclusions at minimum.
+- Return ONLY valid JSON. No markdown, no explanation.`,
+
+    // ── SAFE Note ─────────────────────────────────────────────────────────────
+    safe_note: `You are generating a SAFE (Simple Agreement for Future Equity) structured summary for a startup.
+
+Context gathered from the conversation:
+${ctx}
+
+Return a JSON object with this EXACT structure (no markdown fences, no extra text):
+{
+  "title": "SAFE Note: [company name] / [investor name]",
+  "investor": "Investor name or entity",
+  "company": "Company legal name",
+  "principalAmount": "$0",
+  "valuationCap": "$0M",
+  "discountRate": "X% (or 'None')",
+  "proRataRights": true,
+  "mfnClause": true,
+  "conversionTriggers": [
+    "Equity financing of $X or more",
+    "Liquidity event (acquisition, IPO)",
+    "Dissolution event"
+  ],
+  "maturityDate": "Date or 'None (YC post-money SAFE)'",
+  "keyTerms": ["Key term 1", "Key term 2", "Key term 3"],
+  "riskFactors": ["Risk factor 1 for the investor", "Risk factor 2", "Risk factor 3"],
+  "signatoryBlock": {
+    "company": { "signatory": "CEO name and title", "company": "Company name", "date": "Date" },
+    "investor": { "signatory": "Investor name", "entity": "Investor entity or 'Individual'", "date": "Date" }
+  }
+}
+
+RULES:
+- Use YC post-money SAFE structure by default unless context specifies otherwise.
+- proRataRights and mfnClause must be boolean.
+- Return ONLY valid JSON. No markdown, no explanation.`,
+
+    // ── Contractor Agreement ──────────────────────────────────────────────────
+    contractor_agreement: `You are generating a contractor agreement structured summary for a startup.
+
+Context gathered from the conversation:
+${ctx}
+
+Return a JSON object with this EXACT structure (no markdown fences, no extra text):
+{
+  "title": "Contractor Agreement: [company] / [contractor name]",
+  "parties": {
+    "company": "Company legal name",
+    "contractor": "Contractor name or entity"
+  },
+  "effectiveDate": "Start date",
+  "services": ["Specific service 1", "Service 2", "Service 3"],
+  "deliverables": ["Specific deliverable 1", "Deliverable 2"],
+  "paymentTerms": {
+    "rate": "$X per hour | $X project fee",
+    "schedule": "Payment schedule (e.g. net 30, upon milestone)",
+    "invoicing": "How contractor invoices"
+  },
+  "ipAssignment": "All work product created under this agreement is owned by the company",
+  "confidentiality": "Contractor agrees to maintain confidentiality of company information",
+  "nonCompete": "Non-compete terms (or 'None')",
+  "termination": "Termination clause — notice period and conditions",
+  "governingLaw": "State/jurisdiction governing this agreement",
+  "keyTerms": ["Key clause 1", "Key clause 2", "Key clause 3"]
+}
+
+RULES:
+- ipAssignment must clearly assign all IP to the company.
+- services and deliverables must be specific to the contractor's role.
+- Return ONLY valid JSON. No markdown, no explanation.`,
+
+    // ── Privacy Policy ────────────────────────────────────────────────────────
+    privacy_policy: `You are generating a privacy policy structured summary for a startup.
+
+Context gathered from the conversation:
+${ctx}
+
+Return a JSON object with this EXACT structure (no markdown fences, no extra text):
+{
+  "title": "Privacy Policy: [company name]",
+  "effectiveDate": "Date",
+  "dataTypes": [
+    {
+      "category": "Data category (e.g. Account Information)",
+      "examples": ["Email address", "Name", "Password hash"],
+      "purpose": "Why this data is collected"
+    }
+  ],
+  "dataSharing": [
+    {
+      "recipient": "Who data is shared with (e.g. Stripe, Intercom)",
+      "purpose": "Why it's shared with them"
+    }
+  ],
+  "userRights": [
+    "Right to access their data",
+    "Right to delete their data",
+    "Right to export their data",
+    "Right to opt out of marketing"
+  ],
+  "retentionPeriods": [
+    { "dataType": "Account data", "period": "Duration of account + 90 days" },
+    { "dataType": "Usage logs", "period": "12 months" }
+  ],
+  "cookiePolicy": "Description of cookies used and user controls",
+  "gdprCompliance": "GDPR compliance status and data processing basis (or 'N/A — no EU users')",
+  "ccpaCompliance": "CCPA compliance status (or 'N/A — no CA users')",
+  "contactInfo": { "email": "privacy@company.com", "address": "Company address or 'TBD'" }
+}
+
+RULES:
+- dataTypes: 4-6 categories specific to their product.
+- dataSharing: list all third-party processors (analytics, payments, support tools).
+- userRights must include the 4 standard rights at minimum.
+- Return ONLY valid JSON. No markdown, no explanation.`,
+
+    // ── IP Audit Report ───────────────────────────────────────────────────────
+    ip_audit_report: `You are generating an IP audit report for an early-stage startup.
+
+Context gathered from the conversation:
+${ctx}
+
+Return a JSON object with this EXACT structure (no markdown fences, no extra text):
+{
+  "title": "IP Audit Report: [company name]",
+  "summary": "2-3 sentence overview of IP portfolio health and key risks",
+  "filings": [
+    {
+      "type": "Patent | Trademark | Copyright | Trade Secret",
+      "status": "Filed | Granted | Pending | Not filed",
+      "description": "What this IP covers",
+      "filingDate": "Date or 'N/A'",
+      "jurisdiction": "US | EU | Global | N/A"
+    }
+  ],
+  "openSourceRisks": [
+    {
+      "library": "Library name",
+      "license": "MIT | GPL | Apache | LGPL | AGPL",
+      "risk": "Risk description — particularly for GPL/AGPL",
+      "mitigation": "How to handle this risk"
+    }
+  ],
+  "ownershipGaps": [
+    {
+      "asset": "What IP asset has unclear ownership",
+      "currentStatus": "Who currently owns it or 'Unclear'",
+      "recommendation": "What needs to happen to secure ownership"
+    }
+  ],
+  "priorityActions": ["Highest-priority IP action 1", "Action 2", "Action 3"],
+  "overallRiskLevel": "low"
+}
+
+RULES:
+- overallRiskLevel must be "low", "medium", or "high".
+- filings: cover all IP categories relevant to their product.
+- ownershipGaps: specifically flag contractor-created code, pre-company founder work, etc.
+- Return ONLY valid JSON. No markdown, no explanation.`,
+
+    // ── Term Sheet Redline ────────────────────────────────────────────────────
+    term_sheet_redline: `You are generating a term sheet redline analysis for a startup founder.
+
+Context gathered from the conversation:
+${ctx}
+
+Return a JSON object with this EXACT structure (no markdown fences, no extra text):
+{
+  "title": "Term Sheet Redline: [company] / [investor]",
+  "termSheetDate": "Date of the term sheet",
+  "investor": "Investor name",
+  "company": "Company name",
+  "summary": "2-3 sentence overall assessment of the term sheet",
+  "analysis": [
+    {
+      "term": "Term name (e.g. Valuation, Liquidation Preference)",
+      "theirProposal": "What the investor proposed",
+      "recommendation": "accept | negotiate | push back",
+      "riskLevel": "low | medium | high",
+      "suggestedRedline": "What to counter-propose",
+      "rationale": "Why this is important and how to negotiate it"
+    }
+  ],
+  "acceptableTerms": ["Terms that are fair and should be accepted as-is"],
+  "redFlags": ["Terms that are founder-unfavorable and must be negotiated"],
+  "negotiationStrategy": "Overall strategy for negotiating this term sheet — 2-3 sentences",
+  "overallAssessment": "final | negotiate | walk away — and why"
+}
+
+RULES:
+- analysis must cover at minimum: valuation, liquidation preference, pro-rata rights, board seats, anti-dilution, information rights.
+- recommendation must be "accept", "negotiate", or "push back".
+- Be direct about red flags — don't soften serious issues.
+- Return ONLY valid JSON. No markdown, no explanation.`,
+
+    // ── Interview Scorecard ───────────────────────────────────────────────────
+    interview_scorecard: `You are generating an interview scorecard for a startup hiring process.
+
+Context gathered from the conversation:
+${ctx}
+
+Return a JSON object with this EXACT structure (no markdown fences, no extra text):
+{
+  "title": "Interview Scorecard: [role] — [candidate name]",
+  "role": "Role being hired for",
+  "interviewer": "Interviewer name or 'TBD'",
+  "candidate": "Candidate name",
+  "interviewDate": "Date or 'TBD'",
+  "competencies": [
+    {
+      "name": "Competency name (e.g. Strategic Thinking, Technical Depth)",
+      "questions": [
+        "Behavioral question 1 for this competency",
+        "Behavioral question 2"
+      ],
+      "rubric": {
+        "exceptional": "What an exceptional answer looks like",
+        "strong": "What a strong answer looks like",
+        "acceptable": "Minimum acceptable answer",
+        "concern": "Red flag answer"
+      },
+      "score": null,
+      "notes": null
+    }
+  ],
+  "overallRecommendation": "strong hire",
+  "keyStrengths": ["Strength 1", "Strength 2"],
+  "keyWeaknesses": ["Weakness or concern 1", "Weakness 2"],
+  "nextSteps": ["Next step 1 in the hiring process", "Step 2"]
+}
+
+RULES:
+- 4-6 competencies tailored to the role described in context.
+- overallRecommendation must be "strong hire", "hire", "no hire", or "strong no hire".
+- score and notes are null by default (filled in during the actual interview).
+- Questions must be behavioral (STAR-format answers expected).
+- Return ONLY valid JSON. No markdown, no explanation.`,
+
+    // ── Offer Letter ──────────────────────────────────────────────────────────
+    offer_letter: `You are generating an offer letter structured output for a startup hire.
+
+Context gathered from the conversation:
+${ctx}
+
+Return a JSON object with this EXACT structure (no markdown fences, no extra text):
+{
+  "title": "Offer Letter: [candidate name] — [role]",
+  "candidateName": "Candidate full name",
+  "role": "Full job title",
+  "department": "Team/department",
+  "startDate": "Proposed start date",
+  "reportingTo": "Manager's name and title",
+  "compensation": {
+    "baseSalary": "$X per year",
+    "equityGrant": "X,000 options (X% fully diluted)",
+    "equityVesting": "4-year vesting with 1-year cliff",
+    "signingBonus": "$X or null"
+  },
+  "benefits": [
+    "Health, dental, vision insurance",
+    "Flexible PTO",
+    "Equipment budget",
+    "401(k) or applicable pension"
+  ],
+  "workLocation": "Remote | Hybrid — [city] | On-site — [city]",
+  "offerExpiry": "Date by which offer must be accepted",
+  "conditions": [
+    "Background check",
+    "Reference checks",
+    "Signed IP assignment and confidentiality agreement"
+  ],
+  "excitement": "2-3 sentences on why this person is being hired and why they're the right fit — genuine and specific",
+  "signatoryBlock": {
+    "company": { "signatory": "CEO/Founder name", "title": "CEO", "company": "Company name", "date": "Date" },
+    "candidate": { "signatory": "Candidate name", "date": "Acceptance date" }
+  }
+}
+
+RULES:
+- excitement must be specific to this candidate — not a template.
+- Equity must include both absolute grant size and percentage.
+- conditions must include IP assignment.
+- Return ONLY valid JSON. No markdown, no explanation.`,
+
+    // ── Comp Benchmark Report ─────────────────────────────────────────────────
+    comp_benchmark_report: `You are generating a compensation benchmarking report for a startup.
+
+Context gathered from the conversation:
+${ctx}
+
+Return a JSON object with this EXACT structure (no markdown fences, no extra text):
+{
+  "title": "Comp Benchmark Report: [role] — [location/stage]",
+  "role": "Role being benchmarked",
+  "location": "Primary market (e.g. San Francisco, Remote US, London)",
+  "stage": "Stage of company (Pre-seed | Seed | Series A | Series B+)",
+  "marketData": [
+    {
+      "percentile": "P25 | P50 | P75 | P90",
+      "baseSalary": "$X",
+      "totalComp": "$X (including bonus)",
+      "equityRange": "X% – Y% or X,000 – Y,000 options"
+    }
+  ],
+  "benchmarkSummary": "2-3 sentence summary of where market rates are and key factors driving them",
+  "ourBandRecommendation": {
+    "base": "$X – $Y",
+    "equity": "X,000 – Y,000 options (X% – Y%)",
+    "total": "$X – $Y total comp"
+  },
+  "peers": [
+    {
+      "company": "Comparable company name",
+      "estimatedBase": "$X – $Y",
+      "source": "Levels.fyi | Glassdoor | H1B data | Insider knowledge"
+    }
+  ],
+  "keyFindings": ["Finding 1 — specific insight about comp for this role", "Finding 2", "Finding 3"]
+}
+
+RULES:
+- marketData: P25, P50, P75, P90 percentile rows.
+- peers: 3-5 comparable companies for this role.
+- ourBandRecommendation must be specific and defensible.
+- Return ONLY valid JSON. No markdown, no explanation.`,
+
+    // ── Product Insight Report ────────────────────────────────────────────────
+    product_insight_report: `You are generating a product insight report for a startup.
+
+Context gathered from the conversation:
+${ctx}
+
+Return a JSON object with this EXACT structure (no markdown fences, no extra text):
+{
+  "title": "Product Insight Report: [product name] — [period]",
+  "period": "Date range",
+  "executiveSummary": "2-3 sentence overview of the most important product findings this period",
+  "topInsights": [
+    {
+      "insight": "Specific insight statement",
+      "supporting_data": "What data supports this insight",
+      "action": "What to do about it",
+      "impact": "high"
+    }
+  ],
+  "frictionPoints": [
+    {
+      "area": "Where in the product friction occurs",
+      "description": "What the friction is and how it manifests",
+      "affectedSegment": "Which user segment is affected",
+      "priorityScore": 8
+    }
+  ],
+  "usagePatterns": {
+    "topFeatures": ["Most-used feature 1", "Most-used feature 2", "Most-used feature 3"],
+    "underusedFeatures": ["Feature with low adoption 1", "Feature 2"],
+    "powerUserBehaviors": ["Behavior that distinguishes power users 1", "Behavior 2"]
+  },
+  "recommendations": [
+    {
+      "action": "Specific product action",
+      "rationale": "Why this is worth doing now",
+      "effort": "low | medium | high",
+      "owner": "PM | Engineering | Design"
+    }
+  ],
+  "retentionSignal": "The most important signal about retention from this period's data"
+}
+
+RULES:
+- topInsights: 3-5 insights with impact "high", "medium", or "low".
+- frictionPoints: 2-4 friction points; priorityScore 1-10.
+- recommendations: 3-5 actionable items.
+- Return ONLY valid JSON. No markdown, no explanation.`,
+
+    // ── Experiment Design ─────────────────────────────────────────────────────
+    experiment_design: `You are generating an experiment design document for a product or growth team.
+
+Context gathered from the conversation:
+${ctx}
+
+Return a JSON object with this EXACT structure (no markdown fences, no extra text):
+{
+  "title": "Experiment Design: [experiment name]",
+  "hypothesis": "We believe [X] will increase [primary metric] by [Y%] for [user segment] because [reason]",
+  "successMetric": "Primary metric that determines pass/fail",
+  "primaryMetric": "Specific metric name and measurement method",
+  "guardrailMetrics": ["Metric that must not degrade 1", "Guardrail metric 2"],
+  "variants": [
+    {
+      "name": "Control",
+      "description": "Current behavior — no changes",
+      "trafficSplit": "50%"
+    },
+    {
+      "name": "Variant A",
+      "description": "What is changed in this variant",
+      "trafficSplit": "50%"
+    }
+  ],
+  "sampleSizePlan": {
+    "required": "X users per variant for statistical significance",
+    "estimated_weeks": "X weeks to reach required sample at current traffic",
+    "power": "80%",
+    "significance": "95% (p < 0.05)"
+  },
+  "implementationPlan": [
+    "Step 1 to implement the experiment",
+    "Step 2",
+    "Step 3"
+  ],
+  "risks": ["Risk that could invalidate results 1", "Risk 2"],
+  "stakeholders": "Who needs to be aligned and informed"
+}
+
+RULES:
+- variants: 2-4 variants including control; trafficSplits must sum to 100%.
+- sampleSizePlan must use standard 80% power and 95% significance by default.
+- guardrailMetrics: 2-3 metrics that must not be harmed by the experiment.
+- Return ONLY valid JSON. No markdown, no explanation.`,
+
+    // ── Roadmap ───────────────────────────────────────────────────────────────
+    roadmap: `You are generating a product roadmap for an early-stage startup.
+
+Context gathered from the conversation:
+${ctx}
+
+Return a JSON object with this EXACT structure (no markdown fences, no extra text):
+{
+  "title": "Product Roadmap: [company/product name]",
+  "vision": "Where the product is headed in 12-18 months — specific and inspiring",
+  "now": [
+    {
+      "initiative": "What is being built right now",
+      "owner": "Team or person responsible",
+      "rationale": "Why this is the current priority",
+      "riceScore": 0,
+      "status": "in progress | scoping | blocked"
+    }
+  ],
+  "next": [
+    {
+      "initiative": "What comes after the current sprint/cycle",
+      "rationale": "Why this follows logically",
+      "dependency": "What must be done first (or 'None')"
+    }
+  ],
+  "later": [
+    {
+      "initiative": "Longer-term initiative (3+ months out)",
+      "rationale": "Why it's later — resource, dependency, or strategic sequencing"
+    }
+  ],
+  "dependencies": ["External dependency 1", "Technical debt item", "Third-party integration needed"],
+  "themes": ["Strategic theme 1 that unifies the roadmap", "Theme 2", "Theme 3"]
+}
+
+RULES:
+- now: 2-4 active initiatives with status.
+- next: 3-5 upcoming initiatives.
+- later: 2-4 items (not a wishlist — strategic sequencing only).
+- riceScore = (Reach × Impact × Confidence) / Effort; estimate if not provided.
+- Return ONLY valid JSON. No markdown, no explanation.`,
+
+    // ── User Persona ──────────────────────────────────────────────────────────
+    user_persona: `You are generating a user persona for an early-stage startup.
+
+Context gathered from the conversation:
+${ctx}
+
+Return a JSON object with this EXACT structure (no markdown fences, no extra text):
+{
+  "title": "User Persona: [persona name]",
+  "name": "Fictional but realistic name for the persona",
+  "tagline": "One-liner describing who this person is",
+  "demographics": {
+    "role": "Job title",
+    "seniority": "IC | Manager | Director | VP | C-level",
+    "company_type": "Startup | SMB | Mid-market | Enterprise",
+    "location": "Primary geography",
+    "age_range": "X-Y"
+  },
+  "psychographics": {
+    "motivations": ["What drives this person professionally", "Motivation 2", "Motivation 3"],
+    "frustrations": ["What frustrates them at work", "Frustration 2", "Frustration 3"],
+    "goals": ["What they want to achieve in their role", "Goal 2", "Goal 3"]
+  },
+  "dayInLife": "2-3 sentence narrative of a typical workday for this persona",
+  "jobsToBeDone": [
+    "When [situation], I want to [action] so that [outcome]",
+    "JTBD 2",
+    "JTBD 3"
+  ],
+  "quoteFromResearch": "A representative quote that captures their worldview — realistic, in their voice",
+  "productUsage": {
+    "useCases": ["How they use the product", "Use case 2"],
+    "frequency": "Daily | Weekly | Monthly",
+    "favoriteFeatures": ["Feature they value most", "Feature 2"]
+  },
+  "segmentSize": "Estimated size of this segment in the TAM",
+  "acquisitionChannel": "How this persona is best reached — channel and message"
+}
+
+RULES:
+- jobsToBeDone must follow the "When / I want to / so that" format.
+- quoteFromResearch must sound like a real person, not a marketer.
+- demographics + psychographics must be specific to their ICP, not generic.
+- Return ONLY valid JSON. No markdown, no explanation.`,
+
+    // ── Market Map ────────────────────────────────────────────────────────────
+    market_map: `You are generating a market map for an early-stage startup.
+
+Context gathered from the conversation:
+${ctx}
+
+Return a JSON object with this EXACT structure (no markdown fences, no extra text):
+{
+  "title": "Market Map: [market / category]",
+  "axes": {
+    "x": "X-axis dimension (e.g. 'Ease of Use: Low → High')",
+    "y": "Y-axis dimension (e.g. 'Price: Low → High')"
+  },
+  "players": [
+    {
+      "name": "Competitor or player name",
+      "x": 0,
+      "y": 0,
+      "funding": "$XM or 'Public' or 'Unknown'",
+      "description": "1-2 sentence description of their positioning",
+      "weakness": "Their key weakness or vulnerability"
+    }
+  ],
+  "ourPosition": {
+    "x": 0,
+    "y": 0,
+    "rationale": "Why we occupy this position and what we're claiming"
+  },
+  "whitespace": [
+    {
+      "area": "Description of the whitespace opportunity",
+      "opportunity": "Why this represents a viable market position"
+    }
+  ],
+  "summary": "2-3 sentence market map narrative — who dominates, where we fit, what the opportunity is"
+}
+
+RULES:
+- x and y values: -10 to 10 scale (0 = center).
+- players: 5-10 real competitors/players; include incumbents, startups, and adjacent players.
+- whitespace: 2-3 specific whitespace areas with concrete opportunity descriptions.
+- Return ONLY valid JSON. No markdown, no explanation.`,
+
+    // ── Review Intelligence Report ────────────────────────────────────────────
+    review_intelligence_report: `You are generating a review intelligence report analyzing competitor customer reviews.
+
+Context gathered from the conversation:
+${ctx}
+
+${researchData ? `Web research / review data:\n${JSON.stringify(researchData, null, 2)}` : "No web research data available."}
+
+Return a JSON object with this EXACT structure (no markdown fences, no extra text):
+{
+  "title": "Review Intelligence Report: [market / category]",
+  "period": "Date range analyzed",
+  "competitorsAnalyzed": ["Competitor 1", "Competitor 2", "Competitor 3"],
+  "keyFindings": [
+    {
+      "competitor": "Competitor name",
+      "theme": "Recurring theme in their reviews",
+      "sentiment": "negative",
+      "customerQuotes": ["Direct quote from a review", "Another quote"],
+      "ourOpportunity": "How we can win customers who have this frustration"
+    }
+  ],
+  "commonComplaints": [
+    {
+      "complaint": "Complaint that appears across multiple competitors",
+      "frequency": "X% of reviews mention this",
+      "affectedCompetitors": ["Competitor A", "Competitor B"],
+      "ourAdvantage": "How our product addresses this complaint"
+    }
+  ],
+  "praisePatterns": [
+    {
+      "praise": "What customers love about a competitor",
+      "competitor": "Which competitor gets this praise",
+      "howWeCompete": "How we match or exceed this"
+    }
+  ],
+  "recommendations": ["Specific action based on review intelligence 1", "Action 2", "Action 3"]
+}
+
+RULES:
+- keyFindings: 3-5 findings; sentiment must be "negative", "mixed", or "positive".
+- commonComplaints: 3-5 complaints that are opportunities to position against.
+- praisePatterns: 2-4 patterns — be honest about what competitors do well.
+- Return ONLY valid JSON. No markdown, no explanation.`,
+
+    // ── Investor Readiness Report ─────────────────────────────────────────────
+    investor_readiness_report: `You are generating an investor readiness report for an early-stage startup.
+
+Context gathered from the conversation:
+${ctx}
+
+Return a JSON object with this EXACT structure (no markdown fences, no extra text):
+{
+  "title": "Investor Readiness Report: [company name]",
+  "overallScore": 0,
+  "grade": "B",
+  "dimensions": [
+    {
+      "name": "Dimension name (e.g. Traction, Team, Market, Product, Narrative)",
+      "score": 0,
+      "status": "strong",
+      "findings": ["Specific finding about this dimension", "Finding 2"],
+      "actions": ["Action to improve this dimension", "Action 2"]
+    }
+  ],
+  "investorPerception": "How a typical seed/Series A investor would perceive this company right now — 2-3 sentences",
+  "keyStrengths": ["Strength 1 that resonates with investors", "Strength 2", "Strength 3"],
+  "criticalGaps": ["Gap that would cause an investor to pass", "Critical gap 2"],
+  "recommendedNextRaiseTimeline": "e.g. '3-4 months' or 'Ready now' or 'Not ready — 6+ months to close gaps'",
+  "narrativeSummary": "3-4 sentence honest assessment of where they stand and what they need to do"
+}
+
+RULES:
+- overallScore: 0-100.
+- grade must be "A", "B", "C", or "D".
+- dimensions: 5-7 dimensions; score 0-100; status "strong", "adequate", or "gap".
+- criticalGaps: be direct — these are the actual reasons investors would pass.
+- Return ONLY valid JSON. No markdown, no explanation.`,
+
+    // ── Contradiction Report ──────────────────────────────────────────────────
+    contradiction_report: `You are generating a contradiction report identifying conflicting claims across agent outputs.
+
+Context gathered from the conversation:
+${ctx}
+
+Return a JSON object with this EXACT structure (no markdown fences, no extra text):
+{
+  "title": "Contradiction Report: [company name]",
+  "summary": "2-3 sentence overview of how consistent the agent outputs are and where conflicts exist",
+  "contradictions": [
+    {
+      "area": "What domain the contradiction is in (e.g. ICP, Pricing, Market Size)",
+      "agentA": "Name of first agent or deliverable",
+      "claimA": "What agent A claimed",
+      "agentB": "Name of second agent or deliverable",
+      "claimB": "What agent B claimed (contradicts claim A)",
+      "severity": "critical",
+      "resolution": "Which claim is correct or how to resolve the conflict",
+      "impact": "What using the wrong assumption would cause"
+    }
+  ],
+  "consistencyScore": 0,
+  "recommendation": "Overall recommendation for reconciling inconsistencies before proceeding"
+}
+
+RULES:
+- consistencyScore: 0-100 (100 = fully consistent, 0 = deeply contradictory).
+- severity must be "critical", "moderate", or "minor".
+- contradictions: list all found conflicts — do not soften or combine.
+- If no contradictions exist, return an empty contradictions array and a high consistencyScore.
+- Return ONLY valid JSON. No markdown, no explanation.`,
+
+    // ── Crisis Playbook ───────────────────────────────────────────────────────
+    crisis_playbook: `You are generating a crisis playbook for a startup facing a specific crisis scenario.
+
+Context gathered from the conversation:
+${ctx}
+
+Return a JSON object with this EXACT structure (no markdown fences, no extra text):
+{
+  "title": "Crisis Playbook: [scenario description]",
+  "scenario": "Specific crisis scenario being addressed",
+  "severity": "critical",
+  "immediateActions": [
+    {
+      "step": 1,
+      "action": "Specific immediate action to take",
+      "owner": "Who is responsible",
+      "timeframe": "Within X hours"
+    },
+    {
+      "step": 2,
+      "action": "Second immediate action",
+      "owner": "Owner",
+      "timeframe": "Within X hours"
+    },
+    {
+      "step": 3,
+      "action": "Third immediate action",
+      "owner": "Owner",
+      "timeframe": "Within X hours"
+    }
+  ],
+  "communicationPlan": {
+    "internal": "What to communicate to the team and how",
+    "customers": "What to communicate to affected customers and how",
+    "press": "Media handling strategy (or 'No press engagement at this stage')",
+    "investors": "What and when to communicate to investors"
+  },
+  "recoverySteps": [
+    "Medium-term recovery step 1",
+    "Recovery step 2",
+    "Recovery step 3"
+  ],
+  "postMortemChecklist": [
+    "Post-mortem item 1",
+    "Post-mortem item 2",
+    "Post-mortem item 3"
+  ],
+  "lessonsLearned": [
+    "Systemic lesson to prevent recurrence 1",
+    "Lesson 2"
+  ]
+}
+
+RULES:
+- severity must be "critical", "high", or "medium".
+- immediateActions: 3-7 steps in strict priority order; each with a specific owner and timeframe.
+- communicationPlan: all 4 stakeholder groups must be addressed.
+- recoverySteps: 3-5 specific recovery actions (not platitudes).
 - Return ONLY valid JSON. No markdown, no explanation.`,
   };
 

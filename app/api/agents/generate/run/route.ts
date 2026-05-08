@@ -27,6 +27,7 @@ import { isCircuitOpen, withCircuitBreaker } from '@/lib/circuit-breaker'
 import { getStartupState, updateStartupState, extractStateFromArtifact } from '@/lib/agents/startup-state'
 import { upsertAgentGoal } from '@/lib/agents/agent-goals'
 import { triggerProactiveDelegations } from '@/lib/agents/delegation'
+import { updatePatelIndicatorsFromArtifact } from '@/lib/agents/patel-indicator-updater'
 import { log } from '@/lib/logger'
 
 const ARTIFACT_DIMENSION: Record<ArtifactType, string> = {
@@ -44,6 +45,9 @@ const ARTIFACT_DIMENSION: Record<ArtifactType, string> = {
   [ARTIFACT_TYPES.INTERVIEW_NOTES]:           PARAMS.P1,
   [ARTIFACT_TYPES.COMPETITIVE_MATRIX]:        PARAMS.P2,
   [ARTIFACT_TYPES.STRATEGIC_PLAN]:            PARAMS.P2,
+  [ARTIFACT_TYPES.PAINS_GAINS_TRIGGERS]:      PARAMS.P1,
+  [ARTIFACT_TYPES.BUYER_JOURNEY]:             PARAMS.P1,
+  [ARTIFACT_TYPES.POSITIONING_MESSAGING]:     PARAMS.P1,
   // Patel
   [ARTIFACT_TYPES.LEAD_LIST]:                 PARAMS.P1,
   [ARTIFACT_TYPES.CAMPAIGN_REPORT]:           PARAMS.P1,
@@ -240,6 +244,12 @@ ${conversationText.slice(0, 4000)}`
         if (freshState) void upsertAgentGoal(agentId, userId, freshState, supabase)
         // Fire proactive delegations (Felix→Harper on runway drop, Nova→Maya on PMF update, etc.)
         void triggerProactiveDelegations(agentId, userId, prevState, stateUpdates, supabase)
+      }
+
+      // Patel 20-indicator score inference from deliverable content
+      const PATEL_DELIVERABLES = ['icp_document', 'pains_gains_triggers', 'buyer_journey', 'positioning_messaging']
+      if (agentId === 'patel' && PATEL_DELIVERABLES.includes(artifactType)) {
+        void updatePatelIndicatorsFromArtifact(userId, artifactType, parsedContent, supabase).catch(() => {})
       }
 
       // RAG embedding

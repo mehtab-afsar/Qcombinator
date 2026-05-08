@@ -14,6 +14,17 @@ export async function GET() {
 
     const admin = createAdminClient()
 
+    // ── Subscription tier gate — deal-flow is a Pro feature ──────────────────
+    const { data: investorTierProfile } = await admin
+      .from('investor_profiles')
+      .select('subscription_tier')
+      .eq('user_id', user.id)
+      .single()
+
+    if (!investorTierProfile || investorTierProfile.subscription_tier === 'free') {
+      return NextResponse.json({ error: 'Pro subscription required' }, { status: 403 })
+    }
+
     // Fetch founders who have completed onboarding
     const { data: founders, error } = await admin
       .from('founder_profiles')

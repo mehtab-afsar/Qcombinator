@@ -2,10 +2,16 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 
+export interface SourceItem {
+  label: string
+  type: 'profile' | 'memory' | 'artifact' | 'cross_agent'
+}
+
 export interface UiMessage {
   role: 'agent' | 'user' | 'tool'
   text: string
   toolActivity?: { toolName: string; label: string; status: 'running' | 'done'; summary?: string }
+  sources?: SourceItem[]
 }
 export interface ApiMessage { role: 'user' | 'assistant'; content: string }
 export interface ActionItem {
@@ -69,8 +75,9 @@ export function useAgentWorkspace(agentId: string): AgentWorkspaceState {
   const [latestArtifact, setLatestArtifact]= useState<ArtifactRecord | null>(null)
   const [conversations,  setConversations] = useState<ConversationSummary[]>([])
 
-  const bottomRef = useRef<HTMLDivElement>(null)
-  const abortRef  = useRef<AbortController | null>(null)
+  const bottomRef        = useRef<HTMLDivElement>(null)
+  const abortRef         = useRef<AbortController | null>(null)
+  const pendingSourcesRef = useRef<SourceItem[] | null>(null)
 
   // Auth
   useEffect(() => {
@@ -177,7 +184,9 @@ export function useAgentWorkspace(agentId: string): AgentWorkspaceState {
           let evt: Record<string, unknown>
           try { evt = JSON.parse(payload) } catch { continue }
 
-          if (evt.type === 'delta') {
+          if (evt.type === 'sources_used') {
+            pendingSourcesRef.current = evt.sources as SourceItem[]
+          } else if (evt.type === 'delta') {
             agentText += evt.text as string
             if (isFirstDelta) {
               isFirstDelta = false
@@ -210,6 +219,14 @@ export function useAgentWorkspace(agentId: string): AgentWorkspaceState {
         }
       }
       setApiMessages(p => [...p, { role: 'assistant', content: agentText }])
+      // Attach collected sources to the last agent message
+      if (pendingSourcesRef.current) {
+        const sources = pendingSourcesRef.current
+        pendingSourcesRef.current = null
+        setUiMessages(p => p.map((m, i) =>
+          i === p.length - 1 && m.role === 'agent' ? { ...m, sources } : m
+        ))
+      }
     } catch (e) {
       if ((e as Error).name !== 'AbortError') {
         setUiMessages(p => [...p, { role: 'agent', text: 'Something went wrong. Please try again.' }])
