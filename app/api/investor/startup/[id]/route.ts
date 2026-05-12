@@ -13,10 +13,25 @@ export async function GET(
   try {
     const auth = await verifyAuth()
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+    const { user } = auth
 
     const { id: founderId } = await params
 
     const admin = createAdminClient()
+
+    // Verify the caller is a pro investor — must have an investor_profiles row
+    // with a paid subscription tier (matches the deal-flow access model).
+    // This prevents founders from viewing other founders' private data via this endpoint.
+    const { data: investorProfile } = await admin
+      .from('investor_profiles')
+      .select('subscription_tier')
+      .eq('user_id', user.id)
+      .single()
+
+    if (!investorProfile || investorProfile.subscription_tier === 'free') {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    }
+
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
 
     // Fetch in parallel: founder profile + latest Q-Score + latest artifacts + agent activity

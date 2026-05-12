@@ -96,23 +96,37 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ received: true, emailSent: false })
     }
 
-    // Send response to lead
-    const sendRes = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        from: `${founderName} at ${companyName} <no-reply@edgealpha.ai>`,
-        to: [email],
-        reply_to: founderEmail,
-        subject: `Re: Your interest in ${companyName}`,
-        text: responseEmail,
-      }),
-    })
+    // Send response to lead — 10s timeout prevents hung Resend calls from blocking forever
+    const ctrl1 = new AbortController()
+    const t1 = setTimeout(() => ctrl1.abort(), 10_000)
+    let sendRes: Response
+    try {
+      sendRes = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+        signal: ctrl1.signal,
+        body: JSON.stringify({
+          from: `${founderName} at ${companyName} <no-reply@edgealpha.ai>`,
+          to: [email],
+          reply_to: founderEmail,
+          subject: `Re: Your interest in ${companyName}`,
+          text: responseEmail,
+        }),
+      })
+    } catch (err) {
+      log.error('Lead webhook: Resend send failed', { leadEmail: email, uid, err })
+      sendRes = new Response(null, { status: 500 })
+    } finally {
+      clearTimeout(t1)
+    }
 
-    // Notify founder about new lead
-    await fetch('https://api.resend.com/emails', {
+    // fire-and-forget: founder notification email — lead response to prospect already sent above
+    const ctrl2 = new AbortController()
+    const t2 = setTimeout(() => ctrl2.abort(), 10_000)
+    fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+      signal: ctrl2.signal,
       body: JSON.stringify({
         from: `Susi via Edge Alpha <no-reply@edgealpha.ai>`,
         to: [founderEmail],
@@ -128,7 +142,8 @@ export async function POST(request: NextRequest) {
 <p style="margin-top:20px;font-size:13px;color:#8A867C"><strong>Response sent to ${email}:</strong></p>
 <blockquote style="border-left:3px solid #2563EB;padding:12px 16px;background:#F0F6FF;font-size:13px;color:#374151;white-space:pre-wrap;font-family:inherit">${responseEmail.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</blockquote>`,
       }),
-    }).catch(() => {})
+    }).catch(err => log.warn('Lead webhook: founder notification failed', { uid, err }))
+      .finally(() => clearTimeout(t2))
 
     // Log to agent_activity + deals table
     try {

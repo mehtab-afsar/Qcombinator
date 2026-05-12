@@ -93,7 +93,7 @@ export async function getAgentContext(
     // 1. Own artifacts
     supabase
       .from('agent_artifacts')
-      .select('id, agent_id, artifact_type, title, created_at, key_fields')
+      .select('id, agent_id, artifact_type, title, created_at')
       .eq('user_id', userId)
       .eq('agent_id', agentId)
       .order('created_at', { ascending: false })
@@ -103,7 +103,7 @@ export async function getAgentContext(
     crossAgentIds.length > 0
       ? supabase
           .from('agent_artifacts')
-          .select('id, agent_id, artifact_type, title, created_at, key_fields')
+          .select('id, agent_id, artifact_type, title, created_at')
           .eq('user_id', userId)
           .in('agent_id', crossAgentIds)
           .order('created_at', { ascending: false })

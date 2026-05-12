@@ -637,7 +637,9 @@ export function AgentWorkspace({
                 </AnimatePresence>
 
                 {/* messages */}
-                {workspace.uiMessages.map((msg, idx) => (
+                {workspace.uiMessages.map((msg, idx) => {
+                  if (msg.role === 'agent' && !msg.text && !msg.sources) return null
+                  return (
                   <motion.div key={idx} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
                     style={{ display: 'flex', gap: 12, flexDirection: msg.role === 'user' ? 'row-reverse' : 'row' }}
                   >
@@ -675,7 +677,8 @@ export function AgentWorkspace({
                       </div>
                     )}
                   </motion.div>
-                ))}
+                  )
+                })}
 
                 {/* typing indicator */}
                 {workspace.typing && workspace.uiMessages[workspace.uiMessages.length - 1]?.role !== 'agent' && (

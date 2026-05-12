@@ -71,6 +71,24 @@ export async function POST(_req: NextRequest) {
       }
     }
 
+    // 3b. Monthly recalculation limit (2/month — atomic RPC, fail-open)
+    try {
+      const { data: usageData, error: usageErr } = await supabase.rpc('increment_usage_if_allowed', {
+        p_user_id: userId,
+        p_feature: 'qscore_recalc',
+      }) as { data: Array<{ allowed: boolean; remaining: number }> | null; error: unknown }
+
+      if (!usageErr && usageData?.[0]?.allowed === false) {
+        return NextResponse.json(
+          { error: 'Monthly recalculation limit reached. Limit resets at the start of next month.' },
+          { status: 429 }
+        )
+      }
+    } catch {
+      // Usage check failed — allow through
+      log.warn('qscore_recalc usage check failed — allowing through', { userId })
+    }
+
     // 4. Build section map + merge to AssessmentData
     const sections: Partial<Record<number, SectionData>> = {}
     for (const row of rows ?? []) {
@@ -228,7 +246,7 @@ export async function POST(_req: NextRequest) {
       return NextResponse.json({ error: `Score save failed: ${insertErr.message}` }, { status: 500 })
     }
 
-    // Fire deal-flow alerts if score improved significantly (fire-and-forget)
+    // fire-and-forget: deal-flow notification is non-critical; score save already committed above
     void triggerDealFlowAlerts(userId, finalScore).catch(() => {})
 
     // 15. Log reconciliation results for observability

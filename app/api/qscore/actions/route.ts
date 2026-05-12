@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { verifyAuth } from '@/lib/auth/verify';
 import { log } from '@/lib/logger';
+import { aiActionsSchema } from '@/lib/api/jsonb-schemas';
 import { callClaude } from '@/lib/claude';
 import { retrieveActionsContext, inferSector, loadKnowledgeBase } from '@/features/qscore/scoring/retrieval';
 import { AssessmentData } from '@/features/qscore/types/qscore.types';
@@ -41,7 +42,7 @@ export async function GET(_request: NextRequest) {
       .single();
 
     if (scoreError || !latest) {
-      return NextResponse.json({ actions: [] });
+      return NextResponse.json({ actions: [], unlockCards: [], readinessSummary: '' });
     }
 
     // Return cached actions + unlock cards if they exist
@@ -172,7 +173,7 @@ Return ONLY valid JSON. No markdown, no explanation.`;
         actions = parsed.actions.slice(0, 5);
       }
     } catch {
-      return NextResponse.json({ actions: [] });
+      return NextResponse.json({ actions: [], unlockCards: [], readinessSummary: '' });
     }
 
     // Cache to DB (preserve rag_eval, unlockCards, readinessSummary)
@@ -181,12 +182,18 @@ Return ONLY valid JSON. No markdown, no explanation.`;
         ? latest.ai_actions as Record<string, unknown>
         : {}
       const preserve: Record<string, unknown> = {}
-      if (existingAI.rag_eval)        preserve.rag_eval        = existingAI.rag_eval
-      if (existingAI.unlockCards)     preserve.unlockCards     = existingAI.unlockCards
+      if (existingAI.rag_eval)         preserve.rag_eval         = existingAI.rag_eval
+      if (existingAI.unlockCards)      preserve.unlockCards      = existingAI.unlockCards
       if (existingAI.readinessSummary) preserve.readinessSummary = existingAI.readinessSummary
+
+      const candidate = { ...preserve, actions }
+      const validated = aiActionsSchema.safeParse(candidate)
+      if (!validated.success) {
+        log.warn('[qscore/actions] ai_actions failed schema validation — writing raw', validated.error.issues)
+      }
       await supabase
         .from('qscore_history')
-        .update({ ai_actions: { ...preserve, actions } })
+        .update({ ai_actions: validated.success ? validated.data : candidate })
         .eq('id', latest.id);
     }
 

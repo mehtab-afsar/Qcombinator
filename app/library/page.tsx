@@ -387,7 +387,7 @@ function ResourceCard({
               </a>
             )}
             <a
-              href={`/founder/agents/${r.function_owner}?challenge=${r.topic_cluster}`}
+              href={`/founder/cxo/${r.function_owner}?challenge=${r.topic_cluster}`}
               style={{
                 fontSize: 13, padding: '7px 14px', borderRadius: 7,
                 background: surf, color: ink, textDecoration: 'none',

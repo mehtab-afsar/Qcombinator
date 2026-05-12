@@ -1,36 +1,28 @@
 'use client';
 
+import { AgentChatPanel } from '@/features/agents/shared/components/AgentChatPanel';
+import type { CXOConfig } from '@/lib/cxo/cxo-config';
+
 interface CXOChatProps {
-  agentId:     string;
-  artifactId?: string;
-  challenge?:  string;
-  prompt?:     string;
-  convId?:     string;
+  config:                  CXOConfig;
+  agentId:                 string;
+  artifactId?:             string;
+  challenge?:              string;
+  prompt?:                 string;
+  convId?:                 string;
+  onConversationCreated?:  (id: string) => void;
 }
 
-/**
- * Wraps the existing agent chat page in an iframe.
- * Uses ?_embed=1 so next.config.ts redirects are bypassed (no infinite loop).
- */
-export function CXOChat({ agentId, artifactId, challenge, prompt, convId }: CXOChatProps) {
-  let src = `/founder/agents/${agentId}?_embed=1`;
-  if (artifactId) src += `&artifact=${encodeURIComponent(artifactId)}`;
-  if (challenge)  src += `&challenge=${encodeURIComponent(challenge)}`;
-  if (prompt)     src += `&prompt=${encodeURIComponent(prompt)}`;
-  if (convId)     src += `&conv=${encodeURIComponent(convId)}`;
-
+export function CXOChat({ config, agentId, convId, onConversationCreated }: CXOChatProps) {
   return (
-    <iframe
-      key={`${agentId}-${artifactId ?? ''}`}
-      src={src}
-      title={`Chat with ${agentId}`}
-      style={{
-        flex:   1,
-        width:  '100%',
-        height: '100%',
-        border: 'none',
-        display: 'block',
-      }}
+    <AgentChatPanel
+      agentId={agentId}
+      name={config.name}
+      accent={config.colour}
+      badge={config.role}
+      suggestedPrompts={config.chatPrompts}
+      convId={convId}
+      onConversationCreated={onConversationCreated}
     />
   );
 }

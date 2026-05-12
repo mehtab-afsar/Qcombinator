@@ -91,6 +91,38 @@ const ALLOWED_TYPES = [
 ]
 const ALLOWED_EXTS = ['.pdf', '.pptx', '.docx', '.xlsx', '.csv', '.png', '.jpg', '.jpeg', '.webp']
 
+// Magic-byte validation for profile-builder uploads.
+// Prevents malicious files with spoofed MIME types or extensions from being processed.
+// CSV and plain text are inherently byte-ambiguous — accepted via extension only.
+function validateDocMagicBytes(buf: Buffer, declaredMime: string, ext: string): boolean {
+  if (buf.length < 4) return false
+  // PDF: %PDF
+  if (declaredMime === 'application/pdf' || ext === '.pdf') {
+    return buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46
+  }
+  // Office Open XML (PPTX / DOCX / XLSX) are ZIP archives: PK\x03\x04
+  if (['.pptx', '.docx', '.xlsx'].includes(ext)) {
+    return buf[0] === 0x50 && buf[1] === 0x4B && buf[2] === 0x03 && buf[3] === 0x04
+  }
+  // JPEG: FF D8 FF
+  if (declaredMime === 'image/jpeg' || ext === '.jpg' || ext === '.jpeg') {
+    return buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF
+  }
+  // PNG: 89 50 4E 47
+  if (declaredMime === 'image/png' || ext === '.png') {
+    return buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47
+  }
+  // WebP: RIFF????WEBP
+  if (declaredMime === 'image/webp' || ext === '.webp') {
+    return buf.length >= 12
+      && buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46
+      && buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50
+  }
+  // CSV / plain text: no reliable magic bytes — allow through (extension already validated above)
+  if (declaredMime === 'text/csv' || ext === '.csv') return true
+  return false
+}
+
 const SECTION_LABELS: Record<number, string> = {
   1: 'Market Validation',
   2: 'Market & Competition',
@@ -213,6 +245,11 @@ export async function POST(req: NextRequest) {
     if (!isAllowedType) return NextResponse.json({ error: 'File type not allowed' }, { status: 400 })
 
     const buffer = Buffer.from(await file.arrayBuffer())
+
+    if (!validateDocMagicBytes(buffer, mimeType, ext)) {
+      return NextResponse.json({ error: 'File content does not match declared type' }, { status: 400 })
+    }
+
     const parsed = await parseDocument(buffer, filename, mimeType)
 
     // Store file in Supabase Storage — ensure bucket exists first
@@ -266,7 +303,7 @@ export async function POST(req: NextRequest) {
 
     // Image-based / scanned PDF: send raw bytes to Claude vision instead of text
     if (isImagePDF) {
-      console.log('[upload] image-based PDF detected — attempting vision extraction for', filename)
+      log.info('[upload] image-based PDF — attempting vision extraction', { filename, userId })
       const visionResult = await extractFieldsFromImagePDF(buffer)
       if (visionResult && Object.keys(visionResult.fields).length > 0) {
         mergeDeepFields(extractedFields, visionResult.fields)
@@ -415,7 +452,7 @@ export async function POST(req: NextRequest) {
       }
 
       if (Object.keys(regexFields).length > 0) {
-        console.log('[upload] LLM unavailable — regex fallback extracted', Object.keys(regexFields).length, 'top-level fields')
+        log.info('[upload] LLM unavailable — regex fallback extracted', { fields: Object.keys(regexFields).length, userId })
         mergeDeepFields(extractedFields, regexFields)
         // Low confidence since this is pattern-matched, not LLM-verified
         for (const k of Object.keys(regexFields)) confidenceMap[k] = 0.5

@@ -264,7 +264,7 @@ export async function executeTaskGraph(
   const workerNodes     = graph.nodes.filter(n => n.agentId !== graph.coordinatorAgentId);
 
   // Fetch founder profile once (parallel with layer building)
-  const founderProfile = await getFounderProfileContext(userId, supabase).catch(() => '');
+  const founderProfile = await getFounderProfileContext(userId, supabase).then(r => r.block).catch(() => '');
 
   // Build execution layers
   const layers = buildExecutionLayers(workerNodes);

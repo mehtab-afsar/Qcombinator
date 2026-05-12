@@ -165,7 +165,7 @@ export function useAgentWorkspace(agentId: string): AgentWorkspaceState {
     abortRef.current?.abort()
     const ctrl = new AbortController()
     abortRef.current = ctrl
-    let toolIdx = -1; let agentText = ''; let isFirstDelta = true
+    let agentText = ''; let isFirstDelta = true
 
     try {
       const res = await fetch('/api/agents/chat', {
@@ -196,10 +196,14 @@ export function useAgentWorkspace(agentId: string): AgentWorkspaceState {
             }
           } else if (evt.type === 'tool_start') {
             const tm: UiMessage = { role: 'tool', text: '', toolActivity: { toolName: evt.toolName as string, label: evt.label as string, status: 'running' } }
-            setUiMessages(p => { toolIdx = p.length; return [...p, tm] })
+            setUiMessages(p => [...p, tm])
           } else if (evt.type === 'tool_done') {
-            setUiMessages(p => p.map((m, i) => i === toolIdx ? { ...m, toolActivity: { ...m.toolActivity!, status: 'done', summary: evt.summary as string } } : m))
-            toolIdx = -1
+            setUiMessages(p => {
+              const lastRunning = [...p].map((m, i) => ({ m, i })).reverse().find(({ m }) => m.role === 'tool' && m.toolActivity?.status === 'running')
+              if (!lastRunning) return p
+              return p.map((m, i) => i === lastRunning.i ? { ...m, toolActivity: { ...m.toolActivity!, status: 'done', summary: evt.summary as string } } : m)
+            })
+
           } else if (evt.type === 'artifact') {
             const a = evt.artifact as ArtifactRecord & { type: string }
             const rec: ArtifactRecord = { id: a.id, type: a.type, title: a.title, content: a.content }
@@ -214,6 +218,9 @@ export function useAgentWorkspace(agentId: string): AgentWorkspaceState {
             setTimeout(() => setScoreBoost(null), 4000)
           } else if (evt.type === 'conversation_id' && evt.id) {
             setConvId(evt.id as string)
+            refreshConversations()
+          } else if (evt.type === 'done' && evt.conversationId) {
+            setConvId(evt.conversationId as string)
             refreshConversations()
           }
         }

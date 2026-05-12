@@ -68,11 +68,11 @@ const getCTAForDimension = (dimension: QScoreDimension): string => {
  */
 const getLinkForDimension = (dimension: QScoreDimension): string => {
   const links: Record<QScoreDimension, string> = {
-    market: '/founder/agents/roman',
-    product: '/founder/agents/cristina',
-    goToMarket: '/founder/agents/jocelyn',
-    financial: '/founder/agents/sam',
-    team: '/founder/agents/lauren',
+    market: '/founder/cxo/atlas',
+    product: '/founder/cxo/nova',
+    goToMarket: '/founder/cxo/patel',
+    financial: '/founder/cxo/felix',
+    team: '/founder/cxo/harper',
     traction: '/founder/metrics'
   };
   return links[dimension];

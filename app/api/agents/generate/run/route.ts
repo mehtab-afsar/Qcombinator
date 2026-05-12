@@ -15,7 +15,7 @@ export const runtime = 'nodejs'
 export const maxDuration = 300
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { getAdminClient } from '@/lib/supabase/server'
 import { getArtifactPrompt } from '@/features/agents/patel/prompts/artifact-prompts'
 import { applyAgentScoreSignal } from '@/features/qscore/services/agent-signal'
 import { routedText } from '@/lib/llm/router'
@@ -29,6 +29,7 @@ import { upsertAgentGoal } from '@/lib/agents/agent-goals'
 import { triggerProactiveDelegations } from '@/lib/agents/delegation'
 import { updatePatelIndicatorsFromArtifact } from '@/lib/agents/patel-indicator-updater'
 import { log } from '@/lib/logger'
+import type { PatelScores, PatelConfidence } from '@/lib/constants/patel-indicators'
 
 const ARTIFACT_DIMENSION: Record<ArtifactType, string> = {
   // Existing
@@ -128,13 +129,6 @@ const ARTIFACT_LABEL: Record<string, string> = {
   competitive_matrix: 'Competitive Analysis', strategic_plan: 'Strategic Plan',
 }
 
-function getAdmin() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  )
-}
-
 export async function POST(req: NextRequest) {
   // Validate internal secret
   const secret = req.headers.get('x-run-secret')
@@ -142,7 +136,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const supabase = getAdmin()
+  const supabase = getAdminClient()
   const { jobId, agentId, conversationHistory, artifactType, conversationId, userId } = await req.json()
 
   if (!ALL_ARTIFACT_TYPES.includes(artifactType)) {
@@ -182,7 +176,14 @@ ${conversationText.slice(0, 4000)}`
     }
 
     // ── Pass 2: Generate artifact ──────────────────────────────────────────
-    const artifactPrompt = getArtifactPrompt(artifactType, context, null)
+    // Fetch Patel diagnostic scores for grounding (Patel sessions only)
+    let artifactPatelScores: PatelScores | undefined
+    let artifactPatelConfidence: PatelConfidence | undefined
+    if (agentId === 'patel' && userId) {
+      const { data: pds } = await supabase.from('patel_diagnostic_scores').select('scores, confidence').eq('user_id', userId).single()
+      if (pds) { artifactPatelScores = pds.scores as PatelScores; artifactPatelConfidence = pds.confidence as PatelConfidence }
+    }
+    const artifactPrompt = getArtifactPrompt(artifactType, context, null, artifactPatelScores, artifactPatelConfidence)
     const artifactRaw = await routedText('generation', [
       { role: 'system', content: artifactPrompt },
       { role: 'user', content: 'Generate the deliverable now. Return ONLY valid JSON, no markdown.' },
@@ -249,7 +250,7 @@ ${conversationText.slice(0, 4000)}`
       // Patel 20-indicator score inference from deliverable content
       const PATEL_DELIVERABLES = ['icp_document', 'pains_gains_triggers', 'buyer_journey', 'positioning_messaging']
       if (agentId === 'patel' && PATEL_DELIVERABLES.includes(artifactType)) {
-        void updatePatelIndicatorsFromArtifact(userId, artifactType, parsedContent, supabase).catch(() => {})
+        void updatePatelIndicatorsFromArtifact(userId, artifactType, parsedContent, supabase).catch(() => { /* fire-and-forget: indicator sync is non-critical */ })
       }
 
       // RAG embedding

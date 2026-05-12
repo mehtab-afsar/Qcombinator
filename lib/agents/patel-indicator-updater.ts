@@ -29,7 +29,7 @@ function inferIcpScores(content: Record<string, unknown>): { scores: PatelScores
     const firmCount = [firm.companySize, firm.industry, firm.revenue, firm.geography].filter(Boolean).length
     const qualCount = qual.length
     scores['icp.specificity'] = clamp(Math.round((traitCount + firmCount + qualCount) / 3))
-    confidence['icp.specificity'] = evType === 'validated' ? 'validated' : 'inferred'
+    confidence['icp.specificity'] = 'inferred' // artifact inference can never be VALIDATED
   }
 
   // icp.validation — infer from evidence_type and confidence
@@ -37,14 +37,14 @@ function inferIcpScores(content: Record<string, unknown>): { scores: PatelScores
     scores['icp.validation'] = evType === 'validated' ? clamp(4 + (conf > 0.8 ? 1 : 0))
       : evType === 'inferred' ? 3
       : 1
-    confidence['icp.validation'] = evType as 'validated' | 'inferred' | 'assumed'
+    confidence['icp.validation'] = 'inferred' // artifact inference can never be VALIDATED
   }
 
   // icp.commercial_alignment — infer from pain severity and evidence quality
   const highPains = pains.filter((p: unknown) => (p as Record<string, unknown>)?.severity === 'high').length
   if (highPains > 0 || evType === 'validated') {
     scores['icp.commercial_alignment'] = evType === 'validated' ? clamp(3 + highPains) : 2
-    confidence['icp.commercial_alignment'] = evType === 'validated' ? 'validated' : 'assumed'
+    confidence['icp.commercial_alignment'] = 'inferred' // artifact inference can never be VALIDATED
   }
 
   // icp.team_alignment — can't infer from artifact alone; leave unscored
@@ -74,11 +74,11 @@ function inferInsightScores(content: Record<string, unknown>): { scores: PatelSc
   if (pains.length > 0) {
     const validatedPains = (pains as Record<string, unknown>[]).filter(p => p.evidence === 'validated').length
     scores['insight.problem'] = clamp(validatedPains >= 2 ? 4 : validatedPains === 1 ? 3 : 2)
-    confidence['insight.problem'] = validatedPains >= 1 ? 'validated' : 'inferred'
+    confidence['insight.problem'] = 'inferred' // artifact inference can never be VALIDATED
 
     // validation depth from pain count and evidence quality
     scores['insight.validation_depth'] = clamp(Math.min(pains.length, 4) + (evType === 'validated' ? 1 : 0))
-    confidence['insight.validation_depth'] = evType === 'validated' ? 'validated' : 'inferred'
+    confidence['insight.validation_depth'] = 'inferred' // artifact inference can never be VALIDATED
   }
 
   if (triggers.length > 0) {
@@ -89,7 +89,7 @@ function inferInsightScores(content: Record<string, unknown>): { scores: PatelSc
 
   if (proof.length > 0) {
     scores['insight.value_proof'] = clamp(proof.length + (conf > 0.75 ? 1 : 0))
-    confidence['insight.value_proof'] = evType === 'validated' ? 'validated' : 'inferred'
+    confidence['insight.value_proof'] = 'inferred' // artifact inference can never be VALIDATED
   }
 
   if (gains.length > 0) {
@@ -139,7 +139,7 @@ function inferMessageScores(content: Record<string, unknown>): { scores: PatelSc
     const hasPitch = Boolean(foundation.elevator_pitch)
     const richness = [hasPositioning, hasValueProp, hasPitch].filter(Boolean).length
     scores['message.simplicity'] = clamp(richness + (evType === 'validated' ? 1 : 0))
-    confidence['message.simplicity'] = evType === 'validated' ? 'validated' : 'inferred'
+    confidence['message.simplicity'] = 'inferred' // artifact inference can never be VALIDATED
   }
 
   if (pillars.length > 0) {
@@ -152,7 +152,7 @@ function inferMessageScores(content: Record<string, unknown>): { scores: PatelSc
   }
 
   scores['message.icp_relevance'] = evType === 'validated' ? clamp(3 + (conf > 0.75 ? 1 : 0)) : 2
-  confidence['message.icp_relevance'] = evType === 'validated' ? 'validated' : 'assumed'
+  confidence['message.icp_relevance'] = 'inferred' // artifact inference can never be VALIDATED
 
   // message.comprehension — can't infer from artifact alone
   return { scores, confidence }

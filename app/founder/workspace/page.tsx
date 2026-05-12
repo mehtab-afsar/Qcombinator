@@ -211,8 +211,8 @@ export default function WorkspacePage() {
                             {/* CTA */}
                             <Link
                               href={isDone
-                                ? `/founder/agents/${meta.agentId}?artifact=${latest.id}`
-                                : `/founder/agents/${meta.agentId}`}
+                                ? `/founder/cxo/${meta.agentId}?artifact=${latest.id}`
+                                : `/founder/cxo/${meta.agentId}`}
                               style={{ textDecoration: "none", flexShrink: 0 }}
                             >
                               <div style={{
@@ -249,7 +249,7 @@ export default function WorkspacePage() {
                                   {typeArts.map((a, vi) => (
                                     <Link
                                       key={a.id}
-                                      href={`/founder/agents/${meta.agentId}?artifact=${a.id}`}
+                                      href={`/founder/cxo/${meta.agentId}?artifact=${a.id}`}
                                       style={{ textDecoration: "none" }}
                                     >
                                       <div
@@ -306,7 +306,7 @@ export default function WorkspacePage() {
               <p style={{ fontSize: 13, color: muted, marginBottom: 20, opacity: 0.7 }}>
                 Start a conversation with any adviser to generate your first document
               </p>
-              <Link href="/founder/agents" style={{
+              <Link href="/founder/cxo" style={{
                 display: "inline-flex", alignItems: "center", gap: 6,
                 padding: "10px 22px", background: ink, color: bg,
                 fontSize: 13, fontWeight: 500, borderRadius: 999, textDecoration: "none",

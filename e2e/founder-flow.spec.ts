@@ -4,7 +4,7 @@
  * Tests the full happy-path for a logged-in founder:
  *   1. Auth      — sign in → redirect to /founder/dashboard
  *   2. Q-Score   — Q-Score card visible on dashboard
- *   3. Agent nav — navigate to Patel workspace, chat UI loads
+ *   3. Agent nav — navigate to /founder/cxo/patel, chat UI loads
  *   4. Chat      — send a message, response bubble appears
  *   5. CXO view  — navigate to /founder/cxo/patel, workspace renders
  *   6. Deliverable panel — if a deliverable exists, click it, verify not raw JSON
@@ -59,15 +59,15 @@ test.describe('Founder Dashboard — Q-Score', () => {
   })
 })
 
-// ─── 3. Agent navigation — Patel workspace ────────────────────────────────────
+// ─── 3. CXO navigation — Patel workspace ──────────────────────────────────────
 
-test.describe('Founder — Patel Agent Workspace', () => {
+test.describe('Founder — Patel CXO Workspace', () => {
   test.beforeEach(async ({ page }) => {
     await signInAsFounder(page)
   })
 
-  test('navigates to /founder/agents/patel and workspace loads', async ({ page }) => {
-    await page.goto('/founder/agents/patel')
+  test('navigates to /founder/cxo/patel and workspace loads', async ({ page }) => {
+    await page.goto('/founder/cxo/patel')
     await page.waitForLoadState('networkidle')
 
     // AgentWorkspace renders a textarea for the chat input
@@ -76,7 +76,7 @@ test.describe('Founder — Patel Agent Workspace', () => {
   })
 
   test('workspace shows agent name "Patel" and role', async ({ page }) => {
-    await page.goto('/founder/agents/patel')
+    await page.goto('/founder/cxo/patel')
     await page.waitForLoadState('networkidle')
 
     // The top bar and left panel both render "Patel"
@@ -84,7 +84,7 @@ test.describe('Founder — Patel Agent Workspace', () => {
   })
 
   test('deliverables panel lists ICP Definition deliverable', async ({ page }) => {
-    await page.goto('/founder/agents/patel')
+    await page.goto('/founder/cxo/patel')
     await page.waitForLoadState('networkidle')
 
     // Left panel lists all deliverables; first one is "D1 · ICP Definition"
@@ -99,7 +99,7 @@ test.describe('Founder — Patel Agent Workspace', () => {
 test.describe('Founder — Patel Chat', () => {
   test.beforeEach(async ({ page }) => {
     await signInAsFounder(page)
-    await page.goto('/founder/agents/patel')
+    await page.goto('/founder/cxo/patel')
     await page.waitForLoadState('networkidle')
     // Wait for chat input to be available
     await page.locator('textarea').first().waitFor({ state: 'visible', timeout: 15_000 })
@@ -196,7 +196,7 @@ test.describe('Founder — CXO Workspace (Patel)', () => {
 test.describe('Founder — Deliverable Panel Rendering', () => {
   test.beforeEach(async ({ page }) => {
     await signInAsFounder(page)
-    await page.goto('/founder/agents/patel')
+    await page.goto('/founder/cxo/patel')
     await page.waitForLoadState('networkidle')
     await page.locator('textarea').first().waitFor({ state: 'visible', timeout: 15_000 })
   })

@@ -192,7 +192,8 @@ export async function POST(request: NextRequest) {
       }
 
       if (dbInserts.length > 0) {
-        await supabase.from('outreach_sends').insert(dbInserts)
+        const { error: dbErr } = await supabase.from('outreach_sends').insert(dbInserts)
+        if (dbErr) log.error('outreach_sends insert failed', { userId: user.id, dbErr, count: dbInserts.length })
       }
 
       // Delay between batches (not within them)

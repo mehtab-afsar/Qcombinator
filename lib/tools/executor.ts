@@ -134,8 +134,8 @@ export async function executeTool<T = unknown>(
   const toolConfig = getTool(toolId);
   if (!toolConfig) throw new ToolNotFoundError(toolId);
 
-  // 2. Rate limit
-  checkRateLimit(toolId);
+  // 2. Rate limit — keyed per user so one user can't exhaust the pool for others
+  checkRateLimit(userId ? `${userId}:${toolId}` : toolId);
 
   // 3. Cache check (only for tools with cache config)
   const argsHash = await hashArgs(args);

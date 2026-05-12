@@ -53,6 +53,7 @@ export interface CXOConfig {
   connectedSources: CXOConnectedSource[];
   resources: CXOResource[];
   maxScoreContribution: number;
+  chatPrompts: string[];
 }
 
 // ─── Static lookups ───────────────────────────────────────────────────────────
@@ -247,6 +248,7 @@ function buildConfigs(): Record<string, CXOConfig> {
       connectedSources,
       resources: AGENT_RESOURCES[agent.id as AgentId] ?? [],
       maxScoreContribution,
+      chatPrompts: display?.suggestedPrompts ?? [],
     };
   }
 

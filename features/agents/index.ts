@@ -2,6 +2,10 @@
 export * from './data/agents';
 export * from './types/agent.types';
 
+// Shared components
+export { AgentChatPanel } from './shared/components/AgentChatPanel';
+export type { AgentChatPanelProps } from './shared/components/AgentChatPanel';
+
 // System prompts (used by API routes)
 export { patelSystemPrompt } from './patel/prompts/system-prompt';
 export { susiSystemPrompt } from './susi/prompts/system-prompt';

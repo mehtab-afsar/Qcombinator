@@ -1,41 +1,58 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { Ratelimit } from '@upstash/ratelimit'
+import { Redis } from '@upstash/redis'
 
-// ─── Sliding-window rate limiter (in-memory, per Vercel instance) ─────────────
-// Catches runaway clients per serverless instance. For cross-instance limits, add Upstash Redis.
-const RL_WINDOW_MS = 60_000
-const rateLimitStore = new Map<string, number[]>()
-
-const RATE_LIMIT_RULES: [string, number][] = [
-  ['/api/agents/chat',      12],
-  ['/api/agents/generate',   5],
-  ['/api/qscore/calculate',  5],
-  ['/api/agents/research',  10],
-  ['/api/qscore/actions',    6],
-  ['/api/analyze-pitch',     8],
-]
-
-function getRateLimit(pathname: string): number | null {
-  for (const [prefix, limit] of RATE_LIMIT_RULES) {
-    if (pathname === prefix || pathname.startsWith(prefix + '?') || pathname.startsWith(prefix + '/')) return limit
-  }
-  return null
+// ─── Sliding-window rate limiter (Upstash Redis, cross-instance) ─────────────
+const RATE_LIMIT_RULES: Record<string, { requests: number; window: string }> = {
+  '/api/agents/chat':         { requests: 12, window: '1 m'  },
+  '/api/agents/generate':     { requests: 5,  window: '1 m'  },
+  '/api/qscore/calculate':    { requests: 5,  window: '1 m'  },
+  '/api/agents/research':     { requests: 10, window: '1 m'  },
+  '/api/qscore/actions':      { requests: 6,  window: '1 m'  },
+  '/api/analyze-pitch':       { requests: 8,  window: '1 m'  },
+  '/api/auth/signup':         { requests: 5,  window: '60 m' },
+  '/api/auth/reset-password': { requests: 3,  window: '15 m' },
 }
 
-function checkRateLimit(key: string, limit: number): boolean {
-  const now = Date.now()
-  const windowStart = now - RL_WINDOW_MS
-  const hits = (rateLimitStore.get(key) ?? []).filter(ts => ts > windowStart)
-  if (hits.length >= limit) return false
-  hits.push(now)
-  rateLimitStore.set(key, hits)
-  if (rateLimitStore.size > 5000) {
-    for (const [k, v] of rateLimitStore) {
-      if (v.every(ts => ts < windowStart)) rateLimitStore.delete(k)
+let _redis: Redis | null = null
+let _redisUnavailable = false
+const _limiters = new Map<string, Ratelimit>()
+
+function getRedis(): Redis | null {
+  if (_redisUnavailable) return null
+  if (!_redis) {
+    const url = process.env.UPSTASH_REDIS_REST_URL
+    const token = process.env.UPSTASH_REDIS_REST_TOKEN
+    if (!url || !token) { _redisUnavailable = true; return null }
+    try { _redis = new Redis({ url, token }) } catch { _redisUnavailable = true; return null }
+  }
+  return _redis
+}
+
+function getLimiter(rule: { requests: number; window: string }): Ratelimit | null {
+  const redis = getRedis()
+  if (!redis) return null
+  const key = `${rule.requests}:${rule.window}`
+  if (!_limiters.has(key)) {
+    _limiters.set(key, new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(rule.requests, rule.window as Parameters<typeof Ratelimit.slidingWindow>[1]),
+    }))
+  }
+  return _limiters.get(key)!
+}
+
+function matchRateLimit(pathname: string): { rule: { requests: number; window: string }; windowSecs: number } | null {
+  for (const [prefix, rule] of Object.entries(RATE_LIMIT_RULES)) {
+    if (pathname === prefix || pathname.startsWith(prefix + '?') || pathname.startsWith(prefix + '/')) {
+      const [qty, unit] = rule.window.split(' ')
+      const windowSecs = parseInt(qty) * (unit === 'm' ? 60 : unit === 'h' ? 3600 : 1)
+      return { rule, windowSecs }
     }
   }
-  return true
+  return null
 }
 
 /**
@@ -80,18 +97,36 @@ function isProtectedRoute(pathname: string): boolean {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // ── Rate limiting on expensive AI/compute API routes ──────────────────────
-  const rateLimit = getRateLimit(pathname)
-  if (rateLimit !== null) {
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-      ?? request.headers.get('x-real-ip')
-      ?? 'unknown'
-    const key = `${ip}:${pathname}`
-    if (!checkRateLimit(key, rateLimit)) {
-      return NextResponse.json(
-        { error: 'Too many requests — please wait a moment and try again.' },
-        { status: 429, headers: { 'Retry-After': '60' } }
-      )
+  // ── Rate limiting on API routes (AI/compute + auth endpoints) ────────────
+  // rlHeaders is populated when a rate-limited route is allowed; it's applied
+  // to the response below so clients can self-throttle before hitting 429.
+  // Falls back gracefully when UPSTASH_REDIS_REST_URL is not configured.
+  let rlHeaders: Record<string, string> | null = null
+  const rateMatch = matchRateLimit(pathname)
+  if (rateMatch !== null) {
+    const limiter = getLimiter(rateMatch.rule)
+    if (limiter) {
+      const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+        ?? request.headers.get('x-real-ip')
+        ?? 'unknown'
+      const rlResult = await limiter.limit(`${ip}:${pathname}`)
+      const resetSecs = Math.ceil((rlResult.reset - Date.now()) / 1000)
+      if (!rlResult.success) {
+        return NextResponse.json(
+          { error: 'Too many requests — please wait a moment and try again.' },
+          { status: 429, headers: {
+            'Retry-After':           String(Math.max(resetSecs, 1)),
+            'X-RateLimit-Limit':     String(rateMatch.rule.requests),
+            'X-RateLimit-Remaining': '0',
+            'X-RateLimit-Reset':     String(Math.ceil(rlResult.reset / 1000)),
+          }}
+        )
+      }
+      rlHeaders = {
+        'X-RateLimit-Limit':     String(rateMatch.rule.requests),
+        'X-RateLimit-Remaining': String(rlResult.remaining),
+        'X-RateLimit-Reset':     String(Math.ceil(rlResult.reset / 1000)),
+      }
     }
   }
 
@@ -163,6 +198,9 @@ export async function middleware(request: NextRequest) {
   // For API routes: session has been refreshed (cookies updated), let the route
   // handle its own auth — do NOT redirect
   if (pathname.startsWith('/api/')) {
+    if (rlHeaders) {
+      Object.entries(rlHeaders).forEach(([k, v]) => response.headers.set(k, v))
+    }
     return response
   }
 

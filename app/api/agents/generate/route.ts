@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { createClient as createUserClient } from '@/lib/supabase/server';
+import { createClient as createUserClient, getAdminClient } from '@/lib/supabase/server';
 import { getArtifactPrompt } from '@/features/agents/patel/prompts/artifact-prompts';
 import { applyAgentScoreSignal } from '@/features/qscore/services/agent-signal';
 import { checkArtifactConsistency } from '@/features/qscore/services/consistency-checker';
@@ -12,6 +11,7 @@ import { PARAMS } from '@/lib/constants/dimensions';
 import { executeTool } from '@/lib/tools/executor';
 import { isCircuitOpen, withCircuitBreaker } from '@/lib/circuit-breaker';
 import { log } from '@/lib/logger'
+import type { PatelScores, PatelConfidence } from '@/lib/constants/patel-indicators'
 
 /**
  * Agent Artifact Generation API
@@ -141,6 +141,30 @@ const ARTIFACT_LABEL: Record<string, string> = {
   strategic_plan:     'Strategic Plan',
 };
 
+const PATEL_PREREQUISITES: Partial<Record<string, string[]>> = {
+  pains_gains_triggers:  ['icp_document'],
+  buyer_journey:         ['icp_document', 'pains_gains_triggers'],
+  positioning_messaging: ['icp_document', 'pains_gains_triggers', 'buyer_journey'],
+}
+
+async function checkPatelPrerequisites(
+  artifactType: string,
+  userId: string,
+  supabase: ReturnType<typeof getAdminClient>,
+): Promise<{ ok: boolean; missing?: string }> {
+  const required = PATEL_PREREQUISITES[artifactType]
+  if (!required) return { ok: true }
+  for (const prereq of required) {
+    const { count } = await supabase
+      .from('agent_artifacts')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('artifact_type', prereq)
+    if (!count) return { ok: false, missing: prereq }
+  }
+  return { ok: true }
+}
+
 // Pass 1: Extract structured context from the conversation
 async function extractContext(
   conversationHistory: Array<{ role: string; content: string }>,
@@ -195,10 +219,7 @@ Return ONLY valid JSON. No markdown, no explanation.`;
 }
 
 export async function POST(request: NextRequest) {
-  const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  );
+  const supabaseAdmin = getAdminClient();
 
   try {
     // ── Server-side auth: never trust userId from the client body ──────────
@@ -218,6 +239,35 @@ export async function POST(request: NextRequest) {
 
     if (!Array.isArray(conversationHistory) || conversationHistory.length === 0) {
       return NextResponse.json({ error: 'conversationHistory is required' }, { status: 400 });
+    }
+
+    // Enforce Patel D1→D4 prerequisite chain at API level
+    if (agentId === 'patel' && userId) {
+      const prereqCheck = await checkPatelPrerequisites(artifactType, userId, supabaseAdmin)
+      if (!prereqCheck.ok) {
+        return NextResponse.json(
+          { error: 'prerequisite_missing', missing: prereqCheck.missing },
+          { status: 400 }
+        )
+      }
+    }
+
+    // Monthly artifact generation budget (fail-open: allow if RPC unavailable)
+    if (userId) {
+      try {
+        const { data: usageData, error: usageErr } = await supabaseAdmin.rpc('increment_usage_if_allowed', {
+          p_user_id: userId,
+          p_feature: 'agent_generate',
+        }) as { data: Array<{ allowed: boolean; remaining: number }> | null; error: unknown }
+        if (!usageErr && usageData?.[0]?.allowed === false) {
+          return NextResponse.json(
+            { error: 'Monthly artifact generation limit reached. Limit resets at the start of next month.' },
+            { status: 429 }
+          )
+        }
+      } catch {
+        log.warn('[generate] agent_generate usage check failed — allowing through', { userId })
+      }
     }
 
     // Create an artifact_jobs row for async status tracking
@@ -274,7 +324,14 @@ export async function POST(request: NextRequest) {
           const context = await extractContext(conversationHistory, artifactType);
 
           // ── Pass 2: Generate artifact ──────────────────────────────────
-          const artifactPrompt = getArtifactPrompt(artifactType, context, null);
+          // Fetch Patel diagnostic scores for grounding (Patel sessions only)
+          let genPatelScores: PatelScores | undefined
+          let genPatelConfidence: PatelConfidence | undefined
+          if (agentId === 'patel' && userId) {
+            const { data: pds } = await supabaseAdmin.from('patel_diagnostic_scores').select('scores, confidence').eq('user_id', userId).single()
+            if (pds) { genPatelScores = pds.scores as PatelScores; genPatelConfidence = pds.confidence as PatelConfidence }
+          }
+          const artifactPrompt = getArtifactPrompt(artifactType, context, null, genPatelScores, genPatelConfidence);
           const artifactRaw = await routedText('generation', [
             { role: 'system', content: artifactPrompt },
             { role: 'user', content: 'Generate the deliverable now. Return ONLY valid JSON, no markdown fences, no explanation text.' },

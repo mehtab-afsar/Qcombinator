@@ -1,6 +1,9 @@
+export const maxDuration = 120; // allow up to 120s for artifact generation (multiple LLM calls)
+
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient as createUserClient } from '@/lib/supabase/server';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { z } from 'zod';
+import { createClient as createUserClient, getAdminClient } from '@/lib/supabase/server';
+import { SupabaseClient } from '@supabase/supabase-js';
 import { getAgentById } from '@/features/agents/data/agents';
 import type { Agent } from '@/features/agents/types/agent.types';
 import {
@@ -26,8 +29,9 @@ import { executeTool } from '@/lib/tools/executor';
 import { getAgentContext, formatContextForPrompt } from '@/lib/agents/context';
 import { orchestrate } from '@/lib/agents/orchestrator';
 import { critiqueArtifact, patchArtifact } from '@/lib/agents/critique';
-import { extractKeyFields } from '@/lib/agents/context-compressor';
-import { getFounderProfileContext } from '@/lib/agents/founder-context';
+import { getFounderProfileContext, type FounderProfileResult } from '@/lib/agents/founder-context';
+import { evaluateArtifactIndependently } from '@/lib/agents/patel-evaluator';
+import type { PatelScores, PatelConfidence } from '@/lib/constants/patel-indicators';
 import { scoreFromArtifact } from '@/lib/qscore/artifact-scorer';
 import { applyAgentScoreSignal } from '@/features/qscore/services/agent-signal';
 import {
@@ -56,6 +60,18 @@ import { GLOBAL_CONSTITUTION } from '@/lib/agents/constitution';
 import { getAgentMemory } from '@/lib/agents/memory-loader';
 import { updateAgentMemory } from '@/lib/agents/memory-updater';
 import { summariseAndSaveSession } from '@/lib/agents/session-summarizer';
+
+// ─── request schema ──────────────────────────────────────────────────────────
+const chatRequestSchema = z.object({
+  agentId:           z.string().min(1).max(64),
+  message:           z.string().min(1).max(8000).refine(s => s.trim().length > 0, 'Message cannot be blank'),
+  conversationHistory: z.array(
+    z.object({ role: z.string(), content: z.string().max(8000) })
+  ).max(100).optional(),
+  userContext:       z.record(z.string(), z.unknown()).optional(),
+  conversationId:    z.string().uuid().optional().nullable(),
+  stream:            z.boolean().optional(),
+})
 
 // ─── dedicated system prompt registry ────────────────────────────────────────
 
@@ -141,83 +157,24 @@ async function fetchTavilyResearch(query: string): Promise<Record<string, unknow
 }
 
 // ─── usage limits ────────────────────────────────────────────────────────────
-
-const AGENT_CHAT_MONTHLY_LIMIT = 50;
-
-interface UsageRow {
-  id: string;
-  usage_count: number;
-  limit_count: number | null;
-  reset_at: string | null;
-}
-
-async function checkUsageAllowed(
+// increment_usage_if_allowed RPC (see migration 20260512000003) atomically
+// locks the subscription_usage row, handles reset-window expiry, checks the
+// limit, and increments — all in one DB round-trip. This eliminates the
+// TOCTOU race where two concurrent requests both pass the limit check before
+// either one increments.
+async function atomicCheckAndIncrementUsage(
   userId: string,
   supabaseAdmin: SupabaseClient
-): Promise<{ allowed: boolean; remaining: number; usageId: string | null }> {
-  const { data: row } = await supabaseAdmin
-    .from('subscription_usage')
-    .select('id, usage_count, limit_count, reset_at')
-    .eq('user_id', userId)
-    .eq('feature', 'agent_chat')
-    .single() as { data: UsageRow | null };
+): Promise<{ allowed: boolean; remaining: number }> {
+  const { data, error } = await supabaseAdmin.rpc('increment_usage_if_allowed', {
+    p_user_id: userId,
+    p_feature: 'agent_chat',
+  }) as { data: Array<{ allowed: boolean; remaining: number; usage_id: string }> | null; error: unknown }
 
-  // No row yet — create one with default monthly limit
-  if (!row) {
-    const resetAt = new Date();
-    resetAt.setMonth(resetAt.getMonth() + 1);
-    resetAt.setDate(1);
-    resetAt.setHours(0, 0, 0, 0);
-
-    const { data: inserted } = await supabaseAdmin
-      .from('subscription_usage')
-      .insert({
-        user_id: userId,
-        feature: 'agent_chat',
-        usage_count: 0,
-        limit_count: AGENT_CHAT_MONTHLY_LIMIT,
-        reset_at: resetAt.toISOString(),
-      })
-      .select('id')
-      .single();
-
-    return { allowed: true, remaining: AGENT_CHAT_MONTHLY_LIMIT, usageId: (inserted as { id: string } | null)?.id ?? null };
-  }
-
-  // Check if reset window has passed
-  if (row.reset_at && new Date(row.reset_at) <= new Date()) {
-    const nextReset = new Date();
-    nextReset.setMonth(nextReset.getMonth() + 1);
-    nextReset.setDate(1);
-    nextReset.setHours(0, 0, 0, 0);
-
-    await supabaseAdmin
-      .from('subscription_usage')
-      .update({ usage_count: 0, reset_at: nextReset.toISOString() })
-      .eq('id', row.id);
-
-    const limit = row.limit_count ?? AGENT_CHAT_MONTHLY_LIMIT;
-    return { allowed: true, remaining: limit, usageId: row.id };
-  }
-
-  const limit = row.limit_count ?? AGENT_CHAT_MONTHLY_LIMIT;
-  const remaining = Math.max(0, limit - row.usage_count);
-  return { allowed: remaining > 0, remaining, usageId: row.id };
-}
-
-async function incrementUsage(usageId: string | null, supabaseAdmin: SupabaseClient) {
-  if (!usageId) return;
-  const { data } = await supabaseAdmin
-    .from('subscription_usage')
-    .select('usage_count')
-    .eq('id', usageId)
-    .single() as { data: { usage_count: number } | null };
-  if (data) {
-    await supabaseAdmin
-      .from('subscription_usage')
-      .update({ usage_count: data.usage_count + 1 })
-      .eq('id', usageId);
-  }
+  if (error) throw error
+  const row = data?.[0]
+  if (!row) throw new Error('increment_usage_if_allowed returned no row')
+  return { allowed: row.allowed, remaining: row.remaining }
 }
 
 // Hunter.io lead enrichment — returns a formatted markdown table of contacts
@@ -633,30 +590,22 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    // Initialise admin client inside try-catch so missing env vars are handled gracefully
-    const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
-      process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
-    );
+    const supabaseAdmin = getAdminClient();
 
     // ── Server-side auth: never trust userId from the client body ──────────
     const userClient = await createUserClient();
     const { data: { user: authedUser } } = await userClient.auth.getUser();
     const userId: string | undefined = authedUser?.id;
 
-    const { agentId, message, conversationHistory, userContext, conversationId: existingConversationId, stream: wantStream } = await request.json();
-
-    if (!agentId || !message) {
-      return NextResponse.json({ error: 'Agent ID and message are required' }, { status: 400 });
-    }
-
-    // Input length cap — prevents token budget blowout
-    if (typeof message === 'string' && message.length > 8000) {
+    const rawBody = await request.json();
+    const parsed = chatRequestSchema.safeParse(rawBody);
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: 'Message too long (max 8,000 characters)' },
+        { error: parsed.error.issues[0]?.message ?? 'Invalid request' },
         { status: 400 }
       );
     }
+    const { agentId, message, conversationHistory, userContext, conversationId: existingConversationId, stream: wantStream } = parsed.data;
 
     const agent = getAgentById(agentId);
     if (!agent) {
@@ -664,10 +613,11 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Usage limit check (fail-open: never block chat if usage table has issues) ─
-    let usageId: string | null = null;
+    // atomicCheckAndIncrementUsage checks AND increments in a single locked
+    // DB transaction — no separate increment needed after the LLM call.
     if (userId) {
       try {
-        const usage = await checkUsageAllowed(userId, supabaseAdmin);
+        const usage = await atomicCheckAndIncrementUsage(userId, supabaseAdmin);
         if (!usage.allowed) {
           return NextResponse.json({
             error: 'Monthly message limit reached',
@@ -675,7 +625,6 @@ export async function POST(request: NextRequest) {
             remaining: 0,
           }, { status: 429 });
         }
-        usageId = usage.usageId;
       } catch {
         // Usage check failed (table missing, FK error, etc.) — allow the message through
         log.warn('Usage check failed — allowing message through');
@@ -684,7 +633,7 @@ export async function POST(request: NextRequest) {
 
     // Use dedicated system prompt if available, fall back to built one
     // Constitution is prepended first — it cannot be overridden by agent-specific instructions below it
-    let systemPrompt = GLOBAL_CONSTITUTION + '\n\n' + (AGENT_SYSTEM_PROMPTS[agentId] ?? buildAgentSystemPrompt(agent, userContext));
+    let systemPrompt = GLOBAL_CONSTITUTION + '\n\n' + (AGENT_SYSTEM_PROMPTS[agentId] ?? buildAgentSystemPrompt(agent, userContext)) + '\n<<<CACHE_BREAK>>>'
 
     // ── Source citations — collected during context loading, emitted as first SSE event ──
     type SourceItem = { label: string; type: 'profile' | 'memory' | 'artifact' | 'cross_agent' }
@@ -692,12 +641,15 @@ export async function POST(request: NextRequest) {
 
     // ── Agent memory + cross-agent context (registry-driven, fail-open) ──────
     let startupState: StartupState | null = null;
+    // Declared here so artifact generation (outside if(userId)) can access them
+    let patelRawScores: PatelScores | undefined
+    let patelRawConfidence: PatelConfidence | undefined
     if (userId) {
       // Run context loading + orchestration + founder profile + startup state in parallel
       const parallelTasks: [
         Promise<Awaited<ReturnType<typeof getAgentContext>>>,
         Promise<Awaited<ReturnType<typeof orchestrate>>>,
-        Promise<string>,
+        Promise<FounderProfileResult>,
         Promise<StartupState | null>,
       ] = [
         getAgentContext(agentId, userId, supabaseAdmin, message),
@@ -711,7 +663,14 @@ export async function POST(request: NextRequest) {
 
       // Inject founder profile first — agents should see it before artifact memory
       if (founderCtxResult.status === 'fulfilled' && founderCtxResult.value) {
-        systemPrompt += founderCtxResult.value;
+        systemPrompt += founderCtxResult.value.block;
+      }
+
+      // Extract raw Patel diagnostic scores for artifact prompt grounding (Patel sessions only)
+      patelRawScores = founderCtxResult.status === 'fulfilled' ? founderCtxResult.value?.rawScores : undefined
+      patelRawConfidence = founderCtxResult.status === 'fulfilled' ? founderCtxResult.value?.rawConfidence : undefined
+      if (agentId === 'patel' && !patelRawScores) {
+        log.warn('patel_scores_missing', { userId, agentId })
       }
 
       // Inject shared startup state — gives every agent live facts from other agents
@@ -781,7 +740,7 @@ export async function POST(request: NextRequest) {
       }
 
       // ── Build sources_used list for client-side citation chips ──────────────
-      if (founderCtxResult.status === 'fulfilled' && founderCtxResult.value?.trim())
+      if (founderCtxResult.status === 'fulfilled' && founderCtxResult.value?.block?.trim())
         sourcesUsed.push({ label: 'Your Profile', type: 'profile' });
       if (memoryResult.status === 'fulfilled' && (memoryResult.value as { key_facts?: string | null } | null)?.key_facts?.trim())
         sourcesUsed.push({ label: 'Session Memory', type: 'memory' });
@@ -812,29 +771,28 @@ export async function POST(request: NextRequest) {
     }
 
     // ── System prompt token budget guard ──────────────────────────────────
-    // If the prompt grew too large (e.g., many artifacts), trim the MEMORY block
-    // to keep only the 3 most recent own-artifacts entries.
+    // If the prompt grew too large, trim the MEMORY block to the 3 most recent entries.
+    // Uses a split-based approach rather than string-splice to avoid corrupting surrounding sections.
     const SYSTEM_PROMPT_CHAR_LIMIT = 6000;
+    function trimMemoryBlock(prompt: string, maxEntries = 3): { prompt: string; trimmed: boolean } {
+      const MEMORY_HEADER = '\n\nMEMORY — What you have previously built'
+      const NEXT_SECTION_RE = /\n\n[A-Z]/
+      const start = prompt.indexOf(MEMORY_HEADER)
+      if (start === -1) return { prompt, trimmed: false }
+      const afterHeader = start + MEMORY_HEADER.length
+      const nextMatch = prompt.slice(afterHeader).search(NEXT_SECTION_RE)
+      const end = nextMatch !== -1 ? afterHeader + nextMatch : prompt.length
+      const block = prompt.slice(start, end)
+      const lines = block.split('\n').filter(l => l.startsWith('- '))
+      if (lines.length <= maxEntries) return { prompt, trimmed: false }
+      const kept = lines.slice(0, maxEntries).join('\n')
+      const rebuilt = MEMORY_HEADER + '\n' + kept
+      return { prompt: prompt.slice(0, start) + rebuilt + prompt.slice(end), trimmed: true }
+    }
     if (systemPrompt.length > SYSTEM_PROMPT_CHAR_LIMIT) {
-      const memoryStart = systemPrompt.indexOf('\n\nMEMORY — What you have previously built');
-      if (memoryStart !== -1) {
-        // Find end of the MEMORY block (next \n\n block or end of string)
-        const memoryEnd = systemPrompt.indexOf('\n\nFOUNDER CONTEXT', memoryStart + 1);
-        const memoryBlock = memoryEnd !== -1
-          ? systemPrompt.slice(memoryStart, memoryEnd)
-          : systemPrompt.slice(memoryStart);
-        const lines = memoryBlock.split('\n').filter(l => l.startsWith('- '));
-        if (lines.length > 3) {
-          // Keep only the 3 most recent lines
-          const trimmedBlock = memoryBlock.replace(
-            lines.slice(3).join('\n'),
-            ''
-          );
-          systemPrompt = memoryEnd !== -1
-            ? systemPrompt.slice(0, memoryStart) + trimmedBlock + systemPrompt.slice(memoryEnd)
-            : systemPrompt.slice(0, memoryStart) + trimmedBlock;
-        }
-      }
+      const { prompt: trimmed, trimmed: wasTrimmed } = trimMemoryBlock(systemPrompt)
+      systemPrompt = trimmed
+      if (wasTrimmed) log.info('context_trim', { userId, agentId, promptLen: systemPrompt.length })
     }
 
     const CONVERSATION_RULES = `
@@ -848,13 +806,28 @@ CONVERSATION RULES:
 - If you don't know their specific situation, ask before advising.
 - NEVER use these phrases: "Great question", "I'd be happy to", "Let me break this down", "Absolutely!", "Certainly!", "Of course!", "I understand your concern", "I hope this helps", "That's a great point". These are chatbot phrases. You are a specialist advisor, not a customer service bot.`;
 
-    // Build conversation context
+    // Build conversation context — token-budget slice keeps history under ~60k tokens
+    // (rough heuristic: 1 token ≈ 4 chars) so we never exceed the model context window.
+    function sliceHistoryByTokenBudget(
+      history: Array<{ role: string; content: string }>,
+      budgetTokens = 60_000
+    ): Array<{ role: string; content: string }> {
+      let total = 0
+      const result: Array<{ role: string; content: string }> = []
+      for (let i = history.length - 1; i >= 0; i--) {
+        const est = Math.ceil((history[i].content?.length ?? 0) / 4)
+        if (total + est > budgetTokens) break
+        result.unshift(history[i])
+        total += est
+      }
+      return result
+    }
     const messages = [
       {
         role: "system" as const,
         content: systemPrompt + CONVERSATION_RULES,
       },
-      ...(conversationHistory || []).slice(-30).map((msg: { role: string; content: string }) => ({
+      ...sliceHistoryByTokenBudget(conversationHistory || []).map((msg: { role: string; content: string }) => ({
         role: msg.role === 'user' ? 'user' as const : 'assistant' as const,
         content: msg.content,
       })),
@@ -865,9 +838,7 @@ CONVERSATION RULES:
     ];
 
     // ── Pass 1: LLM chat call with native tool calling ─────────────────────
-    // Programmatic "no tools in first 3 messages" enforcement
-    const userMsgCount = (conversationHistory || []).filter((m: { role: string }) => m.role === 'user').length;
-    const agentTools = userMsgCount >= 2 ? getToolsForAgent(agentId) : [];
+    const agentTools = getToolsForAgent(agentId);
 
     // ── Shared observe-loop constants (used by both streaming + non-streaming) ─
     const MAX_ITERATIONS = 5;
@@ -942,6 +913,14 @@ CONVERSATION RULES:
           if (sourcesUsed.length > 0) send({ type: 'sources_used', sources: sourcesUsed });
 
           let loopMessages = [...messages];
+          let chatReply = '';
+          let streamArtifactId: string | null = null;
+
+          // Loop exit state tracking (A1)
+          type LoopExit = 'clean' | 'exec_break' | 'artifact_break' | 'max_iter_unresolved'
+          let loopState: LoopExit = 'clean'
+          let lastToolCallName: string | null = null
+          let lastToolCallExecuted = false
 
           try {
             for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
@@ -951,9 +930,9 @@ CONVERSATION RULES:
               // Stream this iteration's LLM response
               try {
                 for await (const chunk of llmStream({
-                  messages: loopMessages, maxTokens: 900, temperature: 0.7,
+                  messages: loopMessages, maxTokens: agentTools.length > 0 ? 4000 : 900, temperature: 0.7,
                   tools: agentTools.length > 0 ? agentTools : undefined,
-                  model: 'claude-sonnet-4-6',
+                  modelTier: 'capable',
                 })) {
                   if (chunk.type === 'delta') {
                     send({ type: 'delta', text: chunk.text });
@@ -969,7 +948,7 @@ CONVERSATION RULES:
               }
 
               // No tool call → final response, exit loop
-              if (!streamedToolCall) break;
+              if (!streamedToolCall) { chatReply = iterText; break; }
 
               const toolName = streamedToolCall.name;
               const toolArgs = streamedToolCall.args;
@@ -977,10 +956,22 @@ CONVERSATION RULES:
                 ? toolArgs
                 : (toolArgs.context as Record<string, unknown>) ?? toolArgs;
 
+              // Track that we've seen a tool call but haven't executed it yet
+              lastToolCallName = toolName
+              lastToolCallExecuted = false
+
               if (LOOP_TOOLS.has(toolName)) {
                 send({ type: 'tool_start', toolName, label: TOOL_LABELS[toolName] ?? toolName });
                 let toolResult = '';
                 const t0 = Date.now();
+                // A3: heartbeat to keep SSE alive during slow external API calls (10–15s each)
+                const loopToolHeartbeat = setInterval(() => {
+                  try { controller.enqueue(enc.encode(': ping\n\n')); }
+                  catch (e) {
+                    if (e instanceof TypeError) clearInterval(loopToolHeartbeat)
+                    else log.warn('heartbeat_enqueue_error', { error: (e as Error).message })
+                  }
+                }, 8_000);
                 try {
                   if (toolName === 'lead_enrich') {
                     const { result } = await executeTool('lead_enrich', { domain: (toolCtx.domain as string) || '' }, userId, supabaseAdmin, async (a) => executeLeadEnrich((a as { domain: string }).domain), existingConversationId ?? undefined);
@@ -1002,6 +993,8 @@ CONVERSATION RULES:
                   toolResult = `Tool failed: ${err instanceof Error ? err.message : 'unknown'}`;
                   logToolExecution(supabaseAdmin, userId, agentId, toolName, t0, 'error', toolResult);
                 }
+                clearInterval(loopToolHeartbeat)
+                lastToolCallExecuted = true
                 send({ type: 'tool_done', toolName, summary: toolResult.split('\n')[0].slice(0, 100) });
                 loopMessages = [
                   ...loopMessages,
@@ -1025,9 +1018,11 @@ CONVERSATION RULES:
                   } else if (toolName === 'schedule_followup') {
                     execResult = await executeScheduleFollowup(toolCtx, userId, supabaseAdmin, agentId);
                   }
+                  lastToolCallExecuted = true
                   send({ type: 'tool_done', toolName, summary: execResult.slice(0, 100) });
                   send({ type: 'delta', text: `\n\n${execResult}` });
                 } catch (err) { log.error(`${toolName} streaming:`, err); }
+                loopState = 'exec_break'
                 break;
 
               } else {
@@ -1041,6 +1036,10 @@ CONVERSATION RULES:
                 const toolLabel = toolCtx.type as string || toolName;
                 send({ type: 'tool_start', toolName, label: `Building ${toolLabel.replace(/_/g, ' ')}…` });
                 const t0A = Date.now();
+                // Send heartbeat every 10s to keep SSE connection alive during long LLM calls
+                const heartbeat = setInterval(() => {
+                  try { controller.enqueue(enc.encode(': ping\n\n')); } catch { /* stream closed */ }
+                }, 10_000);
                 try {
                   let researchData: Record<string, unknown> | null = null;
                   if (toolName === 'battle_card') {
@@ -1050,26 +1049,21 @@ CONVERSATION RULES:
                     const cs = (toolCtx.competitors as string[]) || []; const p = (toolCtx.product as string) || '';
                     if (cs.length > 0) researchData = await fetchTavilyResearch(`${cs.slice(0, 3).join(' vs ')} competitive analysis ${p}`);
                   }
-                  const artifactPrompt = getArtifactPrompt(toolName, toolCtx, researchData);
+                  const artifactPrompt = getArtifactPrompt(toolName, toolCtx, researchData, patelRawScores, patelRawConfidence);
                   let parsedContent = await generateArtifactJSON(artifactPrompt);
                   try {
-                    const evalRaw = await routedText('reasoning', [
-                      { role: 'system', content: `Evaluate this ${toolName.replace(/_/g, ' ')} on completeness (0-40), specificity (0-40), actionability (0-20). Reply ONLY JSON: { "qualityScore": number, "gaps": string[] }` },
-                      { role: 'user', content: JSON.stringify(parsedContent).slice(0, 3000) },
-                    ], { maxTokens: 300 });
-                    const em = evalRaw.match(/\{[\s\S]*\}/);
-                    if (em) {
-                      const ev = JSON.parse(em[0]) as { qualityScore: number; gaps: string[] };
-                      if (ev.qualityScore < 70 && ev.gaps?.length > 0) {
-                        try { parsedContent = await generateArtifactJSON(artifactPrompt + `\n\nFix: ${ev.gaps.slice(0, 3).join('; ')}. Return ONLY JSON.`); } catch { /* keep */ }
-                      }
+                    const ev = await evaluateArtifactIndependently(toolName, parsedContent);
+                    if (ev.qualityScore < 70 && ev.gaps.length > 0) {
+                      try { parsedContent = await generateArtifactJSON(artifactPrompt + `\n\nFix: ${ev.gaps.slice(0, 3).join('; ')}. Return ONLY JSON.`); } catch { /* keep */ }
                     }
                   } catch { /* evaluator failed */ }
                   const artifactTitle = parsedContent.title as string || toolName.replace(/_/g, ' ');
                   let artifactId: string | null = null;
                   if (userId) {
-                    const { data: saved } = await supabaseAdmin.from('agent_artifacts').insert({ conversation_id: existingConversationId ?? null, user_id: userId, agent_id: agentId, artifact_type: toolName, title: artifactTitle, content: parsedContent, key_fields: extractKeyFields(toolName, parsedContent) }).select('id').single();
+                    const { data: saved, error: saveErr } = await supabaseAdmin.from('agent_artifacts').insert({ conversation_id: existingConversationId ?? null, user_id: userId, agent_id: agentId, artifact_type: toolName, title: artifactTitle, content: parsedContent }).select('id').single();
+                    if (saveErr) log.error('artifact insert failed:', saveErr.message, saveErr.code);
                     artifactId = saved?.id ?? null;
+                    streamArtifactId = artifactId;
                   }
                   // Await score nudge before scoreFromArtifact inserts its own qscore_history row
                   // for this artifact type — avoids tripping the idempotency guard in applyAgentScoreSignal
@@ -1077,7 +1071,7 @@ CONVERSATION RULES:
                   if (artifactId && userId) {
                     try { scoreSignal = await applyAgentScoreSignal(supabaseAdmin, userId, toolName); } catch { /* non-critical */ }
                   }
-                  if (artifactId && userId) void scoreFromArtifact(userId, toolName, parsedContent, supabaseAdmin).catch(() => {});
+                  if (artifactId && userId) void scoreFromArtifact(userId, toolName, parsedContent, supabaseAdmin).catch(() => { /* fire-and-forget: score nudge is non-critical, response already sent */ });
                   if (artifactId && userId) void postArtifactFeedEvent(userId, toolName, artifactTitle, supabaseAdmin);
                   if (FF_ARTIFACT_SELF_CRITIQUE && artifactId && userId) {
                     void (async () => { try { const critique = await critiqueArtifact(toolName, parsedContent); let fc = parsedContent; if (critique.needsPatch) fc = await patchArtifact(toolName, parsedContent, critique); await supabaseAdmin.from('agent_artifacts').update({ content: fc, critique_metadata: critique }).eq('id', artifactId!); } catch { /* non-critical */ } })();
@@ -1094,47 +1088,85 @@ CONVERSATION RULES:
                       })();
                     }
                   }
+                  clearInterval(heartbeat);
                   logToolExecution(supabaseAdmin, userId, agentId, toolName, t0A, 'success', undefined, 'standard');
                   send({ type: 'artifact', artifact: { id: artifactId, type: toolName, title: artifactTitle, content: parsedContent } });
                   if (scoreSignal.boosted) {
                     send({ type: 'score_signal', boosted: true, points: scoreSignal.pointsAdded, dimension: scoreSignal.dimensionLabel, newScore: scoreSignal.newOverall });
                   }
                   send({ type: 'tool_done', toolName, summary: `${artifactTitle} ready` });
+                  // Stream a brief Patel commentary so chatReply is never empty
+                  try {
+                    const commentary = await routedText('generation', [
+                      { role: 'system', content: `You are ${agent.name}, a specialist advisor. You just built "${artifactTitle}" for this founder. Write exactly 2 sentences: one confirming the single most important finding from what was built, one stating the specific next action. Be direct and specific — reference the actual content. Max 50 words. No fluff phrases.` },
+                      { role: 'user', content: 'Summarise what was just built and the immediate next step.' },
+                    ], { maxTokens: 120 });
+                    if (commentary.trim()) {
+                      send({ type: 'delta', text: commentary });
+                      chatReply = commentary;
+                    }
+                  } catch { /* commentary is non-critical */ }
                 } catch (err) {
+                  clearInterval(heartbeat);
                   log.error('Artifact streaming error:', err);
                   send({ type: 'tool_done', toolName, summary: 'Generation failed' });
                 }
+                lastToolCallExecuted = true
+                loopState = 'artifact_break'
                 break;
               }
+            }
+
+            // A1: detect unresolved tool call at loop limit — emit fallback instead of silent blank
+            if (loopState === 'clean' && lastToolCallName !== null && !lastToolCallExecuted) {
+              loopState = 'max_iter_unresolved'
+              const fallback = "\n\nI hit the limit on that — let me know which part to focus on and I'll go deeper there."
+              send({ type: 'delta', text: fallback })
+              chatReply += fallback
             }
           } catch (err) {
             send({ type: 'error', message: err instanceof Error ? err.message : 'Unexpected error' });
           }
 
-          send({ type: 'done', agentId, conversationId: existingConversationId });
-          controller.close();
-
-          // Persist conversation (fire-and-forget)
+          // ── Persist conversation + messages before sending done ────────────────
+          let finalConversationId = existingConversationId;
           if (userId) {
-            void (async () => {
-              try {
-                if (!existingConversationId) {
-                  await supabaseAdmin.from('agent_conversations').insert({ user_id: userId, agent_id: agentId, title: message.slice(0, 60), last_message_at: new Date().toISOString(), message_count: 1 });
+            try {
+              if (!existingConversationId) {
+                const { data: conv } = await supabaseAdmin
+                  .from('agent_conversations')
+                  .insert({ user_id: userId, agent_id: agentId, title: message.slice(0, 60), last_message_at: new Date().toISOString(), message_count: 1 })
+                  .select('id')
+                  .single();
+                finalConversationId = conv?.id ?? null;
+              } else {
+                await supabaseAdmin
+                  .from('agent_conversations')
+                  .update({ last_message_at: new Date().toISOString(), message_count: (conversationHistory?.length ?? 0) + 2 })
+                  .eq('id', existingConversationId);
+              }
+              if (finalConversationId) {
+                if (streamArtifactId) {
+                  await supabaseAdmin.from('agent_artifacts').update({ conversation_id: finalConversationId }).eq('id', streamArtifactId);
                 }
-                if (usageId) await incrementUsage(usageId, supabaseAdmin);
-              } catch { /* non-critical */ }
-            })();
-
-            // Async session summary + relationship memory update (fire-and-forget, Haiku)
-            const allMsgs = [
-              ...(conversationHistory || []),
-              { role: 'user', content: message },
-            ];
-            if (existingConversationId) {
-              void summariseAndSaveSession(existingConversationId, allMsgs, supabaseAdmin).catch(() => {});
+                await supabaseAdmin.from('agent_messages').insert({ conversation_id: finalConversationId, role: 'user', content: message });
+                await supabaseAdmin.from('agent_messages').insert({ conversation_id: finalConversationId, role: 'assistant', content: chatReply });
+              }
+            } catch (persistErr) {
+              log.error('Conversation persistence failed', { conversationId: finalConversationId, userId, err: persistErr instanceof Error ? persistErr.message : persistErr })
+              // Notify client so UI can surface a "not saved" warning
+              send({ type: 'persist_error', conversationId: finalConversationId })
             }
+
+            const allMsgs = [...(conversationHistory || []), { role: 'user', content: message }, { role: 'assistant', content: chatReply }];
+            // fire-and-forget: session summary + memory updates are non-blocking enrichments;
+            // the streaming response is already complete when these run
+            if (finalConversationId) void summariseAndSaveSession(finalConversationId, allMsgs, supabaseAdmin).catch(() => {});
             void updateAgentMemory(userId, agentId, allMsgs, supabaseAdmin).catch(() => {});
           }
+
+          send({ type: 'done', agentId, conversationId: finalConversationId });
+          controller.close();
         },
       });
 
@@ -1150,10 +1182,10 @@ CONVERSATION RULES:
     for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
       const llmResponse = await llmChat({
         messages: loopMessages,
-        maxTokens: 900,
+        maxTokens: agentTools.length > 0 ? 4000 : 900,
         temperature: 0.7,
         tools: agentTools.length > 0 ? agentTools : undefined,
-        model: 'claude-sonnet-4-6',
+        modelTier: 'capable',
       });
 
       if (!llmResponse.text && !llmResponse.toolCall) throw new Error('No response from AI');
@@ -1263,29 +1295,15 @@ CONVERSATION RULES:
           );
         }
 
-        const artifactPrompt = getArtifactPrompt(toolName, toolCtx, researchData);
+        const artifactPrompt = getArtifactPrompt(toolName, toolCtx, researchData, patelRawScores, patelRawConfidence);
         let parsedContent = await generateArtifactJSON(artifactPrompt);
 
-        // Evaluator pass — one regen if quality < 70
+        // Independent evaluator pass — one regen if quality < 70
         try {
-          const evalPrompt = `You are a quality evaluator for startup advisor deliverables.
-Evaluate this ${toolName.replace(/_/g, ' ')} artifact on three dimensions:
-1. Completeness (0–40): are all sections populated with specific, non-placeholder content?
-2. Specificity (0–40): does it reference the founder's actual business, metrics, or context?
-3. Actionability (0–20): does it contain concrete next steps a founder could act on today?
-Reply with ONLY a JSON object: { "qualityScore": <0–100>, "gaps": ["..."] }`;
-
-          const evalRaw = await routedText('reasoning', [
-            { role: 'system', content: evalPrompt },
-            { role: 'user', content: JSON.stringify(parsedContent).slice(0, 3000) },
-          ], { maxTokens: 300 });
-          const evalMatch = evalRaw.match(/\{[\s\S]*\}/);
-          if (evalMatch) {
-            const evalResult = JSON.parse(evalMatch[0]) as { qualityScore: number; gaps: string[] };
-            if (evalResult.qualityScore < 70 && evalResult.gaps?.length > 0) {
-              const improvedPrompt = artifactPrompt + `\n\nIMPROVEMENT REQUIRED: The previous draft scored ${evalResult.qualityScore}/100. Fix these gaps: ${evalResult.gaps.slice(0, 3).join('; ')}. Return ONLY valid JSON.`;
-              try { parsedContent = await generateArtifactJSON(improvedPrompt); } catch { /* keep original */ }
-            }
+          const ev = await evaluateArtifactIndependently(toolName, parsedContent);
+          if (ev.qualityScore < 70 && ev.gaps.length > 0) {
+            const improvedPrompt = artifactPrompt + `\n\nIMPROVEMENT REQUIRED: The previous draft scored ${ev.qualityScore}/100. Fix these gaps: ${ev.gaps.slice(0, 3).join('; ')}. Return ONLY valid JSON.`;
+            try { parsedContent = await generateArtifactJSON(improvedPrompt); } catch { /* keep original */ }
           }
         } catch { /* evaluator failed — proceed */ }
 
@@ -1293,21 +1311,21 @@ Reply with ONLY a JSON object: { "qualityScore": <0–100>, "gaps": ["..."] }`;
 
         let artifactId: string | null = null;
         if (userId) {
-          const { data: saved } = await supabaseAdmin
+          const { data: saved, error: saveErr } = await supabaseAdmin
             .from('agent_artifacts')
             .insert({
               conversation_id: existingConversationId ?? null,
               user_id: userId, agent_id: agentId,
               artifact_type: toolName, title: artifactTitle,
               content: parsedContent,
-              key_fields: extractKeyFields(toolName, parsedContent),
             })
             .select('id').single();
+          if (saveErr) log.error('artifact insert failed:', saveErr.message, saveErr.code);
           artifactId = saved?.id ?? null;
         }
 
         if (artifactId && userId) {
-          void scoreFromArtifact(userId, toolName, parsedContent, supabaseAdmin).catch(() => {});
+          void scoreFromArtifact(userId, toolName, parsedContent, supabaseAdmin).catch(() => { /* fire-and-forget: non-critical score nudge */ });
           // Write extracted facts to world model + refresh goal + trigger delegations
           const stateUpdates = extractStateFromArtifact(agentId, toolName, parsedContent);
           if (Object.keys(stateUpdates).length > 0) {
@@ -1397,17 +1415,14 @@ Reply with ONLY a JSON object: { "qualityScore": <0–100>, "gaps": ["..."] }`;
         log.warn('Message persistence failed — response still returned to client');
       }
 
-      // Increment usage (also fail-open)
-      if (usageId) {
-        try { await incrementUsage(usageId, supabaseAdmin); } catch { /* non-critical */ }
-      }
-
       // Async session summary + relationship memory update (fire-and-forget, Haiku)
       const allMsgs = [
         ...(conversationHistory || []),
         { role: 'user', content: message },
         { role: 'assistant', content: chatReply ?? '' },
       ];
+      // fire-and-forget: session summary + memory updates enrich future context;
+      // the JSON response is already prepared when these run
       if (conversationId) {
         void summariseAndSaveSession(conversationId, allMsgs, supabaseAdmin).catch(() => {});
       }
@@ -1415,7 +1430,6 @@ Reply with ONLY a JSON object: { "qualityScore": <0–100>, "gaps": ["..."] }`;
     }
 
     return NextResponse.json({
-      response: chatReply,
       content: chatReply,
       agentId,
       conversationId,

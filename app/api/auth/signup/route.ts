@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { parseBody, signupSchema } from '@/lib/api/validate';
+import { startupProfileDataSchema } from '@/lib/api/jsonb-schemas';
 import { log } from '@/lib/logger'
 
 export async function POST(request: NextRequest) {
@@ -32,13 +33,18 @@ export async function POST(request: NextRequest) {
     // Map new stage values to DB-accepted values (CHECK constraint: idea|mvp|launched|scaling)
     const STAGE_MAP: Record<string, string> = {
       'product-development': 'mvp',
-      'commercial':          'launched',
-      'growth-scaling':      'scaling',
-      'pre-product': 'idea',
-      'mvp':         'mvp',
-      'beta':        'mvp',
-      'launched':    'launched',
-      'growing':     'scaling',
+      'commercial':          'seed',
+      'growth-scaling':      'series-a',
+      'pre-product':         'idea',
+      'mvp':                 'mvp',
+      'beta':                'mvp',
+      'launched':            'seed',
+      'growing':             'series-a',
+      'scaling':             'series-a',
+      'pre-seed':            'pre-seed',
+      'seed':                'seed',
+      'series-a':            'series-a',
+      'bootstrapped':        'bootstrapped',
     };
     const dbStage = STAGE_MAP[stage ?? ''] ?? 'idea';
 
@@ -69,7 +75,7 @@ export async function POST(request: NextRequest) {
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
-      email_confirm: false,
+      email_confirm: true,
       user_metadata: {
         full_name: fullName,
         startup_name: startupName || companyName,
@@ -121,10 +127,10 @@ export async function POST(request: NextRequest) {
         profile_builder_completed: false,
         tagline: tagline || null,
         location: location || null,
-        startup_profile_data: {
-          problemStatement: problemStatement || null,
-          targetCustomer: targetCustomer || null,
-        },
+        startup_profile_data: startupProfileDataSchema.parse({
+          problemStatement: problemStatement || undefined,
+          targetCustomer:   targetCustomer   || undefined,
+        }),
       })
       .select()
       .single();
@@ -151,8 +157,9 @@ export async function POST(request: NextRequest) {
       { feature: 'agent_chat',           usage_count: 0, limit_count: 50 },
       { feature: 'qscore_recalc',        usage_count: 0, limit_count: 2  },
       { feature: 'investor_connection',  usage_count: 0, limit_count: 3  },
+      { feature: 'agent_generate',       usage_count: 0, limit_count: 20 },
     ];
-    Promise.all(featureLimits.map(limit =>
+    const usageResults = await Promise.all(featureLimits.map(limit =>
       supabaseAdmin.from('subscription_usage').insert({
         user_id: authData.user.id,
         feature: limit.feature,
@@ -160,7 +167,16 @@ export async function POST(request: NextRequest) {
         limit_count: limit.limit_count,
         reset_at: getNextMonthDate(),
       })
-    )).catch(e => log.error('subscription_usage insert failed (non-fatal):', e));
+    ));
+    const usageErr = usageResults.find(r => r.error)?.error;
+    if (usageErr) {
+      log.error('subscription_usage insert failed — rolling back signup:', usageErr);
+      await supabaseAdmin.from('founder_profiles').delete().eq('user_id', authData.user.id)
+        .then(null, (e: unknown) => log.error('Failed to rollback profile after usage error:', e));
+      await supabaseAdmin.auth.admin.deleteUser(authData.user.id)
+        .catch((e: unknown) => log.error('Failed to rollback auth user after usage error:', e));
+      return NextResponse.json({ error: 'Account setup failed. Please try again.' }, { status: 500 });
+    }
 
     return NextResponse.json({
       message: 'Account created successfully',
@@ -170,7 +186,7 @@ export async function POST(request: NextRequest) {
         fullName,
       },
       profile,
-    });
+    }, { status: 201 });
   } catch (error) {
     log.error('Error during signup:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

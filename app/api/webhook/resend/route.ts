@@ -121,6 +121,24 @@ export async function POST(request: NextRequest) {
 
     const admin = getAdminClient()
 
+    // Idempotency: deduplicate Resend retries using svix-id
+    // Resend retries delivery up to 3 times on transient failures.
+    const eventId = request.headers.get('svix-id') ?? (body as { id?: string }).id
+    if (eventId) {
+      const { data: existing } = await admin
+        .from('processed_webhook_events')
+        .select('id')
+        .eq('event_id', eventId)
+        .maybeSingle()
+      if (existing) {
+        return NextResponse.json({ received: true, deduplicated: true })
+      }
+      await admin.from('processed_webhook_events').insert({
+        event_id: eventId,
+        processed_at: new Date().toISOString(),
+      })
+    }
+
     // Find the outreach_send record by resend_id first, fall back to contact_email
     let query = admin.from('outreach_sends').select('id, status, user_id')
     if (resendId) {

@@ -548,7 +548,7 @@ export default function PitchDeckPage() {
           </span>
         </div>
         {missingCount > 0 && (
-          <Link href="/founder/agents" style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: blue, fontWeight: 600, textDecoration: "none" }}>
+          <Link href="/founder/cxo" style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: blue, fontWeight: 600, textDecoration: "none" }}>
             Run missing agents <ArrowRight size={13} />
           </Link>
         )}
@@ -630,7 +630,7 @@ export default function PitchDeckPage() {
                 This slide has no data yet. Run the{" "}
                 {current.sourceArtifacts.map((a, i) => (
                   <span key={a}>
-                    <Link href={`/founder/agents/${a.split("_")[0] === "gtm" ? "patel" : a.split("_")[0] === "brand" ? "maya" : a.split("_")[0] === "financial" ? "felix" : a.split("_")[0] === "competitive" ? "atlas" : a.split("_")[0] === "hiring" ? "harper" : a.split("_")[0]}`} style={{ color: blue, fontWeight: 600, textDecoration: "none" }}>
+                    <Link href={`/founder/cxo/${a.split("_")[0] === "gtm" ? "patel" : a.split("_")[0] === "brand" ? "maya" : a.split("_")[0] === "financial" ? "felix" : a.split("_")[0] === "competitive" ? "atlas" : a.split("_")[0] === "hiring" ? "harper" : a.split("_")[0]}`} style={{ color: blue, fontWeight: 600, textDecoration: "none" }}>
                       {a.replace(/_/g, " ")}
                     </Link>
                     {i < current.sourceArtifacts.length - 1 ? " or " : ""}

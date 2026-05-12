@@ -1950,7 +1950,7 @@ export default function LandingPage() {
             {[
               { title: "Product", links: [
                 { label: "Q-Score", href: "/founder/improve-qscore" },
-                { label: "AI Agents", href: "/founder/agents" },
+                { label: "AI Agents", href: "/founder/cxo" },
                 { label: "Academy", href: "/founder/academy" },
                 { label: "Investor Matching", href: "/founder/matching" },
               ]},

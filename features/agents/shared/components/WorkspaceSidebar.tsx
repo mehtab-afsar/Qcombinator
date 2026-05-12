@@ -60,7 +60,7 @@ export function WorkspaceSidebar({
   name, role, emoji, accent, badge,
   tabs, activeTab, onTabChange,
   stats, quickActions, alert,
-  backHref = "/founder/agents",
+  backHref = "/founder/cxo",
 }: WorkspaceSidebarProps) {
   return (
     <div style={{

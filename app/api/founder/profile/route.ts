@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { parseBody, founderProfilePatchSchema } from '@/lib/api/validate'
+import { startupProfileDataSchema } from '@/lib/api/jsonb-schemas'
 import { FounderProfile } from '@/features/founder/types/founder.types'
 import { log } from '@/lib/logger'
 
@@ -75,11 +76,16 @@ export async function PATCH(req: NextRequest) {
         .eq('user_id', user.id)
         .maybeSingle()
       const current = (existing?.startup_profile_data ?? {}) as Record<string, unknown>
-      dbUpdates.startup_profile_data = {
+      const merged = {
         ...current,
         ...(updates.problemStatement !== undefined && { problemStatement: updates.problemStatement }),
         ...(updates.targetCustomer   !== undefined && { targetCustomer:   updates.targetCustomer }),
       }
+      const validated = startupProfileDataSchema.safeParse(merged)
+      if (!validated.success) {
+        log.warn('PATCH /api/founder/profile startup_profile_data failed validation', validated.error.issues)
+      }
+      dbUpdates.startup_profile_data = validated.success ? validated.data : merged
     }
 
     if (Object.keys(dbUpdates).length === 0) {

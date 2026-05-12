@@ -448,7 +448,7 @@ export default function ImproveQScorePage() {
                           <span style={{ fontSize: 11, color: muted }}>{action.timeframe}</span>
                         </div>
                         <Link
-                          href={`/founder/agents/${action.agentId}${action.starterPrompt ? `?prompt=${encodeURIComponent(action.starterPrompt)}` : ''}`}
+                          href={`/founder/cxo/${action.agentId}${action.starterPrompt ? `?prompt=${encodeURIComponent(action.starterPrompt)}` : ''}`}
                           style={{ fontSize: 11, fontWeight: 600, color: blue, textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}
                         >
                           <MessageCircle size={11} /> {action.agentName} →
@@ -502,7 +502,7 @@ export default function ImproveQScorePage() {
 
                     {/* agent link or done tick */}
                     <Link
-                      href={`/founder/agents/${dim.agentId}`}
+                      href={`/founder/cxo/${dim.agentId}`}
                       onClick={e => e.stopPropagation()}
                       style={{ fontSize: 11, fontWeight: 600, color: isWeak ? blue : muted, textDecoration: "none", display: "flex", alignItems: "center", gap: 3, flexShrink: 0, width: 76, justifyContent: "flex-end" }}
                     >
@@ -533,7 +533,7 @@ export default function ImproveQScorePage() {
                         </div>
                       ))}
                       <Link
-                        href={`/founder/agents/${dim.agentId}`}
+                        href={`/founder/cxo/${dim.agentId}`}
                         style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 10, fontSize: 12, fontWeight: 600, color: blue, textDecoration: "none" }}
                       >
                         <MessageCircle size={11} /> Talk to {dim.agentName} →
@@ -579,7 +579,7 @@ export default function ImproveQScorePage() {
                           +{ch.points} pts
                         </span>
                         <div style={{ marginTop: 8 }}>
-                          <Link href={`/founder/agents/${ch.agentId}`} style={{ textDecoration: "none" }}>
+                          <Link href={`/founder/cxo/${ch.agentId}`} style={{ textDecoration: "none" }}>
                             <div style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 10px", borderRadius: 999, fontSize: 10, fontWeight: 600, background: done ? surf : ink, color: done ? muted : "#fff", border: `1px solid ${done ? bdr : ink}`, cursor: "pointer" }}>
                               {done ? <><ArrowRight size={9} /> View</> : <><Zap size={9} /> Build</>}
                             </div>

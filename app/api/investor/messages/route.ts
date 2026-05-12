@@ -172,6 +172,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Notify the founder (fire-and-forget)
+    // fire-and-forget: in-app notification is non-critical; message insert already succeeded
     void Promise.resolve(supabase.from('notifications').insert({
       user_id:  conn.founder_id,
       type:     'message',

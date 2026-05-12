@@ -17,11 +17,13 @@ export async function GET() {
           .from('demo_investors')
           .select('id, name, firm, title, location, check_sizes, stages, sectors, geography, thesis, portfolio, response_rate')
           .eq('is_active', true)
-          .order('response_rate', { ascending: false }),
+          .order('response_rate', { ascending: false })
+          .limit(100),
         supabase
           .from('investor_profiles')
           .select('user_id, full_name, firm_name, title, sectors, stages, check_sizes, geography, thesis')
-          .eq('onboarding_completed', true),
+          .eq('onboarding_completed', true)
+          .limit(100),
       ])
 
     if (demoErr) log.error('GET /api/investors demo', { demoErr })

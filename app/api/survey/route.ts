@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { z } from 'zod'
 import { log } from '@/lib/logger'
 
 // GET  /api/survey?surveyId=xxx — public, returns survey artifact content
 // POST /api/survey            — public, submits a survey response
+//
+// Security: userId is NEVER accepted from the request body.
+// The founder's user_id is derived server-side from the survey artifact itself,
+// preventing any caller from attributing responses to an arbitrary founder.
 
 function getAdminClient() {
   return createAdminClient(
@@ -11,6 +16,12 @@ function getAdminClient() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 }
+
+const surveySubmitSchema = z.object({
+  surveyId: z.string().uuid('surveyId must be a valid UUID'),
+  respondentEmail: z.string().email().optional(),
+  answers: z.record(z.string(), z.unknown()),
+})
 
 export async function GET(request: NextRequest) {
   try {
@@ -49,35 +60,30 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const {
-      surveyId,
-      userId,
-      respondentEmail,
-      answers,
-    } = body as {
-      surveyId: string
-      userId: string
-      respondentEmail?: string
-      answers: Record<string, unknown>
+    const raw = await request.json()
+    const parsed = surveySubmitSchema.safeParse(raw)
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Invalid request' }, { status: 400 })
     }
+    const { surveyId, respondentEmail, answers } = parsed.data
 
-    if (!surveyId) {
-      return NextResponse.json({ error: 'surveyId is required' }, { status: 400 })
-    }
-    if (!userId) {
-      return NextResponse.json({ error: 'userId is required' }, { status: 400 })
-    }
-    if (!answers || typeof answers !== 'object') {
-      return NextResponse.json({ error: 'answers is required' }, { status: 400 })
-    }
-
-    // Use admin client to bypass RLS — respondent is not authenticated
     const adminClient = getAdminClient()
+
+    // Resolve the founder's user_id from the survey artifact — never trust userId from the body.
+    const { data: artifact, error: artifactError } = await adminClient
+      .from('agent_artifacts')
+      .select('user_id')
+      .eq('id', surveyId)
+      .eq('artifact_type', 'pmf_survey')
+      .single()
+
+    if (artifactError || !artifact) {
+      return NextResponse.json({ error: 'Survey not found' }, { status: 404 })
+    }
 
     const { error } = await adminClient.from('survey_responses').insert({
       survey_id: surveyId,
-      user_id: userId,
+      user_id: artifact.user_id,   // authoritative — from the DB, not the caller
       respondent_email: respondentEmail ?? null,
       answers,
       submitted_at: new Date().toISOString(),

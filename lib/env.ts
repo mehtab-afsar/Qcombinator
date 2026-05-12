@@ -49,6 +49,10 @@ export function validateRequiredEnv(): void {
     'NEXT_PUBLIC_SUPABASE_ANON_KEY',
     'SUPABASE_SERVICE_ROLE_KEY',
     'ANTHROPIC_API_KEY',
+    'GROQ_API_KEY',
+    'RESEND_API_KEY',
+    'TAVILY_API_KEY',
+    'CRON_SECRET',
   ]
   const missing = required.filter(k => !process.env[k])
   if (missing.length > 0) {

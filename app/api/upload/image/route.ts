@@ -5,6 +5,28 @@ import { log } from '@/lib/logger'
 const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml']
 const MAX_SIZE = 5 * 1024 * 1024 // 5 MB
 
+// Magic-byte signatures for each allowed image MIME type.
+// Validates actual file content — not the client-supplied Content-Type header,
+// which can be trivially spoofed (e.g. an .exe renamed to .png).
+function validateImageMagicBytes(buf: Buffer, declaredMime: string): boolean {
+  if (buf.length < 4) return false
+  switch (declaredMime) {
+    case 'image/jpeg':
+      return buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF
+    case 'image/png':
+      return buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47
+    case 'image/webp':
+      return buf.length >= 12
+        && buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46
+        && buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50
+    case 'image/svg+xml':
+      // SVG is text-based XML — check for leading '<' after optional BOM/whitespace
+      return buf.slice(0, 32).toString('utf8').trimStart().startsWith('<')
+    default:
+      return false
+  }
+}
+
 type ImageType = 'founder-avatar' | 'investor-avatar' | 'founder-logo' | 'investor-logo'
 
 function getBucketAndPath(imageType: ImageType, userId: string, ext: string) {
@@ -54,6 +76,11 @@ export async function POST(req: NextRequest) {
       : 'jpg'
 
     const buffer = Buffer.from(await file.arrayBuffer())
+
+    if (!validateImageMagicBytes(buffer, file.type)) {
+      return NextResponse.json({ error: 'File content does not match declared type' }, { status: 400 })
+    }
+
     const { bucket, path } = getBucketAndPath(imageType, user.id, ext)
 
     // Use admin client for storage — bypasses RLS so upload always succeeds
@@ -65,9 +92,10 @@ export async function POST(req: NextRequest) {
 
     if (uploadErr) {
       log.error('Storage upload error: ' + uploadErr.message, uploadErr)
+      // Return a generic message — raw Supabase error strings are logged server-side, not exposed to the client
       const msg = uploadErr.message?.toLowerCase().includes('bucket')
         ? 'Storage buckets not set up. Run migration 20260420000004 in the Supabase SQL editor to create the avatars and logos buckets.'
-        : `Storage upload failed: ${uploadErr.message}`
+        : 'Image upload failed. Please try again.'
       return NextResponse.json({ error: msg }, { status: 500 })
     }
 

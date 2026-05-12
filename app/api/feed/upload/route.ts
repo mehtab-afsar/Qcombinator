@@ -23,6 +23,7 @@ export async function POST(req: NextRequest) {
     const admin = createAdminClient()
 
     // Ensure bucket exists
+    // idempotent bucket creation — silently ignore if bucket already exists
     await admin.storage.createBucket('feed-media', { public: true, fileSizeLimit: MAX_SIZE, allowedMimeTypes: ALLOWED_MIME }).catch(() => {})
 
     const { error: uploadErr } = await admin.storage.from('feed-media').upload(path, buffer, { contentType: file.type, upsert: false })

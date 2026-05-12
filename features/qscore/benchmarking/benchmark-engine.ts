@@ -163,7 +163,8 @@ export async function getAllIndicatorPercentiles(
   sector: string,
   stage: ScoreStage
 ): Promise<Map<string, PercentileResult>> {
-  // Pre-warm on first call — single DB query instead of up to 30 individual fetches
+  // Pre-warm on first call — single DB query instead of up to 30 individual fetches.
+  // fire-and-forget: cache miss just means individual queries run instead; not blocking.
   await prewarmBenchmarkCache(supabase, sector, stage).catch(() => {})
 
   const results = await Promise.allSettled(

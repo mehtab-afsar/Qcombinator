@@ -1,6 +1,20 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
+async function probeExternal(name: string, url: string, headers: Record<string, string> = {}): Promise<'ok' | 'error'> {
+  const ctrl = new AbortController()
+  const t = setTimeout(() => ctrl.abort(), 2_000)
+  try {
+    const res = await fetch(url, { method: 'GET', headers, signal: ctrl.signal })
+    clearTimeout(t)
+    // 401/403 means the service is up; 5xx means it's degraded
+    return res.status < 500 ? 'ok' : 'error'
+  } catch {
+    clearTimeout(t)
+    return 'error'
+  }
+}
+
 export async function GET() {
   const checks = {
     timestamp: new Date().toISOString(),
@@ -9,6 +23,8 @@ export async function GET() {
       supabaseConfig: false,
       supabaseConnection: false,
       databaseTables: false,
+      groq: false,
+      anthropic: false,
     },
     details: {} as Record<string, unknown>,
   };
@@ -77,17 +93,33 @@ export async function GET() {
       }
     }
 
-    // 4. Overall status
-    const allChecksPass = Object.values(checks.checks).every(check => check === true);
-    const status = allChecksPass ? 200 : 503;
+    // 4. Probe external LLM providers (non-blocking, 2s timeout each)
+    const [groqStatus, anthropicStatus] = await Promise.all([
+      process.env.GROQ_API_KEY
+        ? probeExternal('groq', 'https://api.groq.com/openai/v1/models', { Authorization: `Bearer ${process.env.GROQ_API_KEY}` })
+        : Promise.resolve('ok' as const),
+      process.env.ANTHROPIC_API_KEY
+        ? probeExternal('anthropic', 'https://api.anthropic.com/v1/models', { 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' })
+        : Promise.resolve('ok' as const),
+    ])
+    checks.checks.groq      = groqStatus      === 'ok'
+    checks.checks.anthropic = anthropicStatus === 'ok'
+    checks.details.externalServices = { groq: groqStatus, anthropic: anthropicStatus }
+
+    // 5. Overall status
+    const coreChecksPass = checks.checks.supabaseConfig && checks.checks.supabaseConnection && checks.checks.databaseTables;
+    const allChecksPass  = coreChecksPass && checks.checks.groq && checks.checks.anthropic;
+    const status = coreChecksPass ? (allChecksPass ? 200 : 200) : 503;
 
     return NextResponse.json(
       {
         ...checks,
-        status: allChecksPass ? 'healthy' : 'degraded',
+        status: allChecksPass ? 'healthy' : coreChecksPass ? 'degraded' : 'unhealthy',
         message: allChecksPass
           ? 'All systems operational'
-          : 'Some checks failed - see details',
+          : coreChecksPass
+          ? 'Core systems ok; some external services degraded'
+          : 'Core system checks failed — see details',
       },
       { status }
     );

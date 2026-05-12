@@ -169,7 +169,7 @@ export async function GET(request: Request) {
                   <p style="font-size:12px;color:#3B82F6">Tell Sage how you're tracking — wins, blockers, and what to focus on next week.</p>
                 </div>
                 <div style="margin-top:20px;text-align:center">
-                  <a href="${APP_URL}/founder/agents/sage" style="display:inline-block;padding:11px 24px;background:#18160F;color:#fff;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600">Update OKRs in Sage →</a>
+                  <a href="${APP_URL}/founder/cxo/sage" style="display:inline-block;padding:11px 24px;background:#18160F;color:#fff;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600">Update OKRs in Sage →</a>
                 </div>
               </div>
               <div style="padding:16px 28px;background:#F0EDE6;border-top:1px solid #E2DDD5">
@@ -232,7 +232,7 @@ export async function GET(request: Request) {
                     <li>Review burn rate weekly — small changes compound fast</li>
                   </ul>
                   <div style="margin-top:20px;text-align:center">
-                    <a href="${APP_URL}/founder/agents/felix" style="display:inline-block;padding:11px 24px;background:#DC2626;color:#fff;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600">Talk to Felix about this →</a>
+                    <a href="${APP_URL}/founder/cxo/felix" style="display:inline-block;padding:11px 24px;background:#DC2626;color:#fff;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600">Talk to Felix about this →</a>
                   </div>
                   <p style="margin-top:16px;font-size:11px;color:#8A867C;text-align:center">
                     <a href="${APP_URL}/api/unsubscribe?token=${encodeToken(user.id, 'runway')}" style="color:#8A867C">Unsubscribe from runway alerts</a>
@@ -287,7 +287,7 @@ export async function GET(request: Request) {
                     <li>Survey recent churned users — one conversation can unblock the pattern</li>
                   </ul>
                   <div style="margin-top:20px;text-align:center">
-                    <a href="${APP_URL}/founder/agents/carter" style="display:inline-block;padding:11px 24px;background:#EA580C;color:#fff;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600">Talk to Carter about this →</a>
+                    <a href="${APP_URL}/founder/cxo/carter" style="display:inline-block;padding:11px 24px;background:#EA580C;color:#fff;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600">Talk to Carter about this →</a>
                   </div>
                   <p style="margin-top:16px;font-size:11px;color:#8A867C;text-align:center">
                     <a href="${APP_URL}/api/unsubscribe?token=${encodeToken(user.id, 'alerts')}" style="color:#8A867C">Unsubscribe from churn alerts</a>
@@ -352,7 +352,7 @@ export async function GET(request: Request) {
                   <p style="font-size:12px;color:#166534">A simple "just checking in — any updates on your end?" has a 23% reply rate. Send it today.</p>
                 </div>
                 <div style="margin-top:20px;text-align:center">
-                  <a href="${APP_URL}/founder/agents/susi" style="display:inline-block;padding:11px 24px;background:#15803D;color:#fff;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600">Work these deals with Susi →</a>
+                  <a href="${APP_URL}/founder/cxo/susi" style="display:inline-block;padding:11px 24px;background:#15803D;color:#fff;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600">Work these deals with Susi →</a>
                 </div>
                 <p style="margin-top:16px;font-size:11px;color:#8A867C;text-align:center">
                   <a href="${APP_URL}/api/unsubscribe?token=${encodeToken(user.id, 'alerts')}" style="color:#8A867C">Unsubscribe from deal alerts</a>

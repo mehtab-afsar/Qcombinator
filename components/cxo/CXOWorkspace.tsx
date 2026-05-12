@@ -38,6 +38,18 @@ export function CXOWorkspace({ config, agentId, artifactId, challenge, prompt }:
   useEffect(() => { refreshConversations(); }, [refreshConversations]);
 
   // ── fetch artifacts ──────────────────────────────────────────────────
+  const refreshArtifacts = useCallback(() => {
+    if (!userId) return;
+    const client = createClient();
+    client
+      .from('agent_artifacts')
+      .select('id, agent_id, artifact_type, title, content, created_at')
+      .eq('user_id', userId)
+      .eq('agent_id', agentId)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => setArtifacts((data as AgentArtifact[]) ?? []));
+  }, [userId, agentId]);
+
   useEffect(() => {
     if (!userId) return;
     let cancelled = false;
@@ -145,7 +157,7 @@ export function CXOWorkspace({ config, agentId, artifactId, challenge, prompt }:
         onNewConversation={handleNewConversation}
         onRenameConversation={handleRenameConversation}
         tab={tab}
-        onTabChange={setTab}
+        onTabChange={(t) => { setTab(t); if (t === 'dashboard') refreshArtifacts(); }}
       />
 
       <div style={{ flex: 1, height: '100vh', overflow: 'hidden' }}>
@@ -161,11 +173,13 @@ export function CXOWorkspace({ config, agentId, artifactId, challenge, prompt }:
         ) : (
           <CXOChat
             key={`${agentId}-${activeConvId ?? 'new'}-${artifactId ?? ''}`}
+            config={config}
             agentId={agentId}
             artifactId={artifactId}
             challenge={challenge}
             prompt={prompt}
             convId={activeConvId ?? undefined}
+            onConversationCreated={() => { refreshConversations(); refreshArtifacts(); }}
           />
         )}
       </div>

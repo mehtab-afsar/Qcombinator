@@ -82,11 +82,11 @@ export function AgentLeftPanel({
         padding: '12px 12px 10px', flexShrink: 0,
         borderBottom: `1px solid ${bdr}`,
       }}>
-        <Link href="/founder/agents" style={{
+        <Link href="/founder/cxo" style={{
           display: 'flex', alignItems: 'center', gap: 5, textDecoration: 'none',
           color: muted, fontSize: 11, fontWeight: 500,
         }}>
-          ← All agents
+          ← CXO Suite
         </Link>
         <button
           onClick={onNewConversation}

@@ -42,16 +42,16 @@ export async function GET() {
     supabaseAdmin.from('rag_execution_logs').select('*').gte('created_at', since),
     supabaseAdmin.from('tool_execution_logs').select('*').gte('created_at', since),
     supabaseAdmin.from('qscore_history').select('overall_score, data_source, created_at').gte('created_at', since),
-    supabaseAdmin.from('rag_score_cache').select('created_at, expires_at'),
+    supabaseAdmin.from('rag_score_cache').select('created_at, expires_at').limit(10000),
     supabaseAdmin.from('agent_activity').select('agent_id, action_type, created_at').gte('created_at', since),
     // Beta cohort health
     supabaseAdmin.from('founder_profiles').select(
       'user_id, onboarding_completed, assessment_completed, role, stripe_verified, ' +
       'signal_strength, integrity_index, momentum_score, behavioural_score, visibility_gated, updated_at'
-    ).eq('role', 'founder'),
-    // All-time Q-Score history for percentile calculation
+    ).eq('role', 'founder').limit(5000),
+    // All-time Q-Score history for percentile calculation (capped to prevent OOM)
     supabaseAdmin.from('qscore_history').select('user_id, overall_score, calculated_at')
-      .order('calculated_at', { ascending: false }),
+      .order('calculated_at', { ascending: false }).limit(5000),
     // Metric snapshots for cohort scorer readiness
     supabaseAdmin.from('founder_metric_snapshots').select('user_id, sector, created_at'),
   ]);

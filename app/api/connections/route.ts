@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/server';
 import { verifyAuth } from '@/lib/auth/verify';
 import { log } from '@/lib/logger';
 
@@ -26,8 +27,8 @@ export async function GET() {
       .eq('founder_id', user.id);
 
     if (error) {
-      log.error('GET /api/connections', { error });
-      return NextResponse.json({ connections: {}, connectionIds: {} });
+      log.error('GET /api/connections db error', { error, userId: user.id });
+      return NextResponse.json({ error: 'Failed to load connections' }, { status: 500 });
     }
 
     const STATUS_MAP: Record<string, string> = {
@@ -47,7 +48,7 @@ export async function GET() {
     return NextResponse.json({ connections: statusMap, connectionIds: idMap });
   } catch (err) {
     log.error('GET /api/connections unexpected', { err });
-    return NextResponse.json({ connections: {} });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -57,6 +58,7 @@ export async function POST(request: NextRequest) {
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
     const { user } = auth;
     const supabase = await createClient();
+    const admin = createAdminClient();
 
     const { demo_investor_id, investor_id, personal_message, founder_qscore } = await request.json();
 
@@ -64,19 +66,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'demo_investor_id or investor_id is required' }, { status: 400 });
     }
 
-    // Check for existing request to avoid duplicates
-    const dupQuery = supabase
-      .from('connection_requests')
-      .select('id, status')
-      .eq('founder_id', user.id);
+    // ── Check investor_connection usage limit (atomic RPC) ──────────────────
+    try {
+      const { data: usageData, error: usageErr } = await admin.rpc('increment_usage_if_allowed', {
+        p_user_id: user.id,
+        p_feature: 'investor_connection',
+      }) as { data: Array<{ allowed: boolean; remaining: number }> | null; error: unknown }
 
-    const { data: existing } = await (demo_investor_id
-      ? dupQuery.eq('demo_investor_id', demo_investor_id)
-      : dupQuery.eq('investor_id', investor_id)
-    ).maybeSingle();
-
-    if (existing) {
-      return NextResponse.json({ status: existing.status, already_exists: true });
+      if (!usageErr && usageData?.[0]?.allowed === false) {
+        return NextResponse.json({
+          error: 'Monthly investor connection limit reached',
+          limitReached: true,
+          remaining: 0,
+        }, { status: 429 });
+      }
+    } catch {
+      // Usage check failed — allow through (fail-open)
+      log.warn('investor_connection usage check failed — allowing through', { userId: user.id });
     }
 
     const insertRow: Record<string, unknown> = {
@@ -88,15 +94,23 @@ export async function POST(request: NextRequest) {
     if (demo_investor_id) insertRow.demo_investor_id = demo_investor_id;
     if (investor_id)      insertRow.investor_id      = investor_id;
 
+    // Upsert — UNIQUE constraints on (founder_id, demo_investor_id) and (founder_id, investor_id)
+    // prevent duplicates even under concurrent requests (see migration 20260512000004).
+    const conflictCol = demo_investor_id ? 'founder_id,demo_investor_id' : 'founder_id,investor_id';
     const { data, error } = await supabase
       .from('connection_requests')
-      .insert(insertRow)
+      .upsert(insertRow, { onConflict: conflictCol, ignoreDuplicates: true })
       .select('id, status')
       .single();
 
     if (error) {
-      log.error('POST /api/connections', { error });
+      log.error('POST /api/connections upsert error', { error, userId: user.id });
       return NextResponse.json({ error: 'Failed to save connection request' }, { status: 500 });
+    }
+
+    // ignoreDuplicates: when a conflict is ignored Supabase returns no row
+    if (!data) {
+      return NextResponse.json({ status: 'pending', already_exists: true });
     }
 
     // Notify the real investor (demo investors have no user account to notify)
@@ -107,8 +121,8 @@ export async function POST(request: NextRequest) {
           .select('full_name, startup_name')
           .eq('user_id', user.id)
           .single()
-        const founderName   = (fp as { full_name?: string } | null)?.full_name  ?? 'A founder'
-        const companyName   = (fp as { startup_name?: string } | null)?.startup_name ?? 'their startup'
+        const founderName = (fp as { full_name?: string } | null)?.full_name   ?? 'A founder'
+        const companyName = (fp as { startup_name?: string } | null)?.startup_name ?? 'their startup'
         await supabase.from('notifications').insert({
           user_id:  investor_id,
           type:     'connection_request',
@@ -117,11 +131,11 @@ export async function POST(request: NextRequest) {
           metadata: { connection_id: data.id, founder_id: user.id },
         })
       } catch (notifErr) {
-        log.error('POST /api/connections notification', { notifErr })
+        log.error('POST /api/connections notification insert failed', { notifErr, userId: user.id })
       }
     }
 
-    return NextResponse.json({ status: data.status, id: data.id });
+    return NextResponse.json({ status: data.status, id: data.id }, { status: 201 });
   } catch (err) {
     log.error('POST /api/connections unexpected', { err });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

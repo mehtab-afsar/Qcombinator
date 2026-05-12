@@ -18,13 +18,28 @@ import type { SectionData } from '../profile-builder/data-merger'
 import { PATEL_DIMENSIONS, PATEL_INDICATORS } from '../constants/patel-indicators'
 import type { PatelScores, PatelConfidence } from '../constants/patel-indicators'
 
+// ── Sanitization ──────────────────────────────────────────────────────────────
+
+function sanitizeUserContent(text: string): string {
+  return text
+    .replace(/\n{3,}/g, '\n\n')       // collapse excessive newlines (injection via blank lines)
+    .replace(/<[^>]{0,200}>/g, '')    // strip HTML/XML tags
+    .trim()
+}
+
 // ── Fetch ─────────────────────────────────────────────────────────────────────
+
+export interface FounderProfileResult {
+  block: string
+  rawScores?: PatelScores
+  rawConfidence?: PatelConfidence
+}
 
 export async function getFounderProfileContext(
   userId: string,
   supabase: SupabaseClient,
   agentId?: string
-): Promise<string> {
+): Promise<FounderProfileResult> {
   // All queries run in parallel
   const [profileResult, sectionsResult, scoreResult, patelResult, patelScoresResult] = await Promise.all([
     supabase
@@ -72,7 +87,7 @@ export async function getFounderProfileContext(
   const patelConfidence = (patelScoresResult?.data?.confidence ?? {}) as PatelConfidence
 
   // No profile data yet — return empty (founder hasn't done profile builder)
-  if (!fp && rows.length === 0) return ''
+  if (!fp && rows.length === 0) return { block: '' }
 
   // Build section map and merge to AssessmentData
   const sections: Partial<Record<number, SectionData>> = {}
@@ -99,12 +114,13 @@ export async function getFounderProfileContext(
   // Description / problem story
   const desc = fp?.description ?? d.problemStory
   if (desc && typeof desc === 'string' && desc.trim().length > 5) {
-    lines.push(`Product: ${desc.trim().slice(0, 120)}${desc.length > 120 ? '…' : ''}`)
+    const safeDesc = sanitizeUserContent(desc.trim().slice(0, 200))
+    lines.push(`Product: <founder_content>${safeDesc}</founder_content>`)
   }
 
   // Customer signals
   const custParts: string[] = []
-  if (d.customerType) custParts.push(d.customerType)
+  if (d.customerType) custParts.push(`<founder_content>${sanitizeUserContent(d.customerType)}</founder_content>`)
   if (d.conversationCount) custParts.push(`${d.conversationCount} customer interviews`)
   if (d.hasPayingCustomers) custParts.push('paying customers ✓')
   else if (d.conversationCount) custParts.push('no paying customers yet')
@@ -126,15 +142,15 @@ export async function getFounderProfileContext(
 
   // Market
   const mktParts: string[] = []
-  if (d.p2?.tamDescription) mktParts.push(d.p2.tamDescription.slice(0, 80))
+  if (d.p2?.tamDescription) mktParts.push(`<founder_content>${sanitizeUserContent(d.p2.tamDescription.slice(0, 80))}</founder_content>`)
   if (d.p2?.competitorCount != null) mktParts.push(`${d.p2.competitorCount} direct competitors`)
-  if (d.p2?.marketUrgency)  mktParts.push(`urgency: ${d.p2.marketUrgency.slice(0, 50)}`)
+  if (d.p2?.marketUrgency)  mktParts.push(`urgency: <founder_content>${sanitizeUserContent(d.p2.marketUrgency.slice(0, 50))}</founder_content>`)
   if (mktParts.length) lines.push(`Market: ${mktParts.join(' · ')}`)
 
   // IP / technical
   const techParts: string[] = []
   if (d.p3?.hasPatent) techParts.push('patent filed')
-  if (d.p3?.technicalDepth) techParts.push(d.p3.technicalDepth.slice(0, 60))
+  if (d.p3?.technicalDepth) techParts.push(`<founder_content>${sanitizeUserContent(d.p3.technicalDepth.slice(0, 60))}</founder_content>`)
   if (d.p3?.buildComplexity) techParts.push(`build complexity: ${d.p3.buildComplexity}`)
   if (techParts.length) lines.push(`Tech / IP: ${techParts.join(' · ')}`)
 
@@ -143,7 +159,7 @@ export async function getFounderProfileContext(
   if (d.p4?.domainYears) teamParts.push(`${d.p4.domainYears}y domain expertise`)
   if (d.p4?.teamCoverage?.length) teamParts.push(`coverage: ${d.p4.teamCoverage.join(', ')}`)
   if (d.p4?.priorExits) teamParts.push(`${d.p4.priorExits} prior exit${d.p4.priorExits > 1 ? 's' : ''}`)
-  if (d.p4?.founderMarketFit) teamParts.push(d.p4.founderMarketFit.slice(0, 60))
+  if (d.p4?.founderMarketFit) teamParts.push(`<founder_content>${sanitizeUserContent(d.p4.founderMarketFit.slice(0, 60))}</founder_content>`)
   if (teamParts.length) lines.push(`Team: ${teamParts.join(' · ')}`)
 
   // Q-Score
@@ -152,7 +168,7 @@ export async function getFounderProfileContext(
     lines.push(`Q-Score: ${score.overall_score}/100 — Grade ${score.grade}${trackLabel}`)
   }
 
-  if (lines.length === 0) return ''
+  if (lines.length === 0) return { block: '' }
 
   let profileBlock = `\n\nFOUNDER PROFILE (from their completed profile assessment — use as your baseline; always prefer specifics they share in conversation over this summary):\n${lines.join('\n')}`
 
@@ -215,5 +231,9 @@ GTM QUALITY DIAGNOSTIC (20 indicators — use this to identify the active constr
 ${indicatorLines.join('\n')}`
   }
 
-  return profileBlock
+  return {
+    block: profileBlock,
+    rawScores: agentId === 'patel' ? patelScores : undefined,
+    rawConfidence: agentId === 'patel' ? patelConfidence : undefined,
+  }
 }

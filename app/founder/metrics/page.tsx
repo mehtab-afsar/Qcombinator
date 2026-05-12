@@ -521,7 +521,7 @@ export default function MetricsTracker() {
             >
               <Edit3 style={{ width: 13, height: 13 }} /> Update manually
             </button>
-            <Link href="/founder/agents/felix" style={{ textDecoration: "none" }}>
+            <Link href="/founder/cxo/felix" style={{ textDecoration: "none" }}>
               <button
                 onMouseEnter={e => (e.currentTarget.style.opacity = "0.8")}
                 onMouseLeave={e => (e.currentTarget.style.opacity = "1")}

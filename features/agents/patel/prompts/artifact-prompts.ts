@@ -42,62 +42,168 @@ export function getArtifactPrompt(
 
   const prompts: Record<string, string> = {
     // ── D1: ICP Definition ─────────────────────────────────────────────────
-    // Primary targeting interface — consumed by D2, D3, D4, Apollo, outbound agent
-    icp_document: `You are generating a structured ICP (Ideal Customer Profile) — the targeting interface for this startup's GTM system.
-This is D1 in the Patel delivery chain. It will be consumed by downstream deliverables (D2 Pains, D3 Journey, D4 Messaging) and execution agents (lead generation, outbound).
+    // Operator-level targeting system — consumed by D2, D3, D4, Apollo, outbound agent
+    icp_document: `You are generating an Ideal Customer Profile (ICP) as a structured, testable outbound system.
 
-INDICATOR SCORES FOR THIS DELIVERABLE (P1.1 ICP Quality):
+This is NOT a descriptive task. This is an operator-level system design task.
+
+INDICATOR SCORES (P1.1 ICP Quality):
 ${icpCtx}
-Use these scores to calibrate confidence: fields backed by VALIDATED indicators can be stated confidently; fields where the indicator is NOT ASSESSED or score ≤ 2 must use evidence_type "assumed" for that specific field.
+Fields backed by VALIDATED indicators → state confidently. NOT ASSESSED or score ≤ 2 → use evidence_type "assumed".
 
-Context gathered from the conversation:
+Context from the conversation:
 ${ctx}
 
-Return a JSON object with this EXACT structure (no markdown fences, no extra text):
+═══ PHASE 0 — PRE-WRITING ANALYSIS (INTERNAL — DO NOT OUTPUT) ═══
+Before writing, internally determine:
+1. Who is the REAL economic buyer (not the user, the signatory)
+2. What is the CORE CONSTRAINT (not surface pain — the thing that blocks their KPI)
+3. What is the TRIGGER MOMENT that forces them to act NOW
+4. Why would this ICP FAIL to convert in reality
+
+Only proceed once all four are clear.
+
+═══ PHASE 1 — GENERATE THE ICP JSON ═══
+
+Return this EXACT JSON structure. No markdown fences. No extra text. No placeholders:
+
 {
-  "title": "ICP: [descriptive title based on their product/market]",
-  "summary": "2-3 sentence executive summary of who they should target and why",
+  "title": "ICP: [specific, product-relevant title — not generic]",
+  "icp_id": "[COUNTRY]_[SEGMENT]_[USECASE]_v1",
+  "summary": "2–3 sentences: who to target, why now, what makes them convert",
   "confidence": 0.75,
   "evidence_type": "validated",
+
+  "segments": [
+    {
+      "code": "SEG-A",
+      "industry": "specific industry",
+      "company_type": "e.g. Series A SaaS, 50–150 employees",
+      "geography": "e.g. US / UK",
+      "structural_context": "1–2 sentences on budget cycles, buying mechanics, regulation, or constraints that affect this segment",
+      "is_primary": true
+    }
+  ],
+
+  "personas": [
+    {
+      "code": "P1",
+      "title_cluster": ["exact job title 1", "exact job title 2"],
+      "role_type": "Decision Maker",
+      "core_pain": "specific constraint they face, tied to their KPI — not a vague problem statement",
+      "primary_kpi": "the metric they are personally judged on",
+      "snapshot": {
+        "name": "archetypal first name that fits this persona",
+        "role_context": "1 sentence: their role, company stage, current pressure",
+        "day_in_life": ["what their 8am looks like", "what happens mid-day", "what they deal with by EOD"],
+        "keeps_up_at_night": ["specific fear tied to their KPI", "specific risk they can't solve today"],
+        "top_frustrations": ["process or tool frustration they mention in calls", "org-level frustration they can't control"],
+        "what_success_looks_like": ["measurable outcome they want in 90 days", "career or team outcome they want in 6 months"],
+        "decision_lens": "how they evaluate solutions: what question do they ask themselves before saying yes"
+      }
+    }
+  ],
+
+  "trigger_taxonomy": [
+    {
+      "trigger": "specific observable event — not abstract",
+      "time_bound": true,
+      "signal": "how to detect this trigger in the real world (e.g. LinkedIn job change, funding announcement, product launch)"
+    }
+  ],
+
+  "value_angle": {
+    "primary": "ONE specific value claim — tied to money, risk reduction, or survival",
+    "maps_to": "money"
+  },
+
+  "experiment_design": {
+    "variable": "pain_framing",
+    "variants": [
+      { "id": "A", "label": "specific framing angle A" },
+      { "id": "B", "label": "specific framing angle B" },
+      { "id": "C", "label": "specific framing angle C" }
+    ]
+  },
+
+  "hypothesis": "We believe [specific segment] will respond best to [variant X] because [reason tied to their KPI or pressure]",
+
+  "objections": [
+    { "type": "budget",      "objection": "real objection a prospect would say", "counter": "direct counter tied to their KPI" },
+    { "type": "inertia",     "objection": "real objection a prospect would say", "counter": "direct counter tied to their KPI" },
+    { "type": "competition", "objection": "real objection a prospect would say", "counter": "direct counter tied to their KPI" },
+    { "type": "timing",      "objection": "real objection a prospect would say", "counter": "direct counter tied to their KPI" },
+    { "type": "complexity",  "objection": "real objection a prospect would say", "counter": "direct counter tied to their KPI" }
+  ],
+
+  "success_metrics": {
+    "primary":   "measurable metric with a number (e.g. reply rate > 8%)",
+    "secondary": "measurable metric with a number",
+    "tertiary":  "measurable metric with a number"
+  },
+
+  "failure_mode": {
+    "why_might_not_convert": "the assumption embedded in this ICP that could be wrong",
+    "assumption_to_validate": "the single most important thing to test in the first 50 outreach attempts"
+  },
+
   "buyerPersona": {
-    "title": "Primary buyer's job title",
-    "role": "Their functional role and responsibilities",
-    "seniority": "C-level / VP / Director / Manager / IC",
-    "dayInLife": "What their typical workday looks like — 2-3 sentences",
-    "goals": ["goal1", "goal2", "goal3"],
-    "frustrations": ["frustration1", "frustration2", "frustration3"]
+    "title": "primary buyer job title",
+    "role": "functional role and responsibilities",
+    "seniority": "C-level / VP / Director / Manager",
+    "dayInLife": "2–3 sentences on their typical day",
+    "goals": ["goal tied to KPI", "career goal", "team goal"],
+    "frustrations": ["frustration 1", "frustration 2", "frustration 3"]
   },
+
   "firmographics": {
-    "companySize": "e.g. 50-200 employees",
-    "industry": ["industry1", "industry2"],
-    "revenue": "e.g. $5M-$50M ARR",
-    "geography": ["region1", "region2"],
-    "techStack": ["tool1", "tool2"]
+    "companySize": "e.g. 50–200 employees",
+    "industry": ["industry 1", "industry 2"],
+    "revenue": "e.g. $2M–$20M ARR",
+    "geography": ["region 1", "region 2"],
+    "techStack": ["tool 1", "tool 2"]
   },
+
   "painPoints": [
-    { "pain": "description of the pain point", "severity": "high", "currentSolution": "how they solve it today", "evidence": "validated|inferred|assumed" }
+    { "pain": "specific pain tied to real work", "severity": "high", "currentSolution": "what they use today and why it fails", "evidence": "inferred" }
   ],
-  "buyingTriggers": ["trigger1", "trigger2", "trigger3"],
+
+  "buyingTriggers": ["observable trigger 1", "observable trigger 2", "observable trigger 3"],
+
   "channels": [
-    { "channel": "channel name", "priority": "primary", "rationale": "why this channel works for this ICP" }
+    { "channel": "channel name", "priority": "primary", "rationale": "why this channel reaches this specific persona" }
   ],
-  "qualificationCriteria": ["criterion1", "criterion2", "criterion3"],
+
+  "qualificationCriteria": ["criterion 1", "criterion 2", "criterion 3"],
+
   "execution_path": {
     "consumed_by": ["pains_gains_triggers", "buyer_journey", "positioning_messaging", "lead_list", "outbound-agent"],
     "enables": "Build targeted lead list from firmographics; ground D2 pain map in specific buyer context",
     "downstream_dependency": "D2 Pains & Gains cannot be built without this ICP definition",
-    "next_step_for_founder": "Confirm the ICP is accurate — especially the firmographics and buyer title. Then Patel will map the pain triggers that drive purchase decisions."
+    "next_step_for_founder": "Confirm the primary segment and persona title are accurate. Then Patel will map the specific triggers that turn this ICP into a buying decision."
   }
 }
 
-RULES:
-- Be specific to THEIR product and market. No generic placeholders.
-- confidence: 0.0–1.0 (reflect how strongly evidence supports the ICP — lower if based on assumptions)
-- evidence_type: "validated" (founder confirmed with customers) / "inferred" (reasonable from data) / "assumed" (hypothesis only)
-- Include 3-5 pain points, 3-5 buying triggers, 2-4 channels, 3-5 qualification criteria.
-- Severity must be "high", "medium", or "low". Channel priority must be "primary" or "secondary".
-- execution_path is MANDATORY. Never omit it.
-- Return ONLY valid JSON. No markdown, no explanation.`,
+═══ HARD RULES ═══
+- ONE primary segment (is_primary: true). Max 2 segments total. No hedging.
+- ONE dominant pain per persona. No equal options.
+- ONE value angle (maps_to: "money" OR "risk" OR "survival" — pick one).
+- experiment_design.variable must be ONLY "pain_framing" OR "persona" OR "trigger" — never vary multiple things.
+- persona snapshot: max 200 words total, no startup fluff, must feel like a real person a salesperson would recognise instantly.
+- trigger_taxonomy: every trigger must be time-bound and detectable in the real world. No abstract triggers like "company is growing".
+- failure_mode is MANDATORY. Never omit.
+- Include 3–5 pain points, 3–5 buying triggers, 2–4 channels, 3–5 qualification criteria.
+- severity: "high" / "medium" / "low". channel priority: "primary" / "secondary".
+- Do NOT use vague phrases: "increase efficiency", "improve performance", "streamline workflows". Every claim must be measurable or tied to a real situation.
+
+═══ PHASE 2 — REALITY CHECK (INTERNAL — DO NOT OUTPUT) ═══
+Before finalising, validate:
+1. Would a real salesperson instantly recognise this customer? (if not → refine persona snapshot)
+2. Is every trigger actually observable in the real world? (if not → rewrite trigger_taxonomy)
+3. Is the value angle tied to money, risk, or survival? (if not → rewrite value_angle)
+4. Is anything generic or non-actionable? (if yes → rewrite that field)
+
+Then output the final JSON.`,
 
     // ── D2: Pains, Gains & Triggers ────────────────────────────────────────
     // Demand model — maps what drives purchase decisions for the ICP

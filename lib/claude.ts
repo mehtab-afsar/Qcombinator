@@ -51,6 +51,8 @@ export async function callClaude(
   const { maxTokens = 500, temperature = 0.7 } = options;
   const { system, chat } = splitMessages(messages);
 
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), 45_000)
   try {
     const response = await getClient().messages.create({
       model: MODEL,
@@ -59,11 +61,15 @@ export async function callClaude(
       ...(system ? { system } : {}),
       messages: chat,
     });
-    return response.content
+    clearTimeout(timer)
+    return (response as Anthropic.Message).content
       .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-      .map(b => b.text)
+      .map((b: Anthropic.TextBlock) => b.text)
       .join('');
   } catch (err) {
+    clearTimeout(timer)
+    if (err instanceof Error && err.name === 'AbortError')
+      throw new ClaudeError('Anthropic API timeout after 45s', 504, true);
     if (err instanceof Anthropic.RateLimitError)
       throw new ClaudeError('Anthropic rate limit exceeded — please try again later', 429);
     if (err instanceof Anthropic.AuthenticationError)
