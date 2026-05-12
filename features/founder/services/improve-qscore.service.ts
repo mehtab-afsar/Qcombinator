@@ -30,13 +30,15 @@ export async function fetchImproveQScoreData(): Promise<ImproveQScoreData> {
     supabase
       .from('agent_artifacts')
       .select('artifact_type')
-      .eq('user_id', user.id),
+      .eq('user_id', user.id)
+      .limit(200),
 
     supabase
       .from('score_evidence')
       .select('id, dimension, evidence_type, title, data_value, status, points_awarded, created_at')
       .eq('user_id', user.id)
-      .order('created_at', { ascending: false }),
+      .order('created_at', { ascending: false })
+      .limit(100),
 
     supabase
       .from('qscore_history')

@@ -44,21 +44,33 @@ export const env = {
  * required vars are present before the first request is served.
  */
 export function validateRequiredEnv(): void {
-  const required = [
+  // Hard-required: app cannot function at all without these
+  const critical = [
     'NEXT_PUBLIC_SUPABASE_URL',
     'NEXT_PUBLIC_SUPABASE_ANON_KEY',
     'SUPABASE_SERVICE_ROLE_KEY',
     'ANTHROPIC_API_KEY',
+  ]
+  const missing = critical.filter(k => !process.env[k])
+  if (missing.length > 0) {
+    throw new Error(
+      `[env] Server cannot start — missing required environment variables:\n` +
+      missing.map(k => `  • ${k}`).join('\n')
+    )
+  }
+
+  // Feature-required: missing = degraded feature, not total failure
+  const recommended = [
     'GROQ_API_KEY',
     'RESEND_API_KEY',
     'TAVILY_API_KEY',
     'CRON_SECRET',
   ]
-  const missing = required.filter(k => !process.env[k])
-  if (missing.length > 0) {
-    throw new Error(
-      `[env] Server cannot start — missing required environment variables:\n` +
-      missing.map(k => `  • ${k}`).join('\n')
+  const missingRecommended = recommended.filter(k => !process.env[k])
+  if (missingRecommended.length > 0) {
+    console.warn(
+      `[env] Some features will be unavailable — missing environment variables:\n` +
+      missingRecommended.map(k => `  • ${k}`).join('\n')
     )
   }
 }

@@ -639,6 +639,38 @@ export function AgentWorkspace({
                 {/* messages */}
                 {workspace.uiMessages.map((msg, idx) => {
                   if (msg.role === 'agent' && !msg.text && !msg.sources) return null
+                  if (msg.role === 'artifact_card') {
+                    return (
+                      <motion.div key={idx} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}>
+                        <div style={{
+                          border: `1px solid ${bdr}`, borderRadius: 12, padding: '14px 18px',
+                          background: surf, display: 'flex', alignItems: 'center', gap: 14,
+                        }}>
+                          <div style={{ width: 34, height: 34, borderRadius: 8, background: '#F5F0FF', border: '1.5px solid #C4B5FD', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <FileText size={15} style={{ color: '#7C3AED' }} />
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#7C3AED', marginBottom: 2 }}>
+                              Document ready
+                            </div>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {msg.artifactTitle ?? 'Untitled document'}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setActiveView(`artifact:${msg.artifactId}`)}
+                            style={{
+                              padding: '7px 14px', borderRadius: 8, border: 'none',
+                              background: '#7C3AED', color: '#fff', fontSize: 12, fontWeight: 600,
+                              cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
+                            }}
+                          >
+                            View document →
+                          </button>
+                        </div>
+                      </motion.div>
+                    )
+                  }
                   return (
                   <motion.div key={idx} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
                     style={{ display: 'flex', gap: 12, flexDirection: msg.role === 'user' ? 'row-reverse' : 'row' }}

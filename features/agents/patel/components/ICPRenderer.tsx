@@ -696,7 +696,7 @@ export function ICPRenderer({ data }: { data: Record<string, unknown> }) {
                 </div>
               </div>
               <div className="flex flex-col gap-1.5">
-                {enrichLeads.map((lead, _i) => (
+                {enrichLeads.map((lead, i) => (
                   <div key={i} className="flex justify-between items-center" style={{ padding: '8px 12px', background: bg, borderRadius: 8, border: `1px solid ${bdr}` }}>
                     <div>
                       <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>{lead.name}</p>

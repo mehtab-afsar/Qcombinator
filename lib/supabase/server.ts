@@ -57,9 +57,14 @@ export function createAdminClient() {
 }
 
 // Module-scope singleton — avoids repeated HTTP client initialization per request.
-let _adminSingleton: ReturnType<typeof createSupabaseClient> | null = null
+// Return type is cast to `any` because supabase-js 2.93+ resolves unknown tables as `never`
+// when no generated Database type is provided. Replace with `createClient<Database>()` once
+// `supabase gen types typescript --linked > types/supabase.ts` has been run.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _adminSingleton: any = null
 
-export function getAdminClient() {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function getAdminClient(): any {
   if (!_adminSingleton) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY

@@ -680,6 +680,27 @@ export async function POST(request: NextRequest) {
         if (stateBlock) systemPrompt += stateBlock;
       }
 
+      // Inject latest artifact from this conversation — lets the LLM accept "edit this" follow-ups
+      if (existingConversationId) {
+        try {
+          const { data: latestArt } = await supabaseAdmin
+            .from('agent_artifacts')
+            .select('artifact_type, title, content')
+            .eq('conversation_id', existingConversationId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single()
+
+          if (latestArt) {
+            const snippet = JSON.stringify(latestArt.content).slice(0, 3000)
+            systemPrompt += `\n\n<latest_artifact type="${latestArt.artifact_type}" title="${latestArt.title}">
+${snippet}
+</latest_artifact>
+When the founder asks to refine, edit, or update this document, call generate_artifact with the same artifact type — the conversation history already contains their requested changes.`
+          }
+        } catch { /* non-critical — never block the response */ }
+      }
+
       // Load pending delegations + agent goal in parallel (non-blocking — never delays the response)
       const [delegationsResult, goalResult] = await Promise.allSettled([
         getPendingDelegations(agentId, userId, supabaseAdmin),
@@ -1061,7 +1082,7 @@ CONVERSATION RULES:
                   let artifactId: string | null = null;
                   if (userId) {
                     const { data: saved, error: saveErr } = await supabaseAdmin.from('agent_artifacts').insert({ conversation_id: existingConversationId ?? null, user_id: userId, agent_id: agentId, artifact_type: toolName, title: artifactTitle, content: parsedContent }).select('id').single();
-                    if (saveErr) log.error('artifact insert failed:', saveErr.message, saveErr.code);
+                    if (saveErr) log.error('artifact insert failed:', { message: saveErr.message, code: saveErr.code });
                     artifactId = saved?.id ?? null;
                     streamArtifactId = artifactId;
                   }
@@ -1320,7 +1341,7 @@ CONVERSATION RULES:
               content: parsedContent,
             })
             .select('id').single();
-          if (saveErr) log.error('artifact insert failed:', saveErr.message, saveErr.code);
+          if (saveErr) log.error('artifact insert failed:', { message: saveErr.message, code: saveErr.code });
           artifactId = saved?.id ?? null;
         }
 

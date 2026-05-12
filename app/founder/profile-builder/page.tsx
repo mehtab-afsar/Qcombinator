@@ -178,6 +178,7 @@ export default function ProfileBuilderPage() {
   } | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [rateLimitUntil, setRateLimitUntil] = useState<Date | null>(null)
+  const [toastMsg, setToastMsg] = useState<string | null>(null)
   const [isRetake, setIsRetake] = useState(false)
   const [retakeLoading, setRetakeLoading] = useState(false)
   const [_previewData, setPreviewData] = useState<PreviewData | null>(null)
@@ -257,6 +258,31 @@ export default function ProfileBuilderPage() {
     const timer = setTimeout(() => setRateLimitUntil(null), ms)
     return () => clearTimeout(timer)
   }, [rateLimitUntil])
+
+  // ── auto-dismiss toast after 5 seconds ───────────────────────────────────
+  useEffect(() => {
+    if (!toastMsg) return
+    const timer = setTimeout(() => setToastMsg(null), 5000)
+    return () => clearTimeout(timer)
+  }, [toastMsg])
+
+  // ── proactive cooldown preload when score step is shown ──────────────────
+  // Handles the case where user navigates fresh to the page with savedFlowState
+  // showing step 6 — rateLimitUntil is in-memory only and resets on nav.
+  useEffect(() => {
+    if (currentStep !== 6 || rateLimitUntil) return
+    fetch('/api/qscore/latest')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        const calAt = data?.qScore?.calculatedAt
+        if (!calAt) return
+        const age = Date.now() - new Date(calAt).getTime()
+        if (age < 86400000) {
+          setRateLimitUntil(new Date(new Date(calAt).getTime() + 86400000))
+        }
+      })
+      .catch(() => {})
+  }, [currentStep]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── on mount: session + founder profile + draft ───────────────────────────
   useEffect(() => {
@@ -994,7 +1020,9 @@ export default function ProfileBuilderPage() {
       const data = await res.json()
       if (!res.ok) {
         if (res.status === 429 && data.retakeAvailableAt) {
-          setRateLimitUntil(new Date(data.retakeAvailableAt))
+          const avail = new Date(data.retakeAvailableAt)
+          setRateLimitUntil(avail)
+          setToastMsg(`Next retake available ${avail.toLocaleDateString(undefined, { weekday: 'long' })} at ${avail.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`)
         } else {
           setSubmitError(data.error ?? 'Submission failed')
         }
@@ -1034,7 +1062,9 @@ export default function ProfileBuilderPage() {
       const data = await res.json()
       if (!res.ok) {
         if (res.status === 429 && data.retakeAvailableAt) {
-          setRateLimitUntil(new Date(data.retakeAvailableAt))
+          const avail = new Date(data.retakeAvailableAt)
+          setRateLimitUntil(avail)
+          setToastMsg(`Next retake available ${avail.toLocaleDateString(undefined, { weekday: 'long' })} at ${avail.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`)
         } else {
           setSubmitError(data.error ?? 'Reset failed')
         }
@@ -2767,10 +2797,10 @@ export default function ProfileBuilderPage() {
                           </button>
                           <button
                             onClick={handleRetake}
-                            disabled={retakeLoading}
-                            style={{ padding: '10px 18px', borderRadius: 9, border: `1px solid ${bdr}`, background: 'transparent', color: retakeLoading ? muted : ink, fontSize: 13, fontWeight: 500, cursor: retakeLoading ? 'default' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6 }}
+                            disabled={retakeLoading || !!rateLimitUntil}
+                            style={{ padding: '10px 18px', borderRadius: 9, border: `1px solid ${bdr}`, background: 'transparent', color: (retakeLoading || rateLimitUntil) ? muted : ink, fontSize: 13, fontWeight: 500, cursor: (retakeLoading || rateLimitUntil) ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6 }}
                           >
-                            {retakeLoading ? 'Checking…' : '↺ Retake Assessment'}
+                            {retakeLoading ? 'Checking…' : rateLimitUntil ? `⏱ Locked until ${rateLimitUntil.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}` : '↺ Retake Assessment'}
                           </button>
                           <button onClick={generateMemoPDF} style={{ padding: '10px 18px', borderRadius: 9, border: `1px solid ${bdr}`, background: 'transparent', color: muted, fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
                             <FileText size={13} strokeWidth={1.75} /> Download PDF
@@ -3005,6 +3035,24 @@ export default function ProfileBuilderPage() {
       </AnimatePresence>
         </main>
       </div>
+
+      {/* 429 rate-limit toast — fixed top-center, auto-dismisses after 5s */}
+      <AnimatePresence>
+        {toastMsg && (
+          <motion.div
+            initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }}
+            style={{
+              position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)',
+              zIndex: 9999, background: '#92400E', color: '#FEF3C7', borderRadius: 12,
+              padding: '10px 22px', fontSize: 13, fontWeight: 600,
+              boxShadow: '0 4px 24px rgba(0,0,0,0.2)', pointerEvents: 'none',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {toastMsg}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* hidden file input */}
       <input

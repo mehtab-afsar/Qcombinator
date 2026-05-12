@@ -55,11 +55,10 @@ export async function GET(_request: NextRequest) {
     const cachedUnlockCards = (aiActions as Record<string, unknown> | null)?.unlockCards ?? null
     const cachedReadinessSummary = (aiActions as Record<string, unknown> | null)?.readinessSummary ?? null
     if (cachedActions && (cachedActions as unknown[]).length > 0) {
-      return NextResponse.json({
-        actions: cachedActions,
-        unlockCards: cachedUnlockCards ?? [],
-        readinessSummary: cachedReadinessSummary ?? '',
-      });
+      return NextResponse.json(
+        { actions: cachedActions, unlockCards: cachedUnlockCards ?? [], readinessSummary: cachedReadinessSummary ?? '' },
+        { headers: { 'Cache-Control': 's-maxage=300, stale-while-revalidate=600' } },
+      );
     }
 
     // ── Generate personalized actions via LLM + RAG ────────────────────────
@@ -197,11 +196,14 @@ Return ONLY valid JSON. No markdown, no explanation.`;
         .eq('id', latest.id);
     }
 
-    return NextResponse.json({
-      actions,
-      unlockCards: (aiActions as Record<string, unknown> | null)?.unlockCards ?? [],
-      readinessSummary: (aiActions as Record<string, unknown> | null)?.readinessSummary ?? '',
-    });
+    return NextResponse.json(
+      {
+        actions,
+        unlockCards: (aiActions as Record<string, unknown> | null)?.unlockCards ?? [],
+        readinessSummary: (aiActions as Record<string, unknown> | null)?.readinessSummary ?? '',
+      },
+      { headers: { 'Cache-Control': 's-maxage=300, stale-while-revalidate=600' } },
+    );
 
   } catch (error) {
     log.error('GET /api/qscore/actions', { error });

@@ -8,10 +8,13 @@ export interface SourceItem {
 }
 
 export interface UiMessage {
-  role: 'agent' | 'user' | 'tool'
+  role: 'agent' | 'user' | 'tool' | 'artifact_card'
   text: string
   toolActivity?: { toolName: string; label: string; status: 'running' | 'done'; summary?: string }
   sources?: SourceItem[]
+  artifactId?: string
+  artifactType?: string
+  artifactTitle?: string
 }
 export interface ApiMessage { role: 'user' | 'assistant'; content: string }
 export interface ActionItem {
@@ -213,6 +216,13 @@ export function useAgentWorkspace(agentId: string): AgentWorkspaceState {
               return [...p, rec]
             })
             setLatestArtifact(rec)
+            setUiMessages(p => [...p, {
+              role: 'artifact_card',
+              text: '',
+              artifactId: rec.id,
+              artifactType: rec.type,
+              artifactTitle: rec.title,
+            }])
           } else if (evt.type === 'score_signal' && evt.boosted) {
             setScoreBoost({ points: evt.points as number, dimension: evt.dimension as string })
             setTimeout(() => setScoreBoost(null), 4000)
