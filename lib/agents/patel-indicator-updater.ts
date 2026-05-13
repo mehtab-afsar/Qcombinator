@@ -2,10 +2,13 @@
  * Patel Indicator Updater
  * Infers GTM indicator scores from completed D1–D4 artifact content and upserts to patel_diagnostic_scores.
  * Called after Patel deliverable saves in generate/run/route.ts.
+ *
+ * Also exports inferIterationAndAlignmentFromMessage for conversation-based P1.4/P1.5 scoring.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { IndicatorScore, PatelScores, PatelConfidence } from '@/lib/constants/patel-indicators'
+import { routedText } from '@/lib/llm/router'
 
 function clamp(n: number): IndicatorScore {
   return Math.max(1, Math.min(5, Math.round(n))) as IndicatorScore
@@ -15,18 +18,34 @@ function inferIcpScores(content: Record<string, unknown>): { scores: PatelScores
   const scores: PatelScores = {}
   const confidence: PatelConfidence = {}
 
-  const persona = content.buyerPersona as Record<string, unknown> | undefined
-  const firm = content.firmographics as Record<string, unknown> | undefined
+  // New GOD-TIER schema fields (preferred)
+  const personas = (content.personas as Record<string, unknown>[]) ?? []
+  const segments = (content.segments as Record<string, unknown>[]) ?? []
+  // Legacy schema fallbacks
+  const legacyPersona = content.buyerPersona as Record<string, unknown> | undefined
+  const legacyFirm = content.firmographics as Record<string, unknown> | undefined
+
   const pains = (content.painPoints as unknown[]) ?? []
   const channels = (content.channels as unknown[]) ?? []
   const qual = (content.qualificationCriteria as unknown[]) ?? []
   const evType = content.evidence_type as string | undefined
   const conf = Number(content.confidence ?? 0)
 
-  // icp.specificity — based on how many specific fields are populated
-  if (persona && firm) {
-    const traitCount = [persona.title, persona.role, persona.seniority, persona.dayInLife].filter(Boolean).length
-    const firmCount = [firm.companySize, firm.industry, firm.revenue, firm.geography].filter(Boolean).length
+  // icp.specificity — prefer new personas[]/segments[] schema; fall back to legacy buyerPersona/firmographics
+  const primaryPersona = personas[0] as Record<string, unknown> | undefined
+  const primarySegment = (segments.find(s => (s as Record<string, unknown>).is_primary) ?? segments[0]) as Record<string, unknown> | undefined
+  const personaSource = primaryPersona ?? legacyPersona
+
+  if (personaSource) {
+    const snapshot = primaryPersona?.snapshot as Record<string, unknown> | undefined
+    const traitCount = primaryPersona
+      ? [(primaryPersona.title_cluster as unknown[])?.length > 0 ? primaryPersona.title_cluster : null, primaryPersona.role_type, primaryPersona.core_pain, primaryPersona.primary_kpi, snapshot?.name].filter(Boolean).length
+      : [legacyPersona!.title, legacyPersona!.role, legacyPersona!.seniority, legacyPersona!.dayInLife].filter(Boolean).length
+    const segSource = primarySegment ?? legacyFirm
+    const firmCount = primarySegment
+      ? [primarySegment.industry, primarySegment.company_type, primarySegment.geography].filter(Boolean).length
+      : legacyFirm ? [legacyFirm.companySize, legacyFirm.industry, legacyFirm.revenue, legacyFirm.geography].filter(Boolean).length : 0
+    void segSource // suppress unused-variable lint
     const qualCount = qual.length
     scores['icp.specificity'] = clamp(Math.round((traitCount + firmCount + qualCount) / 3))
     confidence['icp.specificity'] = 'inferred' // artifact inference can never be VALIDATED
@@ -41,9 +60,15 @@ function inferIcpScores(content: Record<string, unknown>): { scores: PatelScores
   }
 
   // icp.commercial_alignment — infer from pain severity and evidence quality
+  // A persona with core_pain + primary_kpi is a stronger commercial alignment signal than painPoints[]
   const highPains = pains.filter((p: unknown) => (p as Record<string, unknown>)?.severity === 'high').length
-  if (highPains > 0 || evType === 'validated') {
-    scores['icp.commercial_alignment'] = evType === 'validated' ? clamp(3 + highPains) : 2
+  const hasKpiAnchoredPersona = personas.some(p => {
+    const rp = p as Record<string, unknown>
+    return rp.core_pain && rp.primary_kpi
+  })
+  if (highPains > 0 || hasKpiAnchoredPersona || evType === 'validated') {
+    const base = hasKpiAnchoredPersona ? 3 : 2
+    scores['icp.commercial_alignment'] = evType === 'validated' ? clamp(base + highPains) : base
     confidence['icp.commercial_alignment'] = 'inferred' // artifact inference can never be VALIDATED
   }
 
@@ -158,6 +183,89 @@ function inferMessageScores(content: Record<string, unknown>): { scores: PatelSc
   return { scores, confidence }
 }
 
+/**
+ * Infers P1.4 (icp.iteration) and P1.5 (icp.team_alignment) from a founder conversation message.
+ * Called fire-and-forget from the chat route after D1 is complete and these indicators are unassessed.
+ * These two indicators cannot be inferred from artifact content — they require behavioral signals.
+ */
+export async function inferIterationAndAlignmentFromMessage(
+  userId: string,
+  message: string,
+  existingScores: PatelScores,
+  supabase: SupabaseClient,
+): Promise<void> {
+  const needsIteration = !existingScores['icp.iteration']
+  const needsTeamAlignment = !existingScores['icp.team_alignment']
+  if (!needsIteration && !needsTeamAlignment) return
+  if (message.trim().length < 15) return
+
+  try {
+    const extractPrompt = `Analyze this founder message for two GTM indicator signals. Return valid JSON only, no explanation.
+
+Message: "${message.slice(0, 600)}"
+
+Return exactly this JSON:
+{
+  "icp_iteration": null or 1-5,
+  "icp_team_alignment": null or 1-5
+}
+
+Scoring rules:
+icp_iteration — has the founder tested this ICP with real outreach?
+  1 = no attempt / brand new ICP
+  2 = a few messages sent, no results yet
+  3 = tested 10+ times, has initial data
+  4 = refined based on results
+  5 = validated pattern, proven conversion
+  null = no relevant signal in the message
+
+icp_team_alignment — does the team share and use this ICP?
+  1 = solo founder only, no team involved
+  2 = has team but ICP not shared yet
+  3 = team has seen the ICP
+  4 = team actively uses ICP in their process
+  5 = full org alignment
+  null = no relevant signal in the message`
+
+    const raw = await routedText('extraction', [
+      { role: 'system', content: extractPrompt },
+      { role: 'user', content: 'Extract signals.' },
+    ])
+    const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
+    const parsed = JSON.parse(cleaned) as Record<string, unknown>
+
+    const newScores: PatelScores = {}
+    const newConfidence: PatelConfidence = {}
+
+    if (needsIteration && parsed.icp_iteration !== null && typeof parsed.icp_iteration === 'number') {
+      newScores['icp.iteration'] = clamp(parsed.icp_iteration)
+      newConfidence['icp.iteration'] = 'inferred'
+    }
+    if (needsTeamAlignment && parsed.icp_team_alignment !== null && typeof parsed.icp_team_alignment === 'number') {
+      newScores['icp.team_alignment'] = clamp(parsed.icp_team_alignment)
+      newConfidence['icp.team_alignment'] = 'inferred'
+    }
+
+    if (Object.keys(newScores).length === 0) return
+
+    const { data: existing } = await supabase
+      .from('patel_diagnostic_scores')
+      .select('scores, confidence')
+      .eq('user_id', userId)
+      .single()
+
+    const mergedScores = { ...(existing?.scores ?? {}), ...newScores }
+    const mergedConfidence = { ...(existing?.confidence ?? {}), ...newConfidence }
+
+    await supabase.from('patel_diagnostic_scores').upsert({
+      user_id: userId,
+      scores: mergedScores,
+      confidence: mergedConfidence,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'user_id' })
+  } catch { /* fire-and-forget — non-critical */ }
+}
+
 export async function updatePatelIndicatorsFromArtifact(
   userId: string,
   artifactType: string,
@@ -166,7 +274,21 @@ export async function updatePatelIndicatorsFromArtifact(
 ): Promise<void> {
   let inferred: { scores: PatelScores; confidence: PatelConfidence } = { scores: {}, confidence: {} }
 
-  if (artifactType === 'icp_document') inferred = inferIcpScores(content)
+  if (artifactType === 'icp_document') {
+    inferred = inferIcpScores(content)
+    // P1.4 iteration: if the founder has generated a prior D1, they're iterating — auto-score
+    try {
+      const { count } = await supabase
+        .from('agent_artifacts')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('artifact_type', 'icp_document')
+      if ((count ?? 0) >= 2) {
+        inferred.scores['icp.iteration'] = clamp(Math.min(3, count ?? 2))
+        inferred.confidence['icp.iteration'] = 'inferred'
+      }
+    } catch { /* non-critical */ }
+  }
   else if (artifactType === 'pains_gains_triggers') inferred = inferInsightScores(content)
   else if (artifactType === 'buyer_journey') inferred = inferChannelScores(content)
   else if (artifactType === 'positioning_messaging') inferred = inferMessageScores(content)

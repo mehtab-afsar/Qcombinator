@@ -39,11 +39,8 @@ describe('calculateQScore', () => {
 
   it('returns finalIQ between 0 and 100 for a data-rich assessment', () => {
     const assessment = makeMinimalAssessment({
-      stage:         'seed',
-      industry:      'saas',
-      teamSize:      '5',
-      mrr:           '10000',
-      customerCount: '50',
+      conversationCount: 50,
+      financial: { mrr: 10000, monthlyBurn: 1000 },
     })
     const result = calculateQScore(assessment, 'mid', 'saas')
     expect(result.finalIQ).toBeGreaterThanOrEqual(0)
@@ -76,7 +73,7 @@ describe('calculateQScore', () => {
   })
 
   it('produces consistent results for identical inputs', () => {
-    const data = makeMinimalAssessment({ mrr: '5000' })
+    const data = makeMinimalAssessment({ financial: { mrr: 5000, monthlyBurn: 500 } })
     const r1 = calculateQScore(data, 'early', 'saas')
     const r2 = calculateQScore(data, 'early', 'saas')
     expect(r1.finalIQ).toBe(r2.finalIQ)

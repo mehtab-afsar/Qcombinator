@@ -60,6 +60,8 @@ import { GLOBAL_CONSTITUTION } from '@/lib/agents/constitution';
 import { getAgentMemory } from '@/lib/agents/memory-loader';
 import { updateAgentMemory } from '@/lib/agents/memory-updater';
 import { summariseAndSaveSession } from '@/lib/agents/session-summarizer';
+import { inferIterationAndAlignmentFromMessage } from '@/lib/agents/patel-indicator-updater';
+import { buildPatelQuestionBank } from '@/lib/agents/patel-question-bank';
 
 // ─── request schema ──────────────────────────────────────────────────────────
 const chatRequestSchema = z.object({
@@ -673,6 +675,23 @@ export async function POST(request: NextRequest) {
         log.warn('patel_scores_missing', { userId, agentId })
       }
 
+      // Fix 1: inject curated DIAGNOSTIC_QUESTIONS bank for active constraint dimension
+      if (agentId === 'patel') {
+        const qBank = buildPatelQuestionBank(patelRawScores, patelRawConfidence)
+        if (qBank) systemPrompt += qBank
+      }
+
+      // Fix 2: inject questions already asked this session — prevents Patel from repeating
+      if (agentId === 'patel' && (conversationHistory || []).length > 0) {
+        const askedQuestions = (conversationHistory as Array<{ role: string; content: string }>)
+          .filter(m => m.role === 'assistant')
+          .flatMap(m => m.content.split('\n').filter(l => l.trim().endsWith('?') && l.trim().length > 20))
+          .slice(-6)
+        if (askedQuestions.length > 0) {
+          systemPrompt += `\n\nQUESTIONS ALREADY ASKED THIS SESSION — do not repeat, do not rephrase:\n${askedQuestions.map(q => `- ${q.trim()}`).join('\n')}`
+        }
+      }
+
       // Inject shared startup state — gives every agent live facts from other agents
       if (stateResult.status === 'fulfilled') {
         startupState = stateResult.value;
@@ -905,20 +924,33 @@ CONVERSATION RULES:
         .in('artifact_type', required)
       const completed = new Set((existing ?? []).map((r: { artifact_type: string }) => r.artifact_type))
       const missing = required.filter(r => !completed.has(r))
-      if (missing.length === 0) return null
-      const missingNames = missing.map(m => PATEL_DELIVERABLE_NAMES[m] ?? m).join(' and ')
-      return `Before building ${PATEL_DELIVERABLE_NAMES[requestedType]}, you need to complete: ${missingNames}. Complete those first — each deliverable builds directly on the previous one.`
+      if (missing.length > 0) {
+        const missingNames = missing.map(m => PATEL_DELIVERABLE_NAMES[m] ?? m).join(' and ')
+        return `Before building ${PATEL_DELIVERABLE_NAMES[requestedType]}, you need to complete: ${missingNames}. Complete those first — each deliverable builds directly on the previous one.`
+      }
+      // GAP 4: D2 quality gate — ICP specificity must be ≥ 3 to ground the demand model
+      if (requestedType === 'pains_gains_triggers') {
+        const specificity = patelRawScores?.['icp.specificity']
+        if (!specificity || specificity < 3) {
+          return `The ICP needs more precision before we can build the demand model. A generic ICP produces a generic pain map that won't drive real outreach.\n\nBefore D2: what's the specific job title, the exact company type, and the single constraint that makes this buyer act NOW? Sharpen that and I'll rebuild D1 first.`
+        }
+      }
+      return null
     }
 
-    async function generateArtifactJSON(prompt: string): Promise<Record<string, unknown>> {
+    async function generateArtifactJSON(prompt: string, maxTokens = 8000): Promise<Record<string, unknown>> {
       const raw = await routedText('generation', [
         { role: 'system', content: prompt },
         { role: 'user', content: 'Generate the deliverable now. Return ONLY valid JSON, no markdown fences, no explanation text.' },
-      ], { maxTokens: 3000 });
+      ], { maxTokens });
       const clean = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
       try {
         return JSON.parse(clean);
       } catch {
+        const match = clean.match(/\{[\s\S]*\}/);
+        if (match) {
+          try { return JSON.parse(match[0]); } catch { /* fall through */ }
+        }
         return { raw_output: clean, _parse_error: true };
       }
     }
@@ -1081,7 +1113,8 @@ CONVERSATION RULES:
                   const artifactTitle = parsedContent.title as string || toolName.replace(/_/g, ' ');
                   let artifactId: string | null = null;
                   if (userId) {
-                    const { data: saved, error: saveErr } = await supabaseAdmin.from('agent_artifacts').insert({ conversation_id: existingConversationId ?? null, user_id: userId, agent_id: agentId, artifact_type: toolName, title: artifactTitle, content: parsedContent }).select('id').single();
+                    const icpIdVal = toolName === 'icp_document' ? (parsedContent.icp_id as string | undefined) ?? null : null
+                    const { data: saved, error: saveErr } = await supabaseAdmin.from('agent_artifacts').insert({ conversation_id: existingConversationId ?? null, user_id: userId, agent_id: agentId, artifact_type: toolName, title: artifactTitle, content: parsedContent, ...(icpIdVal ? { icp_id: icpIdVal } : {}) }).select('id').single();
                     if (saveErr) log.error('artifact insert failed:', { message: saveErr.message, code: saveErr.code });
                     artifactId = saved?.id ?? null;
                     streamArtifactId = artifactId;
@@ -1117,9 +1150,15 @@ CONVERSATION RULES:
                   }
                   send({ type: 'tool_done', toolName, summary: `${artifactTitle} ready` });
                   // Stream a brief Patel commentary so chatReply is never empty
+                  // For D1: ask the P1.4/P1.5 diagnostic questions if they're still unscored
                   try {
+                    const needsIterationQ = agentId === 'patel' && !patelRawScores?.['icp.iteration']
+                    const needsTeamQ = agentId === 'patel' && !patelRawScores?.['icp.team_alignment']
+                    const commentaryContent = (toolName === 'icp_document' && (needsIterationQ || needsTeamQ))
+                      ? `You are ${agent.name}. You just built "${artifactTitle}". Write 2 sentences: (1) name the primary persona and the ONE thing that makes them convert, (2) ask: "Two quick checks before the demand model — has your team seen this ICP, and have you tested it with any outbound yet, even informally?" Max 60 words. No fluff.`
+                      : `You are ${agent.name}, a specialist advisor. You just built "${artifactTitle}" for this founder. Write exactly 2 sentences: one confirming the single most important finding from what was built, one stating the specific next action. Be direct and specific — reference the actual content. Max 50 words. No fluff phrases.`
                     const commentary = await routedText('generation', [
-                      { role: 'system', content: `You are ${agent.name}, a specialist advisor. You just built "${artifactTitle}" for this founder. Write exactly 2 sentences: one confirming the single most important finding from what was built, one stating the specific next action. Be direct and specific — reference the actual content. Max 50 words. No fluff phrases.` },
+                      { role: 'system', content: commentaryContent },
                       { role: 'user', content: 'Summarise what was just built and the immediate next step.' },
                     ], { maxTokens: 120 });
                     if (commentary.trim()) {
@@ -1184,6 +1223,12 @@ CONVERSATION RULES:
             // the streaming response is already complete when these run
             if (finalConversationId) void summariseAndSaveSession(finalConversationId, allMsgs, supabaseAdmin).catch(() => {});
             void updateAgentMemory(userId, agentId, allMsgs, supabaseAdmin).catch(() => {});
+            // GAP 1: infer P1.4 (iteration) and P1.5 (team alignment) from founder message
+            if (agentId === 'patel' && patelRawScores?.['icp.specificity'] &&
+                (!patelRawScores['icp.iteration'] || !patelRawScores['icp.team_alignment']) &&
+                message.length > 20) {
+              void inferIterationAndAlignmentFromMessage(userId, message, patelRawScores, supabaseAdmin)
+            }
           }
 
           send({ type: 'done', agentId, conversationId: finalConversationId });
@@ -1332,6 +1377,7 @@ CONVERSATION RULES:
 
         let artifactId: string | null = null;
         if (userId) {
+          const icpIdVal = toolName === 'icp_document' ? (parsedContent.icp_id as string | undefined) ?? null : null
           const { data: saved, error: saveErr } = await supabaseAdmin
             .from('agent_artifacts')
             .insert({
@@ -1339,6 +1385,7 @@ CONVERSATION RULES:
               user_id: userId, agent_id: agentId,
               artifact_type: toolName, title: artifactTitle,
               content: parsedContent,
+              ...(icpIdVal ? { icp_id: icpIdVal } : {}),
             })
             .select('id').single();
           if (saveErr) log.error('artifact insert failed:', { message: saveErr.message, code: saveErr.code });
@@ -1448,6 +1495,12 @@ CONVERSATION RULES:
         void summariseAndSaveSession(conversationId, allMsgs, supabaseAdmin).catch(() => {});
       }
       void updateAgentMemory(userId, agentId, allMsgs, supabaseAdmin).catch(() => {});
+      // GAP 1: infer P1.4 (iteration) and P1.5 (team alignment) from founder message
+      if (agentId === 'patel' && patelRawScores?.['icp.specificity'] &&
+          (!patelRawScores['icp.iteration'] || !patelRawScores['icp.team_alignment']) &&
+          message.length > 20) {
+        void inferIterationAndAlignmentFromMessage(userId, message, patelRawScores, supabaseAdmin)
+      }
     }
 
     return NextResponse.json({

@@ -609,8 +609,8 @@ export function ICPRenderer({ data }: { data: Record<string, unknown> }) {
         </Card>
       )}
 
-      {/* ── 13. FIRMOGRAPHICS ─────────────────────────────────────────────── */}
-      {d.firmographics && (
+      {/* ── 13. FIRMOGRAPHICS — only shown when new segments[] schema is absent ── */}
+      {!hasNewSchema && d.firmographics && (
         <Card style={{ border: `1px solid ${bdr}` }}>
           <CardContent className="pt-4 pb-4">
             <p style={sH}>Firmographics</p>

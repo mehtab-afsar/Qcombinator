@@ -220,6 +220,7 @@ ${conversationText.slice(0, 4000)}`
     let scoreSignal: { boosted: boolean; pointsAdded?: number; dimensionLabel?: string } = { boosted: false }
 
     if (userId) {
+      const icpIdVal = artifactType === 'icp_document' ? (parsedContent.icp_id as string | undefined) ?? null : null
       const { data: saved } = await supabase
         .from('agent_artifacts')
         .insert({
@@ -230,6 +231,7 @@ ${conversationText.slice(0, 4000)}`
           title: artifactTitle,
           content: parsedContent,
           critique_metadata: critiqueMetadata,
+          ...(icpIdVal ? { icp_id: icpIdVal } : {}),
         })
         .select('id')
         .single()

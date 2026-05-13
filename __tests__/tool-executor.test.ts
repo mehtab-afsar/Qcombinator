@@ -163,6 +163,6 @@ describe('Tool cost config', () => {
     const enrich   = getTool('lead_enrich')
     expect(research).toBeDefined()
     expect(enrich).toBeDefined()
-    expect(research!.costUsd).toBeGreaterThan(enrich!.costUsd)
+    expect(research!.costUsd ?? 0).toBeGreaterThan(enrich!.costUsd ?? 0)
   })
 })

@@ -44,7 +44,7 @@ export async function getFounderProfileContext(
   const [profileResult, sectionsResult, scoreResult, patelResult, patelScoresResult] = await Promise.all([
     supabase
       .from('founder_profiles')
-      .select('startup_name, industry, stage, description, is_impact_focused')
+      .select('startup_name, industry, stage, description, is_impact_focused, startup_profile_data')
       .eq('user_id', userId)
       .single(),
 
@@ -81,6 +81,7 @@ export async function getFounderProfileContext(
   ])
 
   const fp = profileResult.data
+  const spd = (fp?.startup_profile_data ?? {}) as Record<string, unknown>
   const rows = sectionsResult.data ?? []
   const completedArtifactTypes = new Set((patelResult.data ?? []).map((r: { artifact_type: string }) => r.artifact_type))
   const patelScores = (patelScoresResult?.data?.scores ?? {}) as PatelScores
@@ -111,16 +112,26 @@ export async function getFounderProfileContext(
   const parts = [name, ind, stage ? `${stage} stage` : null].filter(Boolean)
   if (parts.length) lines.push(`Business: ${parts.join(' · ')}`)
 
-  // Description / problem story
-  const desc = fp?.description ?? d.problemStory
+  // One-liner summary from LLM-cleaned onboarding (if available)
+  const problemSummary = typeof spd.problemSummary === 'string' ? spd.problemSummary : null
+  if (problemSummary && problemSummary.trim().length > 5) {
+    lines.push(`Summary: <founder_content>${sanitizeUserContent(problemSummary.trim().slice(0, 200))}</founder_content>`)
+  }
+
+  // Description / problem story — prefer LLM-cleaned version over raw
+  const rawDesc = fp?.description ?? d.problemStory
+  const cleanedDesc = typeof spd.problemStatementCleaned === 'string' ? spd.problemStatementCleaned : null
+  const desc = cleanedDesc ?? rawDesc
   if (desc && typeof desc === 'string' && desc.trim().length > 5) {
     const safeDesc = sanitizeUserContent(desc.trim().slice(0, 200))
     lines.push(`Product: <founder_content>${safeDesc}</founder_content>`)
   }
 
-  // Customer signals
+  // Customer signals — prefer LLM-cleaned targetCustomer over raw profile-builder value
   const custParts: string[] = []
-  if (d.customerType) custParts.push(`<founder_content>${sanitizeUserContent(d.customerType)}</founder_content>`)
+  const cleanedCustomer = typeof spd.targetCustomerCleaned === 'string' ? spd.targetCustomerCleaned : null
+  const customerType = cleanedCustomer ?? d.customerType
+  if (customerType) custParts.push(`<founder_content>${sanitizeUserContent(customerType)}</founder_content>`)
   if (d.conversationCount) custParts.push(`${d.conversationCount} customer interviews`)
   if (d.hasPayingCustomers) custParts.push('paying customers ✓')
   else if (d.conversationCount) custParts.push('no paying customers yet')

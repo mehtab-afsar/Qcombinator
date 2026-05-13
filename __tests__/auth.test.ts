@@ -190,9 +190,8 @@ describe('startupProfileDataSchema', () => {
 describe('Signup value maps', () => {
   describe('STAGE_MAP', () => {
     it('maps every known UI stage to a DB-allowed value', () => {
-      for (const [uiValue, dbValue] of Object.entries(STAGE_MAP)) {
-        expect(DB_STAGE_ALLOWED).toContain(dbValue),
-          `${uiValue} → ${dbValue} is not in DB allowlist`
+      for (const [, dbValue] of Object.entries(STAGE_MAP)) {
+        expect(DB_STAGE_ALLOWED).toContain(dbValue)
       }
     })
 
@@ -224,7 +223,8 @@ describe('Signup value maps', () => {
     })
 
     it('passes through null/undefined funding gracefully', () => {
-      const dbFunding = undefined ? (FUNDING_MAP[''] ?? undefined) : null
+      const fundingStatus: string | undefined = undefined
+      const dbFunding = fundingStatus ? (FUNDING_MAP[fundingStatus] ?? fundingStatus) : null
       expect(dbFunding).toBeNull()
     })
   })

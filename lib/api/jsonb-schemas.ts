@@ -11,8 +11,12 @@ import { z } from 'zod'
 
 export const startupProfileDataSchema = z.object({
   // Core pitch fields (set at signup and via profile PATCH)
-  problemStatement: z.string().max(2000).optional(),
-  targetCustomer:   z.string().max(500).optional(),
+  problemStatement:        z.string().max(2000).optional(),
+  targetCustomer:          z.string().max(500).optional(),
+  // LLM-cleaned versions written asynchronously after signup
+  problemStatementCleaned: z.string().max(2400).optional(),
+  targetCustomerCleaned:   z.string().max(600).optional(),
+  problemSummary:          z.string().max(300).optional(),
   // Extended profile-builder fields
   companyName:      z.string().max(120).optional(),
   website:          z.string().max(2083).optional(),

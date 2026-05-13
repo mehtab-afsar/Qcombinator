@@ -25,7 +25,7 @@ interface RoutingConfig {
 
 const ROUTING_TABLE: Record<TaskClass, RoutingConfig> = {
   extraction:     { modelTier: 'fast',    maxTokens: 2000, temperature: 0.1  },
-  generation:     { modelTier: 'capable', maxTokens: 3000, temperature: 0.55 },
+  generation:     { modelTier: 'capable', maxTokens: 8000, temperature: 0.55 },
   reasoning:      { modelTier: 'capable', maxTokens: 1200, temperature: 0.2  },
   classification: { modelTier: 'fast',    maxTokens: 250,  temperature: 0.0  },
   summarisation:  { modelTier: 'fast',    maxTokens: 600,  temperature: 0.3  },

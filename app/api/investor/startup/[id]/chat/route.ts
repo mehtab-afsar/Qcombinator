@@ -2,9 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { log } from '@/lib/logger'
-import Anthropic from '@anthropic-ai/sdk'
-
-const anthropicKey = process.env.ANTHROPIC_API_KEY
+import { routedText } from '@/lib/llm/router'
 
 // POST /api/investor/startup/[id]/chat
 // Answers investor questions about a startup strictly from DB data.
@@ -22,7 +20,6 @@ export async function POST(
     const question: string = (body.question ?? '').trim()
 
     if (!question) return NextResponse.json({ error: 'question is required' }, { status: 400 })
-    if (!anthropicKey) return NextResponse.json({ error: 'AI not configured' }, { status: 503 })
 
     const admin = createAdminClient()
 
@@ -117,7 +114,7 @@ export async function POST(
       competitors: (comp.competitors as unknown[]) || (sp.competitors as unknown[]) || [],
     }
 
-    // Build Claude system prompt — strict data-only answering
+    // Build system prompt — strict data-only answering
     const systemPrompt = `You are a concise investment research assistant answering questions about a specific startup for an investor.
 
 STRICT RULES:
@@ -130,28 +127,20 @@ STRICT RULES:
 STARTUP DATA:
 ${JSON.stringify(startupContext, null, 2)}`
 
-    const client = new Anthropic({ apiKey: anthropicKey })
-    const message = await client.messages.create({
-      model: 'claude-opus-4-7',
-      max_tokens: 400,
-      thinking: { type: 'adaptive' },
-      system: systemPrompt,
-      messages: [{ role: 'user', content: question }],
-    })
+    const rawText = await routedText('reasoning', [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: question },
+    ], { maxTokens: 400 })
 
-    // Extract text from response
-    const textBlock = message.content.find(b => b.type === 'text')
-    const rawText = textBlock?.type === 'text' ? textBlock.text.trim() : ''
-
-    // Check if Claude returned an unanswerable signal
+    // Check if the model returned an unanswerable signal
     try {
-      const parsed = JSON.parse(rawText)
+      const parsed = JSON.parse(rawText.trim())
       if (parsed.unanswerable === true) {
         return NextResponse.json({ unanswerable: true, founderName: profile.full_name })
       }
     } catch { /* not JSON — normal answer */ }
 
-    return NextResponse.json({ answer: rawText })
+    return NextResponse.json({ answer: rawText.trim() })
   } catch (err) {
     log.error('POST /api/investor/startup/[id]/chat', { err })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

@@ -8,7 +8,7 @@ import {
   Inbox, MessageSquare,
 } from 'lucide-react'
 import { bg, surf, bdr, ink, muted, green, amber, red } from '@/lib/constants/colors'
-import { MessageGroupBlock, buildGroups } from '@/features/shared/components/MessageBubble'
+import { ChatMessage, MessageGroupBlock, buildGroups } from '@/features/shared/components/MessageBubble'
 import { createClient } from '@/lib/supabase/client'
 
 // ─── types ────────────────────────────────────────────────────────────────────
@@ -39,13 +39,6 @@ interface Conversation {
   lastMessage?: { body: string; created_at: string; senderId: string } | null
 }
 
-interface Message {
-  id: string
-  sender_id: string
-  body: string
-  read_at: string | null
-  created_at: string
-}
 
 type Panel = { type: 'request'; data: PendingRequest } | { type: 'conversation'; data: Conversation } | null
 
@@ -78,7 +71,7 @@ export default function InvestorMessagesPage() {
   const [panel,         setPanel]         = useState<Panel>(null)
   const [activeTab,     setActiveTab]     = useState<'requests' | 'conversations'>('requests')
   const [actionLoading, setActionLoading] = useState<string | null>(null)
-  const [messages,      setMessages]      = useState<Message[]>([])
+  const [messages,      setMessages]      = useState<ChatMessage[]>([])
   const [msgLoading,    setMsgLoading]    = useState(false)
   const [msgInput,      setMsgInput]      = useState('')
   const [sending,       setSending]       = useState(false)
@@ -165,7 +158,7 @@ export default function InvestorMessagesPage() {
           'postgres_changes',
           { event: 'INSERT', schema: 'public', table: 'messages', filter: `connection_id=eq.${connectionId}` },
           (payload) => {
-            const newMsg = payload.new as Message
+            const newMsg = payload.new as ChatMessage
             setMessages(prev => {
               if (prev.some(m => m.id === newMsg.id)) return prev
               return [...prev, newMsg]

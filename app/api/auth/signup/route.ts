@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { parseBody, signupSchema } from '@/lib/api/validate';
 import { startupProfileDataSchema } from '@/lib/api/jsonb-schemas';
 import { log } from '@/lib/logger'
+import { routedText } from '@/lib/llm/router'
 
 export async function POST(request: NextRequest) {
   try {
@@ -31,20 +32,22 @@ export async function POST(request: NextRequest) {
     );
 
     // Map new stage values to DB-accepted values (CHECK constraint: idea|mvp|launched|scaling)
+    // DB CHECK constraint: stage IN ('idea', 'mvp', 'launched', 'scaling')
     const STAGE_MAP: Record<string, string> = {
-      'product-development': 'mvp',
-      'commercial':          'seed',
-      'growth-scaling':      'series-a',
       'pre-product':         'idea',
+      'idea':                'idea',
+      'product-development': 'mvp',
       'mvp':                 'mvp',
       'beta':                'mvp',
-      'launched':            'seed',
-      'growing':             'series-a',
-      'scaling':             'series-a',
-      'pre-seed':            'pre-seed',
-      'seed':                'seed',
-      'series-a':            'series-a',
-      'bootstrapped':        'bootstrapped',
+      'pre-seed':            'mvp',
+      'commercial':          'launched',
+      'launched':            'launched',
+      'seed':                'launched',
+      'series-a':            'scaling',
+      'growth-scaling':      'scaling',
+      'growing':             'scaling',
+      'scaling':             'scaling',
+      'bootstrapped':        'launched',
     };
     const dbStage = STAGE_MAP[stage ?? ''] ?? 'idea';
 
@@ -153,11 +156,12 @@ export async function POST(request: NextRequest) {
     });
     if (qscoreErr) log.error('Failed to insert initial qscore row:', qscoreErr);
 
+    // Only insert features that the remote DB CHECK constraint accepts.
+    // Apply migration 20260513000002 to add 'agent_generate' before re-enabling it here.
     const featureLimits = [
       { feature: 'agent_chat',           usage_count: 0, limit_count: 50 },
       { feature: 'qscore_recalc',        usage_count: 0, limit_count: 2  },
       { feature: 'investor_connection',  usage_count: 0, limit_count: 3  },
-      { feature: 'agent_generate',       usage_count: 0, limit_count: 20 },
     ];
     const usageResults = await Promise.all(featureLimits.map(limit =>
       supabaseAdmin.from('subscription_usage').insert({
@@ -178,6 +182,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Account setup failed. Please try again.' }, { status: 500 });
     }
 
+    // Fire-and-forget: clean + summarise onboarding text in background (~2–5s)
+    // Signup completes immediately; agents receive polished context on first chat
+    void enrichOnboardingText(authData.user.id, problemStatement, targetCustomer, supabaseAdmin)
+
     return NextResponse.json({
       message: 'Account created successfully',
       user: {
@@ -196,4 +204,52 @@ export async function POST(request: NextRequest) {
 function getNextMonthDate(): string {
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth() + 1, now.getDate()).toISOString();
+}
+
+async function enrichOnboardingText(
+  userId: string,
+  problemStatement: string | undefined,
+  targetCustomer: string | undefined,
+  supabase: SupabaseClient,
+): Promise<void> {
+  if (!problemStatement && !targetCustomer) return
+
+  const prompt = `You are cleaning startup onboarding responses. Fix typos and grammar only — preserve the founder's meaning exactly. Do not add, remove, or reinterpret ideas.
+
+Problem statement (raw): "${problemStatement ?? ''}"
+Ideal customer (raw): "${targetCustomer ?? ''}"
+
+Return ONLY valid JSON, no markdown fences:
+{
+  "problemStatementCleaned": "...",
+  "targetCustomerCleaned": "...",
+  "problemSummary": "One clear sentence: what they build and who it's for."
+}`
+
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), 8_000)
+  try {
+    const raw = await routedText('extraction', [
+      { role: 'system', content: prompt },
+      { role: 'user', content: 'Clean and summarise.' },
+    ])
+    clearTimeout(timer)
+    const cleaned = JSON.parse(
+      raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
+    ) as { problemStatementCleaned?: string; targetCustomerCleaned?: string; problemSummary?: string }
+    await supabase.rpc('merge_startup_profile_data', {
+      p_user_id: userId,
+      p_patch: {
+        problemStatementCleaned: cleaned.problemStatementCleaned ?? undefined,
+        targetCustomerCleaned:   cleaned.targetCustomerCleaned   ?? undefined,
+        problemSummary:          cleaned.problemSummary          ?? undefined,
+      },
+    })
+  } catch (err) {
+    clearTimeout(timer)
+    log.warn('Onboarding text enrichment failed — raw text retained', {
+      userId,
+      err: err instanceof Error ? err.message : String(err),
+    })
+  }
 }

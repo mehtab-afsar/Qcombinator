@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { Send } from 'lucide-react';
-import { MessageGroupBlock, buildGroups } from '@/features/shared/components/MessageBubble';
+import { ChatMessage, MessageGroupBlock, buildGroups } from '@/features/shared/components/MessageBubble';
 import { bg, surf, bdr, ink, muted, blue, green, amber } from '@/lib/constants/colors'
 
 // ─── agent colors ─────────────────────────────────────────────────────────────
@@ -69,13 +69,6 @@ interface Connection {
   investor_firm?: string;
 }
 
-interface Message {
-  id: string;
-  sender_id: string;
-  body: string;
-  read_at: string | null;
-  created_at: string;
-}
 
 // ─── status chip ─────────────────────────────────────────────────────────────
 function StatusChip({ status }: { status: string }) {
@@ -108,7 +101,7 @@ function ThreadPanel({
   conn: Connection;
   myUserId: string | null;
 }) {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading,  setLoading]  = useState(true);
   const [input,    setInput]    = useState('');
   const [sending,  setSending]  = useState(false);
@@ -139,7 +132,7 @@ function ThreadPanel({
           'postgres_changes',
           { event: 'INSERT', schema: 'public', table: 'messages', filter: `connection_id=eq.${conn.id}` },
           (payload) => {
-            const newMsg = payload.new as Message;
+            const newMsg = payload.new as ChatMessage;
             setMessages(prev => prev.some(m => m.id === newMsg.id) ? prev : [...prev, newMsg]);
           }
         )
