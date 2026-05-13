@@ -647,17 +647,25 @@ export async function POST(request: NextRequest) {
     let patelRawScores: PatelScores | undefined
     let patelRawConfidence: PatelConfidence | undefined
     if (userId) {
-      // Run context loading + orchestration + founder profile + startup state in parallel
+      // Run context loading + orchestration + founder profile + startup state in parallel.
+      // Orchestration is capped at 2s — it makes sub-agent LLM calls that can take 5-10s
+      // and would otherwise block time-to-first-token for every message.
+      const orchFallback = { subAgentResults: [] as Awaited<ReturnType<typeof orchestrate>>['subAgentResults'], contextInjection: '', subCallsUsed: 0 };
+      const orchWithTimeout = FF_CROSS_AGENT_ORCHESTRATION
+        ? Promise.race([
+            orchestrate(agentId, userId, message, supabaseAdmin),
+            new Promise<typeof orchFallback>(r => setTimeout(() => r(orchFallback), 2000)),
+          ])
+        : Promise.resolve(orchFallback);
+
       const parallelTasks: [
         Promise<Awaited<ReturnType<typeof getAgentContext>>>,
-        Promise<Awaited<ReturnType<typeof orchestrate>>>,
+        Promise<typeof orchFallback>,
         Promise<FounderProfileResult>,
         Promise<StartupState | null>,
       ] = [
         getAgentContext(agentId, userId, supabaseAdmin, message),
-        FF_CROSS_AGENT_ORCHESTRATION
-          ? orchestrate(agentId, userId, message, supabaseAdmin)
-          : Promise.resolve({ subAgentResults: [], contextInjection: '', subCallsUsed: 0 }),
+        orchWithTimeout,
         getFounderProfileContext(userId, supabaseAdmin, agentId),
         getStartupState(userId, supabaseAdmin),
       ];
@@ -1103,18 +1111,18 @@ CONVERSATION RULES:
                     if (cs.length > 0) researchData = await fetchTavilyResearch(`${cs.slice(0, 3).join(' vs ')} competitive analysis ${p}`);
                   }
                   const artifactPrompt = getArtifactPrompt(toolName, toolCtx, researchData, patelRawScores, patelRawConfidence);
-                  let parsedContent = await generateArtifactJSON(artifactPrompt);
-                  try {
-                    const ev = await evaluateArtifactIndependently(toolName, parsedContent);
-                    if (ev.qualityScore < 70 && ev.gaps.length > 0) {
-                      try { parsedContent = await generateArtifactJSON(artifactPrompt + `\n\nFix: ${ev.gaps.slice(0, 3).join('; ')}. Return ONLY JSON.`); } catch { /* keep */ }
-                    }
-                  } catch { /* evaluator failed */ }
+                  const parsedContent = await generateArtifactJSON(artifactPrompt);
                   const artifactTitle = parsedContent.title as string || toolName.replace(/_/g, ' ');
                   let artifactId: string | null = null;
                   if (userId) {
                     const icpIdVal = toolName === 'icp_document' ? (parsedContent.icp_id as string | undefined) ?? null : null
-                    const { data: saved, error: saveErr } = await supabaseAdmin.from('agent_artifacts').insert({ conversation_id: existingConversationId ?? null, user_id: userId, agent_id: agentId, artifact_type: toolName, title: artifactTitle, content: parsedContent, ...(icpIdVal ? { icp_id: icpIdVal } : {}) }).select('id').single();
+                    const baseInsert = { conversation_id: existingConversationId ?? null, user_id: userId, agent_id: agentId, artifact_type: toolName, title: artifactTitle, content: parsedContent }
+                    let { data: saved, error: saveErr } = await supabaseAdmin.from('agent_artifacts').insert({ ...baseInsert, ...(icpIdVal ? { icp_id: icpIdVal } : {}) }).select('id').single();
+                    // Retry without icp_id if column not yet migrated on remote DB
+                    if (saveErr && icpIdVal) {
+                      log.warn('artifact insert with icp_id failed, retrying without:', saveErr.message);
+                      ({ data: saved, error: saveErr } = await supabaseAdmin.from('agent_artifacts').insert(baseInsert).select('id').single());
+                    }
                     if (saveErr) log.error('artifact insert failed:', { message: saveErr.message, code: saveErr.code });
                     artifactId = saved?.id ?? null;
                     streamArtifactId = artifactId;
@@ -1125,8 +1133,20 @@ CONVERSATION RULES:
                   if (artifactId && userId) {
                     try { scoreSignal = await applyAgentScoreSignal(supabaseAdmin, userId, toolName); } catch { /* non-critical */ }
                   }
-                  if (artifactId && userId) void scoreFromArtifact(userId, toolName, parsedContent, supabaseAdmin).catch(() => { /* fire-and-forget: score nudge is non-critical, response already sent */ });
+                  if (artifactId && userId) void scoreFromArtifact(userId, toolName, parsedContent, supabaseAdmin).catch(() => { /* fire-and-forget: non-critical */ });
                   if (artifactId && userId) void postArtifactFeedEvent(userId, toolName, artifactTitle, supabaseAdmin);
+                  // Quality evaluator and self-critique run in background — don't block showing the artifact
+                  if (artifactId && userId) {
+                    void (async () => {
+                      try {
+                        const ev = await evaluateArtifactIndependently(toolName, parsedContent);
+                        if (ev.qualityScore < 70 && ev.gaps.length > 0) {
+                          const improved = await generateArtifactJSON(artifactPrompt + `\n\nFix: ${ev.gaps.slice(0, 3).join('; ')}. Return ONLY JSON.`);
+                          await supabaseAdmin.from('agent_artifacts').update({ content: improved }).eq('id', artifactId!);
+                        }
+                      } catch { /* non-critical */ }
+                    })();
+                  }
                   if (FF_ARTIFACT_SELF_CRITIQUE && artifactId && userId) {
                     void (async () => { try { const critique = await critiqueArtifact(toolName, parsedContent); let fc = parsedContent; if (critique.needsPatch) fc = await patchArtifact(toolName, parsedContent, critique); await supabaseAdmin.from('agent_artifacts').update({ content: fc, critique_metadata: critique }).eq('id', artifactId!); } catch { /* non-critical */ } })();
                   }
@@ -1362,34 +1382,34 @@ CONVERSATION RULES:
         }
 
         const artifactPrompt = getArtifactPrompt(toolName, toolCtx, researchData, patelRawScores, patelRawConfidence);
-        let parsedContent = await generateArtifactJSON(artifactPrompt);
-
-        // Independent evaluator pass — one regen if quality < 70
-        try {
-          const ev = await evaluateArtifactIndependently(toolName, parsedContent);
-          if (ev.qualityScore < 70 && ev.gaps.length > 0) {
-            const improvedPrompt = artifactPrompt + `\n\nIMPROVEMENT REQUIRED: The previous draft scored ${ev.qualityScore}/100. Fix these gaps: ${ev.gaps.slice(0, 3).join('; ')}. Return ONLY valid JSON.`;
-            try { parsedContent = await generateArtifactJSON(improvedPrompt); } catch { /* keep original */ }
-          }
-        } catch { /* evaluator failed — proceed */ }
-
+        const parsedContent = await generateArtifactJSON(artifactPrompt);
         const artifactTitle = parsedContent.title as string || toolName.replace(/_/g, ' ');
 
         let artifactId: string | null = null;
         if (userId) {
           const icpIdVal = toolName === 'icp_document' ? (parsedContent.icp_id as string | undefined) ?? null : null
-          const { data: saved, error: saveErr } = await supabaseAdmin
-            .from('agent_artifacts')
-            .insert({
-              conversation_id: existingConversationId ?? null,
-              user_id: userId, agent_id: agentId,
-              artifact_type: toolName, title: artifactTitle,
-              content: parsedContent,
-              ...(icpIdVal ? { icp_id: icpIdVal } : {}),
-            })
-            .select('id').single();
+          const baseInsert = { conversation_id: existingConversationId ?? null, user_id: userId, agent_id: agentId, artifact_type: toolName, title: artifactTitle, content: parsedContent }
+          let { data: saved, error: saveErr } = await supabaseAdmin.from('agent_artifacts').insert({ ...baseInsert, ...(icpIdVal ? { icp_id: icpIdVal } : {}) }).select('id').single();
+          // Retry without icp_id if column not yet migrated on remote DB
+          if (saveErr && icpIdVal) {
+            log.warn('artifact insert with icp_id failed, retrying without:', saveErr.message);
+            ({ data: saved, error: saveErr } = await supabaseAdmin.from('agent_artifacts').insert(baseInsert).select('id').single());
+          }
           if (saveErr) log.error('artifact insert failed:', { message: saveErr.message, code: saveErr.code });
           artifactId = saved?.id ?? null;
+        }
+        // Quality evaluator runs in background — don't block the response
+        if (artifactId) {
+          void (async () => {
+            try {
+              const ev = await evaluateArtifactIndependently(toolName, parsedContent);
+              if (ev.qualityScore < 70 && ev.gaps.length > 0) {
+                const improvedPrompt = artifactPrompt + `\n\nFix: ${ev.gaps.slice(0, 3).join('; ')}. Return ONLY JSON.`;
+                const improved = await generateArtifactJSON(improvedPrompt);
+                await supabaseAdmin.from('agent_artifacts').update({ content: improved }).eq('id', artifactId!);
+              }
+            } catch { /* non-critical */ }
+          })();
         }
 
         if (artifactId && userId) {
