@@ -3,10 +3,8 @@
  *
  * Covers the complete new-founder happy path from scratch:
  *   1. Sign up  → /founder/onboarding (4 pages + photo skip)
- *   2. Profile builder → navigate through all sections to step 6
- *   3. Calculate Q-Score
- *   4. Patel agent → send ICP generation request → artifact card appears
- *   5. View ICP document
+ *   2. Profile builder → skip docs → skip pitch → answer sections 1-3 → Q-Score
+ *   3. Patel agent → answer diagnostic question → request ICP → view document
  *
  * DIAGNOSTIC design: every step is wrapped in try/catch so the test keeps
  * running even when individual steps fail. A results table is printed to the
@@ -30,6 +28,16 @@ const EMAIL    = `test-new-${RUN_ID}@pw.test`
 const PASSWORD = 'TestPass123!'
 const NAME     = 'PW Test Founder'
 const COMPANY  = 'PW Health Co'
+
+// Pre-written rich answers for each profile builder section — detailed enough
+// to get completionScore ≥ 70 in a single exchange.
+const ANSWERS = {
+  s1: `We've completed 52 discovery interviews with compliance directors at US hospitals. Three are in paid pilots at $1,500/month ($4,500 MRR total). One signed an LOI for $18,000 ARR. Retention is strong — first customer is in month 4 with 115% NRR and has expanded scope. Sales cycle averages 90 days from first call to signed agreement. No customer has churned.`,
+
+  s2: `TAM: 6,200 US hospitals averaging $280K/year on compliance software equals a $1.7B addressable market. Market urgency is acute — new CMS Conditions of Participation audits began in 2024 with $1M+ fines per violation, creating immediate mandatory buying pressure. Competitors: Compliance.ai (AI-first, Series A, 48-hour batch reports), Symplr (broad enterprise suite), and legacy Navex Global (on-premise only). We are the only real-time detection solution — 30-second violation alerts vs competitors' 48-hour batch processing. Expansion: EU GDPR healthcare module in 2025, then Canadian provincial health authorities.`,
+
+  s3: `Patent pending USPTO application #18/234,567 for real-time audit trail analysis using transformer models. Our technical moat: proprietary fine-tuned model trained on 2.1M de-identified hospital audit records obtained via 2-year data partnership with HCA Healthcare — no competitor has this dataset. A new entrant would need 14+ months and $2.5M in data licensing costs to replicate. We process 50,000 audit events per second with sub-30-second violation detection — 96x faster than the closest competitor's 48-hour batch pipeline. Build complexity is extremely high: required custom HIPAA-compliant inference infrastructure and EHR integration layer.`,
+}
 
 // ── result tracker ────────────────────────────────────────────────────────────
 
@@ -68,11 +76,52 @@ function sendButton(page: Page) {
     .last()
 }
 
+/**
+ * Fill a profile builder section's chat interface with a pre-written answer
+ * and wait up to 20s for completionScore to reach ≥ 70 ("Complete" indicator).
+ * If not complete after first exchange, sends a follow-up and waits again.
+ */
+async function answerSection(page: Page, sectionHeading: string, answer: string): Promise<void> {
+  // Confirm the correct section heading is visible
+  await page.waitForFunction(
+    (h) => document.body.innerText.includes(h),
+    sectionHeading,
+    { timeout: 12_000 },
+  )
+  // Wait for the AI's first question to load (section initialises with an LLM call)
+  await page.waitForFunction(
+    () => !document.body.innerText.includes('Loading question'),
+    { timeout: 15_000 },
+  )
+  // Small buffer after question appears before typing
+  await page.waitForTimeout(1_000)
+
+  // Send the pre-written answer
+  await page.locator('textarea').last().fill(answer)
+  await page.keyboard.press('Enter')
+
+  // Wait for the backend to evaluate and update completionScore (Haiku call ~3-6s)
+  await page.waitForTimeout(14_000)
+
+  const isComplete = await page
+    .locator('body')
+    .evaluate((el) => el.innerText.includes('Complete'))
+
+  if (!isComplete) {
+    // Second pass — rephrase with extra specificity
+    await page.locator('textarea').last().fill(
+      `Additional specifics: ${answer.slice(0, 300)} We have documented evidence and exact figures for all of the above.`
+    )
+    await page.keyboard.press('Enter')
+    await page.waitForTimeout(14_000)
+  }
+}
+
 // ── the test ──────────────────────────────────────────────────────────────────
 
 test.describe('New company full journey — diagnostic', () => {
-  // Generous global timeout for the ICP generation step (~120s alone)
-  test.setTimeout(300_000)
+  // Generous global timeout: profile builder (3 × 30s) + ICP generation (~120s)
+  test.setTimeout(600_000)
 
   test('signup → profile builder → Q-Score → Patel ICP', async ({ page }) => {
 
@@ -90,11 +139,9 @@ test.describe('New company full journey — diagnostic', () => {
 
     const step1Done = await run('[Signup] Step 1 — account details', async () => {
       if (!onboardingLoaded) throw new Error('Skipped — onboarding did not load')
-      // Full name: the only input[type="text"] on page 1
       await page.locator('input[type="text"]').first().fill(NAME)
       await page.locator('input[type="email"]').fill(EMAIL)
       await page.locator('input[type="password"]').fill(PASSWORD)
-      // "Continue →" button
       await page.locator('button:has-text("Continue")').first().click()
       await expect(
         page.locator('text=/Your startup/i').first()
@@ -103,14 +150,10 @@ test.describe('New company full journey — diagnostic', () => {
 
     const step2Done = await run('[Signup] Step 2 — startup details', async () => {
       if (!step1Done) throw new Error('Skipped — step 1 failed')
-      // Company name — TextInput with placeholder "e.g. Acme Inc."
       await page.locator('input[placeholder="e.g. Acme Inc."]').fill(COMPANY)
-      // Industry: OptionCard button
       await page.locator('button:has-text("AI & Software")').first().click()
-      // Stage: OptionCard button
       await page.locator('button:has-text("Product Development")').first().click()
       await page.locator('button:has-text("Continue")').first().click()
-      // Should advance to "Traction & team" step
       await expect(
         page.locator('text=/Traction|Revenue/i').first()
       ).toBeVisible({ timeout: 10_000 })
@@ -118,12 +161,9 @@ test.describe('New company full journey — diagnostic', () => {
 
     const step3Done = await run('[Signup] Step 3 — traction & team', async () => {
       if (!step2Done) throw new Error('Skipped — step 2 failed')
-      // Revenue: OptionCard
       await page.locator('button:has-text("Pre-revenue")').first().click()
-      // Team size: Pill buttons — first Pill is "1–5"
-      const pills = page.locator('button').filter({ hasText: /^1/ }) // "1–5" or "1-5"
+      const pills = page.locator('button').filter({ hasText: /^1/ })
       await pills.first().click()
-      // Funding: Pill button
       await page.locator('button:has-text("Bootstrapped")').first().click()
       await page.locator('button:has-text("Continue")').first().click()
       await expect(
@@ -133,17 +173,13 @@ test.describe('New company full journey — diagnostic', () => {
 
     const step4Done = await run('[Signup] Step 4 — problem & submit', async () => {
       if (!step3Done) throw new Error('Skipped — step 3 failed')
-      // Problem statement: only textarea on this page
       await page.locator('textarea').first().fill(
         'Healthcare compliance officers at mid-size hospitals spend 20+ hours per week on manual documentation workflows that are error-prone and audit-risky.'
       )
-      // Target customer: TextInput with "Mid-market" placeholder
       await page.locator('input[placeholder*="Mid-market"]').fill(
         'Compliance directors at 100–500 bed hospitals in the US'
       )
-      // Submit: "Launch my profile" (confirmed from source)
       await page.locator('button:has-text("Launch my profile")').click()
-      // API call + Supabase user creation — allow up to 25s
       await expect(
         page.locator('text=/Add your photo/i').first()
       ).toBeVisible({ timeout: 25_000 })
@@ -162,44 +198,100 @@ test.describe('New company full journey — diagnostic', () => {
     const pbLoaded = await run('[Profile Builder] Page loads', async () => {
       if (!skipPhotoDone) throw new Error('Skipped — did not land on profile builder')
       await page.waitForLoadState('networkidle')
-      // Profile builder renders either a textarea (chat input) or section label text
       await expect(
         page.locator('textarea, text=/Documents|Pitch|Section/i').first()
       ).toBeVisible({ timeout: 15_000 })
     })
 
-    const reachedStep6 = await run('[Profile Builder] Advance through all sections to step 6', async () => {
+    const skippedDocs = await run('[Profile Builder] Skip documents step', async () => {
       if (!pbLoaded) throw new Error('Skipped — profile builder did not load')
+      // Button reads "Skip, answer questions →" when no files are uploaded
+      const skipBtn = page.locator('button').filter({ hasText: /Skip.*question|Continue →/i }).first()
+      await expect(skipBtn).toBeVisible({ timeout: 10_000 })
+      await skipBtn.click()
+      // Should advance to pitch step — wait for the textarea
+      await expect(page.locator('textarea').first()).toBeVisible({ timeout: 10_000 })
+    })
 
-      // Click "Next →" / "Review & Submit →" up to 10 times to reach step 6.
-      // Stop as soon as the Calculate button is visible.
-      for (let i = 0; i < 10; i++) {
-        const calcBtn = page.locator('button:has-text(/Calculate My Q-Score/i)').first()
-        if (await calcBtn.isVisible({ timeout: 500 }).catch(() => false)) break
+    const skippedPitch = await run('[Profile Builder] Skip pitch step', async () => {
+      if (!skippedDocs) throw new Error('Skipped — docs step failed')
+      // The pitch step has a "Next →" button at the bottom — click it to skip
+      const nextBtn = page.locator('button').filter({ hasText: /^Next →$/ }).first()
+      await expect(nextBtn).toBeVisible({ timeout: 10_000 })
+      await nextBtn.click()
+      // Should now be on Section 1 — Market Validation
+      await page.waitForFunction(
+        () => document.body.innerText.includes('Market Validation'),
+        { timeout: 10_000 },
+      )
+    })
 
-        // Try each navigation button text in priority order
-        const nextBtn = page.locator('button').filter({ hasText: /Review & Submit|Next →|Next|Skip section/i }).first()
-        const visible = await nextBtn.isVisible({ timeout: 800 }).catch(() => false)
-        if (visible) await nextBtn.click()
+    const s1Done = await run('[Profile Builder] Answer Section 1 — Market Validation', async () => {
+      if (!skippedPitch) throw new Error('Skipped — pitch skip failed')
+      await answerSection(page, 'Market Validation', ANSWERS.s1)
+    })
 
+    const s1Advanced = await run('[Profile Builder] Advance to Section 2', async () => {
+      if (!s1Done) throw new Error('Skipped — section 1 failed')
+      await page.locator('button').filter({ hasText: /^Next →$/ }).first().click()
+      await page.waitForFunction(
+        () => document.body.innerText.includes('Market & Competition'),
+        { timeout: 10_000 },
+      )
+    })
+
+    const s2Done = await run('[Profile Builder] Answer Section 2 — Market & Competition', async () => {
+      if (!s1Advanced) throw new Error('Skipped — section 1 advance failed')
+      await answerSection(page, 'Market & Competition', ANSWERS.s2)
+    })
+
+    const s2Advanced = await run('[Profile Builder] Advance to Section 3', async () => {
+      if (!s2Done) throw new Error('Skipped — section 2 failed')
+      await page.locator('button').filter({ hasText: /^Next →$/ }).first().click()
+      await page.waitForFunction(
+        () => document.body.innerText.includes('IP & Technology') || document.body.innerText.includes('Defensibility'),
+        { timeout: 10_000 },
+      )
+    })
+
+    const s3Done = await run('[Profile Builder] Answer Section 3 — IP & Defensibility', async () => {
+      if (!s2Advanced) throw new Error('Skipped — section 2 advance failed')
+      await answerSection(page, 'IP & Technology', ANSWERS.s3)
+    })
+
+    const reachedStep6 = await run('[Profile Builder] Skip sections 4-5 → Review & Submit', async () => {
+      if (!s3Done) throw new Error('Skipped — section 3 failed')
+      // Click Next → twice (section 4, then section 5 → Review & Submit →)
+      for (let i = 0; i < 3; i++) {
+        const btn = page.locator('button').filter({ hasText: /Next →|Review & Submit →/ }).first()
+        const visible = await btn.isVisible({ timeout: 3_000 }).catch(() => false)
+        if (!visible) break
+        await btn.click()
         await page.waitForTimeout(1_200)
       }
-
+      // Confirm we're on step 6
       await expect(
         page.locator('button:has-text(/Calculate My Q-Score/i)').first()
       ).toBeVisible({ timeout: 10_000 })
     })
 
-    const _qScoreCalculated = await run('[Profile Builder] Calculate Q-Score', async () => {
+    const qScoreCalculated = await run('[Profile Builder] Calculate Q-Score', async () => {
       if (!reachedStep6) throw new Error('Skipped — did not reach step 6')
-      // Button may be disabled if canSubmit is false — report clearly
       const btn = page.locator('button:has-text(/Calculate My Q-Score/i)').first()
       const disabled = await btn.getAttribute('disabled')
-      if (disabled !== null) throw new Error('Calculate button is disabled — canSubmit is false (profile data insufficient)')
+      if (disabled !== null) {
+        // Report the actual completion state for debugging
+        const bodyText = await page.locator('body').innerText()
+        const completedMatch = bodyText.match(/(\d+)\/5 sections complete/)
+        throw new Error(
+          `Calculate button disabled — completedCount insufficient. ` +
+          (completedMatch ? completedMatch[0] : 'Could not parse section count')
+        )
+      }
       await btn.click()
       await expect(
         page.locator('text=/Q-Score|Grade|score/i').first()
-      ).toBeVisible({ timeout: 30_000 })
+      ).toBeVisible({ timeout: 40_000 })
     })
 
     // ══════════════════════════════════════════════════════════════════
@@ -212,40 +304,71 @@ test.describe('New company full journey — diagnostic', () => {
       await expect(page.locator('textarea').first()).toBeVisible({ timeout: 15_000 })
     })
 
-    const messageSent = await run('[Patel] Send ICP generation request', async () => {
+    const _contextSent = await run('[Patel] Answer opening diagnostic question with company context', async () => {
       if (!patelLoaded) throw new Error('Skipped — Patel workspace did not load')
-      const input = page.locator('textarea').first()
-      const msg = 'Please create an ICP document for my healthcare compliance startup'
-      await input.fill(msg)
+      // Wait for Patel's first message — it always asks a question within ~10s
+      await page.waitForFunction(
+        () => document.body.innerText.includes('?'),
+        { timeout: 30_000 },
+      )
+      const ctx =
+        'We target compliance directors at US hospitals (100–500 beds). ' +
+        '52 discovery interviews complete, 3 paid pilots at $1,500/month ($4,500 MRR), ' +
+        'one $18K ARR LOI signed. Sales cycle 90 days. TAM $1.7B US hospitals. ' +
+        'Competitors Compliance.ai and Symplr run 48-hour batch reports; we detect violations in 30 seconds. ' +
+        'Patent pending on real-time audit trail analysis. Customers expand — 115% NRR on first cohort.'
+      await page.locator('textarea').first().fill(ctx)
       await sendButton(page).click()
-      // User message bubble should appear within 15s
-      await expect(page.locator(`text=${msg}`).first()).toBeVisible({ timeout: 15_000 })
+      // Wait for Patel to acknowledge and respond
+      await page.waitForTimeout(12_000)
+    })
+
+    const icpRequested = await run('[Patel] Request ICP generation (Build D1 ICP Definition)', async () => {
+      if (!patelLoaded) throw new Error('Skipped — Patel workspace did not load')
+      await page.locator('textarea').first().fill('Build D1 ICP Definition')
+      await sendButton(page).click()
+      await expect(
+        page.locator('text=Build D1 ICP Definition').first()
+      ).toBeVisible({ timeout: 10_000 })
     })
 
     const artifactAppeared = await run('[Patel] ICP artifact card appears in chat', async () => {
-      if (!messageSent) throw new Error('Skipped — message was not sent')
-      // Generation takes 45–90s; allow up to 120s
+      if (!icpRequested) throw new Error('Skipped — ICP request was not sent')
+      // Generation takes 20–60s; allow up to 150s (ICP is an 8k-token Sonnet call)
+      // Match on tool_done summary text, artifact_card button, or any "ready" indicator
       await expect(
-        page.locator('text=/Document ready/i').first()
-      ).toBeVisible({ timeout: 120_000 })
+        page.locator('text=/ICP Definition ready|ICP.*ready|Document ready|D1.*ready/i').first()
+      ).toBeVisible({ timeout: 150_000 })
     })
 
     if (artifactAppeared) {
       await run('[Patel] View ICP document', async () => {
-        const viewBtn = page.locator('button:has-text(/View document/i)').first()
-        await expect(viewBtn).toBeVisible({ timeout: 5_000 })
+        // The artifact_card renders a button with the artifact title; look for View or the title itself
+        const viewBtn = page
+          .locator('button')
+          .filter({ hasText: /View document|ICP Definition|Ideal Customer/i })
+          .first()
+        await expect(viewBtn).toBeVisible({ timeout: 8_000 })
         await viewBtn.click()
-        // The document panel opens — check for ICP-related heading
-        await expect.soft(
-          page.locator('text=/ICP|Ideal Customer/i').first()
+        // The DeliverablePanel opens — verify ICP-related heading is visible
+        await expect(
+          page.locator('text=/ICP|Ideal Customer|Target Segment|Persona/i').first()
         ).toBeVisible({ timeout: 10_000 })
       })
 
       await run('[Patel] ICP document renders structured content (not raw JSON)', async () => {
         const bodyText = await page.locator('body').innerText()
-        // Raw JSON would start lines with { or have raw field names like "type":
         if (bodyText.includes('"icp_document"') || /^\s*\{/.test(bodyText)) {
           throw new Error('Document panel shows raw JSON — ICPRenderer not rendering')
+        }
+        // Verify at least one structured field label is present
+        const hasStructuredContent =
+          bodyText.includes('Persona') ||
+          bodyText.includes('Segment') ||
+          bodyText.includes('Target') ||
+          bodyText.includes('Trigger')
+        if (!hasStructuredContent) {
+          throw new Error('ICP panel content looks empty — no structured sections found')
         }
       })
     } else {
@@ -257,8 +380,8 @@ test.describe('New company full journey — diagnostic', () => {
     // SUMMARY — printed to terminal and attached to the Playwright report
     // ══════════════════════════════════════════════════════════════════
 
-    const passed = results.filter(r => r.status === 'PASS').length
-    const failed = results.filter(r => r.status === 'FAIL').length
+    const passed  = results.filter(r => r.status === 'PASS').length
+    const failed  = results.filter(r => r.status === 'FAIL').length
     const skipped = results.filter(r => r.status === 'SKIP').length
 
     console.log('\n\n══════════════════════════════════════════════════')
@@ -270,13 +393,11 @@ test.describe('New company full journey — diagnostic', () => {
     console.log(`  PASS: ${passed}  FAIL: ${failed}  SKIP: ${skipped}`)
     console.log('══════════════════════════════════════════════════\n')
 
-    // Attach results to the Playwright HTML report as test info
     test.info().annotations.push({
       type: 'diagnostic-results',
       description: JSON.stringify({ passed, failed, skipped, email: EMAIL }),
     })
 
-    // Attach a human-readable summary to the report
     const summary = results
       .map(r => `${r.status === 'PASS' ? '✅' : r.status === 'FAIL' ? '❌' : '⏭'} ${r.step}${r.detail ? ` — ${r.detail}` : ''}`)
       .join('\n')
@@ -285,14 +406,17 @@ test.describe('New company full journey — diagnostic', () => {
       contentType: 'text/plain',
     })
 
-    // Fail the test if any critical step failed (non-SKIP failures)
-    // This surfaces in CI but the full detail is in the table above.
     if (failed > 0) {
       const failedSteps = results
         .filter(r => r.status === 'FAIL')
         .map(r => `  • ${r.step}: ${r.detail}`)
         .join('\n')
       throw new Error(`${failed} step(s) failed:\n${failedSteps}`)
+    }
+
+    // Warn if Q-Score was skipped/failed but ICP still passed (data quality risk)
+    if (!qScoreCalculated && artifactAppeared) {
+      console.warn('[warn] ICP generated without a calculated Q-Score — context may be thin')
     }
   })
 })
