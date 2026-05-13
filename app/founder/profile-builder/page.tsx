@@ -1430,6 +1430,18 @@ export default function ProfileBuilderPage() {
               </div>
             </div>
 
+            {/* ── Own-company document warning ── */}
+            <div style={{
+              display: 'flex', alignItems: 'flex-start', gap: 8,
+              padding: '10px 14px', borderRadius: 8,
+              background: '#FFFBEB', border: '1px solid #FDE68A', marginBottom: 4,
+            }}>
+              <AlertTriangle size={14} style={{ color: '#D97706', flexShrink: 0, marginTop: 1 }} />
+              <span style={{ fontSize: 12, color: '#92400E', lineHeight: 1.5 }}>
+                <strong>Upload your own company&apos;s documents only.</strong> Uploading pitch decks or financials from other companies will merge their data into your profile.
+              </span>
+            </div>
+
             {/* ── Animated loading screen (replaces upload zone during processing) ── */}
             {uploadLoading ? (
               <div style={{
@@ -2088,7 +2100,7 @@ export default function ProfileBuilderPage() {
                                     background: surf2, color: muted, fontWeight: 500,
                                     border: `1px dashed ${bdr}`,
                                   }}>
-                                    <AlertTriangle size={9} strokeWidth={2} style={{ flexShrink: 0, color: amber }} />{m}
+                                    <AlertTriangle size={9} strokeWidth={2} style={{ flexShrink: 0, color: amber }} />{MISSING_FIELD_LABELS[m] ?? m}
                                   </span>
                                 ))}
                               </div>
@@ -2380,34 +2392,34 @@ export default function ProfileBuilderPage() {
             Object.assign(allConfidence, sec.confidenceMap)
           }
 
-          // P6 financial fields from merged section-5 state
-          const fin = (sections['5']?.extractedFields?.financial ?? {}) as Record<string, unknown>
-          const financialSnippets = [
-            { label: 'MRR', key: 'mrr' }, { label: 'ARR', key: 'arr' },
-            { label: 'Monthly Burn', key: 'monthlyBurn' }, { label: 'Runway (mo)', key: 'runway' },
-            { label: 'Gross Margin', key: 'grossMargin' },
-          ].map(({ label, key }) => ({ label, value: fin[key] != null ? String(fin[key]) : null, fieldKey: `financial.${key}` }))
-
-          const financialExtracted = financialSnippets.filter(s => s.value !== null)
-          const financialMissing = financialSnippets.filter(s => s.value === null).map(s => s.label)
-
-          // Build the 6 parameter cards
-          const paramCards = [
-            ...extractionSummary.map((s, i) => ({
+          // Build the 5 parameter cards — section 5 merges financial field snippets into "Financials & Impact"
+          const paramCards = extractionSummary.map((s, i) => {
+            const labels = ['Market Validation', 'Market & Competition', 'IP & Technology', 'Team & Founders', 'Financials & Impact']
+            const card = {
               key: s.sectionKey,
-              label: ['Market Validation', 'Market & Competition', 'IP & Technology', 'Team & Founders', 'Climate & Impact'][i] ?? s.label,
+              label: labels[i] ?? s.label,
               completionPct: s.completionPct,
-              snippets: s.extractedSnippets,
-              missing: s.missingLabels,
-            })),
-            {
-              key: 'fin',
-              label: 'Financials',
-              completionPct: financialExtracted.length === 0 ? 0 : Math.round((financialExtracted.length / financialSnippets.length) * 100),
-              snippets: financialExtracted.map(s => ({ label: s.label, value: s.value ?? '', fieldKey: s.fieldKey })),
-              missing: financialMissing,
-            },
-          ]
+              snippets: [...s.extractedSnippets],
+              missing: [...s.missingLabels],
+            }
+            if (i === 4) {
+              const fin = (sections['5']?.extractedFields?.financial ?? {}) as Record<string, unknown>
+              const finFields = [
+                { label: 'MRR', key: 'mrr' }, { label: 'ARR', key: 'arr' },
+                { label: 'Monthly Burn', key: 'monthlyBurn' }, { label: 'Runway (mo)', key: 'runway' },
+                { label: 'Gross Margin', key: 'grossMargin' },
+              ]
+              for (const { label, key } of finFields) {
+                const val = fin[key]
+                if (val != null) {
+                  card.snippets.push({ label, value: String(val), fieldKey: `financial.${key}` })
+                } else {
+                  card.missing.push(label)
+                }
+              }
+            }
+            return card
+          })
 
           const overallPct = paramCards.length > 0
             ? Math.round(paramCards.reduce((sum, c) => sum + c.completionPct, 0) / paramCards.length)

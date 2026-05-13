@@ -181,6 +181,7 @@ const MISSING_FIELD_LABELS: Record<string, string> = {
   'financial.mrr': 'Monthly revenue (MRR)',
   'financial.monthlyBurn': 'Monthly burn rate',
   'financial.runway': 'Runway (months)',
+  'p3.replicationTimeMonths': 'Months to replicate your tech',
 }
 
 function getSupabase() {
