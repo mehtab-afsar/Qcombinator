@@ -167,7 +167,8 @@ export default function OnboardingPage() {
   useEffect(() => {
     const sb = createClient()
     sb.auth.getSession().then(({ data }) => { if (data.session) router.replace('/founder/dashboard') })
-  }, [router])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])  // run once on mount — router changes on every render and must not re-trigger this check
 
   // Per-page validation
   const canNext1 = form.founderName.trim() && form.email.trim() && form.password.length >= 8

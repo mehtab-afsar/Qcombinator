@@ -31,23 +31,22 @@ export async function POST(request: NextRequest) {
       }
     );
 
-    // Map new stage values to DB-accepted values (CHECK constraint: idea|mvp|launched|scaling)
-    // DB CHECK constraint: stage IN ('idea', 'mvp', 'launched', 'scaling')
+    // DB CHECK constraint (20260420000003): stage IN ('idea','mvp','pre-seed','seed','series-a','bootstrapped')
     const STAGE_MAP: Record<string, string> = {
       'pre-product':         'idea',
       'idea':                'idea',
       'product-development': 'mvp',
       'mvp':                 'mvp',
       'beta':                'mvp',
-      'pre-seed':            'mvp',
-      'commercial':          'launched',
-      'launched':            'launched',
-      'seed':                'launched',
-      'series-a':            'scaling',
-      'growth-scaling':      'scaling',
-      'growing':             'scaling',
-      'scaling':             'scaling',
-      'bootstrapped':        'launched',
+      'pre-seed':            'pre-seed',
+      'commercial':          'seed',
+      'launched':            'seed',
+      'seed':                'seed',
+      'series-a':            'series-a',
+      'growth-scaling':      'series-a',
+      'growing':             'series-a',
+      'scaling':             'series-a',
+      'bootstrapped':        'bootstrapped',
     };
     const dbStage = STAGE_MAP[stage ?? ''] ?? 'idea';
 

@@ -180,6 +180,7 @@ export function CXOWorkspace({ config, agentId, artifactId, challenge, prompt }:
             prompt={prompt}
             convId={activeConvId ?? undefined}
             onConversationCreated={() => { refreshConversations(); refreshArtifacts(); }}
+            onOpenArtifact={() => { setTab('dashboard'); refreshArtifacts(); }}
           />
         )}
       </div>

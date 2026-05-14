@@ -11,9 +11,10 @@ interface CXOChatProps {
   prompt?:                 string;
   convId?:                 string;
   onConversationCreated?:  (id: string) => void;
+  onOpenArtifact?:         (artifactId: string) => void;
 }
 
-export function CXOChat({ config, agentId, convId, onConversationCreated }: CXOChatProps) {
+export function CXOChat({ config, agentId, convId, onConversationCreated, onOpenArtifact }: CXOChatProps) {
   return (
     <AgentChatPanel
       agentId={agentId}
@@ -23,6 +24,7 @@ export function CXOChat({ config, agentId, convId, onConversationCreated }: CXOC
       suggestedPrompts={config.chatPrompts}
       convId={convId}
       onConversationCreated={onConversationCreated}
+      onOpenArtifact={onOpenArtifact}
     />
   );
 }
