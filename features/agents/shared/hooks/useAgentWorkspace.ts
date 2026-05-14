@@ -107,15 +107,17 @@ export function useAgentWorkspace(agentId: string): AgentWorkspaceState {
         fetch(`/api/agents/actions?agentId=${agentId}`),
         fetch(`/api/agents/conversations?agentId=${agentId}`),
       ])
+      let textMsgs: UiMessage[] = []
+      let convId: string | null = null
       if (hr.ok) {
         const hd = await hr.json()
-        const msgs = (hd.messages ?? []).map((m: ApiMessage) => ({
+        textMsgs = (hd.messages ?? []).map((m: ApiMessage) => ({
           role: m.role === 'assistant' ? 'agent' : 'user', text: m.content,
         }))
         const api = (hd.messages ?? []).map((m: ApiMessage) => ({ role: m.role, content: m.content }))
-        setUiMessages(msgs); setApiMessages(api)
-        if (msgs.length > 0) setShowPrompts(false)
-        if (hd.conversationId) setConvId(hd.conversationId)
+        if (textMsgs.length > 0) setShowPrompts(false)
+        if (hd.conversationId) { convId = hd.conversationId; setConvId(hd.conversationId) }
+        setApiMessages(api)
       }
       setLoading(false)
       if (ar.ok) {
@@ -127,6 +129,31 @@ export function useAgentWorkspace(agentId: string): AgentWorkspaceState {
       }
       if (acr.ok) setActions((await acr.json()).actions ?? [])
       if (cr.ok)  setConversations((await cr.json()).conversations ?? [])
+
+      // Reconstruct artifact_card messages for this conversation
+      if (convId) {
+        const convAr = await fetch(`/api/agents/artifacts?agentId=${agentId}&conversationId=${convId}&limit=30`)
+        if (convAr.ok) {
+          const convAd = await convAr.json()
+          const convArtifacts: ArtifactRecord[] = (convAd.artifacts ?? []).map((a: RawArtifact) => ({
+            id: a.id, type: a.artifact_type, title: a.title,
+            content: a.content, created_at: a.created_at,
+          }))
+          if (convArtifacts.length > 0) {
+            setArtifacts(prev => {
+              const ids = new Set(convArtifacts.map(a => a.id))
+              return [...prev.filter(a => !ids.has(a.id)), ...convArtifacts]
+            })
+            const cards: UiMessage[] = convArtifacts.map(a => ({
+              role: 'artifact_card' as const, text: '',
+              artifactId: a.id, artifactType: a.type, artifactTitle: a.title,
+            }))
+            setUiMessages([...textMsgs, ...cards])
+            return
+          }
+        }
+      }
+      setUiMessages(textMsgs)
     }
     load()
   }, [userId, agentId])
@@ -138,16 +165,39 @@ export function useAgentWorkspace(agentId: string): AgentWorkspaceState {
 
   const switchConversation = useCallback(async (id: string) => {
     setUiMessages([]); setApiMessages([]); setShowPrompts(false)
-    const hr = await fetch(`/api/agents/chat?agentId=${agentId}&conversationId=${id}&limit=40`)
+    const [hr, convAr] = await Promise.all([
+      fetch(`/api/agents/chat?agentId=${agentId}&conversationId=${id}&limit=40`),
+      fetch(`/api/agents/artifacts?agentId=${agentId}&conversationId=${id}&limit=30`),
+    ])
+    let textMsgs: UiMessage[] = []
     if (hr.ok) {
       const hd = await hr.json()
-      const msgs = (hd.messages ?? []).map((m: ApiMessage) => ({
+      textMsgs = (hd.messages ?? []).map((m: ApiMessage) => ({
         role: m.role === 'assistant' ? 'agent' : 'user', text: m.content,
       }))
-      setUiMessages(msgs)
       setApiMessages((hd.messages ?? []).map((m: ApiMessage) => ({ role: m.role, content: m.content })))
       setConvId(id)
     }
+    if (convAr.ok) {
+      const convAd = await convAr.json()
+      const convArtifacts: ArtifactRecord[] = (convAd.artifacts ?? []).map((a: RawArtifact) => ({
+        id: a.id, type: a.artifact_type, title: a.title,
+        content: a.content, created_at: a.created_at,
+      }))
+      if (convArtifacts.length > 0) {
+        setArtifacts(prev => {
+          const ids = new Set(convArtifacts.map(a => a.id))
+          return [...prev.filter(a => !ids.has(a.id)), ...convArtifacts]
+        })
+        const cards: UiMessage[] = convArtifacts.map(a => ({
+          role: 'artifact_card' as const, text: '',
+          artifactId: a.id, artifactType: a.type, artifactTitle: a.title,
+        }))
+        setUiMessages([...textMsgs, ...cards])
+        return
+      }
+    }
+    setUiMessages(textMsgs)
   }, [agentId])
 
   const newConversation = useCallback(() => {

@@ -1430,18 +1430,6 @@ export default function ProfileBuilderPage() {
               </div>
             </div>
 
-            {/* ── Own-company document warning ── */}
-            <div style={{
-              display: 'flex', alignItems: 'flex-start', gap: 8,
-              padding: '10px 14px', borderRadius: 8,
-              background: '#FFFBEB', border: '1px solid #FDE68A', marginBottom: 4,
-            }}>
-              <AlertTriangle size={14} style={{ color: '#D97706', flexShrink: 0, marginTop: 1 }} />
-              <span style={{ fontSize: 12, color: '#92400E', lineHeight: 1.5 }}>
-                <strong>Upload your own company&apos;s documents only.</strong> Uploading pitch decks or financials from other companies will merge their data into your profile.
-              </span>
-            </div>
-
             {/* ── Animated loading screen (replaces upload zone during processing) ── */}
             {uploadLoading ? (
               <div style={{

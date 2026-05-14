@@ -2,10 +2,11 @@
 
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Send, TrendingUp, CheckCircle2, FileText } from 'lucide-react'
+import { Send, TrendingUp, CheckCircle2, FileText, Download } from 'lucide-react'
 import { useAgentWorkspace } from '../hooks/useAgentWorkspace'
 import { bg, bdr, ink, muted } from '../constants/colors'
 import type { SourceItem } from '../hooks/useAgentWorkspace'
+import { ICPRenderer } from '@/features/agents/patel/components/ICPRenderer'
 
 // ─── markdown renderer ────────────────────────────────────────────────────────
 
@@ -141,49 +142,93 @@ function renderMd(raw: string): React.ReactNode {
   return <div style={{ display: 'flex', flexDirection: 'column' }}>{nodes}</div>
 }
 
-// ─── startup phrases ──────────────────────────────────────────────────────────
-
-const STARTUP_PHRASES = [
-  'Analyzing market signals…',
-  'Building your GTM strategy…',
-  'Mapping the competitive landscape…',
-  'Stress-testing your ICP…',
-  'Calculating unicorn potential…',
-  'Reviewing your go-to-market fit…',
-  'Synthesizing customer insights…',
-  'Identifying your ideal buyer…',
-  'Structuring your sales motion…',
-  'Pressure-testing assumptions…',
-  'Charting the billion-dollar path…',
-  'Triangulating market signals…',
-]
-
-// ─── typing phrase ────────────────────────────────────────────────────────────
+// ─── typing indicator ─────────────────────────────────────────────────────────
 
 function TypingPhrase({ accent }: { accent: string }) {
-  const [idx,     setIdx]     = useState(0)
-  const [visible, setVisible] = useState(true)
-
-  useEffect(() => {
-    const t = setInterval(() => {
-      setVisible(false)
-      setTimeout(() => { setIdx(i => (i + 1) % STARTUP_PHRASES.length); setVisible(true) }, 300)
-    }, 2200)
-    return () => clearInterval(t)
-  }, [])
-
   return (
-    <div style={{ paddingTop: 9, display: 'flex', alignItems: 'center', gap: 7 }}>
-      <motion.span
-        style={{ width: 6, height: 6, borderRadius: '50%', background: accent, display: 'inline-block', flexShrink: 0 }}
-        animate={{ opacity: [0.4, 1, 0.4] }}
-        transition={{ repeat: Infinity, duration: 1.1 }}
-      />
-      <span style={{ fontSize: 13, color: muted, opacity: visible ? 1 : 0, transition: 'opacity 0.28s ease' }}>
-        {STARTUP_PHRASES[idx]}
-      </span>
+    <div style={{ paddingTop: 9, display: 'flex', alignItems: 'center', gap: 5 }}>
+      {[0, 1, 2].map(i => (
+        <motion.span key={i}
+          style={{ width: 5, height: 5, borderRadius: '50%', background: accent, display: 'inline-block' }}
+          animate={{ opacity: [0.3, 1, 0.3] }}
+          transition={{ repeat: Infinity, duration: 1.2, delay: i * 0.2 }}
+        />
+      ))}
     </div>
   )
+}
+
+// ─── ICP download helpers ─────────────────────────────────────────────────────
+
+function renderICPSectionsToHtml(d: Record<string, unknown>): string {
+  const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : [])
+  const str = (v: unknown): string => (typeof v === 'string' ? v : '')
+  const num = (v: unknown): number => (typeof v === 'number' ? v : 0)
+  let html = ''
+  if (str(d.title)) html += `<h1>${str(d.title)}</h1>`
+  if (str(d.summary)) html += `<p>${str(d.summary)}</p>`
+  if (num(d.confidence)) html += `<p><strong>Confidence:</strong> ${num(d.confidence)}% · ${str(d.evidence_type)}</p>`
+  const segs = arr(d.segments)
+  if (segs.length) {
+    html += `<h2>Target Segments</h2>`
+    segs.forEach((s: unknown) => {
+      const seg = s as Record<string, unknown>
+      html += `<p><strong>${str(seg.code)}</strong> — ${str(seg.industry)}, ${str(seg.company_type)}, ${str(seg.geography)}</p>`
+    })
+  }
+  const personas = arr(d.personas)
+  if (personas.length) {
+    html += `<h2>Buyer Personas</h2>`
+    personas.forEach((p: unknown) => {
+      const per = p as Record<string, unknown>
+      html += `<p><strong>${str(per.code)}: ${arr(per.title_cluster).join(', ')}</strong><br/>${str(per.core_pain)}</p>`
+    })
+  }
+  const triggers = arr(d.trigger_taxonomy)
+  if (triggers.length) {
+    html += `<h2>Buying Triggers</h2><ul>`
+    triggers.forEach((t: unknown) => {
+      const tr = t as Record<string, unknown>
+      html += `<li>${str(tr.trigger)} — ${str(tr.signal)}</li>`
+    })
+    html += `</ul>`
+  }
+  const objections = arr(d.objections)
+  if (objections.length) {
+    html += `<h2>Objection Map</h2><ul>`
+    objections.forEach((o: unknown) => {
+      const obj = o as Record<string, unknown>
+      html += `<li><strong>${str(obj.type)}:</strong> ${str(obj.objection)}<br/><em>Counter:</em> ${str(obj.counter)}</li>`
+    })
+    html += `</ul>`
+  }
+  const sm = d.success_metrics as Record<string, unknown> | undefined
+  if (sm) {
+    html += `<h2>Success Metrics</h2><p>Primary: ${str(sm.primary)}</p><p>Secondary: ${str(sm.secondary)}</p>`
+  }
+  return html
+}
+
+function buildICPPrintHtml(content: Record<string, unknown>, title: string): string {
+  return `<!DOCTYPE html><html><head><title>${title}</title>
+<style>
+body{font-family:system-ui,sans-serif;margin:40px;color:#111;max-width:800px}
+h1{font-size:22px;margin-bottom:8px}
+h2{font-size:13px;margin:24px 0 8px;text-transform:uppercase;letter-spacing:.1em;color:#555;border-bottom:1px solid #e5e7eb;padding-bottom:4px}
+p{font-size:13px;line-height:1.65;margin:4px 0}
+ul{font-size:13px;padding-left:20px;margin:6px 0}li{margin-bottom:6px}
+@media print{body{margin:24px}}
+</style></head>
+<body>${renderICPSectionsToHtml(content)}</body></html>`
+}
+
+function downloadICP(content: Record<string, unknown>, title?: string) {
+  const win = window.open('', '_blank', 'width=900,height=700')
+  if (!win) return
+  win.document.write(buildICPPrintHtml(content, title ?? 'ICP Document'))
+  win.document.close()
+  win.focus()
+  setTimeout(() => win.print(), 400)
 }
 
 // ─── source citation chips ────────────────────────────────────────────────────
@@ -310,6 +355,15 @@ export function AgentChatPanel({
   onOpenArtifact,
 }: AgentChatPanelProps) {
   const workspace = useAgentWorkspace(agentId)
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set())
+
+  function toggleCard(id: string) {
+    setExpandedCards(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) { next.delete(id) } else { next.add(id) }
+      return next
+    })
+  }
 
   // Switch to specific conversation when convId prop is provided
   useEffect(() => {
@@ -415,10 +469,16 @@ export function AgentChatPanel({
             {workspace.uiMessages.map((msg, idx) => {
               if (msg.role === 'agent' && !msg.text && !msg.sources) return null
               if (msg.role === 'artifact_card') {
+                const isExpanded = expandedCards.has(msg.artifactId ?? '')
+                const artifactContent = workspace.artifacts.find(a => a.id === msg.artifactId)?.content
+                const isICP = msg.artifactType === 'icp_document'
                 return (
                   <motion.div key={idx} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}>
+                    {/* header row */}
                     <div style={{
-                      border: `1px solid ${bdr}`, borderRadius: 12, padding: '14px 18px',
+                      border: `1px solid ${bdr}`,
+                      borderRadius: isExpanded ? '12px 12px 0 0' : 12,
+                      padding: '14px 18px',
                       background: '#F9F8F6', display: 'flex', alignItems: 'center', gap: 14,
                     }}>
                       <div style={{ width: 34, height: 34, borderRadius: 8, background: '#F5F0FF', border: '1.5px solid #C4B5FD', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -432,7 +492,40 @@ export function AgentChatPanel({
                           {msg.artifactTitle ?? 'Untitled document'}
                         </div>
                       </div>
-                      {onOpenArtifact && (
+                      {/* inline toggle for ICP documents */}
+                      {isICP && artifactContent && (
+                        <button
+                          onClick={() => toggleCard(msg.artifactId!)}
+                          style={{
+                            padding: '7px 14px', borderRadius: 8,
+                            border: `1px solid #C4B5FD`,
+                            background: isExpanded ? '#7C3AED' : 'transparent',
+                            color: isExpanded ? '#fff' : '#7C3AED',
+                            fontSize: 12, fontWeight: 600,
+                            cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
+                          }}
+                        >
+                          {isExpanded ? 'Collapse ↑' : 'View document ↓'}
+                        </button>
+                      )}
+                      {/* download button — shown when expanded */}
+                      {isExpanded && artifactContent && (
+                        <button
+                          onClick={() => downloadICP(artifactContent, msg.artifactTitle)}
+                          title="Download PDF"
+                          style={{
+                            padding: '7px 10px', borderRadius: 8,
+                            border: `1px solid ${bdr}`, background: 'transparent',
+                            color: muted, cursor: 'pointer', display: 'flex',
+                            alignItems: 'center', gap: 5, fontSize: 12,
+                            fontWeight: 600, fontFamily: 'inherit', flexShrink: 0,
+                          }}
+                        >
+                          <Download size={13} /> PDF
+                        </button>
+                      )}
+                      {/* fallback "open in dashboard" for non-ICP or missing content */}
+                      {(!isICP || !artifactContent) && onOpenArtifact && (
                         <button
                           onClick={() => onOpenArtifact(msg.artifactId!)}
                           style={{
@@ -445,6 +538,17 @@ export function AgentChatPanel({
                         </button>
                       )}
                     </div>
+                    {/* inline ICP viewer */}
+                    {isExpanded && artifactContent && (
+                      <div style={{
+                        border: `1px solid ${bdr}`, borderTop: 'none',
+                        borderRadius: '0 0 12px 12px',
+                        padding: '20px 18px', background: '#fff',
+                        maxHeight: 620, overflowY: 'auto',
+                      }}>
+                        <ICPRenderer data={artifactContent} />
+                      </div>
+                    )}
                   </motion.div>
                 )
               }

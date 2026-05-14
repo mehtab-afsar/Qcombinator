@@ -1115,11 +1115,38 @@ CONVERSATION RULES:
                   const artifactTitle = parsedContent.title as string || toolName.replace(/_/g, ' ');
                   let artifactId: string | null = null;
                   if (userId) {
-                    const icpIdVal = toolName === 'icp_document' ? (parsedContent.icp_id as string | undefined) ?? null : null
-                    const baseInsert = { conversation_id: existingConversationId ?? null, user_id: userId, agent_id: agentId, artifact_type: toolName, title: artifactTitle, content: parsedContent }
-                    let { data: saved, error: saveErr } = await supabaseAdmin.from('agent_artifacts').insert({ ...baseInsert, ...(icpIdVal ? { icp_id: icpIdVal } : {}) }).select('id').single();
+                    const icpIdFromContent = toolName === 'icp_document' ? (parsedContent.icp_id as string | undefined) ?? null : null
+
+                    // Check for existing version of same artifact type in this conversation
+                    let nextVersion = 1
+                    let resolvedIcpId: string | null = icpIdFromContent
+                    if (existingConversationId) {
+                      const { data: prev } = await supabaseAdmin
+                        .from('agent_artifacts')
+                        .select('version, icp_id')
+                        .eq('conversation_id', existingConversationId)
+                        .eq('artifact_type', toolName)
+                        .order('version', { ascending: false })
+                        .limit(1)
+                        .maybeSingle()
+                      if (prev) {
+                        nextVersion = (prev.version ?? 1) + 1
+                        if (prev.icp_id) resolvedIcpId = prev.icp_id
+                      }
+                    }
+
+                    const baseInsert = {
+                      conversation_id: existingConversationId ?? null,
+                      user_id: userId, agent_id: agentId,
+                      artifact_type: toolName, title: artifactTitle,
+                      content: parsedContent, version: nextVersion,
+                    }
+                    let { data: saved, error: saveErr } = await supabaseAdmin
+                      .from('agent_artifacts')
+                      .insert({ ...baseInsert, ...(resolvedIcpId ? { icp_id: resolvedIcpId } : {}) })
+                      .select('id').single();
                     // Retry without icp_id if column not yet migrated on remote DB
-                    if (saveErr && icpIdVal) {
+                    if (saveErr && resolvedIcpId) {
                       log.warn('artifact insert with icp_id failed, retrying without:', saveErr.message);
                       ({ data: saved, error: saveErr } = await supabaseAdmin.from('agent_artifacts').insert(baseInsert).select('id').single());
                     }
