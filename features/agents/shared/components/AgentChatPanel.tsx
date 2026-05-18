@@ -6,7 +6,8 @@ import { Send, TrendingUp, CheckCircle2, FileText, Download } from 'lucide-react
 import { useAgentWorkspace } from '../hooks/useAgentWorkspace'
 import { bg, bdr, ink, muted } from '../constants/colors'
 import type { SourceItem } from '../hooks/useAgentWorkspace'
-import { ICPRenderer } from '@/features/agents/patel/components/ICPRenderer'
+import { renderArtifactContent } from '../utils/renderArtifactContent'
+import type { ArtifactRecord } from '../hooks/useAgentWorkspace'
 
 // ─── markdown renderer ────────────────────────────────────────────────────────
 
@@ -158,74 +159,362 @@ function TypingPhrase({ accent }: { accent: string }) {
   )
 }
 
-// ─── ICP download helpers ─────────────────────────────────────────────────────
+// ─── print / download helpers ────────────────────────────────────────────────
 
-function renderICPSectionsToHtml(d: Record<string, unknown>): string {
-  const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : [])
-  const str = (v: unknown): string => (typeof v === 'string' ? v : '')
-  const num = (v: unknown): number => (typeof v === 'number' ? v : 0)
+const _arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : [])
+const _str = (v: unknown): string => (typeof v === 'string' ? v : '')
+const _num = (v: unknown): number => (typeof v === 'number' ? v : 0)
+const _obj = (v: unknown): Record<string, unknown> => (v && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, unknown> : {})
+
+function _execBrief(d: Record<string, unknown>, whatEnablesLabels: [string, string][]): string {
+  let h = ''
+  if (_str(d.executive_summary)) h += `<h2>Executive Summary</h2><p>${_str(d.executive_summary)}</p>`
+  if (_str(d.strategic_decision)) h += `<h2>Strategic Decision</h2><blockquote>${_str(d.strategic_decision)}</blockquote>`
+  const we = _obj(d.what_enables)
+  if (Object.keys(we).length) {
+    h += `<h2>What This Deliverable Enables</h2>`
+    whatEnablesLabels.filter(([k]) => _str(we[k])).forEach(([k, lbl]) => { h += `<div class="label-row"><span class="label-chip">${lbl}</span><span>${_str(we[k])}</span></div>` })
+  }
+  const ap = _arr(d.action_plan)
+  if (ap.length) {
+    h += `<h2>Founder Action Plan</h2><ol>`
+    ap.forEach((item: unknown) => { const it = _obj(item); h += `<li><span class="badge">${_str(it.timeframe)}</span> ${_str(it.action)}</li>` })
+    h += `</ol>`
+  }
+  return h
+}
+
+function _learningAgenda(d: Record<string, unknown>, categories: [string, string][]): string {
+  const la = _obj(d.learning_agenda)
+  if (!Object.keys(la).length) return ''
+  let h = `<h2>Learning Agenda</h2>`
+  categories.filter(([k]) => _arr(la[k]).length).forEach(([k, lbl]) => {
+    h += `<p><strong>${lbl}</strong></p><ul>`
+    _arr(la[k]).forEach(q => { h += `<li>${_str(q)}</li>` })
+    h += `</ul>`
+  })
+  return h
+}
+
+function renderD1ToHtml(d: Record<string, unknown>): string {
   let html = ''
-  if (str(d.title)) html += `<h1>${str(d.title)}</h1>`
-  if (str(d.summary)) html += `<p>${str(d.summary)}</p>`
-  if (num(d.confidence)) html += `<p><strong>Confidence:</strong> ${num(d.confidence)}% · ${str(d.evidence_type)}</p>`
-  const segs = arr(d.segments)
+  if (_str(d.icp_id)) html += `<p class="meta">${_str(d.icp_id)} · ${_str(d.evidence_type)} · ${_num(d.confidence) ? Math.round(_num(d.confidence) * 100) + '% confidence' : ''}</p>`
+  html += _execBrief(d, [['outbound_precision','Outbound Precision'],['messaging_quality','Messaging Quality'],['trigger_timing','Trigger Timing'],['qualification','Qualification'],['learning_velocity','Learning Velocity']])
+  const ct = _obj(d.campaign_translation)
+  if (Object.keys(ct).length) {
+    html += `<h2>Campaign Translation</h2>`
+    if (_arr(ct.target_persona).length) html += `<div class="label-row"><span class="label-chip">Target Persona</span><span>${_arr(ct.target_persona).map(_str).join(', ')}</span></div>`
+    if (_str(ct.target_accounts)) html += `<div class="label-row"><span class="label-chip">Target Accounts</span><span>${_str(ct.target_accounts)}</span></div>`
+    if (_arr(ct.trigger_moments).length) html += `<div class="label-row"><span class="label-chip">Trigger Moments</span><span>${_arr(ct.trigger_moments).map(_str).join('; ')}</span></div>`
+    if (_str(ct.lead_message_angle)) html += `<div class="label-row"><span class="label-chip">Lead Angle</span><span>${_str(ct.lead_message_angle)}</span></div>`
+    if (_str(ct.primary_cta)) html += `<div class="label-row"><span class="label-chip">Primary CTA</span><span>${_str(ct.primary_cta)}</span></div>`
+  }
+  html += _learningAgenda(d, [['messaging','Messaging'],['persona','Persona'],['trigger','Trigger'],['market','Market'],['sales','Sales']])
+  const segs = _arr(d.segments)
   if (segs.length) {
     html += `<h2>Target Segments</h2>`
     segs.forEach((s: unknown) => {
-      const seg = s as Record<string, unknown>
-      html += `<p><strong>${str(seg.code)}</strong> — ${str(seg.industry)}, ${str(seg.company_type)}, ${str(seg.geography)}</p>`
+      const seg = _obj(s); html += `<p><strong>${_str(seg.code)}</strong>${seg.is_primary ? ' <span class="badge">PRIMARY</span>' : ''} — ${_str(seg.industry)}, ${_str(seg.company_type)}, ${_str(seg.geography)}</p>`
+      if (_str(seg.structural_context)) html += `<p style="padding-left:16px;color:#555;font-size:12px">${_str(seg.structural_context)}</p>`
+      if (_str(seg.why_primary)) html += `<p style="padding-left:16px;font-size:12px"><em>Why primary:</em> ${_str(seg.why_primary)}</p>`
     })
   }
-  const personas = arr(d.personas)
-  if (personas.length) {
-    html += `<h2>Buyer Personas</h2>`
-    personas.forEach((p: unknown) => {
-      const per = p as Record<string, unknown>
-      html += `<p><strong>${str(per.code)}: ${arr(per.title_cluster).join(', ')}</strong><br/>${str(per.core_pain)}</p>`
-    })
-  }
-  const triggers = arr(d.trigger_taxonomy)
+  _arr(d.personas).forEach((p: unknown, pi: number) => {
+    const per = _obj(p)
+    if (pi === 0) html += `<h2>Buyer Personas</h2>`
+    html += `<p><strong>${_str(per.code)}: ${_arr(per.title_cluster).map(_str).join(', ')}</strong></p>`
+    if (_str(per.core_pain)) html += `<p style="padding-left:16px;font-size:12px">Pain: ${_str(per.core_pain)}</p>`
+    if (_str(per.internal_pressure)) html += `<p style="padding-left:16px;font-size:12px">Internal pressure: ${_str(per.internal_pressure)}</p>`
+    if (_str(per.failure_consequence)) html += `<p style="padding-left:16px;font-size:12px">Failure consequence: ${_str(per.failure_consequence)}</p>`
+  })
+  const triggers = _arr(d.trigger_taxonomy)
   if (triggers.length) {
-    html += `<h2>Buying Triggers</h2><ul>`
-    triggers.forEach((t: unknown) => {
-      const tr = t as Record<string, unknown>
-      html += `<li>${str(tr.trigger)} — ${str(tr.signal)}</li>`
-    })
+    html += `<h2>Trigger Taxonomy</h2><ul>`
+    triggers.forEach((t: unknown) => { const tr = _obj(t); html += `<li>${_str(tr.trigger)} — <em>Signal:</em> ${_str(tr.signal)}</li>` })
     html += `</ul>`
   }
-  const objections = arr(d.objections)
+  const objections = _arr(d.objections)
   if (objections.length) {
-    html += `<h2>Objection Map</h2><ul>`
+    html += `<h2>Objection Map</h2>`
     objections.forEach((o: unknown) => {
-      const obj = o as Record<string, unknown>
-      html += `<li><strong>${str(obj.type)}:</strong> ${str(obj.objection)}<br/><em>Counter:</em> ${str(obj.counter)}</li>`
+      const ob = _obj(o)
+      html += `<div class="callout"><p><strong>${_str(ob.type)}:</strong> ${_str(ob.objection)}</p>`
+      if (_str(ob.root_cause)) html += `<p style="font-size:12px;color:#666">Root cause: ${_str(ob.root_cause)}</p>`
+      html += `<p style="font-size:12px;color:#16a34a">Counter: ${_str(ob.counter)}</p></div>`
     })
-    html += `</ul>`
   }
-  const sm = d.success_metrics as Record<string, unknown> | undefined
-  if (sm) {
-    html += `<h2>Success Metrics</h2><p>Primary: ${str(sm.primary)}</p><p>Secondary: ${str(sm.secondary)}</p>`
+  const sm = _obj(d.success_metrics)
+  if (Object.keys(sm).length) {
+    html += `<h2>Success Metrics</h2>`
+    if (_str(sm.primary)) html += `<p><strong>Primary:</strong> ${_str(sm.primary)}</p>`
+    if (_str(sm.secondary)) html += `<p><strong>Secondary:</strong> ${_str(sm.secondary)}</p>`
+    if (_str(sm.tertiary)) html += `<p><strong>Tertiary:</strong> ${_str(sm.tertiary)}</p>`
+  }
+  const sd = _obj(d.signal_design)
+  if (Object.keys(sd).length) {
+    html += `<h2>Signal Design</h2><div class="callout"><p><strong>Run:</strong> ${_str(sd.run_id)} &nbsp;|&nbsp; <strong>Segment:</strong> ${_str(sd.segment)} &nbsp;|&nbsp; <strong>Variable:</strong> ${_str(sd.experiment_variable)}</p>`
+    if (_arr(sd.tracking_events).length) { html += `<p><strong>Track per contact:</strong></p><ul>`; _arr(sd.tracking_events).forEach(e => { html += `<li>${_str(e)}</li>` }); html += `</ul>` }
+    if (_arr(sd.signal_layer).length) { html += `<p><strong>Signal layer (200–500 contacts):</strong></p><ul>`; _arr(sd.signal_layer).forEach(s => { html += `<li>${_str(s)}</li>` }); html += `</ul>` }
+    html += `</div>`
+  }
+  const fm = _obj(d.failure_mode)
+  if (Object.keys(fm).length) {
+    html += `<h2>Failure Mode</h2><div class="callout"><p>${_str(fm.why_might_not_convert)}</p><p style="margin-top:6px"><strong>Assumption to validate:</strong> ${_str(fm.assumption_to_validate)}</p></div>`
   }
   return html
 }
 
-function buildICPPrintHtml(content: Record<string, unknown>, title: string): string {
-  return `<!DOCTYPE html><html><head><title>${title}</title>
-<style>
-body{font-family:system-ui,sans-serif;margin:40px;color:#111;max-width:800px}
-h1{font-size:22px;margin-bottom:8px}
-h2{font-size:13px;margin:24px 0 8px;text-transform:uppercase;letter-spacing:.1em;color:#555;border-bottom:1px solid #e5e7eb;padding-bottom:4px}
-p{font-size:13px;line-height:1.65;margin:4px 0}
-ul{font-size:13px;padding-left:20px;margin:6px 0}li{margin-bottom:6px}
-@media print{body{margin:24px}}
-</style></head>
-<body>${renderICPSectionsToHtml(content)}</body></html>`
+function renderD2ToHtml(d: Record<string, unknown>): string {
+  let html = ''
+  if (_str(d.target_context)) html += `<p class="meta">${_str(d.target_context)}</p>`
+  html += _execBrief(d, [['pain_precision','Pain Precision'],['trigger_detection','Trigger Detection'],['message_grounding','Message Grounding'],['objection_intelligence','Objection Intel'],['learning_velocity','Learning Velocity']])
+  const pains = _arr(d.core_pains)
+  if (pains.length) {
+    html += `<h2>Core Pains</h2>`
+    pains.forEach((p: unknown) => {
+      const pain = _obj(p)
+      html += `<div class="callout"><p><strong>[${_num(pain.severity)}/5]</strong> ${_str(pain.pain)}</p>`
+      if (_str(pain.current_workaround)) html += `<p style="font-size:12px;color:#666">Workaround: ${_str(pain.current_workaround)}</p>`
+      if (_str(pain.cost_of_pain)) html += `<p style="font-size:12px;color:#d97706">Cost: ${_str(pain.cost_of_pain)}</p>`
+      html += `</div>`
+    })
+  }
+  const gains = _arr(d.desired_gains)
+  if (gains.length) { html += `<h2>Desired Gains</h2><ul>`; gains.forEach(g => { html += `<li>${_str(g)}</li>` }); html += `</ul>` }
+  const triggers = _arr(d.trigger_events)
+  if (triggers.length) {
+    html += `<h2>Trigger Events</h2>`
+    triggers.forEach((t: unknown) => {
+      const tr = _obj(t)
+      html += `<div class="callout"><p><span class="badge">${_str(tr.urgency)}</span> <strong>${_str(tr.trigger)}</strong></p>`
+      if (_str(tr.example)) html += `<p style="font-size:12px;color:#666">e.g. ${_str(tr.example)}</p>`
+      if (_str(tr.detection_signal)) html += `<p style="font-size:12px;color:#2563eb">Signal: ${_str(tr.detection_signal)}</p>`
+      html += `</div>`
+    })
+  }
+  const proof = _arr(d.proof_expectations)
+  if (proof.length) { html += `<h2>Proof Expectations</h2><ul>`; proof.forEach(p => { html += `<li>${_str(p)}</li>` }); html += `</ul>` }
+  const objections = _arr(d.common_objections)
+  if (objections.length) {
+    html += `<h2>Common Objections</h2>`
+    objections.forEach((o: unknown) => {
+      const ob = _obj(o)
+      html += `<div class="callout"><p><strong>${_str(ob.objection)}</strong></p>`
+      if (_str(ob.root_cause)) html += `<p style="font-size:12px;color:#666">Why: ${_str(ob.root_cause)}</p>`
+      html += `<p style="font-size:12px;color:#16a34a">Handle: ${_str(ob.handle)}</p></div>`
+    })
+  }
+  html += _learningAgenda(d, [['pain_validation','Pain Validation'],['trigger_detection','Trigger Detection'],['persona','Persona'],['market','Market'],['sales','Sales']])
+  return html
 }
 
-function downloadICP(content: Record<string, unknown>, title?: string) {
+function renderD3ToHtml(d: Record<string, unknown>): string {
+  let html = ''
+  if (_str(d.entry_condition)) html += `<p class="meta">Entry: ${_str(d.entry_condition)}</p>`
+  html += _execBrief(d, [['stage_visibility','Stage Visibility'],['friction_reduction','Friction Reduction'],['content_strategy','Content Strategy'],['timing_precision','Timing Precision'],['learning_velocity','Learning Velocity']])
+  const stages = _arr(d.stages)
+  if (stages.length) {
+    html += `<h2>Buyer Journey Stages</h2>`
+    stages.forEach((s: unknown, i: number) => {
+      const st = _obj(s)
+      html += `<div class="callout" style="margin-bottom:10px"><p><strong>${i + 1}. ${_str(st.name)}</strong></p>`
+      if (_str(st.buyer_state)) html += `<p style="font-size:12px;color:#666">State: ${_str(st.buyer_state)}</p>`
+      if (_str(st.buyer_action)) html += `<p style="font-size:12px">Action: ${_str(st.buyer_action)}</p>`
+      if (_str(st.gtm_touchpoint)) html += `<p style="font-size:12px;color:#2563eb">GTM: ${_str(st.gtm_touchpoint)}</p>`
+      if (_str(st.friction)) html += `<p style="font-size:12px;color:#dc2626">Friction: ${_str(st.friction)}</p>`
+      if (_str(st.trust_signal)) html += `<p style="font-size:12px;color:#16a34a">Trust signal: ${_str(st.trust_signal)}</p>`
+      html += `</div>`
+    })
+  }
+  const roles = _arr(d.buyer_roles)
+  if (roles.length) {
+    html += `<h2>Buyer Roles</h2>`
+    roles.forEach((r: unknown) => { const ro = _obj(r); html += `<div class="label-row"><span class="label-chip">${_str(ro.role)}</span><span>${_str(ro.description)}</span></div>` })
+  }
+  const criteria = _arr(d.decision_criteria)
+  if (criteria.length) { html += `<h2>Decision Criteria</h2><ol>`; criteria.forEach(c => { html += `<li>${_str(c)}</li>` }); html += `</ol>` }
+  if (_str(d.pilot_path)) html += `<h2>Pilot Path</h2><p>${_str(d.pilot_path)}</p>`
+  const risks = _arr(d.drop_off_risks)
+  if (risks.length) {
+    html += `<h2>Drop-Off Risks</h2>`
+    risks.forEach((r: unknown) => {
+      const ri = _obj(r)
+      html += `<div class="callout"><p><strong>Stage: ${_str(ri.stage)}</strong></p><p style="font-size:12px;color:#dc2626">Risk: ${_str(ri.risk)}</p><p style="font-size:12px;color:#16a34a">Mitigation: ${_str(ri.mitigation)}</p></div>`
+    })
+  }
+  html += _learningAgenda(d, [['stage_progression','Stage Progression'],['friction_points','Friction Points'],['trust_signals','Trust Signals'],['market','Market'],['sales','Sales']])
+  return html
+}
+
+function renderD4ToHtml(d: Record<string, unknown>): string {
+  let html = ''
+  html += _execBrief(d, [['message_precision','Message Precision'],['response_rate','Response Rate'],['stage_coverage','Stage Coverage'],['differentiation','Differentiation'],['learning_velocity','Learning Velocity']])
+  const f = _obj(d.foundation)
+  if (Object.keys(f).length) {
+    html += `<h2>Positioning Foundation</h2>`
+    if (_str(f.positioning_statement)) html += `<p style="font-style:italic">${_str(f.positioning_statement)}</p>`
+    if (_str(f.value_proposition)) html += `<div class="callout"><p><strong>Value Prop:</strong> ${_str(f.value_proposition)}</p></div>`
+    if (_str(f.elevator_pitch)) html += `<p>${_str(f.elevator_pitch)}</p>`
+  }
+  const pillars = _arr(d.message_pillars)
+  if (pillars.length) {
+    html += `<h2>Message Pillars</h2>`
+    pillars.forEach((p: unknown) => {
+      const pi = _obj(p)
+      html += `<div class="callout"><p><strong>${_str(pi.pillar)}</strong></p><p style="font-size:12px">"${_str(pi.claim)}"</p>`
+      if (_str(pi.proof)) html += `<p style="font-size:12px;color:#16a34a">Proof: ${_str(pi.proof)}</p>`
+      if (_str(pi.objection_handle)) html += `<p style="font-size:12px;color:#d97706">Handles: ${_str(pi.objection_handle)}</p>`
+      html += `</div>`
+    })
+  }
+  const v = _obj(d.icp_variants)
+  if (Object.keys(v).length) {
+    html += `<h2>Channel Copy</h2>`
+    ;[['hero_headline','Hero Headline'],['sub_headline','Sub-Headline'],['outbound_hook','Outbound Hook'],['voicemail_script','Voicemail'],['cta','Primary CTA']]
+      .filter(([k]) => _str(v[k])).forEach(([k, lbl]) => { html += `<div class="label-row"><span class="label-chip">${lbl}</span><span>${_str(v[k])}</span></div>` })
+  }
+  const cms = _arr(d.channel_messages)
+  if (cms.length) {
+    html += `<h2>Channel Messages</h2>`
+    cms.forEach((cm: unknown) => {
+      const c = _obj(cm)
+      html += `<div class="callout"><p><strong>${_str(c.channel)}</strong>${_str(c.tone) ? ` — ${_str(c.tone)}` : ''}</p>`
+      if (_str(c.opening)) html += `<p style="font-size:12px"><em>Opening:</em> ${_str(c.opening)}</p>`
+      if (_str(c.example)) html += `<pre style="font-size:11px;white-space:pre-wrap;background:#f9f9f9;padding:8px;border-radius:4px;margin-top:6px">${_str(c.example)}</pre>`
+      html += `</div>`
+    })
+  }
+  if (_str(d.competitive_differentiation)) html += `<h2>Competitive Defensibility</h2><p>${_str(d.competitive_differentiation)}</p>`
+  const forbidden = _arr(d.forbidden_claims)
+  if (forbidden.length) { html += `<h2>Never Say These</h2><ul>`; forbidden.forEach(f2 => { html += `<li style="text-decoration:line-through;color:#dc2626">${_str(f2)}</li>` }); html += `</ul>` }
+  html += _learningAgenda(d, [['messaging','Messaging'],['channel','Channel'],['persona','Persona'],['market','Market'],['sales','Sales']])
+  return html
+}
+
+function renderD5ToHtml(d: Record<string, unknown>): string {
+  let html = ''
+  if (_str(d.targetICP)) html += `<p class="meta">Target: ${_str(d.targetICP)}</p>`
+  if (_str(d.executive_summary)) html += `<h2>Executive Summary</h2><p>${_str(d.executive_summary)}</p>`
+  const seq = _arr(d.sequence)
+  if (seq.length) {
+    html += `<h2>Outreach Sequence</h2>`
+    seq.forEach((s: unknown) => {
+      const step = _obj(s)
+      html += `<div class="callout"><p><span class="badge">${_str(step.timing)}</span> <strong>Step ${_num(step.step)}: ${_str(step.channel).toUpperCase()}</strong></p>`
+      if (_str(step.subject)) html += `<p style="font-size:12px"><em>Subject:</em> ${_str(step.subject)}</p>`
+      if (_str(step.body)) html += `<pre style="font-size:11px;white-space:pre-wrap;background:#f9f9f9;padding:8px;border-radius:4px;margin-top:6px">${_str(step.body)}</pre>`
+      if (_str(step.goal)) html += `<p style="font-size:12px;color:#16a34a;margin-top:4px">Goal: ${_str(step.goal)}</p>`
+      html += `</div>`
+    })
+  }
+  return html
+}
+
+function renderD6ToHtml(d: Record<string, unknown>): string {
+  let html = ''
+  if (_str(d.companyContext)) html += `<p class="meta">${_str(d.companyContext)}</p>`
+  if (_str(d.executive_summary)) html += `<h2>Executive Summary</h2><p>${_str(d.executive_summary)}</p>`
+  const pos = _obj(d.positioning)
+  if (Object.keys(pos).length) {
+    html += `<h2>Positioning</h2>`
+    if (_str(pos.statement)) html += `<p style="font-style:italic">${_str(pos.statement)}</p>`
+    const diffs = _arr(pos.differentiators)
+    if (diffs.length) { html += `<ul>`; diffs.forEach(d2 => { html += `<li>${_str(d2)}</li>` }); html += `</ul>` }
+  }
+  const channels = _arr(d.channels)
+  if (channels.length) {
+    html += `<h2>Channels</h2>`
+    channels.forEach((c: unknown) => {
+      const ch = _obj(c)
+      html += `<div class="label-row"><span class="label-chip">${_str(ch.channel)}</span><span><span class="badge">${_str(ch.priority)}</span> Budget: ${_str(ch.budget)} · CAC: ${_str(ch.expectedCAC)}</span></div>`
+    })
+  }
+  const plan = _arr(d.ninetyDayPlan)
+  if (plan.length) {
+    html += `<h2>90-Day Plan</h2>`
+    plan.forEach((ph: unknown) => {
+      const p = _obj(ph)
+      html += `<div class="callout"><p><strong>${_str(p.phase)}</strong> <span class="badge">${_str(p.weeks)}</span></p>`
+      const actions = _arr(p.keyActions)
+      if (actions.length) { html += `<ul>`; actions.forEach(a => { html += `<li>${_str(a)}</li>` }); html += `</ul>` }
+      if (_str(p.successCriteria)) html += `<p style="font-size:12px;color:#16a34a">Success: ${_str(p.successCriteria)}</p>`
+      html += `</div>`
+    })
+  }
+  return html
+}
+
+const DOC_TYPE_LABELS: Record<string, string> = {
+  icp_document:          'D1 · Ideal Customer Profile',
+  pains_gains_triggers:  'D2 · Pains, Gains & Triggers',
+  buyer_journey:         'D3 · Buyer Journey',
+  positioning_messaging: 'D4 · Positioning & Messaging',
+  outreach_sequence:     'D5 · Outreach Sequence',
+  gtm_playbook:          'D6 · GTM Playbook',
+}
+
+function renderToHtml(content: Record<string, unknown>, type: string): string {
+  switch (type) {
+    case 'icp_document':          return renderD1ToHtml(content)
+    case 'pains_gains_triggers':  return renderD2ToHtml(content)
+    case 'buyer_journey':         return renderD3ToHtml(content)
+    case 'positioning_messaging': return renderD4ToHtml(content)
+    case 'outreach_sequence':     return renderD5ToHtml(content)
+    case 'gtm_playbook':          return renderD6ToHtml(content)
+    default:                      return renderD1ToHtml(content)
+  }
+}
+
+function buildPrintHtml(contentHtml: string, title: string, docType: string): string {
+  const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+  return `<!DOCTYPE html><html><head>
+<meta charset="UTF-8"><title>${title}</title>
+<style>
+@page{size:A4;margin:20mm 18mm 22mm}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;font-size:13px;line-height:1.65;color:#111;background:#fff;max-width:720px}
+.doc-header{border-bottom:2px solid #111;padding-bottom:14px;margin-bottom:28px;display:flex;justify-content:space-between;align-items:flex-start}
+.doc-header .left .brand{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.18em;color:#7C3AED;margin-bottom:6px}
+.doc-header .left h1{font-size:20px;font-weight:700;line-height:1.25;color:#111}
+.doc-header .left .doc-type{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;color:#888;margin-top:5px}
+.doc-header .right{text-align:right;font-size:10px;color:#999;flex-shrink:0;padding-left:16px}
+h2{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.16em;color:#888;border-bottom:1px solid #e5e7eb;padding-bottom:5px;margin:26px 0 12px}
+p{font-size:13px;line-height:1.65;margin:0 0 6px}
+p.meta{font-size:11px;color:#888;margin-bottom:20px}
+blockquote{border-left:4px solid #7C3AED;margin:0 0 12px;padding:12px 16px;background:#faf7ff;font-size:14px;font-weight:600;color:#111;line-height:1.6;border-radius:0 8px 8px 0}
+ul,ol{font-size:13px;padding-left:22px;margin:0 0 12px}
+li{margin-bottom:5px;line-height:1.55}
+.callout{background:#f9f9f9;border:1px solid #e5e7eb;border-radius:6px;padding:10px 14px;margin:0 0 10px}
+.label-row{display:flex;gap:12px;align-items:flex-start;margin:4px 0}
+.label-chip{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#888;min-width:130px;flex-shrink:0;padding-top:2px}
+.badge{display:inline-block;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#7C3AED;background:#f5f0ff;padding:2px 7px;border-radius:99px;margin-right:4px}
+pre{font-size:11px;white-space:pre-wrap;word-break:break-word;background:#f4f4f4;border:1px solid #e5e7eb;border-radius:6px;padding:10px 12px;line-height:1.55;margin:6px 0 10px;font-family:inherit}
+.doc-footer{margin-top:36px;padding-top:10px;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;font-size:9px;color:#bbb}
+@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}blockquote{background:#faf7ff!important}.callout{background:#f9f9f9!important}.badge{background:#f5f0ff!important}}
+</style></head>
+<body>
+<div class="doc-header">
+  <div class="left">
+    <div class="brand">Patel · Q CXO</div>
+    <h1>${title}</h1>
+    <div class="doc-type">${docType}</div>
+  </div>
+  <div class="right"><div>${date}</div><div style="margin-top:4px">Confidential</div></div>
+</div>
+${contentHtml}
+<div class="doc-footer">
+  <span>Generated by Patel, Q CXO Agent</span>
+  <span>${docType} · ${date}</span>
+</div>
+</body></html>`
+}
+
+function downloadArtifact(content: Record<string, unknown>, type: string, title?: string) {
   const win = window.open('', '_blank', 'width=900,height=700')
   if (!win) return
-  win.document.write(buildICPPrintHtml(content, title ?? 'ICP Document'))
+  const docType = DOC_TYPE_LABELS[type] ?? 'Document'
+  const html = buildPrintHtml(renderToHtml(content, type), title ?? 'Document', docType)
+  win.document.write(html)
   win.document.close()
   win.focus()
   setTimeout(() => win.print(), 400)
@@ -470,8 +759,8 @@ export function AgentChatPanel({
               if (msg.role === 'agent' && !msg.text && !msg.sources) return null
               if (msg.role === 'artifact_card') {
                 const isExpanded = expandedCards.has(msg.artifactId ?? '')
-                const artifactContent = workspace.artifacts.find(a => a.id === msg.artifactId)?.content
-                const isICP = msg.artifactType === 'icp_document'
+                const fullArtifact: ArtifactRecord | undefined = workspace.artifacts.find(a => a.id === msg.artifactId)
+                const canInline = !!fullArtifact
                 return (
                   <motion.div key={idx} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}>
                     {/* header row */}
@@ -492,8 +781,8 @@ export function AgentChatPanel({
                           {msg.artifactTitle ?? 'Untitled document'}
                         </div>
                       </div>
-                      {/* inline toggle for ICP documents */}
-                      {isICP && artifactContent && (
+                      {/* view/collapse toggle — available for all document types */}
+                      {canInline && (
                         <button
                           onClick={() => toggleCard(msg.artifactId!)}
                           style={{
@@ -508,10 +797,10 @@ export function AgentChatPanel({
                           {isExpanded ? 'Collapse ↑' : 'View document ↓'}
                         </button>
                       )}
-                      {/* download button — shown when expanded */}
-                      {isExpanded && artifactContent && (
+                      {/* download PDF — shown when expanded */}
+                      {isExpanded && fullArtifact && (
                         <button
-                          onClick={() => downloadICP(artifactContent, msg.artifactTitle)}
+                          onClick={() => downloadArtifact(fullArtifact.content, fullArtifact.type, msg.artifactTitle)}
                           title="Download PDF"
                           style={{
                             padding: '7px 10px', borderRadius: 8,
@@ -524,8 +813,8 @@ export function AgentChatPanel({
                           <Download size={13} /> PDF
                         </button>
                       )}
-                      {/* fallback "open in dashboard" for non-ICP or missing content */}
-                      {(!isICP || !artifactContent) && onOpenArtifact && (
+                      {/* fallback "open in dashboard" when content not loaded */}
+                      {!canInline && onOpenArtifact && (
                         <button
                           onClick={() => onOpenArtifact(msg.artifactId!)}
                           style={{
@@ -538,15 +827,15 @@ export function AgentChatPanel({
                         </button>
                       )}
                     </div>
-                    {/* inline ICP viewer */}
-                    {isExpanded && artifactContent && (
+                    {/* inline document viewer — uses shared renderer dispatch for all artifact types */}
+                    {isExpanded && fullArtifact && (
                       <div style={{
                         border: `1px solid ${bdr}`, borderTop: 'none',
                         borderRadius: '0 0 12px 12px',
                         padding: '20px 18px', background: '#fff',
                         maxHeight: 620, overflowY: 'auto',
                       }}>
-                        <ICPRenderer data={artifactContent} />
+                        {renderArtifactContent(fullArtifact, workspace.userId)}
                       </div>
                     )}
                   </motion.div>

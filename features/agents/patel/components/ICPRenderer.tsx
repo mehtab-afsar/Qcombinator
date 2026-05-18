@@ -12,6 +12,7 @@ import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '../../shared
 interface Segment {
   code: string; industry: string; company_type: string
   geography: string; structural_context: string; is_primary: boolean
+  why_primary?: string
 }
 interface PersonaSnapshot {
   name: string; role_context: string
@@ -22,13 +23,42 @@ interface PersonaSnapshot {
 interface Persona {
   code: string; title_cluster: string[]; role_type: string
   core_pain: string; primary_kpi: string; snapshot?: PersonaSnapshot
+  internal_pressure?: string
+  decision_influence?: string
+  failure_consequence?: string
 }
 interface TriggerItem { trigger: string; time_bound: boolean; signal: string }
 interface Variant { id: string; label: string }
-interface Objection { type: string; objection: string; counter: string }
+interface Objection { type: string; objection: string; counter: string; root_cause?: string }
+interface WhatEnables {
+  outbound_precision?: string; messaging_quality?: string
+  trigger_timing?: string; qualification?: string; learning_velocity?: string
+}
+interface CampaignTranslation {
+  target_persona?: string[]; target_accounts?: string
+  trigger_moments?: string[]; lead_message_angle?: string
+  primary_cta?: string; channels?: string[]
+  experiment_variable?: string; campaign_structure?: string
+}
+interface ActionPlanItem { timeframe: string; action: string }
+interface LearningAgenda {
+  messaging?: string[]; persona?: string[]; trigger?: string[]
+  market?: string[]; sales?: string[]
+}
+interface SignalDesign {
+  run_id?: string; icp_id?: string; segment?: string
+  experiment_variable?: string; hypothesis?: string
+  tracking_events?: string[]; signal_layer?: string[]
+}
 interface ICPData {
   title?: string; icp_id?: string; summary?: string
   confidence?: number; evidence_type?: string
+  executive_summary?: string
+  strategic_decision?: string
+  what_enables?: WhatEnables
+  campaign_translation?: CampaignTranslation
+  action_plan?: ActionPlanItem[]
+  learning_agenda?: LearningAgenda
   segments?: Segment[]
   personas?: Persona[]
   trigger_taxonomy?: TriggerItem[]
@@ -37,6 +67,7 @@ interface ICPData {
   hypothesis?: string
   objections?: Objection[]
   success_metrics?: { primary: string; secondary: string; tertiary: string }
+  signal_design?: SignalDesign
   failure_mode?: { why_might_not_convert: string; assumption_to_validate: string }
   buyerPersona?: { title?: string; role?: string; seniority?: string; dayInLife?: string; goals?: string[]; frustrations?: string[] }
   firmographics?: { companySize?: string; industry?: string[]; revenue?: string; geography?: string[]; techStack?: string[] }
@@ -177,7 +208,180 @@ export function ICPRenderer({ data }: { data: Record<string, unknown> }) {
         </Card>
       )}
 
-      {/* ── 2. SEGMENT SELECTOR ───────────────────────────────────────────── */}
+      {/* ── 2. EXECUTIVE SUMMARY ──────────────────────────────────────────── */}
+      {d.executive_summary && (
+        <Card style={{ border: `1px solid ${bdr}` }}>
+          <CardContent className="pt-4 pb-4">
+            <p style={sH}>Executive Summary</p>
+            <p style={{ fontSize: 13, lineHeight: 1.78, color: ink }}>{d.executive_summary}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── 3. STRATEGIC DECISION ─────────────────────────────────────────── */}
+      {d.strategic_decision && (
+        <div style={{ borderLeft: '4px solid #7C3AED', paddingLeft: 16, paddingTop: 10, paddingBottom: 10, background: '#7C3AED08', borderRadius: '0 8px 8px 0' }}>
+          <p style={{ fontSize: 10, fontWeight: 700, color: '#7C3AED', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 6 }}>Strategic GTM Decision</p>
+          <p style={{ fontSize: 14, fontWeight: 600, color: ink, lineHeight: 1.6 }}>{d.strategic_decision}</p>
+        </div>
+      )}
+
+      {/* ── 4. WHAT THIS ICP ENABLES ──────────────────────────────────────── */}
+      {d.what_enables && (
+        <Card style={{ border: `1px solid ${bdr}` }}>
+          <CardContent className="pt-4 pb-4">
+            <p style={sH}>What This ICP Enables</p>
+            <div className="flex flex-col gap-2.5">
+              {([
+                { key: 'outbound_precision', label: 'Outbound Precision', color: blue },
+                { key: 'messaging_quality',  label: 'Messaging',          color: green },
+                { key: 'trigger_timing',     label: 'Trigger Timing',     color: amber },
+                { key: 'qualification',      label: 'Qualification',      color: '#7C3AED' },
+                { key: 'learning_velocity',  label: 'Learning Velocity',  color: muted },
+              ] as { key: keyof WhatEnables; label: string; color: string }[])
+                .filter(({ key }) => d.what_enables![key])
+                .map(({ key, label: lbl, color }) => (
+                  <div key={key} className="flex items-start gap-3">
+                    <span style={{
+                      fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em',
+                      padding: '3px 8px', borderRadius: 5, flexShrink: 0, marginTop: 1,
+                      background: color + '18', color, border: `1px solid ${color}40`,
+                    }}>{lbl}</span>
+                    <p style={{ fontSize: 12, color: ink, lineHeight: 1.55 }}>{d.what_enables![key]}</p>
+                  </div>
+                ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── 5. CAMPAIGN TRANSLATION ───────────────────────────────────────── */}
+      {d.campaign_translation && (
+        <Card style={{ border: `1px solid ${bdr}` }}>
+          <CardContent className="pt-4 pb-4">
+            <p style={sH}>Campaign Translation</p>
+            <div className="grid grid-cols-2 gap-4">
+              {/* Left col */}
+              <div className="flex flex-col gap-3">
+                {d.campaign_translation.target_persona && d.campaign_translation.target_persona.length > 0 && (
+                  <div>
+                    {label('Target Persona')}
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {d.campaign_translation.target_persona.map((t, i) => (
+                        <span key={i} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 5, background: surf ?? '#f5f5f5', border: `1px solid ${bdr}`, color: ink, fontWeight: 500 }}>{t}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {d.campaign_translation.target_accounts && (
+                  <div>
+                    {label('Target Accounts')}
+                    <p style={{ fontSize: 12, color: ink, lineHeight: 1.5, marginTop: 2 }}>{d.campaign_translation.target_accounts}</p>
+                  </div>
+                )}
+                {d.campaign_translation.trigger_moments && d.campaign_translation.trigger_moments.length > 0 && (
+                  <div>
+                    {label('Trigger Moments')}
+                    <div className="flex flex-col gap-1 mt-1">
+                      {d.campaign_translation.trigger_moments.map((t, i) => (
+                        <p key={i} style={{ fontSize: 12, color: ink }}>• {t}</p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {d.campaign_translation.channels && d.campaign_translation.channels.length > 0 && (
+                  <div>
+                    {label('Channels')}
+                    <p style={{ fontSize: 12, color: ink, marginTop: 2 }}>{d.campaign_translation.channels.join(' → ')}</p>
+                  </div>
+                )}
+              </div>
+              {/* Right col */}
+              <div className="flex flex-col gap-3">
+                {d.campaign_translation.lead_message_angle && (
+                  <div style={{ background: green + '0d', border: `1px solid ${green}30`, borderRadius: 8, padding: '10px 12px' }}>
+                    {label('Lead Message Angle')}
+                    <p style={{ fontSize: 13, color: ink, lineHeight: 1.5, fontWeight: 500, marginTop: 2 }}>{d.campaign_translation.lead_message_angle}</p>
+                  </div>
+                )}
+                {d.campaign_translation.primary_cta && (
+                  <div>
+                    {label('Primary CTA')}
+                    <p style={{ fontSize: 12, color: ink, lineHeight: 1.5, marginTop: 2 }}>{d.campaign_translation.primary_cta}</p>
+                  </div>
+                )}
+                {d.campaign_translation.experiment_variable && (
+                  <div>
+                    {label('Experiment Variable')}
+                    <p style={{ fontSize: 12, color: '#7C3AED', fontWeight: 600, marginTop: 2 }}>{d.campaign_translation.experiment_variable}</p>
+                  </div>
+                )}
+                {d.campaign_translation.campaign_structure && (
+                  <div>
+                    {label('Campaign Structure')}
+                    <p style={{ fontSize: 12, color: ink, lineHeight: 1.5, marginTop: 2 }}>{d.campaign_translation.campaign_structure}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── 6. FOUNDER ACTION PLAN ────────────────────────────────────────── */}
+      {d.action_plan && d.action_plan.length > 0 && (
+        <Card style={{ border: `1px solid ${bdr}` }}>
+          <CardContent className="pt-4 pb-4">
+            <p style={sH}>Founder Action Plan</p>
+            <div className="flex flex-col gap-2">
+              {d.action_plan.map((item, i) => (
+                <div key={i} className="flex items-start gap-3">
+                  <span style={{ fontSize: 11, fontWeight: 700, color: muted, flexShrink: 0, marginTop: 2, minWidth: 18, textAlign: 'right' }}>{i + 1}.</span>
+                  <div className="flex items-start gap-2 flex-wrap">
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 5, background: surf ?? '#f5f5f5', border: `1px solid ${bdr}`, color: muted, flexShrink: 0, whiteSpace: 'nowrap' }}>{item.timeframe}</span>
+                    <p style={{ fontSize: 12, color: ink, lineHeight: 1.55 }}>{item.action}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── 7. LEARNING AGENDA ────────────────────────────────────────────── */}
+      {d.learning_agenda && (
+        <Card style={{ border: `1px solid ${bdr}` }}>
+          <CardContent className="pt-4 pb-4">
+            <p style={sH}>Learning Agenda</p>
+            <Accordion type="multiple" className="flex flex-col gap-1">
+              {([
+                { key: 'messaging', label: 'Messaging', color: green },
+                { key: 'persona',   label: 'Persona',   color: blue },
+                { key: 'trigger',   label: 'Trigger',   color: amber },
+                { key: 'market',    label: 'Market',    color: '#7C3AED' },
+                { key: 'sales',     label: 'Sales',     color: red },
+              ] as { key: keyof LearningAgenda; label: string; color: string }[])
+                .filter(({ key }) => d.learning_agenda![key]?.length)
+                .map(({ key, label: lbl, color }) => (
+                  <AccordionItem key={key} value={`la-${key}`} className="border rounded-xl overflow-hidden">
+                    <AccordionTrigger className="px-4 py-2.5 hover:no-underline">
+                      <span style={{ fontSize: 12, fontWeight: 600, color }}>{lbl} Learning</span>
+                    </AccordionTrigger>
+                    <AccordionContent className="px-4 pb-3">
+                      <div className="flex flex-col gap-1.5">
+                        {d.learning_agenda![key]!.map((q, i) => (
+                          <p key={i} style={{ fontSize: 12, color: muted, lineHeight: 1.55 }}>→ {q}</p>
+                        ))}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                ))}
+            </Accordion>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── 8. SEGMENT SELECTOR ───────────────────────────────────────────── */}
       {d.segments && d.segments.length > 0 && (
         <Card style={{ border: `1px solid ${bdr}` }}>
           <CardContent className="pt-4 pb-4">
@@ -228,10 +432,16 @@ export function ICPRenderer({ data }: { data: Record<string, unknown> }) {
                       <p style={{ fontSize: 12, color: ink, lineHeight: 1.55 }}>{seg.structural_context}</p>
                     </div>
                   )}
-                  {seg.is_primary && d.segments!.length > 1 && (
+                  {seg.is_primary && (
                     <div className="flex items-center gap-2">
                       <div style={{ width: 8, height: 8, borderRadius: '50%', background: green }} />
                       <p style={{ fontSize: 11, color: green, fontWeight: 600 }}>Primary segment — lead GTM execution here</p>
+                    </div>
+                  )}
+                  {seg.why_primary && (
+                    <div style={{ background: green + '0a', border: `1px solid ${green}30`, borderRadius: 8, padding: '8px 12px' }}>
+                      {label('Why Primary')}
+                      <p style={{ fontSize: 12, color: ink, lineHeight: 1.55 }}>{seg.why_primary}</p>
                     </div>
                   )}
                 </div>
@@ -267,6 +477,29 @@ export function ICPRenderer({ data }: { data: Record<string, unknown> }) {
               <div style={{ background: red + '0d', border: `1px solid ${red}30`, borderRadius: 8, padding: '10px 14px', marginBottom: 12 }}>
                 {label('Core Pain')}
                 <p style={{ fontSize: 13, color: ink, lineHeight: 1.55 }}>{persona.core_pain}</p>
+              </div>
+            )}
+
+            {(persona.internal_pressure || persona.decision_influence || persona.failure_consequence) && (
+              <div className="grid grid-cols-3 gap-2 mb-3">
+                {persona.internal_pressure && (
+                  <div style={{ padding: '8px 10px', borderRadius: 8, border: `1px solid ${amber}40`, background: amber + '08' }}>
+                    {label('Internal Pressure')}
+                    <p style={{ fontSize: 11, color: ink, lineHeight: 1.5, marginTop: 2 }}>{persona.internal_pressure}</p>
+                  </div>
+                )}
+                {persona.decision_influence && (
+                  <div style={{ padding: '8px 10px', borderRadius: 8, border: `1px solid ${blue}40`, background: blue + '08' }}>
+                    {label('Decision Influence')}
+                    <p style={{ fontSize: 11, color: ink, lineHeight: 1.5, marginTop: 2 }}>{persona.decision_influence}</p>
+                  </div>
+                )}
+                {persona.failure_consequence && (
+                  <div style={{ padding: '8px 10px', borderRadius: 8, border: `1px solid ${red}40`, background: red + '08' }}>
+                    {label('Failure Consequence')}
+                    <p style={{ fontSize: 11, color: ink, lineHeight: 1.5, marginTop: 2 }}>{persona.failure_consequence}</p>
+                  </div>
+                )}
               </div>
             )}
 
@@ -478,9 +711,17 @@ export function ICPRenderer({ data }: { data: Record<string, unknown> }) {
                     </div>
                   </AccordionTrigger>
                   <AccordionContent className="px-4 pb-3">
-                    <div style={{ paddingTop: 4 }}>
-                      <p style={{ fontSize: 10, fontWeight: 700, color: green, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>Counter</p>
-                      <p style={{ fontSize: 12, color: ink, lineHeight: 1.55 }}>{obj.counter}</p>
+                    <div style={{ paddingTop: 4 }} className="flex flex-col gap-2">
+                      {obj.root_cause && (
+                        <div>
+                          <p style={{ fontSize: 10, fontWeight: 700, color: amber, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 3 }}>Root Cause</p>
+                          <p style={{ fontSize: 12, color: muted, lineHeight: 1.55 }}>{obj.root_cause}</p>
+                        </div>
+                      )}
+                      <div>
+                        <p style={{ fontSize: 10, fontWeight: 700, color: green, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 3 }}>Counter</p>
+                        <p style={{ fontSize: 12, color: ink, lineHeight: 1.55 }}>{obj.counter}</p>
+                      </div>
                     </div>
                   </AccordionContent>
                 </AccordionItem>
@@ -511,7 +752,56 @@ export function ICPRenderer({ data }: { data: Record<string, unknown> }) {
         </Card>
       )}
 
-      {/* ── 8. FAILURE MODE ───────────────────────────────────────────────── */}
+      {/* ── SIGNAL DESIGN ─────────────────────────────────────────────────── */}
+      {d.signal_design && (
+        <Card style={{ border: `1px solid ${bdr}` }}>
+          <CardContent className="pt-4 pb-4">
+            <p style={sH}>Signal Design</p>
+            {/* Run metadata row */}
+            <div className="flex flex-wrap gap-2 mb-4">
+              {d.signal_design.run_id && (
+                <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 5, background: surf ?? '#f5f5f5', border: `1px solid ${bdr}`, color: ink, letterSpacing: '0.08em' }}>
+                  {d.signal_design.run_id}
+                </span>
+              )}
+              {d.signal_design.segment && (
+                <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 5, background: blue + '18', border: `1px solid ${blue}40`, color: blue }}>
+                  {d.signal_design.segment}
+                </span>
+              )}
+              {d.signal_design.experiment_variable && (
+                <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 5, background: '#7C3AED18', border: '1px solid #7C3AED40', color: '#7C3AED' }}>
+                  Variable: {d.signal_design.experiment_variable}
+                </span>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              {d.signal_design.tracking_events && d.signal_design.tracking_events.length > 0 && (
+                <div>
+                  {label('Track per Contact')}
+                  <div className="flex flex-col gap-1 mt-1">
+                    {d.signal_design.tracking_events.map((e, i) => (
+                      <p key={i} style={{ fontSize: 11, color: ink, lineHeight: 1.5 }}>• {e}</p>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {d.signal_design.signal_layer && d.signal_design.signal_layer.length > 0 && (
+                <div>
+                  {label('Signal Layer (200–500 contacts)')}
+                  <div className="flex flex-col gap-1 mt-1">
+                    {d.signal_design.signal_layer.map((s, i) => (
+                      <p key={i} style={{ fontSize: 11, color: ink, lineHeight: 1.5 }}>→ {s}</p>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── FAILURE MODE ──────────────────────────────────────────────────── */}
       {d.failure_mode && (
         <div style={{ border: `1.5px solid ${amber}`, borderRadius: 10, padding: '12px 16px', background: amber + '0a' }}>
           <div className="flex items-center gap-2 mb-2">

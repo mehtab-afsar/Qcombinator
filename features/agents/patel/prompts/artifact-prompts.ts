@@ -43,29 +43,75 @@ export function getArtifactPrompt(
   const prompts: Record<string, string> = {
     // ── D1: ICP Definition ─────────────────────────────────────────────────
     // Operator-level targeting system — consumed by D2, D3, D4, Apollo, outbound agent
-    icp_document: `You are generating an Ideal Customer Profile (ICP) as a structured, testable outbound system.
+    icp_document: `You are generating a deployable GTM targeting system — not a description, not a framework, not a generic analysis.
 
-This is NOT a descriptive task. This is an operator-level system design task.
+Your output must function simultaneously as:
+- a founder-facing GTM operating memo
+- a field-ready outbound campaign brief
+- a structured market experiment with a signal layer
 
 INDICATOR SCORES (P1.1 ICP Quality):
 ${icpCtx}
-Fields backed by VALIDATED indicators → state confidently. NOT ASSESSED or score ≤ 2 → use evidence_type "assumed".
+Fields backed by VALIDATED indicators → state confidently. NOT ASSESSED or score ≤ 2 → label as ASSUMED.
 
 Context from the conversation:
 ${ctx}
 
 ═══ PHASE 0 — PRE-WRITING ANALYSIS (INTERNAL — DO NOT OUTPUT) ═══
-Before writing, internally determine:
-1. Who is the REAL economic buyer (not the user, the signatory)
-2. What is the CORE CONSTRAINT (not surface pain — the thing that blocks their KPI)
-3. What is the TRIGGER MOMENT that forces them to act NOW
-4. Why would this ICP FAIL to convert in reality
 
-Only proceed once all four are clear.
+Before writing anything, internally determine:
+1. Who is the REAL economic buyer — the signatory, not just the user
+2. Who feels the operational pain most directly day-to-day
+3. What is the CORE CONSTRAINT — not surface pain, the thing blocking their KPI
+4. What OBSERVABLE EVENT creates urgency right now
+5. Why now — what changed in the market in the last 12–18 months
+6. Why would this ICP FAIL to convert in reality
+7. Which assumption embedded in this ICP is most dangerous
+8. What would make this ICP completely non-responsive
+9. What pressure actually forces action — risk, audit, revenue loss, career threat
+10. What MEASURABLE OUTCOME matters most to this buyer
 
-═══ PHASE 1 — GENERATE THE ICP JSON ═══
+Only proceed once all ten are clear.
 
-Return this EXACT JSON structure. No markdown fences. No extra text. No placeholders:
+═══ PHASE 1 — EXECUTIVE GTM LAYER ═══
+
+Generate these as a founder-facing operational brief — write like a field strategist, not a consultant.
+
+"executive_summary": 150–250 words answering: What did this ICP solve? Who to target first? Why this segment now? What pressure creates urgency? What campaign does this enable? Write like a CMO briefing a sales team — precise, direct, no generic language.
+
+"strategic_decision": ONE decisive sentence. Format exactly: "For [company], the strongest initial GTM wedge is [specific segment] because [specific pressure + measurable consequence]." No hedging. No alternatives.
+
+"what_enables": explain operationally how this ICP improves each of these five dimensions:
+- outbound_precision: who exactly to contact instead of a broad category
+- messaging_quality: how messaging shifts from generic to pressure-specific
+- trigger_timing: what observable events create campaign windows
+- qualification: what signals distinguish buyers from browsers
+- learning_velocity: what this campaign will teach and how fast
+
+"campaign_translation": translate the ICP into executable outbound:
+- target_persona: array of exact job titles to contact
+- target_accounts: describe the account profile (type, size, geography, context)
+- trigger_moments: array of real observable events that create outreach timing
+- lead_message_angle: the ONE lead value claim — tied to money, risk, or survival
+- primary_cta: what you ask them to do (specific, low-commitment ask)
+- channels: array of channels in priority order
+- experiment_variable: what single variable is being tested
+- campaign_structure: how the campaign is structured (e.g. 100 contacts, 3 message variants, 2-week window)
+
+"action_plan": array of at least 5 concrete founder actions, each with:
+- timeframe: e.g. "Days 1–3", "Week 1", "Days 7–14"
+- action: specific executable step (not "do outreach" — "build target list of 150 PHED Chief Engineers across 5 priority states using LinkedIn Sales Navigator")
+
+"learning_agenda": what this campaign is designed to answer, by category:
+- messaging: array of questions (which pain angle converts best?)
+- persona: array of questions (which title responds fastest?)
+- trigger: array of questions (which event creates most urgency?)
+- market: array of questions (which segment has shortest sales cycle?)
+- sales: array of questions (what objection blocks progression most?)
+
+═══ PHASE 2 — ICP SYSTEM DESIGN ═══
+
+Return the COMPLETE JSON structure below. No markdown fences. No extra text. No placeholders:
 
 {
   "title": "ICP: [specific, product-relevant title — not generic]",
@@ -74,14 +120,54 @@ Return this EXACT JSON structure. No markdown fences. No extra text. No placehol
   "confidence": 0.75,
   "evidence_type": "validated",
 
+  "executive_summary": "150–250 word founder-facing brief. Direct. Operational. No banned phrases.",
+
+  "strategic_decision": "For [company], the strongest initial GTM wedge is [segment] because [specific pressure + measurable consequence].",
+
+  "what_enables": {
+    "outbound_precision": "Instead of [broad category], now targeting [specific title] inside [specific account type].",
+    "messaging_quality": "Shifts from [generic claim] to [specific pressure-based claim].",
+    "trigger_timing": "[specific trigger event] creates a [timeframe] outreach window.",
+    "qualification": "Qualified buyer signals: [2–3 specific observable indicators].",
+    "learning_velocity": "First 100 contacts will reveal [specific learning] within [timeframe]."
+  },
+
+  "campaign_translation": {
+    "target_persona": ["exact job title 1", "exact job title 2"],
+    "target_accounts": "description of account profile: type, size, geography, structural context",
+    "trigger_moments": ["specific observable trigger 1", "specific observable trigger 2", "specific observable trigger 3"],
+    "lead_message_angle": "ONE lead value claim tied to money, risk, or survival — not generic",
+    "primary_cta": "specific low-commitment ask (e.g. 15-minute operational assessment call)",
+    "channels": ["primary channel", "secondary channel"],
+    "experiment_variable": "what single variable is being tested",
+    "campaign_structure": "e.g. 100–150 contacts, 3 message variants, 2-week window, evenly distributed"
+  },
+
+  "action_plan": [
+    { "timeframe": "Days 1–3", "action": "specific executable step with tools and criteria" },
+    { "timeframe": "Days 4–7", "action": "specific executable step" },
+    { "timeframe": "Week 2",   "action": "specific executable step" },
+    { "timeframe": "Week 2",   "action": "specific executable step" },
+    { "timeframe": "Day 14",   "action": "specific executable step — define success thresholds" }
+  ],
+
+  "learning_agenda": {
+    "messaging": ["Which pain angle converts best: [option A] vs [option B]?", "Does urgency framing outperform risk framing?"],
+    "persona":   ["Which title responds fastest: [title A] vs [title B]?", "Does technical or administrative leadership initiate?"],
+    "trigger":   ["Which trigger creates most urgency: [trigger A] vs [trigger B]?"],
+    "market":    ["Which geography shows shortest procurement cycle?", "Which segment has strongest compliance pressure?"],
+    "sales":     ["What objection blocks progression most?", "What question appears most in replies?"]
+  },
+
   "segments": [
     {
       "code": "SEG-A",
       "industry": "specific industry",
       "company_type": "e.g. Series A SaaS, 50–150 employees",
       "geography": "e.g. US / UK",
-      "structural_context": "1–2 sentences on budget cycles, buying mechanics, regulation, or constraints that affect this segment",
-      "is_primary": true
+      "structural_context": "2–3 sentences on budget cycles, buying mechanics, regulation, org politics, procurement realities",
+      "is_primary": true,
+      "why_primary": "Why this segment is primary: specific combination of urgency + procurement pathway + measurable pressure that makes them outperform alternatives"
     }
   ],
 
@@ -90,30 +176,33 @@ Return this EXACT JSON structure. No markdown fences. No extra text. No placehol
       "code": "P1",
       "title_cluster": ["exact job title 1", "exact job title 2"],
       "role_type": "Decision Maker",
-      "core_pain": "specific constraint they face, tied to their KPI — not a vague problem statement",
+      "core_pain": "specific constraint tied to their KPI — not a vague problem statement",
       "primary_kpi": "the metric they are personally judged on",
+      "internal_pressure": "what creates urgency inside their org — audit cycle, board pressure, team accountability, compliance deadline",
+      "decision_influence": "where they sit in the buying chain — initiator, influencer, approver, blocker",
+      "failure_consequence": "what happens to them personally if they don't act — career exposure, audit finding, missed target",
       "snapshot": {
-        "name": "archetypal first name that fits this persona",
-        "role_context": "1 sentence: their role, company stage, current pressure",
-        "day_in_life": ["what their 8am looks like", "what happens mid-day", "what they deal with by EOD"],
+        "name": "archetypal first name",
+        "role_context": "1 sentence: their role, company stage, current pressure they are under",
+        "day_in_life": ["what their 8am looks like", "what they deal with mid-day", "what they're still handling at EOD"],
         "keeps_up_at_night": ["specific fear tied to their KPI", "specific risk they can't solve today"],
-        "top_frustrations": ["process or tool frustration they mention in calls", "org-level frustration they can't control"],
-        "what_success_looks_like": ["measurable outcome they want in 90 days", "career or team outcome they want in 6 months"],
-        "decision_lens": "how they evaluate solutions: what question do they ask themselves before saying yes"
+        "top_frustrations": ["process or tool frustration from real calls", "org-level frustration they can't control"],
+        "what_success_looks_like": ["measurable outcome in 90 days", "career or team outcome in 6 months"],
+        "decision_lens": "the question they ask themselves before saying yes"
       }
     }
   ],
 
   "trigger_taxonomy": [
     {
-      "trigger": "specific observable event — not abstract",
+      "trigger": "specific observable event — not abstract, not 'company is growing'",
       "time_bound": true,
-      "signal": "how to detect this trigger in the real world (e.g. LinkedIn job change, funding announcement, product launch)"
+      "signal": "how to detect this in the real world: LinkedIn signal, press release, tender announcement, earnings call"
     }
   ],
 
   "value_angle": {
-    "primary": "ONE specific value claim — tied to money, risk reduction, or survival",
+    "primary": "ONE specific value claim tied to money, risk reduction, or survival — not generic",
     "maps_to": "money"
   },
 
@@ -126,25 +215,48 @@ Return this EXACT JSON structure. No markdown fences. No extra text. No placehol
     ]
   },
 
-  "hypothesis": "We believe [specific segment] will respond best to [variant X] because [reason tied to their KPI or pressure]",
+  "hypothesis": "We believe [specific segment/persona] will respond best to [variant] because [specific pressure tied to their KPI or risk].",
 
   "objections": [
-    { "type": "budget",      "objection": "real objection a prospect would say", "counter": "direct counter tied to their KPI" },
-    { "type": "inertia",     "objection": "real objection a prospect would say", "counter": "direct counter tied to their KPI" },
-    { "type": "competition", "objection": "real objection a prospect would say", "counter": "direct counter tied to their KPI" },
-    { "type": "timing",      "objection": "real objection a prospect would say", "counter": "direct counter tied to their KPI" },
-    { "type": "complexity",  "objection": "real objection a prospect would say", "counter": "direct counter tied to their KPI" }
+    { "type": "budget",      "objection": "exact words a prospect says", "root_cause": "underlying driver of this objection", "counter": "direct counter tied to their KPI or pressure" },
+    { "type": "inertia",     "objection": "exact words a prospect says", "root_cause": "underlying driver", "counter": "direct counter" },
+    { "type": "competition", "objection": "exact words a prospect says", "root_cause": "underlying driver", "counter": "direct counter" },
+    { "type": "timing",      "objection": "exact words a prospect says", "root_cause": "underlying driver", "counter": "direct counter" },
+    { "type": "complexity",  "objection": "exact words a prospect says", "root_cause": "underlying driver", "counter": "direct counter" }
   ],
 
   "success_metrics": {
-    "primary":   "measurable metric with a number (e.g. reply rate > 8%)",
-    "secondary": "measurable metric with a number",
-    "tertiary":  "measurable metric with a number"
+    "primary":   "measurable metric with threshold (e.g. meeting booked rate > 5%)",
+    "secondary": "measurable metric with threshold (e.g. positive reply rate > 8%)",
+    "tertiary":  "measurable metric with threshold (e.g. ≥3 qualified discussions within 30 days)"
+  },
+
+  "signal_design": {
+    "run_id": "RUN_[COMPANY_ABBREV]_001",
+    "icp_id": "[same as icp_id above]",
+    "segment": "[primary segment code]",
+    "experiment_variable": "[same as experiment_design.variable]",
+    "hypothesis": "[same as hypothesis above]",
+    "tracking_events": [
+      "contact_id and persona for each outreach",
+      "trigger type that prompted outreach",
+      "variant sent",
+      "outcome: replied / no reply / meeting booked / objection",
+      "objection category if applicable",
+      "time-to-response"
+    ],
+    "signal_layer": [
+      "Segment Performance Score after 200+ contacts",
+      "Trigger Effectiveness ranking by reply rate",
+      "Objection Frequency map by type",
+      "Variant Resonance ranking",
+      "Persona Conversion ranking by title"
+    ]
   },
 
   "failure_mode": {
-    "why_might_not_convert": "the assumption embedded in this ICP that could be wrong",
-    "assumption_to_validate": "the single most important thing to test in the first 50 outreach attempts"
+    "why_might_not_convert": "the core assumption embedded in this ICP that could be wrong — not a generic hedge",
+    "assumption_to_validate": "the single most dangerous thing to test in the first 50 outreach attempts"
   },
 
   "buyerPersona": {
@@ -178,37 +290,43 @@ Return this EXACT JSON structure. No markdown fences. No extra text. No placehol
 
   "execution_path": {
     "consumed_by": ["pains_gains_triggers", "buyer_journey", "positioning_messaging", "lead_list", "outbound-agent"],
-    "enables": "Build targeted lead list from firmographics; ground D2 pain map in specific buyer context",
+    "enables": "Build targeted lead list from campaign_translation; ground D2 pain map in specific buyer pressure",
     "downstream_dependency": "D2 Pains & Gains cannot be built without this ICP definition",
-    "next_step_for_founder": "Confirm the primary segment and persona title are accurate. Then Patel will map the specific triggers that turn this ICP into a buying decision."
+    "next_step_for_founder": "Execute the action_plan. First 14 days: build list, map triggers, launch experiment, track objections, validate success thresholds."
   }
 }
 
 ═══ HARD RULES ═══
 - ONE primary segment (is_primary: true). Max 2 segments total. No hedging.
-- ONE dominant pain per persona. No equal options.
-- ONE value angle (maps_to: "money" OR "risk" OR "survival" — pick one).
-- experiment_design.variable must be ONLY "pain_framing" OR "persona" OR "trigger" — never vary multiple things.
-- persona snapshot: max 200 words total, no startup fluff, must feel like a real person a salesperson would recognise instantly.
-- trigger_taxonomy: every trigger must be time-bound and detectable in the real world. No abstract triggers like "company is growing".
+- Only the primary segment gets why_primary.
+- ONE dominant pain per persona. No equal alternatives.
+- ONE value angle (maps_to: "money" OR "risk" OR "survival" — pick exactly one).
+- experiment_design.variable must be ONLY "pain_framing" OR "persona" OR "trigger". Never test multiple variables.
+- persona snapshot: max 200 words, no startup fluff, must feel like a real person a salesperson would recognise instantly.
+- trigger_taxonomy: every trigger must be time-bound and detectable in the real world. No abstract triggers.
+- action_plan: minimum 5 items, each with a specific timeframe and a concrete executable action (not general guidance).
+- signal_design is MANDATORY. Never omit.
 - failure_mode is MANDATORY. Never omit.
+- executive_summary: must NOT contain any of these phrases: "increase efficiency", "improve performance", "streamline workflows", "drive innovation", "enhance visibility", "optimize operations". Every claim must be measurable or tied to a real operational situation.
+- strategic_decision: must name a specific, measurable pressure or consequence — not "they have pain".
 - Include 3–5 pain points, 3–5 buying triggers, 2–4 channels, 3–5 qualification criteria.
 - severity: "high" / "medium" / "low". channel priority: "primary" / "secondary".
-- Do NOT use vague phrases: "increase efficiency", "improve performance", "streamline workflows". Every claim must be measurable or tied to a real situation.
 
-═══ PHASE 2 — REALITY CHECK (INTERNAL — DO NOT OUTPUT) ═══
+═══ PHASE 3 — REALITY CHECK (INTERNAL — DO NOT OUTPUT) ═══
 Before finalising, validate:
-1. Would a real salesperson instantly recognise this customer? (if not → refine persona snapshot)
-2. Is every trigger actually observable in the real world? (if not → rewrite trigger_taxonomy)
+1. Would a real operator recognise this customer instantly? (if not → refine persona snapshot)
+2. Is every trigger actually observable? (if not → rewrite trigger_taxonomy)
 3. Is the value angle tied to money, risk, or survival? (if not → rewrite value_angle)
-4. Is anything generic or non-actionable? (if yes → rewrite that field)
+4. Is the campaign_translation executable tomorrow? (if not → make it more specific)
+5. Are action_plan items concrete enough for a founder to act on without clarification? (if not → rewrite)
+6. Does anything use banned phrases? (if yes → rewrite)
 
 Then output the final JSON.`,
 
     // ── D2: Pains, Gains & Triggers ────────────────────────────────────────
     // Demand model — maps what drives purchase decisions for the ICP
     // Requires D1. Consumed by D3 (Buyer Journey) and D4 (Messaging).
-    pains_gains_triggers: `You are generating a Pains, Gains & Triggers structured interface for an early-stage startup.
+    pains_gains_triggers: `You are generating a Pains, Gains & Triggers operational brief for an early-stage startup.
 This is D2 in the Patel delivery chain. It requires a completed ICP (D1). It will be consumed by the Buyer Journey (D3) and Positioning/Messaging (D4) deliverables, and by the outbound agent for personalization.
 
 INDICATOR SCORES FOR THIS DELIVERABLE (P1.2 Customer Insight):
@@ -218,12 +336,55 @@ Use these scores to calibrate confidence: fields backed by VALIDATED indicators 
 Context gathered from the conversation (includes ICP from D1):
 ${ctx}
 
+═══ PHASE 0 — PRE-WRITING ANALYSIS (DO NOT OUTPUT) ═══
+Before writing, answer these internally:
+1. What is the single highest-severity pain? What makes it a business-critical problem (not just inconvenient)?
+2. What is the ONE trigger event that creates the most urgency — and how would a salesperson detect it?
+3. What does the buyer currently do to work around this pain, and why does that workaround fail?
+4. What objection will kill 60% of early deals? What is the real underlying cause of that objection?
+5. What evidence type is most of this based on — validated by customers, inferred from market, or assumed?
+
+═══ PHASE 1 — EXECUTIVE BRIEF (OUTPUT IN JSON) ═══
+Generate these fields first in the JSON:
+- executive_summary: 150-200 words. What pains and triggers did this analysis surface? Who is hurting and from what? Which trigger event creates the most actionable outbound moment? What objection pattern should the founder expect and prepare for? Must be specific to their product, market, and buyer — not generic.
+- strategic_decision: Single sentence. "The highest-leverage outbound moment for [company] is [trigger event] because [specific consequence to the buyer with measurable impact]."
+- what_enables: Object with keys: pain_precision (how this pain map makes outbound more specific vs. generic), trigger_detection (how trigger_events enables reaching buyers at the exact right moment), message_grounding (how knowing these pains grounds messaging in real buyer language), objection_intelligence (how common_objections arms the team before they get on calls), learning_velocity (what this deliverable is designed to validate from market response)
+- action_plan: Array of minimum 5 items. Each: {timeframe: "Days 1-2", action: "Specific executable action..."}. Must cover: validate top pain with existing contacts, map trigger detection signals in their tools/LinkedIn/press, build outbound list filtered by trigger, launch test sequence with pain-first framing, track objection frequency across first 20 calls.
+- learning_agenda: Object with keys: pain_validation (what to learn about which pain resonates most), trigger_detection (what to learn about which signals best predict active pain), persona (what to learn about which personas react to each pain framing), market (what the market may reveal beyond this analysis), sales (what early calls will tell us about objections)
+
+═══ PHASE 2 — STRUCTURED DATA (OUTPUT IN JSON) ═══
+
 Return a JSON object with this EXACT structure (no markdown fences, no extra text):
 {
   "title": "Pains, Gains & Triggers: [ICP buyer title from D1]",
   "target_context": "One sentence describing the specific ICP this applies to (from D1)",
   "confidence": 0.70,
   "evidence_type": "validated",
+
+  "executive_summary": "150-200 word founder brief — what this pain analysis means for GTM right now...",
+  "strategic_decision": "The highest-leverage outbound moment for [company] is [trigger] because [consequence].",
+  "what_enables": {
+    "pain_precision": "...",
+    "trigger_detection": "...",
+    "message_grounding": "...",
+    "objection_intelligence": "...",
+    "learning_velocity": "..."
+  },
+  "action_plan": [
+    { "timeframe": "Days 1-2", "action": "Specific action..." },
+    { "timeframe": "Days 3-5", "action": "Specific action..." },
+    { "timeframe": "Days 6-8", "action": "Specific action..." },
+    { "timeframe": "Days 9-12", "action": "Specific action..." },
+    { "timeframe": "Days 13-14", "action": "Specific action..." }
+  ],
+  "learning_agenda": {
+    "pain_validation": ["Which pain resonates most when named directly in outbound subject lines?", "Does the buyer recognize the pain immediately or require education?"],
+    "trigger_detection": ["Which trigger signal reliably predicts active buyer pain?", "How far in advance of purchase does the trigger typically occur?"],
+    "persona": ["Which persona responds most strongly to each pain framing?", "Who initiates the conversation vs. who blocks it?"],
+    "market": ["Are there pains we missed that surface in early conversations?", "Is the severity scoring accurate relative to what buyers say?"],
+    "sales": ["Which objections come up in the first 3 minutes of a call?", "What is the most common reason a call goes cold after initial interest?"]
+  },
+
   "core_pains": [
     {
       "pain": "Specific pain point — be concrete, not generic",
@@ -240,7 +401,8 @@ Return a JSON object with this EXACT structure (no markdown fences, no extra tex
     {
       "trigger": "The specific event that makes them actively look for a solution",
       "urgency": "high|medium|low",
-      "example": "e.g. missed a quarterly target, hired a new VP Sales, raised a Series A"
+      "example": "e.g. missed a quarterly target, hired a new VP Sales, raised a Series A",
+      "detection_signal": "How to find this trigger in the real world: LinkedIn, press release, job posting, earnings call"
     }
   ],
   "proof_expectations": [
@@ -249,8 +411,8 @@ Return a JSON object with this EXACT structure (no markdown fences, no extra tex
   "common_objections": [
     {
       "objection": "The specific objection",
-      "root_cause": "Why they have this objection",
-      "handle": "How to address it"
+      "root_cause": "Why they have this objection — the underlying belief or fear driving it",
+      "handle": "How to address it — specific counter tied to their pain or trigger"
     }
   ],
   "execution_path": {
@@ -261,21 +423,22 @@ Return a JSON object with this EXACT structure (no markdown fences, no extra tex
   }
 }
 
-RULES:
+═══ HARD RULES ═══
 - core_pains: 3-5 pains, severity 1-5 (5 = business-critical), be specific not generic
 - desired_gains: 3-4 outcomes the buyer wants (outcomes, not features)
-- trigger_events: 3-4 real events that create urgency — be specific to their market
-- proof_expectations: 2-3 types of evidence the buyer needs before committing
-- common_objections: 2-4 objections with handles
-- confidence: 0.0–1.0 based on how much real customer evidence backs this up
-- evidence_type: "validated" / "inferred" / "assumed"
+- trigger_events: 3-4 real events — every trigger must include detection_signal (how to find it in the real world)
+- proof_expectations: 2-3 types of evidence the buyer needs
+- common_objections: 2-4 objections — every objection must include root_cause
+- executive_summary: must NOT use banned phrases: "increase efficiency", "improve performance", "streamline workflows", "drive innovation"
+- strategic_decision: must name a specific measurable consequence — not "they have pain"
+- action_plan: minimum 5 items with specific timeframes and executable actions
 - execution_path is MANDATORY. Never omit it.
 - Return ONLY valid JSON. No markdown, no explanation.`,
 
     // ── D3: Buyer Journey ───────────────────────────────────────────────────
     // Conversion system — maps how buyers move from unaware to committed
     // Requires D1 + D2. Consumed by D4 (Messaging) and execution agents.
-    buyer_journey: `You are generating a Buyer Journey structured interface for an early-stage startup.
+    buyer_journey: `You are generating a Buyer Journey operational brief for an early-stage startup.
 This is D3 in the Patel delivery chain. It requires ICP (D1) and Pains/Triggers (D2). It defines the conversion system — how buyers move from unaware to committed — and will be consumed by D4 Positioning/Messaging and by sales and content execution agents.
 
 INDICATOR SCORES FOR THIS DELIVERABLE (P1.3 Channel Focus):
@@ -285,12 +448,55 @@ Use these scores to calibrate confidence: fields backed by VALIDATED indicators 
 Context gathered from the conversation (includes ICP from D1 and Pains from D2):
 ${ctx}
 
+═══ PHASE 0 — PRE-WRITING ANALYSIS (DO NOT OUTPUT) ═══
+Before writing, answer these internally:
+1. Where is this startup's pipeline currently stuck? Which stage has the highest drop-off?
+2. What is the single biggest friction point preventing buyers from moving from Evaluation to Decision?
+3. Who in the buyer org is most likely to kill this deal at the last stage? What do they need to see?
+4. What trust signal at each stage would most reduce friction — case study, pilot structure, reference call, ROI model?
+5. What entry trigger (from D2) most reliably starts a buyer's journey?
+
+═══ PHASE 1 — EXECUTIVE BRIEF (OUTPUT IN JSON) ═══
+Generate these fields first in the JSON:
+- executive_summary: 150-200 words. What does this buyer journey reveal about how buyers move from unaware to committed? Where does the journey break down for this specific market? What GTM touchpoints unlock movement at each stage? What does the founder need to do immediately to reduce drop-off at the highest-risk stage? Be specific to their product, buyer, and market.
+- strategic_decision: Single sentence. "The highest-leverage intervention for [company] is [specific action at specific stage] because [friction it removes with measurable impact on conversion]."
+- what_enables: Object with keys: stage_visibility (how this journey map reveals exactly where buyers are and what they need), friction_reduction (which specific frictions this analysis identifies and how to eliminate them), content_strategy (what content/touchpoints to build for each stage based on this journey), timing_precision (how knowing the journey improves outreach timing), learning_velocity (what this journey map will reveal when tested with real prospects)
+- action_plan: Array of minimum 5 items. Each: {timeframe, action}. Must cover: audit current pipeline against stages, identify highest drop-off stage, build trust signal for that stage, create stage-appropriate GTM touchpoints, set up tracking to measure stage progression.
+- learning_agenda: Object with keys: stage_progression (what to learn about how buyers actually move between stages), friction_points (what to learn about which frictions are real vs. assumed), trust_signals (which trust signals actually reduce friction), market (what the market reveals about journey length and velocity), sales (what calls reveal about where deals stall)
+
+═══ PHASE 2 — STRUCTURED DATA (OUTPUT IN JSON) ═══
+
 Return a JSON object with this EXACT structure (no markdown fences, no extra text):
 {
   "title": "Buyer Journey: [ICP buyer title] → [product/outcome]",
   "entry_condition": "What must be true for a buyer to enter the funnel (specific trigger from D2)",
   "confidence": 0.65,
   "evidence_type": "inferred",
+
+  "executive_summary": "150-200 word founder brief on the buyer journey...",
+  "strategic_decision": "The highest-leverage intervention for [company] is [action at stage] because [friction + consequence].",
+  "what_enables": {
+    "stage_visibility": "...",
+    "friction_reduction": "...",
+    "content_strategy": "...",
+    "timing_precision": "...",
+    "learning_velocity": "..."
+  },
+  "action_plan": [
+    { "timeframe": "Days 1-2", "action": "..." },
+    { "timeframe": "Days 3-5", "action": "..." },
+    { "timeframe": "Days 6-8", "action": "..." },
+    { "timeframe": "Days 9-11", "action": "..." },
+    { "timeframe": "Days 12-14", "action": "..." }
+  ],
+  "learning_agenda": {
+    "stage_progression": ["How do buyers actually move between stages — is it linear or does it jump?", "What event triggers movement from Problem Aware to Solution Aware?"],
+    "friction_points": ["Which friction points are real vs. assumed in this analysis?", "At which stage do most deals currently stall?"],
+    "trust_signals": ["Which trust signal most reduces hesitation at the Evaluation stage?", "Does a pilot/POC accelerate or slow down the Decision stage?"],
+    "market": ["How long does the typical buyer journey take for this segment?", "Are there journey stages we missed for this market?"],
+    "sales": ["What objection comes up at Decision that isn't listed in D2?", "Who in the buyer org has veto power that we haven't accounted for?"]
+  },
+
   "stages": [
     {
       "name": "Unaware",
@@ -300,38 +506,10 @@ Return a JSON object with this EXACT structure (no markdown fences, no extra tex
       "friction": "What stops them from moving to the next stage",
       "trust_signal": "What would reduce friction and build trust here"
     },
-    {
-      "name": "Problem Aware",
-      "buyer_state": "...",
-      "buyer_action": "...",
-      "gtm_touchpoint": "...",
-      "friction": "...",
-      "trust_signal": "..."
-    },
-    {
-      "name": "Solution Aware",
-      "buyer_state": "...",
-      "buyer_action": "...",
-      "gtm_touchpoint": "...",
-      "friction": "...",
-      "trust_signal": "..."
-    },
-    {
-      "name": "Evaluation",
-      "buyer_state": "...",
-      "buyer_action": "...",
-      "gtm_touchpoint": "...",
-      "friction": "...",
-      "trust_signal": "..."
-    },
-    {
-      "name": "Decision",
-      "buyer_state": "...",
-      "buyer_action": "...",
-      "gtm_touchpoint": "...",
-      "friction": "...",
-      "trust_signal": "..."
-    }
+    { "name": "Problem Aware", "buyer_state": "...", "buyer_action": "...", "gtm_touchpoint": "...", "friction": "...", "trust_signal": "..." },
+    { "name": "Solution Aware", "buyer_state": "...", "buyer_action": "...", "gtm_touchpoint": "...", "friction": "...", "trust_signal": "..." },
+    { "name": "Evaluation", "buyer_state": "...", "buyer_action": "...", "gtm_touchpoint": "...", "friction": "...", "trust_signal": "..." },
+    { "name": "Decision", "buyer_state": "...", "buyer_action": "...", "gtm_touchpoint": "...", "friction": "...", "trust_signal": "..." }
   ],
   "buyer_roles": [
     { "role": "Champion", "description": "Who advocates internally for the purchase" },
@@ -353,20 +531,22 @@ Return a JSON object with this EXACT structure (no markdown fences, no extra tex
   }
 }
 
-RULES:
-- 5 stages: Unaware → Problem Aware → Solution Aware → Evaluation → Decision (adjust names to fit their context)
+═══ HARD RULES ═══
+- 5 stages: Unaware → Problem Aware → Solution Aware → Evaluation → Decision (adjust names to fit context)
 - buyer_roles: at minimum Champion and Decision Maker; add Blocker if relevant
 - decision_criteria: 3-5 criteria in priority order
 - drop_off_risks: 2-3 highest-risk stages with specific mitigations
-- confidence: 0.0–1.0; evidence_type: "validated" / "inferred" / "assumed"
+- executive_summary: must NOT use banned phrases: "increase efficiency", "improve performance", "streamline workflows", "drive innovation"
+- strategic_decision: must name a specific stage + friction + measurable consequence
+- action_plan: minimum 5 items with specific timeframes and executable actions
 - execution_path is MANDATORY. Never omit it.
 - Return ONLY valid JSON. No markdown, no explanation.`,
 
     // ── D4: Positioning & Messaging ─────────────────────────────────────────
     // Communication engine — the complete message architecture
     // Requires D1 + D2 + D3. Consumed by all execution agents.
-    positioning_messaging: `You are generating a Positioning & Messaging structured interface for an early-stage startup.
-This is D4 — the final deliverable in the Patel chain. It requires ICP (D1), Pains/Triggers (D2), and Buyer Journey (D3). This is the communication engine: every message, script, and channel touchpoint the startup uses flows from this output. It will be consumed by outbound, content, sales, and marketing agents.
+    positioning_messaging: `You are generating a Positioning & Messaging operational brief for an early-stage startup.
+This is D4 — the communication engine in the Patel chain. It requires ICP (D1), Pains/Triggers (D2), and Buyer Journey (D3). Every message, script, and channel touchpoint the startup uses flows from this output. It will be consumed by outbound, content, sales, and marketing agents.
 
 INDICATOR SCORES FOR THIS DELIVERABLE (P1.4 Message Clarity):
 ${messageCtx}
@@ -375,11 +555,54 @@ Use these scores to calibrate confidence: fields backed by VALIDATED indicators 
 Context gathered from the conversation (includes D1 ICP, D2 Pains, D3 Journey):
 ${ctx}
 
+═══ PHASE 0 — PRE-WRITING ANALYSIS (DO NOT OUTPUT) ═══
+Before writing, answer these internally:
+1. What single claim — if the buyer believed it — would make them want a demo immediately?
+2. What is the one thing competitors cannot say that this startup can? (specific, verifiable)
+3. What is the outbound hook that would make a VP who gets 100 cold emails open this one?
+4. What forbidden phrase is this founder probably using right now that sounds like every other company?
+5. What does the buyer need to believe to be true before they'll trust this company enough to evaluate?
+
+═══ PHASE 1 — EXECUTIVE BRIEF (OUTPUT IN JSON) ═══
+Generate these fields first in the JSON:
+- executive_summary: 150-200 words. What does this positioning system unlock for the startup? What is the single strongest message the market will respond to and why? What channels will get the best results with this messaging? What should the founder test first and how will they know if it's working? Be specific to their product, market, and buyer context.
+- strategic_decision: Single sentence. "The single message that will cut through for [company] with [ICP] is [specific claim/angle] because [specific buyer belief it confirms or fear it addresses]."
+- what_enables: Object with keys: message_precision (how this positioning makes every message more specific and less generic), response_rate (which specific messages are most likely to generate replies and why), stage_coverage (how this messaging architecture covers every stage of the buyer journey), differentiation (what makes this positioning defensible and hard to copy in the next 6 months), learning_velocity (what message testing will reveal in the first 30 days)
+- action_plan: Array of minimum 5 items. Each: {timeframe, action}. Must cover: test outbound hook in first 20 contacts, measure reply rate, track which subject lines open, refine based on objections, run A/B test on two message pillars.
+- learning_agenda: Object with keys: messaging (what to learn about which claims resonate most), channel (what to learn about which channels work best for this persona), persona (what to learn about which persona reacts to each pillar), market (what the market reveals about competitive positioning), sales (what calls reveal about which proof points close vs. which fall flat)
+
+═══ PHASE 2 — STRUCTURED DATA (OUTPUT IN JSON) ═══
+
 Return a JSON object with this EXACT structure (no markdown fences, no extra text):
 {
   "title": "Positioning & Messaging: [startup name / product name]",
   "confidence": 0.72,
   "evidence_type": "inferred",
+
+  "executive_summary": "150-200 word founder brief on the messaging system...",
+  "strategic_decision": "The single message that will cut through for [company] is [claim] because [buyer belief/fear it addresses].",
+  "what_enables": {
+    "message_precision": "...",
+    "response_rate": "...",
+    "stage_coverage": "...",
+    "differentiation": "...",
+    "learning_velocity": "..."
+  },
+  "action_plan": [
+    { "timeframe": "Days 1-3", "action": "..." },
+    { "timeframe": "Days 4-6", "action": "..." },
+    { "timeframe": "Days 7-9", "action": "..." },
+    { "timeframe": "Days 10-12", "action": "..." },
+    { "timeframe": "Days 13-14", "action": "..." }
+  ],
+  "learning_agenda": {
+    "messaging": ["Which message pillar generates the highest reply rate?", "Does leading with pain or outcome perform better for this persona?"],
+    "channel": ["Which channel gets the best response rate for this ICP?", "Does LinkedIn or cold email work better for initial contact?"],
+    "persona": ["Does the hero headline resonate differently with different seniority levels?", "Which persona responds to the outbound hook most strongly?"],
+    "market": ["Are there claims we're making that prospects don't believe?", "What competing positioning are prospects already exposed to?"],
+    "sales": ["Which proof point closes skepticism fastest on calls?", "What objection reveals a messaging gap vs. a product gap?"]
+  },
+
   "foundation": {
     "positioning_statement": "For [ICP], who [problem], [product name] is the [category] that [key benefit], unlike [alternative] which [weakness of alternative].",
     "value_proposition": "One sentence — the specific, measurable outcome we deliver for the ICP",
@@ -422,19 +645,22 @@ Return a JSON object with this EXACT structure (no markdown fences, no extra tex
   "competitive_differentiation": "One paragraph on what makes this positioning defensible and hard to copy",
   "execution_path": {
     "consumed_by": ["outbound-agent", "content-agent", "sales-agent", "website-copy", "campaign-agent"],
-    "enables": "All GTM execution — every channel, message, and touchpoint flows from this positioning. Outbound agent uses channel_messages directly. Content agent uses message_pillars for topic selection and tone.",
+    "enables": "All GTM execution — every channel, message, and touchpoint flows from this positioning. Outbound agent uses channel_messages directly.",
     "downstream_dependency": "No further Patel deliverables required. Next phase: execution and iteration based on market response.",
     "next_step_for_founder": "Test the outbound hook in 20 cold contacts this week. Report back on reply rate. Patel will refine based on what resonates vs. what falls flat."
   }
 }
 
-RULES:
+═══ HARD RULES ═══
 - foundation: all three fields are mandatory — positioning_statement follows the classic format exactly
 - message_pillars: 3-4 pillars, each with claim + proof + objection_handle
 - icp_variants: all 5 fields mandatory — be specific, not generic
 - channel_messages: minimum cold email + LinkedIn; add others if relevant
 - forbidden_claims: list 3-5 phrases the startup must never use because they are generic
-- competitive_differentiation: 1 paragraph, specific and honest about what makes this defensible
+- competitive_differentiation: 1 paragraph, specific and honest
+- executive_summary: must NOT use banned phrases: "increase efficiency", "improve performance", "streamline workflows", "drive innovation"
+- strategic_decision: must name a specific buyer belief or fear — not "the message will resonate"
+- action_plan: minimum 5 items with specific timeframes and executable actions
 - execution_path is MANDATORY. Never omit it.
 - Return ONLY valid JSON. No markdown, no explanation.`,
 

@@ -25,10 +25,27 @@ export function PainsGainsRenderer({ data }: { data: Record<string, unknown> }) 
     evidence_type?: string
     core_pains?: { pain: string; severity: number; current_workaround: string; cost_of_pain?: string; evidence?: string }[]
     desired_gains?: string[]
-    trigger_events?: { trigger: string; urgency: string; example?: string }[]
+    trigger_events?: { trigger: string; urgency: string; example?: string; detection_signal?: string }[]
     proof_expectations?: string[]
     common_objections?: { objection: string; root_cause?: string; handle: string }[]
     execution_path?: { consumed_by?: string[]; enables?: string; downstream_dependency?: string; next_step_for_founder?: string }
+    executive_summary?: string
+    strategic_decision?: string
+    what_enables?: {
+      pain_precision?: string
+      trigger_detection?: string
+      message_grounding?: string
+      objection_intelligence?: string
+      learning_velocity?: string
+    }
+    action_plan?: { timeframe: string; action: string }[]
+    learning_agenda?: {
+      pain_validation?: string[]
+      trigger_detection?: string[]
+      persona?: string[]
+      market?: string[]
+      sales?: string[]
+    }
   }
 
   return (
@@ -46,6 +63,58 @@ export function PainsGainsRenderer({ data }: { data: Record<string, unknown> }) 
       {d.target_context && (
         <Card><CardContent className="pt-3 pb-3">
           <p style={{ fontSize: 13, color: ink, lineHeight: 1.6 }}>{d.target_context}</p>
+        </CardContent></Card>
+      )}
+
+      {/* Executive Summary */}
+      {d.executive_summary && (
+        <Card><CardContent className="pt-4 pb-4">
+          <p style={sectionHead}>Executive Summary</p>
+          <p style={{ fontSize: 13, color: ink, lineHeight: 1.75 }}>{d.executive_summary}</p>
+        </CardContent></Card>
+      )}
+
+      {/* Strategic Decision */}
+      {d.strategic_decision && (
+        <div style={{ borderLeft: '4px solid #7C3AED', paddingLeft: 16, paddingTop: 10, paddingBottom: 10, background: '#faf8ff', borderRadius: '0 8px 8px 0', margin: '2px 0' }}>
+          <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#7C3AED', marginBottom: 6 }}>Strategic Decision</p>
+          <p style={{ fontSize: 13, fontWeight: 600, color: ink, lineHeight: 1.65 }}>{d.strategic_decision}</p>
+        </div>
+      )}
+
+      {/* What This Enables */}
+      {d.what_enables && (
+        <Card><CardContent className="pt-4 pb-4">
+          <p style={sectionHead}>What This Deliverable Enables</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {([
+              ['pain_precision', 'Pain Precision', amber],
+              ['trigger_detection', 'Trigger Detection', blue],
+              ['message_grounding', 'Message Grounding', green],
+              ['objection_intelligence', 'Objection Intel', red],
+              ['learning_velocity', 'Learning Velocity', muted],
+            ] as [string, string, string][]).filter(([k]) => d.what_enables![k as keyof typeof d.what_enables]).map(([k, lbl, color]) => (
+              <div key={k} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color, background: `${color}15`, padding: '2px 8px', borderRadius: 99, minWidth: 140, textAlign: 'center' }}>{lbl}</span>
+                <p style={{ fontSize: 12, color: ink, lineHeight: 1.55 }}>{d.what_enables![k as keyof typeof d.what_enables]}</p>
+              </div>
+            ))}
+          </div>
+        </CardContent></Card>
+      )}
+
+      {/* Action Plan */}
+      {d.action_plan && d.action_plan.length > 0 && (
+        <Card><CardContent className="pt-4 pb-4">
+          <p style={sectionHead}>Founder Action Plan</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {d.action_plan.map((item, i) => (
+              <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, color: muted, background: `${muted}15`, padding: '2px 8px', borderRadius: 99, marginTop: 1 }}>{item.timeframe}</span>
+                <p style={{ fontSize: 12, color: ink, lineHeight: 1.55 }}>{item.action}</p>
+              </div>
+            ))}
+          </div>
         </CardContent></Card>
       )}
 
@@ -94,6 +163,7 @@ export function PainsGainsRenderer({ data }: { data: Record<string, unknown> }) 
                 <div>
                   <p style={{ fontSize: 12, color: ink, fontWeight: 600 }}>{t.trigger}</p>
                   {t.example && <p style={{ fontSize: 11, color: muted, marginTop: 2 }}>e.g. {t.example}</p>}
+                  {t.detection_signal && <p style={{ fontSize: 11, color: blue, marginTop: 2 }}>Signal: {t.detection_signal}</p>}
                 </div>
               </div>
             ))}
@@ -123,6 +193,29 @@ export function PainsGainsRenderer({ data }: { data: Record<string, unknown> }) 
                 <p style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 3 }}>{o.objection}</p>
                 {o.root_cause && <p style={{ fontSize: 11, color: muted, marginBottom: 3 }}>Why: {o.root_cause}</p>}
                 <p style={{ fontSize: 12, color: green }}>Handle: {o.handle}</p>
+              </div>
+            ))}
+          </div>
+        </CardContent></Card>
+      )}
+
+      {/* Learning Agenda */}
+      {d.learning_agenda && (
+        <Card><CardContent className="pt-4 pb-4">
+          <p style={sectionHead}>Learning Agenda</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {([
+              ['pain_validation', 'Pain Validation'],
+              ['trigger_detection', 'Trigger Detection'],
+              ['persona', 'Persona'],
+              ['market', 'Market'],
+              ['sales', 'Sales'],
+            ] as [string, string][]).filter(([k]) => (d.learning_agenda![k as keyof typeof d.learning_agenda] as string[] | undefined)?.length).map(([k, lbl]) => (
+              <div key={k}>
+                <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: muted, marginBottom: 4 }}>{lbl}</p>
+                {(d.learning_agenda![k as keyof typeof d.learning_agenda] as string[]).map((q, i) => (
+                  <p key={i} style={{ fontSize: 12, color: ink, paddingLeft: 10, lineHeight: 1.55, marginBottom: 2 }}>→ {q}</p>
+                ))}
               </div>
             ))}
           </div>
