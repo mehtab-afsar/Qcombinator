@@ -566,6 +566,14 @@ function InputBar({
 }) {
   const [focused, setFocused] = React.useState(false)
   const hasText = value.trim().length > 0
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null)
+
+  React.useEffect(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 200)}px`
+  }, [value])
 
   return (
     <div style={{ flexShrink: 0, padding: '10px 40px 20px', background: bg }}>
@@ -581,6 +589,7 @@ function InputBar({
           transition: 'box-shadow 0.18s',
         }}>
           <textarea
+            ref={textareaRef}
             value={value}
             onChange={e => onChange(e.target.value)}
             onKeyDown={onKeyDown}
@@ -591,7 +600,7 @@ function InputBar({
             style={{
               flex: 1, background: 'none', border: 'none', outline: 'none',
               fontSize: 14, color: ink, fontFamily: 'inherit',
-              resize: 'none', lineHeight: 1.6, maxHeight: 140, overflowY: 'auto',
+              resize: 'none', lineHeight: 1.6, overflowY: 'auto',
               paddingTop: 2, paddingBottom: 2,
             }}
           />
@@ -867,6 +876,7 @@ export function AgentChatPanel({
                     borderRadius: 14,
                     padding: '11px 16px', fontSize: 13, lineHeight: 1.65,
                     maxWidth: '68%', wordBreak: 'break-word', color: ink,
+                    whiteSpace: 'pre-wrap',
                   }}>
                     {msg.text}
                   </div>
