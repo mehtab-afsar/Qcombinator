@@ -80,6 +80,12 @@ import { ReferralProgramRenderer } from '../../riley/components/ReferralProgramR
 import { LaunchPlaybookRenderer } from '../../riley/components/LaunchPlaybookRenderer'
 import { GrowthReportRenderer } from '../../riley/components/GrowthReportRenderer'
 import { ExperimentResultsRenderer } from '../../riley/components/ExperimentResultsRenderer'
+// Patel — missing renderers
+import { LeadListRenderer } from '../../patel/components/LeadListRenderer'
+import { CampaignReportRenderer } from '../../patel/components/CampaignReportRenderer'
+import { ABTestResultRenderer } from '../../patel/components/ABTestResultRenderer'
+// Nova — missing renderer
+import { RetentionReportRenderer } from '../../nova/components/RetentionReportRenderer'
 import type { ArtifactData } from '../../types/agent.types'
 
 export function DeliverablePanel({
@@ -348,6 +354,12 @@ export function DeliverablePanel({
       case "launch_playbook":           return <LaunchPlaybookRenderer data={artifact.content} />;
       case "growth_report":             return <GrowthReportRenderer data={artifact.content} />;
       case "experiment_results":        return <ExperimentResultsRenderer data={artifact.content} />;
+      // Patel — missing renderers
+      case "lead_list":                 return <LeadListRenderer data={artifact.content} />;
+      case "campaign_report":           return <CampaignReportRenderer data={artifact.content} />;
+      case "ab_test_result":            return <ABTestResultRenderer data={artifact.content} />;
+      // Nova — missing renderer
+      case "retention_report":          return <RetentionReportRenderer data={artifact.content} />;
       default:                          return <pre style={{ fontSize: 11, color: muted, whiteSpace: "pre-wrap" }}>{JSON.stringify(artifact.content, null, 2)}</pre>;
     }
   };

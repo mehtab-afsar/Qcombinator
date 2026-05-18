@@ -105,7 +105,7 @@ async function answerSection(page: Page, sectionHeading: string, answer: string)
 
   const isComplete = await page
     .locator('body')
-    .evaluate((el) => el.innerText.includes('Complete'))
+    .evaluate((el) => (el as HTMLElement).innerText.includes('Complete'))
 
   if (!isComplete) {
     // Second pass — rephrase with extra specificity
