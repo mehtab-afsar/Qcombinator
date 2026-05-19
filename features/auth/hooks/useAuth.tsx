@@ -35,16 +35,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const client = createClient();
       setSupabase(client);
 
-      // Validate session against server on startup to clear stale cookies
+      // Validate session against server on startup to clear stale cookies.
+      // getUser() makes a network round-trip; the user may sign in while it's
+      // in flight (e.g. during the onboarding signup flow). Guard against that
+      // race by checking the current local session before calling signOut().
       client.auth.getUser().then(async ({ data: { user }, error }) => {
         if (error && !user) {
-          // Auth error (invalid/expired JWT) — sign out to clear stale cookie
-          // Ignore network errors (fetch failed) so offline users aren't signed out
-          if (error.message && !error.message.includes('fetch')) {
-            await client.auth.signOut();
+          // Re-read local session — user may have signed in while this request was in flight
+          const { data: { session: currentSession } } = await client.auth.getSession();
+          if (currentSession) {
+            // Sign-in happened while getUser() was pending — keep the session
+            setSession(currentSession);
+            setUser(currentSession.user);
+          } else {
+            // Genuinely no session; clear any stale JWT cookie (ignore network errors)
+            if (error.message && !error.message.includes('fetch')) {
+              await client.auth.signOut();
+            }
+            setSession(null);
+            setUser(null);
           }
-          setSession(null);
-          setUser(null);
         } else {
           const { data: { session } } = await client.auth.getSession();
           setSession(session);
@@ -65,7 +75,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (event === 'SIGNED_OUT' && typeof window !== 'undefined') {
           const { pathname } = window.location;
           const isPublic = pathname.includes('/onboarding') || pathname.includes('/profile-builder')
+          console.error('[AUTH] SIGNED_OUT fired — pathname:', pathname, 'isPublic:', isPublic)
           if (!isPublic && (pathname.startsWith('/founder/') || pathname.startsWith('/investor/'))) {
+            console.error('[AUTH] Redirecting to /login from', pathname)
             window.location.href = '/login';
           }
         }

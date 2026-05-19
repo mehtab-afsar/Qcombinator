@@ -166,7 +166,13 @@ export default function OnboardingPage() {
 
   useEffect(() => {
     const sb = createClient()
-    sb.auth.getSession().then(({ data }) => { if (data.session) router.replace('/founder/dashboard') })
+    sb.auth.getSession().then(({ data }) => {
+      // Skip dashboard redirect if this page's own signup flow has started.
+      // sessionStorage survives Suspense-caused remounts (unlike a ref which resets).
+      if (data.session && !sessionStorage.getItem('ea_signup_pending')) {
+        router.replace('/founder/dashboard')
+      }
+    })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])  // run once on mount — router changes on every render and must not re-trigger this check
 
@@ -198,6 +204,7 @@ export default function OnboardingPage() {
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Sign up failed.'); setLoading(false); return }
+      sessionStorage.setItem('ea_signup_pending', '1')
       const sb = createClient()
       const { error: signInErr } = await sb.auth.signInWithPassword({ email: form.email.trim(), password: form.password })
       if (signInErr) { setError('Account created but sign-in failed. Please log in.'); setLoading(false); return }
@@ -409,11 +416,11 @@ export default function OnboardingPage() {
 
           <div style={{ display: 'flex', gap: 10 }}>
             <button
-              onClick={() => router.push('/founder/profile-builder')}
+              onClick={() => { sessionStorage.removeItem('ea_signup_pending'); router.push('/founder/profile-builder') }}
               style={{ padding: '10px 18px', borderRadius: 8, border: `1.5px solid ${bdr}`, background: 'transparent', fontSize: 13, color: muted, cursor: 'pointer', fontFamily: 'inherit' }}
             >Skip for now</button>
             <button
-              onClick={() => router.push('/founder/profile-builder')}
+              onClick={() => { sessionStorage.removeItem('ea_signup_pending'); router.push('/founder/profile-builder') }}
               disabled={avatarUploading}
               style={{
                 flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,

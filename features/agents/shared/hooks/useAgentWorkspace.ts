@@ -224,7 +224,11 @@ export function useAgentWorkspace(agentId: string): AgentWorkspaceState {
       const res = await fetch('/api/agents/chat', {
         method: 'POST', signal: ctrl.signal,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agentId, message: msg, conversationHistory: apiMessages, stream: true, conversationId }),
+        body: JSON.stringify({ agentId, message: msg, conversationHistory: apiMessages, stream: true, conversationId,
+          // Derived from artifact cards already rendered — persists across HMR and works
+          // even when the DB save was blocked by CHECK constraint (artifactId = null).
+          clientBuiltTypes: [...new Set(uiMessages.filter(m => m.role === 'artifact_card' && m.artifactType).map(m => m.artifactType as string))],
+        }),
       })
       if (!res.body) throw new Error('No stream')
       const reader = res.body.getReader(); const dec = new TextDecoder()
@@ -282,6 +286,8 @@ export function useAgentWorkspace(agentId: string): AgentWorkspaceState {
           } else if (evt.type === 'done' && evt.conversationId) {
             setConvId(evt.conversationId as string)
             refreshConversations()
+          } else if (evt.type === 'debug_db_error') {
+            console.error('[DB save error]', evt.toolName, 'code:', evt.code, 'message:', evt.message)
           }
         }
       }
@@ -299,7 +305,7 @@ export function useAgentWorkspace(agentId: string): AgentWorkspaceState {
         setUiMessages(p => [...p, { role: 'agent', text: 'Something went wrong. Please try again.' }])
       }
     } finally { setTyping(false) }
-  }, [typing, apiMessages, conversationId, agentId, input, refreshConversations])
+  }, [typing, apiMessages, conversationId, agentId, input, refreshConversations, uiMessages])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() }

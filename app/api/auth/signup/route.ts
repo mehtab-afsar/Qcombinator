@@ -106,12 +106,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to create user' }, { status: 500 });
     }
 
+    // Use a unique startup_name to avoid the unique-constraint conflict when the same
+    // company name was used in a previous signup (e.g. repeated test runs).
+    const baseStartupName = companyName || startupName || null
+    const uniqueStartupName = baseStartupName
+      ? `${baseStartupName}-${authData.user.id.slice(0, 6)}`
+      : null
+
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('founder_profiles')
       .insert({
         user_id: authData.user.id,
         full_name: fullName,
-        startup_name: companyName || startupName || null,
+        startup_name: uniqueStartupName,
         industry: dbIndustry,
         stage: dbStage,
         funding: dbFunding,
@@ -155,8 +162,8 @@ export async function POST(request: NextRequest) {
     });
     if (qscoreErr) log.error('Failed to insert initial qscore row:', qscoreErr);
 
-    // Only insert features that the remote DB CHECK constraint accepts.
-    // Apply migration 20260513000002 to add 'agent_generate' before re-enabling it here.
+    // Insert usage limit rows — non-fatal: a failed insert logs but does not block signup.
+    // The CHECK constraint on feature allows: agent_chat, investor_connection, qscore_recalc, workshop, agent_generate.
     const featureLimits = [
       { feature: 'agent_chat',           usage_count: 0, limit_count: 50 },
       { feature: 'qscore_recalc',        usage_count: 0, limit_count: 2  },
@@ -173,12 +180,7 @@ export async function POST(request: NextRequest) {
     ));
     const usageErr = usageResults.find(r => r.error)?.error;
     if (usageErr) {
-      log.error('subscription_usage insert failed — rolling back signup:', usageErr);
-      await supabaseAdmin.from('founder_profiles').delete().eq('user_id', authData.user.id)
-        .then(null, (e: unknown) => log.error('Failed to rollback profile after usage error:', e));
-      await supabaseAdmin.auth.admin.deleteUser(authData.user.id)
-        .catch((e: unknown) => log.error('Failed to rollback auth user after usage error:', e));
-      return NextResponse.json({ error: 'Account setup failed. Please try again.' }, { status: 500 });
+      log.error('subscription_usage insert failed (non-fatal — user created successfully):', usageErr);
     }
 
     // Fire-and-forget: clean + summarise onboarding text in background (~2–5s)

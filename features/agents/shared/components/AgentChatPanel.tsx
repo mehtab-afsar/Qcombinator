@@ -767,7 +767,9 @@ export function AgentChatPanel({
             {workspace.uiMessages.map((msg, idx) => {
               if (msg.role === 'agent' && !msg.text && !msg.sources) return null
               if (msg.role === 'artifact_card') {
-                const isExpanded = expandedCards.has(msg.artifactId ?? '')
+                // Use artifactId as expand key; fall back to message index so null-ID artifacts still toggle correctly
+                const cardKey = msg.artifactId ?? `artifact-${idx}`
+                const isExpanded = expandedCards.has(cardKey)
                 const fullArtifact: ArtifactRecord | undefined = workspace.artifacts.find(a => a.id === msg.artifactId)
                 const canInline = !!fullArtifact
                 return (
@@ -793,7 +795,7 @@ export function AgentChatPanel({
                       {/* view/collapse toggle — available for all document types */}
                       {canInline && (
                         <button
-                          onClick={() => toggleCard(msg.artifactId!)}
+                          onClick={() => toggleCard(cardKey)}
                           style={{
                             padding: '7px 14px', borderRadius: 8,
                             border: `1px solid #C4B5FD`,

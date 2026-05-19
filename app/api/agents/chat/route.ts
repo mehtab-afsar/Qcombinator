@@ -73,6 +73,7 @@ const chatRequestSchema = z.object({
   userContext:       z.record(z.string(), z.unknown()).optional(),
   conversationId:    z.string().uuid().optional().nullable(),
   stream:            z.boolean().optional(),
+  clientBuiltTypes:  z.array(z.string()).optional(),
 })
 
 // ─── dedicated system prompt registry ────────────────────────────────────────
@@ -607,7 +608,7 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    const { agentId, message, conversationHistory, userContext, conversationId: existingConversationId, stream: wantStream } = parsed.data;
+    const { agentId, message, conversationHistory, userContext, conversationId: existingConversationId, stream: wantStream, clientBuiltTypes } = parsed.data;
 
     const agent = getAgentById(agentId);
     if (!agent) {
@@ -909,10 +910,14 @@ CONVERSATION RULES:
     };
 
     // ── Patel prerequisite chain ───────────────────────────────────────────────
+    // Only icp_document is in the original DB CHECK constraint and reliably persists.
+    // pains_gains_triggers, buyer_journey, positioning_messaging cannot be saved
+    // (CHECK constraint migration not yet applied), so chaining them causes
+    // infinite rebuild loops. Gate all deliverables only on icp_document.
     const PATEL_PREREQUISITE_CHAIN: Record<string, string[]> = {
       pains_gains_triggers:  ['icp_document'],
-      buyer_journey:         ['icp_document', 'pains_gains_triggers'],
-      positioning_messaging: ['icp_document', 'pains_gains_triggers', 'buyer_journey'],
+      buyer_journey:         ['icp_document'],
+      positioning_messaging: ['icp_document'],
     }
     const PATEL_DELIVERABLE_NAMES: Record<string, string> = {
       icp_document:          'D1 ICP Definition',
@@ -930,16 +935,24 @@ CONVERSATION RULES:
         .select('artifact_type')
         .eq('user_id', userId)
         .in('artifact_type', required)
-      const completed = new Set((existing ?? []).map((r: { artifact_type: string }) => r.artifact_type))
+      // Fallback: client tracks artifact types blocked by DB CHECK constraint (23514)
+      // and echoes them back in every request as clientBuiltTypes. This avoids a DB
+      // round-trip and works even when agent_memory migration hasn't been applied.
+      const completed = new Set([
+        ...(existing ?? []).map((r: { artifact_type: string }) => r.artifact_type),
+        ...(clientBuiltTypes ?? []),
+      ])
       const missing = required.filter(r => !completed.has(r))
       if (missing.length > 0) {
         const missingNames = missing.map(m => PATEL_DELIVERABLE_NAMES[m] ?? m).join(' and ')
         return `Before building ${PATEL_DELIVERABLE_NAMES[requestedType]}, you need to complete: ${missingNames}. Complete those first — each deliverable builds directly on the previous one.`
       }
-      // GAP 4: D2 quality gate — ICP specificity must be ≥ 3 to ground the demand model
+      // GAP 4: D2 quality gate — ICP specificity must be ≥ 3 to ground the demand model.
+      // Fail-open: if patelRawScores is unavailable (table missing or query failed),
+      // allow D2 to proceed rather than permanently blocking it.
       if (requestedType === 'pains_gains_triggers') {
         const specificity = patelRawScores?.['icp.specificity']
-        if (!specificity || specificity < 3) {
+        if (specificity !== undefined && specificity !== null && specificity < 3) {
           return `The ICP needs more precision before we can build the demand model. A generic ICP produces a generic pain map that won't drive real outreach.\n\nBefore D2: what's the specific job title, the exact company type, and the single constraint that makes this buyer act NOW? Sharpen that and I'll rebuild D1 first.`
         }
       }
@@ -1150,7 +1163,37 @@ CONVERSATION RULES:
                       log.warn('artifact insert with icp_id failed, retrying without:', saveErr.message);
                       ({ data: saved, error: saveErr } = await supabaseAdmin.from('agent_artifacts').insert(baseInsert).select('id').single());
                     }
-                    if (saveErr) log.error('artifact insert failed:', { message: saveErr.message, code: saveErr.code });
+                    if (saveErr) {
+                      log.error('artifact insert failed:', { message: saveErr.message, code: saveErr.code });
+                      send({ type: 'debug_db_error', message: saveErr.message, code: saveErr.code, toolName });
+                      // If blocked by CHECK constraint, track completion in agent_memory as fallback
+                      // so prerequisite checks (checkPatelPrerequisites) don't loop forever.
+                      // Awaited (not fire-and-forget) so the marker is guaranteed written before
+                      // the next request comes in.
+                      if (saveErr.code === '23514' && userId) {
+                        try {
+                          const { data: mem } = await supabaseAdmin.from('agent_memory').select('key_facts')
+                            .eq('user_id', userId).eq('agent_id', agentId).maybeSingle()
+                          const keyFacts = mem?.key_facts ?? ''
+                          const existingMarker = keyFacts.match(/§PATEL_BUILT:([^\n]*)/)
+                          const builtTypes = existingMarker ? existingMarker[1].split(',').filter(Boolean) : []
+                          if (!builtTypes.includes(toolName)) builtTypes.push(toolName)
+                          const newMarker = `§PATEL_BUILT:${builtTypes.join(',')}`
+                          const baseKeyFacts = keyFacts.replace(/§PATEL_BUILT:[^\n]*/g, '').trim()
+                          const newKeyFacts = baseKeyFacts ? `${baseKeyFacts}\n${newMarker}` : newMarker
+                          const { error: upsertErr } = await supabaseAdmin.from('agent_memory').upsert({
+                            user_id: userId,
+                            agent_id: agentId,
+                            key_facts: newKeyFacts,
+                            updated_at: new Date().toISOString(),
+                          }, { onConflict: 'user_id,agent_id' })
+                          if (upsertErr) log.error('agent_memory upsert failed:', upsertErr)
+                          else log.info('§PATEL_BUILT marker written:', newMarker)
+                        } catch (e) {
+                          log.warn('Failed to write artifact completion to agent_memory:', e)
+                        }
+                      }
+                    }
                     artifactId = saved?.id ?? null;
                     streamArtifactId = artifactId;
                   }

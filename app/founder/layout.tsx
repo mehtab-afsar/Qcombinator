@@ -39,7 +39,9 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
 export default function FounderLayout({ children }: { children: React.ReactNode }) {
   return (
     <ErrorBoundary>
-      <Suspense fallback={<>{children}</>}>
+      {/* fallback=null prevents children from mounting twice (once in fallback, once in LayoutInner)
+          which would re-fire useEffects after Suspense resolves during client hydration */}
+      <Suspense fallback={null}>
         <LayoutInner>{children}</LayoutInner>
       </Suspense>
     </ErrorBoundary>
