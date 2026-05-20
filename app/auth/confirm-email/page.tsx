@@ -6,7 +6,6 @@ import { useEffect, useState, Suspense } from 'react'
 const bg   = '#F9F7F2'
 const ink  = '#18160F'
 const muted = '#8A867C'
-const blue  = '#2563EB'
 const green = '#16A34A'
 const red   = '#DC2626'
 

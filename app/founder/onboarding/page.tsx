@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
 import {
   Check, ChevronRight, Building2, TrendingUp, Lightbulb,
-  UserCheck, Camera, Loader2, Eye, EyeOff, ArrowLeft,
+  UserCheck, Camera, Eye, EyeOff, ArrowLeft,
 } from 'lucide-react'
 import {
   bg, surf, bdr, ink, muted, blue,

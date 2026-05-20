@@ -41,7 +41,7 @@ function SettingsInner() {
   const params   = useSearchParams();
   const urlTab   = params.get('tab') as TabId | null;
 
-  const { profile, loading } = useFounderData();
+  const { loading } = useFounderData();
   const [activeTab, setActiveTab] = useState<TabId>(urlTab ?? 'account');
 
   // Sync from URL

@@ -209,7 +209,7 @@ function AutoEventRow({ post, onDelete }: { post: FeedPost; onDelete: (id: strin
 
 // ─── CommentThread — expandable comment section ───────────────────────────────
 function CommentThread({
-  postId, commentsCount, myName, myAvatarUrl, myRole,
+  postId, commentsCount: _commentsCount, myName, myAvatarUrl, myRole,
 }: {
   postId: string; commentsCount: number; myName: string | null; myAvatarUrl: string | null; myRole: 'founder' | 'investor'
 }) {
