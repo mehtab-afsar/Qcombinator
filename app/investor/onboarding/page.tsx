@@ -8,7 +8,7 @@ import {
   ArrowRight, TrendingUp, Users, DollarSign, Globe,
   Eye, EyeOff, Loader2, Check, Camera, Cpu, FileText, UploadCloud, X,
 } from 'lucide-react'
-import { bg, surf, bdr, ink, muted, blue, green } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
 
 // ─── design tokens ────────────────────────────────────────────────────────────
 
@@ -31,7 +31,7 @@ const INITIAL: FormData = {
 
 const STEP_LABELS = ['Account', 'Personal', 'Firm', 'Criteria', 'Thesis', 'Photo']
 const STEP_ICONS  = [Shield, Users, Building2, Target, Sparkles, Camera]
-const STEP_COLORS = [blue, green, '#7C3AED', '#D97706', '#DB2777', '#0891B2']
+const STEP_COLORS = [blue, green, '#7C3AED', amber, '#DB2777', '#0891B2']
 
 type Mode = 'choice' | 'signin' | 'signup'
 
@@ -273,7 +273,7 @@ export default function InvestorOnboarding() {
   // ─── Choice screen ────────────────────────────────────────────────────────
   const renderChoice = () => {
     return (
-      <div>
+      <div data-testid="investor-onboarding-choice">
         {/* hero */}
         <div style={{ textAlign: 'center', marginBottom: 36 }}>
           <span style={{
@@ -456,7 +456,7 @@ export default function InvestorOnboarding() {
         </div>
         {error && (
           <div style={{ padding: '10px 14px', borderRadius: 8, background: '#FEF2F2', border: '1px solid #FECACA' }}>
-            <p style={{ fontSize: 13, color: '#DC2626', margin: 0 }}>{error}</p>
+            <p style={{ fontSize: 13, color: red, margin: 0 }}>{error}</p>
           </div>
         )}
         <button style={{ ...btnPrimary, justifyContent: 'center', width: '100%' }}
@@ -512,7 +512,7 @@ export default function InvestorOnboarding() {
                 <div key={i} style={{
                   flex: 1, height: 3, borderRadius: 3,
                   background: form.password.length >= i * 3
-                    ? (form.password.length < 6 ? '#D97706' : form.password.length < 10 ? blue : green)
+                    ? (form.password.length < 6 ? amber : form.password.length < 10 ? blue : green)
                     : surf,
                   transition: 'background 0.2s',
                 }} />
@@ -525,7 +525,7 @@ export default function InvestorOnboarding() {
         </div>
         {error && (
           <div style={{ padding: '10px 14px', borderRadius: 8, background: '#FEF2F2', border: '1px solid #FECACA' }}>
-            <p style={{ fontSize: 13, color: '#DC2626', margin: 0 }}>{error}</p>
+            <p style={{ fontSize: 13, color: red, margin: 0 }}>{error}</p>
           </div>
         )}
         <button style={{ ...btnPrimary, justifyContent: 'center', width: '100%' }}
@@ -1050,7 +1050,7 @@ export default function InvestorOnboarding() {
           <span style={{ fontSize: 10, fontWeight: 600, color: blue, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Investor</span>
         </div>
         {showProgress && (
-          <span style={{ fontSize: 12, color: muted, fontWeight: 500 }}>Step {step} of {totalSteps}</span>
+          <span data-testid="investor-step-badge" style={{ fontSize: 12, color: muted, fontWeight: 500 }}>Step {step} of {totalSteps}</span>
         )}
         {(mode === 'signin' || (mode === 'signup' && step > 1)) && (
           <button

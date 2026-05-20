@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { motion } from 'framer-motion';
-import { User, Building2, Bell, Lock, Download, Trash2, RefreshCw, Save, AlertTriangle, Plug, CreditCard, CheckCircle } from 'lucide-react';
+import { User, Building2, Bell, Lock, Download, Trash2, RefreshCw, Save, AlertTriangle, Plug, CheckCircle } from 'lucide-react';
 import { useFounderData } from '@/features/founder/hooks/useFounderData';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
@@ -14,19 +14,17 @@ import {
   saveStartupProfileSettings,
   exportUserData,
 } from '@/features/founder/services/settings.service';
-import { bg, surf, bdr, ink, muted, green, red } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted, blue, green, red } from '@/lib/constants/colors'
 import { Avatar } from '@/features/shared/components/Avatar'
 
-type TabId = 'account' | 'company' | 'startup' | 'notifications' | 'data' | 'connectors' | 'billing';
+type TabId = 'account' | 'company' | 'notifications' | 'integrations' | 'data';
 
 const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
-  { id: 'account',       label: 'Account',         icon: User },
-  { id: 'company',       label: 'Company',          icon: Building2 },
-  { id: 'startup',       label: 'Startup Profile',  icon: CheckCircle },
-  { id: 'notifications', label: 'Notifications',    icon: Bell },
-  { id: 'connectors',    label: 'Connectors',       icon: Plug },
-  { id: 'billing',       label: 'Billing',          icon: CreditCard },
-  { id: 'data',          label: 'Data & Privacy',   icon: Lock },
+  { id: 'account',       label: 'Account',        icon: User },
+  { id: 'company',       label: 'Company',         icon: Building2 },
+  { id: 'notifications', label: 'Notifications',   icon: Bell },
+  { id: 'integrations',  label: 'Integrations',    icon: Plug },
+  { id: 'data',          label: 'Data & Privacy',  icon: Lock },
 ];
 
 // ─── connectors data ──────────────────────────────────────────────────────────
@@ -364,14 +362,22 @@ function SettingsInner() {
                     style={{ ...inputStyle, opacity: 0.5, cursor: 'not-allowed' }}
                   />
                 </FieldRow>
-                <FieldRow label="Stage" hint="Update this in your assessment">
-                  <input
-                    value={profile?.stage || ''}
-                    disabled
-                    style={{ ...inputStyle, opacity: 0.5, cursor: 'not-allowed' }}
-                  />
-                </FieldRow>
                 <SaveButton onClick={handleSaveAccount} loading={saving} />
+              </SettingsCard>
+
+              <SettingsCard title="Plan" description="Your current subscription">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: '#F0FDF4', border: '1px solid #BBF7D0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <CheckCircle style={{ width: 18, height: 18, color: green }} />
+                  </div>
+                  <div>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: ink, margin: '0 0 2px' }}>Founder Plan · <span style={{ color: green }}>Free</span></p>
+                    <p style={{ fontSize: 12, color: muted, margin: 0 }}>
+                      Always free for founders.{' '}
+                      <a href="mailto:support@edgealpha.ai" style={{ color: ink, textDecoration: 'underline' }}>Contact us</a> with questions.
+                    </p>
+                  </div>
+                </div>
               </SettingsCard>
             </div>
           )}
@@ -423,7 +429,7 @@ function SettingsInner() {
                 <SaveButton onClick={handleSaveCompany} loading={saving} />
               </SettingsCard>
 
-              <SettingsCard title="Startup Details" description="Your problem and target customer — visible to investors">
+              <SettingsCard title="Startup Details" description="Your problem, customer, and traction data — visible to investors">
                 <FieldRow label="Problem Statement">
                   <textarea
                     value={problemStatement}
@@ -441,57 +447,38 @@ function SettingsInner() {
                   />
                 </FieldRow>
                 <SaveButton onClick={handleSaveStartupDetails} loading={saving} />
-              </SettingsCard>
-            </div>
-          )}
 
-          {/* Startup Profile */}
-          {activeTab === 'startup' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-              <SettingsCard title="Startup Profile" description="The answers you gave at signup — you can update them here anytime">
+                <Divider />
 
                 <FieldRow label="Stage">
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {[
                       { v: 'product-development', l: 'Product Development', s: 'Building or validating the product' },
-                      { v: 'commercial',           l: 'Commercial',           s: 'Early customers or pilots underway' },
-                      { v: 'growth-scaling',       l: 'Growth / Scaling',     s: 'Scaling revenue and team' },
-                      // legacy values shown if set before redesign
-                      { v: 'idea',     l: 'Pre-Product / Idea', s: '' },
-                      { v: 'mvp',      l: 'MVP',                s: '' },
-                      { v: 'launched', l: 'Launched',           s: '' },
-                      { v: 'scaling',  l: 'Scaling',            s: '' },
-                    ].filter(o => o.v === spStage || ['product-development','commercial','growth-scaling'].includes(o.v))
-                      .map(o => (
-                      <label key={o.v} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '9px 12px', borderRadius: 8, border: `1.5px solid ${spStage === o.v ? '#2563EB' : bdr}`, background: spStage === o.v ? '#EFF6FF' : surf }}>
-                        <input type="radio" name="sp-stage" value={o.v} checked={spStage === o.v} onChange={() => setSpStage(o.v)} style={{ accentColor: '#2563EB' }} />
+                      { v: 'commercial',           l: 'Commercial',          s: 'Early customers or pilots underway' },
+                      { v: 'growth-scaling',       l: 'Growth / Scaling',    s: 'Scaling revenue and team' },
+                    ].map(o => (
+                      <label key={o.v} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '9px 12px', borderRadius: 8, border: `1.5px solid ${spStage === o.v ? blue : bdr}`, background: spStage === o.v ? `${blue}0D` : surf }}>
+                        <input type="radio" name="sp-stage" value={o.v} checked={spStage === o.v} onChange={() => setSpStage(o.v)} style={{ accentColor: blue }} />
                         <span>
-                          <span style={{ fontSize: 13, fontWeight: 600, color: spStage === o.v ? '#2563EB' : ink }}>{o.l}</span>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: spStage === o.v ? blue : ink }}>{o.l}</span>
                           {o.s && <span style={{ fontSize: 11, color: muted, display: 'block' }}>{o.s}</span>}
                         </span>
                       </label>
                     ))}
                   </div>
                 </FieldRow>
-
-                <Divider />
 
                 <FieldRow label="Revenue">
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {[
-                      { v: 'pre-revenue',   l: 'Pre-revenue',              s: 'No paying customers yet' },
-                      { v: 'early-revenue', l: 'Early revenue (pilots)',   s: 'First paying customers' },
-                      { v: 'recurring',     l: 'Recurring revenues',       s: 'Signed contracts or SaaS MRR' },
-                      // legacy
-                      { v: 'first-revenue',   l: 'First revenue', s: '' },
-                      { v: 'mrr-10k-100k',    l: '$10K–$100K MRR', s: '' },
-                      { v: '100k-plus',        l: '$100K+ MRR', s: '' },
-                    ].filter(o => o.v === spRevenue || ['pre-revenue','early-revenue','recurring'].includes(o.v))
-                      .map(o => (
-                      <label key={o.v} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '9px 12px', borderRadius: 8, border: `1.5px solid ${spRevenue === o.v ? '#2563EB' : bdr}`, background: spRevenue === o.v ? '#EFF6FF' : surf }}>
-                        <input type="radio" name="sp-revenue" value={o.v} checked={spRevenue === o.v} onChange={() => setSpRevenue(o.v)} style={{ accentColor: '#2563EB' }} />
+                      { v: 'pre-revenue',   l: 'Pre-revenue',            s: 'No paying customers yet' },
+                      { v: 'early-revenue', l: 'Early revenue (pilots)', s: 'First paying customers' },
+                      { v: 'recurring',     l: 'Recurring revenues',     s: 'Signed contracts or SaaS MRR' },
+                    ].map(o => (
+                      <label key={o.v} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '9px 12px', borderRadius: 8, border: `1.5px solid ${spRevenue === o.v ? blue : bdr}`, background: spRevenue === o.v ? `${blue}0D` : surf }}>
+                        <input type="radio" name="sp-revenue" value={o.v} checked={spRevenue === o.v} onChange={() => setSpRevenue(o.v)} style={{ accentColor: blue }} />
                         <span>
-                          <span style={{ fontSize: 13, fontWeight: 600, color: spRevenue === o.v ? '#2563EB' : ink }}>{o.l}</span>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: spRevenue === o.v ? blue : ink }}>{o.l}</span>
                           {o.s && <span style={{ fontSize: 11, color: muted, display: 'block' }}>{o.s}</span>}
                         </span>
                       </label>
@@ -499,50 +486,39 @@ function SettingsInner() {
                   </div>
                 </FieldRow>
 
-                <Divider />
-
                 <FieldRow label="Team Size">
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     {['1-5', '5-10', '10+'].map(v => (
-                      <button key={v} onClick={() => setSpTeamSize(v)} style={{ padding: '8px 18px', borderRadius: 7, cursor: 'pointer', border: `1.5px solid ${spTeamSize === v ? '#2563EB' : bdr}`, background: spTeamSize === v ? '#EFF6FF' : surf, fontSize: 13, fontWeight: spTeamSize === v ? 600 : 400, color: spTeamSize === v ? '#2563EB' : ink, fontFamily: 'inherit' }}>
+                      <button key={v} onClick={() => setSpTeamSize(v)} style={{ padding: '8px 18px', borderRadius: 7, cursor: 'pointer', border: `1.5px solid ${spTeamSize === v ? blue : bdr}`, background: spTeamSize === v ? `${blue}0D` : surf, fontSize: 13, fontWeight: spTeamSize === v ? 600 : 400, color: spTeamSize === v ? blue : ink, fontFamily: 'inherit' }}>
                         {v}
                       </button>
                     ))}
                   </div>
                 </FieldRow>
 
-                <Divider />
-
                 <FieldRow label="Funding Status">
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     {[
-                      { v: 'bootstrapped',   l: 'Bootstrapped'      },
-                      { v: 'friends-family', l: 'Friends & family'  },
-                      { v: 'angel',          l: 'Angel investors'   },
-                      { v: 'vc',             l: 'VC'                },
+                      { v: 'bootstrapped',   l: 'Bootstrapped'     },
+                      { v: 'friends-family', l: 'Friends & family' },
+                      { v: 'angel',          l: 'Angel investors'  },
+                      { v: 'vc',             l: 'VC'               },
                     ].map(o => (
-                      <button key={o.v} onClick={() => setSpFunding(o.v)} style={{ padding: '8px 18px', borderRadius: 7, cursor: 'pointer', border: `1.5px solid ${spFunding === o.v ? '#2563EB' : bdr}`, background: spFunding === o.v ? '#EFF6FF' : surf, fontSize: 13, fontWeight: spFunding === o.v ? 600 : 400, color: spFunding === o.v ? '#2563EB' : ink, fontFamily: 'inherit' }}>
+                      <button key={o.v} onClick={() => setSpFunding(o.v)} style={{ padding: '8px 18px', borderRadius: 7, cursor: 'pointer', border: `1.5px solid ${spFunding === o.v ? blue : bdr}`, background: spFunding === o.v ? `${blue}0D` : surf, fontSize: 13, fontWeight: spFunding === o.v ? 600 : 400, color: spFunding === o.v ? blue : ink, fontFamily: 'inherit' }}>
                         {o.l}
                       </button>
                     ))}
                   </div>
                 </FieldRow>
 
-                <Divider />
-
                 <FieldRow label="Website">
-                  <input
-                    value={spWebsite}
-                    onChange={e => setSpWebsite(e.target.value)}
-                    placeholder="https://"
-                    style={inputStyle}
-                  />
+                  <input value={spWebsite} onChange={e => setSpWebsite(e.target.value)} placeholder="https://" style={inputStyle} />
                 </FieldRow>
-
                 <SaveButton onClick={handleSaveStartupProfile} loading={saving} />
               </SettingsCard>
             </div>
           )}
+
 
           {/* Notifications */}
           {activeTab === 'notifications' && (
@@ -589,8 +565,8 @@ function SettingsInner() {
             </div>
           )}
 
-          {/* Connectors */}
-          {activeTab === 'connectors' && (
+          {/* Integrations */}
+          {activeTab === 'integrations' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div style={{ marginBottom: 8 }}>
                 <p style={{ fontSize: 13, color: muted }}>
@@ -641,40 +617,9 @@ function SettingsInner() {
                   )}
                 </div>
               ))}
-            </div>
-          )}
-
-          {/* Billing */}
-          {activeTab === 'billing' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <SettingsCard title="Current Plan" description="Your subscription details">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                  <div style={{
-                    width: 44, height: 44, borderRadius: 12, flexShrink: 0,
-                    background: '#F0FDF4', border: '1px solid #BBF7D0',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    <CheckCircle style={{ width: 20, height: 20, color: green }} />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <p style={{ fontSize: 15, fontWeight: 600, color: ink }}>Founder Plan</p>
-                    <p style={{ fontSize: 12, color: muted }}>
-                      <span style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 4,
-                        color: green, fontWeight: 600, marginRight: 8,
-                      }}>
-                        <CheckCircle style={{ width: 11, height: 11 }} /> Free
-                      </span>
-                      · Always free for founders
-                    </p>
-                  </div>
-                </div>
-                <div style={{ padding: '14px 16px', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 10 }}>
-                  <p style={{ fontSize: 12, color: '#166534', lineHeight: 1.6 }}>
-                    The Edge Alpha platform is <strong>free for founders</strong>. Build your profile, get your Q-Score, and connect with investors at no cost. Investors pay for access to the deal flow.
-                  </p>
-                </div>
-              </SettingsCard>
+              <p style={{ fontSize: 12, color: muted, marginTop: 4 }}>
+                More integrations launching soon — Stripe live metrics, LinkedIn signals, and Google Sheets models.
+              </p>
             </div>
           )}
 

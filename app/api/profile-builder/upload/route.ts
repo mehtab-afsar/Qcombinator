@@ -78,6 +78,55 @@ async function extractFieldsFromImagePDF(
   return null
 }
 
+// ── Vision extraction for raster images (PNG / JPEG / WebP) ──────────────────
+// Sends image bytes to Claude's standard vision API (not the PDF beta).
+async function extractFieldsFromImage(
+  buffer: Buffer,
+  mimeType: 'image/png' | 'image/jpeg' | 'image/webp',
+): Promise<{ fields: Record<string, unknown>; conf: Record<string, number> } | null> {
+  const anthropicKey = process.env.ANTHROPIC_API_KEY
+  if (!anthropicKey) return null
+  try {
+    const client = new Anthropic({ apiKey: anthropicKey })
+    const base64 = buffer.toString('base64')
+    const results = await Promise.allSettled(
+      [1, 2, 3, 4, 5].map(sec =>
+        client.messages.create({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 800,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } },
+              { type: 'text', text: EXTRACTION_PROMPTS[sec] },
+            ],
+          }],
+        }).then(res =>
+          res.content.filter(b => b.type === 'text').map(b => (b as Anthropic.TextBlock).text).join('')
+        ).then(raw => {
+          const m = raw.match(/\{[\s\S]*\}/)
+          if (!m) return { fields: {} as Record<string, unknown>, conf: {} as Record<string, number> }
+          const parsed = JSON.parse(m[0])
+          const { confidence: conf, ...rest } = parsed
+          return { fields: rest as Record<string, unknown>, conf: (conf ?? {}) as Record<string, number> }
+        })
+      )
+    )
+    const mergedFields: Record<string, unknown> = {}
+    const mergedConf: Record<string, number> = {}
+    for (const r of results) {
+      if (r.status === 'fulfilled') {
+        Object.assign(mergedFields, r.value.fields)
+        Object.assign(mergedConf, flattenConfidence(r.value.conf as Record<string, unknown>))
+      }
+    }
+    return { fields: mergedFields, conf: mergedConf }
+  } catch (e) {
+    log.warn('[upload] image vision failed:', e instanceof Error ? e.message : e)
+    return null
+  }
+}
+
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
 const ALLOWED_TYPES = [
   'application/pdf',
@@ -85,11 +134,26 @@ const ALLOWED_TYPES = [
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'text/csv',
+  // Plain text & rich text
+  'text/plain',
+  'application/rtf', 'text/rtf',
+  // Legacy Office (pre-2007) binary formats
+  'application/msword',
+  'application/vnd.ms-powerpoint',
+  // OpenDocument
+  'application/vnd.oasis.opendocument.text',
+  // Images — routed to Claude vision
   'image/png',
   'image/jpeg',
   'image/webp',
 ]
-const ALLOWED_EXTS = ['.pdf', '.pptx', '.docx', '.xlsx', '.csv', '.png', '.jpg', '.jpeg', '.webp']
+const ALLOWED_EXTS = [
+  '.pdf', '.pptx', '.docx', '.xlsx', '.csv',
+  '.txt', '.rtf',
+  '.doc', '.ppt',
+  '.odt',
+  '.png', '.jpg', '.jpeg', '.webp',
+]
 
 // Magic-byte validation for profile-builder uploads.
 // Prevents malicious files with spoofed MIME types or extensions from being processed.
@@ -100,9 +164,13 @@ function validateDocMagicBytes(buf: Buffer, declaredMime: string, ext: string): 
   if (declaredMime === 'application/pdf' || ext === '.pdf') {
     return buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46
   }
-  // Office Open XML (PPTX / DOCX / XLSX) are ZIP archives: PK\x03\x04
-  if (['.pptx', '.docx', '.xlsx'].includes(ext)) {
+  // Office Open XML (PPTX / DOCX / XLSX) and ODT are ZIP archives: PK\x03\x04
+  if (['.pptx', '.docx', '.xlsx', '.odt'].includes(ext) || declaredMime.includes('opendocument')) {
     return buf[0] === 0x50 && buf[1] === 0x4B && buf[2] === 0x03 && buf[3] === 0x04
+  }
+  // Old Office CFB format (.doc, .ppt): D0 CF 11 E0
+  if (ext === '.doc' || ext === '.ppt' || declaredMime === 'application/msword' || declaredMime === 'application/vnd.ms-powerpoint') {
+    return buf[0] === 0xD0 && buf[1] === 0xCF && buf[2] === 0x11 && buf[3] === 0xE0
   }
   // JPEG: FF D8 FF
   if (declaredMime === 'image/jpeg' || ext === '.jpg' || ext === '.jpeg') {
@@ -118,8 +186,10 @@ function validateDocMagicBytes(buf: Buffer, declaredMime: string, ext: string): 
       && buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46
       && buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50
   }
-  // CSV / plain text: no reliable magic bytes — allow through (extension already validated above)
+  // CSV, plain text, RTF: no reliable magic bytes — allow through (extension already validated above)
   if (declaredMime === 'text/csv' || ext === '.csv') return true
+  if (declaredMime === 'text/plain' || ext === '.txt') return true
+  if (declaredMime === 'application/rtf' || declaredMime === 'text/rtf' || ext === '.rtf') return true
   return false
 }
 
@@ -298,9 +368,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const DOC_CHAR_LIMIT = 6000
+    const DOC_CHAR_LIMIT = 8000
     const isPDF = filename.toLowerCase().endsWith('.pdf') || mimeType === 'application/pdf'
-    const isImagePDF = section === 0 && parsed.text.length <= 50 && isPDF
+    const isRealImage = ['.png', '.jpg', '.jpeg', '.webp'].some(e => filename.toLowerCase().endsWith(e))
+    const isImagePDF = section === 0 && parsed.text.length <= 50 && isPDF && !isRealImage
 
     // Image-based / scanned PDF: send raw bytes to Claude vision instead of text
     if (isImagePDF) {
@@ -322,7 +393,26 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (section === 0 && parsed.text.length > 50) {
+    // Raster image (PNG / JPEG / WebP): route directly to Claude vision
+    if (isRealImage) {
+      log.info('[upload] raster image — attempting vision extraction', { filename, userId })
+      const imgMime = (mimeType === 'image/webp' ? 'image/webp' : mimeType === 'image/png' ? 'image/png' : 'image/jpeg') as 'image/png' | 'image/jpeg' | 'image/webp'
+      const visionResult = await extractFieldsFromImage(buffer, imgMime)
+      if (visionResult && Object.keys(visionResult.fields).length > 0) {
+        mergeDeepFields(extractedFields, visionResult.fields)
+        for (const [k, v] of Object.entries(visionResult.conf)) {
+          if (!(k in confidenceMap)) confidenceMap[k] = v
+        }
+        if (Object.keys(confidenceMap).length === 0) {
+          for (const k of Object.keys(extractedFields)) confidenceMap[k] = 0.65
+        }
+      } else {
+        extractionError = 'Vision extraction could not read useful data from this image. Try uploading a PDF, PPTX, or DOCX with the same content instead.'
+        log.warn('[upload] image vision returned no fields for', filename)
+      }
+    }
+
+    if (section === 0 && parsed.text.length > 50 && !isRealImage) {
       // Run all 5 section prompts in parallel so every sidebar section gets populated
       const docUserMsg = `Document text:\n\n${parsed.text.slice(0, DOC_CHAR_LIMIT)}`
       const results = await Promise.allSettled(
@@ -375,7 +465,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    } else if (parsed.text.length > 50) {
+    } else if (parsed.text.length > 50 && !isRealImage) {
       // Per-section upload: run only that section's prompt
       const sectionPrompt = EXTRACTION_PROMPTS[section]
       if (sectionPrompt) {
@@ -399,7 +489,7 @@ export async function POST(req: NextRequest) {
 
     // ── Regex fallback: run when LLM extraction produced nothing (e.g. no API key on Vercel) ──
     // Guarantees every text-bearing document contributes at least a few fields to the score.
-    if (section === 0 && parsed.text.length > 50 && Object.keys(extractedFields).length === 0) {
+    if (section === 0 && parsed.text.length > 50 && !isRealImage && Object.keys(extractedFields).length === 0) {
       const t = parsed.text
       const regexFields: Record<string, unknown> = {}
 
@@ -471,7 +561,7 @@ export async function POST(req: NextRequest) {
     // Catches type errors (year-as-MRR, projected-as-current) that the haiku
     // extraction pass misses. Non-blocking — original fields used on failure.
     let semanticIssues: SemanticIssue[] = []
-    if (section === 0 && Object.keys(extractedFields).length > 0) {
+    if (section === 0 && !isRealImage && Object.keys(extractedFields).length > 0) {
       try {
         const verification = await semanticVerify(extractedFields, parsed.text)
         if (verification.issues.length > 0) {

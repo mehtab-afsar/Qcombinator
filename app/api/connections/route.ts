@@ -66,6 +66,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'demo_investor_id or investor_id is required' }, { status: 400 });
     }
 
+    // ── Require confirmed email before sending connection requests ───────────
+    const { data: emailCheck } = await admin
+      .from('founder_profiles')
+      .select('email_confirmed_at')
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (emailCheck && !emailCheck.email_confirmed_at) {
+      return NextResponse.json({
+        error: 'Please confirm your email address before sending connection requests.',
+        requiresEmailConfirmation: true,
+      }, { status: 403 })
+    }
+
     // ── Check investor_connection usage limit (atomic RPC) ──────────────────
     try {
       const { data: usageData, error: usageErr } = await admin.rpc('increment_usage_if_allowed', {

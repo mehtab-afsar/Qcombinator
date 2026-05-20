@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import InvestorSidebar, { NotificationBell } from "@/features/investor/components/InvestorSidebar";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { EmailConfirmBanner } from "@/features/shared/components/EmailConfirmBanner";
 
 export default function InvestorLayout({
   children,
@@ -23,6 +24,10 @@ export default function InvestorLayout({
       <div style={{ display: "flex", height: "100vh", background: "#F9F7F2" }}>
         <InvestorSidebar />
         {/* 52px left margin matches the collapsed sidebar width */}
+        <EmailConfirmBanner
+          statusApiPath="/api/investor/email-status"
+          resendApiPath="/api/auth/resend-confirmation"
+        />
         <div style={{ flex: 1, overflowY: "auto", marginLeft: 52, position: "relative" }}>
           {/* Top-right utility bar */}
           <div style={{ position: "fixed", top: 12, right: 16, zIndex: 100, display: "flex", alignItems: "center", gap: 8 }}>

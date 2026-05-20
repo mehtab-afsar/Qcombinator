@@ -987,18 +987,26 @@ export default function ProfileBuilderPage() {
       setUploadError(`Only ${slotsLeft} more file${slotsLeft === 1 ? '' : 's'} allowed (max ${MAX_UPLOAD_FILES}). Processing the first ${toProcess.length}.`)
     }
 
+    // Client-side size check — saves a round-trip for oversized files
+    const oversized = toProcess.filter(f => f.size > 10 * 1024 * 1024)
+    if (oversized.length > 0) {
+      setUploadError(`${oversized.map(f => f.name).join(', ')} exceed${oversized.length === 1 ? 's' : ''} the 10 MB limit. Please compress or split the file.`)
+      if (oversized.length === toProcess.length) return
+    }
+    const validFiles = toProcess.filter(f => f.size <= 10 * 1024 * 1024)
+
     setUploadLoading(true)
-    if (slotsLeft === fileArr.length) setUploadError(null)
+    if (slotsLeft === fileArr.length && oversized.length === 0) setUploadError(null)
     const errors: string[] = []
-    for (let i = 0; i < toProcess.length; i++) {
+    for (let i = 0; i < validFiles.length; i++) {
       try {
-        await uploadOneFile(toProcess[i])
+        await uploadOneFile(validFiles[i])
       } catch (e) {
         setIsTyping(false)
-        errors.push(`${toProcess[i].name}: ${e instanceof Error ? e.message : 'failed'}`)
+        errors.push(`${validFiles[i].name}: ${e instanceof Error ? e.message : 'failed'}`)
       }
       // Stagger uploads to spread Groq API load — avoids hitting TPM/RPM rate limits on concurrent uploads
-      if (i < toProcess.length - 1) {
+      if (i < validFiles.length - 1) {
         await new Promise(r => setTimeout(r, 1200))
       }
     }
@@ -1495,7 +1503,7 @@ export default function ProfileBuilderPage() {
               <div style={{ fontSize: 15, fontWeight: 600, color: ink, marginBottom: 6 }}>
                 {uploadedFiles.length >= MAX_UPLOAD_FILES ? `${MAX_UPLOAD_FILES}-file limit reached` : 'Drop files or click to upload'}
               </div>
-              <div style={{ fontSize: 13, color: muted }}>PDF, PPTX, XLSX, CSV, PNG, JPG — max 10 MB each · up to 10 files, merged automatically</div>
+              <div style={{ fontSize: 13, color: muted }}>PDF, PPTX, DOCX, XLSX, CSV, TXT, RTF, ODT, Images — max 10 MB each · up to 10 files, merged automatically</div>
             </div>
             )}
 
@@ -3060,7 +3068,7 @@ export default function ProfileBuilderPage() {
         type="file"
         multiple
         style={{ display: 'none' }}
-        accept=".pdf,.pptx,.xlsx,.csv,.png,.jpg,.jpeg,.webp"
+        accept=".pdf,.pptx,.docx,.xlsx,.csv,.txt,.rtf,.doc,.ppt,.odt,.png,.jpg,.jpeg,.webp"
         onChange={e => {
           if (e.target.files && e.target.files.length > 0) handleFileUpload(e.target.files)
         }}

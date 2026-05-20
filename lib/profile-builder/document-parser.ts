@@ -194,12 +194,61 @@ export function parseCSV(text: string): ParseResult {
 }
 
 // ── Image ─────────────────────────────────────────────────────────────────────
-// No OCR library — instruct the LLM to use the filename and ask the founder
+// Returns a marker string — the upload route routes images to Claude vision instead
 export function parseImage(_buffer: Buffer, filename: string): ParseResult {
   return {
-    text: `Image file: ${filename}. No text could be extracted automatically. Please describe the key information visible in this document.`,
+    text: `__IMAGE_FILE__:${filename}`,
     confidence: 0.3,
   }
+}
+
+// ── TXT ───────────────────────────────────────────────────────────────────────
+export function parseTXT(buffer: Buffer): ParseResult {
+  const text = smartSample(buffer.toString('utf8').replace(/\r\n/g, '\n').trim(), 8000)
+  return { text, confidence: text.length > 200 ? 0.85 : 0.50 }
+}
+
+// ── RTF ───────────────────────────────────────────────────────────────────────
+// Strip RTF control words and groups via regex — no library needed
+export function parseRTF(buffer: Buffer): ParseResult {
+  const raw = buffer.toString('latin1')
+  const text = raw
+    .replace(/\{\\[^{}]*\}/g, '')          // remove inline groups like {\field...}
+    .replace(/\\[a-z]+\-?\d*\s?/gi, ' ')   // remove control words: \par \pard \b \fs24
+    .replace(/[{}\\]/g, ' ')               // remaining structural characters
+    .replace(/\s+/g, ' ')
+    .trim()
+  return { text: smartSample(text, 8000), confidence: text.length > 200 ? 0.75 : 0.40 }
+}
+
+// ── ODT ───────────────────────────────────────────────────────────────────────
+// ODT is a ZIP archive containing content.xml — same structure as DOCX
+export async function parseODT(buffer: Buffer): Promise<ParseResult> {
+  try {
+    const zip = new AdmZip(buffer)
+    const entry = zip.getEntry('content.xml')
+    if (!entry) return { text: '', confidence: 0.2 }
+    const xml = zip.readAsText(entry)
+    const text = xml
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+      .replace(/\s+/g, ' ')
+      .trim()
+    return { text: smartSample(text, 8000), confidence: text.length > 200 ? 0.78 : 0.40 }
+  } catch (e) {
+    log.warn('[parseODT] adm-zip failed:', e)
+    return { text: '', confidence: 0.2 }
+  }
+}
+
+// ── Old Office (.doc / .ppt) ──────────────────────────────────────────────────
+// Binary CFB format — extract printable ASCII runs for partial text recovery
+export function parseOldOffice(buffer: Buffer): ParseResult {
+  const text = buffer.toString('binary')
+    .replace(/[^\x20-\x7E\n\r\t]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return { text: smartSample(text, 8000), confidence: text.length > 200 ? 0.40 : 0.20 }
 }
 
 // ── DOCX ──────────────────────────────────────────────────────────────────────
@@ -222,11 +271,15 @@ async function parseDOCX(buffer: Buffer): Promise<ParseResult> {
 // ── Main dispatcher ───────────────────────────────────────────────────────────
 export async function parseDocument(buffer: Buffer, filename: string, mimeType: string): Promise<ParseResult> {
   const lower = filename.toLowerCase()
-  if (lower.endsWith('.pdf') || mimeType === 'application/pdf') return parsePDF(buffer)
-  if (lower.endsWith('.pptx') || mimeType.includes('presentationml')) return parsePPTX(buffer)
-  if (lower.endsWith('.docx') || mimeType.includes('wordprocessingml')) return parseDOCX(buffer)
-  if (lower.endsWith('.xlsx') || mimeType.includes('spreadsheetml')) return parseXLSX(buffer)
-  if (lower.endsWith('.csv') || mimeType === 'text/csv') return parseCSV(buffer.toString('utf8'))
-  if (['.png', '.jpg', '.jpeg', '.webp'].some(ext => lower.endsWith(ext))) return parseImage(buffer, filename)
+  if (lower.endsWith('.pdf')  || mimeType === 'application/pdf')                    return parsePDF(buffer)
+  if (lower.endsWith('.pptx') || mimeType.includes('presentationml'))               return parsePPTX(buffer)
+  if (lower.endsWith('.docx') || mimeType.includes('wordprocessingml'))             return parseDOCX(buffer)
+  if (lower.endsWith('.xlsx') || mimeType.includes('spreadsheetml'))                return parseXLSX(buffer)
+  if (lower.endsWith('.odt')  || mimeType.includes('opendocument.text'))            return parseODT(buffer)
+  if (lower.endsWith('.csv')  || mimeType === 'text/csv')                           return parseCSV(buffer.toString('utf8'))
+  if (lower.endsWith('.txt')  || mimeType === 'text/plain')                         return parseTXT(buffer)
+  if (lower.endsWith('.rtf')  || mimeType === 'application/rtf' || mimeType === 'text/rtf') return parseRTF(buffer)
+  if (lower.endsWith('.doc')  || lower.endsWith('.ppt'))                            return parseOldOffice(buffer)
+  if (['.png', '.jpg', '.jpeg', '.webp'].some(ext => lower.endsWith(ext)))          return parseImage(buffer, filename)
   return { text: smartSample(buffer.toString('utf8'), 8000), confidence: 0.75 }
 }

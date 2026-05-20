@@ -34,3 +34,41 @@ export async function signInAsInvestor(page: Page): Promise<void> {
   await page.click('button[type="submit"]')
   await page.waitForURL(/\/investor/, { timeout: 15_000 })
 }
+
+/**
+ * Create a fresh investor test account via the Supabase Admin API.
+ * Requires NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY env vars.
+ * Returns { email, password } for use in sign-in flows.
+ */
+export async function createTestInvestorAccount(opts?: {
+  email?: string
+}): Promise<{ email: string; password: string }> {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceKey  = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!supabaseUrl || !serviceKey) {
+    throw new Error(
+      'createTestInvestorAccount requires NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY env vars'
+    )
+  }
+  const email    = opts?.email ?? `test-inv-${Date.now()}@pw.test`
+  const password = 'TestPass123!'
+  const res = await fetch(`${supabaseUrl}/auth/v1/admin/users`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: serviceKey,
+      Authorization: `Bearer ${serviceKey}`,
+    },
+    body: JSON.stringify({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { role: 'investor' },
+    }),
+  })
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(`Admin user creation failed: ${res.status} ${body}`)
+  }
+  return { email, password }
+}

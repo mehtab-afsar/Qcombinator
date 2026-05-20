@@ -6,8 +6,6 @@ import {
   ArrowLeft,
   MapPin,
   CheckCircle,
-  AlertTriangle,
-  Info,
   BarChart3,
   FileText,
   Loader2,
@@ -15,7 +13,6 @@ import {
   Users,
   Calendar,
   TrendingUp,
-  Sparkles,
   Download,
   RefreshCw,
   X,
@@ -49,8 +46,11 @@ interface StartupProfile {
   solution: string; whyNow: string; moat: string; uniquePosition: string;
   tamSize: string; marketGrowth: string; customerType: string;
   businessModel: string; differentiation: string;
+  competitorCount?: string;
   equitySplit: string; teamSizeLabel: string;
   advisors: string[]; keyHires: string[];
+  domainYears?: string; founderMarketFit?: string; priorExits?: string;
+  hasPayingCustomers?: boolean | null; customerConversations?: string;
   raisingAmount: string; useOfFunds: string; previousFunding: string;
   runwayRemaining: string; targetCloseDate: string;
 }
@@ -81,6 +81,7 @@ interface StartupData {
   aiAnalysis: { strengths: string[]; risks: string[]; recommendations: string[] }
   startupProfile: StartupProfile
   artifactCoverage: Record<string, boolean>
+  uploadedDocuments?: Array<{ name: string; url: string; type: string; size: number | null; section: number }>
   agentStats?: {
     activeAgents: number
     actionsThisWeek: number
@@ -242,14 +243,14 @@ export default function StartupDeepDive() {
 
   function handleDownloadMemo() {
     if (!memoHtml || !startup) return;
-    const blob = new Blob([memoHtml], { type: 'text/html' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `memo-${startup.name.toLowerCase().replace(/\s+/g, '-')}.html`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(a.href);
+    const win = window.open('', '_blank');
+    if (!win) return;
+    const printable = memoHtml.replace(
+      '</body>',
+      `<script>window.onload=function(){window.print();window.onafterprint=function(){window.close();}}<\/script></body>`
+    );
+    win.document.write(printable);
+    win.document.close();
   }
 
   if (loading) return <PageSpinner label="Loading profile…" />
@@ -308,25 +309,26 @@ export default function StartupDeepDive() {
             <div style={{ height: 28, width: 1, background: bdr }} />
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
 
-              {/* Generate Memo button — rainbow gradient border */}
-              <div
+              {/* Generate Memo button */}
+              <button
                 onClick={memoLoading ? undefined : () => handleGenerateMemo(false)}
+                disabled={memoLoading}
                 style={{
-                  display: "inline-flex", padding: "1.5px", borderRadius: 10,
-                  background: memoLoading ? bdr : 'linear-gradient(135deg, #6366f1, #8b5cf6, #ec4899, #f59e0b)',
-                  cursor: memoLoading ? "not-allowed" : "pointer",
-                  opacity: memoLoading ? 0.7 : 1,
-                  transition: "opacity 0.15s",
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  padding: "7px 14px", borderRadius: 8,
+                  background: memoLoading ? surf : ink,
+                  color: memoLoading ? muted : bg,
+                  border: `1px solid ${memoLoading ? bdr : ink}`,
+                  fontSize: 12, fontWeight: 500, cursor: memoLoading ? "not-allowed" : "pointer",
+                  transition: "all 0.15s", fontFamily: "inherit", whiteSpace: "nowrap",
                 }}
               >
-                <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 13px", borderRadius: 9, background: bg, fontSize: 12, fontWeight: 600, color: ink, whiteSpace: "nowrap" }}>
-                  {memoLoading
-                    ? <Loader2 style={{ height: 12, width: 12, animation: "spin 1s linear infinite" }} />
-                    : <FileText style={{ height: 12, width: 12 }} />
-                  }
-                  {memoLoading ? "Generating…" : "Generate Memo"}
-                </div>
-              </div>
+                {memoLoading
+                  ? <Loader2 style={{ height: 12, width: 12, animation: "spin 1s linear infinite" }} />
+                  : <FileText style={{ height: 12, width: 12 }} />
+                }
+                {memoLoading ? "Generating…" : "Generate Memo"}
+              </button>
 
               {/* Message Founder button */}
               <button
@@ -602,10 +604,10 @@ export default function StartupDeepDive() {
               <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
               {/* ── Agent Activity Strip ── */}
               {s.agentStats && (
-                <div style={{ background: "#EFF6FF", border: `1px solid #BFDBFE`, borderRadius: 14, padding: "14px 22px" }}>
+                <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: "14px 22px" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
                     <div>
-                      <p style={{ fontSize: 11, fontWeight: 700, color: blue, marginBottom: 2 }}>Founder Activity</p>
+                      <p style={{ fontSize: 11, fontWeight: 600, color: ink, marginBottom: 2 }}>Founder Execution</p>
                       <p style={{ fontSize: 11, color: muted }}>
                         {s.agentStats.lastActiveDays !== null
                           ? s.agentStats.lastActiveDays === 0
@@ -616,15 +618,15 @@ export default function StartupDeepDive() {
                           : "No recent activity"}
                       </p>
                     </div>
-                    <div style={{ display: "flex", gap: 20 }}>
+                    <div style={{ display: "flex", gap: 24, borderLeft: `1px solid ${bdr}`, paddingLeft: 24 }}>
                       {[
-                        { label: "Active Agents", value: `${s.agentStats.activeAgents}/9` },
+                        { label: "Agents Used", value: `${s.agentStats.activeAgents}/9` },
                         { label: "Actions (7d)", value: String(s.agentStats.actionsThisWeek) },
                         { label: "Deliverables", value: `${s.agentStats.totalDeliverables}/12` },
                       ].map(({ label, value }) => (
-                        <div key={label} style={{ textAlign: "center" }}>
-                          <p style={{ fontSize: 18, fontWeight: 800, color: blue, lineHeight: 1 }}>{value}</p>
-                          <p style={{ fontSize: 10, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginTop: 3 }}>{label}</p>
+                        <div key={label} style={{ textAlign: "right" }}>
+                          <p style={{ fontSize: 18, fontWeight: 600, color: ink, lineHeight: 1, letterSpacing: "-0.02em" }}>{value}</p>
+                          <p style={{ fontSize: 10, color: muted, marginTop: 3 }}>{label}</p>
                         </div>
                       ))}
                     </div>
@@ -1032,38 +1034,77 @@ export default function StartupDeepDive() {
 
             {/* ── DOCUMENTS ─────────────────────────────────────────── */}
             {activeTab === "documents" && (
-              <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 18, overflow: "hidden" }}>
-                <div style={{ padding: "16px 22px", borderBottom: `1px solid ${bdr}` }}>
-                  <p style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: "uppercase", letterSpacing: "0.14em" }}>Available Materials</p>
-                </div>
-                <div style={{ padding: "16px 22px", display: "flex", flexDirection: "column", gap: 10 }}>
-                  {[
-                    { key: 'hasFinancialModel', label: 'Financial Model (Felix)',   type: 'CSV',  desc: 'MRR projections, burn, unit economics' },
-                    { key: 'hasGTMPlaybook',    label: 'GTM Playbook (Patel)',      type: 'DOC',  desc: 'Go-to-market strategy, ICP, channels' },
-                    { key: 'hasHiringPlan',     label: 'Hiring Plan (Harper)',      type: 'DOC',  desc: 'Team structure, open roles' },
-                    { key: 'hasCompMatrix',     label: 'Competitive Map (Atlas)',   type: 'DOC',  desc: 'Competitor analysis, differentiation' },
-                    { key: 'hasBrandAssets',    label: 'Brand Assets (Maya)',       type: 'HTML', desc: 'Social templates, messaging framework' },
-                    { key: 'hasStrategicPlan',  label: 'Strategic Plan (Sage)',     type: 'DOC',  desc: 'OKRs, milestones, 12-month roadmap' },
-                  ].map(({ key, label, type, desc }) => {
-                    const has = s.artifactCoverage[key];
-                    return (
-                      <div key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", background: has ? surf : "#FAFAF8", border: `1px solid ${has ? bdr : "#EDE9E1"}`, borderRadius: 12, opacity: has ? 1 : 0.55 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                          <div style={{ height: 36, width: 36, borderRadius: 9, background: bg, border: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                            <FileText size={14} color={has ? blue : muted} />
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+
+                {/* Founder-uploaded documents */}
+                {(s.uploadedDocuments ?? []).length > 0 && (
+                  <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 18, overflow: "hidden" }}>
+                    <div style={{ padding: "16px 22px", borderBottom: `1px solid ${bdr}` }}>
+                      <p style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: "uppercase", letterSpacing: "0.14em" }}>Founder-Uploaded Documents</p>
+                    </div>
+                    <div style={{ padding: "16px 22px", display: "flex", flexDirection: "column", gap: 10 }}>
+                      {(s.uploadedDocuments ?? []).map((doc, i) => {
+                        const ext = doc.name.split('.').pop()?.toUpperCase() ?? 'FILE'
+                        const sizeMb = doc.size ? `${(doc.size / 1048576).toFixed(1)} MB` : null
+                        return (
+                          <a
+                            key={i}
+                            href={doc.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", background: surf, border: `1px solid ${bdr}`, borderRadius: 12, textDecoration: "none" }}
+                          >
+                            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                              <div style={{ height: 36, width: 36, borderRadius: 9, background: bg, border: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                <FileText size={14} color={blue} />
+                              </div>
+                              <div>
+                                <p style={{ fontSize: 13, fontWeight: 500, color: ink }}>{doc.name}</p>
+                                <p style={{ fontSize: 11, color: muted }}>{ext}{sizeMb ? ` · ${sizeMb}` : ''} · Section {doc.section}</p>
+                              </div>
+                            </div>
+                            <span style={{ fontSize: 11, padding: "3px 10px", background: "#EFF6FF", border: "1px solid #93C5FD", borderRadius: 999, color: blue, fontWeight: 500 }}>Open ↗</span>
+                          </a>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Agent-generated materials */}
+                <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 18, overflow: "hidden" }}>
+                  <div style={{ padding: "16px 22px", borderBottom: `1px solid ${bdr}` }}>
+                    <p style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: "uppercase", letterSpacing: "0.14em" }}>Agent-Generated Materials</p>
+                  </div>
+                  <div style={{ padding: "16px 22px", display: "flex", flexDirection: "column", gap: 10 }}>
+                    {[
+                      { key: 'hasFinancialModel', label: 'Financial Model (Felix)',   type: 'CSV',  desc: 'MRR projections, burn, unit economics' },
+                      { key: 'hasGTMPlaybook',    label: 'GTM Playbook (Patel)',      type: 'DOC',  desc: 'Go-to-market strategy, ICP, channels' },
+                      { key: 'hasHiringPlan',     label: 'Hiring Plan (Harper)',      type: 'DOC',  desc: 'Team structure, open roles' },
+                      { key: 'hasCompMatrix',     label: 'Competitive Map (Atlas)',   type: 'DOC',  desc: 'Competitor analysis, differentiation' },
+                      { key: 'hasBrandAssets',    label: 'Brand Assets (Maya)',       type: 'HTML', desc: 'Social templates, messaging framework' },
+                      { key: 'hasStrategicPlan',  label: 'Strategic Plan (Sage)',     type: 'DOC',  desc: 'OKRs, milestones, 12-month roadmap' },
+                    ].map(({ key, label, type, desc }) => {
+                      const has = s.artifactCoverage[key];
+                      return (
+                        <div key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", background: has ? surf : "#FAFAF8", border: `1px solid ${has ? bdr : "#EDE9E1"}`, borderRadius: 12, opacity: has ? 1 : 0.55 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                            <div style={{ height: 36, width: 36, borderRadius: 9, background: bg, border: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                              <FileText size={14} color={has ? blue : muted} />
+                            </div>
+                            <div>
+                              <p style={{ fontSize: 13, fontWeight: 500, color: ink }}>{label}</p>
+                              <p style={{ fontSize: 11, color: muted }}>{type} · {desc}</p>
+                            </div>
                           </div>
-                          <div>
-                            <p style={{ fontSize: 13, fontWeight: 500, color: ink }}>{label}</p>
-                            <p style={{ fontSize: 11, color: muted }}>{type} · {desc}</p>
-                          </div>
+                          {has
+                            ? <span style={{ fontSize: 11, padding: "3px 10px", background: "#ECFDF5", border: "1px solid #86EFAC", borderRadius: 999, color: green, fontWeight: 500 }}>Available</span>
+                            : <span style={{ fontSize: 11, color: muted }}>Not submitted</span>
+                          }
                         </div>
-                        {has
-                          ? <span style={{ fontSize: 11, padding: "3px 10px", background: "#ECFDF5", border: "1px solid #86EFAC", borderRadius: 999, color: green, fontWeight: 500 }}>Available</span>
-                          : <span style={{ fontSize: 11, color: muted }}>Not submitted</span>
-                        }
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             )}
@@ -1102,39 +1143,38 @@ export default function StartupDeepDive() {
                 <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
                   {/* Signals row */}
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                    <div style={{ background: "#ECFDF5", border: "1px solid #86EFAC", borderRadius: 16, padding: "18px 20px" }}>
+                    <div style={{ background: surf, border: `1px solid ${bdr}`, borderLeft: `3px solid ${green}`, borderRadius: 12, padding: "18px 20px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 12 }}>
-                        <CheckCircle style={{ height: 13, width: 13, color: green }} />
-                        <p style={{ fontSize: 11, fontWeight: 600, color: green, textTransform: "uppercase", letterSpacing: "0.1em" }}>Strengths</p>
+                        <p style={{ fontSize: 11, fontWeight: 600, color: ink, textTransform: "uppercase", letterSpacing: "0.1em" }}>Strengths</p>
                       </div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                         {s.aiAnalysis.strengths.slice(0, 4).map((item, i) => (
-                          <span key={i} style={{ padding: "4px 10px", borderRadius: 999, background: "#fff", border: "1px solid #86EFAC", fontSize: 11, color: "#166534", fontWeight: 500 }}>
+                          <p key={i} style={{ fontSize: 12, color: ink, lineHeight: 1.5 }}>
+                            <span style={{ color: green, fontWeight: 600, marginRight: 4 }}>+</span>
                             {item.split(' — ')[0].replace(/\s\(.*\)$/, '')}
-                          </span>
+                          </p>
                         ))}
                       </div>
                     </div>
-                    <div style={{ background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: 16, padding: "18px 20px" }}>
+                    <div style={{ background: surf, border: `1px solid ${bdr}`, borderLeft: `3px solid ${amber}`, borderRadius: 12, padding: "18px 20px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 12 }}>
-                        <AlertTriangle style={{ height: 13, width: 13, color: amber }} />
-                        <p style={{ fontSize: 11, fontWeight: 600, color: amber, textTransform: "uppercase", letterSpacing: "0.1em" }}>Risks</p>
+                        <p style={{ fontSize: 11, fontWeight: 600, color: ink, textTransform: "uppercase", letterSpacing: "0.1em" }}>Risks</p>
                       </div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                         {s.aiAnalysis.risks.slice(0, 4).map((item, i) => (
-                          <span key={i} style={{ padding: "4px 10px", borderRadius: 999, background: "#fff", border: "1px solid #FDE68A", fontSize: 11, color: "#92400E", fontWeight: 500 }}>
+                          <p key={i} style={{ fontSize: 12, color: ink, lineHeight: 1.5 }}>
+                            <span style={{ color: amber, fontWeight: 600, marginRight: 4 }}>—</span>
                             {item.split(' — ')[0].replace(/\s\(.*\)$/, '')}
-                          </span>
+                          </p>
                         ))}
                       </div>
                     </div>
                   </div>
 
                   {/* Recommendations */}
-                  <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 16, padding: "18px 20px" }}>
+                  <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 12, padding: "18px 20px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 12 }}>
-                      <Info style={{ height: 13, width: 13, color: blue }} />
-                      <p style={{ fontSize: 11, fontWeight: 600, color: blue, textTransform: "uppercase", letterSpacing: "0.1em" }}>Recommendations</p>
+                      <p style={{ fontSize: 11, fontWeight: 600, color: ink, textTransform: "uppercase", letterSpacing: "0.1em" }}>Next Steps</p>
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                       {s.aiAnalysis.recommendations.map((rec, i) => (
@@ -1149,11 +1189,9 @@ export default function StartupDeepDive() {
                   {/* Chatbot */}
                   <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 16, overflow: "hidden" }}>
                     <div style={{ padding: "14px 18px", borderBottom: `1px solid ${bdr}`, display: "flex", alignItems: "center", gap: 8 }}>
-                      <div style={{ height: 26, width: 26, borderRadius: 7, background: "#F5F3FF", border: "1px solid #C4B5FD", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        <Sparkles style={{ height: 12, width: 12, color: "#7C3AED" }} />
-                      </div>
+                      <MessageSquare style={{ height: 14, width: 14, color: muted }} />
                       <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>Ask about {s.name}</p>
-                      <span style={{ marginLeft: "auto", fontSize: 10, color: muted }}>Answers based on submitted data only</span>
+                      <span style={{ marginLeft: "auto", fontSize: 10, color: muted }}>Based on submitted data only</span>
                     </div>
 
                     {/* Messages */}
@@ -1236,12 +1274,10 @@ export default function StartupDeepDive() {
               {/* Modal header */}
               <div style={{ padding: "16px 20px", borderBottom: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div style={{ height: 28, width: 28, borderRadius: 8, background: "#F5F3FF", border: "1px solid #C4B5FD", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <Sparkles style={{ height: 13, width: 13, color: "#7C3AED" }} />
-                  </div>
+                  <FileText style={{ height: 15, width: 15, color: muted }} />
                   <div>
                     <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>Investment Memo</p>
-                    <p style={{ fontSize: 11, color: muted }}>AI-generated · {startup?.name}</p>
+                    <p style={{ fontSize: 11, color: muted }}>{startup?.name}</p>
                   </div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1260,7 +1296,7 @@ export default function StartupDeepDive() {
                         style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: `1px solid ${bdr}`, background: surf, color: ink, fontSize: 12, fontWeight: 500, cursor: "pointer" }}
                       >
                         <Download style={{ height: 12, width: 12 }} />
-                        Download HTML
+                        Download PDF
                       </button>
                     </>
                   )}

@@ -15,6 +15,14 @@ const ARTIFACT_LABELS: Record<string, string> = {
   interview_notes:     'Interview Notes',
 }
 
+const SECTION_NAMES: Record<number, string> = {
+  1: 'Market Validation',
+  2: 'Market & Competition',
+  3: 'IP & Technology',
+  4: 'Team Assessment',
+  5: 'Financial Overview',
+}
+
 // Which artifact types warrant an auto-event post (skip low-signal ones)
 const NOTABLE_ARTIFACTS = new Set(Object.keys(ARTIFACT_LABELS))
 
@@ -71,6 +79,29 @@ export async function postQScoreFeedEvent(
       post_type: 'milestone',
       body,
       metadata:  { newScore, prevScore, grade, crossedMilestone: crossedMilestone ?? null },
+    })
+  } catch { /* non-critical */ }
+}
+
+/**
+ * Post an auto-event when a founder completes a Profile Builder section for the first time.
+ * Fire-and-forget — caller should `void` and not await.
+ */
+export async function postProfileSectionFeedEvent(
+  userId: string,
+  section: number,
+  supabase: SupabaseClient
+) {
+  const sectionName = SECTION_NAMES[section]
+  if (!sectionName) return
+  const body = `Just completed their ${sectionName} assessment — building investor-ready materials.`
+  try {
+    await supabase.from('feed_posts').insert({
+      user_id:   userId,
+      role:      'founder',
+      post_type: 'auto_event',
+      body,
+      metadata:  { eventType: 'section_complete', section, sectionName },
     })
   } catch { /* non-critical */ }
 }

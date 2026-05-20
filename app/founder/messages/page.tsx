@@ -130,7 +130,7 @@ function ThreadPanel({
         .channel(`founder_messages:${conn.id}`)
         .on(
           'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'messages', filter: `connection_id=eq.${conn.id}` },
+          { event: 'INSERT', schema: 'public', table: 'messages', filter: `connection_request_id=eq.${conn.id}` },
           (payload) => {
             const newMsg = payload.new as ChatMessage;
             setMessages(prev => prev.some(m => m.id === newMsg.id) ? prev : [...prev, newMsg]);

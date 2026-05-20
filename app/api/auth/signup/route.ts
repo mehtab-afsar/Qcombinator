@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { randomUUID } from 'crypto'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { parseBody, signupSchema } from '@/lib/api/validate';
 import { startupProfileDataSchema } from '@/lib/api/jsonb-schemas';
 import { log } from '@/lib/logger'
 import { routedText } from '@/lib/llm/router'
+import { sendWelcomeAndConfirmEmail } from '@/lib/email/send'
 
 export async function POST(request: NextRequest) {
   try {
@@ -113,6 +115,8 @@ export async function POST(request: NextRequest) {
       ? `${baseStartupName}-${authData.user.id.slice(0, 6)}`
       : null
 
+    const confirmToken = randomUUID()
+
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('founder_profiles')
       .insert({
@@ -136,6 +140,7 @@ export async function POST(request: NextRequest) {
         profile_builder_completed: false,
         tagline: tagline || null,
         location: location || null,
+        email_confirm_token: confirmToken,
         startup_profile_data: startupProfileDataSchema.parse({
           problemStatement: problemStatement || undefined,
           targetCustomer:   targetCustomer   || undefined,
@@ -184,8 +189,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Fire-and-forget: clean + summarise onboarding text in background (~2–5s)
-    // Signup completes immediately; agents receive polished context on first chat
     void enrichOnboardingText(authData.user.id, problemStatement, targetCustomer, supabaseAdmin)
+
+    // Fire-and-forget: send welcome + email confirmation email
+    void sendWelcomeAndConfirmEmail({
+      email:        email,
+      fullName:     fullName,
+      startupName:  baseStartupName ?? 'Your Startup',
+      confirmToken,
+    }).catch(e => log.warn('[signup] welcome email failed:', e instanceof Error ? e.message : e))
 
     return NextResponse.json({
       message: 'Account created successfully',

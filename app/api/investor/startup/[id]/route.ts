@@ -51,13 +51,14 @@ export async function GET(
 
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
 
-    // Fetch in parallel: founder profile + latest Q-Score + latest artifacts + agent activity
+    // Fetch in parallel: founder profile + latest Q-Score + latest artifacts + agent activity + uploaded docs
     const [
       { data: profile, error: profileError },
       { data: qrow },
       { data: artifacts },
       { data: allArtifacts },
       { data: recentActivity },
+      { data: profileBuilderRows },
     ] = await Promise.all([
       admin
         .from('founder_profiles')
@@ -92,6 +93,11 @@ export async function GET(
         .gte('created_at', sevenDaysAgo)
         .order('created_at', { ascending: false })
         .limit(50),
+
+      admin
+        .from('profile_builder_data')
+        .select('section, extracted_fields, uploaded_documents')
+        .eq('user_id', founderId),
     ])
 
     if (profileError) {
@@ -101,6 +107,19 @@ export async function GET(
     if (!profile) {
       return NextResponse.json({ error: 'Founder not found' }, { status: 404 })
     }
+
+    // Aggregate profile_builder extracted_fields by section number
+    // Section 1=Market Validation, 2=Market & Competition, 3=IP & Tech, 4=Team, 5=Financials
+    const pbData: Record<number, Record<string, unknown>> = {}
+    for (const row of profileBuilderRows ?? []) {
+      if (row.extracted_fields && typeof row.extracted_fields === 'object') {
+        pbData[row.section] = row.extracted_fields as Record<string, unknown>
+      }
+    }
+    const pb1 = pbData[1] ?? {}
+    const pb2 = pbData[2] ?? {}
+    const pb4 = pbData[4] ?? {}
+    const pb5 = pbData[5] ?? {}
 
     // Fetch image URLs separately — these columns may not exist if migration hasn't run
     let avatarUrl: string | null = null
@@ -132,21 +151,28 @@ export async function GET(
     // Pull startup_profile_data early so it can serve as fallback for artifact fields
     const sp = (profile.startup_profile_data ?? {}) as Record<string, unknown>
 
-    // Financial metrics: artifact first, then profile-builder JSONB as fallback
+    // Financial metrics: artifact first, then profile-builder section 5, then onboarding sp as final fallback
     const financialMetrics = {
       mrr:        extractValue(fin, ['mrr', 'MRR', 'monthlyRevenue', 'monthly_revenue'])
+                  || (pb5.mrr as string) || (pb1.mrr as string)
                   || (sp.mrr as string) || (sp.currentMRR as string) || (sp.monthlyRevenue as string) || '',
       arr:        extractValue(fin, ['arr', 'ARR', 'annualRevenue', 'annual_revenue'])
+                  || (pb5.arr as string)
                   || (sp.arr as string) || (sp.annualRevenue as string) || '',
       growth:     extractValue(fin, ['growth', 'growthRate', 'growth_rate', 'mrrGrowth'])
+                  || (pb5.mrrGrowth as string)
                   || (sp.growth as string) || (sp.growthRate as string) || '',
       runway:     extractValue(fin, ['runway', 'runwayMonths', 'runway_months'])
+                  || (pb5.runway as string)
                   || (sp.runway as string) || (sp.runwayMonths as string) || (sp.runwayRemaining as string) || '',
       burnRate:   extractValue(fin, ['burn', 'burnRate', 'burn_rate', 'monthlyBurn'])
+                  || (pb5.monthlyBurn as string)
                   || (sp.burnRate as string) || (sp.monthlyBurn as string) || '',
       customers:  extractValue(fin, ['customers', 'customerCount', 'customer_count', 'activeCustomers'])
+                  || (pb1.conversationCount as string)
                   || (sp.customers as string) || (sp.customerCount as string) || '',
       cac:        extractValue(fin, ['cac', 'CAC', 'customerAcquisitionCost'])
+                  || (pb5.averageDealSize as string)
                   || (sp.cac as string) || '',
       ltv:        extractValue(fin, ['ltv', 'LTV', 'lifetimeValue', 'lifetime_value'])
                   || (sp.ltv as string) || '',
@@ -271,33 +297,42 @@ export async function GET(
       teamFromArtifact,
       competitors: competitors.length > 0
         ? competitors.slice(0, 4)
-        // Fall back to names from startup profile form
-        : spCompetitors.slice(0, 6).map(name => ({ name })),
+        : spCompetitors.length > 0
+          ? spCompetitors.slice(0, 6).map(name => ({ name }))
+          // Profile builder section 2 stores a count but not names; still useful as context
+          : (pb2.competitorCount ? [{ name: `${pb2.competitorCount} competitors identified` }] : []),
 
       aiAnalysis: { strengths, risks, recommendations },
 
-      // Rich startup profile fields (from founder's 6-step form)
+      // Rich startup profile fields — profile builder sections first, onboarding sp as fallback
       startupProfile: {
         solution:       (sp.solution       as string) || '',
-        whyNow:         (sp.whyNow         as string) || '',
+        whyNow:         (sp.whyNow         as string) || (pb2.marketUrgency as string) || '',
         moat:           (sp.moat           as string) || '',
         uniquePosition: (sp.uniquePosition as string) || '',
-        tamSize:        (sp.tamSize        as string) || '',
+        tamSize:        (sp.tamSize        as string) || (pb2.tamDescription as string) || '',
         marketGrowth:   (sp.marketGrowth   as string) || '',
         customerType:   (sp.customerPersona as string) || (sp.targetCustomer as string) || '',
         businessModel:  (sp.businessModel  as string) || '',
         differentiation:(sp.differentiation as string) || '',
-        // Team
+        competitorCount:(pb2.competitorCount as string) || '',
+        // Team — profile builder section 4
         equitySplit:    (sp.equitySplit    as string) || '',
-        teamSizeLabel:  (profile.team_size as string) || (sp.teamSize as string) || '',
+        teamSizeLabel:  (profile.team_size as string) || (sp.teamSize as string) || (pb4.teamCoverage as string) || '',
         advisors:       spAdvisors,
         keyHires:       (sp.keyHires       as string[] | undefined) ?? [],
+        domainYears:    (pb4.domainYears   as string) || '',
+        founderMarketFit:(pb4.founderMarketFit as string) || '',
+        priorExits:     (pb4.priorExits    as string) || '',
         // Fundraising
-        raisingAmount:  (sp.raisingAmount  as string) || '',
+        raisingAmount:  (sp.raisingAmount  as string) || (pb5.raisingAmount as string) || '',
         useOfFunds:     (sp.useOfFunds     as string) || '',
         previousFunding:(sp.previousFunding as string) || '',
-        runwayRemaining:(sp.runwayRemaining as string) || '',
+        runwayRemaining:(sp.runwayRemaining as string) || (pb5.runway as string) || '',
         targetCloseDate:(sp.targetCloseDate as string) || '',
+        // Profile builder validation signals
+        hasPayingCustomers: (pb1.hasPayingCustomers as boolean | undefined) ?? null,
+        customerConversations: (pb1.conversationCount as string) || '',
       },
 
       // Artifact coverage tells investors what due diligence material exists
@@ -310,6 +345,19 @@ export async function GET(
         hasStrategicPlan:     'strategic_plan' in latestByType,
         hasStartupProfile:    Object.keys(sp).length > 0,
       },
+
+      // Founder-uploaded documents from profile builder
+      uploadedDocuments: (profileBuilderRows ?? []).flatMap(row => {
+        const docs = row.uploaded_documents
+        if (!docs || !Array.isArray(docs)) return []
+        return (docs as Array<{ name?: string; url?: string; type?: string; size?: number }>).map(d => ({
+          name:    d.name    ?? 'Document',
+          url:     d.url     ?? '',
+          type:    d.type    ?? 'application/octet-stream',
+          size:    d.size    ?? null,
+          section: row.section,
+        }))
+      }),
 
       // Investor-visible agent activity — signals founder execution
       agentStats: (() => {

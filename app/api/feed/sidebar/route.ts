@@ -13,6 +13,7 @@ export async function GET() {
 
     const [
       { data: myProfile },
+      { data: myInvestorProfile },
       { data: myScore },
       { data: topScores },
       { count: founderCount },
@@ -20,6 +21,11 @@ export async function GET() {
     ] = await Promise.all([
       supabase.from('founder_profiles')
         .select('full_name, startup_name, avatar_url')
+        .eq('user_id', userId)
+        .maybeSingle(),
+
+      supabase.from('investor_profiles')
+        .select('user_id, full_name, firm_name')
         .eq('user_id', userId)
         .maybeSingle(),
 
@@ -61,24 +67,30 @@ export async function GET() {
 
     const profileMap = Object.fromEntries((topProfiles ?? []).map(p => [p.user_id, p]))
 
-    const topFounders = dedupedTop.map(r => {
-      const p = profileMap[r.user_id]
-      return {
-        name:         p?.full_name    ?? 'Community Member',
-        startup_name: p?.startup_name ?? '',
-        avatar_url:   p?.avatar_url   ?? null,
-        score:        r.overall_score,
-        grade:        r.grade ?? '',
-      }
-    })
+    const topFounders = dedupedTop
+      .map(r => {
+        const p = profileMap[r.user_id]
+        if (!p?.full_name && !p?.startup_name) return null
+        return {
+          name:         p?.startup_name ?? p?.full_name ?? '',
+          startup_name: p?.startup_name ?? '',
+          avatar_url:   p?.avatar_url   ?? null,
+          score:        r.overall_score,
+          grade:        r.grade ?? '',
+        }
+      })
+      .filter(Boolean) as Array<{ name: string; startup_name: string; avatar_url: string | null; score: number; grade: string }>
 
+    const isInvestor = !!myInvestorProfile && !myProfile
     return NextResponse.json({
       currentUser: {
-        name:         myProfile?.full_name    ?? null,
+        name:         myProfile?.full_name    ?? myInvestorProfile?.full_name ?? null,
         startup_name: myProfile?.startup_name ?? null,
+        firm_name:    myInvestorProfile?.firm_name ?? null,
         avatar_url:   myProfile?.avatar_url   ?? null,
         score:        myScore?.overall_score  ?? null,
         grade:        myScore?.grade          ?? null,
+        role:         isInvestor ? 'investor' : 'founder',
       },
       topFounders,
       stats: {

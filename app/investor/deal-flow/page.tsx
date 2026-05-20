@@ -7,6 +7,11 @@ import { useRouter } from "next/navigation";
 import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
 import { Avatar } from '@/features/shared/components/Avatar'
 
+// Module-level cache — survives soft navigation remounts within a session
+type _DFCacheEntry = { founders: unknown[]; pipelineMap: Record<string, string>; ts: number }
+let _dfCache: _DFCacheEntry | null = null
+const _DF_TTL = 90_000 // 90 s — serve stale data while revalidating in background
+
 // ─── types ────────────────────────────────────────────────────────────────────
 interface Founder {
   id: string;
@@ -308,32 +313,44 @@ export default function DealFlowPage() {
   }
 
   useEffect(() => {
+    function applyData(founders: unknown[], pm: Record<string, string>) {
+      setPipelineMap(pm)
+      setFounders((founders as (Founder & { lastActive: string })[]).map(f => ({
+        ...f,
+        tagline: f.tagline || f.sector,
+        stage:   f.stage   || 'Unknown',
+        sector:  f.sector  || 'Other',
+      })))
+    }
+
+    // Serve from cache immediately if fresh — no spinner
+    if (_dfCache && Date.now() - _dfCache.ts < _DF_TTL) {
+      applyData(_dfCache.founders, _dfCache.pipelineMap)
+      setLoading(false)
+      return
+    }
+
     Promise.all([
-      fetch("/api/investor/deal-flow").then(r => { if (!r.ok) throw new Error(String(r.status)); return r.json() }),
-      fetch("/api/investor/pipeline").then(r => r.ok ? r.json() : { pipelineMap: {} }).catch(() => ({ pipelineMap: {} })),
+      fetch('/api/investor/deal-flow').then(r => { if (!r.ok) throw new Error(String(r.status)); return r.json() }),
+      fetch('/api/investor/pipeline').then(r => r.ok ? r.json() : { pipelineMap: {} }).catch(() => ({ pipelineMap: {} })),
     ]).then(([flowData, pipeData]) => {
-      if (pipeData.pipelineMap) setPipelineMap(pipeData.pipelineMap);
-      if (flowData.founders) {
-        setFounders(flowData.founders.map((f: Founder & { lastActive: string }) => ({
-          ...f,
-          tagline: f.tagline || f.sector,
-          stage:   f.stage || "Unknown",
-          sector:  f.sector || "Other",
-        })));
-      }
-    }).catch(() => {}).finally(() => setLoading(false));
+      const pm = pipeData.pipelineMap ?? {}
+      const fs = flowData.founders ?? []
+      _dfCache = { founders: fs, pipelineMap: pm, ts: Date.now() }
+      applyData(fs, pm)
+    }).catch(() => {}).finally(() => setLoading(false))
   }, []);
 
   async function updatePipelineStage(founderId: string, stage: string) {
     if (!stage) {
-      setPipelineMap(prev => { const n = { ...prev }; delete n[founderId]; return n; });
+      setPipelineMap(prev => { const n = { ...prev }; delete n[founderId]; if (_dfCache) { const c = { ..._dfCache.pipelineMap }; delete c[founderId]; _dfCache = { ..._dfCache, pipelineMap: c } } return n; });
       fetch(`/api/investor/pipeline?founderId=${founderId}`, { method: "DELETE" }).catch(() => {});
       return;
     }
-    setPipelineMap(prev => ({ ...prev, [founderId]: stage }));
-    fetch("/api/investor/pipeline", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+    setPipelineMap(prev => { const n = { ...prev, [founderId]: stage }; if (_dfCache) _dfCache = { ..._dfCache, pipelineMap: n }; return n; });
+    fetch('/api/investor/pipeline', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ founderId, stage }),
     }).catch(() => {});
   }
@@ -359,7 +376,7 @@ export default function DealFlowPage() {
 
   const tabs = [
     { key: "all"      as const, label: `All (${founders.length})` },
-    { key: "hot"      as const, label: `Hot 🔥 (${hotCount})`, tooltip: "High Q-Score (80+), Stripe-verified revenue, or strong weekly momentum" },
+    { key: "hot"      as const, label: `High Signal (${hotCount})`, tooltip: "High Q-Score (80+), Stripe-verified revenue, or strong weekly momentum" },
     { key: "pipeline" as const, label: `In My Pipeline (${pipelineCount})` },
   ];
 

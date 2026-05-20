@@ -37,6 +37,7 @@ interface Conversation {
   connectedAt: string
   personalMessage?: string
   lastMessage?: { body: string; created_at: string; senderId: string } | null
+  unreadCount?: number
 }
 
 
@@ -88,33 +89,36 @@ export default function InvestorMessagesPage() {
         const uid = await getAuthUserId()
         if (uid) setMyUserId(uid)
 
-        const [pendingRes, portfolioRes] = await Promise.all([
+        const [pendingRes, threadsRes] = await Promise.all([
           fetch('/api/investor/connections'),
-          fetch('/api/investor/portfolio'),
+          fetch('/api/investor/messages'),
         ])
         if (pendingRes.ok) {
           const d = await pendingRes.json()
           setRequests(d.requests ?? [])
         }
-        if (portfolioRes.ok) {
-          const d = await portfolioRes.json()
+        if (threadsRes.ok) {
+          const d = await threadsRes.json()
           setConversations(
-            (d.companies ?? []).map((c: {
-              id: string; connectionId?: string; founderName: string; name: string;
-              stage: string; sector: string; qScore: number;
-              connectedAt: string; personalMessage?: string;
-              lastMessage?: { body: string; created_at: string; senderId: string } | null;
+            (d.threads ?? []).map((t: {
+              connectionId: string; founderId: string; founderName: string; startupName: string;
+              stage: string; industry: string; qScore: number; updatedAt: string;
+              personalMessage?: string; unreadCount: number;
+              latestMessage?: { body: string; createdAt: string; senderId: string } | null;
             }) => ({
-              id:              c.connectionId ?? c.id,
-              founderId:       c.id,
-              founderName:     c.founderName,
-              startupName:     c.name,
-              stage:           c.stage,
-              industry:        c.sector,
-              qScore:          c.qScore,
-              connectedAt:     c.connectedAt,
-              personalMessage: c.personalMessage,
-              lastMessage:     c.lastMessage ?? null,
+              id:              t.connectionId,
+              founderId:       t.founderId,
+              founderName:     t.founderName,
+              startupName:     t.startupName,
+              stage:           t.stage,
+              industry:        t.industry,
+              qScore:          t.qScore,
+              connectedAt:     t.updatedAt,
+              personalMessage: t.personalMessage,
+              unreadCount:     t.unreadCount,
+              lastMessage:     t.latestMessage
+                ? { body: t.latestMessage.body, created_at: t.latestMessage.createdAt, senderId: t.latestMessage.senderId }
+                : null,
             }))
           )
         }
@@ -156,7 +160,7 @@ export default function InvestorMessagesPage() {
         .channel(`messages:${connectionId}`)
         .on(
           'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'messages', filter: `connection_id=eq.${connectionId}` },
+          { event: 'INSERT', schema: 'public', table: 'messages', filter: `connection_request_id=eq.${connectionId}` },
           (payload) => {
             const newMsg = payload.new as ChatMessage
             setMessages(prev => {

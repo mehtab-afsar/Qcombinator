@@ -16,6 +16,7 @@ import { timeAgo } from "../utils/time";
 import { SidebarNotification } from "../types/founder.types";
 import { bg, surf, bdr, ink, muted, blue } from '@/lib/constants/colors'
 import { Avatar } from '@/features/shared/components/Avatar'
+import { EmailConfirmBanner } from '@/features/shared/components/EmailConfirmBanner'
 
 // ─── nav items ────────────────────────────────────────────────────────────────
 const BASE_NAV = [
@@ -314,6 +315,10 @@ export default function FounderSidebar() {
 
   return (
     <>
+      <EmailConfirmBanner
+        statusApiPath="/api/founder/email-status"
+        resendApiPath="/api/auth/resend-confirmation"
+      />
       <motion.nav
         style={{
           position: "fixed", left: 0, top: 0, zIndex: 40,

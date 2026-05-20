@@ -77,12 +77,12 @@ export async function GET() {
         .select('user_id')
         .in('user_id', userIds)
         .gte('created_at', since7d)
-        .limit(userIds.length * 20),
+        .limit(userIds.length * 3),
       admin
         .from('agent_artifacts')
         .select('user_id')
         .in('user_id', userIds)
-        .limit(userIds.length * 50),
+        .limit(userIds.length * 5),
       admin
         .from('investor_profiles')
         .select('ai_personalization, firm_name, thesis, focus_sectors, focus_stages, portfolio_companies, full_name')
@@ -231,10 +231,10 @@ export async function GET() {
       aiMatchSummary: (aiMatches[f.id]?.reason as string | undefined) ?? null,
     }))
 
-    return NextResponse.json({
-      founders: foundersWithSummary,
-      meta: { totalFounders: withMatch.length, gated: withMatch.length - visibleWithPrefs.length, preferenceFiltered: prefSectors.length > 0 || prefStages.length > 0 },
-    })
+    return NextResponse.json(
+      { founders: foundersWithSummary, meta: { totalFounders: withMatch.length, gated: withMatch.length - visibleWithPrefs.length, preferenceFiltered: prefSectors.length > 0 || prefStages.length > 0 } },
+      { headers: { 'Cache-Control': 'private, max-age=60, stale-while-revalidate=120' } },
+    )
   } catch (err) {
     log.error('GET /api/investor/deal-flow', { err })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

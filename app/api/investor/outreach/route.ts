@@ -62,6 +62,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to create connection' }, { status: 500 })
     }
 
+    // Persist the opening message into the messages table so both parties see it in the thread
+    void admin.from('messages').insert({
+      connection_request_id: data.id,
+      sender_id:    user.id,
+      recipient_id: founderId,
+      body:         message.trim(),
+    }).then(({ error: msgErr }) => {
+      if (msgErr) log.error('POST /api/investor/outreach messages insert', { msgErr })
+    })
+
     // Notify the founder
     try {
       const { data: ip } = await supabase

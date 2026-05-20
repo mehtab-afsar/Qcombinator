@@ -557,7 +557,7 @@ export default function PitchDeckPage() {
       {/* main layout */}
       <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 24 }}>
         {/* slide nav */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <div data-testid="pitch-deck-sidebar" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <p style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.12em", color: muted, marginBottom: 4 }}>
             <Layers size={12} style={{ display: "inline", marginRight: 4 }} />
             10 Slides

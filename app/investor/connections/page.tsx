@@ -2,6 +2,11 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+
+// Module-level cache — survives soft navigation remounts
+type _ConnCache = { requests: unknown[]; ts: number } | null
+let _connCache: _ConnCache = null
+const _CONN_TTL = 60_000 // 60 s
 import {
   ChevronRight, Check, X, MessageSquare, TrendingUp,
   Clock, AlertCircle, Users, RefreshCw,
@@ -308,13 +313,20 @@ export default function InvestorConnectionsPage() {
   const [declineBusy,   setDeclineBusy]   = useState(false);
   const [toast,         setToast]         = useState<{ msg: string; ok: boolean } | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (force = false) => {
+    if (!force && _connCache && Date.now() - _connCache.ts < _CONN_TTL) {
+      setRequests(_connCache.requests as ConnectionRequest[])
+      setLoading(false)
+      return
+    }
     setLoading(true);
     try {
       const res = await fetch('/api/investor/connections');
       if (!res.ok) throw new Error();
       const data = await res.json();
-      setRequests(data.requests ?? []);
+      const reqs = data.requests ?? []
+      _connCache = { requests: reqs, ts: Date.now() }
+      setRequests(reqs);
     } catch { setRequests([]); }
     finally { setLoading(false); }
   }, []);
@@ -334,7 +346,7 @@ export default function InvestorConnectionsPage() {
         body: JSON.stringify({ requestId, action: 'accept' }),
       });
       if (!res.ok) throw new Error();
-      setRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: 'meeting_scheduled' as Status } : r));
+      setRequests(prev => { const n = prev.map(r => r.id === requestId ? { ...r, status: 'meeting_scheduled' as Status } : r); _connCache = _connCache ? { ..._connCache, requests: n } : null; return n; });
       showToast('Connection accepted — the founder will be notified.', true);
     } catch { showToast('Failed to accept. Please try again.', false); }
     finally { setActionLoading(null); }
@@ -349,7 +361,7 @@ export default function InvestorConnectionsPage() {
         body: JSON.stringify({ requestId: declineTarget.id, action: 'decline', feedback: { reasons, text } }),
       });
       if (!res.ok) throw new Error();
-      setRequests(prev => prev.map(r => r.id === declineTarget.id ? { ...r, status: 'declined' as Status } : r));
+      setRequests(prev => { const n = prev.map(r => r.id === declineTarget.id ? { ...r, status: 'declined' as Status } : r); _connCache = _connCache ? { ..._connCache, requests: n } : null; return n; });
       showToast('Request declined.', true);
     } catch { showToast('Failed to decline. Please try again.', false); }
     finally { setDeclineBusy(false); setDeclineTarget(null); }
@@ -389,7 +401,7 @@ export default function InvestorConnectionsPage() {
             </h1>
             <p style={{ fontSize: 13, color: muted }}>Founders who want to connect with you, scored and ready to review.</p>
           </div>
-          <button onClick={load} disabled={loading} style={{
+          <button onClick={() => load(true)} disabled={loading} style={{
             display: "inline-flex", alignItems: "center", gap: 6,
             padding: "9px 16px", borderRadius: 8, fontSize: 12,
             background: surf, border: `1px solid ${bdr}`, color: muted,

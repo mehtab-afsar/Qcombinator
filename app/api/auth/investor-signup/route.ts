@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { randomUUID } from 'crypto'
 import { createClient } from '@supabase/supabase-js'
 import { parseBody, investorSignupSchema } from '@/lib/api/validate'
+import { sendWelcomeAndConfirmEmail } from '@/lib/email/send'
 import { log } from '@/lib/logger'
 
 export async function POST(request: NextRequest) {
@@ -15,11 +17,16 @@ export async function POST(request: NextRequest) {
       { auth: { autoRefreshToken: false, persistSession: false } }
     )
 
+    const confirmToken = randomUUID()
+
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
-      user_metadata: { role: 'investor' },
+      user_metadata: {
+        role: 'investor',
+        email_confirm_token: confirmToken,
+      },
     })
 
     if (authError || !authData.user) {
@@ -38,6 +45,14 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
+
+    // Fire-and-forget welcome + confirmation email
+    void sendWelcomeAndConfirmEmail({
+      email,
+      fullName:    email.split('@')[0],  // investor full name filled in during onboarding
+      startupName: 'Edge Alpha Investor', // placeholder until onboarding completes
+      confirmToken,
+    }).catch(e => log.warn('[investor-signup] welcome email failed:', e instanceof Error ? e.message : e))
 
     return NextResponse.json({ message: 'Account created', userId: authData.user.id })
   } catch (err) {

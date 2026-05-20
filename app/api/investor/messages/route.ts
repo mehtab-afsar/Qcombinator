@@ -29,7 +29,7 @@ export async function GET() {
 
     const { data: connections, error: connErr } = await supabase
       .from('connection_requests')
-      .select('id, founder_id, investor_id, status, created_at, updated_at')
+      .select('id, founder_id, investor_id, status, personal_message, created_at, updated_at')
       .or(connOrFilter)
       .in('status', ['meeting_scheduled', 'accepted'])
       .order('updated_at', { ascending: false })
@@ -46,8 +46,8 @@ export async function GET() {
     const connectionIds = connections.map(c => c.id)
     const founderIds = [...new Set(connections.map(c => c.founder_id).filter(Boolean))]
 
-    // Batch fetch: messages + founder profiles in parallel
-    const [{ data: allMessages }, { data: founderProfiles }] = await Promise.all([
+    // Batch fetch: messages + founder profiles + Q-scores in parallel
+    const [{ data: allMessages }, { data: founderProfiles }, { data: qrows }] = await Promise.all([
       supabase
         .from('messages')
         .select('id, connection_request_id, sender_id, body, read_at, created_at')
@@ -55,13 +55,25 @@ export async function GET() {
         .order('created_at', { ascending: false }),
       supabase
         .from('founder_profiles')
-        .select('user_id, full_name, startup_name, avatar_url')
+        .select('user_id, full_name, startup_name, avatar_url, industry, stage')
         .in('user_id', founderIds),
+      supabase
+        .from('qscore_history')
+        .select('user_id, overall_score, calculated_at')
+        .in('user_id', founderIds)
+        .order('calculated_at', { ascending: false })
+        .limit(founderIds.length * 3),
     ])
 
     // Index profiles by founder user_id
-    const profileMap = new Map<string, { full_name: string; startup_name: string; avatar_url: string | null }>()
+    const profileMap = new Map<string, { full_name: string; startup_name: string; avatar_url: string | null; industry: string | null; stage: string | null }>()
     for (const p of founderProfiles ?? []) profileMap.set(p.user_id, p)
+
+    // Keep latest Q-score per founder
+    const latestQ = new Map<string, number>()
+    for (const q of qrows ?? []) {
+      if (!latestQ.has(q.user_id)) latestQ.set(q.user_id, q.overall_score)
+    }
 
     // Group messages by connection_request_id
     const msgsByConnection = new Map<string, typeof allMessages>()
@@ -79,12 +91,16 @@ export async function GET() {
       const founderProfile = profileMap.get(conn.founder_id)
 
       return {
-        connectionId:  conn.id,
-        founderId:     conn.founder_id,
-        founderName:   founderProfile?.full_name   ?? 'Unknown Founder',
-        startupName:   founderProfile?.startup_name ?? 'Unknown Startup',
-        avatarUrl:     founderProfile?.avatar_url   ?? null,
-        status:        conn.status,
+        connectionId:    conn.id,
+        founderId:       conn.founder_id,
+        founderName:     founderProfile?.full_name    ?? 'Unknown Founder',
+        startupName:     founderProfile?.startup_name ?? 'Unknown Startup',
+        avatarUrl:       founderProfile?.avatar_url   ?? null,
+        industry:        founderProfile?.industry     ?? '',
+        stage:           founderProfile?.stage        ?? '',
+        qScore:          latestQ.get(conn.founder_id) ?? 0,
+        personalMessage: (conn as Record<string, unknown>).personal_message as string | null ?? null,
+        status:          conn.status,
         unreadCount,
         latestMessage: latestMessage
           ? {

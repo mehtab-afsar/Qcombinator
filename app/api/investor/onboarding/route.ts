@@ -25,6 +25,10 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createClient()
 
+    // Pull the email_confirm_token from auth user metadata (set at signup)
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    const confirmToken = authUser?.user_metadata?.email_confirm_token as string | undefined ?? null
+
     const { data: profile, error } = await supabase
       .from('investor_profiles')
       .upsert(
@@ -50,6 +54,7 @@ export async function POST(request: NextRequest) {
           monthly_deal_volume: timeline        || null,
           subscription_tier:    'pro',
           onboarding_completed: true,
+          email_confirm_token: confirmToken,    // migrate token from auth metadata to profile row
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'user_id' }

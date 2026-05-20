@@ -60,6 +60,14 @@ export async function POST(
         `| ${d.category} | ${d.score}/100 | ${d.weight} |`
       ).join('\n')
 
+    // Identify the two weakest Q-Score dimensions to surface as risk context
+    const sortedDims = [...(startup.qScoreBreakdown ?? [])].sort(
+      (a: { score: number }, b: { score: number }) => a.score - b.score
+    )
+    const weakDimsNote = sortedDims.length >= 2
+      ? `Weakest dimensions: ${sortedDims[0]?.category} (${sortedDims[0]?.score}/100), ${sortedDims[1]?.category} (${sortedDims[1]?.score}/100).`
+      : ''
+
     const artifactList = Object.entries(startup.artifactCoverage ?? {})
       .map(([k, v]) => `${v ? '✅' : '⬜'} ${k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}`)
       .join(' · ')
@@ -88,6 +96,7 @@ AI Analysis:
 Strengths: ${(startup.aiAnalysis?.strengths ?? []).join('; ')}
 Risks: ${(startup.aiAnalysis?.risks ?? []).join('; ')}
 Recommendations: ${(startup.aiAnalysis?.recommendations ?? []).join('; ')}
+${weakDimsNote}
 
 Artifacts built by founder: ${artifactList}
 ---
@@ -113,9 +122,7 @@ Write the investment memo in this EXACT structure (use markdown headers):
 [2-3 sentences: what we know about financials, runway, growth trajectory]
 
 ## Key Risks
-1. [Risk 1 — be specific to this startup's data, not generic]
-2. [Risk 2]
-3. [Risk 3]
+Write exactly 3 numbered investment risks specific to this startup. Each risk must cite a concrete data point, Q-Score dimension score, financial gap, or market challenge from the data above. Do not write generic risks. Format as plain numbered sentences with no brackets.
 
 ## Recommendation
 **[INVEST / WATCH / PASS]** — [2-3 sentence rationale based on the actual data above. If Q-Score < 50, likely Pass or Watch. If > 70, lean toward Invest or Watch. Be honest about gaps in data.]

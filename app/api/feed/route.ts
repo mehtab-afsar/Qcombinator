@@ -32,29 +32,45 @@ export async function GET(req: NextRequest) {
     const { data: posts, error } = await query
     if (error) throw error
 
-    // Enrich with author names — batch fetch from both tables
+    // Enrich with author names + Q-Score grades — batch fetch
     const userIds = [...new Set((posts ?? []).map(p => p.user_id))]
-    const [{ data: founders }, { data: investors }] = await Promise.all([
-      supabase.from('founder_profiles').select('user_id, full_name, startup_name, avatar_url').in('user_id', userIds),
+    const [{ data: founders }, { data: investors }, { data: qScores }] = await Promise.all([
+      supabase.from('founder_profiles').select('user_id, full_name, startup_name, avatar_url, tagline, industry, stage').in('user_id', userIds),
       supabase.from('investor_profiles').select('user_id, full_name, firm_name, avatar_url').in('user_id', userIds),
+      supabase.from('qscore_history').select('user_id, overall_score, grade').in('user_id', userIds).order('calculated_at', { ascending: false }).limit(userIds.length * 2),
     ])
 
     const founderMap = Object.fromEntries((founders ?? []).map(f => [f.user_id, f]))
     const investorMap = Object.fromEntries((investors ?? []).map(i => [i.user_id, i]))
+    // Deduplicate to latest Q-Score per user
+    const qScoreMap: Record<string, { overall_score: number; grade: string }> = {}
+    for (const q of (qScores ?? [])) {
+      if (!qScoreMap[q.user_id]) qScoreMap[q.user_id] = q
+    }
 
     const myId = auth.user.id
 
-    const enriched = (posts ?? []).map(post => {
+    const enriched = (posts ?? []).flatMap(post => {
       const fp = founderMap[post.user_id]
       const ip = investorMap[post.user_id]
-      const displayName = (post.role === 'founder' ? fp?.full_name : ip?.full_name)
-        ?? fp?.full_name ?? ip?.full_name ?? 'Community Member'
+      // Drop posts from ghost accounts (no profile in either table)
+      if (!fp && !ip) return []
+      // For founders: identity is the startup, not the person
+      const displayName = post.role === 'founder'
+        ? (fp?.startup_name ?? fp?.full_name ?? 'Unknown Startup')
+        : (ip?.full_name ?? ip?.firm_name ?? 'An Investor')
+      // Subtitle: tagline if available, else sector · stage, else founder name
+      const founderSubtitle = (fp as Record<string, unknown> | undefined)?.tagline as string | undefined
+        ?? ((fp as Record<string, unknown> | undefined)?.industry as string | undefined)
+        ?? fp?.full_name
+        ?? ''
       const subtitle = post.role === 'founder'
-        ? (fp?.startup_name ?? ip?.firm_name ?? '')
-        : (ip?.firm_name ?? fp?.startup_name ?? '')
+        ? founderSubtitle
+        : (ip?.firm_name ?? '')
       const avatarUrl = (post.role === 'founder' ? fp?.avatar_url : ip?.avatar_url)
         ?? fp?.avatar_url ?? ip?.avatar_url ?? null
-      const author = { name: displayName, subtitle, avatarUrl }
+      const qRow = qScoreMap[post.user_id]
+      const author = { name: displayName, subtitle, avatarUrl, qScoreGrade: qRow?.grade ?? null, qScore: qRow?.overall_score ?? null }
 
       const reactions = (post.feed_reactions as Array<{ user_id: string }> | null) ?? []
       return {

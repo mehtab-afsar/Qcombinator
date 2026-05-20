@@ -337,6 +337,7 @@ export default function MetricsTracker() {
                 </p>
               )}
               <button
+                data-testid="metrics-update-btn"
                 onClick={openEditor}
                 onMouseEnter={e => (e.currentTarget.style.opacity = "0.8")}
                 onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
