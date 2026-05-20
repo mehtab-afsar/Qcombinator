@@ -19,16 +19,25 @@ export async function GET(
 
     const admin = createAdminClient()
 
-    // Verify the caller is a pro investor — must have an investor_profiles row
-    // with a paid subscription tier (matches the deal-flow access model).
-    // This prevents founders from viewing other founders' private data via this endpoint.
-    const { data: investorProfile } = await admin
+    // Verify the caller is an investor — must have an investor_profiles row.
+    // Free-tier investors are blocked; null/pro tier are allowed.
+    let { data: investorProfile } = await admin
       .from('investor_profiles')
       .select('subscription_tier')
       .eq('user_id', user.id)
       .single()
 
-    if (!investorProfile || investorProfile.subscription_tier === 'free') {
+    // Auto-create investor profile on first access so direct URL access works
+    if (!investorProfile) {
+      const { data: created } = await admin
+        .from('investor_profiles')
+        .upsert({ user_id: user.id, subscription_tier: 'pro', updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
+        .select('subscription_tier')
+        .single()
+      investorProfile = created
+    }
+
+    if (investorProfile?.subscription_tier === 'free') {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 

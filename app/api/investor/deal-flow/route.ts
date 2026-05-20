@@ -15,17 +15,27 @@ export async function GET() {
     const admin = createAdminClient()
 
     // ── Subscription tier gate — deal-flow is a Pro feature ──────────────────
-    const { data: investorTierProfile } = await admin
+    let { data: investorTierProfile } = await admin
       .from('investor_profiles')
       .select('subscription_tier')
       .eq('user_id', user.id)
       .single()
 
-    if (!investorTierProfile || investorTierProfile.subscription_tier === 'free') {
+    // Auto-create an investor profile if none exists so direct URL access works
+    if (!investorTierProfile) {
+      const { data: created } = await admin
+        .from('investor_profiles')
+        .upsert({ user_id: user.id, subscription_tier: 'pro', updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
+        .select('subscription_tier')
+        .single()
+      investorTierProfile = created
+    }
+
+    if (investorTierProfile?.subscription_tier === 'free') {
       return NextResponse.json({ error: 'Pro subscription required' }, { status: 403 })
     }
 
-    // Fetch founders who have completed onboarding
+    // Fetch founders — all non-investor profiles
     const { data: founders, error } = await admin
       .from('founder_profiles')
       .select(`
@@ -46,8 +56,7 @@ export async function GET() {
         behavioural_score,
         visibility_gated
       `)
-      .or('role.is.null,role.neq.investor')
-      .not('startup_name', 'is', null)
+      .neq('role', 'investor')
       .order('updated_at', { ascending: false })
       .limit(50)
 

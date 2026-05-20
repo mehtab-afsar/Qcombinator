@@ -48,6 +48,7 @@ export async function POST(request: NextRequest) {
           deal_flow_strategy:  dealFlow        || null,
           decision_process:    decisionProcess || null,
           monthly_deal_volume: timeline        || null,
+          subscription_tier:    'pro',
           onboarding_completed: true,
           updated_at: new Date().toISOString(),
         },
