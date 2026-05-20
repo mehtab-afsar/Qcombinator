@@ -45,11 +45,16 @@ export async function GET(req: NextRequest) {
     const myId = auth.user.id
 
     const enriched = (posts ?? []).map(post => {
-      const founder = founderMap[post.user_id]
-      const investor = investorMap[post.user_id]
-      const author = post.role === 'founder'
-        ? { name: founder?.full_name ?? 'Unknown Founder', subtitle: founder?.startup_name ?? '', avatarUrl: founder?.avatar_url ?? null }
-        : { name: investor?.full_name ?? 'Unknown Investor', subtitle: investor?.firm_name ?? '', avatarUrl: investor?.avatar_url ?? null }
+      const fp = founderMap[post.user_id]
+      const ip = investorMap[post.user_id]
+      const displayName = (post.role === 'founder' ? fp?.full_name : ip?.full_name)
+        ?? fp?.full_name ?? ip?.full_name ?? 'Community Member'
+      const subtitle = post.role === 'founder'
+        ? (fp?.startup_name ?? ip?.firm_name ?? '')
+        : (ip?.firm_name ?? fp?.startup_name ?? '')
+      const avatarUrl = (post.role === 'founder' ? fp?.avatar_url : ip?.avatar_url)
+        ?? fp?.avatar_url ?? ip?.avatar_url ?? null
+      const author = { name: displayName, subtitle, avatarUrl }
 
       const reactions = (post.feed_reactions as Array<{ user_id: string }> | null) ?? []
       return {
