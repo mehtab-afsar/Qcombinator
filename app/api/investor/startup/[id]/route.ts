@@ -29,9 +29,17 @@ export async function GET(
 
     // Auto-create investor profile on first access so direct URL access works
     if (!investorProfile) {
+      const email = user.email ?? ''
+      const name  = (user.user_metadata?.full_name as string | undefined)
+                    ?? (user.user_metadata?.name as string | undefined)
+                    ?? email.split('@')[0]
+                    ?? 'Investor'
       const { data: created } = await admin
         .from('investor_profiles')
-        .upsert({ user_id: user.id, subscription_tier: 'pro', updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
+        .upsert(
+          { user_id: user.id, full_name: name, email, subscription_tier: 'pro', updated_at: new Date().toISOString() },
+          { onConflict: 'user_id' }
+        )
         .select('subscription_tier')
         .single()
       investorProfile = created
