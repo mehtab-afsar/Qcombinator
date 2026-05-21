@@ -121,6 +121,12 @@ export async function GET(
     const pb4 = pbData[4] ?? {}
     const pb5 = pbData[5] ?? {}
 
+    // Profile builder stores financials nested: pb5.financial.mrr (not flat pb5.mrr)
+    // Similarly p2/p4 fields are nested under their respective keys
+    const pb5fin = ((pb5.financial  as Record<string, unknown>) ?? {})
+    const pb2p2  = ((pb2.p2         as Record<string, unknown>) ?? pb2)
+    const pb4p4  = ((pb4.p4         as Record<string, unknown>) ?? pb4)
+
     // Fetch image URLs separately — these columns may not exist if migration hasn't run
     let avatarUrl: string | null = null
     let companyLogoUrl: string | null = null
@@ -151,32 +157,35 @@ export async function GET(
     // Pull startup_profile_data early so it can serve as fallback for artifact fields
     const sp = (profile.startup_profile_data ?? {}) as Record<string, unknown>
 
-    // Financial metrics: artifact first, then profile-builder section 5, then onboarding sp as final fallback
+    // Financial metrics: artifact first, then profile-builder section 5 (unwrapped from nested .financial),
+    // then onboarding startup_profile_data as final fallback
     const financialMetrics = {
       mrr:        extractValue(fin, ['mrr', 'MRR', 'monthlyRevenue', 'monthly_revenue'])
-                  || (pb5.mrr as string) || (pb1.mrr as string)
+                  || (pb5fin.mrr as string)
                   || (sp.mrr as string) || (sp.currentMRR as string) || (sp.monthlyRevenue as string) || '',
       arr:        extractValue(fin, ['arr', 'ARR', 'annualRevenue', 'annual_revenue'])
-                  || (pb5.arr as string)
+                  || (pb5fin.arr as string)
                   || (sp.arr as string) || (sp.annualRevenue as string) || '',
       growth:     extractValue(fin, ['growth', 'growthRate', 'growth_rate', 'mrrGrowth'])
-                  || (pb5.mrrGrowth as string)
+                  || (pb5fin.mrrGrowth as string) || (pb5fin.growthRate as string)
                   || (sp.growth as string) || (sp.growthRate as string) || '',
       runway:     extractValue(fin, ['runway', 'runwayMonths', 'runway_months'])
-                  || (pb5.runway as string)
+                  || (pb5fin.runway as string)
                   || (sp.runway as string) || (sp.runwayMonths as string) || (sp.runwayRemaining as string) || '',
       burnRate:   extractValue(fin, ['burn', 'burnRate', 'burn_rate', 'monthlyBurn'])
-                  || (pb5.monthlyBurn as string)
+                  || (pb5fin.monthlyBurn as string)
                   || (sp.burnRate as string) || (sp.monthlyBurn as string) || '',
       customers:  extractValue(fin, ['customers', 'customerCount', 'customer_count', 'activeCustomers'])
-                  || (pb1.conversationCount as string)
+                  || (pb1.customerCount as string)
                   || (sp.customers as string) || (sp.customerCount as string) || '',
       cac:        extractValue(fin, ['cac', 'CAC', 'customerAcquisitionCost'])
-                  || (pb5.averageDealSize as string)
+                  || (pb5fin.cac as string) || (pb5fin.averageDealSize as string)
                   || (sp.cac as string) || '',
       ltv:        extractValue(fin, ['ltv', 'LTV', 'lifetimeValue', 'lifetime_value'])
+                  || (pb5fin.ltv as string)
                   || (sp.ltv as string) || '',
       grossMargin:extractValue(fin, ['grossMargin', 'gross_margin', 'margin'])
+                  || (pb5fin.grossMargin as string)
                   || (sp.grossMargin as string) || '',
     }
     // Flag when data is from profile-builder (self-reported) vs agent artifact
@@ -300,35 +309,35 @@ export async function GET(
         : spCompetitors.length > 0
           ? spCompetitors.slice(0, 6).map(name => ({ name }))
           // Profile builder section 2 stores a count but not names; still useful as context
-          : (pb2.competitorCount ? [{ name: `${pb2.competitorCount} competitors identified` }] : []),
+          : (pb2p2.competitorCount ? [{ name: `${pb2p2.competitorCount} competitors identified` }] : []),
 
       aiAnalysis: { strengths, risks, recommendations },
 
-      // Rich startup profile fields — profile builder sections first, onboarding sp as fallback
+      // Rich startup profile fields — profile builder sections first (with correct nesting), onboarding sp as fallback
       startupProfile: {
-        solution:       (sp.solution       as string) || '',
-        whyNow:         (sp.whyNow         as string) || (pb2.marketUrgency as string) || '',
-        moat:           (sp.moat           as string) || '',
-        uniquePosition: (sp.uniquePosition as string) || '',
-        tamSize:        (sp.tamSize        as string) || (pb2.tamDescription as string) || '',
-        marketGrowth:   (sp.marketGrowth   as string) || '',
-        customerType:   (sp.customerPersona as string) || (sp.targetCustomer as string) || '',
-        businessModel:  (sp.businessModel  as string) || '',
-        differentiation:(sp.differentiation as string) || '',
-        competitorCount:(pb2.competitorCount as string) || '',
-        // Team — profile builder section 4
+        solution:       (sp.solution       as string) || (pb4p4.problemStory as string) || '',
+        whyNow:         (sp.whyNow         as string) || (pb2p2.marketUrgency as string) || '',
+        moat:           (sp.moat           as string) || (pb4p4.advantages    as string[])?.join('; ') || '',
+        uniquePosition: (sp.uniquePosition as string) || (pb2p2.valuePool as string) || '',
+        tamSize:        (sp.tamSize        as string) || (pb2p2.tamDescription as string) || '',
+        marketGrowth:   (sp.marketGrowth   as string) || (pb2p2.marketGrowth as string) || '',
+        customerType:   (sp.customerPersona as string) || (sp.targetCustomer as string) || (pb2p2.targetCustomers as string) || '',
+        businessModel:  (sp.businessModel  as string) || (pb5fin.businessModel as string) || '',
+        differentiation:(sp.differentiation as string) || (pb2p2.competitorDensityContext as string) || '',
+        competitorCount:(pb2p2.competitorCount as string) || '',
+        // Team — profile builder section 4 (nested under p4)
         equitySplit:    (sp.equitySplit    as string) || '',
-        teamSizeLabel:  (profile.team_size as string) || (sp.teamSize as string) || (pb4.teamCoverage as string) || '',
+        teamSizeLabel:  (profile.team_size as string) || (sp.teamSize as string) || (pb4p4.teamCoverage as string[])?.join(', ') || '',
         advisors:       spAdvisors,
         keyHires:       (sp.keyHires       as string[] | undefined) ?? [],
-        domainYears:    (pb4.domainYears   as string) || '',
-        founderMarketFit:(pb4.founderMarketFit as string) || '',
-        priorExits:     (pb4.priorExits    as string) || '',
-        // Fundraising
-        raisingAmount:  (sp.raisingAmount  as string) || (pb5.raisingAmount as string) || '',
+        domainYears:    (pb4p4.domainYears   as string) || '',
+        founderMarketFit:(pb4p4.founderMarketFit as string) || '',
+        priorExits:     (pb4p4.priorExits    as string) || '',
+        // Fundraising — pb5fin has the nested financial fields
+        raisingAmount:  (sp.raisingAmount  as string) || (pb5fin.raisingAmount as string) || '',
         useOfFunds:     (sp.useOfFunds     as string) || '',
         previousFunding:(sp.previousFunding as string) || '',
-        runwayRemaining:(sp.runwayRemaining as string) || (pb5.runway as string) || '',
+        runwayRemaining:(sp.runwayRemaining as string) || (pb5fin.runway as string) || '',
         targetCloseDate:(sp.targetCloseDate as string) || '',
         // Profile builder validation signals
         hasPayingCustomers: (pb1.hasPayingCustomers as boolean | undefined) ?? null,
@@ -382,6 +391,7 @@ export async function GET(
       scoreVersion: qrow?.score_version ?? 'v1_prd',
       avatarUrl,
       companyLogoUrl,
+      aiDerivedFields: sp._aiDerived === true,
     }
 
     return NextResponse.json({ startup: result })

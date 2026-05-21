@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { User, Building2, Target, Bell, LogOut, Save, RefreshCw, CheckCircle, Upload, FileText } from 'lucide-react'
+import { User, Building2, Target, Bell, LogOut, Save, RefreshCw, CheckCircle, Upload, FileText, CreditCard, Zap, ExternalLink } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useInvestorSettings } from '@/features/investor/hooks/useInvestorSettings'
 import {
@@ -17,12 +17,13 @@ import { TabNav } from '@/features/shared/components/TabNav'
 import { PageSpinner } from '@/features/shared/components/Spinner'
 
 // ─── types ────────────────────────────────────────────────────────────────────
-type TabId = 'account' | 'preferences' | 'notifications'
+type TabId = 'account' | 'preferences' | 'notifications' | 'billing'
 
 const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: 'account',       label: 'Account',        icon: User       },
   { id: 'preferences',   label: 'Preferences',    icon: Target     },
   { id: 'notifications', label: 'Notifications',  icon: Bell       },
+  { id: 'billing',       label: 'Billing',        icon: CreditCard },
 ]
 
 const SECTOR_OPTIONS = [
@@ -88,6 +89,10 @@ export default function InvestorSettingsPage() {
   })
   const [savingWeights, setSavingWeights] = useState(false)
 
+  // Billing state
+  const [billingInfo,    setBillingInfo]    = useState<{ subscriptionTier: string; subscriptionStatus: string | null; periodEnd: string | null } | null>(null)
+  const [billingActing,  setBillingActing]  = useState(false)
+
   // Populate form once settings are loaded
   useEffect(() => {
     if (!initialSettings) return
@@ -107,13 +112,16 @@ export default function InvestorSettingsPage() {
     setFirmLogoUrl((initialSettings as unknown as Record<string, unknown>).firmLogoUrl as string | null ?? null)
   }, [initialSettings])
 
-  // Load portfolio config + weights on mount
+  // Load portfolio config + weights + billing on mount
   useEffect(() => {
     fetch('/api/investor/portfolio-config').then(r => r.json()).then(({ config }) => {
       if (config) setPortfolioCfg(cfg => ({ ...cfg, ...config }))
     }).catch(() => {})
     fetch('/api/investor/weights').then(r => r.json()).then(({ weights: w }) => {
       if (w) setWeights(wts => ({ ...wts, ...w }))
+    }).catch(() => {})
+    fetch('/api/investor/billing/status').then(r => r.json()).then(d => {
+      if (d) setBillingInfo(d)
     }).catch(() => {})
   }, [])
 
@@ -128,6 +136,22 @@ export default function InvestorSettingsPage() {
       showToast('Portfolio display saved')
     } catch { showToast('Failed to save', 'error') }
     finally { setSavingPortfolioCfg(false) }
+  }
+
+  async function handleBillingAction() {
+    setBillingActing(true)
+    try {
+      const isPro = billingInfo?.subscriptionTier === 'pro'
+      const endpoint = isPro ? '/api/investor/billing/portal' : '/api/investor/billing/checkout'
+      const res = await fetch(endpoint, { method: 'POST' })
+      const { url, error } = await res.json()
+      if (error) throw new Error(error)
+      window.location.href = url
+    } catch {
+      showToast('Something went wrong. Please try again.', 'error')
+    } finally {
+      setBillingActing(false)
+    }
   }
 
   async function handleSaveWeights() {
@@ -633,6 +657,91 @@ export default function InvestorSettingsPage() {
                 </button>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* ── billing tab ── */}
+        {activeTab === 'billing' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Plan card */}
+            <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden' }}>
+              <div style={{ padding: '16px 20px', borderBottom: `1px solid ${bdr}`, background: surf, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <CreditCard style={{ height: 14, width: 14, color: muted }} />
+                <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>Current Plan</p>
+              </div>
+              <div style={{ padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  {billingInfo ? (
+                    <>
+                      <div style={{
+                        padding: '4px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700,
+                        background: billingInfo.subscriptionTier === 'pro' ? '#EFF6FF' : surf,
+                        color:      billingInfo.subscriptionTier === 'pro' ? blue       : muted,
+                        border:     `1px solid ${billingInfo.subscriptionTier === 'pro' ? '#BFDBFE' : bdr}`,
+                      }}>
+                        {billingInfo.subscriptionTier === 'pro' ? '⚡ Pro' : 'Free'}
+                      </div>
+                      {billingInfo.subscriptionTier === 'pro' && billingInfo.periodEnd && (
+                        <span style={{ fontSize: 11, color: muted }}>
+                          Renews {new Date(billingInfo.periodEnd).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
+                      )}
+                      {billingInfo.subscriptionStatus && billingInfo.subscriptionStatus !== 'inactive' && (
+                        <span style={{
+                          padding: '2px 8px', borderRadius: 999, fontSize: 10, fontWeight: 600,
+                          background: billingInfo.subscriptionStatus === 'active' ? '#ECFDF5' : '#FFFBEB',
+                          color:      billingInfo.subscriptionStatus === 'active' ? green     : amber,
+                        }}>
+                          {billingInfo.subscriptionStatus}
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <div style={{ height: 24, width: 80, borderRadius: 999, background: surf }} />
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={handleBillingAction}
+                    disabled={billingActing}
+                    style={{
+                      padding: '8px 16px', borderRadius: 8, border: 'none', fontSize: 12, fontWeight: 600,
+                      background: billingInfo?.subscriptionTier === 'pro' ? surf : blue,
+                      color:      billingInfo?.subscriptionTier === 'pro' ? ink  : '#fff',
+                      border: billingInfo?.subscriptionTier === 'pro' ? `1px solid ${bdr}` : 'none',
+                      cursor: billingActing ? 'not-allowed' : 'pointer', opacity: billingActing ? 0.6 : 1,
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                    } as React.CSSProperties}
+                  >
+                    {billingInfo?.subscriptionTier === 'pro'
+                      ? <><CreditCard style={{ height: 12, width: 12 }} />{billingActing ? 'Loading…' : 'Manage subscription'}</>
+                      : <><Zap style={{ height: 12, width: 12 }} />{billingActing ? 'Loading…' : 'Upgrade to Pro — $99/mo'}</>
+                    }
+                  </button>
+                  <a
+                    href="/investor/billing"
+                    style={{ padding: '8px 14px', borderRadius: 8, border: `1px solid ${bdr}`, background: 'transparent', color: muted, fontSize: 12, fontWeight: 500, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 5 }}
+                  >
+                    <ExternalLink style={{ height: 11, width: 11 }} /> Full billing
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            {/* Pro features reminder */}
+            {billingInfo?.subscriptionTier !== 'pro' && (
+              <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 14, padding: '16px 20px' }}>
+                <p style={{ fontSize: 12, fontWeight: 600, color: blue, marginBottom: 10 }}>What you get with Pro</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8 }}>
+                  {['Unlimited deal flow access', 'AI match scores + personalization', 'Pipeline management & kanban', 'Thesis extraction from PDF', 'Founder deep-dive profiles', 'Priority support'].map(f => (
+                    <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, color: ink }}>
+                      <CheckCircle style={{ height: 11, width: 11, color: blue, flexShrink: 0 }} />
+                      {f}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

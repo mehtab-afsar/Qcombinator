@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Heart, MessageCircle, Send, X, Loader2,
   Lightbulb, HelpCircle, Star, Zap, Trash2, Image as ImageIcon,
-  Briefcase, Users, TrendingUp, PenLine,
+  Briefcase, Users, TrendingUp,
 } from 'lucide-react'
 import { bg, surf, bdr, ink, muted, blue, green, amber } from '@/lib/constants/colors'
 
@@ -706,77 +706,6 @@ function CreatePostModal({ onClose, onPost, initialType = 'update', initialText 
   )
 }
 
-// ─── LeftSidebar ──────────────────────────────────────────────────────────────
-function LeftSidebar({ sidebar, onWrite }: { sidebar: SidebarData | null; onWrite: () => void }) {
-  const cu = sidebar?.currentUser
-  const score = cu?.score ?? null
-  const grade = cu?.grade ?? null
-  const sc = scoreColor(score)
-  const isInvestor = cu?.role === 'investor'
-
-  // Display name: startup name for founders, person name for investors
-  const displayName = isInvestor ? (cu?.name ?? null) : (cu?.startup_name ?? cu?.name ?? null)
-  const subtitle    = isInvestor ? (cu?.firm_name ?? null) : (cu?.name ?? null)
-
-  return (
-    <div style={{ width: 240, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {/* Profile card */}
-      <div style={{ background: '#fff', border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-        {/* banner strip */}
-        <div style={{ height: 52, background: `linear-gradient(135deg, ${blue}15, ${green}10)` }} />
-        <div style={{ padding: '0 18px 18px', marginTop: -26 }}>
-          {/* Avatar */}
-          {displayName ? (
-            <Avatar name={displayName} avatarUrl={cu?.avatar_url ?? null} size={52} role={isInvestor ? 'investor' : 'founder'} />
-          ) : (
-            <div style={{ width: 52, height: 52, borderRadius: '50%', background: surf, border: `2px solid #fff`, flexShrink: 0 }} />
-          )}
-          <div style={{ marginTop: 10 }}>
-            {displayName ? (
-              <>
-                <p style={{ fontSize: 14, fontWeight: 700, color: ink, marginBottom: 2 }}>{displayName}</p>
-                {subtitle && <p style={{ fontSize: 12, color: muted, marginBottom: 8 }}>{subtitle}</p>}
-              </>
-            ) : (
-              <>
-                <div style={{ height: 14, width: 120, background: surf, borderRadius: 4, marginBottom: 6 }} />
-                <div style={{ height: 11, width: 80, background: surf, borderRadius: 4, marginBottom: 8 }} />
-              </>
-            )}
-            {!isInvestor && score !== null ? (
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 999, background: `${sc}10`, border: `1px solid ${sc}25` }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: sc, lineHeight: 1 }}>{score}</span>
-                <span style={{ fontSize: 10, color: sc, fontWeight: 600 }}>Q-Score · {grade}</span>
-              </div>
-            ) : !isInvestor ? (
-              <div style={{ height: 24, width: 100, background: surf, borderRadius: 999 }} />
-            ) : null}
-          </div>
-        </div>
-
-        {/* Write a post CTA */}
-        <div style={{ borderTop: `1px solid ${bdr}`, padding: '12px 16px' }}>
-          <button
-            onClick={onWrite}
-            style={{
-              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-              padding: '9px 0', borderRadius: 10,
-              border: `1.5px solid ${blue}40`, background: `${blue}08`,
-              color: blue, fontSize: 13, fontWeight: 600,
-              cursor: 'pointer', fontFamily: 'inherit', transition: 'all .12s',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background = `${blue}14`; e.currentTarget.style.borderColor = `${blue}70` }}
-            onMouseLeave={e => { e.currentTarget.style.background = `${blue}08`; e.currentTarget.style.borderColor = `${blue}40` }}
-          >
-            <PenLine style={{ height: 13, width: 13 }} />
-            Write a post
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ─── RightSidebar ─────────────────────────────────────────────────────────────
 function RightSidebar({ sidebar }: { sidebar: SidebarData | null }) {
   return (
@@ -960,12 +889,6 @@ export default function FeedPage() {
       <style>{`@keyframes spin{to{transform:rotate(360deg)}} @keyframes shimmer{0%{opacity:.6}50%{opacity:1}100%{opacity:.6}}`}</style>
 
       <div style={{ maxWidth: 1160, margin: '0 auto', padding: '28px 20px', display: 'flex', gap: 24, alignItems: 'flex-start' }}>
-
-        {/* ── Left sidebar (hidden < 900px via inline media hack using CSS var) ── */}
-        <div className="pulse-left-sidebar" style={{ display: 'contents' }}>
-          <style>{`@media(max-width:900px){.pulse-left-sidebar>*{display:none!important}}`}</style>
-          <LeftSidebar sidebar={sidebar} onWrite={() => openCreate('update')} />
-        </div>
 
         {/* ── Center feed ── */}
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>

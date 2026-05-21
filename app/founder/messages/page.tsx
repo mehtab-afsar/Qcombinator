@@ -9,6 +9,23 @@ import { Send } from 'lucide-react';
 import { ChatMessage, MessageGroupBlock, buildGroups } from '@/features/shared/components/MessageBubble';
 import { bg, surf, bdr, ink, muted, blue, green, amber } from '@/lib/constants/colors'
 
+// ─── avatar palette ───────────────────────────────────────────────────────────
+const AVATAR_PALETTES = [
+  { bg: '#EDE9FE', color: '#6D28D9' },
+  { bg: '#DBEAFE', color: '#1D4ED8' },
+  { bg: '#D1FAE5', color: '#065F46' },
+  { bg: '#FEF3C7', color: '#92400E' },
+  { bg: '#FCE7F3', color: '#9D174D' },
+  { bg: '#E0F2FE', color: '#0369A1' },
+  { bg: '#FEE2E2', color: '#991B1B' },
+  { bg: '#F3F4F6', color: '#374151' },
+]
+function avatarPalette(name: string) {
+  let h = 0
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffff
+  return AVATAR_PALETTES[h % AVATAR_PALETTES.length]
+}
+
 // ─── agent colors ─────────────────────────────────────────────────────────────
 const AGENT_COLORS: Record<string, string> = {
   patel:  '#2563EB',
@@ -173,14 +190,11 @@ function ThreadPanel({
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Panel header */}
       <div style={{ padding: '16px 20px', borderBottom: `1px solid ${bdr}`, display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-        <div style={{
-          width: 38, height: 38, borderRadius: 10, flexShrink: 0,
-          background: ink, color: bg,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 12, fontWeight: 700,
-        }}>
-          {investorInitials}
-        </div>
+        {(() => { const pal = avatarPalette(conn.investor_name ?? 'Investor'); return (
+          <div style={{ width: 38, height: 38, borderRadius: 10, flexShrink: 0, background: pal.bg, color: pal.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, letterSpacing: '0.02em' }}>
+            {investorInitials}
+          </div>
+        )})()}
         <div>
           <p style={{ fontSize: 14, fontWeight: 600, color: ink, margin: 0 }}>{conn.investor_name ?? 'Investor'}</p>
           {conn.investor_firm && <p style={{ fontSize: 11, color: muted, margin: 0 }}>{conn.investor_firm}</p>}
@@ -225,12 +239,14 @@ function ThreadPanel({
               </span>
             </div>
             {conn.personal_message && (
-              <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
-                <div style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0, background: surf, border: `1px solid ${bdr}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: ink }}>{investorInitials}</div>
+              <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'flex-start' }}>
+                {(() => { const pal = avatarPalette(conn.investor_name ?? 'Investor'); return (
+                  <div style={{ width: 28, height: 28, borderRadius: 7, flexShrink: 0, background: pal.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: pal.color, letterSpacing: '0.02em', marginTop: 18 }}>{investorInitials}</div>
+                )})()}
                 <div style={{ flex: 1 }}>
-                  <p style={{ fontSize: 10, color: muted, marginBottom: 3 }}>{conn.investor_name ?? 'Investor'} · Connection request</p>
-                  <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: '4px 12px 12px 12px', padding: '8px 12px' }}>
-                    <p style={{ fontSize: 13, color: ink, lineHeight: 1.6, margin: 0 }}>{conn.personal_message}</p>
+                  <p style={{ fontSize: 10, color: muted, marginBottom: 5, fontWeight: 500 }}>{conn.investor_name ?? 'Investor'} <span style={{ color: bdr, margin: '0 3px' }}>·</span> Connection request</p>
+                  <div style={{ background: '#F9F7FF', border: '1px solid #E0D9FF', borderRadius: '4px 12px 12px 12px', padding: '10px 14px' }}>
+                    <p style={{ fontSize: 13, color: ink, lineHeight: 1.7, margin: 0 }}>{conn.personal_message}</p>
                   </div>
                 </div>
               </div>
@@ -262,11 +278,12 @@ function ThreadPanel({
 
       {/* Compose (only for accepted) */}
       {canMessage && (
-        <div style={{ borderTop: `1px solid ${bdr}`, padding: '12px 16px', flexShrink: 0, background: bg }}>
-          <div style={{
-            display: 'flex', alignItems: 'flex-end', gap: 10,
-            background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: '10px 14px',
-          }}>
+        <div style={{ borderTop: `1px solid ${bdr}`, padding: '12px 16px 14px', flexShrink: 0, background: bg }}>
+          <div
+            style={{ display: 'flex', alignItems: 'flex-end', gap: 10, background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: '10px 10px 10px 14px', transition: 'border-color .15s, box-shadow .15s' }}
+            onFocusCapture={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = '#4F46E5'; el.style.boxShadow = '0 0 0 3px rgba(79,70,229,0.08)' }}
+            onBlurCapture={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = bdr; el.style.boxShadow = 'none' }}
+          >
             <textarea
               value={input}
               onChange={e => {
@@ -278,11 +295,7 @@ function ThreadPanel({
               onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); handleSend(); } }}
               placeholder={`Message ${conn.investor_name ?? 'investor'}…`}
               rows={1}
-              style={{
-                flex: 1, border: 'none', outline: 'none', resize: 'none', overflow: 'hidden',
-                background: 'transparent', fontSize: 13, color: ink,
-                fontFamily: 'inherit', lineHeight: 1.6, maxHeight: 140,
-              }}
+              style={{ flex: 1, border: 'none', outline: 'none', resize: 'none', overflow: 'hidden', background: 'transparent', fontSize: 13, color: ink, fontFamily: 'inherit', lineHeight: 1.6, maxHeight: 140 }}
             />
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
               {input.length > 3500 && (
@@ -291,15 +304,9 @@ function ThreadPanel({
               <button
                 onClick={handleSend}
                 disabled={!input.trim() || sending || input.length > 4000}
-                style={{
-                  width: 32, height: 32, borderRadius: 8, border: 'none',
-                  background: input.trim() && !sending ? ink : bdr,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  cursor: input.trim() && !sending ? 'pointer' : 'default',
-                  transition: 'background .12s',
-                }}
+                style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: input.trim() && !sending ? '#4F46E5' : bdr, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: input.trim() && !sending ? 'pointer' : 'default', transition: 'background .12s', flexShrink: 0 }}
               >
-                <Send style={{ height: 13, width: 13, color: input.trim() ? bg : muted }} />
+                <Send style={{ height: 13, width: 13, color: input.trim() && !sending ? '#fff' : muted }} />
               </button>
             </div>
           </div>
@@ -443,7 +450,7 @@ function MessagesInner() {
           const inv = c.investor_name ?? 'Investor';
           const initials2 = inv.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase();
           const isActive = selectedConn?.id === c.id;
-          const canMsg = c.status === 'meeting_scheduled' || c.status === 'accepted';
+          const pal = avatarPalette(inv);
           return (
             <button
               key={c.id}
@@ -460,11 +467,9 @@ function MessagesInner() {
             >
               <div style={{
                 width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-                background: canMsg ? ink : surf,
-                color: canMsg ? bg : muted,
-                border: `1px solid ${canMsg ? ink : bdr}`,
+                background: pal.bg, color: pal.color,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 11, fontWeight: 700,
+                fontSize: 11, fontWeight: 700, letterSpacing: '0.02em',
               }}>
                 {initials2}
               </div>

@@ -27,6 +27,15 @@ const C = {
   faint:    "#C4C0B8",
 };
 
+// ─── reusable gradient helpers ────────────────────────────────────────────────
+const GRAD_CTA = "linear-gradient(135deg, #D97757 0%, #C9A961 100%)";
+const GRAD_TEXT: React.CSSProperties = {
+  background: "linear-gradient(135deg, #D97757, #C9A961)",
+  WebkitBackgroundClip: "text",
+  WebkitTextFillColor: "transparent",
+  backgroundClip: "text",
+};
+
 const ease = [0.22, 1, 0.36, 1] as const;
 
 // ─── data ─────────────────────────────────────────────────────────────────────
@@ -67,10 +76,10 @@ const stats = [
 const pressLogos = ["TechCrunch", "Forbes", "Bloomberg", "The Verge", "WIRED", "Fast Company", "Inc.", "Fortune"];
 
 const mockDimensions = [
-  { label: "Team",       score: 82, delta: "+4" },
-  { label: "Market",     score: 78, delta: "+6" },
-  { label: "Traction",   score: 71, delta: "+12" },
-  { label: "Financials", score: 65, delta: "-2" },
+  { label: "Team",       score: 82, delta: "+4",  color: "#2563EB" },
+  { label: "Market",     score: 78, delta: "+6",  color: "#D97757" },
+  { label: "Traction",   score: 71, delta: "+12", color: "#8B9A7A" },
+  { label: "Financials", score: 65, delta: "-2",  color: "#C9A961" },
 ];
 
 // ─── CountUp ─────────────────────────────────────────────────────────────────
@@ -138,19 +147,21 @@ function GetStartedDropdown({
     { left: "50%", transform: "translateX(-50%)" };
   return (
     <div ref={ref} style={{ position: "relative", display: "inline-flex" }}>
-      <button
+      <motion.button
         onClick={() => setOpen((v) => !v)}
+        whileHover={{ scale: 1.02, boxShadow: dark ? "0 6px 24px rgba(42,40,38,0.35)" : "0 6px 28px rgba(217,119,87,0.45)" }}
+        whileTap={{ scale: 0.98 }}
         style={{
           display: "inline-flex", alignItems: "center", gap: 6,
-          fontSize: 15, fontWeight: 500, padding: "14px 28px", borderRadius: 6,
-          background: dark ? C.charcoal : C.ember,
+          fontSize: 15, fontWeight: 500, padding: "14px 28px", borderRadius: 8,
+          background: dark ? C.charcoal : GRAD_CTA,
           color: "#fff", border: "none", cursor: "pointer",
-          transition: "opacity 0.15s ease",
+          boxShadow: dark ? "0 2px 12px rgba(42,40,38,0.2)" : "0 4px 20px rgba(217,119,87,0.35)",
           ...style,
         }}
       >
         {label}
-      </button>
+      </motion.button>
       <AnimatePresence>
         {open && (
           <motion.div
@@ -202,10 +213,15 @@ function ProductMock() {
       animate={inView ? { opacity: 1, y: 0 } : {}}
       transition={{ duration: 0.8, delay: 0.6, ease }}
       style={{
+        background: "linear-gradient(135deg, rgba(217,119,87,0.18), rgba(201,169,97,0.12), rgba(37,99,235,0.08))",
+        borderRadius: 14,
+        padding: 1.5,
+        boxShadow: "0 0 0 1px rgba(217,119,87,0.1), 0 24px 64px rgba(42,40,38,0.16), 0 64px 128px rgba(42,40,38,0.08)",
+      }}
+    >
+    <div style={{
         background: "white",
-        borderRadius: 12,
-        border: `1px solid ${C.taupe}`,
-        boxShadow: "0 1px 2px rgba(42,40,38,0.04), 0 8px 24px rgba(42,40,38,0.06), 0 32px 64px rgba(42,40,38,0.06)",
+        borderRadius: 13,
         overflow: "hidden",
       }}
     >
@@ -250,13 +266,13 @@ function ProductMock() {
             <div style={{
               fontFamily: "monospace",
               fontSize: 48,
-              fontWeight: 300,
-              color: C.charcoal,
+              fontWeight: 400,
               lineHeight: 1,
               letterSpacing: "-0.02em",
+              ...GRAD_TEXT,
             }}>
               74
-              <span style={{ fontSize: 20, color: C.dim }}>/100</span>
+              <span style={{ fontSize: 20, color: C.dim, background: "none", WebkitTextFillColor: C.dim }}>/100</span>
             </div>
           </div>
           <div style={{
@@ -333,9 +349,9 @@ function ProductMock() {
                 transition={{ duration: 0.8, delay: 1.0, ease }}
                 style={{
                   height: "100%",
-                  background: C.charcoal,
+                  background: dim.color,
                   borderRadius: 2,
-                  opacity: 0.15 + (dim.score / 100) * 0.85,
+                  opacity: 0.75,
                 }}
               />
             </div>
@@ -364,9 +380,9 @@ function ProductMock() {
         <div style={{
           marginTop: 16,
           padding: 12,
-          background: C.cream,
-          borderRadius: 6,
-          border: `1px solid ${C.taupe}`,
+          background: "linear-gradient(135deg, rgba(217,119,87,0.06), rgba(201,169,97,0.04))",
+          borderRadius: 8,
+          border: `1px solid rgba(217,119,87,0.15)`,
           display: "flex",
           alignItems: "center",
           gap: 10,
@@ -383,6 +399,7 @@ function ProductMock() {
           </span>
         </div>
       </div>
+    </div>
     </motion.div>
   );
 }
@@ -529,16 +546,19 @@ export default function LandingPage() {
             <button
               onClick={() => go("/founder/onboarding")}
               style={{
-                background: C.charcoal,
+                background: GRAD_CTA,
                 color: "white",
-                padding: "8px 16px",
-                borderRadius: 6,
+                padding: "8px 18px",
+                borderRadius: 8,
                 fontSize: 13,
                 fontWeight: 500,
                 border: "none",
                 cursor: "pointer",
-                transition: "opacity 0.15s",
+                boxShadow: "0 2px 12px rgba(217,119,87,0.3)",
+                transition: "box-shadow 0.15s, transform 0.15s",
               }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = "scale(1.02)"; (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 20px rgba(217,119,87,0.4)"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = "scale(1)"; (e.currentTarget as HTMLElement).style.boxShadow = "0 2px 12px rgba(217,119,87,0.3)"; }}
             >
               Get started
             </button>
@@ -593,13 +613,10 @@ export default function LandingPage() {
 
       {/* ── HERO ─────────────────────────────────────────────────────────── */}
       <section className="pt-36 sm:pt-44 pb-24 sm:pb-32 px-6 lg:px-8 relative overflow-hidden">
-        {/* Single subtle background glow — no blobs */}
-        <div style={{
-          position: "absolute",
-          inset: 0,
-          background: "radial-gradient(ellipse at 60% 0%, rgba(217,119,87,0.05) 0%, transparent 55%)",
-          pointerEvents: "none",
-        }} />
+        {/* Floating gradient orbs */}
+        <div style={{ position: "absolute", top: -160, right: -140, width: 700, height: 700, borderRadius: "50%", background: "radial-gradient(circle, rgba(217,119,87,0.13) 0%, transparent 70%)", filter: "blur(48px)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", bottom: -120, left: -200, width: 560, height: 560, borderRadius: "50%", background: "radial-gradient(circle, rgba(37,99,235,0.08) 0%, transparent 70%)", filter: "blur(48px)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", top: "40%", right: "20%", width: 360, height: 360, borderRadius: "50%", background: "radial-gradient(circle, rgba(201,169,97,0.08) 0%, transparent 70%)", filter: "blur(40px)", pointerEvents: "none" }} />
 
         <div className="mx-auto max-w-7xl grid lg:grid-cols-2 gap-16 items-center relative">
           {/* Left: copy */}
@@ -628,7 +645,7 @@ export default function LandingPage() {
               transition={{ duration: 0.7, delay: 0.2, ease }}
               style={{
                 fontSize: "clamp(44px, 6vw, 80px)",
-                fontWeight: 300,
+                fontWeight: 500,
                 letterSpacing: "-0.035em",
                 lineHeight: 1.0,
                 color: C.charcoal,
@@ -636,8 +653,8 @@ export default function LandingPage() {
               }}
             >
               Build a fundable<br />
-              <em style={{ fontStyle: "italic" }}>business.</em>
-              <span style={{ color: C.ember }}> Then raise.</span>
+              <em style={{ fontStyle: "italic", fontWeight: 300 }}>business.</em>
+              <span style={{ ...GRAD_TEXT }}> Then raise.</span>
             </motion.h1>
 
             <motion.p
@@ -700,11 +717,16 @@ export default function LandingPage() {
               animate={{ opacity: 1 }}
               transition={{ delay: 0.8, duration: 0.5 }}
               style={{
-                paddingTop: 32,
+                paddingTop: 24,
+                marginTop: 8,
                 borderTop: `1px solid ${C.taupe}`,
                 display: "flex",
                 alignItems: "center",
                 gap: 32,
+                padding: "20px 24px",
+                background: "rgba(217,119,87,0.04)",
+                borderRadius: 12,
+                border: `1px solid rgba(217,119,87,0.1)`,
               }}
             >
               {[
@@ -838,11 +860,11 @@ export default function LandingPage() {
               }}
             >
               <div style={{
-                fontFamily: "monospace",
-                fontSize: 12,
-                color: C.dim,
-                paddingTop: 4,
-                letterSpacing: "0.04em",
+                width: 32, height: 32, borderRadius: "50%", flexShrink: 0,
+                background: GRAD_CTA,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 11, fontWeight: 700, color: "white",
+                boxShadow: "0 2px 10px rgba(217,119,87,0.35)",
               }}>
                 {step.number}
               </div>
@@ -909,18 +931,24 @@ export default function LandingPage() {
             {[
               {
                 num: "01", icon: BarChart3, label: "Q-Score", accent: C.ember,
+                badge: "LIVE",
+                iconBg: "linear-gradient(135deg, rgba(217,119,87,0.2), rgba(201,169,97,0.1))",
                 title: "Algorithmic investment readiness scoring",
                 body: "A precise, multi-dimensional score across team, market, traction, and financials. Know exactly where you stand and what moves the needle.",
                 bullets: ["Scored across 6 dimensions", "Live percentile ranking", "Prioritised improvement plan"],
               },
               {
                 num: "02", icon: Bot, label: "AI Agents", accent: "#2563EB",
+                badge: "9 AGENTS",
+                iconBg: "linear-gradient(135deg, rgba(37,99,235,0.2), rgba(99,102,241,0.08))",
                 title: "Expert advisers across every function",
                 body: "Strategy, marketing, sales, HR, finance — each agent has deep domain knowledge of your business and is available the moment you need it.",
                 bullets: ["Specialised, context-aware", "Available 24/7, on demand", "Every session feeds your Q-Score"],
               },
               {
                 num: "03", icon: Users, label: "Marketplace", accent: C.goldD, locked: true,
+                badge: "500+ INVESTORS",
+                iconBg: "linear-gradient(135deg, rgba(201,169,97,0.2), rgba(154,123,60,0.1))",
                 title: "Curated access to 500+ verified investors",
                 body: "When your Q-Score is ready, the marketplace opens. Thesis-matched introductions to investors who are actively deploying.",
                 bullets: ["500+ verified investors", "Thesis-aligned AI matching", "Gated for quality founders"],
@@ -942,24 +970,25 @@ export default function LandingPage() {
                     position: "relative",
                     transition: "background 0.2s",
                   }}
-                  whileHover={{ backgroundColor: "rgba(250,248,243,0.6)" }}
+                  whileHover={{ backgroundColor: "rgba(250,248,243,0.85)", boxShadow: "inset 0 0 0 1px rgba(217,119,87,0.07)" }}
                 >
-                  <motion.div
-                    className="absolute left-0 top-0 bottom-0 opacity-0 group-hover:opacity-100"
-                    style={{ width: 2, background: p.accent, transition: "opacity 0.2s" }}
-                  />
+                  <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: p.accent, opacity: 0.45 }} />
                   <div className="hidden md:block md:col-span-1">
                     <span style={{ fontSize: 12, fontFamily: "monospace", color: C.dim }}>{p.num}</span>
                   </div>
                   <div className="md:col-span-2 flex items-start gap-3">
-                    <div className="h-8 w-8 rounded flex items-center justify-center shrink-0 mt-0.5"
-                      style={{ background: `${p.accent}15`, border: `1px solid ${p.accent}30` }}>
-                      <Icon className="h-4 w-4" style={{ color: p.accent }} />
+                    <div style={{ width: 40, height: 40, borderRadius: 10, flexShrink: 0, marginTop: 2, display: "flex", alignItems: "center", justifyContent: "center", background: p.iconBg, border: `1px solid ${p.accent}25` }}>
+                      <Icon style={{ width: 18, height: 18, color: p.accent }} />
                     </div>
                     <div>
-                      <span style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.14em", fontWeight: 600, display: "block", marginTop: 6, color: p.accent }}>
-                        {p.label}
-                      </span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
+                        <span style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.14em", fontWeight: 600, color: p.accent }}>
+                          {p.label}
+                        </span>
+                        <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 999, background: `${p.accent}18`, color: p.accent, letterSpacing: "0.06em", fontFamily: "monospace" }}>
+                          {p.badge}
+                        </span>
+                      </div>
                       {p.locked && (
                         <div className="flex items-center gap-1 mt-1">
                           <Lock className="h-2.5 w-2.5" style={{ color: C.goldD }} />
@@ -1094,8 +1123,8 @@ export default function LandingPage() {
                     borderBottomWidth: i < agentRoles.length - 1 ? 1 : 0,
                     borderBottomColor: i < agentRoles.length - 1 ? C.taupe : "transparent",
                   }}
-                  animate={{ backgroundColor: i === activeAgent ? "rgba(245,241,232,0.8)" : "rgba(255,255,255,0)" }}
-                  whileHover={{ backgroundColor: "rgba(245,241,232,0.6)" }}
+                  animate={{ backgroundColor: i === activeAgent ? `${a.color}0B` : "rgba(255,255,255,0)" }}
+                  whileHover={{ backgroundColor: i === activeAgent ? `${a.color}10` : "rgba(245,241,232,0.6)" }}
                   transition={{ type: "spring", stiffness: 300, damping: 25 }}
                   onClick={() => go("/founder/onboarding")}
                 >
@@ -1103,7 +1132,7 @@ export default function LandingPage() {
                     <motion.div
                       layoutId="agent-active-bar"
                       style={{
-                        position: "absolute", left: 0, top: 0, bottom: 0, width: 2,
+                        position: "absolute", left: 0, top: 0, bottom: 0, width: 3,
                         background: a.color,
                       }}
                       transition={{ type: "spring", stiffness: 300, damping: 30 }}
@@ -1111,10 +1140,10 @@ export default function LandingPage() {
                   )}
                   <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                     <div style={{
-                      height: 32, width: 32, borderRadius: 8, flexShrink: 0,
+                      height: 40, width: 40, borderRadius: 10, flexShrink: 0,
                       display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: 13, fontWeight: 700,
-                      background: `${a.color}18`, color: a.color, border: `1px solid ${a.color}25`,
+                      fontSize: 16, fontWeight: 700,
+                      background: `${a.color}18`, color: a.color, border: `1px solid ${a.color}30`,
                     }}>
                       {a.emoji}
                     </div>
@@ -1341,16 +1370,17 @@ export default function LandingPage() {
       </section>
 
       {/* ── STATS — DARK ─────────────────────────────────────────────────── */}
-      <div style={{ background: C.midnight }}>
-        <div className="mx-auto max-w-4xl grid grid-cols-2 md:grid-cols-4">
+      <div style={{ background: C.midnight, position: "relative", overflow: "hidden" }}>
+        <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: 700, height: 700, borderRadius: "50%", background: "radial-gradient(circle, rgba(217,119,87,0.08) 0%, transparent 60%)", filter: "blur(48px)", pointerEvents: "none" }} />
+        <div className="mx-auto max-w-4xl grid grid-cols-2 md:grid-cols-4" style={{ position: "relative" }}>
           {stats.map((s, i) => (
             <motion.div
               key={s.label}
               style={{
                 padding: "64px 40px",
                 textAlign: "center",
-                borderRight: i < stats.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none",
-                borderBottom: i < 2 ? "1px solid rgba(255,255,255,0.06)" : "none",
+                borderRight: i < stats.length - 1 ? "1px solid rgba(217,119,87,0.12)" : "none",
+                borderBottom: i < 2 ? "1px solid rgba(217,119,87,0.12)" : "none",
               }}
               initial={{ opacity: 0, y: 16 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -1359,20 +1389,23 @@ export default function LandingPage() {
             >
               <p style={{
                 fontFamily: "monospace",
-                fontWeight: 300,
-                color: "white",
-                fontSize: "clamp(28px, 4vw, 44px)",
-                letterSpacing: "-0.02em",
+                fontWeight: 400,
+                fontSize: "clamp(40px, 6vw, 72px)",
+                letterSpacing: "-0.03em",
                 marginBottom: 12,
+                background: "linear-gradient(135deg, #D97757, #C9A961)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
               }}>
                 <CountUp to={s.to} decimals={s.decimals} prefix={s.prefix} suffix={s.suffix} />
               </p>
               <p style={{
                 fontFamily: "monospace",
-                fontSize: 10,
+                fontSize: 11,
                 textTransform: "uppercase",
                 letterSpacing: "0.18em",
-                color: "rgba(255,255,255,0.3)",
+                color: "rgba(255,255,255,0.35)",
               }}>
                 {s.label}
               </p>
@@ -1382,7 +1415,7 @@ export default function LandingPage() {
       </div>
 
       {/* ── TESTIMONIALS ─────────────────────────────────────────────────── */}
-      <section style={{ background: C.cream, padding: "128px 24px" }}>
+      <section style={{ background: C.sand, padding: "128px 24px" }}>
         <div className="mx-auto max-w-7xl">
           <motion.div style={{ marginBottom: 56 }} initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
             <div style={{

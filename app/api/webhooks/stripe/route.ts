@@ -26,39 +26,74 @@ export async function POST(req: NextRequest) {
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session
-        const userId = session.metadata?.user_id
+        const userId   = session.metadata?.user_id
+        const userType = session.metadata?.userType  // 'founder' | undefined (investors don't set this)
         if (!userId) break
-        await admin.from('investor_profiles').update({
-          subscription_tier:       'pro',
-          subscription_status:     'active',
-          stripe_customer_id:      session.customer as string,
-          stripe_subscription_id:  session.subscription as string,
-        }).eq('user_id', userId)
+
+        if (userType === 'founder') {
+          await admin.from('founder_profiles').update({
+            subscription_tier:      'premium',
+            subscription_status:    'active',
+            stripe_customer_id:     session.customer as string,
+            stripe_subscription_id: session.subscription as string,
+          }).eq('user_id', userId)
+        } else {
+          await admin.from('investor_profiles').update({
+            subscription_tier:      'pro',
+            subscription_status:    'active',
+            stripe_customer_id:     session.customer as string,
+            stripe_subscription_id: session.subscription as string,
+          }).eq('user_id', userId)
+        }
         break
       }
 
       case 'customer.subscription.updated': {
         const sub = event.data.object as Stripe.Subscription
-        const { data: profiles } = await admin
+        const periodEnd = (sub as unknown as Record<string, unknown>).current_period_end as number | undefined
+        const update = {
+          subscription_status:             sub.status,
+          subscription_current_period_end: periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
+        }
+
+        // Try investor first, then founder
+        const { data: invProfile } = await admin
           .from('investor_profiles')
           .select('user_id')
           .eq('stripe_subscription_id', sub.id)
           .limit(1)
-        if (!profiles?.[0]) break
-        const periodEnd = (sub as unknown as Record<string, unknown>).current_period_end as number | undefined
-        await admin.from('investor_profiles').update({
-          subscription_status:             sub.status,
-          subscription_current_period_end: periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
-        }).eq('stripe_subscription_id', sub.id)
+          .maybeSingle()
+
+        if (invProfile) {
+          await admin.from('investor_profiles').update(update).eq('stripe_subscription_id', sub.id)
+        } else {
+          await admin.from('founder_profiles').update(update).eq('stripe_subscription_id', sub.id)
+        }
         break
       }
 
       case 'customer.subscription.deleted': {
         const sub = event.data.object as Stripe.Subscription
-        await admin.from('investor_profiles').update({
-          subscription_tier:   'free',
-          subscription_status: 'canceled',
-        }).eq('stripe_subscription_id', sub.id)
+
+        // Try investor first, then founder
+        const { data: invProfile } = await admin
+          .from('investor_profiles')
+          .select('user_id')
+          .eq('stripe_subscription_id', sub.id)
+          .limit(1)
+          .maybeSingle()
+
+        if (invProfile) {
+          await admin.from('investor_profiles').update({
+            subscription_tier:   'free',
+            subscription_status: 'canceled',
+          }).eq('stripe_subscription_id', sub.id)
+        } else {
+          await admin.from('founder_profiles').update({
+            subscription_tier:   'free',
+            subscription_status: 'canceled',
+          }).eq('stripe_subscription_id', sub.id)
+        }
         break
       }
 

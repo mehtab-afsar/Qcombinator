@@ -63,6 +63,22 @@ function initials(name: string) {
   return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
 }
 
+const AVATAR_PALETTES = [
+  { bg: '#EDE9FE', color: '#6D28D9' },
+  { bg: '#DBEAFE', color: '#1D4ED8' },
+  { bg: '#D1FAE5', color: '#065F46' },
+  { bg: '#FEF3C7', color: '#92400E' },
+  { bg: '#FCE7F3', color: '#9D174D' },
+  { bg: '#E0F2FE', color: '#0369A1' },
+  { bg: '#FEE2E2', color: '#991B1B' },
+  { bg: '#F3F4F6', color: '#374151' },
+]
+function avatarPalette(name: string) {
+  let h = 0
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffff
+  return AVATAR_PALETTES[h % AVATAR_PALETTES.length]
+}
+
 // ─── component ────────────────────────────────────────────────────────────────
 export default function InvestorMessagesPage() {
   const router = useRouter()
@@ -218,7 +234,7 @@ export default function InvestorMessagesPage() {
           personalMessage: req.personalMessage,
         }
         setRequests(prev => prev.filter(r => r.id !== req.id))
-        setConversations(prev => [newConv, ...prev])
+        setConversations(prev => prev.some(c => c.id === req.id) ? prev : [newConv, ...prev])
         setPanel({ type: 'conversation', data: newConv })
         setActiveTab('conversations')
         showToast(`Connected with ${req.founderName}`)
@@ -334,46 +350,35 @@ export default function InvestorMessagesPage() {
               </div>
             ) : requests.map(req => {
               const isActive = panel?.type === 'request' && panel.data.id === req.id
+              const pal = avatarPalette(req.startupName)
               return (
                 <button
                   key={req.id}
                   onClick={() => { setPanel({ type: 'request', data: req }); setActiveTab('requests') }}
                   style={{
-                    width: '100%', display: 'flex', alignItems: 'flex-start', gap: 12,
-                    padding: '12px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
-                    background: isActive ? '#EEF2FF' : 'transparent',
-                    transition: 'background .1s', textAlign: 'left', fontFamily: 'inherit',
-                    marginBottom: 2,
+                    width: '100%', display: 'flex', alignItems: 'center', gap: 11,
+                    padding: '9px 10px 9px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                    background: isActive ? '#4F46E508' : 'transparent',
+                    boxShadow: isActive ? 'inset 2px 0 0 #4F46E5' : 'none',
+                    transition: 'all .12s', textAlign: 'left', fontFamily: 'inherit', marginBottom: 1,
                   }}
                   onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = surf }}
                   onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
                 >
-                  <div style={{
-                    width: 40, height: 40, borderRadius: 10, flexShrink: 0,
-                    background: surf, border: `1px solid ${bdr}`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 12, fontWeight: 700, color: ink,
-                  }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 10, flexShrink: 0, background: pal.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: pal.color, letterSpacing: '0.02em' }}>
                     {initials(req.startupName)}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
                       <p style={{ fontSize: 13, fontWeight: 600, color: ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{req.startupName}</p>
-                      <p style={{ fontSize: 10, color: muted, flexShrink: 0, marginLeft: 6 }}>{relDate(req.requestedDate)}</p>
+                      <p style={{ fontSize: 10, color: muted, flexShrink: 0, marginLeft: 8 }}>{relDate(req.requestedDate)}</p>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
                       <p style={{ fontSize: 11, color: muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{req.founderName} · {req.industry}</p>
                       {req.qScore > 0 && (
-                        <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 999, background: qBg(req.qScore), color: qColor(req.qScore), border: `1px solid ${qBorder(req.qScore)}`, flexShrink: 0 }}>
-                          Q{req.qScore}
-                        </span>
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 999, background: qBg(req.qScore), color: qColor(req.qScore), flexShrink: 0 }}>Q{req.qScore}</span>
                       )}
                     </div>
-                    {req.personalMessage && (
-                      <p style={{ fontSize: 11, color: muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>
-                        &quot;{req.personalMessage}&quot;
-                      </p>
-                    )}
                   </div>
                 </button>
               )
@@ -383,45 +388,44 @@ export default function InvestorMessagesPage() {
               <div style={{ padding: '48px 16px', textAlign: 'center' }}>
                 <MessageSquare style={{ height: 28, width: 28, color: muted, margin: '0 auto 12px' }} />
                 <p style={{ fontSize: 13, color: muted, lineHeight: 1.5 }}>No conversations yet</p>
-                <button
-                  onClick={() => setActiveTab('requests')}
-                  style={{ marginTop: 12, fontSize: 12, color: '#4F46E5', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
-                >
+                <button onClick={() => setActiveTab('requests')} style={{ marginTop: 12, fontSize: 12, color: '#4F46E5', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
                   View requests →
                 </button>
               </div>
             ) : conversations.map(conv => {
               const isActive = panel?.type === 'conversation' && panel.data.id === conv.id
+              const pal = avatarPalette(conv.startupName)
+              const hasUnread = (conv.unreadCount ?? 0) > 0
               return (
                 <button
                   key={conv.id}
                   onClick={() => setPanel({ type: 'conversation', data: conv })}
                   style={{
-                    width: '100%', display: 'flex', alignItems: 'flex-start', gap: 12,
-                    padding: '12px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
-                    background: isActive ? '#EEF2FF' : 'transparent',
-                    transition: 'background .1s', textAlign: 'left', fontFamily: 'inherit',
-                    marginBottom: 2,
+                    width: '100%', display: 'flex', alignItems: 'center', gap: 11,
+                    padding: '9px 10px 9px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                    background: isActive ? '#4F46E508' : 'transparent',
+                    boxShadow: isActive ? 'inset 2px 0 0 #4F46E5' : 'none',
+                    transition: 'all .12s', textAlign: 'left', fontFamily: 'inherit', marginBottom: 1,
                   }}
                   onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = surf }}
                   onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
                 >
-                  <div style={{
-                    width: 40, height: 40, borderRadius: 10, flexShrink: 0,
-                    background: surf, border: `1px solid ${bdr}`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 12, fontWeight: 700, color: ink,
-                  }}>
-                    {initials(conv.startupName)}
+                  <div style={{ position: 'relative', flexShrink: 0 }}>
+                    <div style={{ width: 38, height: 38, borderRadius: 10, background: pal.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: pal.color, letterSpacing: '0.02em' }}>
+                      {initials(conv.startupName)}
+                    </div>
+                    {hasUnread && (
+                      <span style={{ position: 'absolute', top: -2, right: -2, width: 8, height: 8, borderRadius: '50%', background: '#4F46E5', border: `2px solid ${bg}` }} />
+                    )}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{conv.startupName}</p>
-                      <p style={{ fontSize: 10, color: muted, flexShrink: 0, marginLeft: 6 }}>
+                      <p style={{ fontSize: 13, fontWeight: hasUnread ? 700 : 600, color: ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{conv.startupName}</p>
+                      <p style={{ fontSize: 10, color: muted, flexShrink: 0, marginLeft: 8 }}>
                         {conv.lastMessage ? relDate(conv.lastMessage.created_at) : relDate(conv.connectedAt)}
                       </p>
                     </div>
-                    <p style={{ fontSize: 11, color: muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <p style={{ fontSize: 11, color: hasUnread ? ink : muted, fontWeight: hasUnread ? 500 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {conv.lastMessage
                         ? `${conv.lastMessage.senderId === myUserId ? 'You: ' : `${conv.founderName}: `}${conv.lastMessage.body}`
                         : `${conv.founderName} · ${conv.industry}`}
@@ -460,10 +464,12 @@ export default function InvestorMessagesPage() {
               style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
             >
               {/* header */}
-              <div style={{ padding: '18px 28px', borderBottom: `1px solid ${bdr}`, display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
-                <div style={{ width: 42, height: 42, borderRadius: 11, background: surf, border: `1px solid ${bdr}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: ink }}>
-                  {initials(panel.data.startupName)}
-                </div>
+              <div style={{ padding: '16px 24px', borderBottom: `1px solid ${bdr}`, display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+                {(() => { const pal = avatarPalette(panel.data.startupName); return (
+                  <div style={{ width: 40, height: 40, borderRadius: 10, background: pal.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: pal.color, flexShrink: 0, letterSpacing: '0.02em' }}>
+                    {initials(panel.data.startupName)}
+                  </div>
+                )})()}
                 <div>
                   <p style={{ fontSize: 15, fontWeight: 600, color: ink, marginBottom: 2 }}>{panel.data.startupName}</p>
                   <p style={{ fontSize: 12, color: muted }}>{panel.data.founderName} · {panel.data.industry} · {panel.data.stage}</p>
@@ -537,11 +543,11 @@ export default function InvestorMessagesPage() {
               </div>
 
               {/* accept / decline footer */}
-              <div style={{ padding: '16px 28px', borderTop: `1px solid ${bdr}`, display: 'flex', gap: 10, justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: bg }}>
+              <div style={{ padding: '14px 24px', borderTop: `1px solid ${bdr}`, display: 'flex', gap: 10, justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: bg }}>
                 <button
                   onClick={() => handleDecline(panel.data)}
                   disabled={actionLoading === panel.data.id}
-                  style={{ padding: '9px 20px', borderRadius: 9, border: `1px solid #FECACA`, background: '#FEF2F2', fontSize: 13, fontWeight: 500, color: red, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                  style={{ padding: '9px 18px', borderRadius: 9, border: `1px solid #FECACA`, background: '#FEF2F2', fontSize: 13, fontWeight: 500, color: red, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit', transition: 'opacity .12s', opacity: actionLoading === panel.data.id ? 0.5 : 1 }}
                 >
                   <X style={{ height: 12, width: 12 }} /> Decline
                 </button>
@@ -549,17 +555,15 @@ export default function InvestorMessagesPage() {
                   <button
                     onClick={() => handleAccept(panel.data)}
                     disabled={actionLoading === panel.data.id}
-                    style={{ padding: '9px 20px', borderRadius: 9, border: `1px solid ${bdr}`, background: surf, fontSize: 13, fontWeight: 500, color: ink, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: actionLoading === panel.data.id ? 0.6 : 1 }}
+                    style={{ padding: '9px 18px', borderRadius: 9, border: `1px solid ${bdr}`, background: surf, fontSize: 13, fontWeight: 500, color: ink, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit', opacity: actionLoading === panel.data.id ? 0.5 : 1 }}
                   >
                     <CheckCircle style={{ height: 12, width: 12 }} />
                     Accept
                   </button>
                   <button
-                    onClick={async () => {
-                      await handleAccept(panel.data)
-                    }}
+                    onClick={() => handleAccept(panel.data)}
                     disabled={actionLoading === panel.data.id}
-                    style={{ padding: '9px 24px', borderRadius: 9, border: 'none', background: ink, fontSize: 13, fontWeight: 600, color: bg, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: actionLoading === panel.data.id ? 0.6 : 1 }}
+                    style={{ padding: '9px 22px', borderRadius: 9, border: 'none', background: '#4F46E5', fontSize: 13, fontWeight: 600, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit', opacity: actionLoading === panel.data.id ? 0.5 : 1, transition: 'opacity .12s, background .12s' }}
                   >
                     <CheckCircle style={{ height: 12, width: 12 }} />
                     {actionLoading === panel.data.id ? 'Accepting…' : 'Accept & Reply →'}
@@ -580,17 +584,19 @@ export default function InvestorMessagesPage() {
             >
               {/* header */}
               <div style={{ padding: '14px 24px', borderBottom: `1px solid ${bdr}`, display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-                <div style={{ width: 38, height: 38, borderRadius: 9, background: surf, border: `1px solid ${bdr}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: ink }}>
-                  {initials(panel.data.startupName)}
-                </div>
+                {(() => { const pal = avatarPalette(panel.data.startupName); return (
+                  <div style={{ width: 36, height: 36, borderRadius: 9, background: pal.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: pal.color, flexShrink: 0, letterSpacing: '0.02em' }}>
+                    {initials(panel.data.startupName)}
+                  </div>
+                )})()}
                 <div>
                   <p style={{ fontSize: 14, fontWeight: 600, color: ink, marginBottom: 1 }}>{panel.data.startupName}</p>
                   <p style={{ fontSize: 11, color: muted }}>{panel.data.founderName} · {panel.data.industry}</p>
                 </div>
                 <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div style={{ padding: '3px 10px', borderRadius: 999, background: qBg(panel.data.qScore), border: `1px solid ${qBorder(panel.data.qScore)}` }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: qColor(panel.data.qScore) }}>Q {panel.data.qScore}</span>
-                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 999, background: qBg(panel.data.qScore), color: qColor(panel.data.qScore) }}>
+                    Q{panel.data.qScore}
+                  </span>
                   <button
                     onClick={() => router.push(`/investor/startup/${panel.data.founderId}`)}
                     style={{ padding: '6px 12px', borderRadius: 8, border: `1px solid ${bdr}`, background: 'transparent', fontSize: 11, fontWeight: 500, color: ink, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
@@ -611,14 +617,16 @@ export default function InvestorMessagesPage() {
 
                 {/* initial personal message from founder */}
                 {panel.data.personalMessage && (
-                  <div style={{ display: 'flex', gap: 10, marginBottom: 12, alignItems: 'flex-end' }}>
-                    <div style={{ width: 28, height: 28, borderRadius: 7, background: surf, border: `1px solid ${bdr}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: ink, flexShrink: 0 }}>
-                      {initials(panel.data.founderName)}
-                    </div>
+                  <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'flex-start' }}>
+                    {(() => { const pal = avatarPalette(panel.data.founderName); return (
+                      <div style={{ width: 28, height: 28, borderRadius: 7, background: pal.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: pal.color, flexShrink: 0, letterSpacing: '0.02em', marginTop: 18 }}>
+                        {initials(panel.data.founderName)}
+                      </div>
+                    )})()}
                     <div style={{ maxWidth: '72%' }}>
-                      <p style={{ fontSize: 10, color: muted, marginBottom: 4 }}>{panel.data.founderName} · Connection note</p>
-                      <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: '3px 12px 12px 12px', padding: '10px 14px' }}>
-                        <p style={{ fontSize: 13, color: ink, lineHeight: 1.65, margin: 0 }}>{panel.data.personalMessage}</p>
+                      <p style={{ fontSize: 10, color: muted, marginBottom: 5, fontWeight: 500 }}>{panel.data.founderName} <span style={{ color: bdr, margin: '0 3px' }}>·</span> Connection note</p>
+                      <div style={{ background: '#F9F7FF', border: '1px solid #E0D9FF', borderRadius: '3px 12px 12px 12px', padding: '11px 14px' }}>
+                        <p style={{ fontSize: 13, color: ink, lineHeight: 1.7, margin: 0 }}>{panel.data.personalMessage}</p>
                       </div>
                     </div>
                   </div>
@@ -641,12 +649,24 @@ export default function InvestorMessagesPage() {
               </div>
 
               {/* compose */}
-              <div style={{ padding: '12px 20px', borderTop: `1px solid ${bdr}`, flexShrink: 0, background: bg }}>
-                <div style={{
-                  display: 'flex', alignItems: 'flex-end', gap: 10,
-                  background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: '10px 14px',
-                  transition: 'border-color .12s',
-                }}>
+              <div style={{ padding: '12px 20px 14px', borderTop: `1px solid ${bdr}`, flexShrink: 0, background: bg }}>
+                <div
+                  style={{
+                    display: 'flex', alignItems: 'flex-end', gap: 10,
+                    background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: '10px 10px 10px 14px',
+                    transition: 'border-color .15s, box-shadow .15s',
+                  }}
+                  onFocusCapture={e => {
+                    const el = e.currentTarget as HTMLElement
+                    el.style.borderColor = '#4F46E5'
+                    el.style.boxShadow = '0 0 0 3px rgba(79,70,229,0.08)'
+                  }}
+                  onBlurCapture={e => {
+                    const el = e.currentTarget as HTMLElement
+                    el.style.borderColor = bdr
+                    el.style.boxShadow = 'none'
+                  }}
+                >
                   <textarea
                     ref={textareaRef}
                     value={msgInput}
@@ -676,13 +696,14 @@ export default function InvestorMessagesPage() {
                       disabled={!msgInput.trim() || sending || msgInput.length > 4000}
                       style={{
                         width: 32, height: 32, borderRadius: 8, border: 'none',
-                        background: msgInput.trim() && !sending ? ink : bdr,
+                        background: msgInput.trim() && !sending ? '#4F46E5' : bdr,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         cursor: msgInput.trim() && !sending ? 'pointer' : 'default',
                         transition: 'background .12s',
+                        flexShrink: 0,
                       }}
                     >
-                      <Send style={{ height: 13, width: 13, color: msgInput.trim() ? bg : muted }} />
+                      <Send style={{ height: 13, width: 13, color: msgInput.trim() && !sending ? '#fff' : muted }} />
                     </button>
                   </div>
                 </div>

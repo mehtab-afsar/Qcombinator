@@ -20,6 +20,7 @@ import {
   Send,
   Share2,
   Search,
+  Sparkles,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -93,6 +94,7 @@ interface StartupData {
   scoreVersion?: string
   avatarUrl?: string | null
   companyLogoUrl?: string | null
+  aiDerivedFields?: boolean
 }
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -348,36 +350,36 @@ export default function StartupDeepDive() {
                 Share
               </button>
 
-              {/* Pipeline stage selector */}
+              {/* Actions dropdown */}
               <div style={{ position: "relative" }}>
-                {(() => {
-                  const cfg = pipelineStage ? STAGE_CONFIG[pipelineStage] : null;
-                  return (
-                    <button
-                      onClick={() => setPipelineOpen(o => !o)}
-                      style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: "pointer", background: cfg ? cfg.bg : ink, color: cfg ? cfg.color : bg, border: `1.5px solid ${cfg ? cfg.border : ink}`, transition: "all 0.15s" }}
-                    >
-                      {pipelineStage ? STAGE_CONFIG[pipelineStage].label : "Add to Pipeline"}
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9" /></svg>
-                    </button>
-                  );
-                })()}
+                <button
+                  onClick={() => setPipelineOpen(o => !o)}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", background: pipelineStage ? STAGE_CONFIG[pipelineStage].bg : surf, color: pipelineStage ? STAGE_CONFIG[pipelineStage].color : ink, border: `1px solid ${pipelineStage ? STAGE_CONFIG[pipelineStage].border : bdr}`, transition: "all 0.15s", fontFamily: "inherit" }}
+                >
+                  {pipelineStage && (
+                    <span style={{ width: 7, height: 7, borderRadius: "50%", background: STAGE_CONFIG[pipelineStage].color, flexShrink: 0 }} />
+                  )}
+                  {pipelineStage ? STAGE_CONFIG[pipelineStage].label : "Actions"}
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9" /></svg>
+                </button>
                 {pipelineOpen && (
                   <>
                     <div onClick={() => setPipelineOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 49 }} />
-                    <div style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", zIndex: 50, background: bg, border: `1px solid ${bdr}`, borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.08)", padding: "6px 0", minWidth: 160 }}>
+                    <div style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", zIndex: 50, background: bg, border: `1px solid ${bdr}`, borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.10)", padding: "6px 0", minWidth: 180 }}>
+                      <p style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", padding: "6px 14px 4px" }}>Add to Pipeline</p>
                       {STAGES.map(stage => {
                         const cfg = STAGE_CONFIG[stage];
                         return (
                           <button
                             key={stage}
                             onClick={() => updateStage(stage)}
-                            style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 14px", background: "transparent", border: "none", cursor: "pointer", fontSize: 12, fontWeight: pipelineStage === stage ? 700 : 400, color: cfg.color, textAlign: "left" }}
+                            style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 14px", background: "transparent", border: "none", cursor: "pointer", fontSize: 12, fontWeight: pipelineStage === stage ? 700 : 400, color: cfg.color, textAlign: "left", fontFamily: "inherit" }}
                             onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = cfg.bg}
                             onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "transparent"}
                           >
-                            {pipelineStage === stage && <span>✓ </span>}
+                            <span style={{ width: 7, height: 7, borderRadius: "50%", background: cfg.color, flexShrink: 0 }} />
                             {cfg.label}
+                            {pipelineStage === stage && <span style={{ marginLeft: "auto", fontSize: 11 }}>✓</span>}
                           </button>
                         );
                       })}
@@ -386,7 +388,9 @@ export default function StartupDeepDive() {
                           <div style={{ height: 1, background: bdr, margin: "4px 0" }} />
                           <button
                             onClick={async () => { setPipelineStage(null); setPipelineOpen(false); await fetch(`/api/investor/pipeline?founderId=${id}`, { method: 'DELETE' }); }}
-                            style={{ display: "flex", width: "100%", padding: "8px 14px", background: "transparent", border: "none", cursor: "pointer", fontSize: 12, color: red, textAlign: "left" }}
+                            style={{ display: "flex", width: "100%", padding: "8px 14px", background: "transparent", border: "none", cursor: "pointer", fontSize: 12, color: red, textAlign: "left", fontFamily: "inherit" }}
+                            onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "#FEF2F2"}
+                            onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "transparent"}
                           >
                             Remove from pipeline
                           </button>
@@ -672,8 +676,14 @@ export default function StartupDeepDive() {
                   {/* problem & solution (from startup profile form) */}
                   {(s.startupProfile?.solution || s.startupProfile?.moat) && (
                     <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 18, overflow: "hidden" }}>
-                      <div style={{ padding: "16px 22px", borderBottom: `1px solid ${bdr}` }}>
+                      <div style={{ padding: "16px 22px", borderBottom: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                         <p style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: "uppercase", letterSpacing: "0.14em" }}>Problem & Solution</p>
+                        {s.aiDerivedFields && (
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, padding: "2px 8px", borderRadius: 999, background: "#F5F3FF", border: "1px solid #DDD6FE", color: "#7C3AED", fontWeight: 500 }}>
+                            <Sparkles style={{ height: 9, width: 9 }} />
+                            AI-synthesized
+                          </span>
+                        )}
                       </div>
                       <div style={{ padding: "20px 22px", display: "flex", flexDirection: "column", gap: 18 }}>
                         {s.startupProfile.solution && (
@@ -866,9 +876,17 @@ export default function StartupDeepDive() {
                 <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 18, overflow: "hidden" }}>
                   <div style={{ padding: "16px 22px", borderBottom: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <p style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: "uppercase", letterSpacing: "0.14em" }}>Revenue & Unit Economics</p>
-                    {!(s as unknown as Record<string, unknown>).financialsFromArtifact && (
-                      <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 999, background: "#FFFBEB", border: "1px solid #FDE68A", color: amber, fontWeight: 500 }}>Self-reported</span>
-                    )}
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      {s.aiDerivedFields && (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, padding: "2px 8px", borderRadius: 999, background: "#F5F3FF", border: "1px solid #DDD6FE", color: "#7C3AED", fontWeight: 500 }}>
+                          <Sparkles style={{ height: 9, width: 9 }} />
+                          AI-synthesized
+                        </span>
+                      )}
+                      {!(s as unknown as Record<string, unknown>).financialsFromArtifact && (
+                        <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 999, background: "#FFFBEB", border: "1px solid #FDE68A", color: amber, fontWeight: 500 }}>Self-reported</span>
+                      )}
+                    </div>
                   </div>
                   <div style={{ padding: "22px", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 18 }}>
                     {[

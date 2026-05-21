@@ -4,6 +4,7 @@ import { postQScoreFeedEvent } from '@/lib/feed/auto-events'
 import { verifyAuth } from '@/lib/auth/verify'
 import { log } from '@/lib/logger'
 import { triggerDealFlowAlerts } from '@/lib/agents/deal-flow-alerts'
+import { deriveInvestorFields } from '@/lib/profile-builder/ai-enrichment'
 import { mergeToAssessmentData } from '@/lib/profile-builder/data-merger'
 import { enrichDataQuality } from '@/lib/profile-builder/confidence-engine'
 import { reconcileIndicators, applyReconciliationFlags } from '@/lib/profile-builder/reconciliation-engine'
@@ -279,6 +280,68 @@ export async function POST(_req: NextRequest) {
         assessment_completed: true,
       })
       .eq('user_id', userId)
+
+    // 16b. Write extracted fields back to startup_profile_data so investor view picks them up
+    // Uses JSONB merge (|| operator) to preserve existing onboarding data — only fills gaps
+    const fin = assessmentData.financial as Record<string, number> | undefined
+    const p2  = assessmentData.p2  as Record<string, unknown> | undefined
+    const p4  = assessmentData.p4  as Record<string, unknown> | undefined
+    const p3  = assessmentData.p3  as Record<string, unknown> | undefined
+
+    const writeBack: Record<string, string | undefined> = {}
+    if (fin?.mrr)         writeBack.mrr         = String(fin.mrr)
+    if (fin?.arr)         writeBack.arr          = String(fin.arr)
+    else if (fin?.mrr)    writeBack.arr          = String(Math.round(fin.mrr * 12))
+    if (fin?.monthlyBurn) writeBack.burnRate     = String(fin.monthlyBurn)
+    if (fin?.runway)      writeBack.runwayRemaining = String(fin.runway)
+    if (p2?.tamDescription)           writeBack.tamSize        = p2.tamDescription as string
+    if (p2?.marketUrgency)            writeBack.whyNow         = p2.marketUrgency as string
+    if (p2?.competitorDensityContext) writeBack.differentiation = p2.competitorDensityContext as string
+    if (p2?.valuePool)                writeBack.uniquePosition = p2.valuePool as string
+    if (p4?.founderMarketFit)         writeBack.founderMarketFit = p4.founderMarketFit as string
+
+    // Remove undefined entries before merge
+    const cleanWriteBack = Object.fromEntries(Object.entries(writeBack).filter(([, v]) => v !== undefined && v !== ''))
+
+    if (Object.keys(cleanWriteBack).length > 0) {
+      // Fetch current startup_profile_data and merge (only fill empty fields)
+      const { data: fpCurrent } = await supabase
+        .from('founder_profiles')
+        .select('startup_profile_data')
+        .eq('user_id', userId)
+        .single()
+      const existing = ((fpCurrent?.startup_profile_data ?? {}) as Record<string, unknown>)
+      const merged: Record<string, unknown> = { ...existing }
+      for (const [key, val] of Object.entries(cleanWriteBack)) {
+        if (!existing[key] || existing[key] === '') merged[key] = val
+      }
+      await supabase
+        .from('founder_profiles')
+        .update({ startup_profile_data: merged })
+        .eq('user_id', userId)
+    }
+
+    // 16c. Fire-and-forget: AI derives narrative fields (solution, moat, businessModel, uniquePosition)
+    void deriveInvestorFields({
+      userId,
+      problemStory:            (assessmentData.problemStory as string | undefined),
+      advantages:              (assessmentData.advantages   as string[] | undefined),
+      founderMarketFit:        (p4?.founderMarketFit        as string | undefined),
+      knowHowDensity:          (p3?.knowHowDensity          as string | undefined),
+      technicalDepth:          (p3?.technicalDepth          as string | undefined),
+      patentDescription:       (p3?.patentDescription       as string | undefined),
+      buildComplexity:         (p3?.buildComplexity         as string | undefined),
+      marketUrgency:           (p2?.marketUrgency           as string | undefined),
+      valuePool:               (p2?.valuePool               as string | undefined),
+      competitorDensityContext:(p2?.competitorDensityContext as string | undefined),
+      targetCustomers:         (p2?.targetCustomers         as string | undefined),
+      tamDescription:          (p2?.tamDescription          as string | undefined),
+      mrr:                     fin?.mrr,
+      monthlyBurn:             fin?.monthlyBurn,
+      runway:                  fin?.runway,
+      stage:                   fp?.stage ?? undefined,
+      sector:                  fp?.industry ?? undefined,
+    }).catch(() => {})
 
     // 17. Score milestone check — notify when crossing 70 for the first time
     const prevOverallScore = (prevScore as { id: string; overall_score: number } | null)?.overall_score ?? 0
