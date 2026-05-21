@@ -14,7 +14,6 @@ import {
 import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
 import { Avatar } from '@/features/shared/components/Avatar'
 import { TabNav } from '@/features/shared/components/TabNav'
-import { SectionCard } from '@/features/shared/components/SectionCard'
 import { PageSpinner } from '@/features/shared/components/Spinner'
 
 // ─── types ────────────────────────────────────────────────────────────────────

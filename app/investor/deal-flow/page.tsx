@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Search, ChevronRight, ChevronDown, Flame, ArrowUp, Minus, LayoutGrid, List, MessageSquare, Send, X, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { bg, surf, bdr, ink, muted, blue, green, amber, red, alpha } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
 import { PIPELINE_STAGE_COLORS, momentumBadge as _momentumBadge } from '@/features/investor/constants/pipeline'
 import { Avatar } from '@/features/shared/components/Avatar'
 

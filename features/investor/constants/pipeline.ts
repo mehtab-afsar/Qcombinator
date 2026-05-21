@@ -4,7 +4,7 @@
  * Previously conflicting: pipeline page had meeting=purple, deal-flow had meeting=amber.
  */
 
-import { blue, amber, green, red, muted, purple, alpha } from '@/lib/constants/colors'
+import { amber, green, red, muted, purple, alpha } from '@/lib/constants/colors'
 
 export type PipelineStage = 'watching' | 'meeting' | 'in_dd' | 'portfolio' | 'passed'
 

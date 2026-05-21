@@ -1,7 +1,7 @@
 "use client";
 
 import Link from 'next/link';
-import { bg, surf, bdr, ink, muted, blue, alpha } from '@/lib/constants/colors';
+import { surf, bdr, ink, muted, blue, alpha } from '@/lib/constants/colors';
 import { radius, shadow } from '@/features/shared/tokens';
 
 interface StatCardProps {
