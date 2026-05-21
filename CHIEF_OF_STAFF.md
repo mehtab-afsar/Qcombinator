@@ -99,7 +99,8 @@ Edge Alpha is a **two-sided founder–investor marketplace** with an AI-powered 
 │   │   ├── investor/           # Deal flow, pipeline, billing, messages
 │   │   ├── connections/        # Connection requests
 │   │   ├── cron/               # Scheduled automation
-│   │   └── webhooks/           # Stripe + Resend webhooks
+│   │   ├── webhooks/stripe/    # Stripe webhook (plural: /api/webhooks/stripe/)
+│   │   └── webhook/resend/     # Resend webhook (singular: /api/webhook/resend/)
 │   ├── founder/                # All founder-facing pages
 │   │   ├── dashboard/          # Main dashboard
 │   │   ├── cxo/[agentId]/      # AI agent workspace
@@ -136,7 +137,7 @@ Edge Alpha is a **two-sided founder–investor marketplace** with an AI-powered 
 │   └── env.ts                  # Typed env var access
 │
 ├── supabase/
-│   └── migrations/             # 54 migration files (full history)
+│   └── migrations/             # 55 migration files (full history)
 │
 ├── e2e/                        # Playwright E2E tests (14 spec files)
 ├── __tests__/                  # Jest unit tests
@@ -715,9 +716,11 @@ Two-pass generation:
 Quality multiplier: full (>800 chars) = 1.0×, partial (300–800) = 0.6×, minimal (<300) = 0.3×
 Idempotent: one boost per artifact type per user (checked before applying).
 
-### Tool Types (16 registered)
+### Tool Types (13 registered)
 
-All 12 artifact types + `lead_enrich` (Hunter.io domain search) + `web_research` (Tavily + 2nd LLM pass) + `create_deal` (INSERT to deals table) + `competitive_matrix` (live Tavily data).
+Registered in `lib/llm/tools.ts` TOOL_DEFINITIONS — 4 execution tools + 9 data tools:
+- **Execution:** `send_outreach_sequence`, `initiate_voice_call`, `bulk_enrich_pipeline`, `schedule_followup`
+- **Data:** `lead_enrich` (Hunter.io), `web_research` (Tavily + 2nd LLM pass), `create_deal` (INSERT to deals), `fetch_stripe_metrics`, `apollo_search`, `posthog_query`, `calendly_link`, `vapi_call`, `fireflies_sync`
 
 ### Agent Memory Architecture
 - `agent_memory` table: per-user × per-agent relationship tier (stranger → acquainted → familiar → trusted)
@@ -765,7 +768,7 @@ partialIQ = finalIQ × (answeredParameters / 6)
 2. **Confidence multipliers are applied at calculation time** — stored rawScore never modified
 3. **Sparsity penalty** — −0.5 pts per indicator below 20 active (max −5 pts)
 4. **Stage multipliers** — Early/Mid/Growth each apply per-parameter multipliers, then renormalize to sum to 1.0
-5. **Temporal decay** (presentation-only, not stored): <90d = 1.0×, <180d = 0.975×, <270d = 0.95×, <365d = 0.90×, ≥365d = 0.80×
+5. **Temporal decay** *(planned, not yet implemented)*: intended multipliers — <90d = 1.0×, <180d = 0.975×, <270d = 0.95×, <365d = 0.90×, ≥365d = 0.80×. Not currently applied in `q-score-calculator.ts`.
 6. **Bluff detection** — incomplete sections blend score toward 30-point baseline: `finalScore = score × (1 − blend × 0.3) + 30 × blend × 0.3`
 
 ### Grade Thresholds
@@ -801,7 +804,7 @@ score += 20  if stage_match            // founder stage ↔ investor.stages
 score += 10  if qscore ≥ 80
 score += 7   if qscore ≥ 65
 score += 3   if qscore ≥ 50
-score += (response_rate / 100) × 5    // up to +5 pts
+score += ((response_rate - 50) / 100) × 5  // up to ~+2-3 pts (50% baseline)
 final = min(100, score)
 ```
 
@@ -1159,7 +1162,7 @@ Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
 ### Database
 - Supabase PostgreSQL (hosted)
 - pgvector extension for artifact embeddings
-- 54 migration files in `supabase/migrations/` — apply with `supabase db push`
+- 55 migration files in `supabase/migrations/` — apply with `supabase db push`
 - Realtime enabled on notification tables
 - Storage buckets: `avatars`, `logos`
 
@@ -1179,7 +1182,7 @@ Playwright config: single worker, sequential, chromium only, 2 retries on CI.
 
 ### Critical (fix before production traffic)
 
-1. **Stripe webhook idempotency** — No duplicate-event detection. If Stripe retries a webhook, subscription could be updated multiple times. Fix: add `processed_webhook_events` check (Resend already has this pattern).
+1. **Stripe webhook idempotency** — ✅ *FIXED* — `processed_webhook_events` check added to `/app/api/webhooks/stripe/route.ts`, matching the Resend pattern. Event ID deduplication prevents double-processing on Stripe retries.
 
 2. **Login endpoint not rate-limited** — `/login` calls Supabase client SDK, never passes through middleware rate limiting. Brute-force risk on known email addresses. Fix: add `/api/auth/login` proxy route with rate limit, or use Supabase's built-in rate limiting.
 
