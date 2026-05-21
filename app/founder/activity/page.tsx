@@ -3,9 +3,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useActivity } from "@/features/founder/hooks/useActivity";
-import { bg, surf, bdr, ink, muted, blue, green, amber } from '@/lib/constants/colors'
-
-const purple = "#7C3AED";
+import { bg, surf, bdr, ink, muted, blue, green, amber, red, purple } from '@/lib/constants/colors'
+import { PageSpinner } from '@/features/shared/components/Spinner'
 
 // ─── agent metadata ───────────────────────────────────────────────────────────
 const AGENT_META: Record<string, { label: string; description: string; color: string }> = {
@@ -85,7 +84,7 @@ function AgentAvatar({ agentId }: { agentId: string }) {
       width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
       background: `${meta.color}18`, border: `1.5px solid ${meta.color}40`,
       display: "flex", alignItems: "center", justifyContent: "center",
-      fontFamily: "system-ui, -apple-system, sans-serif",
+      fontFamily: "inherit",
       fontSize: 14, fontWeight: 700, color: meta.color,
     }}>
       {letter}
@@ -113,19 +112,19 @@ function ActivityItem({ row }: { row: ActivityRow }) {
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
           <span style={{
-            fontFamily: "system-ui, -apple-system, sans-serif",
+            fontFamily: "inherit",
             fontSize: 13, fontWeight: 700, color: meta.color,
           }}>
             {meta.label}
           </span>
           <span style={{
-            fontFamily: "system-ui, -apple-system, sans-serif",
+            fontFamily: "inherit",
             fontSize: 11, color: muted,
           }}>
             {meta.description.split("·")[0].trim()}
           </span>
           <span style={{
-            fontFamily: "system-ui, -apple-system, sans-serif",
+            fontFamily: "inherit",
             fontSize: 11, color: muted, marginLeft: "auto",
             whiteSpace: "nowrap",
           }}>
@@ -133,7 +132,7 @@ function ActivityItem({ row }: { row: ActivityRow }) {
           </span>
         </div>
         <p style={{
-          fontFamily: "system-ui, -apple-system, sans-serif",
+          fontFamily: "inherit",
           fontSize: 13, color: ink, margin: "4px 0 0",
           lineHeight: 1.55,
           whiteSpace: "pre-wrap",
@@ -158,7 +157,7 @@ function DateGroup({ group }: { group: Group }) {
         borderTop: `1px solid ${bdr}`,
       }}>
         <span style={{
-          fontFamily: "system-ui, -apple-system, sans-serif",
+          fontFamily: "inherit",
           fontSize: 11, fontWeight: 700, color: muted,
           letterSpacing: "0.08em", textTransform: "uppercase",
         }}>
@@ -166,7 +165,7 @@ function DateGroup({ group }: { group: Group }) {
         </span>
         <div style={{ flex: 1, height: 1, background: bdr }} />
         <span style={{
-          fontFamily: "system-ui, -apple-system, sans-serif",
+          fontFamily: "inherit",
           fontSize: 11, color: muted,
         }}>
           {group.items.length} {group.items.length === 1 ? "action" : "actions"}
@@ -275,24 +274,7 @@ export default function ActivityPage() {
   const totalCount = filteredGroups.reduce((s, g) => s + g.items.length, 0);
 
   // ─── loading ──────────────────────────────────────────────────────────────
-  if (loading) {
-    return (
-      <div style={{ minHeight: "100vh", background: bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ textAlign: "center" }}>
-          <div style={{
-            width: 40, height: 40, borderRadius: "50%",
-            border: `3px solid ${bdr}`, borderTopColor: blue,
-            animation: "spin 0.8s linear infinite",
-            margin: "0 auto 16px",
-          }} />
-          <p style={{ color: muted, fontFamily: "system-ui, -apple-system, sans-serif", fontSize: 14 }}>
-            Loading activity…
-          </p>
-        </div>
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      </div>
-    );
-  }
+  if (loading) return <PageSpinner label="Loading activity…" />;
 
   // ─── error ────────────────────────────────────────────────────────────────
   if (error) {
@@ -302,7 +284,7 @@ export default function ActivityPage() {
           background: surf, border: `1px solid ${bdr}`, borderRadius: 12,
           padding: 40, maxWidth: 440, textAlign: "center",
         }}>
-          <p style={{ fontFamily: "system-ui, -apple-system, sans-serif", color: "#DC2626", fontSize: 14, margin: 0 }}>
+          <p style={{ fontFamily: "inherit", color: red, fontSize: 14, margin: 0 }}>
             {error}
           </p>
         </div>
@@ -329,7 +311,7 @@ export default function ActivityPage() {
             style={{
               background: "none", border: `1px solid ${bdr}`, borderRadius: 8,
               padding: "6px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
-              fontFamily: "system-ui, -apple-system, sans-serif", fontSize: 13, color: muted,
+              fontFamily: "inherit", fontSize: 13, color: muted,
               transition: "color 0.15s, border-color 0.15s",
             }}
             onMouseEnter={(e) => {
@@ -349,7 +331,7 @@ export default function ActivityPage() {
 
           {/* Title */}
           <h1 style={{
-            fontFamily: "system-ui, -apple-system, sans-serif",
+            fontFamily: "inherit",
             fontSize: 17, fontWeight: 700, color: ink, margin: 0, flex: 1,
           }}>
             Agent Activity
@@ -360,7 +342,7 @@ export default function ActivityPage() {
             <div style={{
               background: `${blue}14`, border: `1px solid ${blue}30`,
               borderRadius: 12, padding: "2px 10px",
-              fontFamily: "system-ui, -apple-system, sans-serif",
+              fontFamily: "inherit",
               fontSize: 12, fontWeight: 600, color: blue,
             }}>
               {totalCount}
@@ -376,7 +358,7 @@ export default function ActivityPage() {
               border: `1.5px solid ${sendingBriefing ? bdr : amber}`,
               borderRadius: 8, padding: "6px 14px", cursor: sendingBriefing ? "default" : "pointer",
               display: "flex", alignItems: "center", gap: 6,
-              fontFamily: "system-ui, -apple-system, sans-serif",
+              fontFamily: "inherit",
               fontSize: 12, fontWeight: 600,
               color: sendingBriefing ? muted : "#fff",
               transition: "all 0.15s",
@@ -395,7 +377,7 @@ export default function ActivityPage() {
               border: `1.5px solid ${claimingBoost ? bdr : green}`,
               borderRadius: 8, padding: "6px 14px", cursor: (claimingBoost || (boostResult !== null && !boostResult.boosted)) ? "default" : "pointer",
               display: "flex", alignItems: "center", gap: 6,
-              fontFamily: "system-ui, -apple-system, sans-serif",
+              fontFamily: "inherit",
               fontSize: 12, fontWeight: 600,
               color: claimingBoost ? muted : "#fff",
               transition: "all 0.15s",
@@ -413,9 +395,9 @@ export default function ActivityPage() {
               border: `1.5px solid ${sendingDigest ? bdr : ink}`,
               borderRadius: 8, padding: "6px 14px", cursor: sendingDigest ? "default" : "pointer",
               display: "flex", alignItems: "center", gap: 6,
-              fontFamily: "system-ui, -apple-system, sans-serif",
+              fontFamily: "inherit",
               fontSize: 12, fontWeight: 600,
-              color: sendingDigest ? muted : "#F9F7F2",
+              color: sendingDigest ? muted : bg,
               transition: "all 0.15s",
               opacity: sendingDigest ? 0.7 : 1,
             }}
@@ -444,10 +426,10 @@ export default function ActivityPage() {
       {digestToast && (
         <div style={{
           position: "fixed", bottom: 28, right: 28, zIndex: 9999,
-          background: digestToast.ok ? ink : "#DC2626",
-          color: "#F9F7F2",
+          background: digestToast.ok ? ink : red,
+          color: bg,
           borderRadius: 10, padding: "12px 20px",
-          fontFamily: "system-ui, -apple-system, sans-serif",
+          fontFamily: "inherit",
           fontSize: 13, fontWeight: 500,
           boxShadow: "0 4px 24px rgba(0,0,0,0.18)",
           display: "flex", alignItems: "center", gap: 10,
@@ -487,7 +469,7 @@ export default function ActivityPage() {
               {agentFilter === "all" ? "🤖" : AGENT_META[agentFilter]?.label.charAt(0) ?? "?"}
             </div>
             <h3 style={{
-              fontFamily: "system-ui, -apple-system, sans-serif",
+              fontFamily: "inherit",
               fontSize: 17, fontWeight: 600, color: ink, margin: "0 0 10px",
             }}>
               {agentFilter === "all"
@@ -495,7 +477,7 @@ export default function ActivityPage() {
                 : `No activity from ${AGENT_META[agentFilter]?.label ?? agentFilter} yet`}
             </h3>
             <p style={{
-              fontFamily: "system-ui, -apple-system, sans-serif",
+              fontFamily: "inherit",
               fontSize: 14, color: muted, margin: 0, lineHeight: 1.65,
               maxWidth: 380, marginLeft: "auto", marginRight: "auto",
             }}>
@@ -509,7 +491,7 @@ export default function ActivityPage() {
                 style={{
                   marginTop: 20, background: "none", border: `1px solid ${bdr}`,
                   borderRadius: 8, padding: "8px 18px", cursor: "pointer",
-                  fontFamily: "system-ui, -apple-system, sans-serif", fontSize: 13, color: muted,
+                  fontFamily: "inherit", fontSize: 13, color: muted,
                 }}
               >
                 Show all activity
@@ -558,7 +540,7 @@ function FilterPill({
         borderRadius: 20,
         padding: "5px 14px",
         cursor: "pointer",
-        fontFamily: "system-ui, -apple-system, sans-serif",
+        fontFamily: "inherit",
         fontSize: 12, fontWeight: active ? 600 : 400,
         color: active ? c : muted,
         transition: "all 0.15s",

@@ -6,10 +6,13 @@ import {
   Users, Bell, Briefcase, TrendingUp, ArrowRight,
   MessageSquare, ChevronRight, Zap, Star, Clock, Plus,
 } from "lucide-react"
-import { bg, surf, bdr, ink, muted, blue, green, amber, red } from "@/lib/constants/colors"
+import { bg, surf, bdr, ink, muted, blue, green, amber, alpha } from "@/lib/constants/colors"
+import { PIPELINE_STAGE_COLORS } from "@/features/investor/constants/pipeline"
 import { Avatar } from "@/features/shared/components/Avatar"
 import { ScoreBadge } from "@/features/shared/components/Badge"
 import { SectionSpinner } from "@/features/shared/components/Spinner"
+import { StatCard } from "@/features/shared/components/StatCard"
+import { SectionCard } from "@/features/shared/components/SectionCard"
 
 // ─── types ────────────────────────────────────────────────────────────────────
 interface DashboardData {
@@ -58,12 +61,6 @@ interface RecentEntry {
 }
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
-const STAGE_DOTS: Record<string, string> = {
-  watching: blue, meeting: "#7C3AED", in_dd: amber, portfolio: green, passed: red,
-}
-const STAGE_LABELS: Record<string, string> = {
-  watching: "Watching", meeting: "Meeting", in_dd: "In DD", portfolio: "Portfolio", passed: "Passed",
-}
 const STAGE_ORDER = ["watching", "meeting", "in_dd", "portfolio", "passed"]
 
 function getGreeting(name?: string) {
@@ -86,70 +83,13 @@ function timeAgo(iso: string) {
   return `${Math.floor(d / 7)}w ago`
 }
 
-// ─── stat card ────────────────────────────────────────────────────────────────
-function StatCard({
-  icon: Icon, label, value, sub, href, color = ink, accent,
-}: {
-  icon: React.ElementType; label: string; value: string | number
-  sub?: string; href?: string; color?: string; accent?: string
-}) {
-  const inner = (
-    <div style={{
-      background: surf, border: `1px solid ${bdr}`, borderRadius: 14,
-      padding: "20px", display: "flex", flexDirection: "column", gap: 14,
-      transition: "box-shadow 0.15s, border-color 0.15s",
-      cursor: href ? "pointer" : "default", height: "100%", boxSizing: "border-box",
-    }}
-      onMouseEnter={e => {
-        if (!href) return
-        (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 16px rgba(0,0,0,0.08)"
-        ;(e.currentTarget as HTMLElement).style.borderColor = color
-      }}
-      onMouseLeave={e => {
-        if (!href) return
-        (e.currentTarget as HTMLElement).style.boxShadow = "none"
-        ;(e.currentTarget as HTMLElement).style.borderColor = bdr
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
-        <div style={{
-          width: 36, height: 36, borderRadius: 10,
-          background: accent ?? `${color}12`,
-          display: "flex", alignItems: "center", justifyContent: "center",
-        }}>
-          <Icon style={{ width: 16, height: 16, color }} />
-        </div>
-        {href && <ChevronRight style={{ width: 13, height: 13, color: muted, marginTop: 2 }} />}
-      </div>
-      <div>
-        <div style={{ fontSize: 30, fontWeight: 300, color: ink, letterSpacing: "-0.04em", lineHeight: 1 }}>
-          {value}
-        </div>
-        <div style={{ fontSize: 12, fontWeight: 600, color: ink, marginTop: 5, fontFamily: "system-ui, sans-serif" }}>
-          {label}
-        </div>
-        {sub && (
-          <div style={{ fontSize: 11, color: muted, marginTop: 3, fontFamily: "system-ui, sans-serif" }}>
-            {sub}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-  return href ? (
-    <Link href={href} style={{ textDecoration: "none", display: "flex", flexDirection: "column" }}>
-      {inner}
-    </Link>
-  ) : inner
-}
-
 // ─── section header ───────────────────────────────────────────────────────────
 function SectionHeader({ title, href, linkLabel = "View all" }: { title: string; href?: string; linkLabel?: string }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-      <h2 style={{ fontSize: 13, fontWeight: 700, color: ink, margin: 0, fontFamily: "system-ui, sans-serif" }}>{title}</h2>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <h2 style={{ fontSize: 13, fontWeight: 700, color: ink, margin: 0 }}>{title}</h2>
       {href && (
-        <Link href={href} style={{ fontSize: 11, color: blue, textDecoration: "none", fontWeight: 600, display: "flex", alignItems: "center", gap: 3, fontFamily: "system-ui, sans-serif" }}>
+        <Link href={href} style={{ fontSize: 11, color: blue, textDecoration: "none", fontWeight: 600, display: "flex", alignItems: "center", gap: 3 }}>
           {linkLabel} <ArrowRight style={{ width: 10, height: 10 }} />
         </Link>
       )}
@@ -281,7 +221,7 @@ export default function InvestorDashboard() {
 
         {/* ── Header ───────────────────────────────────────────────────── */}
         <div style={{ marginBottom: 28 }}>
-          <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.2em", color: muted, fontWeight: 600, marginBottom: 4, fontFamily: "system-ui, sans-serif" }}>
+          <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.2em", color: muted, fontWeight: 600, marginBottom: 4, fontFamily: "inherit" }}>
             {timeLabel()}
           </p>
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
@@ -289,7 +229,7 @@ export default function InvestorDashboard() {
               {getGreeting(d.investorName)}
             </h1>
             {d.firmName && (
-              <span style={{ fontSize: 12, color: muted, fontFamily: "system-ui, sans-serif" }}>{d.firmName}</span>
+              <span style={{ fontSize: 12, color: muted, fontFamily: "inherit" }}>{d.firmName}</span>
             )}
           </div>
         </div>
@@ -309,7 +249,7 @@ export default function InvestorDashboard() {
             href="/investor/deal-flow"
           />
           <StatCard
-            icon={Users} label="Pending connections" color="#7C3AED"
+            icon={Users} label="Pending connections" color={PIPELINE_STAGE_COLORS.in_dd.color}
             value={d.pendingRequests}
             sub={d.pendingRequests === 0 ? "Explore founders →" : "awaiting your review"}
             href="/investor/connections"
@@ -332,20 +272,21 @@ export default function InvestorDashboard() {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 300px", gap: 18, alignItems: "start" }}>
 
           {/* ── Top founder matches ───────────────────────────────────── */}
-          <div style={{ gridColumn: "1 / 3", background: surf, border: `1px solid ${bdr}`, borderRadius: 16, overflow: "hidden" }}>
-            <div style={{ padding: "16px 20px", borderBottom: `1px solid ${bdr}` }}>
-              <SectionHeader title="Top matches for you" href="/investor/deal-flow" />
-            </div>
-
+          <SectionCard
+            style={{ gridColumn: "1 / 3" }}
+            title=""
+            action={<SectionHeader title="Top matches for you" href="/investor/deal-flow" />}
+            noPadding
+          >
             {d.topFounders.length === 0 ? (
               <div style={{ padding: "40px 20px", textAlign: "center" }}>
-                <p style={{ fontSize: 13, color: muted, marginBottom: 16, fontFamily: "system-ui, sans-serif" }}>
+                <p style={{ fontSize: 13, color: muted, marginBottom: 16, fontFamily: "inherit" }}>
                   No founders yet — they appear here as founders complete onboarding.
                 </p>
                 <Link href="/investor/deal-flow" style={{
                   display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 20px",
                   background: ink, color: bg, borderRadius: 999, textDecoration: "none",
-                  fontSize: 12, fontWeight: 600, fontFamily: "system-ui, sans-serif",
+                  fontSize: 12, fontWeight: 600, fontFamily: "inherit",
                 }}>
                   <Plus style={{ width: 12, height: 12 }} /> Browse Deal Flow
                 </Link>
@@ -370,17 +311,17 @@ export default function InvestorDashboard() {
                       <Avatar url={f.companyLogoUrl ?? f.avatarUrl ?? null} name={f.name} size={38} radius={9} />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "system-ui, sans-serif" }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "inherit" }}>
                             {f.name}
                           </span>
                           {f.qScore > 0 && <ScoreBadge score={f.qScore} />}
                           {f.matchScore && f.matchScore >= 80 && (
-                            <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 999, background: "#F0FDF4", color: "#166534", fontFamily: "system-ui, sans-serif" }}>
+                            <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 999, background: "#F0FDF4", color: "#166534", fontFamily: "inherit" }}>
                               {f.matchScore}% match
                             </span>
                           )}
                         </div>
-                        <p style={{ fontSize: 11, color: muted, margin: "2px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "system-ui, sans-serif" }}>
+                        <p style={{ fontSize: 11, color: muted, margin: "2px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "inherit" }}>
                           {[f.sector, f.stage].filter(Boolean).join(" · ")}
                           {f.tagline ? ` — ${f.tagline}` : ""}
                         </p>
@@ -391,57 +332,53 @@ export default function InvestorDashboard() {
                 ))}
               </div>
             )}
-          </div>
+          </SectionCard>
 
           {/* ── Right column ──────────────────────────────────────────── */}
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
             {/* Pipeline breakdown */}
-            <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 16, overflow: "hidden" }}>
-              <div style={{ padding: "16px 18px", borderBottom: `1px solid ${bdr}` }}>
-                <SectionHeader title="Pipeline stages" href="/investor/pipeline" linkLabel="Manage" />
-              </div>
-              <div style={{ padding: "10px 0" }}>
-                {d.pipeline.length === 0 ? (
-                  <div style={{ padding: "16px 18px", textAlign: "center" }}>
-                    <p style={{ fontSize: 12, color: muted, margin: "0 0 10px", fontFamily: "system-ui, sans-serif" }}>
-                      No companies tracked yet
-                    </p>
-                    <Link href="/investor/deal-flow" style={{ fontSize: 11, color: blue, textDecoration: "none", fontWeight: 600, fontFamily: "system-ui, sans-serif" }}>
-                      Browse deal flow →
-                    </Link>
-                  </div>
-                ) : (
-                  STAGE_ORDER.map(stage => {
-                    const row = d.pipeline.find(r => r.stage === stage)
-                    if (!row || row.count === 0) return null
-                    return (
-                      <div key={stage} style={{ padding: "8px 18px", display: "flex", alignItems: "center", gap: 10 }}>
-                        <span style={{ width: 7, height: 7, borderRadius: "50%", background: STAGE_DOTS[stage] ?? muted, flexShrink: 0 }} />
-                        <span style={{ fontSize: 12, color: ink, flex: 1, fontFamily: "system-ui, sans-serif" }}>
-                          {STAGE_LABELS[stage] ?? stage}
-                        </span>
-                        <div style={{ width: 52, height: 4, borderRadius: 99, background: bdr, overflow: "hidden" }}>
-                          <div style={{ width: `${(row.count / maxStageCount) * 100}%`, height: "100%", background: STAGE_DOTS[stage] ?? muted, borderRadius: 99 }} />
-                        </div>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: ink, minWidth: 14, textAlign: "right", fontFamily: "system-ui, sans-serif" }}>
-                          {row.count}
-                        </span>
+            <SectionCard
+              title=""
+              action={<SectionHeader title="Pipeline stages" href="/investor/pipeline" linkLabel="Manage" />}
+              noPadding
+              bodyStyle={{ padding: "10px 0" }}
+            >
+              {d.pipeline.length === 0 ? (
+                <div style={{ padding: "16px 18px", textAlign: "center" }}>
+                  <p style={{ fontSize: 12, color: muted, margin: "0 0 10px" }}>No companies tracked yet</p>
+                  <Link href="/investor/deal-flow" style={{ fontSize: 11, color: blue, textDecoration: "none", fontWeight: 600 }}>
+                    Browse deal flow →
+                  </Link>
+                </div>
+              ) : (
+                STAGE_ORDER.map(stage => {
+                  const row = d.pipeline.find(r => r.stage === stage)
+                  if (!row || row.count === 0) return null
+                  const sc = PIPELINE_STAGE_COLORS[stage as keyof typeof PIPELINE_STAGE_COLORS]
+                  const stageColor = sc?.color ?? muted
+                  const stageLabel = sc?.label ?? stage
+                  return (
+                    <div key={stage} style={{ padding: "8px 18px", display: "flex", alignItems: "center", gap: 10 }}>
+                      <span style={{ width: 7, height: 7, borderRadius: "50%", background: stageColor, flexShrink: 0 }} />
+                      <span style={{ fontSize: 12, color: ink, flex: 1 }}>{stageLabel}</span>
+                      <div style={{ width: 52, height: 4, borderRadius: 99, background: bdr, overflow: "hidden" }}>
+                        <div style={{ width: `${(row.count / maxStageCount) * 100}%`, height: "100%", background: stageColor, borderRadius: 99 }} />
                       </div>
-                    )
-                  })
-                )}
-              </div>
-            </div>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: ink, minWidth: 14, textAlign: "right" }}>{row.count}</span>
+                    </div>
+                  )
+                })
+              )}
+            </SectionCard>
 
             {/* Quick actions */}
-            <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 16, padding: "16px 18px" }}>
-              <h2 style={{ fontSize: 13, fontWeight: 700, color: ink, margin: "0 0 12px", fontFamily: "system-ui, sans-serif" }}>Quick actions</h2>
+            <SectionCard title="Quick actions">
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {[
                   { href: "/investor/deal-flow",   icon: TrendingUp,    label: "Browse deal flow",        color: blue   },
                   { href: "/investor/pipeline",    icon: Briefcase,     label: "Manage pipeline",          color: green  },
-                  { href: "/investor/connections", icon: Users,         label: "Review connections",       color: "#7C3AED" },
+                  { href: "/investor/connections", icon: Users,         label: "Review connections",       color: PIPELINE_STAGE_COLORS.in_dd.color },
                   { href: "/investor/messages",    icon: MessageSquare, label: "Open messages",            color: amber  },
                   { href: "/investor/settings",    icon: Zap,           label: "Investment preferences",   color: muted  },
                 ].map(item => (
@@ -455,26 +392,29 @@ export default function InvestorDashboard() {
                       onMouseLeave={e => ((e.currentTarget as HTMLElement).style.background = "transparent")}
                     >
                       <item.icon style={{ width: 14, height: 14, color: item.color, flexShrink: 0 }} />
-                      <span style={{ fontSize: 12, color: ink, fontFamily: "system-ui, sans-serif" }}>{item.label}</span>
+                      <span style={{ fontSize: 12, color: ink, fontFamily: "inherit" }}>{item.label}</span>
                       <ChevronRight style={{ width: 11, height: 11, color: muted, marginLeft: "auto" }} />
                     </div>
                   </Link>
                 ))}
               </div>
-            </div>
+            </SectionCard>
           </div>
         </div>
 
         {/* ── Recent pipeline activity ─────────────────────────────────── */}
         {d.recentPipeline.length > 0 && (
-          <div style={{ marginTop: 18, background: surf, border: `1px solid ${bdr}`, borderRadius: 16, overflow: "hidden" }}>
-            <div style={{ padding: "16px 20px", borderBottom: `1px solid ${bdr}` }}>
-              <SectionHeader title="Recently tracked" href="/investor/pipeline" linkLabel="See pipeline" />
-            </div>
+          <SectionCard
+            style={{ marginTop: 18 }}
+            title=""
+            action={<SectionHeader title="Recently tracked" href="/investor/pipeline" linkLabel="See pipeline" />}
+            noPadding
+          >
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 0 }}>
               {d.recentPipeline.map((entry, i) => {
-                const stageDot = STAGE_DOTS[entry.stage] ?? muted
-                const stageLabel = STAGE_LABELS[entry.stage] ?? entry.stage
+                const sc2 = PIPELINE_STAGE_COLORS[entry.stage as keyof typeof PIPELINE_STAGE_COLORS]
+                const stageDot = sc2?.color ?? muted
+                const stageLabel = sc2?.label ?? entry.stage
                 const p = entry.profile
                 return (
                   <Link key={entry.id} href={`/investor/startup/${entry.founder_user_id}`} style={{ textDecoration: "none" }}>
@@ -490,15 +430,15 @@ export default function InvestorDashboard() {
                     >
                       <Avatar url={p?.companyLogoUrl ?? p?.avatarUrl ?? null} name={p?.startup_name ?? "?"} size={32} radius={8} />
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ fontSize: 12, fontWeight: 700, color: ink, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "system-ui, sans-serif" }}>
+                        <p style={{ fontSize: 12, fontWeight: 700, color: ink, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "inherit" }}>
                           {p?.startup_name ?? "Unknown"}
                         </p>
                         <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 3 }}>
                           <span style={{ width: 5, height: 5, borderRadius: "50%", background: stageDot, flexShrink: 0 }} />
-                          <span style={{ fontSize: 10, color: muted, fontFamily: "system-ui, sans-serif" }}>{stageLabel}</span>
-                          <span style={{ fontSize: 10, color: muted, fontFamily: "system-ui, sans-serif" }}>·</span>
+                          <span style={{ fontSize: 10, color: muted, fontFamily: "inherit" }}>{stageLabel}</span>
+                          <span style={{ fontSize: 10, color: muted, fontFamily: "inherit" }}>·</span>
                           <Clock style={{ width: 9, height: 9, color: muted }} />
-                          <span style={{ fontSize: 10, color: muted, fontFamily: "system-ui, sans-serif" }}>{timeAgo(entry.updated_at)}</span>
+                          <span style={{ fontSize: 10, color: muted, fontFamily: "inherit" }}>{timeAgo(entry.updated_at)}</span>
                         </div>
                       </div>
                       {(p?.qScore ?? 0) > 0 && <ScoreBadge score={p!.qScore} />}
@@ -507,7 +447,7 @@ export default function InvestorDashboard() {
                 )
               })}
             </div>
-          </div>
+          </SectionCard>
         )}
 
         {/* ── Notifications banner (pending requests) ───────────────────── */}
@@ -515,15 +455,15 @@ export default function InvestorDashboard() {
           <Link href="/investor/connections" style={{ textDecoration: "none" }}>
             <div style={{
               marginTop: 18, padding: "14px 20px",
-              background: "#EFF6FF", border: `1px solid #BFDBFE`, borderRadius: 12,
+              background: alpha(blue, 0.06), border: `1px solid ${alpha(blue, 0.25)}`, borderRadius: 12,
               display: "flex", alignItems: "center", gap: 12,
               transition: "box-shadow 0.15s",
             }}
-              onMouseEnter={e => ((e.currentTarget as HTMLElement).style.boxShadow = "0 4px 12px rgba(59,130,246,0.12)")}
+              onMouseEnter={e => ((e.currentTarget as HTMLElement).style.boxShadow = `0 4px 12px ${alpha(blue, 0.12)}`)}
               onMouseLeave={e => ((e.currentTarget as HTMLElement).style.boxShadow = "none")}
             >
               <Bell style={{ width: 16, height: 16, color: blue, flexShrink: 0 }} />
-              <p style={{ flex: 1, fontSize: 13, color: "#1D4ED8", margin: 0, fontFamily: "system-ui, sans-serif" }}>
+              <p style={{ flex: 1, fontSize: 13, color: blue, margin: 0 }}>
                 <strong>{d.pendingRequests} founder{d.pendingRequests !== 1 ? "s" : ""}</strong> have requested a connection — view and respond to their profiles.
               </p>
               <ChevronRight style={{ width: 14, height: 14, color: blue, flexShrink: 0 }} />

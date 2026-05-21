@@ -31,7 +31,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useQScore } from "@/features/qscore/hooks/useQScore";
-import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted, blue, green, amber, red, purple, alpha } from '@/lib/constants/colors'
 
 // ─── types ────────────────────────────────────────────────────────────────────
 interface AIAction {
@@ -125,18 +125,18 @@ interface Challenge {
 }
 
 const CHALLENGES: Challenge[] = [
-  { type: "gtm_playbook",       label: "GTM Playbook",         icon: BookOpen,   paramKey: "p1", agentId: "patel",  agentName: "Patel",  points: 6, color: "#D97706" },
-  { type: "financial_summary",  label: "Financial Summary",    icon: DollarSign, paramKey: "p6", agentId: "felix",  agentName: "Felix",  points: 6, color: green     },
-  { type: "icp_document",       label: "ICP Document",         icon: FileText,   paramKey: "p2", agentId: "patel",  agentName: "Patel",  points: 5, color: blue      },
-  { type: "competitive_matrix", label: "Competitive Analysis", icon: Search,     paramKey: "p2", agentId: "atlas",  agentName: "Atlas",  points: 5, color: "#DC2626" },
-  { type: "pmf_survey",         label: "PMF Research Kit",     icon: BarChart3,  paramKey: "p1", agentId: "nova",   agentName: "Nova",   points: 5, color: "#7C3AED" },
-  { type: "hiring_plan",        label: "Hiring Plan",          icon: Users,      paramKey: "p4", agentId: "harper", agentName: "Harper", points: 5, color: blue      },
-  { type: "outreach_sequence",  label: "Outreach Sequence",    icon: Mail,       paramKey: "p1", agentId: "patel",  agentName: "Patel",  points: 4, color: green     },
-  { type: "battle_card",        label: "Battle Card",          icon: Swords,     paramKey: "p2", agentId: "patel",  agentName: "Patel",  points: 4, color: "#DC2626" },
-  { type: "sales_script",       label: "Sales Script",         icon: Zap,        paramKey: "p1", agentId: "susi",   agentName: "Susi",   points: 4, color: green     },
-  { type: "brand_messaging",    label: "Brand Messaging",      icon: Sparkles,   paramKey: "p2", agentId: "maya",   agentName: "Maya",   points: 4, color: "#7C3AED" },
-  { type: "strategic_plan",     label: "Strategic Plan",       icon: Compass,    paramKey: "p5", agentId: "sage",   agentName: "Sage",   points: 4, color: blue      },
-  { type: "legal_checklist",    label: "Legal Checklist",      icon: Scale,      paramKey: "p3", agentId: "leo",    agentName: "Leo",    points: 3, color: "#D97706" },
+  { type: "gtm_playbook",       label: "GTM Playbook",         icon: BookOpen,   paramKey: "p1", agentId: "patel",  agentName: "Patel",  points: 6, color: amber  },
+  { type: "financial_summary",  label: "Financial Summary",    icon: DollarSign, paramKey: "p6", agentId: "felix",  agentName: "Felix",  points: 6, color: green  },
+  { type: "icp_document",       label: "ICP Document",         icon: FileText,   paramKey: "p2", agentId: "patel",  agentName: "Patel",  points: 5, color: blue   },
+  { type: "competitive_matrix", label: "Competitive Analysis", icon: Search,     paramKey: "p2", agentId: "atlas",  agentName: "Atlas",  points: 5, color: red    },
+  { type: "pmf_survey",         label: "PMF Research Kit",     icon: BarChart3,  paramKey: "p1", agentId: "nova",   agentName: "Nova",   points: 5, color: purple },
+  { type: "hiring_plan",        label: "Hiring Plan",          icon: Users,      paramKey: "p4", agentId: "harper", agentName: "Harper", points: 5, color: blue   },
+  { type: "outreach_sequence",  label: "Outreach Sequence",    icon: Mail,       paramKey: "p1", agentId: "patel",  agentName: "Patel",  points: 4, color: green  },
+  { type: "battle_card",        label: "Battle Card",          icon: Swords,     paramKey: "p2", agentId: "patel",  agentName: "Patel",  points: 4, color: red    },
+  { type: "sales_script",       label: "Sales Script",         icon: Zap,        paramKey: "p1", agentId: "susi",   agentName: "Susi",   points: 4, color: green  },
+  { type: "brand_messaging",    label: "Brand Messaging",      icon: Sparkles,   paramKey: "p2", agentId: "maya",   agentName: "Maya",   points: 4, color: purple },
+  { type: "strategic_plan",     label: "Strategic Plan",       icon: Compass,    paramKey: "p5", agentId: "sage",   agentName: "Sage",   points: 4, color: blue   },
+  { type: "legal_checklist",    label: "Legal Checklist",      icon: Scale,      paramKey: "p3", agentId: "leo",    agentName: "Leo",    points: 3, color: amber  },
 ];
 
 // Evidence uses legacy DB keys — keep consistent with stored rows
@@ -289,7 +289,7 @@ export default function ImproveQScorePage() {
 
   // ── shared styles ─────────────────────────────────────────────────────────
   const cardStyle: React.CSSProperties = {
-    background: "#fff", border: `1px solid ${bdr}`, borderRadius: 14, overflow: "hidden",
+    background: bg, border: `1px solid ${bdr}`, borderRadius: 14, overflow: "hidden",
   };
   const sectionLabel: React.CSSProperties = {
     fontSize: 10, fontWeight: 700, textTransform: "uppercase",
@@ -336,10 +336,10 @@ export default function ImproveQScorePage() {
                 {hasScore ? overall : "—"}<span style={{ fontSize: 14, color: muted, fontWeight: 400 }}>/100</span>
               </div>
             </div>
-            <div style={{ width: 48, height: 48, borderRadius: "50%", background: isUnlocked ? "#F0FDF4" : "#FFFBEB", border: `2px solid ${isUnlocked ? green : "#F5E6B8"}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ width: 48, height: 48, borderRadius: "50%", background: isUnlocked ? alpha(green, 0.08) : alpha(amber, 0.12), border: `2px solid ${isUnlocked ? green : alpha(amber, 0.4)}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
               {isUnlocked
                 ? <Unlock size={20} style={{ color: green }} />
-                : <Lock size={20} style={{ color: "#D97706" }} />}
+                : <Lock size={20} style={{ color: amber }} />}
             </div>
           </div>
         </div>
@@ -347,8 +347,8 @@ export default function ImproveQScorePage() {
         {/* progress bar — only when locked */}
         {hasScore && !isUnlocked && (
           <div style={{ marginBottom: 0 }}>
-            <div style={{ height: 5, background: "#FDE68A", borderRadius: 999, overflow: "hidden" }}>
-              <div style={{ width: `${progressPct}%`, height: "100%", borderRadius: 999, background: "#D97706", transition: "width .5s ease" }} />
+            <div style={{ height: 5, background: alpha(amber, 0.25), borderRadius: 999, overflow: "hidden" }}>
+              <div style={{ width: `${progressPct}%`, height: "100%", borderRadius: 999, background: amber, transition: "width .5s ease" }} />
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
               <span style={{ fontSize: 10, color: muted }}>Current: {overall}</span>
@@ -364,7 +364,7 @@ export default function ImproveQScorePage() {
         {conflicts.length > 0 && (
           <div style={{ marginBottom: 24 }}>
             {conflicts.map((c, i) => (
-              <div key={i} style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", borderRadius: 10, padding: "12px 16px", marginBottom: 8, display: "flex", gap: 12, alignItems: "flex-start" }}>
+              <div key={i} style={{ background: alpha(red, 0.06), border: `1px solid ${alpha(red, 0.3)}`, borderRadius: 10, padding: "12px 16px", marginBottom: 8, display: "flex", gap: 12, alignItems: "flex-start" }}>
                 <div style={{ width: 20, height: 20, borderRadius: "50%", background: red, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 12, fontWeight: 700, flexShrink: 0, marginTop: 1 }}>!</div>
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 700, color: red, marginBottom: 2 }}>Data mismatch — {c.dimension}</div>
@@ -380,13 +380,13 @@ export default function ImproveQScorePage() {
         <div style={{ marginBottom: 36 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-              <Zap size={13} style={{ color: "#7C3AED" }} />
-              <span style={{ ...sectionLabel, color: "#7C3AED" }}>Your Action Plan</span>
+              <Zap size={13} style={{ color: purple }} />
+              <span style={{ ...sectionLabel, color: purple }}>Your Action Plan</span>
             </div>
             <button
               onClick={regenerateActions}
               disabled={loadingActions || regeneratingActions}
-              style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, color: regeneratingActions ? muted : "#7C3AED", background: "none", border: `1px solid ${regeneratingActions ? bdr : "#DDD6FE"}`, borderRadius: 6, padding: "3px 9px", cursor: regeneratingActions ? "not-allowed" : "pointer" }}
+              style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, color: regeneratingActions ? muted : purple, background: "none", border: `1px solid ${regeneratingActions ? bdr : alpha(purple, 0.3)}`, borderRadius: 6, padding: "3px 9px", cursor: regeneratingActions ? "not-allowed" : "pointer" }}
             >
               <RefreshCw size={10} /> {regeneratingActions ? "Regenerating…" : "Regenerate"}
             </button>
@@ -435,7 +435,7 @@ export default function ImproveQScorePage() {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 5 }}>
                         <p style={{ fontSize: 14, fontWeight: 600, color: ink, lineHeight: 1.3, margin: 0 }}>{action.title}</p>
-                        <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 999, background: "#EDE9FE", color: "#6D28D9", flexShrink: 0, whiteSpace: "nowrap" }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 999, background: alpha(purple, 0.12), color: purple, flexShrink: 0, whiteSpace: "nowrap" }}>
                           {action.impact}
                         </span>
                       </div>
@@ -570,17 +570,17 @@ export default function ImproveQScorePage() {
                   const done = completedTypes.has(ch.type);
                   return (
                     <div key={ch.type} style={{ ...cardStyle, padding: "14px 16px", display: "flex", alignItems: "flex-start", gap: 10 }}>
-                      <div style={{ height: 32, width: 32, borderRadius: 8, flexShrink: 0, background: done ? `${ch.color}14` : "#E9E6E0", border: `1.5px solid ${done ? ch.color : bdr}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <div style={{ height: 32, width: 32, borderRadius: 8, flexShrink: 0, background: done ? alpha(ch.color, 0.08) : surf, border: `1.5px solid ${done ? ch.color : bdr}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
                         {done ? <Check size={14} style={{ color: ch.color }} /> : <Icon size={14} style={{ color: muted }} />}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <p style={{ fontSize: 12, fontWeight: 600, color: done ? ink : muted, marginBottom: 4, lineHeight: 1.2 }}>{ch.label}</p>
-                        <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 999, background: done ? `${green}18` : surf, color: done ? green : muted, border: `1px solid ${done ? "#BBF7D0" : bdr}` }}>
+                        <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 999, background: done ? alpha(green, 0.1) : surf, color: done ? green : muted, border: `1px solid ${done ? alpha(green, 0.3) : bdr}` }}>
                           +{ch.points} pts
                         </span>
                         <div style={{ marginTop: 8 }}>
                           <Link href={`/founder/cxo/${ch.agentId}`} style={{ textDecoration: "none" }}>
-                            <div style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 10px", borderRadius: 999, fontSize: 10, fontWeight: 600, background: done ? surf : ink, color: done ? muted : "#fff", border: `1px solid ${done ? bdr : ink}`, cursor: "pointer" }}>
+                            <div style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 10px", borderRadius: 999, fontSize: 10, fontWeight: 600, background: done ? surf : ink, color: done ? muted : bg, border: `1px solid ${done ? bdr : ink}`, cursor: "pointer" }}>
                               {done ? <><ArrowRight size={9} /> View</> : <><Zap size={9} /> Build</>}
                             </div>
                           </Link>
@@ -656,19 +656,19 @@ export default function ImproveQScorePage() {
                 const statusColors: Record<string, string> = { pending: amber, verified: green, rejected: red };
                 const iconColor = isAgent ? blue : (statusColors[ev.status] ?? muted);
                 return (
-                  <div key={ev.id} style={{ ...cardStyle, padding: "12px 16px", display: "flex", alignItems: "center", gap: 10, background: isAgent ? "#EFF6FF" : bg, border: `1px solid ${isAgent ? "#BFDBFE" : bdr}` }}>
-                    <div style={{ height: 34, width: 34, borderRadius: 8, flexShrink: 0, background: `${iconColor}18`, border: `1.5px solid ${iconColor}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <div key={ev.id} style={{ ...cardStyle, padding: "12px 16px", display: "flex", alignItems: "center", gap: 10, background: isAgent ? alpha(blue, 0.06) : bg, border: `1px solid ${isAgent ? alpha(blue, 0.25) : bdr}` }}>
+                    <div style={{ height: 34, width: 34, borderRadius: 8, flexShrink: 0, background: alpha(iconColor, 0.1), border: `1.5px solid ${iconColor}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
                       {isAgent ? <Zap size={13} style={{ color: blue }} /> : <Upload size={13} style={{ color: iconColor }} />}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 1 }}>
                         <p style={{ fontSize: 12, fontWeight: 600, color: ink, margin: 0 }}>{ev.title}</p>
-                        {isAgent && <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", padding: "1px 5px", borderRadius: 999, background: "#DBEAFE", color: blue }}>AI</span>}
+                        {isAgent && <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", padding: "1px 5px", borderRadius: 999, background: alpha(blue, 0.15), color: blue }}>AI</span>}
                       </div>
                       <span style={{ fontSize: 10, color: muted }}>{getDimLabel(ev.dimension)} · {EVIDENCE_TYPES[ev.evidence_type] ?? ev.evidence_type}</span>
                     </div>
                     <div style={{ textAlign: "right", flexShrink: 0 }}>
-                      <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", padding: "2px 7px", borderRadius: 999, background: `${statusColors[ev.status] ?? muted}18`, color: statusColors[ev.status] ?? muted }}>
+                      <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", padding: "2px 7px", borderRadius: 999, background: alpha(statusColors[ev.status] ?? muted, 0.1), color: statusColors[ev.status] ?? muted }}>
                         {ev.status}
                       </span>
                       {ev.points_awarded > 0 && (

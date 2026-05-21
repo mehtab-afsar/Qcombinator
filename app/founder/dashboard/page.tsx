@@ -28,7 +28,8 @@ import { useMetrics } from "@/features/founder/hooks/useFounderData";
 import { useDashboardData } from "@/features/founder/hooks/useDashboardData";
 import { agents } from "@/features/agents/data/agents";
 import { getUpcomingWorkshops } from "@/features/academy/data/workshops";
-import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted, blue, green, amber, red, purple, cyan, alpha } from '@/lib/constants/colors'
+import { PageSpinner } from '@/features/shared/components/Spinner'
 
 // ─── demo data ────────────────────────────────────────────────────────────────
 const DEMO_QSCORE = {
@@ -119,12 +120,12 @@ interface ScorePoint {
 
 // ─── score chart ──────────────────────────────────────────────────────────────
 const DIM_COLORS: Record<string, string> = {
-  p1: "#2563EB",
-  p2: "#7C3AED",
-  p3: "#16A34A",
-  p4: "#D97706",
-  p5: "#DC2626",
-  p6: "#0891B2",
+  p1: blue,
+  p2: purple,
+  p3: green,
+  p4: amber,
+  p5: red,
+  p6: cyan,
 };
 const DIM_LABELS: Record<string, string> = {
   p1: "Market Readiness", p2: "Market Potential", p3: "IP / Defensibility",
@@ -253,8 +254,8 @@ function ScoreChart({ points }: { points: ScorePoint[] }) {
 
         {/* Milestone gridlines */}
         {([
-          { v: 80, color: "#EDE9FE", label: "Target", labelColor: "#6D28D9" },
-          { v: 65, color: "#FEF3C7", label: "Marketplace", labelColor: "#B45309" },
+          { v: 80, color: alpha(purple, 0.12), label: "Target", labelColor: purple },
+          { v: 65, color: alpha(amber,  0.12), label: "Marketplace", labelColor: amber },
           { v: 40, color: bdr,       label: "",            labelColor: "" },
         ] as Array<{ v: number; color: string; label: string; labelColor: string }>).map(({ v, color, label, labelColor }) => (
           <g key={v}>
@@ -358,7 +359,7 @@ function ScoreChart({ points }: { points: ScorePoint[] }) {
           <span style={{ fontSize: 11, color: muted }}> since first assessment</span>
         </div>
         {diff > 0 && (
-          <div style={{ marginLeft: "auto", fontSize: 10, fontWeight: 600, color: green, background: "#F0FDF4", padding: "2px 8px", borderRadius: 999 }}>
+          <div style={{ marginLeft: "auto", fontSize: 10, fontWeight: 600, color: green, background: alpha(green, 0.06), padding: "2px 8px", borderRadius: 999 }}>
             Improving
           </div>
         )}
@@ -493,16 +494,7 @@ export default function FounderDashboard() {
     }
   }
 
-  if (authLoading || qScoreLoading) {
-    return (
-      <div style={{ minHeight: "100vh", background: bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ textAlign: "center" }}>
-          <RefreshCw style={{ height: 24, width: 24, color: muted, margin: "0 auto 12px", animation: "spin 1s linear infinite" }} />
-          <p style={{ fontSize: 13, color: muted }}>Loading your dashboard…</p>
-        </div>
-      </div>
-    );
-  }
+  if (authLoading || qScoreLoading) return <PageSpinner label="Loading your dashboard…" />;
 
   const qs = realQScore
     ? { overall: realQScore.overall, percentile: realQScore.percentile ?? null }
@@ -612,8 +604,8 @@ export default function FounderDashboard() {
               </div>
             )}
             {isPartial && (
-              <div style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "5px 14px", background: surf, border: `1px solid #0D9488`, borderRadius: 999, fontSize: 11, color: "#0D9488" }}>
-                <span style={{ height: 6, width: 6, background: "#0D9488", borderRadius: "50%", display: "inline-block", flexShrink: 0 }} />
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "5px 14px", background: surf, border: `1px solid ${cyan}`, borderRadius: 999, fontSize: 11, color: cyan }}>
+                <span style={{ height: 6, width: 6, background: cyan, borderRadius: "50%", display: "inline-block", flexShrink: 0 }} />
                 Partial score — based on {answeredParameters}/6 parameters
               </div>
             )}
@@ -651,11 +643,11 @@ export default function FounderDashboard() {
           <div style={{
             display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap",
             padding: "16px 20px", borderRadius: 12, marginBottom: 20,
-            background: "#EFF6FF", border: `1.5px solid ${blue}`,
+            background: alpha(blue, 0.06), border: `1.5px solid ${blue}`,
           }}>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: blue }}>Complete your Profile Builder to get your Q-Score</div>
-              <div style={{ fontSize: 13, color: "#3B82F6", marginTop: 2 }}>
+              <div style={{ fontSize: 13, color: blue, marginTop: 2 }}>
                 Answer 5 sections of questions — takes about 10–15 minutes. Your score is currently 0 until you complete it.
               </div>
             </div>
@@ -680,25 +672,25 @@ export default function FounderDashboard() {
             style={{
               display: "flex", alignItems: "center", gap: 14,
               padding: "14px 20px", borderRadius: 12, marginBottom: 16,
-              background: runwayCritical ? "#FEF2F2" : "#FFFBEB",
-              border: `1px solid ${runwayCritical ? "#FECACA" : "#FDE68A"}`,
+              background: runwayCritical ? alpha(red, 0.06) : alpha(amber, 0.08),
+              border: `1px solid ${runwayCritical ? alpha(red, 0.3) : alpha(amber, 0.3)}`,
             }}
           >
             <div style={{
               height: 36, width: 36, borderRadius: 9, flexShrink: 0,
-              background: runwayCritical ? "#FEE2E2" : "#FEF3C7",
+              background: runwayCritical ? alpha(red, 0.12) : alpha(amber, 0.15),
               display: "flex", alignItems: "center", justifyContent: "center",
               fontSize: 18,
             }}>
               {runwayCritical ? "🚨" : "⚠️"}
             </div>
             <div style={{ flex: 1 }}>
-              <p style={{ fontSize: 13, fontWeight: 600, color: runwayCritical ? "#991B1B" : "#92400E", marginBottom: 2 }}>
+              <p style={{ fontSize: 13, fontWeight: 600, color: runwayCritical ? red : amber, marginBottom: 2 }}>
                 {runwayCritical
                   ? `Critical: only ${runwayMonths} months of runway left`
                   : `Runway alert: ${runwayMonths} months left — Felix identified cuts to extend it`}
               </p>
-              <p style={{ fontSize: 12, color: runwayCritical ? "#B91C1C" : "#A16207" }}>
+              <p style={{ fontSize: 12, color: runwayCritical ? red : amber }}>
                 {runwayCritical
                   ? "Immediate action required. Open Felix to analyze burn and generate investor update."
                   : "Under 6 months runway. Open Felix to see cost-cutting options and send an investor update."}
@@ -708,8 +700,8 @@ export default function FounderDashboard() {
               href="/founder/cxo/felix"
               style={{
                 flexShrink: 0, padding: "7px 16px",
-                background: runwayCritical ? "#991B1B" : "#92400E",
-                color: "#fff", borderRadius: 999,
+                background: runwayCritical ? red : amber,
+                color: bg, borderRadius: 999,
                 fontSize: 12, fontWeight: 600, textDecoration: "none",
                 whiteSpace: "nowrap",
               }}
@@ -727,24 +719,24 @@ export default function FounderDashboard() {
             style={{
               display: "flex", alignItems: "center", gap: 14,
               padding: "14px 20px", borderRadius: 12, marginBottom: 24,
-              background: isStale ? "#FFFBEB" : "#FFF7F0",
-              border: `1px solid ${isStale ? "#F5E6B8" : "#FED7AA"}`,
+              background: alpha(amber, 0.08),
+              border: `1px solid ${alpha(amber, 0.3)}`,
             }}
           >
             <div style={{
               height: 36, width: 36, borderRadius: 9, flexShrink: 0,
-              background: isStale ? "#FEF3C7" : "#FFEDD5",
+              background: alpha(amber, 0.15),
               display: "flex", alignItems: "center", justifyContent: "center",
             }}>
-              <RefreshCw style={{ height: 16, width: 16, color: isStale ? "#92400E" : "#C2410C" }} />
+              <RefreshCw style={{ height: 16, width: 16, color: amber }} />
             </div>
             <div style={{ flex: 1 }}>
-              <p style={{ fontSize: 13, fontWeight: 600, color: isStale ? "#92400E" : "#9A3412", marginBottom: 2 }}>
+              <p style={{ fontSize: 13, fontWeight: 600, color: amber, marginBottom: 2 }}>
                 {isStale
                   ? `Your Q-Score is ${daysSinceScore} days old — it may not reflect your current progress`
                   : `Your score was calculated ${daysSinceScore} days ago — consider a re-assessment soon`}
               </p>
-              <p style={{ fontSize: 12, color: isStale ? "#A16207" : "#B45309" }}>
+              <p style={{ fontSize: 12, color: amber }}>
                 {isStale
                   ? "Retake the interview to get an accurate score and unlock fresh insights."
                   : "Scores older than 90 days are considered stale. Your startup has likely evolved."}
@@ -754,8 +746,8 @@ export default function FounderDashboard() {
               href="/founder/assessment"
               style={{
                 flexShrink: 0, padding: "7px 16px",
-                background: isStale ? "#92400E" : "#C2410C",
-                color: "#fff", borderRadius: 999,
+                background: amber,
+                color: bg, borderRadius: 999,
                 fontSize: 12, fontWeight: 600, textDecoration: "none",
                 whiteSpace: "nowrap",
               }}
@@ -770,11 +762,11 @@ export default function FounderDashboard() {
           <>
             {stripeStatus.verified ? (
               <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-                style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 20px", borderRadius: 12, marginBottom: 16, background: "#EFF6FF", border: "1px solid #BFDBFE" }}
+                style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 20px", borderRadius: 12, marginBottom: 16, background: alpha(blue, 0.06), border: `1px solid ${alpha(blue, 0.25)}` }}
               >
-                <div style={{ height: 36, width: 36, borderRadius: 9, flexShrink: 0, background: "#DBEAFE", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17 }}>✓</div>
+                <div style={{ height: 36, width: 36, borderRadius: 9, flexShrink: 0, background: alpha(blue, 0.15), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17 }}>✓</div>
                 <div style={{ flex: 1 }}>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: "#1D4ED8", marginBottom: 2 }}>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: blue, marginBottom: 2 }}>
                     Revenue verified via Stripe{stripeStatus.mrr !== undefined && ` · $${stripeStatus.mrr.toLocaleString()} MRR`}
                   </p>
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 4 }}>
@@ -965,7 +957,7 @@ export default function FounderDashboard() {
                   {realQScore?.track && (
                     <p style={{
                       fontSize: 9, marginTop: 3, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em",
-                      color: realQScore.track === 'impact' ? "#16A34A" : "rgba(249,247,242,0.35)",
+                      color: realQScore.track === 'impact' ? green : "rgba(249,247,242,0.35)",
                     }}>
                       {realQScore.track as string} track
                     </p>
@@ -1062,7 +1054,7 @@ export default function FounderDashboard() {
                     >
                       <span style={{ width: 64, fontSize: 11, color: muted, fontWeight: 500, flexShrink: 0, textAlign: "right", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
                         {conflictDims.has(key) && (
-                          <span title="Data mismatch — check Improve Q-Score" style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: "#DC2626", flexShrink: 0 }} />
+                          <span title="Data mismatch — check Improve Q-Score" style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: red, flexShrink: 0 }} />
                         )}
                         {meta.label}
                       </span>

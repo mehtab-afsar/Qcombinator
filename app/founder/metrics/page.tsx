@@ -67,7 +67,7 @@ function KpiCard({
         <Sparkline />
       </div>
 
-      <p style={{ fontSize: 11, fontWeight: 600, color: "#B5B0A8", letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 6 }}>
+      <p style={{ fontSize: 11, fontWeight: 600, color: muted, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 6 }}>
         {label}
       </p>
       <p style={{ fontSize: 28, fontWeight: 300, color: ink, lineHeight: 1, marginBottom: 8 }}>
@@ -110,7 +110,7 @@ function UnitBlock({
       <p style={{ fontSize: 30, fontWeight: 300, color: good ? green : ink, marginBottom: 4, lineHeight: 1 }}>
         {value}
       </p>
-      <p style={{ fontSize: 12, fontWeight: 300, color: good ? "#16A34A" : muted }}>{desc}</p>
+      <p style={{ fontSize: 12, fontWeight: 300, color: good ? green : muted }}>{desc}</p>
     </motion.div>
   );
 }

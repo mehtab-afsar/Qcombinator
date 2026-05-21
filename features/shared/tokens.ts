@@ -3,7 +3,7 @@
  * Re-exports colors so consumers import a single file for all design values.
  */
 
-export { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
+export { bg, surf, bdr, ink, muted, blue, green, amber, red, purple, cyan, pink, indigo, alpha } from '@/lib/constants/colors'
 
 // ── Radius ────────────────────────────────────────────────────────────────────
 export const radius = {
@@ -65,4 +65,19 @@ export const duration = {
   fast:   '0.12s',
   normal: '0.2s',
   slow:   '0.35s',
+} as const
+
+// ── Button size scale ─────────────────────────────────────────────────────────
+export const btn = {
+  xs: { padding: '3px 9px',   fontSize: 11, borderRadius: 6  },
+  sm: { padding: '6px 12px',  fontSize: 12, borderRadius: 8  },
+  md: { padding: '10px 16px', fontSize: 13, borderRadius: 10 },
+  lg: { padding: '12px 24px', fontSize: 13, borderRadius: 10 },
+} as const
+
+// ── Page layout ───────────────────────────────────────────────────────────────
+export const page = {
+  paddingX:      40,
+  paddingY:      32,
+  paddingBottom: 72,
 } as const

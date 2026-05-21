@@ -13,6 +13,9 @@ import {
 } from '@/features/investor/services/investor-settings.service'
 import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
 import { Avatar } from '@/features/shared/components/Avatar'
+import { TabNav } from '@/features/shared/components/TabNav'
+import { SectionCard } from '@/features/shared/components/SectionCard'
+import { PageSpinner } from '@/features/shared/components/Spinner'
 
 // ─── types ────────────────────────────────────────────────────────────────────
 type TabId = 'account' | 'preferences' | 'notifications'
@@ -238,16 +241,7 @@ export default function InvestorSettingsPage() {
     router.push('/login')
   }
 
-  if (loading) {
-    return (
-      <div style={{ minHeight: '100vh', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ textAlign: 'center' }}>
-          <RefreshCw style={{ height: 20, width: 20, color: muted, margin: '0 auto 12px', animation: 'spin 1s linear infinite' }} />
-          <p style={{ fontSize: 13, color: muted }}>Loading settings…</p>
-        </div>
-      </div>
-    )
-  }
+  if (loading) return <PageSpinner label="Loading settings…" />
 
   return (
     <div style={{ minHeight: '100vh', background: bg, color: ink, padding: '40px 24px' }}>
@@ -264,28 +258,12 @@ export default function InvestorSettingsPage() {
         </div>
 
         {/* tabs */}
-        <div style={{ display: 'flex', borderBottom: `1px solid ${bdr}`, marginBottom: 32 }}>
-          {TABS.map(tab => {
-            const Icon   = tab.icon
-            const active = activeTab === tab.id
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 6,
-                  padding: '10px 16px', fontSize: 12, fontWeight: active ? 600 : 400,
-                  color: active ? ink : muted, background: 'none', border: 'none',
-                  borderBottom: active ? `2px solid ${ink}` : '2px solid transparent',
-                  marginBottom: -1, cursor: 'pointer', fontFamily: 'inherit',
-                }}
-              >
-                <Icon style={{ height: 13, width: 13 }} />
-                {tab.label}
-              </button>
-            )
-          })}
-        </div>
+        <TabNav
+          tabs={TABS}
+          active={activeTab}
+          onChange={id => setActiveTab(id as TabId)}
+          style={{ marginBottom: 32 }}
+        />
 
         {/* ── account tab ── */}
         {activeTab === 'account' && (

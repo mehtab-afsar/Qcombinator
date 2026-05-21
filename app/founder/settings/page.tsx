@@ -16,6 +16,7 @@ import {
 } from '@/features/founder/services/settings.service';
 import { bg, surf, bdr, ink, muted, blue, green, red } from '@/lib/constants/colors'
 import { Avatar } from '@/features/shared/components/Avatar'
+import { TabNav } from '@/features/shared/components/TabNav'
 
 type TabId = 'account' | 'company' | 'notifications' | 'integrations' | 'data';
 
@@ -270,36 +271,12 @@ function SettingsInner() {
         </motion.div>
 
         {/* ── tab nav ── */}
-        <motion.div
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, delay: 0.08 }}
-          style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${bdr}`, marginBottom: 28 }}
-        >
-          {TABS.map((tab) => {
-            const Icon   = tab.icon;
-            const active = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => handleTabChange(tab.id)}
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 6,
-                  padding: '10px 18px', fontSize: 12,
-                  fontWeight: active ? 600 : 400,
-                  color: active ? ink : muted,
-                  background: 'none', border: 'none',
-                  borderBottom: active ? `2px solid ${ink}` : '2px solid transparent',
-                  marginBottom: -1, cursor: 'pointer',
-                  transition: 'color 0.15s, border-color 0.15s', whiteSpace: 'nowrap',
-                }}
-              >
-                <Icon style={{ height: 13, width: 13 }} />
-                {tab.label}
-              </button>
-            );
-          })}
-        </motion.div>
+        <TabNav
+          tabs={TABS}
+          active={activeTab}
+          onChange={id => handleTabChange(id as TabId)}
+          style={{ marginBottom: 28 }}
+        />
 
         {/* ── tab panels ── */}
         <motion.div

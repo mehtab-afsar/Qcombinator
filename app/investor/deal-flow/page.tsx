@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Search, ChevronRight, ChevronDown, Flame, ArrowUp, Minus, LayoutGrid, List, MessageSquare, Send, X, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted, blue, green, amber, red, alpha } from '@/lib/constants/colors'
+import { PIPELINE_STAGE_COLORS, momentumBadge as _momentumBadge } from '@/features/investor/constants/pipeline'
 import { Avatar } from '@/features/shared/components/Avatar'
 
 // Module-level cache — survives soft navigation remounts within a session
@@ -48,13 +49,7 @@ interface Founder {
   isHot?: boolean;
 }
 
-const PIPELINE_STAGES = [
-  { value: 'watching',  label: 'Watching',  color: muted    },
-  { value: 'meeting',   label: 'Meeting',   color: amber    },
-  { value: 'in_dd',     label: 'In DD',     color: '#7C3AED' },
-  { value: 'portfolio', label: 'Portfolio', color: green    },
-  { value: 'passed',    label: 'Passed',    color: red      },
-];
+const PIPELINE_STAGES = Object.entries(PIPELINE_STAGE_COLORS).map(([value, { label, color }]) => ({ value, label, color }));
 
 function qScoreColor(s: number) {
   return s >= 70 ? green : s >= 50 ? amber : red;
@@ -62,10 +57,9 @@ function qScoreColor(s: number) {
 
 function momentumBadge(score: number | null) {
   if (score === null) return null;
-  if (score >= 10) return { color: red,   bg: "#FEF2F2", label: `+${score} Hot`,    Icon: Flame   };
-  if (score >= 4)  return { color: green, bg: "#ECFDF5", label: `+${score} Rising`, Icon: ArrowUp };
-  if (score >= -3) return { color: muted, bg: surf,      label: "Steady",           Icon: Minus   };
-  return               { color: amber, bg: "#FFFBEB", label: `${score} Falling`, Icon: Minus   };
+  const b = _momentumBadge(score);
+  const Icon = score >= 10 ? Flame : score >= 4 ? ArrowUp : Minus;
+  return { ...b, Icon };
 }
 
 function daysSince(dateStr: string) {

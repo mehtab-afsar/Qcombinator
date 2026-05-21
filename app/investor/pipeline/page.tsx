@@ -3,26 +3,23 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { ExternalLink, X, ChevronDown } from "lucide-react";
-import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted, blue, green, amber, red, purple } from '@/lib/constants/colors'
+import { PIPELINE_STAGE_COLORS, PIPELINE_STAGES as _PIPELINE_STAGES } from '@/features/investor/constants/pipeline'
 import { Avatar } from '@/features/shared/components/Avatar'
 import { ScoreBadge } from '@/features/shared/components/Badge'
 import { EmptyState } from '@/features/shared/components/EmptyState'
 
 // ─── stage config ─────────────────────────────────────────────────────────────
-const STAGES = ['watching', 'meeting', 'in_dd', 'portfolio', 'passed'] as const
+const STAGES = _PIPELINE_STAGES
 type Stage = typeof STAGES[number]
 
-const STAGE_LABELS: Record<Stage, string> = {
-  watching:  'Watching',
-  meeting:   'Meeting',
-  in_dd:     'In DD',
-  portfolio: 'Portfolio',
-  passed:    'Passed',
-}
+const STAGE_LABELS: Record<Stage, string> = Object.fromEntries(
+  Object.entries(PIPELINE_STAGE_COLORS).map(([k, v]) => [k, v.label])
+) as Record<Stage, string>
 
-const STAGE_DOTS: Record<Stage, string> = {
-  watching: blue, meeting: "#7C3AED", in_dd: amber, portfolio: green, passed: red,
-}
+const STAGE_DOTS: Record<Stage, string> = Object.fromEntries(
+  Object.entries(PIPELINE_STAGE_COLORS).map(([k, v]) => [k, v.color])
+) as Record<Stage, string>
 
 function normaliseStage(s: string): Stage {
   if (s === 'interested') return 'watching'
@@ -308,7 +305,7 @@ export default function InvestorPipelinePage() {
             {[
               { label: "Total",     value: entries.length,            accent: ink     },
               { label: "Watching",  value: stageCounts.watching,      accent: blue    },
-              { label: "Meeting",   value: stageCounts.meeting,       accent: "#7C3AED" },
+              { label: "Meeting",   value: stageCounts.meeting,       accent: purple   },
               { label: "In DD",     value: stageCounts.in_dd,         accent: amber   },
               { label: "Portfolio", value: stageCounts.portfolio,     accent: green   },
             ].map((s, i) => (
