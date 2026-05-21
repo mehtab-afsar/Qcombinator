@@ -268,6 +268,17 @@ export default function InvestorDashboard() {
           />
         </div>
 
+        {/* ── Upgrade banner (free tier only) ─────────────────────────── */}
+        {d.subscriptionTier === 'free' && (
+          <div style={{ padding: '12px 18px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 12, marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <Zap style={{ height: 14, width: 14, color: blue, flexShrink: 0 }} />
+              <span style={{ fontSize: 13, color: blue, fontWeight: 500 }}>Upgrade to Pro to unlock deal flow, AI analysis, and founder deep-dives — $99/month</span>
+            </div>
+            <a href="/investor/billing" style={{ padding: '7px 16px', borderRadius: 8, background: blue, color: '#fff', fontSize: 12, fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0 }}>Upgrade</a>
+          </div>
+        )}
+
         {/* ── Main grid ────────────────────────────────────────────────── */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 300px", gap: 18, alignItems: "start" }}>
 

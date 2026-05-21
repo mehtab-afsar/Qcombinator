@@ -299,6 +299,7 @@ export default function InvestorMessagesPage() {
       }}>
         {/* left header */}
         <div style={{ padding: '20px 20px 0', flexShrink: 0 }}>
+          <p style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.18em', color: muted, fontWeight: 600, marginBottom: 4 }}>Investor · Messages</p>
           <h1 style={{ fontSize: 18, fontWeight: 600, color: ink, letterSpacing: '-0.02em', marginBottom: 16 }}>
             Messages
           </h1>

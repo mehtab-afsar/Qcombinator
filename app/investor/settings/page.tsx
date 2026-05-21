@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { User, Building2, Target, Bell, LogOut, Save, RefreshCw, CheckCircle, Upload, FileText, CreditCard, Zap, ExternalLink } from 'lucide-react'
+import { User, Building2, Target, Bell, LogOut, Save, RefreshCw, CheckCircle, Upload, FileText } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useInvestorSettings } from '@/features/investor/hooks/useInvestorSettings'
 import {
@@ -17,13 +17,12 @@ import { TabNav } from '@/features/shared/components/TabNav'
 import { PageSpinner } from '@/features/shared/components/Spinner'
 
 // ─── types ────────────────────────────────────────────────────────────────────
-type TabId = 'account' | 'preferences' | 'notifications' | 'billing'
+type TabId = 'account' | 'preferences' | 'notifications'
 
 const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
-  { id: 'account',       label: 'Account',        icon: User       },
-  { id: 'preferences',   label: 'Preferences',    icon: Target     },
-  { id: 'notifications', label: 'Notifications',  icon: Bell       },
-  { id: 'billing',       label: 'Billing',        icon: CreditCard },
+  { id: 'account',       label: 'Account',        icon: User   },
+  { id: 'preferences',   label: 'Preferences',    icon: Target },
+  { id: 'notifications', label: 'Notifications',  icon: Bell   },
 ]
 
 const SECTOR_OPTIONS = [
@@ -89,10 +88,6 @@ export default function InvestorSettingsPage() {
   })
   const [savingWeights, setSavingWeights] = useState(false)
 
-  // Billing state
-  const [billingInfo,    setBillingInfo]    = useState<{ subscriptionTier: string; subscriptionStatus: string | null; periodEnd: string | null } | null>(null)
-  const [billingActing,  setBillingActing]  = useState(false)
-
   // Populate form once settings are loaded
   useEffect(() => {
     if (!initialSettings) return
@@ -112,16 +107,13 @@ export default function InvestorSettingsPage() {
     setFirmLogoUrl((initialSettings as unknown as Record<string, unknown>).firmLogoUrl as string | null ?? null)
   }, [initialSettings])
 
-  // Load portfolio config + weights + billing on mount
+  // Load portfolio config + weights on mount
   useEffect(() => {
     fetch('/api/investor/portfolio-config').then(r => r.json()).then(({ config }) => {
       if (config) setPortfolioCfg(cfg => ({ ...cfg, ...config }))
     }).catch(() => {})
     fetch('/api/investor/weights').then(r => r.json()).then(({ weights: w }) => {
       if (w) setWeights(wts => ({ ...wts, ...w }))
-    }).catch(() => {})
-    fetch('/api/investor/billing/status').then(r => r.json()).then(d => {
-      if (d) setBillingInfo(d)
     }).catch(() => {})
   }, [])
 
@@ -136,22 +128,6 @@ export default function InvestorSettingsPage() {
       showToast('Portfolio display saved')
     } catch { showToast('Failed to save', 'error') }
     finally { setSavingPortfolioCfg(false) }
-  }
-
-  async function handleBillingAction() {
-    setBillingActing(true)
-    try {
-      const isPro = billingInfo?.subscriptionTier === 'pro'
-      const endpoint = isPro ? '/api/investor/billing/portal' : '/api/investor/billing/checkout'
-      const res = await fetch(endpoint, { method: 'POST' })
-      const { url, error } = await res.json()
-      if (error) throw new Error(error)
-      window.location.href = url
-    } catch {
-      showToast('Something went wrong. Please try again.', 'error')
-    } finally {
-      setBillingActing(false)
-    }
   }
 
   async function handleSaveWeights() {
@@ -328,11 +304,76 @@ export default function InvestorSettingsPage() {
               </div>
             </div>
 
-            {/* Investment Thesis PDF */}
+            <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden' }}>
+              <div style={{ padding: '16px 20px', borderBottom: `1px solid ${bdr}`, background: surf, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <User style={{ height: 14, width: 14, color: muted }} />
+                <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>Account Information</p>
+              </div>
+              <div style={{ padding: '20px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                      Display Name
+                    </label>
+                    <input value={displayName} onChange={e => setDisplayName(e.target.value)} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                      Email
+                    </label>
+                    <input value={email} readOnly style={{ ...inputStyle, opacity: 0.6, cursor: 'not-allowed' }} />
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                      Fund / Firm Name
+                    </label>
+                    <input value={fundName} onChange={e => setFundName(e.target.value)} placeholder="Sequoia Capital" style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                      Title
+                    </label>
+                    <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Partner" style={inputStyle} />
+                  </div>
+                </div>
+                <button
+                  onClick={handleSaveAccount}
+                  disabled={saving}
+                  style={{ padding: '9px 20px', borderRadius: 8, border: 'none', background: ink, color: bg, fontSize: 13, fontWeight: 500, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                >
+                  <Save style={{ height: 13, width: 13 }} />
+                  {saving ? 'Saving…' : 'Save account'}
+                </button>
+              </div>
+            </div>
+
+            {/* danger zone */}
+            <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 14, padding: '20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <Building2 style={{ height: 14, width: 14, color: red }} />
+                <p style={{ fontSize: 13, fontWeight: 600, color: red }}>Sign Out</p>
+              </div>
+              <p style={{ fontSize: 12, color: muted, marginBottom: 14 }}>Sign out of your investor account.</p>
+              <button
+                onClick={handleSignOut}
+                style={{ padding: '8px 18px', borderRadius: 8, border: '1px solid #FECACA', background: 'transparent', color: red, fontSize: 12, fontWeight: 500, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              >
+                <LogOut style={{ height: 12, width: 12 }} /> Sign out
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── preferences tab ── */}
+        {activeTab === 'preferences' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+            {/* Investment Thesis PDF upload — extract sectors/stages/check sizes automatically */}
             <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden' }}>
               <div style={{ padding: '16px 20px', borderBottom: `1px solid ${bdr}`, background: surf, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <FileText style={{ height: 14, width: 14, color: muted }} />
-                <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>Investment Thesis</p>
+                <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>Investment Thesis PDF</p>
               </div>
               <div style={{ padding: '20px' }}>
                 <p style={{ fontSize: 12, color: muted, marginBottom: 16 }}>
@@ -406,72 +447,7 @@ export default function InvestorSettingsPage() {
               </div>
             </div>
 
-            <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden' }}>
-              <div style={{ padding: '16px 20px', borderBottom: `1px solid ${bdr}`, background: surf, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <User style={{ height: 14, width: 14, color: muted }} />
-                <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>Account Information</p>
-              </div>
-              <div style={{ padding: '20px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
-                  <div>
-                    <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                      Display Name
-                    </label>
-                    <input value={displayName} onChange={e => setDisplayName(e.target.value)} style={inputStyle} />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                      Email
-                    </label>
-                    <input value={email} readOnly style={{ ...inputStyle, opacity: 0.6, cursor: 'not-allowed' }} />
-                  </div>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
-                  <div>
-                    <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                      Fund / Firm Name
-                    </label>
-                    <input value={fundName} onChange={e => setFundName(e.target.value)} placeholder="Sequoia Capital" style={inputStyle} />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                      Title
-                    </label>
-                    <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Partner" style={inputStyle} />
-                  </div>
-                </div>
-                <button
-                  onClick={handleSaveAccount}
-                  disabled={saving}
-                  style={{ padding: '9px 20px', borderRadius: 8, border: 'none', background: ink, color: bg, fontSize: 13, fontWeight: 500, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}
-                >
-                  <Save style={{ height: 13, width: 13 }} />
-                  {saving ? 'Saving…' : 'Save account'}
-                </button>
-              </div>
-            </div>
-
-            {/* danger zone */}
-            <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 14, padding: '20px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                <Building2 style={{ height: 14, width: 14, color: red }} />
-                <p style={{ fontSize: 13, fontWeight: 600, color: red }}>Sign Out</p>
-              </div>
-              <p style={{ fontSize: 12, color: muted, marginBottom: 14 }}>Sign out of your investor account.</p>
-              <button
-                onClick={handleSignOut}
-                style={{ padding: '8px 18px', borderRadius: 8, border: '1px solid #FECACA', background: 'transparent', color: red, fontSize: 12, fontWeight: 500, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
-              >
-                <LogOut style={{ height: 12, width: 12 }} /> Sign out
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ── preferences tab ── */}
-        {activeTab === 'preferences' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-            {/* Investment Thesis */}
+            {/* Investment Thesis text */}
             <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden' }}>
               <div style={{ padding: '16px 20px', borderBottom: `1px solid ${bdr}`, background: surf, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Target style={{ height: 14, width: 14, color: muted }} />
@@ -657,91 +633,6 @@ export default function InvestorSettingsPage() {
                 </button>
               </div>
             </div>
-          </div>
-        )}
-
-        {/* ── billing tab ── */}
-        {activeTab === 'billing' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {/* Plan card */}
-            <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden' }}>
-              <div style={{ padding: '16px 20px', borderBottom: `1px solid ${bdr}`, background: surf, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <CreditCard style={{ height: 14, width: 14, color: muted }} />
-                <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>Current Plan</p>
-              </div>
-              <div style={{ padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  {billingInfo ? (
-                    <>
-                      <div style={{
-                        padding: '4px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700,
-                        background: billingInfo.subscriptionTier === 'pro' ? '#EFF6FF' : surf,
-                        color:      billingInfo.subscriptionTier === 'pro' ? blue       : muted,
-                        border:     `1px solid ${billingInfo.subscriptionTier === 'pro' ? '#BFDBFE' : bdr}`,
-                      }}>
-                        {billingInfo.subscriptionTier === 'pro' ? '⚡ Pro' : 'Free'}
-                      </div>
-                      {billingInfo.subscriptionTier === 'pro' && billingInfo.periodEnd && (
-                        <span style={{ fontSize: 11, color: muted }}>
-                          Renews {new Date(billingInfo.periodEnd).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                        </span>
-                      )}
-                      {billingInfo.subscriptionStatus && billingInfo.subscriptionStatus !== 'inactive' && (
-                        <span style={{
-                          padding: '2px 8px', borderRadius: 999, fontSize: 10, fontWeight: 600,
-                          background: billingInfo.subscriptionStatus === 'active' ? '#ECFDF5' : '#FFFBEB',
-                          color:      billingInfo.subscriptionStatus === 'active' ? green     : amber,
-                        }}>
-                          {billingInfo.subscriptionStatus}
-                        </span>
-                      )}
-                    </>
-                  ) : (
-                    <div style={{ height: 24, width: 80, borderRadius: 999, background: surf }} />
-                  )}
-                </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button
-                    onClick={handleBillingAction}
-                    disabled={billingActing}
-                    style={{
-                      padding: '8px 16px', borderRadius: 8, border: 'none', fontSize: 12, fontWeight: 600,
-                      background: billingInfo?.subscriptionTier === 'pro' ? surf : blue,
-                      color:      billingInfo?.subscriptionTier === 'pro' ? ink  : '#fff',
-                      border: billingInfo?.subscriptionTier === 'pro' ? `1px solid ${bdr}` : 'none',
-                      cursor: billingActing ? 'not-allowed' : 'pointer', opacity: billingActing ? 0.6 : 1,
-                      display: 'inline-flex', alignItems: 'center', gap: 6,
-                    } as React.CSSProperties}
-                  >
-                    {billingInfo?.subscriptionTier === 'pro'
-                      ? <><CreditCard style={{ height: 12, width: 12 }} />{billingActing ? 'Loading…' : 'Manage subscription'}</>
-                      : <><Zap style={{ height: 12, width: 12 }} />{billingActing ? 'Loading…' : 'Upgrade to Pro — $99/mo'}</>
-                    }
-                  </button>
-                  <a
-                    href="/investor/billing"
-                    style={{ padding: '8px 14px', borderRadius: 8, border: `1px solid ${bdr}`, background: 'transparent', color: muted, fontSize: 12, fontWeight: 500, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 5 }}
-                  >
-                    <ExternalLink style={{ height: 11, width: 11 }} /> Full billing
-                  </a>
-                </div>
-              </div>
-            </div>
-
-            {/* Pro features reminder */}
-            {billingInfo?.subscriptionTier !== 'pro' && (
-              <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 14, padding: '16px 20px' }}>
-                <p style={{ fontSize: 12, fontWeight: 600, color: blue, marginBottom: 10 }}>What you get with Pro</p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8 }}>
-                  {['Unlimited deal flow access', 'AI match scores + personalization', 'Pipeline management & kanban', 'Thesis extraction from PDF', 'Founder deep-dive profiles', 'Priority support'].map(f => (
-                    <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, color: ink }}>
-                      <CheckCircle style={{ height: 11, width: 11, color: blue, flexShrink: 0 }} />
-                      {f}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         )}
 

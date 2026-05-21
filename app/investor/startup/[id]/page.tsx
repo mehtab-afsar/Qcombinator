@@ -27,6 +27,7 @@ import { useParams } from "next/navigation";
 import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
 import { Avatar } from '@/features/shared/components/Avatar'
 import { PageSpinner } from '@/features/shared/components/Spinner'
+import { UpgradeModal } from '@/features/investor/components/UpgradeModal'
 
 // ─── types ────────────────────────────────────────────────────────────────────
 const TABS = ["overview", "financials", "team", "market", "documents", "analysis"] as const;
@@ -147,6 +148,9 @@ export default function StartupDeepDive() {
   const [chatMessages, setChatMessages]   = useState<Array<{ role: 'bot' | 'user'; text: string }>>([]);
   const [chatInput,    setChatInput]      = useState('');
   const [chatLoading,  setChatLoading]    = useState(false);
+  // Upgrade gate
+  const [showUpgrade,  setShowUpgrade]   = useState(false);
+  const [upgradeActing,setUpgradeActing] = useState(false);
   // Investor sharing
   const [showShare,    setShowShare]      = useState(false);
   const [shareSearch,  setShareSearch]    = useState('');
@@ -156,9 +160,24 @@ export default function StartupDeepDive() {
   const [shareDone,    setShareDone]      = useState(false);
   const [investors,    setInvestors]      = useState<Array<{ user_id: string; full_name: string; firm_name: string | null }>>([]);
 
+  async function handleUpgradeAction() {
+    setUpgradeActing(true)
+    try {
+      const res = await fetch('/api/investor/billing/checkout', { method: 'POST' })
+      const { url } = await res.json()
+      if (url) window.location.href = url
+    } catch {
+      setUpgradeActing(false)
+    }
+  }
+
   useEffect(() => {
     Promise.all([
-      fetch(`/api/investor/startup/${id}`).then(r => { if (!r.ok) throw new Error(String(r.status)); return r.json() }),
+      fetch(`/api/investor/startup/${id}`).then(r => {
+        if (r.status === 403) { setShowUpgrade(true); throw new Error('403') }
+        if (!r.ok) throw new Error(String(r.status))
+        return r.json()
+      }),
       fetch('/api/investor/pipeline').then(r => r.ok ? r.json() : { pipelineMap: {} }).catch(() => ({ pipelineMap: {} })),
     ]).then(([startupData, pipelineData]) => {
       if (startupData.error) setError(startupData.error);
@@ -168,7 +187,7 @@ export default function StartupDeepDive() {
         const raw = entry.stage === 'interested' ? 'watching' : entry.stage;
         setPipelineStage(STAGES.includes(raw as Stage) ? (raw as Stage) : 'watching');
       }
-    }).catch(() => setError('Failed to load profile'))
+    }).catch(e => { if (e.message !== '403') setError('Failed to load profile') })
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -271,6 +290,15 @@ export default function StartupDeepDive() {
 
   return (
     <div style={{ minHeight: "100vh", background: bg, color: ink }}>
+
+      {/* ── upgrade gate modal ─────────────────────────────────────── */}
+      {showUpgrade && (
+        <UpgradeModal
+          onClose={() => setShowUpgrade(false)}
+          onUpgrade={handleUpgradeAction}
+          acting={upgradeActing}
+        />
+      )}
 
       {/* ── sticky header ──────────────────────────────────────────── */}
       <div style={{ position: "sticky", top: 0, zIndex: 30, background: "rgba(249,247,242,0.94)", backdropFilter: "blur(14px)", borderBottom: `1px solid ${bdr}`, padding: "0 28px" }}>

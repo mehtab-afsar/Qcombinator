@@ -328,6 +328,11 @@ export default function InvestorSidebar() {
               <p style={{ fontSize: 11, color: muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{user?.email}</p>
             </div>
           </div>
+          <div style={{ padding: "2px 14px 10px" }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 999, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", background: "#EFF6FF", color: "#1D4ED8", border: "1px solid #BFDBFE" }}>
+              ● INVESTOR
+            </span>
+          </div>
           <DropSep />
           <DropItem href="/investor/portfolio" icon={UserCircle}  label="Profile" />
           <DropItem href="/investor/settings"  icon={Settings}    label="Settings" />

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { motion } from 'framer-motion';
-import { User, Building2, Bell, Lock, Download, Trash2, RefreshCw, Save, AlertTriangle, Plug, CheckCircle, CreditCard, Zap, ExternalLink } from 'lucide-react';
+import { User, Building2, Bell, Lock, Download, Trash2, RefreshCw, Save, AlertTriangle, Plug, CheckCircle } from 'lucide-react';
 import { useFounderData } from '@/features/founder/hooks/useFounderData';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
@@ -18,15 +18,14 @@ import { bg, surf, bdr, ink, muted, blue, green, red } from '@/lib/constants/col
 import { Avatar } from '@/features/shared/components/Avatar'
 import { TabNav } from '@/features/shared/components/TabNav'
 
-type TabId = 'account' | 'company' | 'notifications' | 'integrations' | 'data' | 'billing';
+type TabId = 'account' | 'company' | 'notifications' | 'integrations' | 'data';
 
 const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
-  { id: 'account',       label: 'Account',        icon: User       },
-  { id: 'company',       label: 'Company',        icon: Building2  },
-  { id: 'notifications', label: 'Notifications',  icon: Bell       },
-  { id: 'integrations',  label: 'Integrations',   icon: Plug       },
-  { id: 'data',          label: 'Data & Privacy', icon: Lock       },
-  { id: 'billing',       label: 'Billing',        icon: CreditCard },
+  { id: 'account',       label: 'Account',        icon: User      },
+  { id: 'company',       label: 'Company',        icon: Building2 },
+  { id: 'notifications', label: 'Notifications',  icon: Bell      },
+  { id: 'integrations',  label: 'Integrations',   icon: Plug      },
+  { id: 'data',          label: 'Data & Privacy', icon: Lock      },
 ];
 
 // ─── connectors data ──────────────────────────────────────────────────────────
@@ -97,13 +96,8 @@ function SettingsInner() {
   const [weeklyDigest,        setWeeklyDigest]        = useState(false);
   const [runwayAlerts,        setRunwayAlerts]        = useState(true);
 
-  // Billing
-  const [billingInfo,   setBillingInfo]   = useState<{ subscriptionTier: string; subscriptionStatus: string | null; periodEnd: string | null; usage?: { agentChat: { used: number; limit: number | null }; qscoreRecalc: { used: number; limit: number | null }; investorConnection: { used: number; limit: number | null } } } | null>(null)
-  const [billingActing, setBillingActing] = useState(false)
-
   // Load all settings from Supabase on mount
   useEffect(() => {
-    fetch('/api/founder/billing/status').then(r => r.json()).then(d => { if (d) setBillingInfo(d) }).catch(() => {})
     loadSettings().then(s => {
       if (!s) return
       setEmail(s.email)
@@ -133,22 +127,6 @@ function SettingsInner() {
   function showToast(msg: string, type: 'success' | 'error' = 'success') {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3000);
-  }
-
-  async function handleBillingAction() {
-    setBillingActing(true)
-    try {
-      const isPremium = billingInfo?.subscriptionTier === 'premium'
-      const endpoint = isPremium ? '/api/founder/billing/portal' : '/api/founder/billing/checkout'
-      const res = await fetch(endpoint, { method: 'POST' })
-      const { url, error } = await res.json()
-      if (error) throw new Error(error)
-      window.location.href = url
-    } catch {
-      showToast('Something went wrong. Please try again.', 'error')
-    } finally {
-      setBillingActing(false)
-    }
   }
 
   const handleImageUpload = async (file: File, imageType: 'founder-avatar' | 'founder-logo') => {
@@ -364,25 +342,6 @@ function SettingsInner() {
                 <SaveButton onClick={handleSaveAccount} loading={saving} />
               </SettingsCard>
 
-              <SettingsCard title="Plan" description="Your current subscription">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div style={{ width: 36, height: 36, borderRadius: 10, background: '#F5F3FF', border: '1px solid #DDD6FE', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <CreditCard style={{ width: 16, height: 16, color: '#7C3AED' }} />
-                    </div>
-                    <div>
-                      <p style={{ fontSize: 14, fontWeight: 600, color: ink, margin: '0 0 2px' }}>Subscription &amp; Usage</p>
-                      <p style={{ fontSize: 12, color: muted, margin: 0 }}>Manage your plan and view usage limits</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleTabChange('billing')}
-                    style={{ padding: '7px 14px', borderRadius: 8, border: `1px solid ${bdr}`, background: 'transparent', color: ink, fontSize: 12, fontWeight: 500, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5 }}
-                  >
-                    <ExternalLink style={{ height: 11, width: 11 }} /> View billing
-                  </button>
-                </div>
-              </SettingsCard>
             </div>
           )}
 
@@ -673,111 +632,6 @@ function SettingsInner() {
                   </p>
                 </div>
               </div>
-            </div>
-          )}
-
-          {/* Billing */}
-          {activeTab === 'billing' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {/* Plan card */}
-              <div style={{ background: '#fff', border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden' }}>
-                <div style={{ padding: '16px 20px', borderBottom: `1px solid ${bdr}`, background: surf, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <CreditCard style={{ height: 14, width: 14, color: muted }} />
-                  <p style={{ fontSize: 13, fontWeight: 600, color: '#1C1917' }}>Current Plan</p>
-                </div>
-                <div style={{ padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    {billingInfo ? (
-                      <>
-                        <div style={{
-                          padding: '4px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700,
-                          background: billingInfo.subscriptionTier === 'premium' ? '#F5F3FF' : surf,
-                          color:      billingInfo.subscriptionTier === 'premium' ? '#7C3AED' : muted,
-                          border:     `1px solid ${billingInfo.subscriptionTier === 'premium' ? '#DDD6FE' : bdr}`,
-                        }}>
-                          {billingInfo.subscriptionTier === 'premium' ? '⚡ Premium' : 'Free'}
-                        </div>
-                        {billingInfo.subscriptionTier === 'premium' && billingInfo.periodEnd && (
-                          <span style={{ fontSize: 11, color: muted }}>
-                            Renews {new Date(billingInfo.periodEnd).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                          </span>
-                        )}
-                      </>
-                    ) : (
-                      <div style={{ height: 24, width: 80, borderRadius: 999, background: surf }} />
-                    )}
-                  </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button
-                      onClick={handleBillingAction}
-                      disabled={billingActing}
-                      style={{
-                        padding: '8px 16px', borderRadius: 8, border: 'none', fontSize: 12, fontWeight: 600,
-                        background: billingInfo?.subscriptionTier === 'premium' ? surf : '#7C3AED',
-                        color:      billingInfo?.subscriptionTier === 'premium' ? '#1C1917' : '#fff',
-                        ...(billingInfo?.subscriptionTier === 'premium' ? { border: `1px solid ${bdr}` } : {}),
-                        cursor: billingActing ? 'not-allowed' : 'pointer', opacity: billingActing ? 0.6 : 1,
-                        display: 'inline-flex', alignItems: 'center', gap: 6,
-                      } as React.CSSProperties}
-                    >
-                      {billingInfo?.subscriptionTier === 'premium'
-                        ? <><CreditCard style={{ height: 12, width: 12 }} />{billingActing ? 'Loading…' : 'Manage subscription'}</>
-                        : <><Zap style={{ height: 12, width: 12 }} />{billingActing ? 'Loading…' : 'Upgrade to Premium — $29/mo'}</>
-                      }
-                    </button>
-                    <a
-                      href="/founder/billing"
-                      style={{ padding: '8px 14px', borderRadius: 8, border: `1px solid ${bdr}`, background: 'transparent', color: muted, fontSize: 12, fontWeight: 500, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 5 }}
-                    >
-                      <ExternalLink style={{ height: 11, width: 11 }} /> Full billing
-                    </a>
-                  </div>
-                </div>
-              </div>
-
-              {/* Usage meters */}
-              {billingInfo?.usage && (
-                <div style={{ background: '#fff', border: `1px solid ${bdr}`, borderRadius: 14, padding: '20px' }}>
-                  <p style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 14 }}>This month&apos;s usage</p>
-                  {[
-                    { label: 'AI agent conversations', used: billingInfo.usage.agentChat.used,          limit: billingInfo.subscriptionTier === 'premium' ? null : billingInfo.usage.agentChat.limit,          color: blue  },
-                    { label: 'Q-Score recalculations',  used: billingInfo.usage.qscoreRecalc.used,       limit: billingInfo.subscriptionTier === 'premium' ? null : billingInfo.usage.qscoreRecalc.limit,       color: green },
-                    { label: 'Investor connections',    used: billingInfo.usage.investorConnection.used, limit: billingInfo.subscriptionTier === 'premium' ? null : billingInfo.usage.investorConnection.limit, color: '#7C3AED' },
-                  ].map(({ label, used, limit, color }) => {
-                    const pct = limit ? Math.min(100, Math.round((used / limit) * 100)) : 0
-                    return (
-                      <div key={label} style={{ marginBottom: 14 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-                          <span style={{ fontSize: 12, color: muted }}>{label}</span>
-                          <span style={{ fontSize: 12, fontWeight: 600, color: limit === null ? green : pct >= 90 ? red : '#1C1917' }}>
-                            {limit === null ? 'Unlimited' : `${used} / ${limit}`}
-                          </span>
-                        </div>
-                        {limit !== null && (
-                          <div style={{ height: 4, borderRadius: 999, background: bdr, overflow: 'hidden' }}>
-                            <div style={{ height: '100%', width: `${pct}%`, borderRadius: 999, background: pct >= 90 ? red : color }} />
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-
-              {/* Premium features teaser */}
-              {billingInfo?.subscriptionTier !== 'premium' && (
-                <div style={{ background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: 14, padding: '16px 20px' }}>
-                  <p style={{ fontSize: 12, fontWeight: 600, color: '#7C3AED', marginBottom: 10 }}>What you get with Premium</p>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8 }}>
-                    {['500 AI agent conversations/month', 'Unlimited Q-Score recalculations', 'Unlimited investor connections', 'Priority placement in deal flow', 'Usage analytics & benchmarks', '"Premium" badge on profile'].map(f => (
-                      <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, color: '#1C1917' }}>
-                        <CheckCircle style={{ height: 11, width: 11, color: '#7C3AED', flexShrink: 0 }} />
-                        {f}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           )}
 

@@ -1297,6 +1297,7 @@ export default function LandingPage() {
 
             {/* Locked preview */}
             <div style={{ position: "relative", overflow: "hidden" }}>
+              <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at 50% 100%, rgba(201,169,97,0.1), transparent 55%)", pointerEvents: "none", zIndex: 1 }} />
               <div style={{ filter: "blur(3.5px)", opacity: 0.45, pointerEvents: "none", background: "white" }}>
                 {investors.slice(3).map((inv, i) => (
                   <div key={inv.name} style={{
@@ -1343,7 +1344,8 @@ export default function LandingPage() {
                     onClick={() => go("/founder/onboarding")}
                     style={{
                       fontSize: 12, fontWeight: 500, padding: "6px 14px", borderRadius: 6,
-                      background: C.charcoal, color: C.cream, border: "none", cursor: "pointer",
+                      background: GRAD_CTA, color: "white", border: "none", cursor: "pointer",
+                      boxShadow: "0 2px 10px rgba(217,119,87,0.35)",
                     }}
                   >
                     Start →
@@ -1371,13 +1373,13 @@ export default function LandingPage() {
 
       {/* ── STATS — DARK ─────────────────────────────────────────────────── */}
       <div style={{ background: C.midnight, position: "relative", overflow: "hidden" }}>
-        <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: 700, height: 700, borderRadius: "50%", background: "radial-gradient(circle, rgba(217,119,87,0.08) 0%, transparent 60%)", filter: "blur(48px)", pointerEvents: "none" }} />
-        <div className="mx-auto max-w-4xl grid grid-cols-2 md:grid-cols-4" style={{ position: "relative" }}>
+        <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: 700, height: 700, borderRadius: "50%", background: "radial-gradient(circle, rgba(217,119,87,0.07) 0%, transparent 60%)", filter: "blur(48px)", pointerEvents: "none" }} />
+        <div className="mx-auto max-w-5xl grid grid-cols-2 lg:grid-cols-4" style={{ position: "relative" }}>
           {stats.map((s, i) => (
             <motion.div
               key={s.label}
               style={{
-                padding: "64px 40px",
+                padding: "56px 28px",
                 textAlign: "center",
                 borderRight: i < stats.length - 1 ? "1px solid rgba(217,119,87,0.12)" : "none",
                 borderBottom: i < 2 ? "1px solid rgba(217,119,87,0.12)" : "none",
@@ -1387,24 +1389,25 @@ export default function LandingPage() {
               viewport={{ once: true }}
               transition={{ delay: i * 0.1, ease }}
             >
-              <p style={{
+              <div style={{
                 fontFamily: "monospace",
                 fontWeight: 400,
-                fontSize: "clamp(40px, 6vw, 72px)",
+                fontSize: "clamp(32px, 3.5vw, 52px)",
                 letterSpacing: "-0.03em",
-                marginBottom: 12,
+                marginBottom: 10,
                 background: "linear-gradient(135deg, #D97757, #C9A961)",
                 WebkitBackgroundClip: "text",
                 WebkitTextFillColor: "transparent",
                 backgroundClip: "text",
+                lineHeight: 1,
               }}>
                 <CountUp to={s.to} decimals={s.decimals} prefix={s.prefix} suffix={s.suffix} />
-              </p>
+              </div>
               <p style={{
                 fontFamily: "monospace",
-                fontSize: 11,
+                fontSize: 10,
                 textTransform: "uppercase",
-                letterSpacing: "0.18em",
+                letterSpacing: "0.16em",
                 color: "rgba(255,255,255,0.35)",
               }}>
                 {s.label}
@@ -1450,15 +1453,17 @@ export default function LandingPage() {
                   flexDirection: "column",
                   background: "white",
                   border: `1px solid ${C.taupe}`,
+                  borderTop: `3px solid ${t.tc}`,
                   boxShadow: "0 1px 4px rgba(42,40,38,0.04)",
                 }}
                 initial={{ opacity: 0, y: 16 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: (i % 3) * 0.1 }}
-                whileHover={{ y: -2, boxShadow: "0 4px 24px rgba(42,40,38,0.08)" }}
+                whileHover={{ y: -3, boxShadow: "0 8px 32px rgba(42,40,38,0.1)" }}
               >
                 <StarRating />
+                <div style={{ fontSize: 52, fontWeight: 700, lineHeight: 0.8, color: t.tc, opacity: 0.12, marginBottom: 6, fontFamily: "Georgia, serif", userSelect: "none" }}>&ldquo;</div>
                 <p style={{ fontSize: 14, fontWeight: 400, lineHeight: 1.75, color: C.stone, flex: 1, marginBottom: 20 }}>
                   {t.quote}
                 </p>
@@ -1833,85 +1838,11 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── KNOWLEDGE LIBRARY ─────────────────────────────────────────────── */}
-      <section style={{ background: C.cream, borderTop: `1px solid ${C.taupe}`, padding: "96px 24px" }}>
-        <div className="mx-auto max-w-7xl">
-          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-12">
-            <div>
-              <span style={{
-                fontFamily: "monospace", fontSize: 10, letterSpacing: "0.28em",
-                textTransform: "uppercase", display: "block", marginBottom: 12, color: C.stone,
-              }}>
-                Free resource
-              </span>
-              <h2 style={{ fontSize: "clamp(24px, 3vw, 36px)", fontWeight: 400, letterSpacing: "-0.02em", color: C.charcoal }}>
-                Startup Playbook Library
-              </h2>
-              <p style={{ marginTop: 12, fontSize: 15, color: C.stone, maxWidth: 480, lineHeight: 1.65, fontWeight: 400 }}>
-                60+ curated frameworks from YC, a16z, Bessemer, and HBR — surfaced by your AI team when you need them.
-              </p>
-            </div>
-            <a
-              href="/library"
-              style={{
-                display: "inline-flex", alignItems: "center", gap: 6,
-                fontSize: 13, fontWeight: 500, padding: "10px 20px", borderRadius: 6,
-                background: C.charcoal, color: C.cream, textDecoration: "none",
-                flexShrink: 0,
-              }}
-            >
-              Browse library →
-            </a>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[
-              { icon: "⚙️", type: "Framework", title: "SaaS Metrics 2.0",           source: "David Skok · For Entrepreneurs", fn: "CFO", color: "#D97706" },
-              { icon: "📋", type: "Playbook",  title: "ICP Narrowing Worksheet",    source: "First Round Capital",           fn: "CMO", color: "#2563EB" },
-              { icon: "📖", type: "Framework", title: "The Burn Multiple",          source: "David Sacks · Craft Ventures",   fn: "CFO", color: "#D97706" },
-              { icon: "⚙️", type: "Framework", title: "MEDDIC Sales Qualification", source: "Jack Napoli · PTC",             fn: "CRO", color: "#16A34A" },
-              { icon: "📖", type: "Guide",     title: "How to Find PMF",            source: "Gustaf Alströmer · YC",         fn: "CPO", color: "#DB2777" },
-              { icon: "⚙️", type: "Framework", title: "7 Powers: Competitive Moats", source: "Hamilton Helmer",             fn: "CSO", color: "#059669" },
-            ].map((r) => (
-              <motion.a
-                key={r.title}
-                href="/library"
-                style={{
-                  display: "block", padding: "20px 24px", borderRadius: 10,
-                  background: "white", border: `1px solid ${C.taupe}`, textDecoration: "none",
-                  boxShadow: "0 1px 4px rgba(42,40,38,0.04)",
-                }}
-                whileHover={{ y: -2, boxShadow: "0 4px 16px rgba(42,40,38,0.08)" }}
-                transition={{ type: "spring", stiffness: 300, damping: 25 }}
-              >
-                <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-                  <div style={{ fontSize: 24, marginTop: 2, flexShrink: 0 }}>{r.icon}</div>
-                  <div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                      <span style={{
-                        fontSize: 10, fontWeight: 600, padding: "2px 6px", borderRadius: 4,
-                        background: r.color + "1A", color: r.color, fontFamily: "monospace",
-                      }}>{r.fn}</span>
-                      <span style={{ fontSize: 10, color: C.dim, fontFamily: "monospace" }}>{r.type}</span>
-                    </div>
-                    <p style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.4, marginBottom: 4, color: C.charcoal }}>{r.title}</p>
-                    <p style={{ fontSize: 12, color: C.stone, fontWeight: 400 }}>{r.source}</p>
-                  </div>
-                </div>
-              </motion.a>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* ── FINAL CTA — DARK ──────────────────────────────────────────────── */}
       <section style={{ background: C.midnight, position: "relative", overflow: "hidden" }}>
-        {/* Single subtle glow — no blobs */}
-        <div style={{
-          position: "absolute",
-          inset: 0,
-          background: "radial-gradient(ellipse at 50% 0%, rgba(217,119,87,0.08) 0%, transparent 60%)",
-          pointerEvents: "none",
-        }} />
+        <div style={{ position: "absolute", top: -180, right: -160, width: 640, height: 640, borderRadius: "50%", background: "radial-gradient(circle, rgba(217,119,87,0.13) 0%, transparent 70%)", filter: "blur(56px)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", bottom: -140, left: -180, width: 500, height: 500, borderRadius: "50%", background: "radial-gradient(circle, rgba(37,99,235,0.09) 0%, transparent 70%)", filter: "blur(48px)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", top: "35%", left: "50%", transform: "translateX(-50%)", width: 800, height: 400, borderRadius: "50%", background: "radial-gradient(ellipse, rgba(201,169,97,0.07) 0%, transparent 70%)", filter: "blur(40px)", pointerEvents: "none" }} />
 
         <motion.div
           style={{ maxWidth: 640, margin: "0 auto", padding: "128px 24px", textAlign: "center", position: "relative" }}
@@ -1919,7 +1850,7 @@ export default function LandingPage() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
         >
-          <div style={{ height: 1, background: "rgba(255,255,255,0.07)", marginBottom: 48 }} />
+          <div style={{ border: "1px solid rgba(217,119,87,0.18)", borderRadius: 20, padding: "56px 40px", background: "rgba(217,119,87,0.03)" }}>
           <span style={{
             fontFamily: "monospace", fontSize: 10, letterSpacing: "0.3em",
             textTransform: "uppercase", display: "block", marginBottom: 32,
@@ -1936,7 +1867,7 @@ export default function LandingPage() {
             marginBottom: 40,
           }}>
             Build the company<br />
-            <em style={{ fontStyle: "italic", color: "#F7EFD9" }}>investors want to fund.</em>
+            <em style={{ fontStyle: "italic", background: "linear-gradient(135deg, #D97757, #C9A961)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>investors want to fund.</em>
           </h2>
           <GetStartedDropdown
             label={<>Start free <ArrowRight size={15} /></>}
@@ -1963,6 +1894,7 @@ export default function LandingPage() {
             ))}
           </div>
           <div style={{ height: 1, background: "rgba(255,255,255,0.07)", marginTop: 48 }} />
+          </div>
         </motion.div>
       </section>
 

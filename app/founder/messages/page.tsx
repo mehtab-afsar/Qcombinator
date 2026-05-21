@@ -430,7 +430,7 @@ function MessagesInner() {
       }}>
         {/* Sidebar header */}
         <div style={{ padding: '20px 16px 14px', borderBottom: `1px solid ${bdr}` }}>
-          <p style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.18em', color: muted, fontWeight: 600, marginBottom: 4 }}>Messages</p>
+          <p style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.18em', color: muted, fontWeight: 600, marginBottom: 4 }}>Founder · Messages</p>
           <h2 style={{ fontSize: 18, fontWeight: 300, letterSpacing: '-0.02em', color: ink, margin: 0 }}>
             {loading ? 'Loading…' : `${connections.length} connection${connections.length !== 1 ? 's' : ''}`}
           </h2>

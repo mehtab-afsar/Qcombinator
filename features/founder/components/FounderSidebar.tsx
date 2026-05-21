@@ -336,10 +336,15 @@ export default function FounderSidebar() {
                 <p style={{ fontSize: 11, color: muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{user?.email}</p>
               </div>
             </div>
+            <div style={{ padding: "2px 14px 10px" }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 999, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", background: "#F0FDF4", color: "#16A34A", border: "1px solid #BBF7D0" }}>
+                ● FOUNDER
+              </span>
+            </div>
             <DropSep />
             <DropItem href="/founder/profile"              icon={UserCircle} label="Profile" />
             <DropItem href="/founder/settings"             icon={Settings}   label="Settings" />
-            <DropItem href="/founder/settings?tab=billing" icon={CreditCard} label="Subscription" />
+            <DropItem href="/founder/billing" icon={CreditCard} label="Subscription" />
             <DropSep />
             <DropItem icon={LogOut} label="Sign out" onClick={handleSignOut} danger />
           </Dropdown>
