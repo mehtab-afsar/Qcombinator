@@ -43,10 +43,16 @@ export function useNotifications() {
             filter: `user_id=eq.${user.id}`,
           },
           (payload) => {
+            const FOUNDER_TYPE_ICONS: Record<string, string> = {
+              message:             '💬',
+              investor_outreach:   '📣',
+              connection_accepted: '✅',
+              qscore_update:       '📈',
+            }
             const row = payload.new as { id: string; type: string; title: string; created_at: string }
             const newNotif: SidebarNotification = {
               id:          row.id,
-              icon:        '🤖',
+              icon:        FOUNDER_TYPE_ICONS[row.type] ?? '🔔',
               agentId:     '',
               action_type: row.type,
               title:       row.title,

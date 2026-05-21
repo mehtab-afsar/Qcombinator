@@ -4,10 +4,13 @@ import { Suspense } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import FounderSidebar, { FounderNotificationBell } from "@/features/founder/components/FounderSidebar";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ToastStack } from "@/features/shared/components/Toast";
+import { useToast } from "@/features/shared/hooks/useToast";
 
 function LayoutInner({ children }: { children: React.ReactNode }) {
   const pathname     = usePathname();
   const searchParams = useSearchParams();
+  const { toasts, dismiss } = useToast();
 
   // Hide sidebar when embedded in iframe, onboarding flows, or agent/CXO pages (those have their own sidebar)
   const hideSidebar =
@@ -32,6 +35,7 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
       <div style={{ marginLeft: 52, minHeight: "100vh", overflowX: "hidden" }}>
         {children}
       </div>
+      <ToastStack toasts={toasts} onDismiss={dismiss} />
     </div>
   );
 }

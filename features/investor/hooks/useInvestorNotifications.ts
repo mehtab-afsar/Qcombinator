@@ -15,12 +15,15 @@ export interface InvestorNotification {
 }
 
 const TYPE_ICONS: Record<string, string> = {
-  investor_view:  '👁️',
-  qscore_update:  '📈',
-  message:        '💬',
-  agent_complete: '🤖',
-  deal_flow:      '🔔',
-  startup_share:  '🔗',
+  investor_view:       '👁️',
+  qscore_update:       '📈',
+  message:             '💬',
+  agent_complete:      '🤖',
+  deal_flow:           '🔔',
+  startup_share:       '🔗',
+  connection_request:  '🤝',
+  connection_accepted: '✅',
+  investor_outreach:   '📣',
 }
 
 export function useInvestorNotifications() {

@@ -1,8 +1,8 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
-  Bell, Search, PieChart, MessageSquare,
+  Search, PieChart, MessageSquare,
   ChevronsUpDown, LogOut, Settings, UserCircle, Kanban, CreditCard, LayoutDashboard, Rss,
 } from "lucide-react";
 import Link from "next/link";
@@ -11,7 +11,8 @@ import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { bg, surf, bdr, ink, muted, blue } from '@/lib/constants/colors'
 import { Avatar } from '@/features/shared/components/Avatar'
-import { useInvestorNotifications, InvestorNotification } from '@/features/investor/hooks/useInvestorNotifications'
+import { useInvestorNotifications } from '@/features/investor/hooks/useInvestorNotifications'
+import { NotificationDropdown, NotificationBellButton, NotifItem } from '@/features/shared/components/NotificationPanel'
 
 // ─── nav items ────────────────────────────────────────────────────────────────
 const BASE_NAV = [
@@ -34,108 +35,6 @@ function badgeStyle(badge: string): { bg: string; color: string } {
   return { bg: "#FEF2F2", color: "#DC2626" };
 }
 
-// ─── notification panel ───────────────────────────────────────────────────────
-function NotificationPanel({
-  notifications,
-  onClose,
-}: {
-  notifications: InvestorNotification[];
-  onClose: () => void;
-}) {
-  const router = useRouter();
-
-  function timeAgo(iso: string) {
-    const diff = Date.now() - new Date(iso).getTime();
-    const m = Math.floor(diff / 60000);
-    if (m < 1)  return 'just now';
-    if (m < 60) return `${m}m ago`;
-    const h = Math.floor(m / 60);
-    if (h < 24) return `${h}h ago`;
-    return `${Math.floor(h / 24)}d ago`;
-  }
-
-  function NotifRow({ n }: { n: InvestorNotification }) {
-    const isShare = n.type === 'startup_share';
-    const founderId = n.metadata?.founderId as string | undefined;
-
-    return (
-      <div style={{
-        display: "flex", alignItems: "flex-start", gap: 12,
-        padding: "12px 16px", borderBottom: `1px solid ${bdr}`,
-        background: n.read ? "transparent" : `${blue}05`,
-      }}>
-        <div style={{
-          width: 32, height: 32, borderRadius: "50%", flexShrink: 0,
-          background: isShare ? `${blue}12` : surf,
-          border: `1px solid ${isShare ? blue : bdr}`,
-          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14,
-        }}>{n.icon}</div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{
-            fontSize: 13, color: ink, margin: "0 0 3px", lineHeight: 1.45,
-            display: "-webkit-box", WebkitLineClamp: 2,
-            WebkitBoxOrient: "vertical", overflow: "hidden",
-          }}>{n.title}</p>
-          {n.body && (
-            <p style={{ fontSize: 12, color: muted, margin: "0 0 6px", fontStyle: "italic", lineHeight: 1.4 }}>
-              {n.body}
-            </p>
-          )}
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <p style={{ fontSize: 11, color: muted, margin: 0 }}>{timeAgo(n.time)}</p>
-            {isShare && founderId && (
-              <button
-                onClick={() => { router.push(`/investor/startup/${founderId}`); onClose(); }}
-                style={{
-                  fontSize: 11, fontWeight: 600, color: blue, background: `${blue}10`,
-                  border: `1px solid ${blue}30`, borderRadius: 999,
-                  padding: "2px 10px", cursor: "pointer", fontFamily: "inherit",
-                }}
-              >
-                View startup →
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <>
-      <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 49 }} />
-      <div style={{
-        position: "fixed", right: 0, top: 0, bottom: 0, zIndex: 50,
-        width: 320, background: bg, borderLeft: `1px solid ${bdr}`,
-        display: "flex", flexDirection: "column",
-        boxShadow: "-4px 0 24px rgba(0,0,0,0.08)",
-      }}>
-        <div style={{
-          height: 52, flexShrink: 0, borderBottom: `1px solid ${bdr}`,
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "0 16px",
-        }}>
-          <span style={{ fontSize: 14, fontWeight: 700, color: ink }}>Notifications</span>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, color: muted, borderRadius: 6 }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
-        </div>
-        <div style={{ flex: 1, overflowY: "auto", padding: "8px 0" }}>
-          {notifications.length === 0 ? (
-            <div style={{ padding: "48px 24px", textAlign: "center" }}>
-              <div style={{ fontSize: 28, marginBottom: 12 }}>🔔</div>
-              <p style={{ fontSize: 13, color: muted, margin: 0, lineHeight: 1.6 }}>
-                No notifications yet.<br />Updates will appear here.
-              </p>
-            </div>
-          ) : notifications.map(n => <NotifRow key={n.id} n={n} />)}
-        </div>
-      </div>
-    </>
-  );
-}
 
 // ─── dropdown ─────────────────────────────────────────────────────────────────
 function Dropdown({
@@ -241,13 +140,11 @@ function DropSep() {
 // ─── component ────────────────────────────────────────────────────────────────
 export default function InvestorSidebar() {
   const [expanded,  setExpanded]  = useState(false);
-  const [notifOpen, setNotifOpen] = useState(false);
   const pathname = usePathname();
   const router   = useRouter();
   const { user, signOut } = useAuth();
   const [unreadTotal, setUnreadTotal] = useState(0);
   const [pendingConnections, setPendingConnections] = useState(0);
-  const { notifications } = useInvestorNotifications();
 
   useEffect(() => {
     let cancelled = false;
@@ -441,14 +338,6 @@ export default function InvestorSidebar() {
       </div>
 
     </motion.nav>
-
-    {/* ── Notification panel ───────────────────────────────────────── */}
-    {notifOpen && (
-      <NotificationPanel
-        notifications={notifications}
-        onClose={() => setNotifOpen(false)}
-      />
-    )}
     </>
   );
 }
@@ -457,44 +346,33 @@ export default function InvestorSidebar() {
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const { notifications, unreadCount, markAllRead } = useInvestorNotifications();
+  const router = useRouter();
 
   function handleOpen() {
     setOpen(v => !v);
     if (!open && unreadCount > 0) markAllRead();
   }
 
+  function handleViewStartup(id: string) {
+    router.push(`/investor/startup/${id}`);
+    setOpen(false);
+  }
+
   return (
     <>
-      <button
-        onClick={handleOpen}
-        style={{
-          position: "relative", width: 36, height: 36, borderRadius: 10,
-          background: open ? `${blue}10` : surf,
-          border: `1px solid ${open ? blue : bdr}`,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          cursor: "pointer", transition: "all .15s",
-        }}
-      >
-        <Bell style={{ height: 15, width: 15, color: open ? blue : muted }} />
-        {unreadCount > 0 && (
-          <span style={{
-            position: "absolute", top: -4, right: -4,
-            width: 16, height: 16, borderRadius: "50%",
-            background: "#DC2626", color: "#fff",
-            fontSize: 9, fontWeight: 700,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            border: `2px solid ${bg}`,
-          }}>
-            {unreadCount > 9 ? "9+" : unreadCount}
-          </span>
+      <NotificationBellButton open={open} unreadCount={unreadCount} onClick={handleOpen} />
+      <AnimatePresence>
+        {open && (
+          <NotificationDropdown
+            notifications={notifications as NotifItem[]}
+            unreadCount={unreadCount}
+            onClose={() => setOpen(false)}
+            onMarkAllRead={markAllRead}
+            onViewStartup={handleViewStartup}
+            footerHref="/investor/notifications"
+          />
         )}
-      </button>
-      {open && (
-        <NotificationPanel
-          notifications={notifications}
-          onClose={() => setOpen(false)}
-        />
-      )}
+      </AnimatePresence>
     </>
   );
 }

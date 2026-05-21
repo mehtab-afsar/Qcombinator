@@ -24,6 +24,11 @@ const ACTION_ICONS: Record<string, string> = {
   investor_view:        '👁️',
   qscore_update:        '📈',
   message:              '💬',
+  connection_request:   '🤝',
+  connection_accepted:  '✅',
+  investor_outreach:    '📣',
+  startup_share:        '🔗',
+  deal_flow:            '🔔',
 }
 
 const NOTABLE_ACTIVITY = [

@@ -1,8 +1,8 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
-  Bell, Brain, ChevronsUpDown,
+  Brain, ChevronsUpDown,
   ClipboardList, CreditCard, GraduationCap, Home, LogOut, MessageSquare,
   Settings, Target, UserCircle, Rss,
 } from "lucide-react";
@@ -12,11 +12,11 @@ import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { usePendingConnections } from "../hooks/usePendingConnections";
 import { useNotifications } from "../hooks/useNotifications";
-import { timeAgo } from "../utils/time";
 import { SidebarNotification } from "../types/founder.types";
 import { bg, surf, bdr, ink, muted, blue } from '@/lib/constants/colors'
 import { Avatar } from '@/features/shared/components/Avatar'
 import { EmailConfirmBanner } from '@/features/shared/components/EmailConfirmBanner'
+import { NotificationDropdown, NotificationBellButton, NotifItem } from '@/features/shared/components/NotificationPanel'
 
 // ─── nav items ────────────────────────────────────────────────────────────────
 const BASE_NAV = [
@@ -39,138 +39,6 @@ const BADGE: Record<string, { bg: string; color: string }> = {
 function msgBadgeStyle(count: number): { bg: string; color: string } {
   if (count === 0) return { bg: surf, color: muted };
   return { bg: "#FEF2F2", color: "#DC2626" };
-}
-
-// ─── notification panel ───────────────────────────────────────────────────────
-function NotificationPanel({
-  notifications,
-  onClose,
-}: {
-  notifications: SidebarNotification[];
-  onClose: () => void;
-}) {
-  return (
-    <>
-      {/* Backdrop */}
-      <div
-        onClick={onClose}
-        style={{
-          position: "fixed", inset: 0, zIndex: 49,
-          background: "transparent",
-        }}
-      />
-      {/* Panel */}
-      <div style={{
-        position: "fixed", right: 0, top: 0, bottom: 0, zIndex: 50,
-        width: 320,
-        background: bg,
-        borderLeft: `1px solid ${bdr}`,
-        display: "flex", flexDirection: "column",
-        boxShadow: "-4px 0 24px rgba(0,0,0,0.08)",
-      }}>
-        {/* Header */}
-        <div style={{
-          height: 52, flexShrink: 0,
-          borderBottom: `1px solid ${bdr}`,
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "0 16px",
-        }}>
-          <span style={{ fontFamily: "system-ui, sans-serif", fontSize: 14, fontWeight: 700, color: ink }}>
-            Notifications
-          </span>
-          <button
-            onClick={onClose}
-            style={{
-              background: "none", border: "none", cursor: "pointer",
-              padding: 4, display: "flex", alignItems: "center",
-              color: muted, borderRadius: 6,
-            }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Items */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "8px 0" }}>
-          {notifications.length === 0 ? (
-            <div style={{
-              padding: "48px 24px", textAlign: "center",
-              fontFamily: "system-ui, sans-serif",
-            }}>
-              <div style={{ fontSize: 28, marginBottom: 12 }}>🔔</div>
-              <p style={{ fontSize: 13, color: muted, margin: 0, lineHeight: 1.6 }}>
-                No notifications yet.<br />Agent actions will appear here.
-              </p>
-            </div>
-          ) : (
-            notifications.map(n => (
-              <div
-                key={n.id}
-                style={{
-                  display: "flex", alignItems: "flex-start", gap: 12,
-                  padding: "12px 16px",
-                  borderBottom: `1px solid ${bdr}`,
-                }}
-              >
-                <div style={{
-                  width: 32, height: 32, borderRadius: "50%", flexShrink: 0,
-                  background: surf, border: `1px solid ${bdr}`,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 14,
-                }}>
-                  {n.icon}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{
-                    fontFamily: "system-ui, sans-serif",
-                    fontSize: 13, color: ink, margin: "0 0 3px",
-                    lineHeight: 1.45,
-                    display: "-webkit-box",
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: "vertical",
-                    overflow: "hidden",
-                  }}>
-                    {n.title}
-                  </p>
-                  <p style={{
-                    fontFamily: "system-ui, sans-serif",
-                    fontSize: 11, color: muted, margin: 0,
-                  }}>
-                    {n.agentId !== "system" ? n.agentId.charAt(0).toUpperCase() + n.agentId.slice(1) : "System"} · {timeAgo(n.time)}
-                  </p>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-
-        {/* Footer */}
-        <div style={{
-          flexShrink: 0, borderTop: `1px solid ${bdr}`,
-          padding: "10px 16px",
-        }}>
-          <Link
-            href="/founder/activity"
-            onClick={onClose}
-            style={{
-              display: "block", textAlign: "center",
-              fontFamily: "system-ui, sans-serif",
-              fontSize: 12, fontWeight: 600, color: blue,
-              textDecoration: "none",
-              padding: "8px",
-              borderRadius: 8,
-              background: `${blue}10`,
-              transition: "background 0.15s",
-            }}
-          >
-            View all activity →
-          </Link>
-        </div>
-      </div>
-    </>
-  );
 }
 
 // ─── simple dropdown ──────────────────────────────────────────────────────────
@@ -277,13 +145,11 @@ function DropSep() {
 // ─── component ────────────────────────────────────────────────────────────────
 export default function FounderSidebar() {
   const [expanded,  setExpanded]  = useState(false);
-  const [notifOpen, setNotifOpen] = useState(false);
   const pathname = usePathname();
   const router   = useRouter();
   const { user, signOut } = useAuth();
 
-  const msgCount                            = usePendingConnections();
-  const { notifications } = useNotifications();
+  const msgCount = usePendingConnections();
 
   // Build nav with dynamic message badge
   const nav = BASE_NAV.map(item =>
@@ -480,14 +346,6 @@ export default function FounderSidebar() {
         </div>
 
       </motion.nav>
-
-      {/* ── Notification panel ───────────────────────────────────────── */}
-      {notifOpen && (
-        <NotificationPanel
-          notifications={notifications}
-          onClose={() => setNotifOpen(false)}
-        />
-      )}
     </>
   );
 }
@@ -502,38 +360,29 @@ export function FounderNotificationBell() {
     if (!open && unreadCount > 0) markAllRead();
   }
 
+  const notifItems: NotifItem[] = (notifications as Array<SidebarNotification & { read?: boolean }>).map(n => ({
+    id:    n.id,
+    icon:  n.icon,
+    type:  n.action_type,
+    title: n.title,
+    time:  n.time,
+    read:  n.read ?? false,
+  }));
+
   return (
     <>
-      <button
-        onClick={handleOpen}
-        style={{
-          position: "relative", width: 36, height: 36, borderRadius: 10,
-          background: open ? `${blue}10` : surf,
-          border: `1px solid ${open ? blue : bdr}`,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          cursor: "pointer", transition: "all .15s",
-        }}
-      >
-        <Bell style={{ height: 15, width: 15, color: open ? blue : muted }} />
-        {unreadCount > 0 && (
-          <span style={{
-            position: "absolute", top: -4, right: -4,
-            width: 16, height: 16, borderRadius: "50%",
-            background: "#DC2626", color: "#fff",
-            fontSize: 9, fontWeight: 700,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            border: `2px solid ${bg}`,
-          }}>
-            {unreadCount > 9 ? "9+" : unreadCount}
-          </span>
+      <NotificationBellButton open={open} unreadCount={unreadCount} onClick={handleOpen} />
+      <AnimatePresence>
+        {open && (
+          <NotificationDropdown
+            notifications={notifItems}
+            unreadCount={unreadCount}
+            onClose={() => setOpen(false)}
+            onMarkAllRead={markAllRead}
+            footerHref="/founder/activity"
+          />
         )}
-      </button>
-      {open && (
-        <NotificationPanel
-          notifications={notifications}
-          onClose={() => setOpen(false)}
-        />
-      )}
+      </AnimatePresence>
     </>
   );
 }

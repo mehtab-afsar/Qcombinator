@@ -4,6 +4,8 @@ import { usePathname } from "next/navigation";
 import InvestorSidebar, { NotificationBell } from "@/features/investor/components/InvestorSidebar";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { EmailConfirmBanner } from "@/features/shared/components/EmailConfirmBanner";
+import { ToastStack } from "@/features/shared/components/Toast";
+import { useToast } from "@/features/shared/hooks/useToast";
 
 export default function InvestorLayout({
   children,
@@ -11,6 +13,7 @@ export default function InvestorLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const { toasts, dismiss } = useToast();
 
   // Hide sidebar during onboarding
   const hideSidebar = pathname.includes('/onboarding');
@@ -35,6 +38,7 @@ export default function InvestorLayout({
           </div>
           {children}
         </div>
+        <ToastStack toasts={toasts} onDismiss={dismiss} />
       </div>
     </ErrorBoundary>
   );
