@@ -28,15 +28,12 @@
 --   $$DELETE FROM rag_score_cache WHERE expires_at < NOW()$$
 -- );
 
--- Partial indexes so queries only scan un-expired rows
+-- Plain indexes for cleanup queries and time-range scans
 CREATE INDEX IF NOT EXISTS idx_tool_execution_logs_recent
-  ON tool_execution_logs (created_at DESC)
-  WHERE created_at > NOW() - INTERVAL '90 days';
+  ON tool_execution_logs (created_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_rag_execution_logs_recent
-  ON rag_execution_logs (created_at DESC)
-  WHERE created_at > NOW() - INTERVAL '90 days';
+  ON rag_execution_logs (created_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_rag_score_cache_active
-  ON rag_score_cache (expires_at)
-  WHERE expires_at > NOW();
+  ON rag_score_cache (expires_at);
