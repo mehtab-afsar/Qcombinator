@@ -74,7 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Skip public routes so unauthenticated visitors to onboarding aren't bounced
         if (event === 'SIGNED_OUT' && typeof window !== 'undefined') {
           const { pathname } = window.location;
-          if (!isPublic && (pathname.startsWith('/founder/') || pathname.startsWith('/investor/'))) {
+          if (pathname.startsWith('/founder/') || pathname.startsWith('/investor/')) {
             console.error('[AUTH] Redirecting to /login from', pathname)
             window.location.href = '/login';
           }
