@@ -36,11 +36,13 @@ export const metadata: Metadata = {
     siteName: "Edge Alpha",
     locale: "en_US",
     type: "website",
+    images: [{ url: '/og.png', width: 1200, height: 630, alt: 'Edge Alpha' }],
   },
   twitter: {
     card: "summary_large_image",
     title: "Edge Alpha | AI-Powered Startup OS",
     description: "The AI-powered operating system for founders — Q-Score, intelligent agents, and investor matching in one platform.",
+    images: ['/og.png'],
   },
 };
 
