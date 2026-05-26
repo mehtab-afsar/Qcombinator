@@ -194,6 +194,9 @@ export async function POST(request: NextRequest) {
     // Fire-and-forget: clean + summarise onboarding text in background (~2–5s)
     void enrichOnboardingText(authData.user.id, problemStatement, targetCustomer, supabaseAdmin)
 
+    // Fire-and-forget: auto-link to an investor who pre-added this email to their portfolio
+    void autoLinkPortfolioByEmail(authData.user.id, email, profile.id, supabaseAdmin)
+
     // Fire-and-forget: send welcome + email confirmation email
     void sendWelcomeAndConfirmEmail({
       email:        email,
@@ -267,5 +270,71 @@ Return ONLY valid JSON, no markdown fences:
       userId,
       err: err instanceof Error ? err.message : String(err),
     })
+  }
+}
+
+// Auto-link a newly registered founder to an investor who pre-added their email.
+// Runs fire-and-forget — does not block signup.
+async function autoLinkPortfolioByEmail(
+  userId: string,
+  email: string,
+  founderProfileId: string,
+  supabase: SupabaseClient,
+): Promise<void> {
+  try {
+    const { data: match } = await supabase
+      .from('investor_portfolio_companies')
+      .select('id, investor_user_id, company_name')
+      .eq('founder_email', email.toLowerCase())
+      .eq('invite_status', 'not_sent')
+      .limit(1)
+      .single()
+
+    if (!match) return
+
+    const { data: investorProfile } = await supabase
+      .from('investor_profiles')
+      .select('id')
+      .eq('user_id', match.investor_user_id)
+      .single()
+
+    await Promise.all([
+      // Link portfolio company record
+      supabase
+        .from('investor_portfolio_companies')
+        .update({ founder_user_id: userId, invite_status: 'accepted', joined_at: new Date().toISOString() })
+        .eq('id', match.id),
+
+      // Set portfolio_investor_id on founder_profiles
+      supabase
+        .from('founder_profiles')
+        .update({ portfolio_investor_id: investorProfile?.id ?? null })
+        .eq('id', founderProfileId),
+
+      // Add to investor CRM pipeline
+      supabase
+        .from('investor_pipeline')
+        .upsert({ investor_user_id: match.investor_user_id, founder_user_id: userId, stage: 'portfolio' },
+                 { onConflict: 'investor_user_id,founder_user_id' }),
+
+      // Auto-accept connection (upsert to be idempotent)
+      supabase
+        .from('connection_requests')
+        .upsert(
+          { founder_id: userId, investor_id: match.investor_user_id, status: 'accepted', personal_message: 'Auto-linked via portfolio email match', founder_qscore: 0 },
+          { onConflict: 'founder_id,investor_id', ignoreDuplicates: true }
+        ),
+
+      // Notify investor
+      supabase.from('notifications').insert({
+        user_id:  match.investor_user_id,
+        type:     'message',
+        title:    `${match.company_name} just joined Edge Alpha`,
+        body:     'They signed up organically and were auto-linked to your portfolio.',
+        metadata: { founder_user_id: userId },
+      }),
+    ])
+  } catch (err) {
+    log.warn('[signup] autoLinkPortfolioByEmail failed (non-fatal)', { userId, err })
   }
 }

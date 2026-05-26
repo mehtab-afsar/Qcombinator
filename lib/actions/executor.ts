@@ -84,24 +84,12 @@ async function executePlatformAction(
 ): Promise<{ success: boolean; data?: unknown; error?: string }> {
   try {
     switch (actionId) {
-      case 'deploy_landing_page': {
-        const { handler } = await import('@/lib/actions/handlers/deploy-site');
-        return { success: true, data: await handler(userId, args, supabase) };
-      }
       case 'send_investor_update': {
         const { handler } = await import('@/lib/actions/handlers/send-investor-update');
         return { success: true, data: await handler(userId, args, supabase) };
       }
       case 'screen_resume': {
         const { handler } = await import('@/lib/actions/handlers/screen-resume');
-        return { success: true, data: await handler(userId, args, supabase) };
-      }
-      case 'generate_nda': {
-        const { handler } = await import('@/lib/actions/handlers/generate-nda');
-        return { success: true, data: await handler(userId, args, supabase) };
-      }
-      case 'blog_post': {
-        const { handler } = await import('@/lib/actions/handlers/blog-post');
         return { success: true, data: await handler(userId, args, supabase) };
       }
       case 'host_survey': {

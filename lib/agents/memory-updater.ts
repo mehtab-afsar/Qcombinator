@@ -41,6 +41,27 @@ Read the new session transcript and write a single updated prose paragraph (max 
     { role: 'user', content: transcript },
   ])
 
+  // For Patel: persist asked questions so they are not repeated in future sessions.
+  // Uses a §PATEL_ASKED:q1|q2|... marker embedded in key_facts — no schema change needed.
+  let finalKeyFacts = key_facts
+  if (agentId === 'patel') {
+    const newlyAsked = messages
+      .filter(m => m.role === 'assistant')
+      .flatMap(m => m.content.split('\n').filter(l => l.trim().endsWith('?') && l.trim().length > 20))
+      .map(q => q.trim())
+
+    const existingMatch = (existing?.key_facts ?? '').match(/§PATEL_ASKED:([^\n§]*)/)
+    const existingAsked = existingMatch ? existingMatch[1].split('|').map((q: string) => q.trim()).filter(Boolean) : []
+
+    const merged = Array.from(new Set([...existingAsked, ...newlyAsked])).slice(0, 18)
+
+    if (merged.length > 0) {
+      const patelMarker = `§PATEL_ASKED:${merged.join('|')}`
+      const baseKeyFacts = (finalKeyFacts ?? '').replace(/§PATEL_ASKED:[^\n]*/g, '').trim()
+      finalKeyFacts = baseKeyFacts ? `${baseKeyFacts}\n${patelMarker}` : patelMarker
+    }
+  }
+
   await supabase
     .from('agent_memory')
     .upsert(
@@ -49,7 +70,7 @@ Read the new session transcript and write a single updated prose paragraph (max 
         agent_id: agentId,
         session_count: sessions,
         relationship_tier: tier,
-        key_facts,
+        key_facts: finalKeyFacts,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'user_id,agent_id' },

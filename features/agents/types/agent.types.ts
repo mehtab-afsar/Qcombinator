@@ -2,7 +2,7 @@
  * AI Agent Type Definitions
  */
 
-import type { Dimension } from '@/lib/constants/dimensions';
+import type { Param } from '@/lib/constants/dimensions';
 
 export type AgentPillar = 'sales-marketing' | 'operations-finance' | 'product-strategy';
 
@@ -16,8 +16,7 @@ export interface Agent {
   avatar: string;
   description: string;
   suggestedPrompts: string[];
-  /** The Q-Score dimension this agent primarily improves. Uses canonical Dimension constants ('gtm' not 'goToMarket'). */
-  improvesScore: Dimension;
+  improvesScore: Param;
   color: string; // Tailwind color class
   artifactType?: string; // default deliverable type this agent generates
 }

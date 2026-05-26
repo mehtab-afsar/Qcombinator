@@ -279,18 +279,3 @@ export function scoreP3(
     score_3_5_ReplicationBarrier(data, stage),
   ]
 }
-
-/** @deprecated Use scoreP3() in the Q-Score v2 pipeline */
-export function scoreP3IPDefensibility(
-  data: AssessmentData
-): { score: number; rawPoints: number; maxPoints: number; sub: Record<string, number> } {
-  const indicators = scoreP3(data, 'mid')
-  const sub: Record<string, number> = {}
-  let totalRaw = 0
-  for (const ind of indicators) {
-    const pct = (ind.rawScore / 5) * 20
-    sub[ind.id] = Math.round(pct)
-    totalRaw += pct
-  }
-  return { score: Math.round(Math.min(100, totalRaw)), rawPoints: Math.round(totalRaw), maxPoints: 100, sub }
-}

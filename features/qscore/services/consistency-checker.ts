@@ -175,6 +175,5 @@ export async function checkArtifactConsistency(
     });
   }
 
-  console.log(`[Consistency] ${result.flagCount} flag(s) for ${userId} after ${artifactType}`);
   return result;
 }

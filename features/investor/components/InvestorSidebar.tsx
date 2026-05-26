@@ -2,7 +2,7 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Search, PieChart, MessageSquare,
+  Search, PieChart, MessageSquare, Building2,
   ChevronsUpDown, LogOut, Settings, UserCircle, Kanban, CreditCard, LayoutDashboard, Rss,
 } from "lucide-react";
 import Link from "next/link";
@@ -16,12 +16,13 @@ import { NotificationDropdown, NotificationBellButton, NotifItem } from '@/featu
 
 // ─── nav items ────────────────────────────────────────────────────────────────
 const BASE_NAV = [
-  { name: "Dashboard",  href: "/investor/dashboard",  icon: LayoutDashboard, badge: null   },
-  { name: "Deal Flow",  href: "/investor/deal-flow",  icon: Search,          badge: "Live" },
-  { name: "Pipeline",   href: "/investor/pipeline",   icon: Kanban,          badge: null   },
-  { name: "Portfolio",  href: "/investor/portfolio",  icon: PieChart,        badge: null   },
-  { name: "Pulse",      href: "/feed",                icon: Rss,             badge: "New"  },
-  { name: "Messages",   href: "/investor/messages",   icon: MessageSquare,   badge: null   },
+  { name: "Dashboard",   href: "/investor/dashboard",            icon: LayoutDashboard, badge: null   },
+  { name: "Deal Flow",   href: "/investor/deal-flow",            icon: Search,          badge: "Live" },
+  { name: "Pipeline",    href: "/investor/pipeline",             icon: Kanban,          badge: null   },
+  { name: "Portfolio",   href: "/investor/portfolio-companies",  icon: Building2,       badge: null   },
+  { name: "Connected",   href: "/investor/portfolio",            icon: PieChart,        badge: null   },
+  { name: "Pulse",       href: "/feed",                          icon: Rss,             badge: "New"  },
+  { name: "Messages",    href: "/investor/messages",             icon: MessageSquare,   badge: null   },
 ];
 
 const BADGE: Record<string, { bg: string; color: string }> = {

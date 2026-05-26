@@ -13,7 +13,7 @@ import { createClient } from '@/lib/supabase/server';
 import { embedBatch } from './embedder';
 import { ARTIFACT_DIMENSION_MAP } from '@/lib/constants/artifact-dimension-map';
 import type { ArtifactType } from '@/lib/constants/artifact-types';
-import type { Dimension } from '@/lib/constants/dimensions';
+import type { Param } from '@/lib/constants/dimensions';
 import { log } from '@/lib/logger'
 
 const MAX_CHUNK_CHARS = 500;
@@ -190,7 +190,7 @@ export async function embedArtifact(artifact: ArtifactInput): Promise<void> {
   // 5. Dimension-specific cache invalidation
   // Only null the dimension columns affected by this artifact type — other
   // dimension scores in the same cache row remain valid.
-  const affectedDims: Dimension[] =
+  const affectedDims: Param[] =
     ARTIFACT_DIMENSION_MAP[artifact.artifact_type as ArtifactType] ?? [];
 
   if (affectedDims.length > 0) {

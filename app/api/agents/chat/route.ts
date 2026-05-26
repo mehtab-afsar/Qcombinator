@@ -495,23 +495,36 @@ async function executeScheduleFollowup(
   const actionType  = (ctx.action_type as string) || 'followup_check';
   const daysFromNow = (ctx.days_from_now as number) || 3;
   const payload     = (ctx.payload as Record<string, unknown>) || {};
+  const dealId      = ctx.deal_id as string | undefined;
+  const company     = ctx.company as string | undefined;
 
   const executeAt = new Date();
   executeAt.setDate(executeAt.getDate() + daysFromNow);
+  const executeDateStr = executeAt.toISOString().split('T')[0];
 
   const { error } = await supabaseAdmin.from('scheduled_actions').insert({
     user_id: userId, agent_id: agentId, action_type: actionType,
-    payload, execute_at: executeAt.toISOString(), status: 'pending',
+    payload: { ...payload, deal_id: dealId, company },
+    execute_at: executeAt.toISOString(), status: 'pending',
   });
   if (error) return `Failed to schedule follow-up: ${error.message}`;
 
+  // Write next_action_date back to the deal so the reminders banner picks it up
+  if (dealId) {
+    await supabaseAdmin.from('deals')
+      .update({ next_action: actionType, next_action_date: executeDateStr })
+      .eq('id', dealId)
+      .eq('user_id', userId);
+  }
+
   void supabaseAdmin.from('agent_activity').insert({
     user_id: userId, agent_id: agentId, action_type: 'followup_scheduled',
-    description: `Scheduled ${actionType} for Day +${daysFromNow}`,
-    metadata: { action_type: actionType, execute_at: executeAt.toISOString() },
+    description: `Scheduled ${actionType} for Day +${daysFromNow}${company ? ` — ${company}` : ''}`,
+    metadata: { action_type: actionType, execute_at: executeAt.toISOString(), deal_id: dealId },
   });
 
-  return `Follow-up scheduled: **${actionType}** set for ${executeAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} (Day +${daysFromNow}).`;
+  const dealNote = dealId ? ' Deal updated.' : '';
+  return `Follow-up scheduled: **${actionType}** set for ${executeAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} (Day +${daysFromNow}).${dealNote}`;
 }
 
 async function executeInitiateVoiceCall(
@@ -779,7 +792,20 @@ When the founder asks to refine, edit, or update this document, call generate_ar
       // Prepend relationship memory — the agent should know its history with this founder
       if (memoryResult.status === 'fulfilled' && memoryResult.value) {
         const { session_count, relationship_tier, key_facts } = memoryResult.value;
-        systemPrompt = `YOU AND THIS FOUNDER:\nThis is session ${session_count} with this founder. Relationship: ${relationship_tier}.\n${key_facts ?? 'First session — no prior history.'}\n\n` + systemPrompt;
+        // Strip the §PATEL_ASKED marker before showing key_facts prose (it's internal plumbing)
+        const displayKeyFacts = (key_facts ?? '').replace(/§PATEL_ASKED:[^\n]*/g, '').trim() || 'First session — no prior history.'
+        systemPrompt = `YOU AND THIS FOUNDER:\nThis is session ${session_count} with this founder. Relationship: ${relationship_tier}.\n${displayKeyFacts}\n\n` + systemPrompt;
+
+        // Patel: inject questions asked in previous sessions so they are never repeated cross-session
+        if (agentId === 'patel' && key_facts) {
+          const patelAskedMatch = key_facts.match(/§PATEL_ASKED:([^\n§]*)/)
+          if (patelAskedMatch) {
+            const crossSessionQs = patelAskedMatch[1].split('|').map((q: string) => q.trim()).filter((q: string) => q.length > 20)
+            if (crossSessionQs.length > 0) {
+              systemPrompt += `\n\nQUESTIONS ASKED IN PREVIOUS SESSIONS — do not repeat or rephrase:\n${crossSessionQs.map((q: string) => `- ${q}`).join('\n')}`
+            }
+          }
+        }
       }
 
       // Append last session summary so the agent picks up where it left off
@@ -895,7 +921,7 @@ CONVERSATION RULES:
       'lead_enrich', 'web_research', 'apollo_search', 'posthog_query', 'calendly_link',
     ]);
     const EXEC_TOOLS = new Set([
-      'send_outreach_sequence', 'initiate_voice_call', 'bulk_enrich_pipeline', 'schedule_followup', 'create_deal',
+      'send_outreach_sequence', 'initiate_voice_call', 'vapi_call', 'bulk_enrich_pipeline', 'schedule_followup', 'create_deal',
     ]);
     const TOOL_LABELS: Record<string, string> = {
       apollo_search:          'Searching Apollo for leads',
@@ -904,6 +930,7 @@ CONVERSATION RULES:
       lead_enrich:            'Enriching lead data',
       web_research:           'Researching the web',
       create_deal:            'Adding deal to pipeline',
+      vapi_call:              'Initiating AI sales call',
       send_outreach_sequence: 'Sending outreach emails',
       bulk_enrich_pipeline:   'Enriching pipeline from Apollo',
       schedule_followup:      'Scheduling follow-up',
@@ -1087,6 +1114,12 @@ CONVERSATION RULES:
                     execResult = await executeSendOutreachSequence(toolCtx, userId, supabaseAdmin, agentId);
                   } else if (toolName === 'initiate_voice_call') {
                     execResult = await executeInitiateVoiceCall(toolCtx, userId, supabaseAdmin, agentId);
+                  } else if (toolName === 'vapi_call') {
+                    // Map vapi_call's structured params to executeInitiateVoiceCall's expected shape
+                    execResult = await executeInitiateVoiceCall(
+                      { ...toolCtx, lead_name: toolCtx.contact_name, context: toolCtx.objective },
+                      userId, supabaseAdmin, agentId,
+                    );
                   } else if (toolName === 'bulk_enrich_pipeline') {
                     execResult = await executeBulkEnrichPipeline(toolCtx, userId, supabaseAdmin, agentId);
                   } else if (toolName === 'schedule_followup') {
@@ -1419,6 +1452,13 @@ CONVERSATION RULES:
             execResult = await executeCreateDeal(toolCtx, userId, supabaseAdmin, agentId);
           } else if (toolName === 'send_outreach_sequence') {
             execResult = await executeSendOutreachSequence(toolCtx, userId, supabaseAdmin, agentId);
+          } else if (toolName === 'initiate_voice_call') {
+            execResult = await executeInitiateVoiceCall(toolCtx, userId, supabaseAdmin, agentId);
+          } else if (toolName === 'vapi_call') {
+            execResult = await executeInitiateVoiceCall(
+              { ...toolCtx, lead_name: toolCtx.contact_name, context: toolCtx.objective },
+              userId, supabaseAdmin, agentId,
+            );
           } else if (toolName === 'bulk_enrich_pipeline') {
             execResult = await executeBulkEnrichPipeline(toolCtx, userId, supabaseAdmin, agentId);
           } else if (toolName === 'schedule_followup') {
@@ -1483,6 +1523,8 @@ CONVERSATION RULES:
         }
 
         if (artifactId && userId) {
+          // Apply Q-Score boost for this artifact type (one-time per user, awaited so /api/qscore/latest sees it immediately)
+          try { await applyAgentScoreSignal(supabaseAdmin, userId, toolName); } catch { /* non-critical */ }
           void scoreFromArtifact(userId, toolName, parsedContent, supabaseAdmin).catch(() => { /* fire-and-forget: non-critical score nudge */ });
           // Write extracted facts to world model + refresh goal + trigger delegations
           const stateUpdates = extractStateFromArtifact(agentId, toolName, parsedContent);

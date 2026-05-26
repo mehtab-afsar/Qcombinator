@@ -318,18 +318,3 @@ export function scoreP4(
     score_4_5_TeamCohesion(data, stage),
   ]
 }
-
-/** @deprecated Use scoreP4() in the Q-Score v2 pipeline */
-export function scoreP4FounderTeam(
-  data: AssessmentData
-): { score: number; rawPoints: number; maxPoints: number; sub: Record<string, number> } {
-  const indicators = scoreP4(data, 'mid')
-  const sub: Record<string, number> = {}
-  let totalRaw = 0
-  for (const ind of indicators) {
-    const pct = (ind.rawScore / 5) * 20
-    sub[ind.id] = Math.round(pct)
-    totalRaw += pct
-  }
-  return { score: Math.round(Math.min(100, totalRaw)), rawPoints: Math.round(totalRaw), maxPoints: 100, sub }
-}

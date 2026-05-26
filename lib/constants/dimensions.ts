@@ -34,13 +34,3 @@ export const PARAM_DB_COLUMN: Record<Param, string> = {
   p6: 'p6_score',
 }
 
-// Legacy alias so old DIMENSIONS.GTM-style references get a compile error immediately
-// instead of silently using the wrong schema
-/** @deprecated Use PARAMS instead */
-export const DIMENSIONS = PARAMS
-/** @deprecated Use PARAM_DB_COLUMN instead */
-export const DIMENSION_DB_COLUMN = PARAM_DB_COLUMN
-
-// Legacy type alias for backward compat during migration
-/** @deprecated Use Param instead */
-export type Dimension = Param

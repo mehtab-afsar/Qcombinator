@@ -377,6 +377,14 @@ const scheduleFollowup: ToolDefinition = {
         type: 'object',
         description: 'All data needed to execute the action: contacts, sequence steps, step_index, etc.',
       },
+      deal_id: {
+        type: 'string',
+        description: 'CRM deal ID to update next_action_date on. Pass when scheduling a follow-up for a specific deal so the reminders banner stays in sync.',
+      },
+      company: {
+        type: 'string',
+        description: 'Company name (for logging context when deal_id is not available)',
+      },
     },
     required: ['action_type', 'days_from_now', 'payload'],
   },
@@ -669,9 +677,3 @@ export function getToolsForAgent(agentId: string): ToolDefinition[] {
     return [];
   }
 }
-
-// ─── Backwards-compatible export (kept while callers migrate to getToolsForAgent) ───
-/** @deprecated Use getToolsForAgent(agentId) instead */
-export const AGENT_TOOLS: Record<string, ToolDefinition[]> = Object.fromEntries(
-  Object.values(AGENT_IDS).map(id => [id, getToolsForAgent(id)])
-);

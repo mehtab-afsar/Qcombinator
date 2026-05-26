@@ -279,3 +279,50 @@ export async function sendDay7NudgeEmail(params: DripEmailParams): Promise<void>
 
   if (error) log.error('[email] sendDay7NudgeEmail failed:', error)
 }
+
+// ─── Portfolio invite (investor → founder) ────────────────────────────────────
+
+export interface PortfolioInviteParams {
+  to: string
+  investorName: string
+  firmName: string
+  companyName: string
+  inviteUrl: string
+}
+
+export async function sendPortfolioInviteEmail(params: PortfolioInviteParams): Promise<void> {
+  const resend = getResend()
+  if (!resend) return
+
+  const { to, investorName, firmName, companyName, inviteUrl } = params
+
+  const html = emailShell(`
+    <p style="font-size:12px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:#8A867C;margin:0 0 24px">Portfolio Invitation</p>
+    <h1 style="font-size:26px;font-weight:300;letter-spacing:-0.02em;margin:0 0 16px;line-height:1.2">
+      You've been invited to join Edge Alpha
+    </h1>
+    <p style="font-size:15px;line-height:1.7;color:#18160F;margin:0 0 24px">
+      <strong>${investorName}</strong>${firmName ? ` from <strong>${firmName}</strong>` : ''} has added
+      <strong>${companyName}</strong> to their portfolio on Edge Alpha and invited you to join.
+    </p>
+    <p style="font-size:14px;line-height:1.7;color:#8A867C;margin:0 0 32px">
+      Edge Alpha gives your team access to 11 AI advisers (CFO, CMO, CLO, and more),
+      an investment-readiness score, and a direct channel with your investor — all in one place.
+    </p>
+    <div style="margin-bottom:32px">
+      ${ctaBtn(inviteUrl, 'Create your account →')}
+    </div>
+    <p style="font-size:12px;color:#8A867C;margin:0">
+      This invite is personal to ${companyName}. It expires in 30 days.
+    </p>
+  `)
+
+  const { error } = await resend.emails.send({
+    from:    FROM,
+    to,
+    subject: `${investorName} invited ${companyName} to Edge Alpha`,
+    html,
+  })
+
+  if (error) log.error('[email] sendPortfolioInviteEmail failed:', error)
+}
