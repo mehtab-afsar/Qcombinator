@@ -14,12 +14,39 @@ import { AGENT_IDS } from '@/lib/constants/agent-ids'
 export function PlaybookRenderer({ data, artifactId }: { data: Record<string, unknown>; artifactId?: string }) {
   const d = data as {
     companyContext?: string;
-    icp?: { summary?: string; segments?: string[] };
+    commercial_objective?: {
+      revenue_goal?: string;
+      customer_goal?: string;
+      cac_target?: string;
+      funnel?: { prospects: number; responses: number; demos: number; pilots: number; closes: number };
+    };
+    icp?: { summary?: string; segments?: string[]; title?: string; company_size?: string; buying_urgency?: string; triggers?: string[] };
     positioning?: { statement?: string; differentiators?: string[] };
-    channels?: { channel: string; priority: string; budget: string; expectedCAC: string }[];
+    channels?: { channel: string; priority: string; budget: string; expectedCAC: string; why?: string; kpi?: string }[];
+    budget?: {
+      monthly_total?: string;
+      cac_blended?: string;
+      payback_months?: string;
+      line_items?: { channel: string; budget: string; kpi: string; cac_expectation: string }[];
+    };
     messaging?: { audience: string; headline: string; valueProps: string[] }[];
     metrics?: { metric: string; target: string; currentBaseline: string }[];
-    ninetyDayPlan?: { phase: string; weeks: string; objectives: string[]; keyActions: string[]; successCriteria: string }[];
+    ninetyDayPlan?: {
+      phase: string; weeks: string; goal?: string; milestone?: string;
+      weekly_actions?: { week: number; action: string; owner: string; kpi: string; success_metric: string }[];
+      objectives?: string[]; keyActions?: string[]; successCriteria?: string;
+    }[];
+    commercial_dashboard?: {
+      pipeline?: { prospects: string; responses: string; demos: string; pilots: string; customers: string };
+      revenue?: { mrr_start: string; mrr_target: string; new_arr: string; expansion: string };
+      efficiency?: { cac: string; win_rate: string; sales_cycle: string; referral_pct: string };
+    };
+    action_stack?: { priority: number; action: string; impact: string; effort: string; owner: string }[];
+    risks?: { risk: string; test: string; metric: string }[];
+    success_state?: {
+      customers?: string; mrr?: string; cac?: string;
+      repeatable_channel?: string; playbook_documented?: boolean; hiring_readiness?: string;
+    };
   };
 
   const [deploying, setDeploying]   = useState(false);
@@ -541,6 +568,95 @@ export function PlaybookRenderer({ data, artifactId }: { data: Record<string, un
         </CardContent></Card>
       )}
 
+      {/* ── D6: Commercial Objective ────────────────────────────────────────── */}
+      {d.commercial_objective && (
+        <Card><CardContent className="pt-4 pb-4">
+          <p style={sectionHead}>Commercial Objective</p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+            {d.commercial_objective.revenue_goal && (
+              <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 8, padding: "8px 14px" }}>
+                <p style={{ fontSize: 10, color: muted, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 2 }}>Revenue Goal</p>
+                <p style={{ fontSize: 13, fontWeight: 700, color: ink }}>{d.commercial_objective.revenue_goal}</p>
+              </div>
+            )}
+            {d.commercial_objective.customer_goal && (
+              <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 8, padding: "8px 14px" }}>
+                <p style={{ fontSize: 10, color: muted, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 2 }}>Customer Goal</p>
+                <p style={{ fontSize: 13, fontWeight: 700, color: ink }}>{d.commercial_objective.customer_goal}</p>
+              </div>
+            )}
+            {d.commercial_objective.cac_target && (
+              <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 8, padding: "8px 14px" }}>
+                <p style={{ fontSize: 10, color: muted, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 2 }}>CAC Target</p>
+                <p style={{ fontSize: 13, fontWeight: 700, color: ink }}>{d.commercial_objective.cac_target}</p>
+              </div>
+            )}
+          </div>
+          {d.commercial_objective.funnel && (() => {
+            const f = d.commercial_objective!.funnel!;
+            const steps = [
+              { label: "Prospects", value: f.prospects },
+              { label: "Responses", value: f.responses },
+              { label: "Demos", value: f.demos },
+              { label: "Pilots", value: f.pilots },
+              { label: "Closes", value: f.closes },
+            ];
+            return (
+              <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+                {steps.map((s, i) => (
+                  <Fragment key={i}>
+                    <div style={{ textAlign: "center" }}>
+                      <p style={{ fontSize: 18, fontWeight: 800, color: blue }}>{s.value}</p>
+                      <p style={{ fontSize: 10, color: muted, whiteSpace: "nowrap" }}>{s.label}</p>
+                    </div>
+                    {i < steps.length - 1 && <span style={{ color: muted, fontSize: 16, marginBottom: 10 }}>→</span>}
+                  </Fragment>
+                ))}
+              </div>
+            );
+          })()}
+        </CardContent></Card>
+      )}
+
+      {/* ── D6: Budget Table ────────────────────────────────────────────────── */}
+      {d.budget?.line_items && d.budget.line_items.length > 0 && (
+        <Card><CardContent className="pt-4 pb-4">
+          <p style={sectionHead}>Budget</p>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead>
+                <tr>
+                  {["Channel", "Monthly Budget", "KPI", "CAC Expectation"].map(h => (
+                    <th key={h} style={{ background: surf, padding: "7px 10px", textAlign: "left", fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: `1px solid ${bdr}` }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {d.budget.line_items.map((li, i) => (
+                  <tr key={i} style={{ borderBottom: `1px solid ${bdr}` }}>
+                    <td style={{ padding: "9px 10px", fontWeight: 600, color: ink }}>{li.channel}</td>
+                    <td style={{ padding: "9px 10px", color: ink }}>{li.budget}</td>
+                    <td style={{ padding: "9px 10px", color: muted }}>{li.kpi}</td>
+                    <td style={{ padding: "9px 10px", color: ink }}>{li.cac_expectation}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr style={{ background: surf }}>
+                  <td style={{ padding: "9px 10px", fontWeight: 700, color: ink, fontSize: 11 }}>Total</td>
+                  <td style={{ padding: "9px 10px", fontWeight: 700, color: ink, fontSize: 11 }}>{d.budget.monthly_total}</td>
+                  <td style={{ padding: "9px 10px" }} />
+                  <td style={{ padding: "9px 10px", fontSize: 11, color: muted }}>
+                    Blended CAC: <strong style={{ color: ink }}>{d.budget.cac_blended}</strong>
+                    {d.budget.payback_months && <span> · Payback: {d.budget.payback_months}</span>}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </CardContent></Card>
+      )}
+
       {/* Positioning */}
       {d.positioning?.statement && (
         <Card><CardContent className="pt-4 pb-4">
@@ -630,7 +746,7 @@ export function PlaybookRenderer({ data, artifactId }: { data: Record<string, un
       {/* 90-Day Plan */}
       {d.ninetyDayPlan && d.ninetyDayPlan.length > 0 && (
         <div>
-          <p style={sectionHead}>90-Day Plan</p>
+          <p style={sectionHead}>90-Day GTM Plan</p>
           <Accordion type="multiple" defaultValue={["phase-0"]} className="flex flex-col gap-1">
             {d.ninetyDayPlan.map((phase, i) => (
               <AccordionItem key={i} value={`phase-${i}`} className="border rounded-xl overflow-hidden">
@@ -641,22 +757,206 @@ export function PlaybookRenderer({ data, artifactId }: { data: Record<string, un
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="px-4 pb-4">
-                  <div className="mb-3">
-                    <p style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: "uppercase", marginBottom: 4 }}>Objectives</p>
-                    {phase.objectives.map((o, oi) => <p key={oi} style={{ fontSize: 12, color: ink, lineHeight: 1.6, paddingLeft: 8 }}>→ {o}</p>)}
-                  </div>
-                  <div className="mb-3">
-                    <p style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: "uppercase", marginBottom: 4 }}>Key Actions</p>
-                    {phase.keyActions.map((a, ai) => <p key={ai} style={{ fontSize: 12, color: ink, lineHeight: 1.6, paddingLeft: 8 }}>• {a}</p>)}
-                  </div>
-                  <div style={{ background: surf, borderRadius: 6, padding: "8px 10px", border: `1px solid ${bdr}` }}>
-                    <p style={{ fontSize: 11, color: muted }}>✓ {phase.successCriteria}</p>
-                  </div>
+                  {/* D6: milestone pill */}
+                  {phase.milestone && (
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#DCFCE7", border: "1px solid #BBF7D0", borderRadius: 20, padding: "4px 12px", marginBottom: 12 }}>
+                      <span style={{ fontSize: 12, color: "#15803D" }}>🎯</span>
+                      <p style={{ fontSize: 12, fontWeight: 600, color: "#15803D" }}>Milestone: {phase.milestone}</p>
+                    </div>
+                  )}
+                  {phase.goal && (
+                    <p style={{ fontSize: 12, color: muted, marginBottom: 10 }}>{phase.goal}</p>
+                  )}
+                  {/* D6: weekly actions table */}
+                  {phase.weekly_actions && phase.weekly_actions.length > 0 ? (
+                    <div style={{ overflowX: "auto" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                        <thead>
+                          <tr>
+                            {["Wk", "Action", "Owner", "KPI", "Success"].map(h => (
+                              <th key={h} style={{ background: surf, padding: "6px 8px", textAlign: "left", fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: `1px solid ${bdr}` }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {phase.weekly_actions.map((wa, wi) => (
+                            <tr key={wi} style={{ borderBottom: `1px solid ${bdr}` }}>
+                              <td style={{ padding: "8px", fontWeight: 700, color: blue, width: 28 }}>{wa.week}</td>
+                              <td style={{ padding: "8px", color: ink, lineHeight: 1.4 }}>{wa.action}</td>
+                              <td style={{ padding: "8px", color: muted, whiteSpace: "nowrap" }}>{wa.owner}</td>
+                              <td style={{ padding: "8px", color: muted }}>{wa.kpi}</td>
+                              <td style={{ padding: "8px", color: muted, fontStyle: "italic" }}>{wa.success_metric}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    /* Fallback for old artifacts without weekly_actions */
+                    <>
+                      {phase.objectives && phase.objectives.length > 0 && (
+                        <div className="mb-3">
+                          <p style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: "uppercase", marginBottom: 4 }}>Objectives</p>
+                          {phase.objectives.map((o, oi) => <p key={oi} style={{ fontSize: 12, color: ink, lineHeight: 1.6, paddingLeft: 8 }}>→ {o}</p>)}
+                        </div>
+                      )}
+                      {phase.keyActions && phase.keyActions.length > 0 && (
+                        <div className="mb-3">
+                          <p style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: "uppercase", marginBottom: 4 }}>Key Actions</p>
+                          {phase.keyActions.map((a, ai) => <p key={ai} style={{ fontSize: 12, color: ink, lineHeight: 1.6, paddingLeft: 8 }}>• {a}</p>)}
+                        </div>
+                      )}
+                      {phase.successCriteria && (
+                        <div style={{ background: surf, borderRadius: 6, padding: "8px 10px", border: `1px solid ${bdr}` }}>
+                          <p style={{ fontSize: 11, color: muted }}>✓ {phase.successCriteria}</p>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </AccordionContent>
               </AccordionItem>
             ))}
           </Accordion>
         </div>
+      )}
+
+      {/* ── D6: Commercial Dashboard ─────────────────────────────────────────── */}
+      {d.commercial_dashboard && (
+        <Card><CardContent className="pt-4 pb-4">
+          <p style={sectionHead}>Commercial Dashboard</p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+            {d.commercial_dashboard.pipeline && (
+              <div>
+                <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>Pipeline Funnel</p>
+                {Object.entries(d.commercial_dashboard.pipeline).map(([k, v]) => (
+                  <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: `1px solid ${bdr}` }}>
+                    <p style={{ fontSize: 12, color: muted, textTransform: "capitalize" }}>{k}</p>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: ink }}>{v}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {d.commercial_dashboard.revenue && (
+              <div>
+                <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>Revenue</p>
+                {Object.entries(d.commercial_dashboard.revenue).map(([k, v]) => (
+                  <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: `1px solid ${bdr}` }}>
+                    <p style={{ fontSize: 12, color: muted }}>{k.replace(/_/g, ' ')}</p>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: green }}>{v}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            {d.commercial_dashboard.efficiency && (
+              <div>
+                <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>Efficiency</p>
+                {Object.entries(d.commercial_dashboard.efficiency).map(([k, v]) => (
+                  <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: `1px solid ${bdr}` }}>
+                    <p style={{ fontSize: 12, color: muted }}>{k.replace(/_/g, ' ')}</p>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: ink }}>{v}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </CardContent></Card>
+      )}
+
+      {/* ── D6: Prioritized Action Stack ─────────────────────────────────────── */}
+      {d.action_stack && d.action_stack.length > 0 && (
+        <Card><CardContent className="pt-4 pb-4">
+          <p style={sectionHead}>Prioritized Action Stack</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {d.action_stack.map((item, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: surf, borderRadius: 8, border: `1px solid ${bdr}` }}>
+                <div style={{ width: 24, height: 24, borderRadius: "50%", background: item.priority <= 2 ? blue : bdr, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <p style={{ fontSize: 11, fontWeight: 800, color: item.priority <= 2 ? "#fff" : muted }}>{item.priority}</p>
+                </div>
+                <p style={{ fontSize: 13, color: ink, flex: 1 }}>{item.action}</p>
+                <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                  <Badge variant="outline" style={{ fontSize: 10, color: item.impact === "High" ? green : muted, borderColor: item.impact === "High" ? green : bdr }}>
+                    {item.impact} impact
+                  </Badge>
+                  <Badge variant="outline" style={{ fontSize: 10, color: item.effort === "Low" ? green : item.effort === "High" ? amber : muted, borderColor: bdr }}>
+                    {item.effort} effort
+                  </Badge>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent></Card>
+      )}
+
+      {/* ── D6: Risks & Hypotheses ───────────────────────────────────────────── */}
+      {d.risks && d.risks.length > 0 && (
+        <Card><CardContent className="pt-4 pb-4">
+          <p style={sectionHead}>Risks & GTM Hypotheses</p>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead>
+                <tr>
+                  {["Risk", "How to Test", "Success Metric"].map(h => (
+                    <th key={h} style={{ background: surf, padding: "7px 10px", textAlign: "left", fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: `1px solid ${bdr}` }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {d.risks.map((r, i) => (
+                  <tr key={i} style={{ borderBottom: `1px solid ${bdr}` }}>
+                    <td style={{ padding: "9px 10px", color: amber, fontWeight: 600, borderLeft: `3px solid ${amber}` }}>{r.risk}</td>
+                    <td style={{ padding: "9px 10px", color: muted }}>{r.test}</td>
+                    <td style={{ padding: "9px 10px", color: ink }}>{r.metric}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent></Card>
+      )}
+
+      {/* ── D6: End-of-90-Day Success State ─────────────────────────────────── */}
+      {d.success_state && (
+        <Card style={{ border: `1px solid #BBF7D0` }}><CardContent className="pt-4 pb-4">
+          <p style={{ ...sectionHead, color: "#15803D" }}>End-of-90-Day Success State</p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            {d.success_state.customers && (
+              <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 8, padding: "10px 14px" }}>
+                <p style={{ fontSize: 10, color: "#16A34A", textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 700, marginBottom: 2 }}>Customers</p>
+                <p style={{ fontSize: 13, fontWeight: 700, color: ink }}>{d.success_state.customers}</p>
+              </div>
+            )}
+            {d.success_state.mrr && (
+              <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 8, padding: "10px 14px" }}>
+                <p style={{ fontSize: 10, color: "#16A34A", textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 700, marginBottom: 2 }}>MRR</p>
+                <p style={{ fontSize: 13, fontWeight: 700, color: ink }}>{d.success_state.mrr}</p>
+              </div>
+            )}
+            {d.success_state.cac && (
+              <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 8, padding: "10px 14px" }}>
+                <p style={{ fontSize: 10, color: "#16A34A", textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 700, marginBottom: 2 }}>CAC</p>
+                <p style={{ fontSize: 13, fontWeight: 700, color: ink }}>{d.success_state.cac}</p>
+              </div>
+            )}
+            {d.success_state.repeatable_channel && (
+              <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 8, padding: "10px 14px" }}>
+                <p style={{ fontSize: 10, color: "#16A34A", textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 700, marginBottom: 2 }}>Repeatable Channel</p>
+                <p style={{ fontSize: 13, fontWeight: 700, color: ink }}>{d.success_state.repeatable_channel}</p>
+              </div>
+            )}
+            {d.success_state.hiring_readiness && (
+              <div style={{ gridColumn: "span 2", background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 8, padding: "10px 14px" }}>
+                <p style={{ fontSize: 10, color: "#16A34A", textTransform: "uppercase", letterSpacing: "0.07em", fontWeight: 700, marginBottom: 2 }}>Hiring Readiness</p>
+                <p style={{ fontSize: 13, color: ink }}>{d.success_state.hiring_readiness}</p>
+              </div>
+            )}
+            {d.success_state.playbook_documented && (
+              <div style={{ gridColumn: "span 2", display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 8 }}>
+                <span style={{ fontSize: 16 }}>✅</span>
+                <p style={{ fontSize: 13, fontWeight: 600, color: "#15803D" }}>GTM Playbook Documented — repeatable motion ready to hand off or hire into</p>
+              </div>
+            )}
+          </div>
+        </CardContent></Card>
       )}
 
       {/* ── Directory Submissions ─────────────────────────────────────────────── */}

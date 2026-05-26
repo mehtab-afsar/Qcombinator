@@ -745,70 +745,162 @@ RULES:
 - If research data is available, use it for factual claims and populate sources. If not, note "Based on public information" in sources.
 - Return ONLY valid JSON. No markdown, no explanation.`,
 
-    // ── GTM Playbook ────────────────────────────────────────────────────────
-    gtm_playbook: `You are generating a comprehensive Go-to-Market playbook for an early-stage startup.
+    // ── GTM Playbook (D6) ────────────────────────────────────────────────────
+    gtm_playbook: `You are Patel — GTM CXO Agent D6. Generate a practical, founder-ready GTM Playbook.
+Output must be commercially focused, execution-ready, and prioritized.
+Think: VP Growth + First sales hire + RevOps leader + Founder/operator.
+Optimize for: fastest path to revenue · efficient CAC · repeatable acquisition · clear commercial milestones.
 
 Context gathered from the conversation:
 ${ctx}
+
+TAGGING RULE — append to every estimated/inferred string value:
+  [Fact] = confirmed by founder   [Hypothesis] = inferred   [Benchmark] = standard market assumption
 
 Return a JSON object with this EXACT structure (no markdown fences, no extra text):
 {
   "title": "GTM Playbook: [Company/Product Name]",
   "companyContext": "2-3 sentence description of the company, product, stage, and market",
+
+  "commercial_objective": {
+    "revenue_goal": "MRR: $X → $Y in 90 days [Fact/Hypothesis]",
+    "customer_goal": "X → Y customers [Fact/Hypothesis]",
+    "cac_target": "$X [Benchmark]",
+    "funnel": {
+      "prospects": 100,
+      "responses": 25,
+      "demos": 10,
+      "pilots": 5,
+      "closes": 3
+    }
+  },
+
   "icp": {
     "summary": "One-paragraph ICP summary",
-    "segments": ["Primary segment", "Secondary segment", "Tertiary segment"]
+    "title": "Buyer title/role",
+    "company_size": "X–Y employees",
+    "buying_urgency": "What makes them buy now vs. later",
+    "triggers": ["Trigger event 1", "Trigger event 2", "Trigger event 3"],
+    "segments": ["Primary segment", "Secondary segment"]
   },
+
   "positioning": {
     "statement": "For [target customer] who [need], [product] is a [category] that [key benefit]. Unlike [competitor], we [differentiator].",
     "differentiators": ["differentiator1", "differentiator2", "differentiator3"]
   },
+
   "channels": [
-    { "channel": "Channel name", "priority": "primary", "budget": "$X/mo or N/A", "expectedCAC": "$X" },
-    { "channel": "Another channel", "priority": "secondary", "budget": "$X/mo", "expectedCAC": "$X" }
+    { "channel": "Channel name", "priority": "primary", "budget": "$X/mo", "expectedCAC": "$X [Benchmark]", "why": "Why this channel for this ICP", "kpi": "KPI to track" },
+    { "channel": "Channel 2", "priority": "secondary", "budget": "$X/mo", "expectedCAC": "$X [Benchmark]", "why": "Rationale", "kpi": "KPI" },
+    { "channel": "Channel 3", "priority": "experimental", "budget": "$X/mo", "expectedCAC": "$X [Benchmark]", "why": "Rationale", "kpi": "KPI" }
   ],
+
+  "budget": {
+    "monthly_total": "$X/mo",
+    "cac_blended": "$X [Benchmark]",
+    "payback_months": "X months [Benchmark]",
+    "line_items": [
+      { "channel": "Channel name", "budget": "$X/mo", "kpi": "15 replies/mo", "cac_expectation": "$X" }
+    ]
+  },
+
   "messaging": [
     {
-      "audience": "Segment name",
-      "headline": "Core message for this audience",
+      "audience": "Segment name / trigger state",
+      "headline": "Core message headline",
       "valueProps": ["value prop 1", "value prop 2", "value prop 3"]
     }
   ],
+
   "metrics": [
-    { "metric": "MQLs / month", "target": "200", "currentBaseline": "50" },
-    { "metric": "CAC", "target": "$80", "currentBaseline": "$120" }
+    { "metric": "MQLs / month", "target": "20", "currentBaseline": "0" },
+    { "metric": "CAC", "target": "$X", "currentBaseline": "$X" },
+    { "metric": "Win rate", "target": "30%", "currentBaseline": "unknown" },
+    { "metric": "Sales cycle", "target": "21 days", "currentBaseline": "unknown" },
+    { "metric": "MRR", "target": "$X", "currentBaseline": "$X" },
+    { "metric": "Referral %", "target": "20%", "currentBaseline": "0%" }
   ],
+
   "ninetyDayPlan": [
     {
       "phase": "Phase 1: Foundation",
       "weeks": "Weeks 1-4",
-      "objectives": ["objective1", "objective2"],
-      "keyActions": ["action1", "action2", "action3"],
-      "successCriteria": "How to know this phase succeeded"
+      "goal": "Highest leverage + instrumenting",
+      "milestone": "Specific measurable milestone — e.g. 12 qualified demos booked",
+      "weekly_actions": [
+        { "week": 1, "action": "Specific action", "owner": "Founder", "kpi": "KPI", "success_metric": "What success looks like" },
+        { "week": 2, "action": "Specific action", "owner": "Founder", "kpi": "KPI", "success_metric": "What success looks like" },
+        { "week": 3, "action": "Specific action", "owner": "Founder", "kpi": "KPI", "success_metric": "What success looks like" },
+        { "week": 4, "action": "Specific action", "owner": "Founder", "kpi": "KPI", "success_metric": "What success looks like" }
+      ]
     },
     {
       "phase": "Phase 2: Traction",
       "weeks": "Weeks 5-8",
-      "objectives": ["objective1", "objective2"],
-      "keyActions": ["action1", "action2", "action3"],
-      "successCriteria": "How to know this phase succeeded"
+      "goal": "Conversion + learning",
+      "milestone": "Specific measurable milestone — e.g. 5 paid pilots signed",
+      "weekly_actions": [
+        { "week": 5, "action": "Specific action", "owner": "Founder", "kpi": "KPI", "success_metric": "What success looks like" },
+        { "week": 6, "action": "Specific action", "owner": "Founder", "kpi": "KPI", "success_metric": "What success looks like" },
+        { "week": 7, "action": "Specific action", "owner": "Founder", "kpi": "KPI", "success_metric": "What success looks like" },
+        { "week": 8, "action": "Specific action", "owner": "Founder", "kpi": "KPI", "success_metric": "What success looks like" }
+      ]
     },
     {
       "phase": "Phase 3: Scale",
       "weeks": "Weeks 9-12",
-      "objectives": ["objective1", "objective2"],
-      "keyActions": ["action1", "action2", "action3"],
-      "successCriteria": "How to know this phase succeeded"
+      "goal": "Scale repeatable motion",
+      "milestone": "Specific measurable milestone — e.g. $6k MRR, repeatable channel documented",
+      "weekly_actions": [
+        { "week": 9,  "action": "Specific action", "owner": "Founder", "kpi": "KPI", "success_metric": "What success looks like" },
+        { "week": 10, "action": "Specific action", "owner": "Founder", "kpi": "KPI", "success_metric": "What success looks like" },
+        { "week": 11, "action": "Specific action", "owner": "Founder", "kpi": "KPI", "success_metric": "What success looks like" },
+        { "week": 12, "action": "Specific action", "owner": "Founder", "kpi": "KPI", "success_metric": "What success looks like" }
+      ]
     }
-  ]
+  ],
+
+  "commercial_dashboard": {
+    "pipeline": { "prospects": "100", "responses": "25", "demos": "10", "pilots": "5", "customers": "3" },
+    "revenue": { "mrr_start": "$X", "mrr_target": "$X", "new_arr": "$X", "expansion": "$0" },
+    "efficiency": { "cac": "$X [Benchmark]", "win_rate": "30% [Benchmark]", "sales_cycle": "21 days [Benchmark]", "referral_pct": "20% [Hypothesis]" }
+  },
+
+  "action_stack": [
+    { "priority": 1, "action": "Most important action — do immediately", "impact": "High", "effort": "Low", "owner": "Founder" },
+    { "priority": 2, "action": "Second action", "impact": "High", "effort": "Medium", "owner": "Founder" },
+    { "priority": 3, "action": "Third action", "impact": "Medium", "effort": "Low", "owner": "Founder" },
+    { "priority": 4, "action": "Fourth action", "impact": "Medium", "effort": "Medium", "owner": "Founder" },
+    { "priority": 5, "action": "Fifth action — do later", "impact": "Low", "effort": "High", "owner": "Founder" }
+  ],
+
+  "risks": [
+    { "risk": "Risk description", "test": "How to test this assumption", "metric": "What number proves/disproves it" },
+    { "risk": "Risk description", "test": "How to test this assumption", "metric": "What number proves/disproves it" },
+    { "risk": "Risk description", "test": "How to test this assumption", "metric": "What number proves/disproves it" }
+  ],
+
+  "success_state": {
+    "customers": "X paying customers",
+    "mrr": "$X",
+    "cac": "<$X",
+    "repeatable_channel": "Channel name — X new convos/week",
+    "playbook_documented": true,
+    "hiring_readiness": "Ready to hire [role] when MRR hits $X/month"
+  }
 }
 
 RULES:
-- Exactly 3 phases in the 90-day plan.
-- Be concrete about budgets, CAC targets, and timelines — avoid vague language.
-- Channel priority must be "primary", "secondary", or "experimental".
+- Exactly 3 phases in the 90-day plan. Exactly 4 weekly_actions per phase (weeks 1-4, 5-8, 9-12).
+- All values specific to THIS company — no generic templates.
+- budget.line_items must mirror the channels array (same channels, same order).
+- action_stack sorted by priority ascending (1 = do immediately). Minimum 5 items.
+- risks minimum 3 items. Each risk must have a falsifiable metric.
+- Channel priority: "primary", "secondary", or "experimental" only.
 - Include 3-5 channels, 1-3 messaging segments, 5-8 metrics.
-- Tailor everything to their specific product, market, and stage. No generic advice.
+- commercial_dashboard funnel numbers must align with commercial_objective.funnel.
+- Tag inferred/assumed values with [Fact], [Hypothesis], or [Benchmark].
+- NEVER write generic advice. NEVER ignore cost. NEVER ignore milestones.
 - Return ONLY valid JSON. No markdown, no explanation.`,
 
     // ── Sales Script (Susi) ──────────────────────────────────────────────────
