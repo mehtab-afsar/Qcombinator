@@ -66,9 +66,9 @@ import { buildPatelQuestionBank } from '@/lib/agents/patel-question-bank';
 // ─── request schema ──────────────────────────────────────────────────────────
 const chatRequestSchema = z.object({
   agentId:           z.string().min(1).max(64),
-  message:           z.string().min(1).max(8000).refine(s => s.trim().length > 0, 'Message cannot be blank'),
+  message:           z.string().min(1).max(50000).refine(s => s.trim().length > 0, 'Message cannot be blank'),
   conversationHistory: z.array(
-    z.object({ role: z.string(), content: z.string().max(8000) })
+    z.object({ role: z.string(), content: z.string().max(50000) })
   ).max(100).optional(),
   userContext:       z.record(z.string(), z.unknown()).optional(),
   conversationId:    z.string().uuid().optional().nullable(),
@@ -986,7 +986,7 @@ CONVERSATION RULES:
       return null
     }
 
-    async function generateArtifactJSON(prompt: string, maxTokens = 8000): Promise<Record<string, unknown>> {
+    async function generateArtifactJSON(prompt: string, maxTokens = 5000): Promise<Record<string, unknown>> {
       const raw = await routedText('generation', [
         { role: 'system', content: prompt },
         { role: 'user', content: 'Generate the deliverable now. Return ONLY valid JSON, no markdown fences, no explanation text.' },
@@ -1157,7 +1157,7 @@ CONVERSATION RULES:
                     if (cs.length > 0) researchData = await fetchTavilyResearch(`${cs.slice(0, 3).join(' vs ')} competitive analysis ${p}`);
                   }
                   const artifactPrompt = getArtifactPrompt(toolName, toolCtx, researchData, patelRawScores, patelRawConfidence);
-                  const parsedContent = await generateArtifactJSON(artifactPrompt);
+                  const parsedContent = await generateArtifactJSON(artifactPrompt, toolName === 'gtm_playbook' ? 7000 : 5000);
                   const artifactTitle = parsedContent.title as string || toolName.replace(/_/g, ' ');
                   let artifactId: string | null = null;
                   if (userId) {
@@ -1230,12 +1230,6 @@ CONVERSATION RULES:
                     artifactId = saved?.id ?? null;
                     streamArtifactId = artifactId;
                   }
-                  // Await score nudge before scoreFromArtifact inserts its own qscore_history row
-                  // for this artifact type — avoids tripping the idempotency guard in applyAgentScoreSignal
-                  let scoreSignal: Awaited<ReturnType<typeof applyAgentScoreSignal>> = { boosted: false };
-                  if (artifactId && userId) {
-                    try { scoreSignal = await applyAgentScoreSignal(supabaseAdmin, userId, toolName); } catch { /* non-critical */ }
-                  }
                   if (artifactId && userId) void scoreFromArtifact(userId, toolName, parsedContent, supabaseAdmin).catch(() => { /* fire-and-forget: non-critical */ });
                   if (artifactId && userId) void postArtifactFeedEvent(userId, toolName, artifactTitle, supabaseAdmin);
                   // Quality evaluator and self-critique run in background — don't block showing the artifact
@@ -1267,11 +1261,17 @@ CONVERSATION RULES:
                   }
                   clearInterval(heartbeat);
                   logToolExecution(supabaseAdmin, userId, agentId, toolName, t0A, 'success', undefined, 'standard');
+                  // Send artifact to client immediately — no longer gated behind the score signal.
                   send({ type: 'artifact', artifact: { id: artifactId, type: toolName, title: artifactTitle, content: parsedContent } });
-                  if (scoreSignal.boosted) {
-                    send({ type: 'score_signal', boosted: true, points: scoreSignal.pointsAdded, dimension: scoreSignal.dimensionLabel, newScore: scoreSignal.newOverall });
-                  }
                   send({ type: 'tool_done', toolName, summary: `${artifactTitle} ready` });
+                  // Score signal fires in background; SSE send is best-effort (stream may already be done).
+                  if (artifactId && userId) {
+                    void applyAgentScoreSignal(supabaseAdmin, userId, toolName).then(sig => {
+                      if (sig.boosted) {
+                        try { send({ type: 'score_signal', boosted: true, points: sig.pointsAdded, dimension: sig.dimensionLabel, newScore: sig.newOverall }); } catch { /* stream already closed */ }
+                      }
+                    }).catch(() => { /* non-critical */ });
+                  }
                   // Stream a brief Patel commentary so chatReply is never empty
                   // For D1: ask the P1.4/P1.5 diagnostic questions if they're still unscored
                   try {
@@ -1492,7 +1492,7 @@ CONVERSATION RULES:
         }
 
         const artifactPrompt = getArtifactPrompt(toolName, toolCtx, researchData, patelRawScores, patelRawConfidence);
-        const parsedContent = await generateArtifactJSON(artifactPrompt);
+        const parsedContent = await generateArtifactJSON(artifactPrompt, toolName === 'gtm_playbook' ? 7000 : 5000);
         const artifactTitle = parsedContent.title as string || toolName.replace(/_/g, ' ');
 
         let artifactId: string | null = null;
@@ -1523,8 +1523,8 @@ CONVERSATION RULES:
         }
 
         if (artifactId && userId) {
-          // Apply Q-Score boost for this artifact type (one-time per user, awaited so /api/qscore/latest sees it immediately)
-          try { await applyAgentScoreSignal(supabaseAdmin, userId, toolName); } catch { /* non-critical */ }
+          // Q-Score boost — fire-and-forget so it doesn't block returning the artifact
+          void applyAgentScoreSignal(supabaseAdmin, userId, toolName).catch(() => { /* non-critical */ });
           void scoreFromArtifact(userId, toolName, parsedContent, supabaseAdmin).catch(() => { /* fire-and-forget: non-critical score nudge */ });
           // Write extracted facts to world model + refresh goal + trigger delegations
           const stateUpdates = extractStateFromArtifact(agentId, toolName, parsedContent);

@@ -32,16 +32,16 @@ import { test, expect, type Page, type BrowserContext } from '@playwright/test'
 import {
   createFounderAccount, createInvestorAccount,
   signInWithCredentials, FounderAccount, InvestorAccount,
-} from './helpers/auth'
+} from '../helpers/auth'
 import {
   chatWithAgent, waitForArtifactCard, assertViewerKeywords,
   getQScoreViaAPI, snapshotQScore as _snapshotQScore, fillProfileBuilderSection as _fillProfileBuilderSection, submitProfileBuilder as _submitProfileBuilder,
-} from './helpers/agents'
+} from '../helpers/agents'
 import {
   sendConnectionRequest as _sendConnectionRequest, acceptConnectionRequest as _acceptConnectionRequest, sendMessage,
   openConversationThread, getNotifications, findNotificationOfType as _findNotificationOfType,
   addPortfolioCompany as _addPortfolioCompany, getPortfolioInviteToken,
-} from './helpers/marketplace'
+} from '../helpers/marketplace'
 
 // ─── test data ────────────────────────────────────────────────────────────────
 

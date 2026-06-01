@@ -10,6 +10,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { bg, surf, bdr, ink, muted, blue } from '@/lib/constants/colors'
+import { APP_NAME } from '@/lib/constants/app'
 import { Avatar } from '@/features/shared/components/Avatar'
 import { useInvestorNotifications } from '@/features/investor/hooks/useInvestorNotifications'
 import { NotificationDropdown, NotificationBellButton, NotifItem } from '@/features/shared/components/NotificationPanel'
@@ -170,7 +171,7 @@ export default function InvestorSidebar() {
   });
 
   const displayName = (user?.user_metadata?.full_name as string) || user?.email?.split("@")[0] || "Investor";
-  const fundName    = (user?.user_metadata?.fund_name as string) || "Edge Alpha";
+  const fundName    = (user?.user_metadata?.fund_name as string) || APP_NAME;
   const avatarUrl   = (user?.user_metadata?.avatar_url as string | null) ?? null;
   const firmLogoUrl = (user?.user_metadata?.firm_logo_url as string | null) ?? null;
 

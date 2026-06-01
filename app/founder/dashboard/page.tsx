@@ -597,6 +597,12 @@ export default function FounderDashboard() {
             <h1 style={{ fontSize: "clamp(1.5rem,3.5vw,2.1rem)", fontWeight: 300, letterSpacing: "-0.03em", color: ink }}>
               {getGreeting((user?.user_metadata?.full_name as string | undefined) ?? user?.email?.split("@")[0])}
             </h1>
+            <Link
+              href="/getting-started"
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, color: muted, textDecoration: "none", padding: "5px 13px", border: `1px solid ${bdr}`, borderRadius: 999 }}
+            >
+              Getting Started Guide ↗
+            </Link>
             {isDemo && (
               <div style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "5px 14px", background: surf, border: `1px solid ${bdr}`, borderRadius: 999, fontSize: 11, color: muted }}>
                 <span style={{ height: 6, width: 6, background: amber, borderRadius: "50%", display: "inline-block", flexShrink: 0 }} />

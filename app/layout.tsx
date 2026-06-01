@@ -4,6 +4,7 @@ import "./globals.css";
 import { AuthProvider } from "@/features/auth/hooks/useAuth";
 import { QScoreProvider } from "@/features/qscore/hooks/useQScore";
 import { Toaster } from "sonner";
+import { APP_NAME, APP_TAGLINE, APP_URL as APP_BASE_URL } from "@/lib/constants/app";
 
 const inter = Inter({ subsets: ["latin"] });
 const manrope = Manrope({
@@ -23,24 +24,25 @@ const jetbrainsMono = JetBrains_Mono({
   weight: ["400", "500"],
 });
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://edgealpha.ai'
+const TITLE = `${APP_NAME} | ${APP_TAGLINE}`
+const DESCRIPTION = "The AI-powered operating system for founders — Q-Score, intelligent agents, and investor matching in one platform."
 
 export const metadata: Metadata = {
-  title: "Edge Alpha | AI-Powered Startup OS",
-  description: "The AI-powered operating system for founders — Q-Score, intelligent agents, and investor matching in one platform.",
-  metadataBase: new URL(APP_URL),
+  title: TITLE,
+  description: DESCRIPTION,
+  metadataBase: new URL(APP_BASE_URL),
   openGraph: {
-    title: "Edge Alpha | AI-Powered Startup OS",
-    description: "The AI-powered operating system for founders — Q-Score, intelligent agents, and investor matching in one platform.",
-    url: APP_URL,
-    siteName: "Edge Alpha",
+    title: TITLE,
+    description: DESCRIPTION,
+    url: APP_BASE_URL,
+    siteName: APP_NAME,
     locale: "en_US",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Edge Alpha | AI-Powered Startup OS",
-    description: "The AI-powered operating system for founders — Q-Score, intelligent agents, and investor matching in one platform.",
+    title: TITLE,
+    description: DESCRIPTION,
   },
 };
 

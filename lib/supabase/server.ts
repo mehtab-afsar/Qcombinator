@@ -2,6 +2,8 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { log } from '@/lib/logger'
+// Database types generated — see types/supabase.ts. Wire in via createServerClient<Database>
+// once all API routes are updated to handle strict Json typing (~50 files to fix).
 
 export async function createClient() {
   const cookieStore = await cookies()
@@ -58,8 +60,8 @@ export function createAdminClient() {
 
 // Module-scope singleton — avoids repeated HTTP client initialization per request.
 // Return type is cast to `any` because supabase-js 2.93+ resolves unknown tables as `never`
-// when no generated Database type is provided. Replace with `createClient<Database>()` once
-// `supabase gen types typescript --linked > types/supabase.ts` has been run.
+// when no generated Database type is provided. Wire in Database generic once all API routes
+// are updated to handle strict Json typing. See types/supabase.ts.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let _adminSingleton: any = null
 

@@ -99,7 +99,7 @@ const CARTER_ARTIFACT_RULES = `## Artifact Rules
 
 TOOL USAGE RULES: Use posthog_query before any account analysis. Use fetch_stripe_metrics for subscription and payment health data. Only use ONE tool per message. Before generating any artifact, ask for the data you need — if posthog_query is available, use it.`.trim()
 
-export const CARTER_SYSTEM_PROMPT = composeSystemPrompt({
+export const carterSystemPrompt = composeSystemPrompt({
   identity: CARTER_IDENTITY,
   skills: [FINANCIAL_READ_SKILL, ARTIFACT_GUARD_SKILL],
   artifactRules: CARTER_ARTIFACT_RULES,

@@ -10,7 +10,7 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     serverActions: {
-      bodySizeLimit: '10mb',   // raises limit for both Server Actions and Route Handlers
+      bodySizeLimit: '25mb',
     },
   },
   async headers() {

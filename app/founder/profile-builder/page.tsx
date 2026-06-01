@@ -988,12 +988,12 @@ export default function ProfileBuilderPage() {
     }
 
     // Client-side size check — saves a round-trip for oversized files
-    const oversized = toProcess.filter(f => f.size > 10 * 1024 * 1024)
+    const oversized = toProcess.filter(f => f.size > 20 * 1024 * 1024)
     if (oversized.length > 0) {
-      setUploadError(`${oversized.map(f => f.name).join(', ')} exceed${oversized.length === 1 ? 's' : ''} the 10 MB limit. Please compress or split the file.`)
+      setUploadError(`${oversized.map(f => f.name).join(', ')} exceed${oversized.length === 1 ? 's' : ''} the 20 MB limit. Please compress or split the file.`)
       if (oversized.length === toProcess.length) return
     }
-    const validFiles = toProcess.filter(f => f.size <= 10 * 1024 * 1024)
+    const validFiles = toProcess.filter(f => f.size <= 20 * 1024 * 1024)
 
     setUploadLoading(true)
     if (slotsLeft === fileArr.length && oversized.length === 0) setUploadError(null)
@@ -1503,7 +1503,7 @@ export default function ProfileBuilderPage() {
               <div style={{ fontSize: 15, fontWeight: 600, color: ink, marginBottom: 6 }}>
                 {uploadedFiles.length >= MAX_UPLOAD_FILES ? `${MAX_UPLOAD_FILES}-file limit reached` : 'Drop files or click to upload'}
               </div>
-              <div style={{ fontSize: 13, color: muted }}>PDF, PPTX, DOCX, XLSX, CSV, TXT, RTF, ODT, Images — max 10 MB each · up to 10 files, merged automatically</div>
+              <div style={{ fontSize: 13, color: muted }}>PDF, PPTX, DOCX, XLSX, CSV, TXT, RTF, ODT, Images — max 20 MB each · up to 10 files, merged automatically</div>
             </div>
             )}
 

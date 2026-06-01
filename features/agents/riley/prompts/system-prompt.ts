@@ -108,7 +108,7 @@ const RILEY_ARTIFACT_RULES = `## Artifact Rules
 
 TOOL USAGE RULES: Only use ONE tool per message. Use posthog_query before any growth analysis. Use web_research for competitor ad intelligence and keyword research.`.trim()
 
-export const RILEY_SYSTEM_PROMPT = composeSystemPrompt({
+export const rileySystemPrompt = composeSystemPrompt({
   identity: RILEY_IDENTITY,
   skills: [RESEARCH_SKILL, ARTIFACT_GUARD_SKILL],
   artifactRules: RILEY_ARTIFACT_RULES,

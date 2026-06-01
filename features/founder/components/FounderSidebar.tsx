@@ -14,6 +14,7 @@ import { usePendingConnections } from "../hooks/usePendingConnections";
 import { useNotifications } from "../hooks/useNotifications";
 import { SidebarNotification } from "../types/founder.types";
 import { bg, surf, bdr, ink, muted, blue } from '@/lib/constants/colors'
+import { APP_NAME } from '@/lib/constants/app'
 import { Avatar } from '@/features/shared/components/Avatar'
 import { EmailConfirmBanner } from '@/features/shared/components/EmailConfirmBanner'
 import { NotificationDropdown, NotificationBellButton, NotifItem } from '@/features/shared/components/NotificationPanel'
@@ -167,7 +168,7 @@ export default function FounderSidebar() {
   }
 
   const displayName   = (user?.user_metadata?.full_name as string) || user?.email?.split("@")[0] || "Founder";
-  const startupName   = (user?.user_metadata?.startup_name as string) || "Edge Alpha";
+  const startupName   = (user?.user_metadata?.startup_name as string) || APP_NAME;
   const avatarUrl     = (user?.user_metadata?.avatar_url as string | null) ?? null;
   const companyLogoUrl = (user?.user_metadata?.company_logo_url as string | null) ?? null;
 

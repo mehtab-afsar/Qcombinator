@@ -52,7 +52,7 @@
     "autoprefixer": "^10.4.21",
     "dotenv": "^17.4.2",
     "eslint": "^9",
-    "eslint-config-next": "15.5.2",
+    "eslint-config-next": "^15.5.18",
     "jest": "^30.3.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.17",

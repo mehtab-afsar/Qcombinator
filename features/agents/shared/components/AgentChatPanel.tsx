@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Send, TrendingUp, CheckCircle2, FileText, Download } from 'lucide-react'
+import { Send, TrendingUp, CheckCircle2, FileText, Download, Paperclip, X } from 'lucide-react'
 import { useAgentWorkspace } from '../hooks/useAgentWorkspace'
+import type { PendingFile } from '../hooks/useAgentWorkspace'
 import { bg, bdr, ink, muted } from '../constants/colors'
 import type { SourceItem } from '../hooks/useAgentWorkspace'
 import { renderArtifactContent } from '../utils/renderArtifactContent'
@@ -553,20 +554,30 @@ function SourceChips({ sources }: { sources: SourceItem[] }) {
 
 // ─── input bar ────────────────────────────────────────────────────────────────
 
+const ACCEPTED_FILE_TYPES = '.pdf,.docx,.xlsx,.pptx,.csv,.txt,.rtf,.doc,.ppt,.odt,.png,.jpg,.jpeg,.webp'
+
 function InputBar({
   value, onChange, onKeyDown, onSend, disabled, placeholder, accent,
+  pendingFiles, uploadingFile, fileUploadError, onAttachFile, onRemoveFile,
 }: {
-  value:       string
-  onChange:    (v: string) => void
-  onKeyDown:   (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
-  onSend:      () => void
-  disabled:    boolean
-  placeholder: string
-  accent:      string
+  value:            string
+  onChange:         (v: string) => void
+  onKeyDown:        (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
+  onSend:           () => void
+  disabled:         boolean
+  placeholder:      string
+  accent:           string
+  pendingFiles:     PendingFile[]
+  uploadingFile:    boolean
+  fileUploadError:  string | null
+  onAttachFile:     (file: File) => void
+  onRemoveFile:     (id: string) => void
 }) {
   const [focused, setFocused] = React.useState(false)
   const hasText = value.trim().length > 0
+  const canSend = (hasText || pendingFiles.length > 0) && !uploadingFile
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   React.useEffect(() => {
     const el = textareaRef.current
@@ -575,12 +586,54 @@ function InputBar({
     el.style.height = `${Math.min(el.scrollHeight, 200)}px`
   }, [value])
 
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file) onAttachFile(file)
+    e.target.value = ''
+  }
+
   return (
     <div style={{ flexShrink: 0, padding: '10px 40px 20px', background: bg }}>
       <div style={{ maxWidth: 760, margin: '0 auto' }}>
+
+        {/* file chips */}
+        {pendingFiles.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8, paddingLeft: 4 }}>
+            {pendingFiles.map(f => (
+              <div key={f.id} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+                background: '#EEF2FF', border: '1px solid #C7D2FE',
+                borderRadius: 8, padding: '4px 8px 4px 7px',
+                fontSize: 11.5, color: '#4338CA', fontWeight: 500,
+              }}>
+                <FileText size={11} style={{ flexShrink: 0, color: '#6366F1' }} />
+                <span style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {f.filename}
+                </span>
+                {f.truncated && (
+                  <span style={{ fontSize: 10, color: '#818CF8', fontWeight: 400 }}>(truncated)</span>
+                )}
+                <button
+                  onClick={() => onRemoveFile(f.id)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 1, display: 'flex', color: '#818CF8' }}
+                >
+                  <X size={11} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* error */}
+        {fileUploadError && (
+          <div style={{ fontSize: 11.5, color: '#DC2626', marginBottom: 6, paddingLeft: 4 }}>
+            {fileUploadError}
+          </div>
+        )}
+
         <div style={{
           display: 'flex', alignItems: 'flex-end', gap: 10,
-          padding: '12px 12px 12px 18px',
+          padding: '10px 10px 10px 12px',
           background: '#fff',
           borderRadius: 18,
           boxShadow: focused
@@ -588,6 +641,40 @@ function InputBar({
             : `0 0 0 1.5px ${bdr}, 0 2px 8px rgba(0,0,0,0.05)`,
           transition: 'box-shadow 0.18s',
         }}>
+          {/* hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={ACCEPTED_FILE_TYPES}
+            style={{ display: 'none' }}
+            onChange={handleFileChange}
+          />
+
+          {/* paperclip button */}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploadingFile || pendingFiles.length >= 3}
+            title={pendingFiles.length >= 3 ? 'Max 3 files per message' : 'Attach document'}
+            style={{
+              height: 32, width: 32, borderRadius: 8, flexShrink: 0,
+              background: 'none', border: 'none',
+              cursor: (uploadingFile || pendingFiles.length >= 3) ? 'not-allowed' : 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              opacity: pendingFiles.length >= 3 ? 0.4 : 1,
+              transition: 'opacity 0.15s',
+            }}
+          >
+            {uploadingFile ? (
+              <motion.div
+                style={{ width: 14, height: 14, borderRadius: '50%', border: `2px solid ${accent}40`, borderTopColor: accent }}
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 0.7, ease: 'linear' }}
+              />
+            ) : (
+              <Paperclip size={15} style={{ color: muted }} />
+            )}
+          </button>
+
           <textarea
             ref={textareaRef}
             value={value}
@@ -606,20 +693,20 @@ function InputBar({
           />
           <button
             onClick={onSend}
-            disabled={disabled}
+            disabled={disabled || !canSend}
             style={{
               height: 36, width: 36, borderRadius: '50%', flexShrink: 0,
-              background: hasText ? accent : bdr,
+              background: canSend ? accent : bdr,
               border: 'none',
-              cursor: hasText ? 'pointer' : 'default',
+              cursor: canSend ? 'pointer' : 'default',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               transition: 'background 0.15s, transform 0.1s',
-              transform: hasText ? 'scale(1)' : 'scale(0.92)',
+              transform: canSend ? 'scale(1)' : 'scale(0.92)',
             }}
-            onMouseEnter={e => { if (hasText) (e.currentTarget as HTMLElement).style.transform = 'scale(1.06)' }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = hasText ? 'scale(1)' : 'scale(0.92)' }}
+            onMouseEnter={e => { if (canSend) (e.currentTarget as HTMLElement).style.transform = 'scale(1.06)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = canSend ? 'scale(1)' : 'scale(0.92)' }}
           >
-            <Send size={14} style={{ color: hasText ? '#fff' : muted }} />
+            <Send size={14} style={{ color: canSend ? '#fff' : muted }} />
           </button>
         </div>
       </div>
@@ -663,12 +750,15 @@ export function AgentChatPanel({
     })
   }
 
-  // Switch to specific conversation when convId prop is provided
+  // Switch to specific conversation when convId prop is provided.
+  // Skip if this convId was just assigned by the active stream — messages are
+  // already in state and re-fetching would race with the ongoing stream.
   useEffect(() => {
     if (!convId || workspace.loading) return
+    if (convId === workspace.conversationId) return
     workspace.switchConversation(convId)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [convId, workspace.loading])
+  }, [convId, workspace.loading, workspace.conversationId])
 
   // Notify parent when a new conversation is created
   const prevConvIdRef = React.useRef<string | null>(null)
@@ -872,15 +962,36 @@ export function AgentChatPanel({
                     </span>
                   </div>
                 ) : msg.role === 'user' ? (
-                  <div style={{
-                    background: `${accent}0D`,
-                    border: `1px solid ${accent}25`,
-                    borderRadius: 14,
-                    padding: '11px 16px', fontSize: 13, lineHeight: 1.65,
-                    maxWidth: '68%', wordBreak: 'break-word', color: ink,
-                    whiteSpace: 'pre-wrap',
-                  }}>
-                    {msg.text}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, maxWidth: '68%' }}>
+                    {msg.attachments && msg.attachments.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, justifyContent: 'flex-end' }}>
+                        {msg.attachments.map((a, ai) => (
+                          <div key={ai} style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 4,
+                            background: '#EEF2FF', border: '1px solid #C7D2FE',
+                            borderRadius: 6, padding: '2px 7px',
+                            fontSize: 11, color: '#4338CA', fontWeight: 500,
+                          }}>
+                            <Paperclip size={9} />
+                            <span style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {a.filename}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {msg.text && (
+                      <div style={{
+                        background: `${accent}0D`,
+                        border: `1px solid ${accent}25`,
+                        borderRadius: 14,
+                        padding: '11px 16px', fontSize: 13, lineHeight: 1.65,
+                        wordBreak: 'break-word', color: ink,
+                        whiteSpace: 'pre-wrap', width: '100%',
+                      }}>
+                        {msg.text}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div style={{ maxWidth: '86%', wordBreak: 'break-word', paddingTop: 4 }}>
@@ -914,9 +1025,14 @@ export function AgentChatPanel({
           onChange={workspace.setInput}
           onKeyDown={workspace.handleKeyDown}
           onSend={() => workspace.send()}
-          disabled={!workspace.input.trim() || workspace.typing}
+          disabled={workspace.typing}
           placeholder={`Message ${name}…`}
           accent={accent}
+          pendingFiles={workspace.pendingFiles}
+          uploadingFile={workspace.uploadingFile}
+          fileUploadError={workspace.fileUploadError}
+          onAttachFile={workspace.attachFile}
+          onRemoveFile={workspace.removeFile}
         />
       </div>
     </div>

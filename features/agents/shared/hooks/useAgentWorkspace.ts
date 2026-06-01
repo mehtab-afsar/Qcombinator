@@ -15,6 +15,16 @@ export interface UiMessage {
   artifactId?: string
   artifactType?: string
   artifactTitle?: string
+  attachments?: Array<{ filename: string; mimeType: string }>
+}
+
+export interface PendingFile {
+  id: string
+  filename: string
+  mimeType: string
+  parsedText: string
+  confidence: number
+  truncated: boolean
 }
 export interface ApiMessage { role: 'user' | 'assistant'; content: string }
 export interface ActionItem {
@@ -48,6 +58,11 @@ export interface AgentWorkspaceState {
   scoreBoost:           { points: number; dimension: string } | null
   latestArtifact:       ArtifactRecord | null
   conversations:        ConversationSummary[]
+  pendingFiles:         PendingFile[]
+  uploadingFile:        boolean
+  fileUploadError:      string | null
+  attachFile:           (file: File) => Promise<void>
+  removeFile:           (id: string) => void
   send:                 (text?: string) => void
   handleKeyDown:        (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
   toggleAction:         (id: string, status: string) => Promise<void>
@@ -77,6 +92,9 @@ export function useAgentWorkspace(agentId: string): AgentWorkspaceState {
   const [scoreBoost,     setScoreBoost]    = useState<{ points: number; dimension: string } | null>(null)
   const [latestArtifact, setLatestArtifact]= useState<ArtifactRecord | null>(null)
   const [conversations,  setConversations] = useState<ConversationSummary[]>([])
+  const [pendingFiles,   setPendingFiles]  = useState<PendingFile[]>([])
+  const [uploadingFile,  setUploadingFile] = useState(false)
+  const [fileUploadError, setFileUploadError] = useState<string | null>(null)
 
   const bottomRef        = useRef<HTMLDivElement>(null)
   const abortRef         = useRef<AbortController | null>(null)
@@ -205,15 +223,73 @@ export function useAgentWorkspace(agentId: string): AgentWorkspaceState {
     setConvId(null); setShowPrompts(true)
   }, [])
 
+  const attachFile = useCallback(async (file: File) => {
+    if (pendingFiles.length >= 3) {
+      setFileUploadError('Maximum 3 files per message')
+      return
+    }
+    setUploadingFile(true)
+    setFileUploadError(null)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/agents/chat/upload', { method: 'POST', body: fd })
+      const json = await res.json()
+      if (!res.ok) {
+        setFileUploadError(json.error ?? 'Upload failed')
+        return
+      }
+      setPendingFiles(p => [...p, {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        filename: json.filename,
+        mimeType: json.mimeType,
+        parsedText: json.parsedText,
+        confidence: json.confidence,
+        truncated: json.truncated,
+      }])
+    } catch {
+      setFileUploadError('Upload failed — please try again')
+    } finally {
+      setUploadingFile(false)
+    }
+  }, [pendingFiles])
+
+  const removeFile = useCallback((id: string) => {
+    setPendingFiles(p => p.filter(f => f.id !== id))
+    setFileUploadError(null)
+  }, [])
+
   const send = useCallback(async (text?: string) => {
-    const msg = (text ?? input).trim()
-    if (!msg || typing) return
+    const userText = (text ?? input).trim()
+    const hasFiles = pendingFiles.length > 0
+    if (!userText && !hasFiles) return
+    if (typing) return
+
+    // Build file prefix — each attached document's parsed text is prepended as context
+    let filePrefix = ''
+    if (hasFiles) {
+      filePrefix = pendingFiles.map(f =>
+        `[Attached: ${f.filename}]${f.truncated ? ' (truncated to 6,000 chars)' : ''}\n` +
+        `--- Document Content ---\n${f.parsedText}\n--- End Document ---`
+      ).join('\n\n') + '\n\n'
+    }
+
+    const msg = filePrefix + userText
+
     setShowPrompts(false); setTyping(true)
-    const userMsg: UiMessage  = { role: 'user', text: msg }
+    const attachments = hasFiles
+      ? pendingFiles.map(f => ({ filename: f.filename, mimeType: f.mimeType }))
+      : undefined
+    const userMsg: UiMessage  = {
+      role: 'user',
+      text: userText || `Sent ${pendingFiles.length} document${pendingFiles.length > 1 ? 's' : ''}`,
+      attachments,
+    }
     const userApi: ApiMessage = { role: 'user', content: msg }
     setUiMessages(p => [...p, userMsg])
     const nextApi = [...apiMessages, userApi]
     setApiMessages(nextApi); setInput('')
+    setPendingFiles([]); setFileUploadError(null)
 
     abortRef.current?.abort()
     const ctrl = new AbortController()
@@ -305,7 +381,7 @@ export function useAgentWorkspace(agentId: string): AgentWorkspaceState {
         setUiMessages(p => [...p, { role: 'agent', text: 'Something went wrong. Please try again.' }])
       }
     } finally { setTyping(false) }
-  }, [typing, apiMessages, conversationId, agentId, input, refreshConversations, uiMessages])
+  }, [typing, apiMessages, conversationId, agentId, input, pendingFiles, refreshConversations, uiMessages])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() }
@@ -338,6 +414,7 @@ export function useAgentWorkspace(agentId: string): AgentWorkspaceState {
     input, setInput, typing, showPrompts, loading,
     artifacts, actions, extracting, scoreBoost, latestArtifact,
     conversations,
+    pendingFiles, uploadingFile, fileUploadError, attachFile, removeFile,
     send, handleKeyDown, toggleAction, extractActions,
     switchConversation, newConversation,
     bottomRef,

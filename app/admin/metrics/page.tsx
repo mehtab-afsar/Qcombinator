@@ -161,7 +161,7 @@ export default function AdminMetricsPage() {
         {/* Header */}
         <div style={{ marginBottom: 32 }}>
           <h1 style={{ color: ink, fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Observability Dashboard</h1>
-          <p style={{ color: muted, fontSize: 14 }}>Last 7 days · Admin only · <a href="/admin/qscore/thresholds" style={{ color: blue }}>Thresholds</a> · <a href="/admin/iq/config" style={{ color: blue }}>IQ Config</a></p>
+          <p style={{ color: muted, fontSize: 14 }}>Last 7 days · Admin only · <a href="/admin/qscore/thresholds" style={{ color: blue }}>Thresholds</a></p>
         </div>
 
         {/* Beta health summary strip */}

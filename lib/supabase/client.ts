@@ -1,5 +1,7 @@
 import { createBrowserClient } from '@supabase/ssr'
 import { log } from '@/lib/logger'
+// Database types generated — see types/supabase.ts. Wire in via createBrowserClient<Database>
+// once all API routes are updated to handle strict Json typing.
 
 export function createClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL

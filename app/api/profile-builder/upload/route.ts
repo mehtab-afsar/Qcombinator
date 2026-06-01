@@ -127,7 +127,7 @@ async function extractFieldsFromImage(
   }
 }
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
+const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20 MB
 const ALLOWED_TYPES = [
   'application/pdf',
   'application/vnd.openxmlformats-officedocument.presentationml.presentation',

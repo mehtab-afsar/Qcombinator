@@ -1,8 +1,9 @@
 import { Resend } from 'resend'
 import { log } from '@/lib/logger'
+import { APP_EMAIL_FROM, APP_URL as APP_BASE_URL } from '@/lib/constants/app'
 
-const FROM    = 'Edge Alpha <noreply@edgealpha.ai>'
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://edgealpha.ai'
+const FROM    = APP_EMAIL_FROM
+const APP_URL = APP_BASE_URL
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -141,6 +142,14 @@ export async function sendWelcomeAndConfirmEmail(params: WelcomeEmailParams): Pr
           </div>
         </div>
       </div>
+    </div>
+
+    <div style="margin:20px 0 0;padding:16px 20px;background:#F0EDE6;border-radius:10px">
+      <p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#8A867C;margin:0 0 8px">New to the platform?</p>
+      <p style="font-size:13px;color:#18160F;margin:0 0 10px;line-height:1.6">
+        Download the Getting Started Guide — a 10-slide walkthrough of Q-Score, Patel's D1→D6 playbook, investor matching, and your 30-day quick-start plan.
+      </p>
+      <a href="${APP_URL}/getting-started" style="font-size:12px;color:#2563EB;font-weight:600;text-decoration:none">View Getting Started Guide →</a>
     </div>
 
     <p style="font-size:12px;color:#8A867C;margin:20px 0 0;line-height:1.6">
