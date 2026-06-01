@@ -209,7 +209,7 @@ function BillingInner() {
                 {/* Usage meters */}
                 {u && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                    <p style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: '0.1em' }}>This month's usage</p>
+                    <p style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: '0.1em' }}>{'This month\'s usage'}</p>
                     <UsageMeter label="AI agent conversations" used={u.agentChat.used}          limit={isPremium ? null : limits.agentChat}          color={blue}  />
                     <UsageMeter label="Q-Score recalculations"  used={u.qscoreRecalc.used}       limit={isPremium ? null : limits.qscoreRecalc}       color={green} />
                     <UsageMeter label="Investor connections"    used={u.investorConnection.used} limit={isPremium ? null : limits.investorConnection} color={amber} />

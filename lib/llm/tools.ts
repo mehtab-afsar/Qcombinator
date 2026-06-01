@@ -6,7 +6,7 @@
 
 import type { ToolDefinition } from './types';
 import { ARTIFACT_TYPES } from '@/lib/constants/artifact-types';
-import { AGENT_IDS } from '@/lib/constants/agent-ids';
+import { AGENT_IDS as _AGENT_IDS } from '@/lib/constants/agent-ids';
 import { getAgent } from '@/lib/edgealpha.config';
 
 // ─── Data tools (specific parameter schemas) ────────────────────────────────

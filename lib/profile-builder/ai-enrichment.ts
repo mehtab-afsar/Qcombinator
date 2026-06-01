@@ -42,7 +42,7 @@ export async function deriveInvestorFields(input: EnrichmentInput): Promise<void
     problemStory, advantages = [], founderMarketFit,
     knowHowDensity, technicalDepth, patentDescription, buildComplexity,
     marketUrgency, valuePool, competitorDensityContext, targetCustomers,
-    mrr, monthlyBurn, runway,
+    mrr, monthlyBurn: _monthlyBurn, runway,
     stage = 'early', sector = 'technology',
   } = input
 

@@ -618,7 +618,59 @@ export function PlaybookRenderer({ data, artifactId }: { data: Record<string, un
         </CardContent></Card>
       )}
 
-      {/* ── D6: Budget Table ────────────────────────────────────────────────── */}
+      {/* ── §2: ICP + Positioning ───────────────────────────────────────────── */}
+      {/* ICP first, then Positioning — per spec section order */}
+      {d.icp?.segments && d.icp.segments.length > 0 && (
+        <Card><CardContent className="pt-4 pb-4">
+          <p style={sectionHead}>ICP</p>
+          {d.icp.summary && <p style={{ fontSize: 12, color: muted, lineHeight: 1.5, marginBottom: 8 }}>{d.icp.summary}</p>}
+          <div className="flex flex-wrap gap-1.5">
+            {d.icp.segments.map((seg, i) => (
+              <Badge key={i} variant="outline">{seg}</Badge>
+            ))}
+          </div>
+        </CardContent></Card>
+      )}
+
+      {d.positioning?.statement && (
+        <Card><CardContent className="pt-4 pb-4">
+          <p style={sectionHead}>Positioning</p>
+          <p style={{ fontSize: 13, color: ink, lineHeight: 1.6, fontStyle: "italic" }}>{d.positioning.statement}</p>
+          {d.positioning.differentiators && (
+            <div className="flex flex-wrap gap-1.5 mt-3">
+              {d.positioning.differentiators.map((diff, i) => (
+                <Badge key={i} variant="outline">{diff}</Badge>
+              ))}
+            </div>
+          )}
+        </CardContent></Card>
+      )}
+
+      {/* ── §3: Channel Strategy ────────────────────────────────────────────── */}
+      {d.channels && d.channels.length > 0 && (
+        <Card><CardContent className="pt-4 pb-4">
+          <p style={sectionHead}>Channel Strategy</p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 60px 70px 70px", gap: 1, background: bdr, borderRadius: 8, overflow: "hidden" }}>
+            {["Channel", "Priority", "Budget", "CAC"].map(h => (
+              <div key={h} style={{ background: surf, padding: "8px 10px", fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.06em" }}>{h}</div>
+            ))}
+            {d.channels.map((ch, i) => (
+              <Fragment key={i}>
+                <div style={{ background: bg, padding: "10px", fontSize: 12, fontWeight: 600, color: ink }}>{ch.channel}</div>
+                <div style={{ background: bg, padding: "10px", display: "flex", alignItems: "center" }}>
+                  <Badge variant="outline" style={{ fontSize: 9, color: priColor[ch.priority] || muted, borderColor: priColor[ch.priority] || muted }}>
+                    {ch.priority}
+                  </Badge>
+                </div>
+                <div style={{ background: bg, padding: "10px", fontSize: 11, color: ink }}>{ch.budget}</div>
+                <div style={{ background: bg, padding: "10px", fontSize: 11, color: ink }}>{ch.expectedCAC}</div>
+              </Fragment>
+            ))}
+          </div>
+        </CardContent></Card>
+      )}
+
+      {/* ── §4: Budget Table ────────────────────────────────────────────────── */}
       {d.budget?.line_items && d.budget.line_items.length > 0 && (
         <Card><CardContent className="pt-4 pb-4">
           <p style={sectionHead}>Budget</p>
@@ -653,58 +705,6 @@ export function PlaybookRenderer({ data, artifactId }: { data: Record<string, un
                 </tr>
               </tfoot>
             </table>
-          </div>
-        </CardContent></Card>
-      )}
-
-      {/* Positioning */}
-      {d.positioning?.statement && (
-        <Card><CardContent className="pt-4 pb-4">
-          <p style={sectionHead}>Positioning</p>
-          <p style={{ fontSize: 13, color: ink, lineHeight: 1.6, fontStyle: "italic" }}>{d.positioning.statement}</p>
-          {d.positioning.differentiators && (
-            <div className="flex flex-wrap gap-1.5 mt-3">
-              {d.positioning.differentiators.map((diff, i) => (
-                <Badge key={i} variant="outline">{diff}</Badge>
-              ))}
-            </div>
-          )}
-        </CardContent></Card>
-      )}
-
-      {/* ICP Segments */}
-      {d.icp?.segments && d.icp.segments.length > 0 && (
-        <Card><CardContent className="pt-4 pb-4">
-          <p style={sectionHead}>ICP Segments</p>
-          {d.icp.summary && <p style={{ fontSize: 12, color: muted, lineHeight: 1.5, marginBottom: 8 }}>{d.icp.summary}</p>}
-          <div className="flex flex-wrap gap-1.5">
-            {d.icp.segments.map((seg, i) => (
-              <Badge key={i} variant="outline">{seg}</Badge>
-            ))}
-          </div>
-        </CardContent></Card>
-      )}
-
-      {/* Channels */}
-      {d.channels && d.channels.length > 0 && (
-        <Card><CardContent className="pt-4 pb-4">
-          <p style={sectionHead}>Channel Strategy</p>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 60px 70px 70px", gap: 1, background: bdr, borderRadius: 8, overflow: "hidden" }}>
-            {["Channel", "Priority", "Budget", "CAC"].map(h => (
-              <div key={h} style={{ background: surf, padding: "8px 10px", fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.06em" }}>{h}</div>
-            ))}
-            {d.channels.map((ch, i) => (
-              <Fragment key={i}>
-                <div style={{ background: bg, padding: "10px", fontSize: 12, fontWeight: 600, color: ink }}>{ch.channel}</div>
-                <div style={{ background: bg, padding: "10px", display: "flex", alignItems: "center" }}>
-                  <Badge variant="outline" style={{ fontSize: 9, color: priColor[ch.priority] || muted, borderColor: priColor[ch.priority] || muted }}>
-                    {ch.priority}
-                  </Badge>
-                </div>
-                <div style={{ background: bg, padding: "10px", fontSize: 11, color: ink }}>{ch.budget}</div>
-                <div style={{ background: bg, padding: "10px", fontSize: 11, color: ink }}>{ch.expectedCAC}</div>
-              </Fragment>
-            ))}
           </div>
         </CardContent></Card>
       )}

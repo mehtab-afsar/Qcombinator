@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
+import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { CheckCircle, Loader2, ArrowRight, Building2, Users, TrendingUp, Star } from "lucide-react";
@@ -91,7 +92,7 @@ function JoinContent() {
             </div>
             <p style={{ fontSize: 17, fontWeight: 700, color: C.ink, marginBottom: 8 }}>Invalid Invite</p>
             <p style={{ fontSize: 14, color: C.muted, marginBottom: 24 }}>{error}</p>
-            <a href="/" style={{ fontSize: 13, color: C.blue, textDecoration: "none" }}>Go to homepage →</a>
+            <Link href="/" style={{ fontSize: 13, color: C.blue, textDecoration: "none" }}>Go to homepage →</Link>
           </div>
         ) : info ? (
           <>

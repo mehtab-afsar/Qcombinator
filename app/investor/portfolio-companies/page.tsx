@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Plus, Upload, Send, MoreHorizontal, Edit2, Trash2, RefreshCw,
+  Plus, Upload, Send, MoreHorizontal, Trash2, RefreshCw,
   CheckCircle, Clock, Mail, X, Loader2, ChevronDown, Search,
   Building2, Users, ExternalLink,
 } from "lucide-react";

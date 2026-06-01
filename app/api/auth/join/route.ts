@@ -153,9 +153,8 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function linkInvitedFounder(
-  supabase: ReturnType<typeof createClient<any, any, any>>,
+  supabase: ReturnType<typeof createClient>,
   opts: {
     portfolioCompanyId: string
     investorUserId:     string

@@ -28,19 +28,19 @@
  *   npx playwright show-report
  */
 
-import { test, expect, chromium, BrowserContext, Page } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 import {
   createFounderAccount, createInvestorAccount,
   signInWithCredentials, FounderAccount, InvestorAccount,
 } from './helpers/auth'
 import {
   chatWithAgent, waitForArtifactCard, assertViewerKeywords,
-  getQScoreViaAPI, snapshotQScore, fillProfileBuilderSection, submitProfileBuilder,
+  getQScoreViaAPI, snapshotQScore as _snapshotQScore, fillProfileBuilderSection as _fillProfileBuilderSection, submitProfileBuilder as _submitProfileBuilder,
 } from './helpers/agents'
 import {
-  sendConnectionRequest, acceptConnectionRequest, sendMessage,
-  openConversationThread, getNotifications, findNotificationOfType,
-  addPortfolioCompany, getPortfolioInviteToken,
+  sendConnectionRequest as _sendConnectionRequest, acceptConnectionRequest as _acceptConnectionRequest, sendMessage,
+  openConversationThread, getNotifications, findNotificationOfType as _findNotificationOfType,
+  addPortfolioCompany as _addPortfolioCompany, getPortfolioInviteToken,
 } from './helpers/marketplace'
 
 // ─── test data ────────────────────────────────────────────────────────────────
