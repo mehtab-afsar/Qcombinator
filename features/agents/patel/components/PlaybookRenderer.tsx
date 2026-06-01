@@ -646,6 +646,24 @@ export function PlaybookRenderer({ data, artifactId }: { data: Record<string, un
         </CardContent></Card>
       )}
 
+      {/* ── §2: Messaging by Segment ──────────────────────────────────────────── */}
+      {d.messaging && d.messaging.length > 0 && (
+        <div>
+          <p style={sectionHead}>Messaging by Segment</p>
+          <div className="flex flex-col gap-2">
+            {d.messaging.map((msg, i) => (
+              <Card key={i}><CardContent className="pt-4 pb-4">
+                <p style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>{msg.audience}</p>
+                <p style={{ fontSize: 14, fontWeight: 600, color: ink, marginBottom: 6 }}>{msg.headline}</p>
+                {msg.valueProps.map((vp, vi) => (
+                  <p key={vi} style={{ fontSize: 12, color: muted, lineHeight: 1.6, paddingLeft: 8 }}>• {vp}</p>
+                ))}
+              </CardContent></Card>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ── §3: Channel Strategy ────────────────────────────────────────────── */}
       {d.channels && d.channels.length > 0 && (
         <Card><CardContent className="pt-4 pb-4">
@@ -707,40 +725,6 @@ export function PlaybookRenderer({ data, artifactId }: { data: Record<string, un
             </table>
           </div>
         </CardContent></Card>
-      )}
-
-      {/* Messaging */}
-      {d.messaging && d.messaging.length > 0 && (
-        <div>
-          <p style={sectionHead}>Messaging</p>
-          <div className="flex flex-col gap-2">
-            {d.messaging.map((msg, i) => (
-              <Card key={i}><CardContent className="pt-4 pb-4">
-                <p style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>{msg.audience}</p>
-                <p style={{ fontSize: 14, fontWeight: 600, color: ink, marginBottom: 6 }}>{msg.headline}</p>
-                {msg.valueProps.map((vp, vi) => (
-                  <p key={vi} style={{ fontSize: 12, color: muted, lineHeight: 1.6, paddingLeft: 8 }}>• {vp}</p>
-                ))}
-              </CardContent></Card>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Metrics */}
-      {d.metrics && d.metrics.length > 0 && (
-        <div>
-          <p style={sectionHead}>Key Metrics</p>
-          <div className="grid grid-cols-2 gap-2">
-            {d.metrics.map((m, i) => (
-              <Card key={i}><CardContent className="pt-3 pb-3">
-                <p style={{ fontSize: 10, color: muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>{m.metric}</p>
-                <p style={{ fontSize: 15, fontWeight: 700, color: ink }}>{m.target}</p>
-                <p style={{ fontSize: 10, color: muted }}>Baseline: {m.currentBaseline}</p>
-              </CardContent></Card>
-            ))}
-          </div>
-        </div>
       )}
 
       {/* 90-Day Plan */}
@@ -859,6 +843,20 @@ export function PlaybookRenderer({ data, artifactId }: { data: Record<string, un
               </div>
             )}
           </div>
+          {d.metrics && d.metrics.length > 0 && (
+            <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${bdr}` }}>
+              <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>Commercial Metrics</p>
+              <div className="grid grid-cols-3 gap-2">
+                {d.metrics.map((m, i) => (
+                  <div key={i} style={{ background: surf, borderRadius: 8, padding: "10px 12px", border: `1px solid ${bdr}` }}>
+                    <p style={{ fontSize: 10, color: muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>{m.metric}</p>
+                    <p style={{ fontSize: 14, fontWeight: 700, color: ink }}>{m.target}</p>
+                    <p style={{ fontSize: 10, color: muted }}>Baseline: {m.currentBaseline}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </CardContent></Card>
       )}
 
