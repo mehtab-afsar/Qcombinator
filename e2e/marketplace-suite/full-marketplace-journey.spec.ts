@@ -28,7 +28,7 @@
  *   npx playwright show-report
  */
 
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect, type Page, type BrowserContext } from '@playwright/test'
 import {
   createFounderAccount, createInvestorAccount,
   signInWithCredentials, FounderAccount, InvestorAccount,

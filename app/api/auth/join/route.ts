@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
-import { createClient } from '@supabase/supabase-js'
+import { getAdminClient } from '@/lib/supabase/server'
 import { log } from '@/lib/logger'
 import { sendWelcomeAndConfirmEmail } from '@/lib/email/send'
 
@@ -21,15 +21,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'inviteToken is required' }, { status: 400 })
     }
 
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      throw new Error('Missing Supabase env vars')
-    }
-
-    const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    )
+    const supabaseAdmin = getAdminClient()
 
     // Validate the invite token
     const { data: portfolioCompany, error: tokenErr } = await supabaseAdmin
@@ -154,7 +146,7 @@ export async function POST(req: NextRequest) {
 }
 
 async function linkInvitedFounder(
-  supabase: ReturnType<typeof createClient>,
+  supabase: ReturnType<typeof getAdminClient>,
   opts: {
     portfolioCompanyId: string
     investorUserId:     string
