@@ -45,7 +45,7 @@ export default function OGImage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div
             style={{
-              display: 'inline-flex',
+              display: 'flex',
               alignItems: 'center',
               background: 'rgba(37, 99, 235, 0.15)',
               border: '1px solid rgba(37, 99, 235, 0.4)',
