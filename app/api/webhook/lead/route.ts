@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { getAdminClient } from '@/lib/supabase/server'
 import { callClaude } from '@/lib/claude'
 import { log } from '@/lib/logger'
 
@@ -22,10 +22,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'name and email are required' }, { status: 400 })
     }
 
-    const adminClient = createAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+    const adminClient = getAdminClient()
 
     // Get founder details
     const { data: userData } = await adminClient.auth.admin.getUserById(uid)

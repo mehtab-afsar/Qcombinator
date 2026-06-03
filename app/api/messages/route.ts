@@ -120,6 +120,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to send message' }, { status: 500 })
     }
 
+    // Notify the recipient (fire-and-forget) — matches investor-side parity in /api/investor/messages
+    void Promise.resolve(supabase.from('notifications').insert({
+      user_id:  recipientId,
+      type:     'message',
+      title:    'New message from a founder',
+      metadata: { connection_id: connectionId, sender_id: user.id },
+    })).catch(() => {})
+
     return NextResponse.json({ message: msg }, { status: 201 })
   } catch (err) {
     log.error('POST /api/messages', { err })

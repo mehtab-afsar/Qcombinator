@@ -24,13 +24,13 @@ import { postArtifactFeedEvent } from '@/lib/feed/auto-events';
 import { ClaudeError } from '@/lib/claude';
 import { llmChat, llmStream } from '@/lib/llm/provider';
 import { routedText } from '@/lib/llm/router';
-import { getToolsForAgent } from '@/lib/llm/tools';
+import { getToolsForAgent, delegateToAgentTool } from '@/lib/llm/tools';
 import { executeTool } from '@/lib/tools/executor';
 import { getAgentContext, formatContextForPrompt } from '@/lib/agents/context';
 import { getRelevantDocumentChunks } from '@/lib/agents/document-rag';
 import type { ContentBlock } from '@/lib/llm/types';
 import { orchestrate } from '@/lib/agents/orchestrator';
-import { critiqueArtifact, patchArtifact } from '@/lib/agents/critique';
+import { runCritiqueLoop } from '@/lib/agents/critique';
 import { getFounderProfileContext, type FounderProfileResult } from '@/lib/agents/founder-context';
 import { evaluateArtifactIndependently } from '@/lib/agents/patel-evaluator';
 import type { PatelScores, PatelConfidence } from '@/lib/constants/patel-indicators';
@@ -38,6 +38,7 @@ import { scoreFromArtifact } from '@/lib/qscore/artifact-scorer';
 import { applyAgentScoreSignal } from '@/features/qscore/services/agent-signal';
 import {
   FF_ARTIFACT_SELF_CRITIQUE,
+  FF_COORDINATOR_WORKFLOW,
   FF_CROSS_AGENT_ORCHESTRATION,
   FF_STREAMING_CHAT,
 } from '@/lib/feature-flags';
@@ -95,6 +96,37 @@ const AGENT_SYSTEM_PROMPTS: Record<string, string> = {
 };
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Synchronous mid-loop delegation: calls a target agent's LLM with its
+ * identity + the specific task, returns a concise expert response.
+ * Used by delegate_to_agent tool — result is injected back as tool_result
+ * so the calling agent can use it in the next iteration.
+ */
+async function executeDelegateToAgent(
+  targetAgentId: string,
+  task: string,
+  context: string | undefined,
+): Promise<string> {
+  const targetPrompt = AGENT_SYSTEM_PROMPTS[targetAgentId];
+  if (!targetPrompt) return `Unknown agent: ${targetAgentId}`;
+
+  const userContent = [
+    context ? `CONTEXT FROM REQUESTING AGENT:\n${context}` : '',
+    `TASK:\n${task}`,
+    'Respond concisely with expert output. Focus only on what was asked — do not ask clarifying questions.',
+  ].filter(Boolean).join('\n\n');
+
+  try {
+    const result = await routedText('generation', [
+      { role: 'system', content: targetPrompt },
+      { role: 'user', content: userContent },
+    ], { maxTokens: 1500 });
+    return `[${targetAgentId.toUpperCase()} RESPONSE]\n${result}`;
+  } catch {
+    return `Delegation to ${targetAgentId} failed — continuing without their input.`;
+  }
+}
 
 // Fire-and-forget tool execution logger
 function logToolExecution(
@@ -854,9 +886,8 @@ When the founder asks to refine, edit, or update this document, call generate_ar
 
     // ── User-document RAG injection ───────────────────────────────────────────
     // Retrieves top-3 semantically relevant chunks from files the founder uploaded
-    // via the chat file-upload button. Only fires when OPENAI_API_KEY is configured
-    // and userId is known (embedder requires OpenAI).
-    if (userId && process.env.OPENAI_API_KEY) {
+    // via the chat file-upload button. Requires VOYAGE_API_KEY for embeddings.
+    if (userId && process.env.VOYAGE_API_KEY) {
       try {
         const docChunks = await getRelevantDocumentChunks(userId, message, supabaseAdmin, 3);
         if (docChunks) {
@@ -936,12 +967,24 @@ CONVERSATION RULES:
     ];
 
     // ── Pass 1: LLM chat call with native tool calling ─────────────────────
-    const agentTools = getToolsForAgent(agentId);
+    // Inject delegate_to_agent for all agents when coordinator workflow is enabled
+    const agentTools = FF_COORDINATOR_WORKFLOW
+      ? [...getToolsForAgent(agentId), delegateToAgentTool]
+      : getToolsForAgent(agentId);
 
     // ── Shared observe-loop constants (used by both streaming + non-streaming) ─
-    const MAX_ITERATIONS = 5;
+    // Dynamic cap: complex requests (build/plan/research) get more tool turns
+    function getMaxIterations(aid: string, msg: string): number {
+      const isComplex = /\b(playbook|strategy|plan|research|build|create|generate|full|complete|everything|end.to.end|all|comprehensive)\b/i.test(msg);
+      if (aid === 'sage' || aid === 'atlas') return isComplex ? 12 : 8;
+      if (aid === 'patel') return isComplex ? 10 : 6;
+      if (aid === 'felix' || aid === 'nova') return isComplex ? 8 : 5;
+      return isComplex ? 7 : 5;
+    }
+    const MAX_ITERATIONS = getMaxIterations(agentId, message);
     const LOOP_TOOLS = new Set([
       'lead_enrich', 'web_research', 'apollo_search', 'posthog_query', 'calendly_link',
+      'delegate_to_agent',
     ]);
     const EXEC_TOOLS = new Set([
       'send_outreach_sequence', 'initiate_voice_call', 'vapi_call', 'bulk_enrich_pipeline', 'schedule_followup', 'create_deal',
@@ -957,6 +1000,7 @@ CONVERSATION RULES:
       send_outreach_sequence: 'Sending outreach emails',
       bulk_enrich_pipeline:   'Enriching pipeline from Apollo',
       schedule_followup:      'Scheduling follow-up',
+      delegate_to_agent:      'Consulting specialist agent',
     };
 
     // ── Patel prerequisite chain ───────────────────────────────────────────────
@@ -1113,6 +1157,13 @@ CONVERSATION RULES:
                   } else if (toolName === 'calendly_link') {
                     toolResult = await executeCalendlyLink(toolCtx);
                     logToolExecution(supabaseAdmin, userId, agentId, 'calendly_link', t0, 'success');
+                  } else if (toolName === 'delegate_to_agent') {
+                    toolResult = await executeDelegateToAgent(
+                      toolCtx.agentId as string,
+                      toolCtx.task as string,
+                      toolCtx.context as string | undefined,
+                    );
+                    logToolExecution(supabaseAdmin, userId, agentId, 'delegate_to_agent', t0, 'success');
                   }
                 } catch (err) {
                   toolResult = `Tool failed: ${err instanceof Error ? err.message : 'unknown'}`;
@@ -1274,7 +1325,12 @@ CONVERSATION RULES:
                     })();
                   }
                   if (FF_ARTIFACT_SELF_CRITIQUE && artifactId && userId) {
-                    void (async () => { try { const critique = await critiqueArtifact(toolName, parsedContent); let fc = parsedContent; if (critique.needsPatch) fc = await patchArtifact(toolName, parsedContent, critique); await supabaseAdmin.from('agent_artifacts').update({ content: fc, critique_metadata: critique }).eq('id', artifactId!); } catch { /* non-critical */ } })();
+                    void (async () => {
+                      try {
+                        const { content: fc, critique } = await runCritiqueLoop(toolName, parsedContent, 3);
+                        await supabaseAdmin.from('agent_artifacts').update({ content: fc, critique_metadata: critique }).eq('id', artifactId!);
+                      } catch { /* non-critical */ }
+                    })();
                   }
                   // Write extracted facts to world model + refresh goal + trigger delegations
                   if (userId) {
@@ -1458,6 +1514,13 @@ CONVERSATION RULES:
           } else if (toolName === 'calendly_link') {
             toolResult = await executeCalendlyLink(toolCtx);
             logToolExecution(supabaseAdmin, userId, agentId, 'calendly_link', t0, 'success');
+          } else if (toolName === 'delegate_to_agent') {
+            toolResult = await executeDelegateToAgent(
+              toolCtx.agentId as string,
+              toolCtx.task as string,
+              toolCtx.context as string | undefined,
+            );
+            logToolExecution(supabaseAdmin, userId, agentId, 'delegate_to_agent', t0, 'success');
           }
         } catch (err) {
           toolResult = `Tool failed: ${err instanceof Error ? err.message : 'unknown error'}`;
@@ -1578,9 +1641,7 @@ CONVERSATION RULES:
         if (FF_ARTIFACT_SELF_CRITIQUE && artifactId && userId) {
           void (async () => {
             try {
-              const critique = await critiqueArtifact(toolName, parsedContent);
-              let finalContent = parsedContent;
-              if (critique.needsPatch) finalContent = await patchArtifact(toolName, parsedContent, critique);
+              const { content: finalContent, critique } = await runCritiqueLoop(toolName, parsedContent, 3);
               await supabaseAdmin.from('agent_artifacts').update({
                 content: finalContent, critique_metadata: critique,
               }).eq('id', artifactId!);

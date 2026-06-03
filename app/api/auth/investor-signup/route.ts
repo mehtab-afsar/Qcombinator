@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
-import { createClient } from '@supabase/supabase-js'
+import { getAdminClient } from '@/lib/supabase/server'
 import { parseBody, investorSignupSchema } from '@/lib/api/validate'
 import { sendWelcomeAndConfirmEmail } from '@/lib/email/send'
 import { log } from '@/lib/logger'
@@ -14,11 +14,7 @@ export async function POST(request: NextRequest) {
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL) throw new Error('Missing env: NEXT_PUBLIC_SUPABASE_URL')
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) throw new Error('Missing env: SUPABASE_SERVICE_ROLE_KEY')
 
-    const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    )
+    const supabaseAdmin = getAdminClient()
 
     const confirmToken = randomUUID()
 

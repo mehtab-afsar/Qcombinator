@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
-import { encodeToken } from '@/app/api/unsubscribe/route';
+import { encodeToken } from '@/lib/email/unsubscribe-token';
 import { log } from '@/lib/logger'
 
 // Stale deal threshold: deals not updated in 7+ days (non-terminal stages)
@@ -18,16 +18,22 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://edgealpha.ai';
 export async function GET(request: Request) {
   // Verify cron secret — Vercel sends Authorization: Bearer <CRON_SECRET>
   const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret) return NextResponse.json({ error: 'CRON_SECRET not configured' }, { status: 503 });
   const authHeader = request.headers.get('authorization');
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const resendKey = process.env.RESEND_API_KEY;
+  if (!resendKey) {
+    return NextResponse.json({ skipped: true, reason: 'RESEND_API_KEY not configured — email sends skipped' }, { status: 200 });
   }
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
-  const resend = new Resend(process.env.RESEND_API_KEY);
+  const resend = new Resend(resendKey);
 
   const results = { usersProcessed: 0, standupsSent: 0, runwayAlerts: 0, churnAlerts: 0, staleDealAlerts: 0, errors: 0 };
 

@@ -54,9 +54,10 @@ export async function GET() {
       evidenceSummary: (ragEval.evidenceSummary as string[]) ?? [],
     } : null;
 
-    // ── Temporal decay (computed on read, stored score never modified) ─────
-    // Scores degrade presentation-only once 90 days pass without reassessment.
-    // This ensures investors see recency-adjusted signals without cron jobs.
+    // ── Temporal decay ────────────────────────────────────────────────────────
+    // Scores degrade once 90 days pass without a new assessment. The decayed
+    // value is written back to DB (fire-and-forget) so that investor-side queries
+    // reading qscore_history directly also see the recency-adjusted number.
     const daysSince = Math.floor(
       (Date.now() - new Date(latest.calculated_at as string).getTime()) / 86400000
     );
@@ -70,6 +71,23 @@ export async function GET() {
     const effectiveOverall = decayApplied
       ? Math.max(1, Math.round(rawOverall * decayFactor))
       : rawOverall;
+
+    // Write decayed score back so DB stays in sync with what users see.
+    // Only update when decay actually changed the value and wasn't already applied today.
+    if (decayApplied && latest.id) {
+      const lastDecayed = latest.last_decayed_at as string | null;
+      const alreadyDecayedToday = lastDecayed &&
+        new Date(lastDecayed).toDateString() === new Date().toDateString();
+      if (!alreadyDecayedToday) {
+        void supabase
+          .from('qscore_history')
+          .update({ overall_score: effectiveOverall, last_decayed_at: new Date().toISOString() })
+          .eq('id', latest.id as string)
+          .then(({ error: decayErr }) => {
+            if (decayErr) log.warn('Failed to write back decayed score:', decayErr.message);
+          });
+      }
+    }
 
     // ── Score confidence interval (±X) ───────────────────────────────────────
     // Higher RAG confidence + Stripe-verified data = tighter interval.

@@ -1,20 +1,21 @@
 /**
- * OpenAI Embedding Wrapper
+ * Voyage AI Embedding Wrapper
  *
- * Uses text-embedding-3-small (1536 dims) for vector embeddings.
- * Only used for artifact chunk embeddings — not for chat or scoring.
+ * Uses voyage-3 (1024 dims) for vector embeddings.
+ * Used for document chunk RAG and investor/founder matching.
  *
- * Requires OPENAI_API_KEY env var.
+ * Requires VOYAGE_API_KEY env var.
  */
 
-const EMBEDDING_MODEL = 'text-embedding-3-small';
-const EMBEDDING_DIMS = 1536;
-const MAX_BATCH_SIZE = 20;
+const EMBEDDING_MODEL = 'voyage-3';
+const EMBEDDING_DIMS  = 1024;
+const MAX_BATCH_SIZE  = 20;
+const VOYAGE_URL      = 'https://api.voyageai.com/v1/embeddings';
 
 export { EMBEDDING_DIMS };
 
 /**
- * Embed a single text string into a 1536-dimensional vector.
+ * Embed a single text string into a 1024-dimensional vector.
  */
 export async function embedText(text: string): Promise<number[]> {
   const [result] = await embedBatch([text]);
@@ -26,17 +27,15 @@ export async function embedText(text: string): Promise<number[]> {
  * Returns embeddings in the same order as inputs.
  */
 export async function embedBatch(texts: string[]): Promise<number[][]> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error('[Embedder] OPENAI_API_KEY not configured');
-  }
+  const apiKey = process.env.VOYAGE_API_KEY;
+  if (!apiKey) throw new Error('[Embedder] VOYAGE_API_KEY not configured');
 
   if (texts.length === 0) return [];
   if (texts.length > MAX_BATCH_SIZE) {
     throw new Error(`[Embedder] Batch size ${texts.length} exceeds max ${MAX_BATCH_SIZE}`);
   }
 
-  const response = await fetch('https://api.openai.com/v1/embeddings', {
+  const response = await fetch(VOYAGE_URL, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -45,20 +44,19 @@ export async function embedBatch(texts: string[]): Promise<number[][]> {
     body: JSON.stringify({
       model: EMBEDDING_MODEL,
       input: texts,
-      dimensions: EMBEDDING_DIMS,
     }),
   });
 
   if (!response.ok) {
     const errText = await response.text();
-    throw new Error(`[Embedder] OpenAI API error ${response.status}: ${errText}`);
+    throw new Error(`[Embedder] Voyage API error ${response.status}: ${errText}`);
   }
 
-  const data = await response.json();
-  const embeddings: { index: number; embedding: number[] }[] = data.data;
+  const data = await response.json() as {
+    data: Array<{ index: number; embedding: number[] }>;
+  };
 
-  // Sort by index to ensure order matches input
-  return embeddings
+  return data.data
     .sort((a, b) => a.index - b.index)
     .map(e => e.embedding);
 }

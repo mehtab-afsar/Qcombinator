@@ -386,10 +386,10 @@ export async function POST(request: NextRequest) {
             artifactId = saved?.id ?? null;
 
             // ── RAG: embed artifact (fire-and-forget, skipped if circuit open) ─
-            if (artifactId && !isCircuitOpen('openai_embeddings')) {
+            if (artifactId && !isCircuitOpen('voyage_embeddings')) {
               import('@/features/qscore/scoring/embeddings/embedding-pipeline')
                 .then(({ embedArtifact }) =>
-                  withCircuitBreaker('openai_embeddings', () =>
+                  withCircuitBreaker('voyage_embeddings', () =>
                     embedArtifact({
                       id: artifactId!,
                       user_id: userId,

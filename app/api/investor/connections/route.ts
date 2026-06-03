@@ -129,6 +129,14 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'requestId and action are required' }, { status: 400 })
     }
 
+    // Connection status state machine (DB CHECK enforces these values):
+    //   pending          → investor has not yet responded to founder's request
+    //   meeting_scheduled → investor accepted; connection is live and messaging is enabled
+    //   declined         → investor rejected the request
+    //   accepted         → auto-created connections (portfolio invite, investor outreach)
+    //   viewed           → defined in schema but never set; reserved for future "read receipt"
+    // TODO: Rename meeting_scheduled → accepted in a dedicated migration PR once all
+    //       references are audited (15+ code sites + DB CHECK constraint change required).
     const newStatus = action === 'accept' ? 'meeting_scheduled' : 'declined'
 
     const updatePayload: Record<string, unknown> = {

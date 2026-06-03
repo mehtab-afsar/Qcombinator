@@ -87,14 +87,16 @@ export async function applyAgentScoreSignal(
   const qualityMultiplier = QUALITY_MULTIPLIER[quality];
   const adjustedPoints = Math.max(1, Math.round(boost.points * qualityMultiplier));
 
-  // Check for existing boost of this artifact type for this user
+  // Fast-path idempotency check — the DB also enforces this via a partial unique
+  // index on (user_id, source_artifact_type) so concurrent requests can't both
+  // slip through this SELECT before either INSERT lands.
   const { data: existing } = await supabase
     .from('qscore_history')
     .select('id')
     .eq('user_id', userId)
     .eq('source_artifact_type', artifactType)
     .limit(1)
-    .single();
+    .maybeSingle();
 
   if (existing) return { boosted: false }; // Already applied — idempotent
 
@@ -167,8 +169,25 @@ export async function applyAgentScoreSignal(
     });
 
   if (error) {
+    // code 23505 = unique_violation — a concurrent request already inserted this
+    // artifact's boost row. Treat as idempotent success (user was already boosted).
+    if (error.code === '23505') return { boosted: false };
     log.error('applyAgentScoreSignal insert error:', error);
     return { boosted: false };
+  }
+
+  // Fire milestone notification if the score crossed a round-number threshold
+  const MILESTONES = [50, 60, 70, 75, 80]
+  const prevOverall = latest.overall_score
+  const crossed = MILESTONES.find(m => prevOverall < m && newOverall >= m)
+  if (crossed) {
+    void supabase.from('notifications').insert({
+      user_id: userId,
+      type:    'qscore_update',
+      title:   `Q-Score milestone: ${crossed}`,
+      message: `Your Q-Score reached ${crossed}! Investors filtering above ${crossed} can now see your profile.`,
+      metadata: { newScore: newOverall, milestone: crossed, previous: prevOverall },
+    }).then()
   }
 
   return {

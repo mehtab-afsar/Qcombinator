@@ -551,6 +551,35 @@ const experimentResults  = artifactTool(ARTIFACT_TYPES.EXPERIMENT_RESULTS,'Gener
 // The agent→tool MAPPING lives in lib/edgealpha.config.ts (single source of truth).
 // These ToolDefinition objects provide the JSON schema used by the LLM.
 
+// ─── Coordination tool (injected for all agents when coordinator workflow is on) ─
+
+export const delegateToAgentTool: ToolDefinition = {
+  name: 'delegate_to_agent',
+  description:
+    'Ask a specialist agent to handle a specific sub-task and return their expert output immediately. ' +
+    'Use when you need another agent\'s domain expertise mid-task — e.g., Patel asking Atlas for competitive intelligence before building a GTM playbook. ' +
+    'Returns a structured expert response you can use in your current work.',
+  parameters: {
+    type: 'object',
+    properties: {
+      agentId: {
+        type: 'string',
+        enum: ['patel', 'maya', 'atlas', 'felix', 'leo', 'harper', 'nova', 'sage', 'susi', 'carter', 'riley'],
+        description: 'The specialist agent to consult',
+      },
+      task: {
+        type: 'string',
+        description: 'The specific task or question for the agent — be precise about what you need them to produce or answer',
+      },
+      context: {
+        type: 'string',
+        description: 'Relevant context from the current conversation to help the agent (founder details, prior findings, etc.)',
+      },
+    },
+    required: ['agentId', 'task'],
+  },
+};
+
 export const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
   // Execution tools
   send_outreach_sequence:   sendOutreachSequence,

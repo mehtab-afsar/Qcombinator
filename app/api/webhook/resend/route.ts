@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { getAdminClient as getSharedAdminClient } from '@/lib/supabase/server'
 import { log } from '@/lib/logger'
 
 // POST /api/webhook/resend
@@ -10,12 +10,7 @@ import { log } from '@/lib/logger'
 // Resend webhook docs: https://resend.com/docs/dashboard/webhooks/introduction
 // Set the webhook URL in Resend dashboard to: https://yourdomain/api/webhook/resend
 
-function getAdminClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-}
+const getAdminClient = getSharedAdminClient
 
 // Map Resend event types to our outreach_sends.status values
 const EVENT_STATUS_MAP: Record<string, string> = {
@@ -161,7 +156,8 @@ export async function POST(request: NextRequest) {
     if (type === 'email.delivered')                                    timestampFields.delivered_at = data.created_at ?? new Date().toISOString()
 
     // Update each matched row if the new status is an upgrade
-    const updates = rows
+    type OutreachRow = { id: string; status: string | null; user_id: string }
+    const updates = (rows as OutreachRow[])
       .filter(row => shouldUpgradeStatus(row.status ?? 'sent', newStatus))
       .map(row =>
         admin
@@ -173,7 +169,7 @@ export async function POST(request: NextRequest) {
     await Promise.all(updates)
 
     // Recalculate outreach stats for affected users and update startup_state
-    const uniqueUserIds = [...new Set(rows.map(r => r.user_id).filter(Boolean))]
+    const uniqueUserIds = [...new Set((rows as OutreachRow[]).map(r => r.user_id).filter(Boolean))]
     await Promise.allSettled(uniqueUserIds.map(async (uid) => {
       const since = new Date(); since.setDate(since.getDate() - 30)
       const { data: stats } = await admin
@@ -182,9 +178,10 @@ export async function POST(request: NextRequest) {
         .eq('user_id', uid)
         .gte('created_at', since.toISOString())
       if (!stats || stats.length === 0) return
+      type StatRow = { status: string; bounced?: boolean }
       const total    = stats.length
-      const opened   = stats.filter(s => ['opened','clicked','replied'].includes(s.status)).length
-      const replied  = stats.filter(s => s.status === 'replied').length
+      const opened   = (stats as StatRow[]).filter(s => ['opened','clicked','replied'].includes(s.status)).length
+      const replied  = (stats as StatRow[]).filter(s => s.status === 'replied').length
       await admin.from('startup_state').upsert({
         user_id: uid,
         outreach_sent_count: total,

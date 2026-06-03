@@ -33,7 +33,7 @@ function cosineSimilarity(a: number[], b: number[]): number {
 }
 
 export async function GET() {
-  if (!process.env.OPENAI_API_KEY) {
+  if (!process.env.VOYAGE_API_KEY) {
     return NextResponse.json({ scores: {} })
   }
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto'
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { type SupabaseClient } from '@supabase/supabase-js';
+import { getAdminClient } from '@/lib/supabase/server';
 import { parseBody, signupSchema } from '@/lib/api/validate';
 import { startupProfileDataSchema } from '@/lib/api/jsonb-schemas';
 import { log } from '@/lib/logger'
@@ -25,16 +26,7 @@ export async function POST(request: NextRequest) {
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL) throw new Error('Missing env: NEXT_PUBLIC_SUPABASE_URL')
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) throw new Error('Missing env: SUPABASE_SERVICE_ROLE_KEY')
 
-    const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY,
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false
-        }
-      }
-    );
+    const supabaseAdmin = getAdminClient();
 
     // DB CHECK constraint (20260420000003): stage IN ('idea','mvp','pre-seed','seed','series-a','bootstrapped')
     const STAGE_MAP: Record<string, string> = {
@@ -154,7 +146,7 @@ export async function POST(request: NextRequest) {
 
     if (profileError) {
       log.error('Error creating founder profile:', profileError);
-      await supabaseAdmin.auth.admin.deleteUser(authData.user.id).catch(e =>
+      await supabaseAdmin.auth.admin.deleteUser(authData.user.id).catch((e: unknown) =>
         log.error('Failed to rollback auth user after profile error:', e)
       );
       return NextResponse.json(

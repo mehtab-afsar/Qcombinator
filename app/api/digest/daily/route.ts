@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { getAdminClient } from '@/lib/supabase/server'
 import { callClaude } from '@/lib/claude'
 import { Resend } from 'resend'
 import { log } from '@/lib/logger'
@@ -9,12 +9,6 @@ import { log } from '@/lib/logger'
 // Generates and emails a morning briefing: today's priorities, pipeline health,
 // active deals needing follow-up, competitive alerts, and Q-Score nudge.
 
-function getAdmin() {
-  return createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-}
 
 function esc(s: string) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -29,7 +23,7 @@ export async function POST() {
     const resendKey = process.env.RESEND_API_KEY
     if (!resendKey) return NextResponse.json({ error: 'Email not configured' }, { status: 503 })
 
-    const admin = getAdmin()
+    const admin = getAdminClient()
     const today = new Date()
     const todayStr = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
@@ -53,26 +47,31 @@ export async function POST() {
     const founderEmail = fp?.email ?? user.email ?? ''
 
     // Stale deals (no update in 3+ days)
-    const staleDeals = activeDeals.filter(d => {
+    const staleDeals = activeDeals.filter((d: Record<string, unknown>) => {
       if (!d.updated_at) return true
-      return (Date.now() - new Date(d.updated_at).getTime()) / 86400000 > 3
+      return (Date.now() - new Date(d.updated_at as string).getTime()) / 86400000 > 3
     }).slice(0, 5)
 
     // Yesterday's actions
-    const yesterdayActivity = recentActivity.filter(a => a.created_at >= oneDayAgo)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const yesterdayActivity = (recentActivity as any[]).filter(a => (a.created_at as string) >= oneDayAgo)
 
     // Build context for LLM
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const context = [
       `Founder: ${founderName} at ${company}`,
       `Today: ${todayStr}`,
       qscore ? `Q-Score: ${qscore.overall_score}` : '',
       activeDeals.length > 0 ? `Pipeline: ${activeDeals.length} active deals` : '',
-      staleDeals.length > 0 ? `Stale deals needing follow-up: ${staleDeals.map(d => d.company).join(', ')}` : '',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      staleDeals.length > 0 ? `Stale deals needing follow-up: ${(staleDeals as any[]).map(d => d.company).join(', ')}` : '',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       yesterdayActivity.length > 0
         ? `Yesterday's activity: ${yesterdayActivity.slice(0, 5).map(a => a.description).join('; ')}`
         : 'No activity logged yesterday',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       recentActivity.length > 0
-        ? `Recent agent usage: ${[...new Set(recentActivity.map(a => a.agent_id))].join(', ')}`
+        ? `Recent agent usage: ${[...new Set((recentActivity as any[]).map(a => a.agent_id))].join(', ')}`
         : '',
     ].filter(Boolean).join('\n')
 
@@ -132,7 +131,7 @@ Rules:
         ${staleDeals.length > 0 ? `
         <div style="background:#FFFBEB;border-radius:10px;padding:14px 18px;margin-top:16px;border:1px solid #FDE68A">
           <p style="font-size:13px;font-weight:700;color:#D97706;margin:0 0 6px">⚡ Follow up today</p>
-          ${staleDeals.map(d => `<p style="font-size:12px;color:#18160F;margin:0 0 3px">• ${esc(d.company)} — ${esc(d.stage)}${d.next_action ? `: ${esc(d.next_action)}` : ''}</p>`).join('')}
+          ${(staleDeals as Array<Record<string,unknown>>).map(d => `<p style="font-size:12px;color:#18160F;margin:0 0 3px">• ${esc(String(d.company ?? ''))} — ${esc(String(d.stage ?? ''))}${d.next_action ? `: ${esc(String(d.next_action))}` : ''}</p>`).join('')}
         </div>` : ''}
 
         ${brief.pipelineNudge ? `<p style="font-size:13px;color:#18160F;margin:20px 0 0;line-height:1.6">${esc(String(brief.pipelineNudge))}</p>` : ''}

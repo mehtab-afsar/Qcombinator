@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { getAdminClient } from '@/lib/supabase/server'
 import { log } from '@/lib/logger'
 
 // POST /api/waitlist — public, no auth
@@ -18,28 +18,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid email' }, { status: 400 })
     }
 
-    const adminClient = createAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+    const adminClient = getAdminClient()
 
     // Insert signup (ignore duplicates gracefully)
-    await adminClient.from('waitlist_signups').insert({
+    const { error: signupErr } = await adminClient.from('waitlist_signups').insert({
       test_id: testId,
       user_id: userId,
       email: email.trim().toLowerCase(),
       name: name ?? null,
       source: source ?? null,
     })
+    if (signupErr) log.warn('[waitlist] waitlist_signups insert failed:', signupErr.message)
 
     // Log to agent_activity
-    await adminClient.from('agent_activity').insert({
+    const { error: activityErr } = await adminClient.from('agent_activity').insert({
       user_id: userId,
       agent_id: 'nova',
       action_type: 'waitlist_signup',
       description: `${email} joined the waitlist`,
       metadata: { testId, email, name },
     })
+    if (activityErr) log.warn('[waitlist] agent_activity insert failed:', activityErr.message)
 
     return NextResponse.json({ success: true })
   } catch (err) {

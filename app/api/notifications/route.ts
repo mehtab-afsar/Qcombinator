@@ -20,7 +20,6 @@ const ACTION_ICONS: Record<string, string> = {
   offer_letter_sent:    '📩',
   survey_created:       '📝',
   fake_door_deployed:   '🚪',
-  agent_complete:       '🤖',
   investor_view:        '👁️',
   qscore_update:        '📈',
   message:              '💬',

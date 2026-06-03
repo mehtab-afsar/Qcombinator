@@ -38,5 +38,5 @@ export const FF_ASYNC_ARTIFACT_GENERATION = flag('ASYNC_ARTIFACT_GENERATION', tr
 /** 5.8 — context token budget compression */
 export const FF_AGENT_CONTEXT_COMPRESSION = flag('AGENT_CONTEXT_COMPRESSION', true)
 
-/** 5.9 — coordinator/worker typed task graph execution */
-export const FF_COORDINATOR_WORKFLOW = flag('COORDINATOR_WORKFLOW', false)
+/** 5.9 — coordinator/worker typed task graph + mid-loop delegate_to_agent */
+export const FF_COORDINATOR_WORKFLOW = flag('COORDINATOR_WORKFLOW', true)

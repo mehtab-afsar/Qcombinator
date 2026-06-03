@@ -71,8 +71,8 @@ export async function POST(req: NextRequest) {
 
     // Fire-and-forget: embed full parsed text and store for future RAG queries.
     // Uses full text (not truncated) so the vector index covers the whole document.
-    // Only runs when OPENAI_API_KEY is configured.
-    if (process.env.OPENAI_API_KEY && result.text.length > 20) {
+    // Only runs when VOYAGE_API_KEY is configured.
+    if (process.env.VOYAGE_API_KEY && result.text.length > 20) {
       const supabase = await getAdminClient()
       void embedAndStoreDocument(auth.user.id, file.name, result.text, supabase)
         .catch(e => console.error('[chat/upload] embed failed:', e))

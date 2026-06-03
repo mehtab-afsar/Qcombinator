@@ -1,12 +1,9 @@
 /**
  * Artifact Self-Critique Loop
  *
- * Pass 2: After an artifact is generated, run a lightweight critique pass
- * using the economy model tier to identify weak or missing sections.
- *
- * Pass 3: If critique finds issues, run a patch pass to improve the artifact.
- *
- * Total added latency: ~600–900 ms (economy 8b model).
+ * Runs up to 3 passes: critique → patch → re-critique → patch → re-critique.
+ * Stops early when overallRating reaches 'excellent' or no sections need patching.
+ * Each pass uses the economy model tier — total added latency ~1.5–2.5s for 3 passes.
  * Only fires when FF_ARTIFACT_SELF_CRITIQUE is enabled.
  *
  * PRD §5.4
@@ -156,4 +153,38 @@ Return ONLY the JSON object, no markdown fences.`
   } catch {
     return content  // patch failed — return original
   }
+}
+
+/**
+ * Runs up to `maxPasses` critique→patch cycles on an artifact.
+ * Stops early when the critique rates the artifact 'excellent' or no sections need patching.
+ * Returns the best content found and the final critique result.
+ */
+export async function runCritiqueLoop(
+  artifactType: string,
+  content: Record<string, unknown>,
+  maxPasses = 3,
+): Promise<{ content: Record<string, unknown>; critique: CritiqueResult; passesRun: number }> {
+  let current = content
+  let lastCritique: CritiqueResult | null = null
+  let passesRun = 0
+
+  for (let pass = 0; pass < maxPasses; pass++) {
+    passesRun = pass + 1
+    const critique = await critiqueArtifact(artifactType, current)
+    lastCritique = critique
+
+    // Stop if the artifact is already excellent
+    if (critique.overallRating === 'excellent' || !critique.needsPatch) break
+
+    // Patch and loop — if patching fails, patchArtifact returns the original content
+    current = await patchArtifact(artifactType, current, critique)
+  }
+
+  // Final critique snapshot if we never ran one (shouldn't happen but be safe)
+  if (!lastCritique) {
+    lastCritique = await critiqueArtifact(artifactType, current)
+  }
+
+  return { content: current, critique: lastCritique, passesRun }
 }

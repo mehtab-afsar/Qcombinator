@@ -131,9 +131,9 @@ function chunkArtifactContent(
  * @param artifact - Must have id, user_id, artifact_type, and content (parsed JSON)
  */
 export async function embedArtifact(artifact: ArtifactInput): Promise<void> {
-  // Skip silently when OPENAI_API_KEY is not configured — Layer 2 now uses
+  // Skip silently when VOYAGE_API_KEY is not configured — Layer 2 now uses
   // LLM-based semantic matching via Claude and does not need embeddings.
-  if (!process.env.OPENAI_API_KEY) return;
+  if (!process.env.VOYAGE_API_KEY) return;
 
   if (!artifact.content || typeof artifact.content !== 'object') {
     log.warn('[Embedding Pipeline] Artifact has no content to embed:', artifact.id);

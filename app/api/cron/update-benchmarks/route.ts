@@ -5,8 +5,28 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { getAdminClient } from '@/lib/supabase/server'
 import { clearAllCaches } from '@/lib/cache/qscore-cache'
+
+// Map founder_profiles.industry → benchmark sector key
+function mapToSector(industry?: string | null): string {
+  if (!industry) return 'default'
+  const i = industry.toLowerCase().replace(/[-\s]/g, '_')
+  if (i.includes('ai') || i.includes('software')) return 'ai_ml'
+  if (i.includes('saas') || i.includes('b2b')) return 'b2b_saas'
+  const direct = ['biotech', 'marketplace', 'fintech', 'consumer', 'climate', 'hardware', 'edtech', 'healthtech']
+  return direct.find(k => i.includes(k)) ?? 'default'
+}
+
+// Map founder_profiles.stage → benchmark stage bucket
+function mapToStage(stage?: string | null): string {
+  if (!stage) return 'early'
+  const s = stage.toLowerCase()
+  if (s.includes('idea') || s.includes('pre') || s.includes('mvp') || s.includes('seed') || s.includes('angel')) return 'early'
+  if (s.includes('series_a') || s.includes('series-a') || s.includes('launched') || s.includes('commerci') || s.includes('early-revenue') || s.includes('revenue')) return 'mid'
+  if (s.includes('series_b') || s.includes('series-b') || s.includes('scaling') || s.includes('growth') || s.includes('series_c') || s.includes('series-c')) return 'growth'
+  return 'early'
+}
 
 const INDICATOR_IDS = [
   '1.1', '1.2', '1.3', '1.4', '1.5',
@@ -22,33 +42,52 @@ const STAGES = ['early', 'mid', 'growth']
 const MIN_SAMPLE = 20
 
 export async function POST(req: NextRequest) {
-  // Verify cron secret
-  const secret = req.headers.get('x-cron-secret') ?? req.headers.get('authorization')
-  if (secret !== `Bearer ${process.env.CRON_SECRET}`) {
+  // Verify cron secret — only accept Authorization: Bearer <CRON_SECRET>
+  const cronSecret = process.env.CRON_SECRET
+  if (!cronSecret) return NextResponse.json({ error: 'CRON_SECRET not configured' }, { status: 503 })
+  if (req.headers.get('authorization') !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  )
+  const supabase = getAdminClient()
 
   let updated = 0
   let skipped = 0
 
+  // Fetch all v2_q scores once — include user_id so we can join to founder sector/stage
+  const { data: allScores, error: fetchErr } = await supabase
+    .from('qscore_history')
+    .select('user_id, iq_breakdown')
+    .eq('score_version', 'v2_q')
+    .not('iq_breakdown', 'is', null)
+    .limit(5000)
+
+  if (fetchErr || !allScores) {
+    return NextResponse.json({ error: 'Failed to fetch scores', detail: fetchErr?.message }, { status: 500 })
+  }
+
+  // Resolve each user's sector/stage by joining to founder_profiles in memory
+  const userIds = [...new Set(allScores.map((s: { user_id: string }) => s.user_id).filter(Boolean))]
+  const profileMap = new Map<string, { industry: string | null; stage: string | null }>()
+  if (userIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from('founder_profiles')
+      .select('user_id, industry, stage')
+      .in('user_id', userIds)
+    for (const p of profiles ?? []) {
+      profileMap.set(p.user_id, { industry: p.industry, stage: p.stage })
+    }
+  }
+
   for (const sector of SECTORS) {
     for (const stage of STAGES) {
-      // Fetch v2_iq scores for this sector/stage
-      const { data: scores, error } = await supabase
-        .from('qscore_history')
-        .select('iq_breakdown')
-        .eq('score_version', 'v2_q')
-        .eq('assessment_data->scoreVersion', 'v2_q')
-        .not('iq_breakdown', 'is', null)
-        .limit(1000)
+      // Filter scores belonging to this sector/stage combination
+      const scores = allScores.filter((s: { user_id: string; iq_breakdown: unknown }) => {
+        const profile = profileMap.get(s.user_id)
+        return mapToSector(profile?.industry) === sector && mapToStage(profile?.stage) === stage
+      })
 
-      if (error || !scores || scores.length < MIN_SAMPLE) {
+      if (scores.length < MIN_SAMPLE) {
         skipped++
         continue
       }

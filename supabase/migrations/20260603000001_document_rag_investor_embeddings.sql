@@ -18,7 +18,7 @@ create table if not exists document_embeddings (
   source_name  text        not null,  -- original filename
   chunk_index  int         not null,
   chunk_text   text        not null,
-  embedding    vector(1536),
+  embedding    vector(1024),
   created_at   timestamptz default now()
 );
 
@@ -42,7 +42,7 @@ create policy "founders_own_document_embeddings"
 -- Used by the agent chat route to inject relevant uploaded document context.
 
 create or replace function match_document_embeddings(
-  query_embedding  vector(1536),
+  query_embedding  vector(1024),
   match_user_id    uuid,
   match_threshold  float   default 0.65,
   match_count      int     default 3
@@ -75,7 +75,7 @@ $$;
 -- Populated by /api/admin/embed-investors (admin endpoint).
 
 alter table demo_investors
-  add column if not exists thesis_embedding vector(1536);
+  add column if not exists thesis_embedding vector(1024);
 
 create index if not exists demo_investors_embedding_idx
   on demo_investors
@@ -86,14 +86,14 @@ create index if not exists demo_investors_embedding_idx
 -- Used for cosine matching against investor thesis at match time.
 
 alter table founder_profiles
-  add column if not exists iq_summary_embedding vector(1536);
+  add column if not exists iq_summary_embedding vector(1024);
 
 -- ── 5. match_investors_by_embedding RPC ────────────────────────────────────
 -- Returns investors ranked by cosine similarity to the founder's IQ summary embedding.
 -- Called by /api/matching — result is blended 70/30 with formula score.
 
 create or replace function match_investors_by_embedding(
-  founder_embedding  vector(1536),
+  founder_embedding  vector(1024),
   match_threshold    float  default 0.30,
   match_count        int    default 50
 )
