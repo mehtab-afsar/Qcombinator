@@ -21,8 +21,8 @@ export async function loadMatchingData(founderQScore: number): Promise<MatchingL
   const supabase = create()
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Fetch profile, connections, and investors in parallel — reduces waterfall by ~300ms
-  const [profileResult, connectionsResult, invResult] = await Promise.all([
+  // Fetch profile, connections, investors, and vector scores in parallel
+  const [profileResult, connectionsResult, invResult, vectorResult] = await Promise.all([
     user
       ? supabase.from('founder_profiles').select('industry, stage').eq('user_id', user.id).maybeSingle()
       : Promise.resolve({ data: null }),
@@ -30,6 +30,7 @@ export async function loadMatchingData(founderQScore: number): Promise<MatchingL
       ? fetch('/api/connections').then(r => r.ok ? r.json() : { connections: {} })
       : Promise.resolve({ connections: {} }),
     fetch('/api/investors').then(r => r.json()),
+    fetch('/api/matching/scores').then(r => r.ok ? r.json() : { scores: {} }).catch(() => ({ scores: {} })),
   ])
 
   if (profileResult.data) {
@@ -41,6 +42,9 @@ export async function loadMatchingData(founderQScore: number): Promise<MatchingL
   const connectionStatuses: Record<string, ConnectionStatus> =
     (connectionsResult as { connections?: Record<string, ConnectionStatus> }).connections ?? {}
 
+  const vectorScores: Record<string, number> =
+    (vectorResult as { scores?: Record<string, number> }).scores ?? {}
+
   const invData = invResult
 
   const investors: MatchingInvestor[] = (invData.investors ?? []).map((row: DBInvestor) =>
@@ -50,6 +54,7 @@ export async function loadMatchingData(founderQScore: number): Promise<MatchingL
       founderSector,
       founderStage,
       (connectionStatuses[row.id] as ConnectionStatus) ?? 'none',
+      vectorScores[row.id],
     )
   ).sort((a: MatchingInvestor, b: MatchingInvestor) => b.matchScore - a.matchScore)
 

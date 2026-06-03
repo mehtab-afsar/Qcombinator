@@ -4,12 +4,16 @@
 
 import { DBInvestor, MatchingInvestor, ConnectionStatus } from '../types/matching.types'
 
-/** Computes a 0-100 match score from founder context vs investor preferences. */
+/**
+ * Computes a 0-100 match score from founder context vs investor preferences.
+ * When vectorScore (0-1) is provided, blends 60% vector + 40% formula.
+ */
 export function computeMatchScore(
   row: DBInvestor,
   founderQScore: number,
   founderSector: string,
   founderStage: string,
+  vectorScore?: number,
 ): number {
   let score = 40
 
@@ -50,7 +54,15 @@ export function computeMatchScore(
   const responseBonus = Math.round(((row.response_rate - 50) / 100) * 5)
   score += Math.max(0, responseBonus)
 
-  return Math.min(score, 100)
+  const formulaScore = Math.min(score, 100)
+
+  // When a vector similarity score is available, blend 60% semantic + 40% formula
+  if (vectorScore !== undefined) {
+    const vectorScaled = vectorScore * 100  // 0-1 → 0-100
+    return Math.round(0.6 * vectorScaled + 0.4 * formulaScore)
+  }
+
+  return formulaScore
 }
 
 /** Maps a DB investor row to the UI MatchingInvestor shape. */
@@ -60,6 +72,7 @@ export function mapInvestor(
   founderSector: string,
   founderStage: string,
   connectionStatus: ConnectionStatus = 'none',
+  vectorScore?: number,
 ): MatchingInvestor {
   return {
     id:              row.id,
@@ -67,7 +80,7 @@ export function mapInvestor(
     name:            row.name,
     firm:            row.firm,
     title:           row.title ?? '',
-    matchScore:      computeMatchScore(row, founderQScore, founderSector, founderStage),
+    matchScore:      computeMatchScore(row, founderQScore, founderSector, founderStage, vectorScore),
     investmentFocus: (row.sectors ?? []).slice(0, 3),
     stages:          row.stages ?? [],
     checkSize:       (row.check_sizes ?? [])[0] ?? 'Varies',

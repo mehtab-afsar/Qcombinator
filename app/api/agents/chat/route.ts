@@ -27,6 +27,8 @@ import { routedText } from '@/lib/llm/router';
 import { getToolsForAgent } from '@/lib/llm/tools';
 import { executeTool } from '@/lib/tools/executor';
 import { getAgentContext, formatContextForPrompt } from '@/lib/agents/context';
+import { getRelevantDocumentChunks } from '@/lib/agents/document-rag';
+import type { ContentBlock } from '@/lib/llm/types';
 import { orchestrate } from '@/lib/agents/orchestrator';
 import { critiqueArtifact, patchArtifact } from '@/lib/agents/critique';
 import { getFounderProfileContext, type FounderProfileResult } from '@/lib/agents/founder-context';
@@ -654,6 +656,8 @@ export async function POST(request: NextRequest) {
     // ── Source citations — collected during context loading, emitted as first SSE event ──
     type SourceItem = { label: string; type: 'profile' | 'memory' | 'artifact' | 'cross_agent' }
     const sourcesUsed: SourceItem[] = []
+    // Compression info — populated inside the userId block, read in SSE start
+    let compressionInfo = { applied: false, droppedCount: 0 }
 
     // ── Agent memory + cross-agent context (registry-driven, fail-open) ──────
     let startupState: StartupState | null = null;
@@ -764,6 +768,9 @@ When the founder asks to refine, edit, or update this document, call generate_ar
 
       if (ctxResult.status === 'fulfilled') {
         systemPrompt += formatContextForPrompt(ctxResult.value);
+        if (ctxResult.value.compressionApplied && ctxResult.value.droppedCount > 0) {
+          compressionInfo = { applied: true, droppedCount: ctxResult.value.droppedCount }
+        }
       } else {
         log.warn('Agent context injection failed — proceeding without memory');
       }
@@ -840,6 +847,22 @@ When the founder asks to refine, edit, or update this document, call generate_ar
       try {
         const resources = await getRelevantResources(supabaseAdmin, agentId, message, 2);
         systemPrompt += formatResourcesForPrompt(resources);
+      } catch {
+        // Non-critical — never block agent response
+      }
+    }
+
+    // ── User-document RAG injection ───────────────────────────────────────────
+    // Retrieves top-3 semantically relevant chunks from files the founder uploaded
+    // via the chat file-upload button. Only fires when OPENAI_API_KEY is configured
+    // and userId is known (embedder requires OpenAI).
+    if (userId && process.env.OPENAI_API_KEY) {
+      try {
+        const docChunks = await getRelevantDocumentChunks(userId, message, supabaseAdmin, 3);
+        if (docChunks) {
+          systemPrompt += docChunks;
+          sourcesUsed.push({ label: 'Uploaded Documents', type: 'artifact' });
+        }
       } catch {
         // Non-critical — never block agent response
       }
@@ -1012,8 +1035,9 @@ CONVERSATION RULES:
             controller.enqueue(enc.encode(`data: ${JSON.stringify(event)}\n\n`));
 
           if (sourcesUsed.length > 0) send({ type: 'sources_used', sources: sourcesUsed });
+          if (compressionInfo.applied) send({ type: 'context_compressed', droppedCount: compressionInfo.droppedCount });
 
-          let loopMessages = [...messages];
+          let loopMessages = [...messages] as Array<{ role: string; content: string | ContentBlock[] }>;
           let chatReply = '';
           let streamArtifactId: string | null = null;
 
@@ -1097,10 +1121,15 @@ CONVERSATION RULES:
                 clearInterval(loopToolHeartbeat)
                 lastToolCallExecuted = true
                 send({ type: 'tool_done', toolName, summary: toolResult.split('\n')[0].slice(0, 100) });
+                // Use proper tool_result content blocks so Claude has full tool_use/tool_result pairing
+                const toolCallId = streamedToolCall.id
+                const assistantContent: ContentBlock[] = []
+                if (iterText) assistantContent.push({ type: 'text', text: iterText })
+                assistantContent.push({ type: 'tool_use', id: toolCallId, name: toolName, input: toolArgs })
                 loopMessages = [
                   ...loopMessages,
-                  { role: 'assistant' as const, content: iterText || `[calling ${toolName}]` },
-                  { role: 'user' as const, content: `[Tool result: ${toolName}]\n${toolResult}\n\nContinue helping the founder based on these results.` },
+                  { role: 'assistant' as const, content: assistantContent },
+                  { role: 'user' as const, content: [{ type: 'tool_result', tool_use_id: toolCallId, content: toolResult }] },
                 ];
                 continue;
 
@@ -1261,9 +1290,16 @@ CONVERSATION RULES:
                   }
                   clearInterval(heartbeat);
                   logToolExecution(supabaseAdmin, userId, agentId, toolName, t0A, 'success', undefined, 'standard');
+                  if (!artifactId) {
+                    // DB insert failed — don't send a null-ID artifact card to the client.
+                    // The debug_db_error SSE already fired above with the exact error.
+                    log.error('Suppressing artifact SSE — artifactId is null after retries', { toolName, userId })
+                    send({ type: 'tool_done', toolName, summary: `${artifactTitle} was generated but could not be saved. Please try again.` });
+                  } else {
                   // Send artifact to client immediately — no longer gated behind the score signal.
                   send({ type: 'artifact', artifact: { id: artifactId, type: toolName, title: artifactTitle, content: parsedContent } });
                   send({ type: 'tool_done', toolName, summary: `${artifactTitle} ready` });
+                  }
                   // Score signal fires in background; SSE send is best-effort (stream may already be done).
                   if (artifactId && userId) {
                     void applyAgentScoreSignal(supabaseAdmin, userId, toolName).then(sig => {
@@ -1364,7 +1400,7 @@ CONVERSATION RULES:
       });
     }
 
-    let loopMessages = [...messages];
+    let loopMessages = [...messages] as Array<{ role: string; content: string | ContentBlock[] }>;
     let chatReply: string | undefined;
     let artifact = null;
 
@@ -1431,14 +1467,15 @@ CONVERSATION RULES:
         // Capture any partial text the LLM emitted before the tool call
         if (llmResponse.text) chatReply = (chatReply ?? '') + llmResponse.text + '\n\n';
 
-        // Re-inject tool result so LLM can reason about it
+        // Re-inject tool result using proper tool_use/tool_result content blocks
+        const nonStreamToolId = llmResponse.toolCall.id
+        const nonStreamAssistantContent: ContentBlock[] = []
+        if (llmResponse.text) nonStreamAssistantContent.push({ type: 'text', text: llmResponse.text })
+        nonStreamAssistantContent.push({ type: 'tool_use', id: nonStreamToolId, name: toolName, input: toolArgs })
         loopMessages = [
           ...loopMessages,
-          { role: 'assistant' as const, content: llmResponse.text || `[calling ${toolName}]` },
-          {
-            role: 'user' as const,
-            content: `[Tool result: ${toolName}]\n${toolResult}\n\nContinue helping the founder based on these results.`,
-          },
+          { role: 'assistant' as const, content: nonStreamAssistantContent },
+          { role: 'user' as const, content: [{ type: 'tool_result', tool_use_id: nonStreamToolId, content: toolResult }] },
         ];
         continue; // loop — LLM will see the result and reason again
       }

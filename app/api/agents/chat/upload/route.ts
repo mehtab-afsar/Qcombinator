@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { parseDocument } from '@/lib/profile-builder/document-parser'
+import { getAdminClient } from '@/lib/supabase/server'
+import { embedAndStoreDocument } from '@/lib/agents/document-rag'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
 
@@ -66,6 +68,15 @@ export async function POST(req: NextRequest) {
 
     const truncated = result.text.length > MAX_PARSED_CHARS
     const parsedText = truncated ? result.text.slice(0, MAX_PARSED_CHARS) : result.text
+
+    // Fire-and-forget: embed full parsed text and store for future RAG queries.
+    // Uses full text (not truncated) so the vector index covers the whole document.
+    // Only runs when OPENAI_API_KEY is configured.
+    if (process.env.OPENAI_API_KEY && result.text.length > 20) {
+      const supabase = await getAdminClient()
+      void embedAndStoreDocument(auth.user.id, file.name, result.text, supabase)
+        .catch(e => console.error('[chat/upload] embed failed:', e))
+    }
 
     return NextResponse.json({
       filename: file.name,

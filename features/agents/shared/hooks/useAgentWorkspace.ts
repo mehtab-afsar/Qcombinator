@@ -61,6 +61,7 @@ export interface AgentWorkspaceState {
   pendingFiles:         PendingFile[]
   uploadingFile:        boolean
   fileUploadError:      string | null
+  contextCompressed:    { droppedCount: number } | null
   attachFile:           (file: File) => Promise<void>
   removeFile:           (id: string) => void
   send:                 (text?: string) => void
@@ -95,6 +96,7 @@ export function useAgentWorkspace(agentId: string): AgentWorkspaceState {
   const [pendingFiles,   setPendingFiles]  = useState<PendingFile[]>([])
   const [uploadingFile,  setUploadingFile] = useState(false)
   const [fileUploadError, setFileUploadError] = useState<string | null>(null)
+  const [contextCompressed, setContextCompressed] = useState<{ droppedCount: number } | null>(null)
 
   const bottomRef        = useRef<HTMLDivElement>(null)
   const abortRef         = useRef<AbortController | null>(null)
@@ -319,6 +321,9 @@ export function useAgentWorkspace(agentId: string): AgentWorkspaceState {
 
           if (evt.type === 'sources_used') {
             pendingSourcesRef.current = evt.sources as SourceItem[]
+          } else if (evt.type === 'context_compressed') {
+            setContextCompressed({ droppedCount: evt.droppedCount as number })
+            setTimeout(() => setContextCompressed(null), 8000)
           } else if (evt.type === 'delta') {
             agentText += evt.text as string
             if (isFirstDelta) {
@@ -414,7 +419,7 @@ export function useAgentWorkspace(agentId: string): AgentWorkspaceState {
     input, setInput, typing, showPrompts, loading,
     artifacts, actions, extracting, scoreBoost, latestArtifact,
     conversations,
-    pendingFiles, uploadingFile, fileUploadError, attachFile, removeFile,
+    pendingFiles, uploadingFile, fileUploadError, contextCompressed, attachFile, removeFile,
     send, handleKeyDown, toggleAction, extractActions,
     switchConversation, newConversation,
     bottomRef,

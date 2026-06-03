@@ -5,10 +5,10 @@
  */
 
 import { getProvider } from './providers'
-import type { RoutingTier, ToolDefinition, LLMChatResponse } from './types'
+import type { RoutingTier, ToolDefinition, LLMChatResponse, ChatMessage } from './types'
 
 export async function llmChat(params: {
-  messages: Array<{ role: string; content: string }>
+  messages: ChatMessage[]
   modelTier?: RoutingTier
   maxTokens?: number
   temperature?: number
@@ -24,7 +24,7 @@ export async function llmChat(params: {
 }
 
 export async function* llmStream(params: {
-  messages: Array<{ role: string; content: string }>
+  messages: ChatMessage[]
   modelTier?: RoutingTier
   maxTokens?: number
   temperature?: number

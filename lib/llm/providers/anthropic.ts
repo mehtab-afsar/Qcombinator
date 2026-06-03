@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { ClaudeError } from '@/lib/claude'
-import type { LLMProvider, LLMChatResponse, RoutingTier, ToolDefinition } from '../types'
+import type { LLMProvider, LLMChatResponse, RoutingTier, ToolDefinition, ChatMessage, ContentBlock } from '../types'
 
 const MODEL_MAP: Record<RoutingTier, string> = {
   fast:    'claude-haiku-4-5-20251001',
@@ -37,17 +37,31 @@ function buildSystemParam(system: string): string | Anthropic.TextBlockParam[] {
   return blocks
 }
 
-function splitMessages(messages: Array<{ role: string; content: string }>): {
+/** Convert our ContentBlock[] to Anthropic SDK content block params */
+function toAnthropicContent(content: string | ContentBlock[]): string | Anthropic.ContentBlockParam[] {
+  if (typeof content === 'string') return content
+  return content.map(b => {
+    if (b.type === 'text')        return { type: 'text' as const, text: b.text }
+    if (b.type === 'tool_use')    return { type: 'tool_use' as const, id: b.id, name: b.name, input: b.input }
+    if (b.type === 'tool_result') return { type: 'tool_result' as const, tool_use_id: b.tool_use_id, content: b.content }
+    return { type: 'text' as const, text: '' }
+  })
+}
+
+function splitMessages(messages: ChatMessage[]): {
   system: string
-  chat: Array<{ role: 'user' | 'assistant'; content: string }>
+  chat: Anthropic.MessageParam[]
 } {
   let system = ''
-  const chat: Array<{ role: 'user' | 'assistant'; content: string }> = []
+  const chat: Anthropic.MessageParam[] = []
   for (const msg of messages) {
     if (msg.role === 'system') {
-      system += (system ? '\n\n' : '') + msg.content
+      system += (system ? '\n\n' : '') + (typeof msg.content === 'string' ? msg.content : '')
     } else {
-      chat.push({ role: msg.role === 'user' ? 'user' : 'assistant', content: msg.content })
+      chat.push({
+        role: msg.role === 'user' ? 'user' : 'assistant',
+        content: toAnthropicContent(msg.content),
+      })
     }
   }
   return { system, chat }
@@ -79,7 +93,7 @@ export class AnthropicProvider implements LLMProvider {
   }
 
   async chat(params: {
-    messages: Array<{ role: string; content: string }>
+    messages: ChatMessage[]
     modelTier: RoutingTier
     maxTokens: number
     temperature: number
@@ -107,7 +121,7 @@ export class AnthropicProvider implements LLMProvider {
       for (const block of response.content) {
         if (block.type === 'text') text += block.text
         if (block.type === 'tool_use') {
-          toolCall = { name: block.name, args: block.input as Record<string, unknown> }
+          toolCall = { id: block.id, name: block.name, args: block.input as Record<string, unknown> }
         }
       }
       return { text, toolCall }
@@ -123,7 +137,7 @@ export class AnthropicProvider implements LLMProvider {
   }
 
   async *stream(params: {
-    messages: Array<{ role: string; content: string }>
+    messages: ChatMessage[]
     modelTier: RoutingTier
     maxTokens: number
     temperature: number
@@ -156,7 +170,7 @@ export class AnthropicProvider implements LLMProvider {
       const final = await stream.finalMessage()
       for (const block of final.content) {
         if (block.type === 'tool_use') {
-          toolCall = { name: block.name, args: block.input as Record<string, unknown> }
+          toolCall = { id: block.id, name: block.name, args: block.input as Record<string, unknown> }
         }
       }
     } catch (err) {

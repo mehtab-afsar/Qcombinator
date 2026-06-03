@@ -1019,6 +1019,28 @@ export function AgentChatPanel({
           </div>
         </div>
 
+        {/* context compression notice */}
+        <AnimatePresence>
+          {workspace.contextCompressed && (
+            <motion.div
+              key="ctx-compressed"
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 4 }}
+              style={{
+                flexShrink: 0, margin: '0 40px 6px',
+                padding: '7px 12px',
+                background: '#FFFBEB', border: '1px solid #FDE68A',
+                borderRadius: 8, fontSize: 11.5, color: '#92400E',
+                display: 'flex', alignItems: 'center', gap: 6,
+              }}
+            >
+              <span style={{ fontSize: 13 }}>⚠</span>
+              {workspace.contextCompressed.droppedCount} older artifact{workspace.contextCompressed.droppedCount > 1 ? 's were' : ' was'} summarized to fit context — open your workspace to view all deliverables.
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* input bar */}
         <InputBar
           value={workspace.input}

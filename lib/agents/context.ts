@@ -39,6 +39,8 @@ export interface AgentContext {
   ownArtifacts: Artifact[];
   crossAgentArtifacts: Artifact[];
   activity: ActivityEvent[];
+  compressionApplied: boolean;
+  droppedCount: number;
 }
 
 // ─── Domain keyword map ───────────────────────────────────────────────────────
@@ -77,7 +79,7 @@ export async function getAgentContext(
     agentConfig = getAgent(agentId);
   } catch {
     // Unknown agent — return empty context
-    return { ownArtifacts: [], crossAgentArtifacts: [], activity: [] };
+    return { ownArtifacts: [], crossAgentArtifacts: [], activity: [], compressionApplied: false, droppedCount: 0 };
   }
 
   const { memory, highRelevanceAgents, mediumRelevanceAgents } = agentConfig;
@@ -135,14 +137,19 @@ export async function getAgentContext(
       agentId,
       topic,
     );
+    const droppedCount =
+      (raw.ownArtifacts.length - compressed.ownArtifacts.length) +
+      (raw.crossAgentArtifacts.length - compressed.crossAgentArtifacts.length)
     return {
       ownArtifacts:        compressed.ownArtifacts,
       crossAgentArtifacts: compressed.crossAgentArtifacts,
       activity:            compressed.activity,
+      compressionApplied:  compressed.compressionApplied,
+      droppedCount,
     };
   }
 
-  return raw;
+  return { ...raw, compressionApplied: false, droppedCount: 0 };
 }
 
 // ─── Format helpers ───────────────────────────────────────────────────────────
