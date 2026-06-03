@@ -15,6 +15,7 @@ import {
   Lightbulb, AlertTriangle, Globe, Bot, RefreshCw, X as XIcon,
 } from 'lucide-react'
 import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
+import { UpgradeModal } from '@/components/ui/UpgradeModal'
 
 const surf2 = '#EAE7E0'   // deeper sand — agent bubbles, hover
 
@@ -178,6 +179,7 @@ export default function ProfileBuilderPage() {
   } | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [rateLimitUntil, setRateLimitUntil] = useState<Date | null>(null)
+  const [upgradeOpen, setUpgradeOpen] = useState(false)
   const [toastMsg, setToastMsg] = useState<string | null>(null)
   const [isRetake, setIsRetake] = useState(false)
   const [retakeLoading, setRetakeLoading] = useState(false)
@@ -1031,6 +1033,8 @@ export default function ProfileBuilderPage() {
           const avail = new Date(data.retakeAvailableAt)
           setRateLimitUntil(avail)
           setToastMsg(`Next retake available ${avail.toLocaleDateString(undefined, { weekday: 'long' })} at ${avail.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`)
+        } else if ((data as { limitReached?: boolean }).limitReached) {
+          setUpgradeOpen(true)
         } else {
           setSubmitError(data.error ?? 'Submission failed')
         }
@@ -3084,6 +3088,12 @@ export default function ProfileBuilderPage() {
           .result-memo { display: flex !important; flex-direction: column; gap: 16px; }
         }
       `}</style>
+
+      <UpgradeModal
+        open={upgradeOpen}
+        onClose={() => setUpgradeOpen(false)}
+        feature="qscore_recalc"
+      />
     </div>
   )
 }

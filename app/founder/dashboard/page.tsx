@@ -27,6 +27,7 @@ import { useQScore } from "@/features/qscore/hooks/useQScore";
 import { useMetrics } from "@/features/founder/hooks/useFounderData";
 import { useDashboardData } from "@/features/founder/hooks/useDashboardData";
 import { agents } from "@/features/agents/data/agents";
+import { WelcomeModal, FOUNDER_WELCOME_SLIDES } from "@/components/ui/WelcomeModal";
 import { getUpcomingWorkshops } from "@/features/academy/data/workshops";
 import { bg, surf, bdr, ink, muted, blue, green, amber, red, purple, cyan, alpha } from '@/lib/constants/colors'
 import { PageSpinner } from '@/features/shared/components/Spinner'
@@ -387,6 +388,7 @@ export default function FounderDashboard() {
   const [selectedDimension, setSelectedDimension] = useState<string | null>(null);
   const [publicSlug,  setPublicSlug]  = useState<string | null>(null);
   const [linkCopied,  setLinkCopied]  = useState(false);
+  const [qScoreCopied, setQScoreCopied] = useState(false);
 
   // ── Agent goal watch state ───────────────────────────────────────────────
   type AgentGoalRow = { agent_id: string; goal: string; status: string; reason: string; suggested_action: string | null }
@@ -993,6 +995,31 @@ export default function FounderDashboard() {
                 >
                   Improve score <ArrowRight style={{ height: 12, width: 12 }} />
                 </Link>
+                {/* Share Q-Score badge */}
+                {user && !isDemo && (
+                  <button
+                    onClick={() => {
+                      const url = `${window.location.origin}/q/${user.id}`;
+                      navigator.clipboard.writeText(url).then(() => {
+                        setQScoreCopied(true);
+                        setTimeout(() => setQScoreCopied(false), 2500);
+                      });
+                    }}
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 6,
+                      padding: "9px 20px",
+                      background: qScoreCopied ? "rgba(22,163,74,0.25)" : "rgba(124,58,237,0.15)",
+                      border: `1px solid ${qScoreCopied ? "rgba(22,163,74,0.4)" : "rgba(124,58,237,0.3)"}`,
+                      borderRadius: 999, fontSize: 12,
+                      color: qScoreCopied ? "#86EFAC" : "#C4B5FD",
+                      fontWeight: 500, cursor: "pointer",
+                      transition: "all 0.2s", whiteSpace: "nowrap",
+                    }}
+                  >
+                    {qScoreCopied ? "Badge link copied!" : "Share Q-Score →"}
+                  </button>
+                )}
+
                 {/* Share Pitch Profile */}
                 {user && (
                   <button
@@ -1798,6 +1825,11 @@ export default function FounderDashboard() {
           .dashboard-bottom { grid-template-columns: 1fr !important; }
         }
       `}</style>
+
+      <WelcomeModal
+        storageKey="qc_founder_welcome_v1"
+        slides={FOUNDER_WELCOME_SLIDES}
+      />
     </div>
   );
 }

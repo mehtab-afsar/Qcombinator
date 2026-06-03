@@ -13,6 +13,7 @@ import { bg, surf, bdr, ink, muted, blue } from '@/lib/constants/colors'
 import { APP_NAME } from '@/lib/constants/app'
 import { Avatar } from '@/features/shared/components/Avatar'
 import { useInvestorNotifications } from '@/features/investor/hooks/useInvestorNotifications'
+import { useInvestorGettingStarted } from '@/features/investor/hooks/useInvestorGettingStarted'
 import { NotificationDropdown, NotificationBellButton, NotifItem } from '@/features/shared/components/NotificationPanel'
 
 // ─── nav items ────────────────────────────────────────────────────────────────
@@ -147,6 +148,7 @@ export default function InvestorSidebar() {
   const { user, signOut } = useAuth();
   const [unreadTotal, setUnreadTotal] = useState(0);
   const [pendingConnections, setPendingConnections] = useState(0);
+  const { pct: gsPct, allDone: gsAllDone } = useInvestorGettingStarted();
 
   useEffect(() => {
     let cancelled = false;
@@ -287,6 +289,44 @@ export default function InvestorSidebar() {
           );
         })}
       </div>
+
+      {/* ── getting started ring ──────────────────────────────────────── */}
+      {!gsAllDone && (
+        <Link
+          href="/investor/getting-started"
+          style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 6px 4px", textDecoration: "none" }}
+          title={`Getting started — ${gsPct}% complete`}
+        >
+          <div style={{ flexShrink: 0, position: "relative", width: 32, height: 32, margin: "0 auto" }}>
+            <svg width="32" height="32" viewBox="0 0 32 32" style={{ transform: "rotate(-90deg)" }}>
+              <circle cx="16" cy="16" r="13" fill="none" stroke={bdr} strokeWidth="3" />
+              <circle
+                cx="16" cy="16" r="13" fill="none"
+                stroke={gsPct >= 80 ? "#059669" : blue}
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeDasharray={`${2 * Math.PI * 13}`}
+                strokeDashoffset={`${2 * Math.PI * 13 * (1 - gsPct / 100)}`}
+                style={{ transition: "stroke-dashoffset 0.4s ease" }}
+              />
+            </svg>
+            <span style={{
+              position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 8, fontWeight: 700, color: ink,
+            }}>
+              {gsPct}%
+            </span>
+          </div>
+          <motion.div
+            animate={{ opacity: expanded ? 1 : 0, x: expanded ? 0 : -4 }}
+            transition={{ duration: 0.15 }}
+            style={{ overflow: "hidden", whiteSpace: "nowrap" }}
+          >
+            <p style={{ fontSize: 11, fontWeight: 600, color: ink, margin: 0 }}>Getting started</p>
+            <p style={{ fontSize: 10, color: muted, margin: "1px 0 0" }}>{gsPct}% complete</p>
+          </motion.div>
+        </Link>
+      )}
 
       {/* ── bottom: user ─────────────────────────────────────────────── */}
       <div style={{

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { motion } from 'framer-motion';
-import { User, Building2, Bell, Lock, Download, Trash2, RefreshCw, Save, AlertTriangle, Plug, CheckCircle } from 'lucide-react';
+import { User, Building2, Bell, Lock, Download, Trash2, RefreshCw, Save, AlertTriangle, Plug, CheckCircle, Users, Mail, Loader2, X, ChevronDown, Shield } from 'lucide-react';
 import { useFounderData } from '@/features/founder/hooks/useFounderData';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
@@ -18,12 +18,14 @@ import { bg, surf, bdr, ink, muted, blue, green, red } from '@/lib/constants/col
 import { Avatar } from '@/features/shared/components/Avatar'
 import { TabNav } from '@/features/shared/components/TabNav'
 
-type TabId = 'account' | 'company' | 'notifications' | 'integrations' | 'data';
+type TabId = 'account' | 'company' | 'notifications' | 'integrations' | 'data' | 'team' | 'security';
 
 const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: 'account',       label: 'Account',        icon: User      },
   { id: 'company',       label: 'Company',        icon: Building2 },
   { id: 'notifications', label: 'Notifications',  icon: Bell      },
+  { id: 'team',          label: 'Team',           icon: Users     },
+  { id: 'security',      label: 'Security',       icon: Shield    },
   { id: 'integrations',  label: 'Integrations',   icon: Plug      },
   { id: 'data',          label: 'Data & Privacy', icon: Lock      },
 ];
@@ -89,6 +91,16 @@ function SettingsInner() {
   const [spFunding,       setSpFunding]       = useState('');
   const [spWebsite,       setSpWebsite]       = useState('');
 
+  // Team
+  const [teamMembers,    setTeamMembers]    = useState<{ id: string; role: string; joined_at: string; founder_profiles: { full_name: string; user_id: string } | null }[]>([]);
+  const [teamInvites,    setTeamInvites]    = useState<{ id: string; email: string; role: string; created_at: string }[]>([]);
+  const [myTeamRole,     setMyTeamRole]     = useState<string | null>(null);
+  const [teamLoading,    setTeamLoading]    = useState(false);
+  const [inviteEmail,    setInviteEmail]    = useState('');
+  const [inviteRole,     setInviteRole]     = useState<'admin' | 'member' | 'viewer'>('member');
+  const [inviteSending,  setInviteSending]  = useState(false);
+  const [showInviteForm, setShowInviteForm] = useState(false);
+
   // Notifications
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [qScoreUpdates,       setQScoreUpdates]       = useState(true);
@@ -123,6 +135,77 @@ function SettingsInner() {
       setRunwayAlerts(s.notificationPreferences.runwayAlerts)
     }).catch(() => {})
   }, []);
+
+  function loadTeam() {
+    setTeamLoading(true);
+    fetch('/api/team/members')
+      .then(r => r.json())
+      .then(d => {
+        setTeamMembers(d.members ?? []);
+        setTeamInvites(d.invites ?? []);
+        setMyTeamRole(d.myRole ?? null);
+      })
+      .catch(() => {})
+      .finally(() => setTeamLoading(false));
+  }
+
+  useEffect(() => { if (activeTab === 'team') loadTeam(); }, [activeTab]);
+
+  async function handleSendInvite() {
+    if (!inviteEmail.trim()) return;
+    setInviteSending(true);
+    try {
+      const res = await fetch('/api/team/invite', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ email: inviteEmail.trim(), role: inviteRole }),
+      });
+      const data = await res.json();
+      if (!res.ok) { showToast(data.error ?? 'Failed to send invite', 'error'); return; }
+      showToast(`Invite sent to ${inviteEmail.trim()}`);
+      setInviteEmail('');
+      setShowInviteForm(false);
+      loadTeam();
+    } catch { showToast('Failed to send invite', 'error'); }
+    finally { setInviteSending(false); }
+  }
+
+  async function handleRemoveMember(userId: string, name: string) {
+    if (!confirm(`Remove ${name} from your team?`)) return;
+    await fetch(`/api/team/members?userId=${userId}`, { method: 'DELETE' });
+    loadTeam();
+  }
+
+  async function handleChangeRole(userId: string, role: 'admin' | 'member' | 'viewer') {
+    await fetch(`/api/team/members?userId=${userId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role }),
+    });
+    loadTeam();
+  }
+
+  async function handleCancelInvite(inviteId: string) {
+    if (!confirm('Cancel this invite?')) return;
+    await fetch(`/api/team/members?inviteId=${inviteId}`, { method: 'DELETE' });
+    loadTeam();
+  }
+
+  async function handleResendInvite(email: string) {
+    setInviteSending(true);
+    try {
+      const res = await fetch('/api/team/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, role: inviteRole }),
+      });
+      const data = await res.json();
+      if (!res.ok) { showToast(data.error ?? 'Failed to resend', 'error'); return; }
+      showToast(`Invite resent to ${email}`);
+      loadTeam();
+    } catch { showToast('Failed to resend invite', 'error'); }
+    finally { setInviteSending(false); }
+  }
 
   function showToast(msg: string, type: 'success' | 'error' = 'success') {
     setToast({ msg, type });
@@ -631,6 +714,229 @@ function SettingsInner() {
                     Your data is stored securely in Supabase with row-level security. Only you and investors you connect with can access your information.
                   </p>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Security */}
+          {activeTab === 'security' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <SettingsCard title="Password" description="Update your account password">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <p style={{ fontSize: 13, color: muted, margin: 0 }}>
+                    To change your password, we&apos;ll send a reset link to your email address.
+                  </p>
+                  <OutlineButton
+                    onClick={async () => {
+                      const { data: { user } } = await (await import('@/lib/supabase/client')).createClient().auth.getUser()
+                      if (!user?.email) return
+                      const sb = (await import('@/lib/supabase/client')).createClient()
+                      await sb.auth.resetPasswordForEmail(user.email, { redirectTo: `${window.location.origin}/update-password` })
+                      showToast('Password reset email sent')
+                    }}
+                  >
+                    <RefreshCw style={{ height: 13, width: 13 }} />
+                    Send password reset email
+                  </OutlineButton>
+                </div>
+              </SettingsCard>
+
+              <SettingsCard title="Connected accounts" description="OAuth providers linked to your account">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                      <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
+                      <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853"/>
+                      <path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+                      <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+                    </svg>
+                    <div>
+                      <p style={{ fontSize: 13, fontWeight: 500, color: ink, margin: 0 }}>Google</p>
+                      <p style={{ fontSize: 11, color: muted, margin: '2px 0 0' }}>OAuth sign-in</p>
+                    </div>
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 999, background: '#ECFDF5', color: '#059669' }}>Connected</span>
+                </div>
+              </SettingsCard>
+
+              <SettingsCard title="Sign out everywhere" description="Revoke all active sessions on other devices">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <p style={{ fontSize: 13, color: muted, margin: 0 }}>
+                    This will sign you out of all browsers and devices except the current one.
+                  </p>
+                  <OutlineButton
+                    onClick={async () => {
+                      if (!confirm('Sign out from all other devices?')) return
+                      const sb = (await import('@/lib/supabase/client')).createClient()
+                      await sb.auth.signOut({ scope: 'others' })
+                      showToast('Signed out from all other sessions')
+                    }}
+                  >
+                    <Lock style={{ height: 13, width: 13 }} />
+                    Sign out other sessions
+                  </OutlineButton>
+                </div>
+              </SettingsCard>
+            </div>
+          )}
+
+          {/* Team */}
+          {activeTab === 'team' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+              {/* Header */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <h2 style={{ fontSize: 16, fontWeight: 700, color: ink, marginBottom: 4 }}>Your Team</h2>
+                  <p style={{ fontSize: 13, color: muted }}>Invite co-founders and employees to your startup workspace.</p>
+                </div>
+                {(myTeamRole === 'owner' || myTeamRole === 'admin') && (
+                  <button
+                    onClick={() => setShowInviteForm(v => !v)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 16px', borderRadius: 9, background: blue, border: 'none', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    <Mail style={{ width: 13, height: 13 }} /> Invite member
+                  </button>
+                )}
+              </div>
+
+              {/* Invite form */}
+              {showInviteForm && (
+                <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 14, padding: '20px 22px' }}>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: ink, marginBottom: 14 }}>Send invite</p>
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    <input
+                      type="email"
+                      placeholder="colleague@startup.com"
+                      value={inviteEmail}
+                      onChange={e => setInviteEmail(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && handleSendInvite()}
+                      style={{ flex: 1, minWidth: 200, padding: '9px 12px', borderRadius: 8, border: `1.5px solid ${bdr}`, fontSize: 13, color: ink, background: '#fff', fontFamily: 'inherit', outline: 'none' }}
+                    />
+                    <div style={{ position: 'relative' }}>
+                      <select
+                        value={inviteRole}
+                        onChange={e => setInviteRole(e.target.value as 'admin' | 'member' | 'viewer')}
+                        style={{ padding: '9px 32px 9px 12px', borderRadius: 8, border: `1.5px solid ${bdr}`, fontSize: 13, color: ink, background: '#fff', fontFamily: 'inherit', cursor: 'pointer', appearance: 'none', outline: 'none' }}
+                      >
+                        <option value="admin">Co-founder (Admin)</option>
+                        <option value="member">Team Member</option>
+                        <option value="viewer">Viewer (read-only)</option>
+                      </select>
+                      <ChevronDown style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: muted, pointerEvents: 'none' }} />
+                    </div>
+                    <button
+                      onClick={handleSendInvite}
+                      disabled={inviteSending || !inviteEmail.trim()}
+                      style={{ padding: '9px 18px', borderRadius: 8, background: inviteSending ? muted : blue, border: 'none', color: '#fff', fontSize: 13, fontWeight: 600, cursor: inviteSending ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                    >
+                      {inviteSending ? <Loader2 style={{ width: 13, height: 13 }} className="animate-spin" /> : null}
+                      Send invite
+                    </button>
+                    <button onClick={() => setShowInviteForm(false)} style={{ padding: '9px 12px', borderRadius: 8, background: 'transparent', border: `1px solid ${bdr}`, color: muted, cursor: 'pointer' }}>
+                      <X style={{ width: 13, height: 13 }} />
+                    </button>
+                  </div>
+                  <p style={{ fontSize: 11, color: muted, marginTop: 10 }}>
+                    <strong>Admin:</strong> Full access, can invite others.&ensp;
+                    <strong>Member:</strong> Operational agents only.&ensp;
+                    <strong>Viewer:</strong> Read-only (Q-Score + artifacts).
+                  </p>
+                </div>
+              )}
+
+              {/* Members list */}
+              <div style={{ background: '#fff', border: `1px solid ${bdr}`, borderRadius: 16, overflow: 'hidden' }}>
+                {teamLoading ? (
+                  <div style={{ padding: '32px 0', textAlign: 'center' }}>
+                    <Loader2 style={{ width: 20, height: 20, color: muted, margin: '0 auto' }} className="animate-spin" />
+                  </div>
+                ) : teamMembers.length === 0 ? (
+                  <div style={{ padding: '32px', textAlign: 'center' }}>
+                    <Users style={{ width: 28, height: 28, color: muted, margin: '0 auto 10px' }} />
+                    <p style={{ fontSize: 13, color: muted }}>Just you for now — invite your co-founder.</p>
+                  </div>
+                ) : (
+                  teamMembers.map((m, i) => {
+                    const name    = m.founder_profiles?.full_name ?? 'Unknown';
+                    const isOwner = m.role === 'owner';
+                    const roleColors: Record<string, string> = { owner: '#7C3AED', admin: blue, member: green, viewer: muted };
+                    return (
+                      <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 20px', borderTop: i > 0 ? `1px solid ${bdr}` : 'none' }}>
+                        <div style={{ width: 36, height: 36, borderRadius: 10, background: `${roleColors[m.role] ?? muted}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: roleColors[m.role] ?? muted, flexShrink: 0 }}>
+                          {name[0]?.toUpperCase() ?? '?'}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <p style={{ fontSize: 13, fontWeight: 600, color: ink, marginBottom: 1 }}>{name}</p>
+                          <p style={{ fontSize: 11, color: muted }}>Joined {new Date(m.joined_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</p>
+                        </div>
+                        <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 999, background: `${roleColors[m.role] ?? muted}15`, color: roleColors[m.role] ?? muted, textTransform: 'capitalize' }}>
+                          {m.role}
+                        </span>
+                        {!isOwner && myTeamRole === 'owner' && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <select
+                              value={m.role}
+                              onChange={e => handleChangeRole(m.founder_profiles?.user_id ?? '', e.target.value as 'admin' | 'member' | 'viewer')}
+                              style={{ padding: '4px 8px', borderRadius: 7, border: `1px solid ${bdr}`, fontSize: 11, color: ink, background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}
+                            >
+                              <option value="admin">Admin</option>
+                              <option value="member">Member</option>
+                              <option value="viewer">Viewer</option>
+                            </select>
+                            <button onClick={() => handleRemoveMember(m.founder_profiles?.user_id ?? '', name)} style={{ padding: '4px 10px', borderRadius: 7, background: 'transparent', border: `1px solid #FECACA`, fontSize: 11, color: '#DC2626', cursor: 'pointer' }}>
+                              Remove
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Pending invites */}
+              {teamInvites.length > 0 && (
+                <div>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Pending invites</p>
+                  <div style={{ background: '#fff', border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden' }}>
+                    {teamInvites.map((inv, i) => (
+                      <div key={inv.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 20px', borderTop: i > 0 ? `1px solid ${bdr}` : 'none' }}>
+                        <Mail style={{ width: 15, height: 15, color: muted, flexShrink: 0 }} />
+                        <div style={{ flex: 1 }}>
+                          <p style={{ fontSize: 13, color: ink, margin: 0 }}>{inv.email}</p>
+                          <p style={{ fontSize: 11, color: muted, margin: '2px 0 0', textTransform: 'capitalize' }}>{inv.role}</p>
+                        </div>
+                        <span style={{ fontSize: 11, color: '#D97706', background: '#FFFBEB', padding: '2px 8px', borderRadius: 999, fontWeight: 600, flexShrink: 0 }}>Pending</span>
+                        {(myTeamRole === 'owner' || myTeamRole === 'admin') && (
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button
+                              onClick={() => handleResendInvite(inv.email)}
+                              style={{ padding: '4px 10px', borderRadius: 7, background: 'transparent', border: `1px solid ${bdr}`, fontSize: 11, color: muted, cursor: 'pointer' }}
+                            >
+                              Resend
+                            </button>
+                            <button
+                              onClick={() => handleCancelInvite(inv.id)}
+                              style={{ padding: '4px 10px', borderRadius: 7, background: 'transparent', border: `1px solid #FECACA`, fontSize: 11, color: '#DC2626', cursor: 'pointer' }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Shared vs private note */}
+              <div style={{ display: 'flex', gap: 12, padding: '14px 18px', background: surf, border: `1px solid ${bdr}`, borderRadius: 12 }}>
+                <CheckCircle style={{ width: 14, height: 14, color: green, flexShrink: 0, marginTop: 1 }} />
+                <p style={{ fontSize: 12, color: muted, lineHeight: 1.6 }}>
+                  <strong style={{ color: ink }}>What&apos;s shared:</strong> Q-Score, all artifacts, startup profile.&ensp;
+                  <strong style={{ color: ink }}>What&apos;s private:</strong> Your agent conversations — each person&apos;s advisory sessions stay personal.
+                </p>
               </div>
             </div>
           )}

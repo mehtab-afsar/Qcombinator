@@ -15,6 +15,7 @@ import { ScoreBadge } from "@/features/shared/components/Badge"
 import { StatCard } from "@/features/shared/components/StatCard"
 import { SectionCard } from "@/features/shared/components/SectionCard"
 import { StatCardSkeleton, RowSkeleton } from "@/features/shared/components/Skeleton"
+import { WelcomeModal, INVESTOR_WELCOME_SLIDES } from "@/components/ui/WelcomeModal"
 
 // ─── types ────────────────────────────────────────────────────────────────────
 interface DashboardData {
@@ -103,6 +104,7 @@ function SectionHeader({ title, href, linkLabel = "View all" }: { title: string;
 export default function InvestorDashboard() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [verificationStatus, setVerificationStatus] = useState<'pending' | 'verified' | 'rejected' | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -122,6 +124,10 @@ export default function InvestorDashboard() {
         const pipeline = (pipeResp.pipeline ?? []) as Array<{ founder_user_id: string; stage: string; updated_at: string; id: string; notes: string | null }>
         const unread   = { unreadMessages: (dash as Record<string, unknown>).unreadMessages ?? 0, pendingRequests: (dash as Record<string, unknown>).pendingRequests ?? 0 }
         const billing  = { subscriptionTier: (dash as Record<string, unknown>).subscriptionTier ?? "free" }
+        const verif = (profile as Record<string, unknown> | null)?.verification_status as string | undefined
+        if (verif === 'pending' || verif === 'verified' || verif === 'rejected') {
+          setVerificationStatus(verif)
+        }
 
         // Build founder map from deal-flow
         type DealFounder = {
@@ -554,6 +560,38 @@ export default function InvestorDashboard() {
           </SectionCard>
         )}
 
+        {/* ── Verification status banner ─────────────────────────────────── */}
+        {verificationStatus === 'pending' && (
+          <div style={{
+            marginTop: 18, padding: "14px 20px",
+            background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: 12,
+            display: "flex", alignItems: "center", gap: 12,
+          }}>
+            <Clock style={{ width: 16, height: 16, color: "#D97706", flexShrink: 0 }} />
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: 13, fontWeight: 600, color: "#92400E", margin: 0 }}>Profile under review</p>
+              <p style={{ fontSize: 12, color: "#B45309", margin: "2px 0 0" }}>
+                We verify all investors to ensure quality matching. This typically takes 24–48 hours. You can browse deal flow in the meantime.
+              </p>
+            </div>
+          </div>
+        )}
+        {verificationStatus === 'rejected' && (
+          <div style={{
+            marginTop: 18, padding: "14px 20px",
+            background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 12,
+            display: "flex", alignItems: "center", gap: 12,
+          }}>
+            <Bell style={{ width: 16, height: 16, color: "#DC2626", flexShrink: 0 }} />
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: 13, fontWeight: 600, color: "#991B1B", margin: 0 }}>Verification unsuccessful</p>
+              <p style={{ fontSize: 12, color: "#B91C1C", margin: "2px 0 0" }}>
+                We were unable to verify your investor profile. Please contact support to resolve this.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* ── Notifications banner (pending requests) ───────────────────── */}
         {d.pendingRequests > 0 && (
           <Link href="/investor/connections" style={{ textDecoration: "none" }}>
@@ -576,6 +614,11 @@ export default function InvestorDashboard() {
         )}
 
       </div>
+
+      <WelcomeModal
+        storageKey="qc_investor_welcome_v1"
+        slides={INVESTOR_WELCOME_SLIDES}
+      />
     </div>
   )
 }

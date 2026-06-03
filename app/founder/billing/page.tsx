@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import {
   CheckCircle, CreditCard, Zap, BarChart3, Users, RefreshCw,
-  TrendingUp, Star, MessageSquare, Crown,
+  TrendingUp, Star, MessageSquare, Crown, Receipt, Download, ChevronDown,
 } from 'lucide-react'
 import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
 
@@ -64,6 +64,13 @@ function BillingInner() {
   const [loading, setLoading] = useState(true)
   const [acting,  setActing]  = useState(false)
   const [toast,   setToast]   = useState<string | null>(null)
+  const [invoices, setInvoices] = useState<Array<{
+    id: string; number: string | null; status: string | null
+    amount: number; currency: string; date: number
+    pdfUrl: string | null; hostedUrl: string | null; description: string
+  }>>([])
+  const [invoicesLoading, setInvoicesLoading] = useState(false)
+  const [invoicesLoaded,  setInvoicesLoaded]  = useState(false)
 
   useEffect(() => {
     fetch('/api/founder/billing/status')
@@ -79,6 +86,19 @@ function BillingInner() {
       window.history.replaceState({}, '', '/founder/billing')
     }
   }, [success])
+
+  async function loadInvoices() {
+    if (invoicesLoaded || invoicesLoading) return
+    setInvoicesLoading(true)
+    try {
+      const res = await fetch('/api/founder/billing/invoices')
+      const data = await res.json()
+      setInvoices(data.invoices ?? [])
+      setInvoicesLoaded(true)
+    } finally {
+      setInvoicesLoading(false)
+    }
+  }
 
   function showToast(msg: string) {
     setToast(msg)
@@ -293,6 +313,63 @@ function BillingInner() {
             </div>
           </motion.div>
         )}
+
+        {/* ── Invoice history ──────────────────────────────────────────── */}
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, delay: 0.22 }}
+          style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden', marginTop: 16 }}
+        >
+          <button
+            onClick={loadInvoices}
+            style={{ width: '100%', padding: '14px 20px', borderBottom: invoicesLoaded ? `1px solid ${bdr}` : 'none', background: surf, display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Receipt style={{ height: 14, width: 14, color: muted }} />
+              <p style={{ fontSize: 13, fontWeight: 600, color: ink, margin: 0 }}>Billing history</p>
+            </div>
+            {invoicesLoading
+              ? <RefreshCw style={{ height: 13, width: 13, color: muted, animation: 'spin 1s linear infinite' }} />
+              : <ChevronDown style={{ height: 13, width: 13, color: muted, transform: invoicesLoaded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+            }
+          </button>
+
+          {invoicesLoaded && (
+            <div>
+              {invoices.length === 0 ? (
+                <div style={{ padding: '24px 20px', textAlign: 'center' }}>
+                  <p style={{ fontSize: 13, color: muted, margin: 0 }}>No invoices yet — your billing history will appear here after your first payment.</p>
+                </div>
+              ) : (
+                invoices.map((inv, i) => {
+                  const date = new Date(inv.date * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                  const amount = `$${(inv.amount / 100).toFixed(2)}`
+                  const statusColor = inv.status === 'paid' ? green : inv.status === 'open' ? amber : muted
+                  return (
+                    <div key={inv.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 20px', borderTop: i > 0 ? `1px solid ${bdr}` : 'none' }}>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ fontSize: 13, fontWeight: 500, color: ink, margin: 0 }}>{inv.description}</p>
+                        <p style={{ fontSize: 11, color: muted, margin: '2px 0 0' }}>{date} · {inv.number ?? inv.id.slice(-8)}</p>
+                      </div>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: ink }}>{amount}</span>
+                      <span style={{
+                        padding: '2px 8px', borderRadius: 999, fontSize: 10, fontWeight: 700,
+                        background: `${statusColor}18`, color: statusColor, textTransform: 'capitalize',
+                      }}>{inv.status}</span>
+                      {inv.pdfUrl && (
+                        <a href={inv.pdfUrl} target="_blank" rel="noopener noreferrer"
+                          style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 7, border: `1px solid ${bdr}`, color: muted, fontSize: 11, textDecoration: 'none', flexShrink: 0 }}>
+                          <Download style={{ height: 11, width: 11 }} /> PDF
+                        </a>
+                      )}
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          )}
+        </motion.div>
 
       </div>
     </div>

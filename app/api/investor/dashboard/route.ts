@@ -40,7 +40,7 @@ export async function GET() {
       .select(
         'full_name, firm_name, thesis, sectors, stages, ai_personalization,' +
         'subscription_tier, subscription_status, subscription_current_period_end,' +
-        'demo_investor_id'
+        'demo_investor_id, verification_status'
       )
       .eq('user_id', user.id)
       .single()
@@ -92,12 +92,13 @@ export async function GET() {
       {
         // Matches /api/investor/profile shape
         profile: investorRow ? {
-          full_name:        investorRow.full_name,
-          firm_name:        investorRow.firm_name,
-          thesis:           investorRow.thesis,
-          sectors:          investorRow.sectors,
-          stages:           investorRow.stages,
-          ai_personalization: investorRow.ai_personalization,
+          full_name:           investorRow.full_name,
+          firm_name:           investorRow.firm_name,
+          thesis:              investorRow.thesis,
+          sectors:             investorRow.sectors,
+          stages:              investorRow.stages,
+          ai_personalization:  investorRow.ai_personalization,
+          verification_status: (investorRow as Record<string, unknown>).verification_status ?? 'verified',
         } : null,
 
         // Matches /api/investor/pipeline shape

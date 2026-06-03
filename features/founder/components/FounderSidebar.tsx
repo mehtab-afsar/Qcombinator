@@ -11,6 +11,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { usePendingConnections } from "../hooks/usePendingConnections";
+import { useGettingStarted } from "../hooks/useGettingStarted";
 import { useNotifications } from "../hooks/useNotifications";
 import { SidebarNotification } from "../types/founder.types";
 import { bg, surf, bdr, ink, muted, blue } from '@/lib/constants/colors'
@@ -150,7 +151,8 @@ export default function FounderSidebar() {
   const router   = useRouter();
   const { user, signOut } = useAuth();
 
-  const msgCount = usePendingConnections();
+  const msgCount  = usePendingConnections();
+  const { pct: gsPct, allDone: gsAllDone } = useGettingStarted();
 
   // Build nav with dynamic message badge
   const nav = BASE_NAV.map(item =>
@@ -293,6 +295,45 @@ export default function FounderSidebar() {
             );
           })}
         </div>
+
+        {/* ── getting started ring (hidden when 100% or not on profile pages) ── */}
+        {!gsAllDone && (
+          <Link
+            href="/founder/getting-started"
+            style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 6px 4px", textDecoration: "none" }}
+            title={`Getting started — ${gsPct}% complete`}
+          >
+            {/* SVG ring */}
+            <div style={{ flexShrink: 0, position: "relative", width: 32, height: 32, margin: "0 auto" }}>
+              <svg width="32" height="32" viewBox="0 0 32 32" style={{ transform: "rotate(-90deg)" }}>
+                <circle cx="16" cy="16" r="13" fill="none" stroke={bdr} strokeWidth="3" />
+                <circle
+                  cx="16" cy="16" r="13" fill="none"
+                  stroke={gsPct >= 80 ? "#059669" : blue}
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeDasharray={`${2 * Math.PI * 13}`}
+                  strokeDashoffset={`${2 * Math.PI * 13 * (1 - gsPct / 100)}`}
+                  style={{ transition: "stroke-dashoffset 0.4s ease" }}
+                />
+              </svg>
+              <span style={{
+                position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 8, fontWeight: 700, color: ink,
+              }}>
+                {gsPct}%
+              </span>
+            </div>
+            <motion.div
+              animate={{ opacity: expanded ? 1 : 0, x: expanded ? 0 : -4 }}
+              transition={{ duration: 0.15 }}
+              style={{ overflow: "hidden", whiteSpace: "nowrap" }}
+            >
+              <p style={{ fontSize: 11, fontWeight: 600, color: ink, margin: 0 }}>Getting started</p>
+              <p style={{ fontSize: 10, color: muted, margin: "1px 0 0" }}>{gsPct}% complete</p>
+            </motion.div>
+          </Link>
+        )}
 
         {/* ── bottom: user ─────────────────────────────────────────────── */}
         <div style={{

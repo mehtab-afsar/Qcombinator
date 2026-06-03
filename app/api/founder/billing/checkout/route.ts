@@ -45,9 +45,9 @@ export async function POST() {
       customer: customerId,
       mode: 'subscription',
       line_items: [{ price: process.env.STRIPE_FOUNDER_PREMIUM_PRICE_ID!, quantity: 1 }],
+      subscription_data: { trial_period_days: 14 },
       success_url: `${process.env.NEXT_PUBLIC_APP_URL}/founder/billing?success=1`,
       cancel_url:  `${process.env.NEXT_PUBLIC_APP_URL}/founder/billing`,
-      // Critical: userType in metadata lets the webhook route correctly
       metadata: { user_id: user.id, userType: 'founder' },
     })
 

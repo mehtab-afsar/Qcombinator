@@ -21,6 +21,7 @@ import { ConnectionStatusBadge } from '@/features/matching/components/Connection
 import { ConnectionStatus, MatchingInvestor } from '@/features/matching/types/matching.types'
 import { useQScore } from '@/features/qscore/hooks/useQScore'
 import { useMatchingData } from '@/features/matching/hooks/useMatchingData'
+import { UpgradeModal } from '@/components/ui/UpgradeModal'
 import { bg, surf, bdr, ink, muted, blue, green, amber } from '@/lib/constants/colors'
 
 type Investor = MatchingInvestor
@@ -34,6 +35,7 @@ export default function InvestorMatching() {
   const [isModalOpen,      setIsModalOpen]      = useState(false)
   const [rationaleMap,     setRationaleMap]     = useState<Record<string, string | 'loading'>>({})
   const [profileInvestor,  setProfileInvestor]  = useState<Investor | null>(null)
+  const [upgradeOpen,      setUpgradeOpen]      = useState(false)
 
   const fetchRationale = async (investor: Investor) => {
     if (rationaleMap[investor.id] || isLocked) return
@@ -95,7 +97,16 @@ export default function InvestorMatching() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      if (!res.ok) throw new Error(`${res.status}`)
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({})) as { limitReached?: boolean }
+        if (errJson.limitReached) {
+          setIsModalOpen(false)
+          setSelectedInvestor(null)
+          setUpgradeOpen(true)
+          return
+        }
+        throw new Error(`${res.status}`)
+      }
       setInvestors(prev =>
         prev.map(inv =>
           inv.id === selectedInvestor.id
@@ -542,6 +553,12 @@ export default function InvestorMatching() {
           </div>
         </div>
       )}
+
+      <UpgradeModal
+        open={upgradeOpen}
+        onClose={() => setUpgradeOpen(false)}
+        feature="investor_connection"
+      />
     </div>
   )
 }

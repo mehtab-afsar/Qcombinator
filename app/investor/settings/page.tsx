@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { User, Building2, Target, Bell, LogOut, Save, RefreshCw, CheckCircle, Upload, FileText } from 'lucide-react'
+import { User, Building2, Target, Bell, LogOut, Save, RefreshCw, CheckCircle, Upload, FileText, Users, Mail, Loader2, X, ChevronDown, Shield, Lock } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useInvestorSettings } from '@/features/investor/hooks/useInvestorSettings'
 import {
@@ -17,12 +17,14 @@ import { TabNav } from '@/features/shared/components/TabNav'
 import { PageSpinner } from '@/features/shared/components/Spinner'
 
 // ─── types ────────────────────────────────────────────────────────────────────
-type TabId = 'account' | 'preferences' | 'notifications'
+type TabId = 'account' | 'preferences' | 'notifications' | 'team' | 'security'
 
 const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
-  { id: 'account',       label: 'Account',        icon: User   },
-  { id: 'preferences',   label: 'Preferences',    icon: Target },
-  { id: 'notifications', label: 'Notifications',  icon: Bell   },
+  { id: 'account',       label: 'Account',        icon: User    },
+  { id: 'preferences',   label: 'Preferences',    icon: Target  },
+  { id: 'notifications', label: 'Notifications',  icon: Bell    },
+  { id: 'team',          label: 'Team',           icon: Users   },
+  { id: 'security',      label: 'Security',       icon: Shield  },
 ]
 
 const SECTOR_OPTIONS = [
@@ -85,6 +87,16 @@ export default function InvestorSettingsPage() {
   })
   const [savingPortfolioCfg, setSavingPortfolioCfg] = useState(false)
 
+  // Team
+  const [invTeamMembers,    setInvTeamMembers]    = useState<{ id: string; role: string; joined_at: string; member_user_id: string; investor_profiles: { full_name: string } | null }[]>([])
+  const [invTeamInvites,    setInvTeamInvites]    = useState<{ id: string; email: string; role: string; created_at: string }[]>([])
+  const [invIsOwner,        setInvIsOwner]        = useState(true)
+  const [invTeamLoading,    setInvTeamLoading]    = useState(false)
+  const [invInviteEmail,    setInvInviteEmail]    = useState('')
+  const [invInviteRole,     setInvInviteRole]     = useState<'admin' | 'analyst'>('analyst')
+  const [invInviteSending,  setInvInviteSending]  = useState(false)
+  const [showInvTeamForm,   setShowInvTeamForm]   = useState(false)
+
   // Q-Score parameter weights (P1-P6)
   const [weights, setWeights] = useState({
     weight_p1: 20, weight_p2: 17, weight_p3: 18,
@@ -107,10 +119,10 @@ export default function InvestorSettingsPage() {
     setHighQScore(initialSettings.highQScore)
     setConnectionReq(initialSettings.connectionReq)
     setWeeklyDigest(initialSettings.weeklyDigest)
-    if ('emailNotifications' in initialSettings) setEmailNotifications((initialSettings as Record<string, unknown>).emailNotifications as boolean ?? true)
-    if ('qscoreUpdates'      in initialSettings) setQscoreUpdates((initialSettings as Record<string, unknown>).qscoreUpdates as boolean ?? true)
-    if ('investorMessages'   in initialSettings) setInvestorMessages((initialSettings as Record<string, unknown>).investorMessages as boolean ?? true)
-    if ('runwayAlerts'       in initialSettings) setRunwayAlerts((initialSettings as Record<string, unknown>).runwayAlerts as boolean ?? true)
+    setEmailNotifications(initialSettings.emailNotifications ?? true)
+    setQscoreUpdates(initialSettings.qscoreUpdates ?? true)
+    setInvestorMessages(initialSettings.investorMessages ?? true)
+    setRunwayAlerts(initialSettings.runwayAlerts ?? true)
     setAvatarUrl((initialSettings as unknown as Record<string, unknown>).avatarUrl as string | null ?? null)
     setFirmLogoUrl((initialSettings as unknown as Record<string, unknown>).firmLogoUrl as string | null ?? null)
   }, [initialSettings])
@@ -149,6 +161,33 @@ export default function InvestorSettingsPage() {
       showToast('Q-Score weights saved')
     } catch { showToast('Failed to save', 'error') }
     finally { setSavingWeights(false) }
+  }
+
+  function loadInvTeam() {
+    setInvTeamLoading(true)
+    fetch('/api/investor/team/members')
+      .then(r => r.json())
+      .then(d => { setInvTeamMembers(d.members ?? []); setInvTeamInvites(d.invites ?? []); setInvIsOwner(d.isOwner ?? true) })
+      .catch(() => {})
+      .finally(() => setInvTeamLoading(false))
+  }
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (activeTab === 'team') loadInvTeam() }, [activeTab])
+
+  async function handleSendInvTeamInvite() {
+    if (!invInviteEmail.trim()) return
+    setInvInviteSending(true)
+    try {
+      const res  = await fetch('/api/investor/team/invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: invInviteEmail.trim(), role: invInviteRole }) })
+      const data = await res.json()
+      if (!res.ok) { showToast(data.error ?? 'Failed to send invite', 'error'); return }
+      showToast(`Invite sent to ${invInviteEmail.trim()}`)
+      setInvInviteEmail('')
+      setShowInvTeamForm(false)
+      loadInvTeam()
+    } catch { showToast('Failed to send invite', 'error') }
+    finally { setInvInviteSending(false) }
   }
 
   function showToast(msg: string, type: 'success' | 'error' = 'success') {
@@ -725,6 +764,155 @@ export default function InvestorSettingsPage() {
                 {saving ? 'Saving…' : 'Save notifications'}
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Team */}
+        {activeTab === 'team' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <h2 style={{ fontSize: 16, fontWeight: 700, color: ink, marginBottom: 4 }}>Your Team</h2>
+                <p style={{ fontSize: 13, color: muted }}>Invite analysts and partners to your deal flow workspace.</p>
+              </div>
+              {invIsOwner && (
+                <button onClick={() => setShowInvTeamForm(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 16px', borderRadius: 9, background: blue, border: 'none', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                  <Mail style={{ width: 13, height: 13 }} /> Invite member
+                </button>
+              )}
+            </div>
+
+            {showInvTeamForm && (
+              <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 14, padding: '20px 22px' }}>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <input type="email" placeholder="analyst@fund.com" value={invInviteEmail} onChange={e => setInvInviteEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSendInvTeamInvite()} style={{ flex: 1, minWidth: 200, padding: '9px 12px', borderRadius: 8, border: `1.5px solid ${bdr}`, fontSize: 13, color: ink, background: '#fff', fontFamily: 'inherit', outline: 'none' }} />
+                  <div style={{ position: 'relative' }}>
+                    <select value={invInviteRole} onChange={e => setInvInviteRole(e.target.value as 'admin' | 'analyst')} style={{ padding: '9px 32px 9px 12px', borderRadius: 8, border: `1.5px solid ${bdr}`, fontSize: 13, color: ink, background: '#fff', fontFamily: 'inherit', cursor: 'pointer', appearance: 'none', outline: 'none' }}>
+                      <option value="analyst">Analyst</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                    <ChevronDown style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: muted, pointerEvents: 'none' }} />
+                  </div>
+                  <button onClick={handleSendInvTeamInvite} disabled={invInviteSending || !invInviteEmail.trim()} style={{ padding: '9px 18px', borderRadius: 8, background: invInviteSending ? muted : blue, border: 'none', color: '#fff', fontSize: 13, fontWeight: 600, cursor: invInviteSending ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {invInviteSending ? <Loader2 style={{ width: 13, height: 13 }} className="animate-spin" /> : null}
+                    Send invite
+                  </button>
+                  <button onClick={() => setShowInvTeamForm(false)} style={{ padding: '9px 12px', borderRadius: 8, background: 'transparent', border: `1px solid ${bdr}`, color: muted, cursor: 'pointer' }}>
+                    <X style={{ width: 13, height: 13 }} />
+                  </button>
+                </div>
+                <p style={{ fontSize: 11, color: muted, marginTop: 10 }}><strong>Analyst:</strong> View deal flow, pipeline, and message founders.&ensp;<strong>Admin:</strong> Full access except billing.</p>
+              </div>
+            )}
+
+            <div style={{ background: '#fff', border: `1px solid ${bdr}`, borderRadius: 16, overflow: 'hidden' }}>
+              {invTeamLoading ? (
+                <div style={{ padding: '32px 0', textAlign: 'center' }}><Loader2 style={{ width: 20, height: 20, color: muted, margin: '0 auto' }} className="animate-spin" /></div>
+              ) : invTeamMembers.length === 0 ? (
+                <div style={{ padding: '32px', textAlign: 'center' }}>
+                  <Users style={{ width: 28, height: 28, color: muted, margin: '0 auto 10px' }} />
+                  <p style={{ fontSize: 13, color: muted }}>Just you for now — invite an analyst.</p>
+                </div>
+              ) : invTeamMembers.map((m, i) => {
+                const name      = m.investor_profiles?.full_name ?? 'Unknown'
+                const roleColor = m.role === 'admin' ? blue : muted
+                return (
+                  <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 20px', borderTop: i > 0 ? `1px solid ${bdr}` : 'none' }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: `${roleColor}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: roleColor, flexShrink: 0 }}>{name[0]?.toUpperCase() ?? '?'}</div>
+                    <div style={{ flex: 1 }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: ink, marginBottom: 1 }}>{name}</p>
+                      <p style={{ fontSize: 11, color: muted }}>Joined {new Date(m.joined_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</p>
+                    </div>
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 999, background: `${roleColor}15`, color: roleColor, textTransform: 'capitalize' }}>{m.role}</span>
+                    {invIsOwner && (
+                      <button onClick={async () => { if (!confirm('Remove this member?')) return; await fetch(`/api/investor/team/members?userId=${m.member_user_id}`, { method: 'DELETE' }); loadInvTeam() }} style={{ padding: '5px 10px', borderRadius: 7, background: 'transparent', border: `1px solid ${bdr}`, fontSize: 11, color: muted, cursor: 'pointer' }}>Remove</button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+
+            {invTeamInvites.length > 0 && (
+              <div>
+                <p style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Pending invites</p>
+                <div style={{ background: '#fff', border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden' }}>
+                  {invTeamInvites.map((inv, i) => (
+                    <div key={inv.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 20px', borderTop: i > 0 ? `1px solid ${bdr}` : 'none' }}>
+                      <Mail style={{ width: 15, height: 15, color: muted, flexShrink: 0 }} />
+                      <p style={{ flex: 1, fontSize: 13, color: ink }}>{inv.email}</p>
+                      <span style={{ fontSize: 11, color: muted, textTransform: 'capitalize' }}>{inv.role}</span>
+                      <span style={{ fontSize: 11, color: amber, background: '#FFFBEB', padding: '2px 8px', borderRadius: 999, fontWeight: 600 }}>Pending</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Security */}
+        {activeTab === 'security' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+            {/* Password reset */}
+            <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 14, padding: '20px 22px' }}>
+              <p style={{ fontSize: 15, fontWeight: 700, color: ink, marginBottom: 4 }}>Password</p>
+              <p style={{ fontSize: 13, color: muted, marginBottom: 16 }}>
+                To change your password, we&apos;ll send a reset link to your email.
+              </p>
+              <button
+                onClick={async () => {
+                  const { data: { user } } = await (await import('@/lib/supabase/client')).createClient().auth.getUser()
+                  if (!user?.email) return
+                  const sb = (await import('@/lib/supabase/client')).createClient()
+                  await sb.auth.resetPasswordForEmail(user.email, { redirectTo: `${window.location.origin}/update-password` })
+                  setToast({ msg: 'Password reset email sent', type: 'success' })
+                }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 9, border: `1.5px solid ${bdr}`, background: 'white', color: ink, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
+              >
+                <RefreshCw style={{ height: 13, width: 13 }} />
+                Send password reset email
+              </button>
+            </div>
+
+            {/* Connected accounts */}
+            <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 14, padding: '20px 22px' }}>
+              <p style={{ fontSize: 15, fontWeight: 700, color: ink, marginBottom: 4 }}>Connected accounts</p>
+              <p style={{ fontSize: 13, color: muted, marginBottom: 16 }}>OAuth providers linked to your account.</p>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderRadius: 10, border: `1px solid ${bdr}`, background: 'white' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                    <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
+                    <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853"/>
+                    <path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+                    <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+                  </svg>
+                  <span style={{ fontSize: 13, fontWeight: 500, color: ink }}>Google</span>
+                </div>
+                <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 999, background: '#ECFDF5', color: '#059669' }}>Connected</span>
+              </div>
+            </div>
+
+            {/* Sign out all sessions */}
+            <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 14, padding: '20px 22px' }}>
+              <p style={{ fontSize: 15, fontWeight: 700, color: ink, marginBottom: 4 }}>Sign out everywhere</p>
+              <p style={{ fontSize: 13, color: muted, marginBottom: 16 }}>
+                Revoke all active sessions on other devices. You&apos;ll remain signed in here.
+              </p>
+              <button
+                onClick={async () => {
+                  if (!confirm('Sign out from all other devices?')) return
+                  const sb = (await import('@/lib/supabase/client')).createClient()
+                  await sb.auth.signOut({ scope: 'others' })
+                  setToast({ msg: 'Signed out from all other sessions', type: 'success' })
+                }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 9, border: `1.5px solid ${bdr}`, background: 'white', color: ink, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
+              >
+                <Lock style={{ height: 13, width: 13 }} />
+                Sign out other sessions
+              </button>
+            </div>
+
           </div>
         )}
 

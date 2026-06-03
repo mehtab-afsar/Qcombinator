@@ -41,13 +41,20 @@ export async function POST() {
         .eq('user_id', user.id)
     }
 
+    const investorPriceId = process.env.STRIPE_INVESTOR_PRO_PRICE_ID
+    if (!investorPriceId) {
+      log.error('STRIPE_INVESTOR_PRO_PRICE_ID is not configured')
+      return NextResponse.json({ error: 'Investor Pro pricing is not configured yet. Please contact support.' }, { status: 503 })
+    }
+
     const session = await getStripe().checkout.sessions.create({
       customer: customerId,
       mode: 'subscription',
-      line_items: [{ price: process.env.STRIPE_INVESTOR_PRO_PRICE_ID!, quantity: 1 }],
+      line_items: [{ price: investorPriceId, quantity: 1 }],
+      subscription_data: { trial_period_days: 14 },
       success_url: `${process.env.NEXT_PUBLIC_APP_URL}/investor/billing?success=1`,
       cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/investor/billing`,
-      metadata: { user_id: user.id },
+      metadata: { user_id: user.id, userType: 'investor' },
     })
 
     return NextResponse.json({ url: session.url })
