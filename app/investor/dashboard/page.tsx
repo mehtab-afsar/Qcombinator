@@ -7,7 +7,7 @@ import {
   MessageSquare, ChevronRight, Zap, Star, Clock, Plus,
 } from "lucide-react"
 import { motion } from "framer-motion"
-import { BarChart } from "@tremor/react"
+
 import { bg, surf, bdr, ink, muted, blue, green, amber, alpha } from "@/lib/constants/colors"
 import { PIPELINE_STAGE_COLORS } from "@/features/investor/constants/pipeline"
 import { Avatar } from "@/features/shared/components/Avatar"
@@ -284,39 +284,82 @@ export default function InvestorDashboard() {
         </div>
 
         {/* ── Q-Score distribution chart ───────────────────────────────── */}
-        {d.topFounders.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.55 }}
-            style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 14, padding: "20px 20px 14px", marginBottom: 20 }}
-          >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-              <div>
-                <p style={{ fontSize: 12, fontWeight: 600, color: ink }}>Q-Score Distribution</p>
-                <p style={{ fontSize: 11, color: muted, marginTop: 2 }}>Top {d.topFounders.length} founders in your deal flow</p>
+        {d.topFounders.length > 0 && (() => {
+          const bands = [
+            { range: "0–30",  color: "#EF4444", bg: "#FEF2F2", count: d.topFounders.filter(f => f.qScore < 30).length },
+            { range: "30–50", color: "#F59E0B", bg: "#FFFBEB", count: d.topFounders.filter(f => f.qScore >= 30 && f.qScore < 50).length },
+            { range: "50–70", color: "#3B82F6", bg: "#EFF6FF", count: d.topFounders.filter(f => f.qScore >= 50 && f.qScore < 70).length },
+            { range: "70–85", color: "#10B981", bg: "#F0FDF4", count: d.topFounders.filter(f => f.qScore >= 70 && f.qScore < 85).length },
+            { range: "85+",   color: "#065F46", bg: "#ECFDF5", count: d.topFounders.filter(f => f.qScore >= 85).length },
+          ]
+          const maxCount = Math.max(...bands.map(b => b.count), 1)
+          return (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.55 }}
+              style={{ background: "#fff", border: `1px solid ${bdr}`, borderRadius: 14, padding: "20px 24px 20px", marginBottom: 20 }}
+            >
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
+                <div>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: ink, margin: 0 }}>Q-Score Distribution</p>
+                  <p style={{ fontSize: 11, color: muted, marginTop: 3, margin: 0 }}>
+                    Top {d.topFounders.length} founders in your deal flow
+                  </p>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <span style={{ fontSize: 22, fontWeight: 700, color: green, display: "block", lineHeight: 1 }}>
+                    {d.highSignalCount}
+                  </span>
+                  <span style={{ fontSize: 10, color: muted }}>high-signal (≥60)</span>
+                </div>
               </div>
-              <span style={{ fontSize: 11, color: muted }}>{d.highSignalCount} high-signal (≥60)</span>
-            </div>
-            <BarChart
-              data={[
-                { range: "0–30",  founders: d.topFounders.filter(f => f.qScore < 30).length },
-                { range: "30–50", founders: d.topFounders.filter(f => f.qScore >= 30 && f.qScore < 50).length },
-                { range: "50–70", founders: d.topFounders.filter(f => f.qScore >= 50 && f.qScore < 70).length },
-                { range: "70–85", founders: d.topFounders.filter(f => f.qScore >= 70 && f.qScore < 85).length },
-                { range: "85+",   founders: d.topFounders.filter(f => f.qScore >= 85).length },
-              ]}
-              index="range"
-              categories={["founders"]}
-              colors={["blue"]}
-              className="h-28"
-              showLegend={false}
-              showXAxis={true}
-              showYAxis={false}
-              showGridLines={false}
-            />
-          </motion.div>
-        )}
+
+              {/* bars */}
+              <div style={{ display: "flex", gap: 10, alignItems: "flex-end", height: 100 }}>
+                {bands.map(band => {
+                  const pct = maxCount > 0 ? (band.count / maxCount) * 100 : 0
+                  return (
+                    <div key={band.range} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6, height: "100%" }}>
+                      <span style={{
+                        fontSize: 13, fontWeight: 700, color: band.count > 0 ? band.color : "#D1D5DB",
+                        minHeight: 20, display: "flex", alignItems: "flex-end",
+                      }}>
+                        {band.count > 0 ? band.count : "—"}
+                      </span>
+                      <div style={{ width: "100%", flex: 1, display: "flex", alignItems: "flex-end", minHeight: 40 }}>
+                        <div style={{
+                          width: "100%",
+                          height: `${Math.max(pct, band.count > 0 ? 8 : 0)}%`,
+                          background: band.count > 0 ? band.color : "#F3F4F6",
+                          borderRadius: "6px 6px 3px 3px",
+                          minHeight: band.count > 0 ? 6 : 0,
+                          transition: "height 0.4s ease",
+                        }} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* x-axis labels */}
+              <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+                {bands.map(band => (
+                  <div key={band.range} style={{ flex: 1, textAlign: "center" }}>
+                    <span style={{
+                      fontSize: 10, fontWeight: 500,
+                      color: band.count > 0 ? band.color : muted,
+                      background: band.count > 0 ? band.bg : "transparent",
+                      padding: "2px 4px", borderRadius: 4,
+                    }}>
+                      {band.range}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )
+        })()}
 
         {/* ── Upgrade banner (free tier only) ─────────────────────────── */}
         {d.subscriptionTier === 'free' && (

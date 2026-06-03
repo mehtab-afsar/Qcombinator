@@ -55,8 +55,19 @@ export async function GET() {
       return NextResponse.json({ founders: [], meta: { totalFounders: 0, gated: 0, preferenceFiltered: false } })
     }
 
+    // Strip test/seed/E2E accounts from deal flow — these have synthetic names injected
+    // by the test runner and should never appear to real investors.
+    const TEST_NAME_PATTERNS = /platformtest|debug co|gocarin.*test|syncflow|spendiq.*test|nuvora.*test/i
+    const filteredFounders = founders.filter(f => {
+      const name = (f.startup_name ?? '').toLowerCase()
+      return name.length > 0 && !TEST_NAME_PATTERNS.test(name)
+    })
+    if (filteredFounders.length === 0) {
+      return NextResponse.json({ founders: [], meta: { totalFounders: 0, gated: 0, preferenceFiltered: false } })
+    }
+
     const since7d  = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-    const userIds  = founders.map(f => f.user_id)
+    const userIds  = filteredFounders.map(f => f.user_id)
 
     // ── Step 2: all enrichment queries in one parallel batch ─────────────────
     const [
@@ -119,7 +130,7 @@ export async function GET() {
       'pre_seed': 'Pre-Seed', 'series_a': 'Series A',
     }
 
-    const enriched = founders.map((f) => {
+    const enriched = filteredFounders.map((f) => {
       const qrow          = latestQScore.get(f.user_id) ?? null
       const weeklyActions = activityCountByUser.get(f.user_id) ?? 0
       const deliverableCount = artifactCountByUser.get(f.user_id) ?? 0

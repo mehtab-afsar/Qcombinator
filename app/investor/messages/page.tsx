@@ -299,9 +299,9 @@ export default function InvestorMessagesPage() {
       }}>
         {/* left header */}
         <div style={{ padding: '20px 20px 0', flexShrink: 0 }}>
-          <p style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.18em', color: muted, fontWeight: 600, marginBottom: 4 }}>Investor · Messages</p>
+          <p style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.18em', color: muted, fontWeight: 600, marginBottom: 4 }}>Investor · Inbox</p>
           <h1 style={{ fontSize: 18, fontWeight: 600, color: ink, letterSpacing: '-0.02em', marginBottom: 16 }}>
-            Messages
+            Inbox
           </h1>
           {/* tabs */}
           <div style={{ display: 'flex', gap: 2, padding: '3px', background: surf, border: `1px solid ${bdr}`, borderRadius: 10, marginBottom: 12 }}>
@@ -464,6 +464,17 @@ export default function InvestorMessagesPage() {
               transition={{ duration: 0.15 }}
               style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
             >
+              {/* context banner */}
+              <div style={{
+                padding: '10px 24px', background: '#EFF6FF',
+                borderBottom: `1px solid #BFDBFE`, flexShrink: 0,
+                display: 'flex', alignItems: 'center', gap: 8,
+              }}>
+                <Inbox style={{ height: 13, width: 13, color: '#1D4ED8', flexShrink: 0 }} />
+                <span style={{ fontSize: 12, color: '#1E40AF' }}>
+                  <strong>Connection request</strong> — this founder wants to connect with you. Accept to start messaging, or decline to pass.
+                </span>
+              </div>
               {/* header */}
               <div style={{ padding: '16px 24px', borderBottom: `1px solid ${bdr}`, display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
                 {(() => { const pal = avatarPalette(panel.data.startupName); return (
