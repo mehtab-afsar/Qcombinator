@@ -223,6 +223,16 @@ export async function POST(request: NextRequest) {
     // Fire-and-forget: auto-link to an investor who pre-added this email to their portfolio
     void autoLinkPortfolioByEmail(authData.user.id, email, profile.id, supabaseAdmin)
 
+    // Create welcome notification in DB for the founder (non-blocking but awaited for reliability)
+    void supabaseAdmin.from('notifications').insert({
+      user_id:  authData.user.id,
+      type:     'qscore_update',
+      title:    `Welcome to QCombinator, ${fullName.split(' ')[0]}! 🎉`,
+      body:     'Your profile is set up. Complete your Q-Score profile to appear in investor deal flow.',
+      metadata: { action: 'profile-builder', href: '/founder/profile-builder' },
+      read:     false,
+    })
+
     // Fire-and-forget: send welcome + email confirmation email
     void sendWelcomeAndConfirmEmail({
       email:        email,

@@ -248,6 +248,18 @@ export async function POST(_req: NextRequest) {
       return NextResponse.json({ error: `Score save failed: ${insertErr.message}` }, { status: 500 })
     }
 
+    // Notify the founder that their Q-Score was calculated (non-blocking)
+    void supabase.from('notifications').insert({
+      user_id:  userId,
+      type:     'qscore_update',
+      title:    `Your Q-Score is ${finalScore} (${finalGrade})`,
+      body:     finalScore >= 70
+        ? 'You\'re now visible to investors in deal flow. Keep improving to rise in rankings.'
+        : 'Complete more profile sections to improve your score and unlock investor visibility.',
+      metadata: { score: finalScore, grade: finalGrade, href: '/founder/improve-qscore' },
+      read:     false,
+    }).catch(() => {})
+
     // fire-and-forget: deal-flow notification is non-critical; score save already committed above
     void triggerDealFlowAlerts(userId, finalScore).catch(() => {})
 

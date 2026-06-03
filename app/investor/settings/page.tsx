@@ -17,14 +17,12 @@ import { TabNav } from '@/features/shared/components/TabNav'
 import { PageSpinner } from '@/features/shared/components/Spinner'
 
 // ─── types ────────────────────────────────────────────────────────────────────
-type TabId = 'account' | 'preferences' | 'notifications' | 'team' | 'security'
+type TabId = 'profile' | 'notifications' | 'team'
 
 const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
-  { id: 'account',       label: 'Account',        icon: User    },
-  { id: 'preferences',   label: 'Preferences',    icon: Target  },
-  { id: 'notifications', label: 'Notifications',  icon: Bell    },
-  { id: 'team',          label: 'Team',           icon: Users   },
-  { id: 'security',      label: 'Security',       icon: Shield  },
+  { id: 'profile',       label: 'Profile',        icon: User   },
+  { id: 'notifications', label: 'Notifications',  icon: Bell   },
+  { id: 'team',          label: 'Team',           icon: Users  },
 ]
 
 const SECTOR_OPTIONS = [
@@ -46,7 +44,7 @@ export default function InvestorSettingsPage() {
   const router = useRouter()
   const { settings: initialSettings, loading } = useInvestorSettings()
 
-  const [activeTab, setActiveTab] = useState<TabId>('account')
+  const [activeTab, setActiveTab] = useState<TabId>('profile')
   const [saving,    setSaving]    = useState(false)
   const [toast,     setToast]     = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
 
@@ -312,7 +310,7 @@ export default function InvestorSettingsPage() {
         />
 
         {/* ── account tab ── */}
-        {activeTab === 'account' && (
+        {activeTab === 'profile' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 
             {/* Photo & Logo */}
@@ -396,25 +394,60 @@ export default function InvestorSettingsPage() {
               </div>
             </div>
 
+            {/* ── Security section (inline in Profile tab) ── */}
+            <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden' }}>
+              <div style={{ padding: '16px 20px', borderBottom: `1px solid ${bdr}`, background: surf, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Shield style={{ height: 14, width: 14, color: muted }} />
+                <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>Password & Security</p>
+              </div>
+              <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div>
+                  <p style={{ fontSize: 13, fontWeight: 500, color: ink, marginBottom: 4 }}>Change Password</p>
+                  <p style={{ fontSize: 12, color: muted, marginBottom: 12 }}>We'll send a reset link to your email address.</p>
+                  <button
+                    onClick={async () => {
+                      const { data: { user: u } } = await (await import('@/lib/supabase/client')).createClient().auth.getUser()
+                      if (!u?.email) return
+                      const sb = (await import('@/lib/supabase/client')).createClient()
+                      await sb.auth.resetPasswordForEmail(u.email, { redirectTo: `${window.location.origin}/update-password` })
+                      alert('Password reset email sent')
+                    }}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: `1px solid ${bdr}`, background: 'white', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}
+                  >
+                    <RefreshCw style={{ height: 13, width: 13 }} /> Send password reset email
+                  </button>
+                </div>
+                <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 16 }}>
+                  <p style={{ fontSize: 13, fontWeight: 500, color: ink, marginBottom: 4 }}>Sign Out Everywhere</p>
+                  <p style={{ fontSize: 12, color: muted, marginBottom: 12 }}>Revoke all active sessions on other devices.</p>
+                  <button
+                    onClick={handleSignOut}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: `1px solid ${bdr}`, background: 'white', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}
+                  >
+                    <Lock style={{ height: 13, width: 13 }} /> Sign out other sessions
+                  </button>
+                </div>
+              </div>
+            </div>
+
             {/* danger zone */}
             <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 14, padding: '20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                 <Building2 style={{ height: 14, width: 14, color: red }} />
-                <p style={{ fontSize: 13, fontWeight: 600, color: red }}>Sign Out</p>
+                <p style={{ fontSize: 13, fontWeight: 600, color: red }}>Delete Account</p>
               </div>
-              <p style={{ fontSize: 12, color: muted, marginBottom: 14 }}>Sign out of your investor account.</p>
+              <p style={{ fontSize: 12, color: muted, marginBottom: 14 }}>Permanently delete your account and all associated data.</p>
               <button
-                onClick={handleSignOut}
-                style={{ padding: '8px 18px', borderRadius: 8, border: '1px solid #FECACA', background: 'transparent', color: red, fontSize: 12, fontWeight: 500, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                style={{ padding: '8px 18px', borderRadius: 8, border: 'none', background: red, color: 'white', fontSize: 12, fontWeight: 500, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
               >
-                <LogOut style={{ height: 12, width: 12 }} /> Sign out
+                <LogOut style={{ height: 12, width: 12 }} /> Delete Account
               </button>
             </div>
           </div>
         )}
 
         {/* ── preferences tab ── */}
-        {activeTab === 'preferences' && (
+        {activeTab === 'preferences-removed' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
             {/* Investment Thesis PDF upload — extract sectors/stages/check sizes automatically */}
             <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden' }}>
@@ -851,7 +884,7 @@ export default function InvestorSettingsPage() {
         )}
 
         {/* Security */}
-        {activeTab === 'security' && (
+        {activeTab === 'security-removed' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             {/* Password reset */}

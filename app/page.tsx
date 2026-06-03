@@ -332,19 +332,17 @@ export default function LandingPage() {
             <p style={{ fontSize: "clamp(15px, 1.7vw, 19px)", color: C.muted, lineHeight: 1.75, fontWeight: 300, letterSpacing: "-0.02em", maxWidth: 440, marginBottom: 44 }}>
               Nine AI advisers evaluate your company across six dimensions and give you an investor-readiness score. Raise when you hit&nbsp;70.
             </p>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-              <motion.button onClick={() => router.push("/founder/onboarding")} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-                style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "14px 32px", borderRadius: 10, border: "none", background: C.ink, color: "#fff", fontSize: 15, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", letterSpacing: "-0.01em", boxShadow: "0 1px 3px rgba(0,0,0,0.12), 0 4px 16px rgba(0,0,0,0.08)" }}>
-                Start free <ArrowRight size={15} />
-              </motion.button>
-              <button onClick={() => router.push("/investor/onboarding")}
-                style={{ fontSize: 14, color: C.muted, background: "none", border: `1px solid ${C.bdr}`, borderRadius: 10, padding: "14px 22px", cursor: "pointer", fontFamily: "inherit", letterSpacing: "-0.01em", transition: "all .2s" }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = C.ink; (e.currentTarget as HTMLElement).style.color = C.ink; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = C.bdr; (e.currentTarget as HTMLElement).style.color = C.muted; }}>
-                Investor access →
-              </button>
-            </div>
+            <motion.button onClick={() => router.push("/founder/onboarding")} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+              style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "14px 32px", borderRadius: 10, border: "none", background: C.ink, color: "#fff", fontSize: 15, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", letterSpacing: "-0.01em", boxShadow: "0 1px 3px rgba(0,0,0,0.12), 0 4px 16px rgba(0,0,0,0.08)" }}>
+              Start free <ArrowRight size={15} />
+            </motion.button>
             <p style={{ fontSize: 12, color: C.dim, marginTop: 16, letterSpacing: "0.04em", fontFamily: "monospace" }}>10-minute setup · No credit card needed</p>
+            <button onClick={() => router.push("/investor/onboarding")}
+              style={{ marginTop: 24, fontSize: 13, color: C.muted, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", letterSpacing: "-0.01em", transition: "color .2s", textDecoration: "underline" }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = C.ink; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = C.muted; }}>
+              Are you an investor? →
+            </button>
 
             {/* Stats inline below buttons */}
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.9, duration: 0.7 }}

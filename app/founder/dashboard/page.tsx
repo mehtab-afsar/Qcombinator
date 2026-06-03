@@ -28,6 +28,7 @@ import { useMetrics } from "@/features/founder/hooks/useFounderData";
 import { useDashboardData } from "@/features/founder/hooks/useDashboardData";
 import { agents } from "@/features/agents/data/agents";
 import { WelcomeModal, FOUNDER_WELCOME_SLIDES } from "@/components/ui/WelcomeModal";
+import { X as XIcon, CheckCircle2 } from "lucide-react";
 import { getUpcomingWorkshops } from "@/features/academy/data/workshops";
 import { bg, surf, bdr, ink, muted, blue, green, amber, red, purple, cyan, alpha } from '@/lib/constants/colors'
 import { PageSpinner } from '@/features/shared/components/Spinner'
@@ -385,6 +386,10 @@ export default function FounderDashboard() {
   const { data: dashData, loading: dashLoading, removePendingAction } = useDashboardData();
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [profileBuilderCompleted, setProfileBuilderCompleted] = useState<boolean | null>(null);
+  const [gsDismissed, setGsDismissed] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return localStorage.getItem('qc_gs_dismissed') === '1'
+  });
   const [selectedDimension, setSelectedDimension] = useState<string | null>(null);
   const [publicSlug,  setPublicSlug]  = useState<string | null>(null);
   const [linkCopied,  setLinkCopied]  = useState(false);
@@ -610,12 +615,6 @@ export default function FounderDashboard() {
             <h1 style={{ fontSize: "clamp(1.5rem,3.5vw,2.1rem)", fontWeight: 300, letterSpacing: "-0.03em", color: ink }}>
               {getGreeting((user?.user_metadata?.full_name as string | undefined) ?? user?.email?.split("@")[0])}
             </h1>
-            <Link
-              href="/getting-started"
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, color: muted, textDecoration: "none", padding: "5px 13px", border: `1px solid ${bdr}`, borderRadius: 999 }}
-            >
-              Getting Started Guide ↗
-            </Link>
             {isDemo && (
               <div style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "5px 14px", background: surf, border: `1px solid ${bdr}`, borderRadius: 999, fontSize: 11, color: muted }}>
                 <span style={{ height: 6, width: 6, background: amber, borderRadius: "50%", display: "inline-block", flexShrink: 0 }} />
@@ -630,6 +629,64 @@ export default function FounderDashboard() {
             )}
           </div>
         </motion.div>
+
+        {/* ── Getting Started card (dismissable, shows until profile builder done) ── */}
+        {!gsDismissed && profileBuilderCompleted === false && (
+          <div style={{
+            background: "#fff", border: "1px solid rgba(0,0,0,0.09)",
+            borderRadius: 14, padding: "20px 22px", marginBottom: 20,
+            boxShadow: "0 2px 12px rgba(0,0,0,0.05)",
+          }}>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 }}>
+              <div>
+                <h3 style={{ fontSize: 15, fontWeight: 700, color: ink, margin: "0 0 3px", letterSpacing: "-0.01em" }}>
+                  Get investor-ready in 4 steps
+                </h3>
+                <p style={{ fontSize: 12, color: muted, margin: 0 }}>Complete these to appear in investor deal flow</p>
+              </div>
+              <button
+                onClick={() => { localStorage.setItem("qc_gs_dismissed", "1"); setGsDismissed(true) }}
+                style={{ background: "none", border: "none", cursor: "pointer", color: muted, padding: 2, display: "flex" }}
+              >
+                <XIcon size={16} />
+              </button>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>
+              {[
+                { done: true,  label: "Account created",         href: null,                           sub: "Done ✓" },
+                { done: true,  label: "Startup info added",       href: null,                           sub: "Done ✓" },
+                { done: false, label: "Complete Q-Score profile", href: "/founder/profile-builder",     sub: "~10 min · Unlocks investor visibility" },
+                { done: false, label: "Invite a co-founder",      href: "/founder/settings?tab=team",   sub: "Optional · Team credibility signal" },
+              ].map(item => (
+                <div key={item.label} style={{
+                  display: "flex", alignItems: "flex-start", gap: 10,
+                  padding: "12px 14px", borderRadius: 10,
+                  background: item.done ? "#F0FDF4" : "#FAFAF8",
+                  border: `1px solid ${item.done ? "#A7F3D0" : "rgba(0,0,0,0.08)"}`,
+                }}>
+                  <div style={{ flexShrink: 0, marginTop: 1 }}>
+                    {item.done
+                      ? <CheckCircle2 size={16} color="#059669" />
+                      : <div style={{ width: 16, height: 16, borderRadius: "50%", border: "2px solid rgba(0,0,0,0.2)" }} />
+                    }
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: item.done ? "#059669" : ink, margin: "0 0 2px", textDecoration: item.done ? "line-through" : "none" }}>
+                      {item.label}
+                    </p>
+                    <p style={{ fontSize: 11, color: muted, margin: 0 }}>{item.sub}</p>
+                    {!item.done && item.href && (
+                      <Link href={item.href} style={{ fontSize: 11, color: blue, fontWeight: 600, textDecoration: "none", marginTop: 4, display: "inline-block" }}>
+                        Start →
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* ── empty state (real score is 0, profile builder unknown/done) ─ */}
         {!isDemo && qs.overall === 0 && profileBuilderCompleted !== false && (

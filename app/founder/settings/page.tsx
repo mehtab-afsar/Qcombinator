@@ -18,16 +18,12 @@ import { bg, surf, bdr, ink, muted, blue, green, red } from '@/lib/constants/col
 import { Avatar } from '@/features/shared/components/Avatar'
 import { TabNav } from '@/features/shared/components/TabNav'
 
-type TabId = 'account' | 'company' | 'notifications' | 'integrations' | 'data' | 'team' | 'security';
+type TabId = 'profile' | 'notifications' | 'team';
 
 const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
-  { id: 'account',       label: 'Account',        icon: User      },
-  { id: 'company',       label: 'Company',        icon: Building2 },
-  { id: 'notifications', label: 'Notifications',  icon: Bell      },
-  { id: 'team',          label: 'Team',           icon: Users     },
-  { id: 'security',      label: 'Security',       icon: Shield    },
-  { id: 'integrations',  label: 'Integrations',   icon: Plug      },
-  { id: 'data',          label: 'Data & Privacy', icon: Lock      },
+  { id: 'profile',       label: 'Profile',        icon: User   },
+  { id: 'notifications', label: 'Notifications',  icon: Bell   },
+  { id: 'team',          label: 'Team',           icon: Users  },
 ];
 
 // ─── connectors data ──────────────────────────────────────────────────────────
@@ -45,7 +41,7 @@ function SettingsInner() {
   const urlTab   = params.get('tab') as TabId | null;
 
   const { loading } = useFounderData();
-  const [activeTab, setActiveTab] = useState<TabId>(urlTab ?? 'account');
+  const [activeTab, setActiveTab] = useState<TabId>((urlTab === 'account' || urlTab === 'company' || urlTab === 'security' || urlTab === 'data' || urlTab === 'integrations') ? 'profile' : (urlTab ?? 'profile'));
 
   // Sync from URL
   useEffect(() => {
@@ -370,7 +366,7 @@ function SettingsInner() {
         >
 
           {/* Account */}
-          {activeTab === 'account' && (
+          {activeTab === 'profile' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               <SettingsCard title="Profile Photo & Logo" description="Upload your profile photo and company logo">
                 <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
@@ -425,11 +421,69 @@ function SettingsInner() {
                 <SaveButton onClick={handleSaveAccount} loading={saving} />
               </SettingsCard>
 
+              {/* ── Security (inline in Profile tab) ── */}
+              <SettingsCard title="Password & Security" description="Manage your account security">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div>
+                    <p style={{ fontSize: 13, fontWeight: 500, color: ink, marginBottom: 4 }}>Change Password</p>
+                    <p style={{ fontSize: 12, color: muted, marginBottom: 12 }}>We&apos;ll send a reset link to your email address.</p>
+                    <OutlineButton
+                      onClick={async () => {
+                        const { data: { user: u } } = await (await import('@/lib/supabase/client')).createClient().auth.getUser()
+                        if (!u?.email) return
+                        const sb = (await import('@/lib/supabase/client')).createClient()
+                        await sb.auth.resetPasswordForEmail(u.email, { redirectTo: `${window.location.origin}/update-password` })
+                        showToast('Password reset email sent')
+                      }}
+                    >
+                      <RefreshCw style={{ height: 13, width: 13 }} /> Send password reset email
+                    </OutlineButton>
+                  </div>
+                  <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 16 }}>
+                    <p style={{ fontSize: 13, fontWeight: 500, color: ink, marginBottom: 4 }}>Sign Out Everywhere</p>
+                    <p style={{ fontSize: 12, color: muted, marginBottom: 12 }}>Revoke all active sessions on other devices.</p>
+                    <OutlineButton
+                      onClick={async () => {
+                        if (!confirm('Sign out from all other devices?')) return
+                        const sb = (await import('@/lib/supabase/client')).createClient()
+                        await sb.auth.signOut({ scope: 'others' })
+                        showToast('Signed out from all other sessions')
+                      }}
+                    >
+                      <Lock style={{ height: 13, width: 13 }} /> Sign out other sessions
+                    </OutlineButton>
+                  </div>
+                </div>
+              </SettingsCard>
+
+              {/* ── Danger zone (inline in Profile tab) ── */}
+              <SettingsCard title="Data & Account" description="Export your data or delete your account">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div>
+                    <p style={{ fontSize: 13, fontWeight: 500, color: ink, marginBottom: 4 }}>Export Your Data</p>
+                    <p style={{ fontSize: 12, color: muted, marginBottom: 12 }}>Download all your data as JSON</p>
+                    <OutlineButton onClick={handleExportData}>
+                      <Download style={{ height: 13, width: 13 }} /> Export Data
+                    </OutlineButton>
+                  </div>
+                  <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 16 }}>
+                    <p style={{ fontSize: 12, fontWeight: 600, color: red, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Danger Zone</p>
+                    <p style={{ fontSize: 12, color: muted, marginBottom: 14 }}>Permanently delete your account and all associated data</p>
+                    <button
+                      onClick={handleDeleteAccount}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 20px', background: red, color: '#fff', border: 'none', borderRadius: 999, fontSize: 12, fontWeight: 500, cursor: 'pointer' }}
+                    >
+                      <Trash2 style={{ height: 13, width: 13 }} /> Delete Account
+                    </button>
+                  </div>
+                </div>
+              </SettingsCard>
+
             </div>
           )}
 
-          {/* Company */}
-          {activeTab === 'company' && (
+          {/* Company (merged into Profile tab above — this block now hidden) */}
+          {activeTab === 'company-removed' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               <SettingsCard title="Company Details" description="Manage your startup information">
                 <FieldRow label="Company Name">
@@ -611,8 +665,8 @@ function SettingsInner() {
             </div>
           )}
 
-          {/* Integrations */}
-          {activeTab === 'integrations' && (
+          {/* Integrations — removed (MCP integration planned for later) */}
+          {activeTab === 'integrations-removed' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div style={{ marginBottom: 8 }}>
                 <p style={{ fontSize: 13, color: muted }}>
@@ -669,8 +723,8 @@ function SettingsInner() {
             </div>
           )}
 
-          {/* Data & Privacy */}
-          {activeTab === 'data' && (
+          {/* Data & Privacy — merged into Profile tab */}
+          {activeTab === 'data-removed' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <SettingsCard title="Data Management" description="Export or manage your data">
                 {/* Export */}
@@ -718,8 +772,8 @@ function SettingsInner() {
             </div>
           )}
 
-          {/* Security */}
-          {activeTab === 'security' && (
+          {/* Security — merged into Profile tab */}
+          {activeTab === 'security-removed' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <SettingsCard title="Password" description="Update your account password">
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>

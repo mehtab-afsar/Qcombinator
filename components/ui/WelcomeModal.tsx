@@ -55,7 +55,7 @@ export function WelcomeModal({ storageKey, slides, onDone }: Props) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            style={{ position: 'fixed', inset: 0, zIndex: 9000, background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(4px)' }}
+            style={{ position: 'fixed', inset: 0, zIndex: 9998, background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(4px)' }}
             onClick={dismiss}
           />
 
@@ -67,7 +67,7 @@ export function WelcomeModal({ storageKey, slides, onDone }: Props) {
             style={{
               position: 'fixed', top: '50%', left: '50%',
               transform: 'translate(-50%, -50%)',
-              zIndex: 9001, width: '100%', maxWidth: 420,
+              zIndex: 9999, width: '100%', maxWidth: 420,
               background: bg, borderRadius: 20,
               border: `1px solid ${bdr}`,
               boxShadow: '0 24px 64px rgba(0,0,0,0.16)',
@@ -176,7 +176,7 @@ export const FOUNDER_WELCOME_SLIDES: Slide[] = [
     emoji:   '🤖',
     heading: 'Your AI advisors are ready',
     body:    'CXO Agents are your always-on team. Ask Patel (CMO) for growth strategy, Felix (CFO) for financial models, or Maya (Brand) for positioning.',
-    cta:     { label: 'Go to my checklist', href: '/founder/getting-started' },
+    cta:     { label: 'Start profile builder', href: '/founder/profile-builder' },
   },
 ]
 
@@ -190,13 +190,13 @@ export const INVESTOR_WELCOME_SLIDES: Slide[] = [
   {
     emoji:   '🔍',
     heading: 'Your criteria drives the matching',
-    body:    'We\'ve personalized your deal flow based on the sectors, stages, and check sizes you entered. Update them anytime in Preferences.',
+    body:    'We\'ve personalized your deal flow based on the sectors, stages, and check sizes you entered. Update them anytime in settings.',
     cta:     undefined,
   },
   {
     emoji:   '🚀',
     heading: 'You\'re live — explore your matches',
     body:    'Founders with strong Q-Scores in your sectors are ready to connect. Send a connection request to start a conversation.',
-    cta:     { label: 'View deal flow', href: '/investor/dashboard' },
+    cta:     { label: 'View deal flow', href: '/investor/deal-flow' },
   },
 ]
