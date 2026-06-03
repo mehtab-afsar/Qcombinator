@@ -20,6 +20,7 @@ export async function POST(request: NextRequest) {
       email, password, fullName,
       startupName, companyName, website, industry, stage,
       revenueStatus, fundingStatus, teamSize, founderName,
+      teamToken,
       problemStatement, targetCustomer, location, tagline,
     } = parsed.data;
 
@@ -186,6 +187,35 @@ export async function POST(request: NextRequest) {
 
     // Track signup — fire-and-forget, never block the response
     void Promise.resolve().then(() => trackFounderSignedUp(authData.user.id, { method: 'email' }))
+
+    // Auto-join a team workspace if a teamToken was provided (invite link signup)
+    if (teamToken) {
+      void (async () => {
+        try {
+          const { data: invite } = await supabaseAdmin
+            .from('team_invites')
+            .select('id, startup_id, role, expires_at, accepted_at')
+            .eq('token', teamToken)
+            .maybeSingle()
+          if (invite && !invite.accepted_at && new Date(invite.expires_at) > new Date()) {
+            await supabaseAdmin.from('startup_members').upsert(
+              { startup_id: invite.startup_id, user_id: authData.user.id, role: invite.role },
+              { onConflict: 'startup_id,user_id', ignoreDuplicates: true }
+            )
+            await supabaseAdmin
+              .from('founder_profiles')
+              .update({ startup_id: invite.startup_id })
+              .eq('user_id', authData.user.id)
+            await supabaseAdmin
+              .from('team_invites')
+              .update({ accepted_at: new Date().toISOString() })
+              .eq('id', invite.id)
+          }
+        } catch (err) {
+          log.warn('[signup] teamToken auto-join failed (non-fatal)', { err: (err as Error)?.message })
+        }
+      })()
+    }
 
     // Fire-and-forget: clean + summarise onboarding text in background (~2–5s)
     void enrichOnboardingText(authData.user.id, problemStatement, targetCustomer, supabaseAdmin)

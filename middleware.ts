@@ -82,7 +82,7 @@ const PUBLIC_PATHS = [
 ]
 
 // Prefixes that are always public (no session refresh needed)
-const PUBLIC_PREFIXES = ['/s/', '/apply/', '/pitch/', '/_next/', '/favicon.ico']
+const PUBLIC_PREFIXES = ['/s/', '/apply/', '/pitch/', '/q/', '/investor/join', '/_next/', '/favicon.ico']
 
 function isPublicRoute(pathname: string): boolean {
   if (PUBLIC_PREFIXES.some(prefix => pathname.startsWith(prefix))) return true

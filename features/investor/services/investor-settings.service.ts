@@ -19,6 +19,10 @@ export interface InvestorSettingsData {
   highQScore: boolean
   connectionReq: boolean
   weeklyDigest: boolean
+  emailNotifications: boolean
+  qscoreUpdates: boolean
+  investorMessages: boolean
+  runwayAlerts: boolean
 }
 
 export async function loadInvestorSettings(): Promise<InvestorSettingsData | null> {

@@ -335,3 +335,46 @@ export async function sendPortfolioInviteEmail(params: PortfolioInviteParams): P
 
   if (error) log.error('[email] sendPortfolioInviteEmail failed:', error)
 }
+
+// ─── Team invite email ────────────────────────────────────────────────────────
+
+export interface TeamInviteEmailParams {
+  toEmail:     string
+  inviterName: string
+  startupName: string
+  role:        string
+  token:       string
+}
+
+export async function sendTeamInviteEmail(params: TeamInviteEmailParams): Promise<void> {
+  const resend = getResend()
+  if (!resend) return
+
+  const { toEmail, inviterName, startupName, role, token } = params
+  const joinUrl  = `${APP_URL}/founder/join?teamToken=${token}`
+  const roleLabel: Record<string, string> = { admin: 'Co-founder (Admin)', member: 'Team Member', viewer: 'Viewer' }
+
+  const html = emailShell(`
+    <h1 style="font-size:24px;font-weight:700;margin:0 0 12px">You're invited to ${startupName}</h1>
+    <p style="font-size:15px;line-height:1.7;color:#18160F;margin:0 0 8px">
+      <strong>${inviterName}</strong> has invited you to join <strong>${startupName}</strong> on Edge Alpha as <strong>${roleLabel[role] ?? role}</strong>.
+    </p>
+    <p style="font-size:14px;line-height:1.6;color:#8A867C;margin:0 0 28px">
+      Edge Alpha is an AI advisory platform — your team will get an AI CMO, CFO, CPO and 8 more C-suite advisors, a Q-Score tracking your startup's readiness, and access to 500+ investors.
+    </p>
+    ${ctaBtn(joinUrl, 'Accept invite →')}
+    <p style="font-size:12px;color:#8A867C;margin:24px 0 0;line-height:1.6">
+      Link expires in 7 days. Copy it if the button doesn't work:<br>
+      <a href="${joinUrl}" style="color:#2563EB;word-break:break-all">${joinUrl}</a>
+    </p>
+  `)
+
+  const { error } = await resend.emails.send({
+    from:    FROM,
+    to:      toEmail,
+    subject: `${inviterName} invited you to join ${startupName} on Edge Alpha`,
+    html,
+  })
+
+  if (error) log.error('[email] sendTeamInviteEmail failed:', error)
+}

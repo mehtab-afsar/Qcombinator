@@ -62,6 +62,8 @@ export interface AgentWorkspaceState {
   uploadingFile:        boolean
   fileUploadError:      string | null
   contextCompressed:    { droppedCount: number } | null
+  pendingApproval:      { toolName: string; label: string; preview: Record<string, unknown> } | null
+  dismissApproval:      () => void
   limitReached:         boolean
   attachFile:           (file: File) => Promise<void>
   removeFile:           (id: string) => void
@@ -97,7 +99,8 @@ export function useAgentWorkspace(agentId: string): AgentWorkspaceState {
   const [pendingFiles,   setPendingFiles]  = useState<PendingFile[]>([])
   const [uploadingFile,  setUploadingFile] = useState(false)
   const [fileUploadError, setFileUploadError] = useState<string | null>(null)
-  const [contextCompressed, setContextCompressed] = useState<{ droppedCount: number } | null>(null)
+  const [contextCompressed,  setContextCompressed]  = useState<{ droppedCount: number } | null>(null)
+  const [pendingApproval,    setPendingApproval]    = useState<{ toolName: string; label: string; preview: Record<string, unknown> } | null>(null)
   const [limitReached,   setLimitReached]   = useState(false)
 
   const bottomRef        = useRef<HTMLDivElement>(null)
@@ -384,6 +387,12 @@ export function useAgentWorkspace(agentId: string): AgentWorkspaceState {
           } else if (evt.type === 'done' && evt.conversationId) {
             setConvId(evt.conversationId as string)
             refreshConversations()
+          } else if (evt.type === 'approval_required') {
+            setPendingApproval({
+              toolName: evt.toolName as string,
+              label:    evt.label as string,
+              preview:  (evt.preview ?? {}) as Record<string, unknown>,
+            })
           } else if (evt.type === 'debug_db_error') {
             console.error('[DB save error]', evt.toolName, 'code:', evt.code, 'message:', evt.message)
           }
@@ -436,7 +445,9 @@ export function useAgentWorkspace(agentId: string): AgentWorkspaceState {
     input, setInput, typing, showPrompts, loading,
     artifacts, actions, extracting, scoreBoost, latestArtifact,
     conversations,
-    pendingFiles, uploadingFile, fileUploadError, contextCompressed, attachFile, removeFile,
+    pendingFiles, uploadingFile, fileUploadError, contextCompressed,
+    pendingApproval, dismissApproval: () => setPendingApproval(null),
+    limitReached, attachFile, removeFile,
     send, handleKeyDown, toggleAction, extractActions,
     switchConversation, newConversation,
     bottomRef,

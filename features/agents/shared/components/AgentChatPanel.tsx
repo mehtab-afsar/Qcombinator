@@ -9,6 +9,7 @@ import { bg, bdr, ink, muted } from '../constants/colors'
 import type { SourceItem } from '../hooks/useAgentWorkspace'
 import { renderArtifactContent } from '../utils/renderArtifactContent'
 import type { ArtifactRecord } from '../hooks/useAgentWorkspace'
+import { getSkillsForAgent, expandSkillPrompt, type Skill } from '@/lib/agents/skills/registry'
 
 // ─── markdown renderer ────────────────────────────────────────────────────────
 
@@ -558,7 +559,7 @@ const ACCEPTED_FILE_TYPES = '.pdf,.docx,.xlsx,.pptx,.csv,.txt,.rtf,.doc,.ppt,.od
 
 function InputBar({
   value, onChange, onKeyDown, onSend, disabled, placeholder, accent,
-  pendingFiles, uploadingFile, fileUploadError, onAttachFile, onRemoveFile,
+  pendingFiles, uploadingFile, fileUploadError, onAttachFile, onRemoveFile, agentId,
 }: {
   value:            string
   onChange:         (v: string) => void
@@ -572,12 +573,60 @@ function InputBar({
   fileUploadError:  string | null
   onAttachFile:     (file: File) => void
   onRemoveFile:     (id: string) => void
+  agentId:          string
 }) {
   const [focused, setFocused] = React.useState(false)
+  const [slashSkills, setSlashSkills] = React.useState<Skill[]>([])
+  const [slashIdx, setSlashIdx] = React.useState(0)
   const hasText = value.trim().length > 0
   const canSend = (hasText || pendingFiles.length > 0) && !uploadingFile
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
+
+  // Slash command autocomplete — fires when input starts with '/'
+  React.useEffect(() => {
+    if (!value.startsWith('/')) { setSlashSkills([]); return }
+    const query = value.slice(1).toLowerCase()
+    const allSkills = getSkillsForAgent(agentId)
+    setSlashSkills(allSkills.filter(s =>
+      s.command.includes(query) || s.label.toLowerCase().includes(query)
+    ))
+    setSlashIdx(0)
+  }, [value, agentId])
+
+  function selectSkill(skill: Skill) {
+    const trigger = `/${skill.command} `
+    onChange(trigger)
+    setSlashSkills([])
+    setTimeout(() => textareaRef.current?.focus(), 0)
+  }
+
+  function handleKeyDownWithSlash(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (slashSkills.length > 0) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setSlashIdx(i => Math.min(i + 1, slashSkills.length - 1)); return }
+      if (e.key === 'ArrowUp')   { e.preventDefault(); setSlashIdx(i => Math.max(i - 1, 0)); return }
+      if (e.key === 'Tab' || e.key === 'Enter') {
+        const skill = slashSkills[slashIdx]
+        if (skill) { e.preventDefault(); selectSkill(skill); return }
+      }
+      if (e.key === 'Escape') { setSlashSkills([]); return }
+    }
+    // Expand skill if user sends with a recognized slash command
+    if (e.key === 'Enter' && !e.shiftKey && value.startsWith('/')) {
+      const parts = value.slice(1).split(' ')
+      const cmd   = parts[0]
+      const arg   = parts.slice(1).join(' ')
+      const skill = getSkillsForAgent(agentId).find(s => s.command === cmd)
+      if (skill && arg.trim()) {
+        e.preventDefault()
+        onChange(expandSkillPrompt(skill, arg))
+        setSlashSkills([])
+        setTimeout(() => onSend(), 0)
+        return
+      }
+    }
+    onKeyDown(e)
+  }
 
   React.useEffect(() => {
     const el = textareaRef.current
@@ -594,7 +643,46 @@ function InputBar({
 
   return (
     <div style={{ flexShrink: 0, padding: '10px 40px 20px', background: bg }}>
-      <div style={{ maxWidth: 760, margin: '0 auto' }}>
+      <div style={{ maxWidth: 760, margin: '0 auto', position: 'relative' }}>
+
+        {/* slash command autocomplete dropdown */}
+        {slashSkills.length > 0 && (
+          <div style={{
+            position: 'absolute', bottom: '100%', left: 0, right: 0, zIndex: 50,
+            background: bg, border: `1px solid ${bdr}`, borderRadius: 10,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.10)', overflow: 'hidden',
+            marginBottom: 6,
+          }}>
+            <div style={{ padding: '6px 12px 4px', borderBottom: `1px solid ${bdr}` }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: muted, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Skills</span>
+            </div>
+            {slashSkills.map((skill, i) => (
+              <button
+                key={skill.command}
+                onClick={() => selectSkill(skill)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                  padding: '9px 14px', background: i === slashIdx ? `${bdr}` : 'transparent',
+                  border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
+                  borderBottom: i < slashSkills.length - 1 ? `1px solid ${bdr}` : 'none',
+                }}
+                onMouseEnter={() => setSlashIdx(i)}
+              >
+                <span style={{ fontSize: 18, lineHeight: 1 }}>{skill.icon}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: ink }}>/{skill.command}</span>
+                    {skill.argPlaceholder && (
+                      <span style={{ fontSize: 11, color: muted }}>{skill.argPlaceholder}</span>
+                    )}
+                  </div>
+                  <p style={{ fontSize: 11, color: muted, margin: '1px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{skill.description}</p>
+                </div>
+                <span style={{ fontSize: 10, color: muted, flexShrink: 0 }}>↵</span>
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* file chips */}
         {pendingFiles.length > 0 && (
@@ -679,9 +767,9 @@ function InputBar({
             ref={textareaRef}
             value={value}
             onChange={e => onChange(e.target.value)}
-            onKeyDown={onKeyDown}
+            onKeyDown={handleKeyDownWithSlash}
             onFocus={() => setFocused(true)}
-            onBlur={() => setFocused(false)}
+            onBlur={() => { setFocused(false); setTimeout(() => setSlashSkills([]), 150) }}
             placeholder={placeholder}
             rows={1}
             style={{
@@ -1036,6 +1124,73 @@ export function AgentChatPanel({
           </div>
         </div>
 
+        {/* upgrade gate — shown when monthly limit is reached */}
+        <AnimatePresence>
+          {workspace.limitReached && (
+            <motion.div
+              key="upgrade-gate"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              style={{
+                flexShrink: 0, margin: '0 40px 12px',
+                padding: '18px 20px',
+                background: '#1e1b4b',
+                borderRadius: 14,
+                display: 'flex', alignItems: 'center', gap: 16,
+              }}
+            >
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#e0e7ff', marginBottom: 4 }}>
+                  You&apos;ve used your 50 free sessions this month
+                </div>
+                <div style={{ fontSize: 12, color: '#a5b4fc', lineHeight: 1.5 }}>
+                  Upgrade to Premium for $29/mo — 500 sessions, unlimited investor connections, and priority model access.
+                </div>
+              </div>
+              <a
+                href="/founder/billing"
+                style={{
+                  flexShrink: 0, padding: '9px 18px',
+                  background: '#6366f1', color: '#fff',
+                  borderRadius: 10, fontSize: 13, fontWeight: 700,
+                  textDecoration: 'none', whiteSpace: 'nowrap',
+                }}
+              >
+                Upgrade →
+              </a>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* approval required banner */}
+        <AnimatePresence>
+          {workspace.pendingApproval && (
+            <motion.div
+              key="approval-required"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 6 }}
+              style={{
+                flexShrink: 0, margin: '0 40px 6px',
+                padding: '12px 16px',
+                background: '#FFF7ED', border: '1px solid #FED7AA',
+                borderRadius: 10, fontSize: 13, color: '#7C2D12',
+                display: 'flex', alignItems: 'center', gap: 10,
+              }}
+            >
+              <span style={{ fontSize: 16 }}>⚡</span>
+              <div style={{ flex: 1 }}>
+                <p style={{ fontWeight: 600, margin: '0 0 2px' }}>Action pending approval: {workspace.pendingApproval.label}</p>
+                <p style={{ fontSize: 11.5, color: '#9A3412', margin: 0 }}>Review and confirm in your Actions panel before this sends.</p>
+              </div>
+              <button
+                onClick={workspace.dismissApproval}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9A3412', fontSize: 16, padding: 4, lineHeight: 1 }}
+              >×</button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* context compression notice */}
         <AnimatePresence>
           {workspace.contextCompressed && (
@@ -1064,14 +1219,15 @@ export function AgentChatPanel({
           onChange={workspace.setInput}
           onKeyDown={workspace.handleKeyDown}
           onSend={() => workspace.send()}
-          disabled={workspace.typing}
-          placeholder={`Message ${name}…`}
+          disabled={workspace.typing || workspace.limitReached}
+          placeholder={workspace.limitReached ? 'Upgrade to continue chatting…' : `Message ${name}…`}
           accent={accent}
           pendingFiles={workspace.pendingFiles}
           uploadingFile={workspace.uploadingFile}
           fileUploadError={workspace.fileUploadError}
           onAttachFile={workspace.attachFile}
           onRemoveFile={workspace.removeFile}
+          agentId={agentId}
         />
       </div>
     </div>

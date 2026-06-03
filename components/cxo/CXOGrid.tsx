@@ -2,10 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { Lock } from 'lucide-react';
 import { CXOCard } from './CXOCard';
 import { CXO_CONFIGS } from '@/lib/cxo/cxo-config';
 import { ALL_AGENT_IDS } from '@/lib/constants/agent-ids';
 import { createClient } from '@/lib/supabase/client';
+import { useTeamRole } from '@/lib/team/useTeamRole';
+import { canAccessAgent } from '@/lib/team/permissions';
+import type { TeamRole } from '@/lib/team/permissions';
 
 const ink   = '#18160F';
 const muted = '#8A867C';
@@ -51,6 +55,7 @@ export function CXOGrid({ userId, qScoreBreakdown }: CXOGridProps) {
   const router = useRouter();
   const [artifacts, setArtifacts] = useState<AgentArtifact[]>([]);
   const [loading,   setLoading]   = useState(true);
+  const { role: teamRole } = useTeamRole();
 
   useEffect(() => {
     if (!userId) return;
@@ -128,10 +133,29 @@ export function CXOGrid({ userId, qScoreBreakdown }: CXOGridProps) {
           const config = CXO_CONFIGS[agentId];
           if (!config) return null;
 
-          const primaryDim      = CXO_PRIMARY_DIMENSION[agentId];
-          const hasChallenge    = bottom3Dims.includes(primaryDim);
-          const artifactCount   = countsByAgent[agentId] ?? 0;
-          const latestTitle     = latestByAgent[agentId];
+          const primaryDim    = CXO_PRIMARY_DIMENSION[agentId];
+          const hasChallenge  = bottom3Dims.includes(primaryDim);
+          const artifactCount = countsByAgent[agentId] ?? 0;
+          const latestTitle   = latestByAgent[agentId];
+          const isLocked      = teamRole !== null && !canAccessAgent(teamRole as TeamRole, agentId);
+
+          if (isLocked) {
+            return (
+              <div key={agentId} style={{ border: '1px solid #E2DDD5', borderRadius: 10, background: '#FAFAF9', padding: '0 0 18px', overflow: 'hidden', opacity: 0.6, cursor: 'not-allowed', fontFamily: 'system-ui, sans-serif' }}>
+                <div style={{ height: 4, background: '#E2DDD5' }} />
+                <div style={{ padding: '16px 18px 0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <p style={{ fontSize: 14, fontWeight: 700, color: '#8A867C', margin: 0 }}>{config.role.split(' — ')[0]}</p>
+                    <Lock style={{ width: 13, height: 13, color: '#8A867C' }} />
+                  </div>
+                  <p style={{ fontSize: 12, color: '#C0BDB5', margin: '0 0 14px' }}>{config.name}</p>
+                  <div style={{ borderTop: '1px solid #E2DDD5', paddingTop: 10 }}>
+                    <p style={{ fontSize: 11, color: '#C0BDB5', margin: 0 }}>Owners &amp; Admins only</p>
+                  </div>
+                </div>
+              </div>
+            );
+          }
 
           return (
             <CXOCard

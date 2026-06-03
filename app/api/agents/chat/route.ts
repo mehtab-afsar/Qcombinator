@@ -265,6 +265,12 @@ CONVERSATION RULES:
     const EXEC_TOOLS = new Set([
       'send_outreach_sequence', 'initiate_voice_call', 'vapi_call', 'bulk_enrich_pipeline', 'schedule_followup', 'create_deal',
     ]);
+    // These exec tools require explicit founder confirmation before firing.
+    // The SSE stream emits approval_required and pauses — the client stores
+    // the pending action in pending_actions and the founder approves from the UI.
+    const APPROVAL_REQUIRED_TOOLS = new Set([
+      'send_outreach_sequence', 'bulk_enrich_pipeline',
+    ]);
     const TOOL_LABELS: Record<string, string> = {
       apollo_search:          'Searching Apollo for leads',
       posthog_query:          'Pulling analytics from PostHog',
@@ -355,6 +361,7 @@ CONVERSATION RULES:
 
           if (sourcesUsed.length > 0) send({ type: 'sources_used', sources: sourcesUsed });
           if (compressionInfo.applied) send({ type: 'context_compressed', droppedCount: compressionInfo.droppedCount });
+          if (wasCompacted) send({ type: 'context_compressed', droppedCount: 0 });
 
           let loopMessages = [...messages] as Array<{ role: string; content: string | ContentBlock[] }>;
           let chatReply = '';
@@ -439,6 +446,28 @@ CONVERSATION RULES:
                 continue;
 
               } else if (EXEC_TOOLS.has(toolName)) {
+                // Gate destructive actions behind founder approval
+                if (APPROVAL_REQUIRED_TOOLS.has(toolName) && userId) {
+                  try {
+                    await supabaseAdmin.from('pending_actions').insert({
+                      user_id:     userId,
+                      agent_id:    agentId,
+                      action_type: toolName,
+                      payload:     toolCtx,
+                      status:      'pending',
+                    })
+                  } catch { /* non-blocking — approval_required still fires */ }
+                  send({
+                    type:       'approval_required',
+                    toolName,
+                    label:      TOOL_LABELS[toolName] ?? toolName,
+                    preview:    toolCtx,
+                  } as Parameters<typeof send>[0])
+                  send({ type: 'delta', text: `\n\nI've prepared the ${TOOL_LABELS[toolName]?.toLowerCase() ?? toolName} action and it's waiting for your approval. You can review and confirm it in the actions panel.` })
+                  loopState = 'exec_break'
+                  break
+                }
+
                 send({ type: 'tool_start', toolName, label: TOOL_LABELS[toolName] ?? toolName });
                 try {
                   const execResult = await runExecTool(toolName, toolCtx, { userId, supabaseAdmin, agentId, existingConversationId });

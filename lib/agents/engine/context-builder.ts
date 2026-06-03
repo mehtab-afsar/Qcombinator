@@ -23,9 +23,60 @@ import { buildPatelQuestionBank } from '@/lib/agents/patel-question-bank'
 import { getAgentById } from '@/features/agents/data/agents'
 import { FF_CROSS_AGENT_ORCHESTRATION } from '@/lib/feature-flags'
 import type { PatelScores, PatelConfidence } from '@/lib/constants/patel-indicators'
+import type { AgentMemory } from '@/lib/agents/memory-loader'
 import { log } from '@/lib/logger'
 
 export type SourceItem = { label: string; type: 'profile' | 'memory' | 'artifact' | 'cross_agent' }
+
+/**
+ * Builds the structured memory block injected at the top of the system prompt.
+ * Each category is labelled separately so the model can distinguish confirmed
+ * facts from hypotheses and open threads from style preferences.
+ */
+function buildMemoryBlock(mem: AgentMemory, agentId: string): string {
+  const sections: string[] = []
+
+  const header = `YOU AND THIS FOUNDER (session ${mem.session_count}, relationship: ${mem.relationship_tier}):`
+  sections.push(header)
+
+  // General summary — the prose overview
+  const summary = (mem.key_facts ?? '').replace(/§PATEL_ASKED:[^\n]*/g, '').trim()
+  if (summary) sections.push(summary)
+
+  // Confirmed facts — highest trust, always show
+  if (mem.confirmed_facts?.trim()) {
+    sections.push(`CONFIRMED FACTS (founder-stated):\n${mem.confirmed_facts.trim()}`)
+  }
+
+  // Open threads — agreements and unresolved questions
+  if (mem.open_threads?.trim()) {
+    sections.push(`OPEN THREADS (agreed next steps / unresolved):\n${mem.open_threads.trim()}`)
+  }
+
+  // Founder preferences — affects tone and format
+  if (mem.founder_prefs?.trim()) {
+    sections.push(`FOUNDER PREFERENCES (adapt your style):\n${mem.founder_prefs.trim()}`)
+  }
+
+  // Hypotheses — agent inferences, lower trust
+  if (mem.hypotheses?.trim()) {
+    sections.push(`HYPOTHESES (your inferences — verify before acting on):\n${mem.hypotheses.trim()}`)
+  }
+
+  // Patel: questions already asked in previous sessions
+  if (agentId === 'patel' && mem.patel_asked_questions) {
+    const asked = mem.patel_asked_questions
+      .split('|')
+      .map(q => q.trim())
+      .filter(q => q.length > 20)
+    if (asked.length > 0) {
+      sections.push(`QUESTIONS ASKED IN PREVIOUS SESSIONS — do not repeat or rephrase:\n${asked.map(q => `- ${q}`).join('\n')}`)
+    }
+  }
+
+  if (sections.length <= 1) return '' // no real content — skip injection
+  return sections.join('\n\n')
+}
 
 export interface ChatContextResult {
   systemPrompt:     string
@@ -73,12 +124,16 @@ export async function buildChatContext(params: {
   let patelRawConfidence: PatelConfidence | undefined
 
   if (userId) {
-    // Four parallel loads — orchestration capped at 2s to avoid blocking first token
+    // Load startup state first — it's a single fast indexed row and feeds the orchestrator.
+    // Everything else runs in parallel after this resolves (typically < 80ms).
+    const earlyState = await getStartupState(userId, supabase).catch(() => null)
+    startupState = earlyState
+
     const orchFallback = { subAgentResults: [] as Awaited<ReturnType<typeof orchestrate>>['subAgentResults'], contextInjection: '', subCallsUsed: 0 }
     let orchTimedOut = false
     const orchWithTimeout = FF_CROSS_AGENT_ORCHESTRATION
       ? Promise.race([
-          orchestrate(agentId, userId, message, supabase),
+          orchestrate(agentId, userId, message, supabase, 2, earlyState),
           new Promise<typeof orchFallback>(r => setTimeout(() => {
             orchTimedOut = true
             log.warn('[orchestration] 2s timeout — cross-agent context dropped', { agentId, userId })
@@ -91,14 +146,13 @@ export async function buildChatContext(params: {
       Promise<Awaited<ReturnType<typeof getAgentContext>>>,
       Promise<typeof orchFallback>,
       Promise<FounderProfileResult>,
-      Promise<StartupState | null>,
     ] = [
       getAgentContext(agentId, userId, supabase, message),
       orchWithTimeout,
       getFounderProfileContext(userId, supabase, agentId),
-      getStartupState(userId, supabase),
     ]
-    const [ctxResult, orchResult, founderCtxResult, stateResult] = await Promise.allSettled(parallelTasks)
+    const [ctxResult, orchResult, founderCtxResult] = await Promise.allSettled(parallelTasks)
+    // stateResult is now earlyState loaded above — no separate settlement needed
 
     // Founder profile — injected first so agents see it before artifact memory
     if (founderCtxResult.status === 'fulfilled' && founderCtxResult.value) {
@@ -126,10 +180,9 @@ export async function buildChatContext(params: {
       }
     }
 
-    // Startup state world model
-    if (stateResult.status === 'fulfilled') {
-      startupState = stateResult.value
-      const stateBlock = formatStartupStateForPrompt(startupState)
+    // Startup state world model (already loaded as earlyState above)
+    if (earlyState) {
+      const stateBlock = formatStartupStateForPrompt(earlyState)
       if (stateBlock) systemPrompt += stateBlock
     }
 
@@ -196,17 +249,12 @@ export async function buildChatContext(params: {
         : Promise.resolve(null),
     ])
     if (memoryResult.status === 'fulfilled' && memoryResult.value) {
-      const { session_count, relationship_tier, key_facts } = memoryResult.value
-      const displayKeyFacts = (key_facts ?? '').replace(/§PATEL_ASKED:[^\n]*/g, '').trim() || 'First session — no prior history.'
-      systemPrompt = `YOU AND THIS FOUNDER:\nThis is session ${session_count} with this founder. Relationship: ${relationship_tier}.\n${displayKeyFacts}\n\n` + systemPrompt
-      if (agentId === 'patel' && key_facts) {
-        const patelAskedMatch = key_facts.match(/§PATEL_ASKED:([^\n§]*)/)
-        if (patelAskedMatch) {
-          const crossSessionQs = patelAskedMatch[1].split('|').map((q: string) => q.trim()).filter((q: string) => q.length > 20)
-          if (crossSessionQs.length > 0) {
-            systemPrompt += `\n\nQUESTIONS ASKED IN PREVIOUS SESSIONS — do not repeat or rephrase:\n${crossSessionQs.map((q: string) => `- ${q}`).join('\n')}`
-          }
-        }
+      const mem = memoryResult.value
+      const memoryBlock = buildMemoryBlock(mem, agentId)
+      if (memoryBlock) {
+        // Memory is injected BEFORE the system prompt so the agent reads it
+        // before its identity and rules — highest priority context
+        systemPrompt = memoryBlock + '\n\n' + systemPrompt
       }
     }
     if (summaryResult.status === 'fulfilled' && summaryResult.value) {
@@ -217,7 +265,8 @@ export async function buildChatContext(params: {
     // Sources list for client-side citation chips
     if (founderCtxResult.status === 'fulfilled' && founderCtxResult.value?.block?.trim())
       sourcesUsed.push({ label: 'Your Profile', type: 'profile' })
-    if (memoryResult.status === 'fulfilled' && (memoryResult.value as { key_facts?: string | null } | null)?.key_facts?.trim())
+    if (memoryResult.status === 'fulfilled' && memoryResult.value &&
+        (memoryResult.value.key_facts?.trim() || memoryResult.value.confirmed_facts?.trim()))
       sourcesUsed.push({ label: 'Session Memory', type: 'memory' })
     if (ctxResult.status === 'fulfilled') {
       if (ctxResult.value.ownArtifacts.length > 0)
