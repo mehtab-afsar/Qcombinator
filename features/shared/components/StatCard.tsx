@@ -26,12 +26,23 @@ export function StatCard({ icon: Icon, label, value, sub, color = blue, href, de
         display: 'flex',
         flexDirection: 'column',
         gap: 12,
-        transition: `box-shadow ${href ? '0.15s' : '0'}, border-color 0.15s`,
+        boxShadow: shadow.sm,
+        transition: href ? 'box-shadow 0.18s, transform 0.18s, border-color 0.18s' : 'none',
         cursor: href ? 'pointer' : 'default',
         ...style,
       }}
-      onMouseEnter={e => { if (href) (e.currentTarget as HTMLElement).style.boxShadow = shadow.md; }}
-      onMouseLeave={e => { if (href) (e.currentTarget as HTMLElement).style.boxShadow = 'none'; }}
+      onMouseEnter={e => {
+        if (href) {
+          (e.currentTarget as HTMLElement).style.boxShadow = shadow.lg;
+          (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)';
+        }
+      }}
+      onMouseLeave={e => {
+        if (href) {
+          (e.currentTarget as HTMLElement).style.boxShadow = shadow.sm;
+          (e.currentTarget as HTMLElement).style.transform = 'translateY(0)';
+        }
+      }}
     >
       <div style={{
         width: 36, height: 36, borderRadius: radius.md,

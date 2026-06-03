@@ -59,7 +59,7 @@ export async function GET() {
         .in('user_id', founderIds),
       supabase
         .from('qscore_history')
-        .select('user_id, overall_score, calculated_at')
+        .select('user_id, overall_score, p1_score, p2_score, p3_score, p4_score, p5_score, p6_score, calculated_at')
         .in('user_id', founderIds)
         .order('calculated_at', { ascending: false })
         .limit(founderIds.length * 3),
@@ -69,10 +69,11 @@ export async function GET() {
     const profileMap = new Map<string, { full_name: string; startup_name: string; avatar_url: string | null; industry: string | null; stage: string | null }>()
     for (const p of founderProfiles ?? []) profileMap.set(p.user_id, p)
 
-    // Keep latest Q-score per founder
-    const latestQ = new Map<string, number>()
+    // Keep latest Q-score + breakdown per founder
+    type QRow = { overall_score: number; p1_score: number; p2_score: number; p3_score: number; p4_score: number; p5_score: number; p6_score: number }
+    const latestQ = new Map<string, QRow>()
     for (const q of qrows ?? []) {
-      if (!latestQ.has(q.user_id)) latestQ.set(q.user_id, q.overall_score)
+      if (!latestQ.has(q.user_id)) latestQ.set(q.user_id, q)
     }
 
     // Group messages by connection_request_id
@@ -98,7 +99,15 @@ export async function GET() {
         avatarUrl:       founderProfile?.avatar_url   ?? null,
         industry:        founderProfile?.industry     ?? '',
         stage:           founderProfile?.stage        ?? '',
-        qScore:          latestQ.get(conn.founder_id) ?? 0,
+        qScore:          latestQ.get(conn.founder_id)?.overall_score ?? 0,
+        qScoreBreakdown: {
+          p1: latestQ.get(conn.founder_id)?.p1_score ?? 0,
+          p2: latestQ.get(conn.founder_id)?.p2_score ?? 0,
+          p3: latestQ.get(conn.founder_id)?.p3_score ?? 0,
+          p4: latestQ.get(conn.founder_id)?.p4_score ?? 0,
+          p5: latestQ.get(conn.founder_id)?.p5_score ?? 0,
+          p6: latestQ.get(conn.founder_id)?.p6_score ?? 0,
+        },
         personalMessage: (conn as Record<string, unknown>).personal_message as string | null ?? null,
         status:          conn.status,
         unreadCount,
@@ -150,22 +159,20 @@ export async function POST(request: NextRequest) {
 
     const demoInvestorId = investorProfile?.demo_investor_id
 
+    // Build ownership filter and fetch in one query — prevents info leakage on IDs the investor doesn't own
+    const ownershipFilter = demoInvestorId
+      ? `investor_id.eq.${user.id},demo_investor_id.eq.${demoInvestorId}`
+      : `investor_id.eq.${user.id}`
+
     const { data: conn } = await supabase
       .from('connection_requests')
       .select('id, founder_id, investor_id, demo_investor_id, status')
       .eq('id', connectionId)
+      .or(ownershipFilter)
       .single()
 
     if (!conn) {
-      return NextResponse.json({ error: 'Connection not found' }, { status: 404 })
-    }
-
-    // Check investor ownership via investor_id or demo_investor_id
-    const isParty =
-      conn.investor_id === user.id ||
-      (demoInvestorId && conn.demo_investor_id === demoInvestorId)
-    if (!isParty) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      return NextResponse.json({ error: 'Connection not found or access denied' }, { status: 404 })
     }
     if (conn.status !== 'meeting_scheduled' && conn.status !== 'accepted') {
       return NextResponse.json({ error: 'Can only message within an accepted connection' }, { status: 400 })

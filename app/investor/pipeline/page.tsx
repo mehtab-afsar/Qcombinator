@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { motion } from "framer-motion";
 import Link from "next/link";
 import { ExternalLink, X, ChevronDown } from "lucide-react";
 import { bg, surf, bdr, ink, muted, blue, green, amber, red, purple } from '@/lib/constants/colors'
@@ -284,7 +285,7 @@ export default function InvestorPipelinePage() {
             <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.2em", color: muted, fontWeight: 600, marginBottom: 6 }}>
               Investor · Pipeline
             </p>
-            <h1 style={{ fontSize: "clamp(1.6rem,3.5vw,2.2rem)", fontWeight: 300, letterSpacing: "-0.03em", color: ink, marginBottom: 4 }}>
+            <h1 style={{ fontSize: "clamp(1.6rem,3.5vw,2.2rem)", fontWeight: 400, fontFamily: "var(--font-display)", letterSpacing: "-0.02em", color: ink, marginBottom: 4 }}>
               Your pipeline.
             </h1>
             <p style={{ fontSize: 13, color: muted }}>Track and manage founders across every stage of your process.</p>
@@ -299,22 +300,46 @@ export default function InvestorPipelinePage() {
           </Link>
         </div>
 
-        {/* stats strip */}
+        {/* stats strip + funnel bar */}
         {!loading && entries.length > 0 && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 1, background: bdr, border: `1px solid ${bdr}`, borderRadius: 12, overflow: "hidden", marginBottom: 28 }}>
-            {[
-              { label: "Total",     value: entries.length,            accent: ink     },
-              { label: "Watching",  value: stageCounts.watching,      accent: blue    },
-              { label: "Meeting",   value: stageCounts.meeting,       accent: purple   },
-              { label: "In DD",     value: stageCounts.in_dd,         accent: amber   },
-              { label: "Portfolio", value: stageCounts.portfolio,     accent: green   },
-            ].map((s, i) => (
-              <div key={i} style={{ background: bg, padding: "18px 20px" }}>
-                <p style={{ fontSize: 24, fontWeight: 300, color: s.accent, letterSpacing: "-0.04em", lineHeight: 1, marginBottom: 5 }}>{s.value}</p>
-                <p style={{ fontSize: 11, color: muted }}>{s.label}</p>
-              </div>
-            ))}
-          </div>
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 1, background: bdr, border: `1px solid ${bdr}`, borderRadius: 12, overflow: "hidden", marginBottom: 12 }}>
+              {[
+                { label: "Total",     value: entries.length,            accent: ink     },
+                { label: "Watching",  value: stageCounts.watching,      accent: blue    },
+                { label: "Meeting",   value: stageCounts.meeting,       accent: purple   },
+                { label: "In DD",     value: stageCounts.in_dd,         accent: amber   },
+                { label: "Portfolio", value: stageCounts.portfolio,     accent: green   },
+              ].map((s, i) => (
+                <div key={i} style={{ background: bg, padding: "18px 20px" }}>
+                  <p style={{ fontSize: 24, fontWeight: 300, color: s.accent, letterSpacing: "-0.04em", lineHeight: 1, marginBottom: 5 }}>{s.value}</p>
+                  <p style={{ fontSize: 11, color: muted }}>{s.label}</p>
+                </div>
+              ))}
+            </div>
+            {/* Visual funnel bar — shows conversion through pipeline stages */}
+            <div style={{ display: "flex", gap: 4, marginBottom: 28, alignItems: "flex-end", height: 40 }}>
+              {[
+                { stage: "watching",  color: blue,   count: stageCounts.watching   },
+                { stage: "meeting",   color: purple, count: stageCounts.meeting    },
+                { stage: "in_dd",     color: amber,  count: stageCounts.in_dd      },
+                { stage: "portfolio", color: green,  count: stageCounts.portfolio  },
+              ].map(({ stage, color, count }) => {
+                const pct = entries.length > 0 ? (count / entries.length) : 0;
+                return (
+                  <div key={stage} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                    <motion.div
+                      initial={{ height: 0 }}
+                      animate={{ height: Math.max(4, pct * 36) }}
+                      transition={{ duration: 0.6, delay: 0.1, ease: "easeOut" }}
+                      style={{ width: "100%", background: color, borderRadius: "3px 3px 0 0", opacity: 0.85 }}
+                    />
+                    <div style={{ height: 2, width: "100%", background: color, borderRadius: 1 }} />
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
 
         {loading ? (
@@ -357,13 +382,19 @@ export default function InvestorPipelinePage() {
                 </div>
               ) : (
                 sorted.map((entry, i) => (
-                  <PipelineRow
+                  <motion.div
                     key={entry.id}
-                    entry={entry}
-                    onStageChange={handleStageChange}
-                    onRemove={handleRemove}
-                    isLast={i === sorted.length - 1}
-                  />
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.28, delay: i * 0.04 }}
+                  >
+                    <PipelineRow
+                      entry={entry}
+                      onStageChange={handleStageChange}
+                      onRemove={handleRemove}
+                      isLast={i === sorted.length - 1}
+                    />
+                  </motion.div>
                 ))
               )}
             </div>

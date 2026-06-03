@@ -526,6 +526,26 @@ export default function ImproveQScorePage() {
                       animate={{ opacity: 1 }}
                       style={{ padding: "0 20px 16px 184px", background: surf }}
                     >
+                      {/* Q-Score impact insight */}
+                      {(() => {
+                        const pointsGain = Math.round((dim.weight / 100) * 10 * 10) / 10;
+                        const newScore = Math.min(100, (qScore?.overall ?? 0) + pointsGain);
+                        const unlocks = newScore >= 60 && (qScore?.overall ?? 0) < 60;
+                        return (
+                          <div style={{
+                            display: "flex", alignItems: "center", gap: 6,
+                            padding: "7px 12px", borderRadius: 8, marginBottom: 10,
+                            background: "#F0FDF4", border: "1px solid #BBF7D0",
+                          }}>
+                            <span style={{ fontSize: 11, color: "#16A34A", fontWeight: 600 }}>
+                              {unlocks
+                                ? `⚡ Improving this 10pts unlocks the investor marketplace`
+                                : `⚡ Improving this 10pts adds ~${pointsGain} to your Q-Score (→${Math.round(newScore)})`}
+                            </span>
+                          </div>
+                        );
+                      })()}
+
                       {dim.recommendations.map((rec, idx) => (
                         <div key={idx} style={{ display: "flex", alignItems: "flex-start", gap: 6, marginBottom: 5 }}>
                           <span style={{ color: muted, fontSize: 11, lineHeight: "18px" }}>•</span>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useActivity } from "@/features/founder/hooks/useActivity";
 import { bg, surf, bdr, ink, muted, blue, green, amber, red, purple } from '@/lib/constants/colors'
 import { PageSpinner } from '@/features/shared/components/Spinner'
@@ -140,6 +141,36 @@ function ActivityItem({ row }: { row: ActivityRow }) {
         }}>
           {actionDescription(row)}
         </p>
+
+        {/* Autonomous delegation — show badge + context + link */}
+        {row.action_type === 'autonomous_delegation' && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+            <span style={{
+              fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 999,
+              background: "#F5F3FF", border: "1px solid #DDD6FE", color: "#7C3AED",
+              letterSpacing: "0.05em",
+            }}>
+              🤖 AUTONOMOUS
+            </span>
+            {typeof row.metadata?.fromAgent === 'string' && (
+              <span style={{ fontSize: 11, color: muted }}>
+                triggered by {row.metadata.fromAgent}
+              </span>
+            )}
+            {typeof row.metadata?.artifactType === 'string' && typeof row.metadata?.toAgent === 'string' && (
+              <Link
+                href={`/founder/cxo/${row.metadata.toAgent}`}
+                style={{
+                  fontSize: 11, fontWeight: 600, color: "#7C3AED",
+                  background: "#F5F3FF", border: "1px solid #DDD6FE",
+                  borderRadius: 999, padding: "2px 10px", textDecoration: "none",
+                }}
+              >
+                View {String(row.metadata.artifactType).replace(/_/g, ' ')} →
+              </Link>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

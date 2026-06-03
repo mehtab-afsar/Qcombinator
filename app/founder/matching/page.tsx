@@ -132,7 +132,21 @@ export default function InvestorMatching() {
           <h1 style={{ fontSize: "clamp(1.6rem,4vw,2.4rem)", fontWeight: 300, letterSpacing: "-0.03em", color: ink, marginBottom: 8 }}>
             {loadingInvestors ? 'Loading investors…' : `${filtered.length} investors matched to your profile.`}
           </h1>
-          <div style={{ display: "flex", gap: 20 }}>
+          <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+            {/* Dynamic: how many investors can see this founder */}
+            {!isLocked && (
+              <div style={{
+                display: "flex", alignItems: "center", gap: 8,
+                padding: "6px 14px", borderRadius: 999,
+                background: "#F0FDF4", border: "1px solid #BBF7D0",
+              }}>
+                <div style={{ width: 7, height: 7, borderRadius: "50%", background: green }} />
+                <span style={{ fontSize: 12, fontWeight: 600, color: green }}>
+                  {investors.length} investors can see your profile
+                </span>
+                <span style={{ fontSize: 11, color: muted }}>· Q-Score {founderQScore}</span>
+              </div>
+            )}
             {[
               { value: "1,247", label: "active investors" },
               { value: "89%",   label: "match accuracy" },

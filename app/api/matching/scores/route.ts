@@ -1,25 +1,28 @@
 /**
  * GET /api/matching/scores
  *
- * Returns vector similarity scores for each demo investor relative to the
- * current founder's profile. Used by the matching page to blend formula
- * scores (sector/stage/Q-Score) with semantic thesis similarity.
+ * Returns semantic similarity scores for each demo investor vs. the current founder.
+ * Used by the matching page to blend with the formula score (sector/stage/Q-Score).
  *
- * Flow:
- *   1. Load founder profile fields → build a short summary text
- *   2. Embed summary via OpenAI text-embedding-3-small
- *   3. Fetch all active demo_investors with their thesis text
- *   4. Compute cosine similarity in JS (trivial at ~100 investors × 1536 dims)
- *   5. Return { investorId → vectorScore } map (0–1, higher = more relevant)
+ * Fast path (stored embeddings):
+ *   - Uses founder_profiles.iq_summary_embedding (computed at Q-Score submit time)
+ *   - Calls match_investors_by_embedding Supabase RPC (pgvector cosine search in DB)
+ *   - Single round-trip, O(n) in Postgres — no JS cosine computation
  *
- * Falls back gracefully: returns {} if OPENAI_API_KEY is missing or embedding
- * fails — the matching page uses formula-only scores in that case.
+ * Slow path fallback (no stored embeddings):
+ *   - Embeds founder profile summary on the fly via Voyage AI
+ *   - Fetches investor theses and embeds them in batches (expensive but correct)
+ *   - Used until admin runs /api/admin/embed-investors and founder submits Q-Score
+ *
+ * Returns {} (formula-only) if VOYAGE_API_KEY is missing.
  */
 
 import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { getAdminClient } from '@/lib/supabase/server'
-import { embedText } from '@/features/qscore/scoring/embeddings/embedder'
+import { embedText, embedBatch } from '@/features/qscore/scoring/embeddings/embedder'
+
+const BATCH_SIZE = 20
 
 function cosineSimilarity(a: number[], b: number[]): number {
   let dot = 0, normA = 0, normB = 0
@@ -43,31 +46,80 @@ export async function GET() {
   try {
     const supabase = await getAdminClient()
 
-    // Load founder profile for embedding
+    // ── Fast path: use stored founder embedding + pgvector RPC ───────────────
     const { data: profile } = await supabase
       .from('founder_profiles')
-      .select('company_name, product_description, problem_statement, industry, stage, target_customer')
+      .select('iq_summary_embedding, company_name, product_description, problem_statement, industry, stage, target_customer')
       .eq('user_id', auth.user.id)
       .maybeSingle()
 
     if (!profile) return NextResponse.json({ scores: {} })
 
-    // Build founder summary — semantic signal for thesis matching
+    if (profile.iq_summary_embedding) {
+      // Parse the stored embedding (stored as JSON string)
+      let founderVec: number[]
+      try {
+        founderVec = typeof profile.iq_summary_embedding === 'string'
+          ? JSON.parse(profile.iq_summary_embedding)
+          : profile.iq_summary_embedding
+      } catch {
+        founderVec = []
+      }
+
+      if (founderVec.length > 0) {
+        const { data: matches } = await supabase.rpc('match_investors_by_embedding', {
+          founder_embedding: JSON.stringify(founderVec),
+          match_threshold:   0.20,   // low threshold — return all investors, let frontend blend
+          match_count:       100,
+        })
+
+        if (matches && matches.length > 0) {
+          const scores: Record<string, number> = {}
+          for (const m of matches as Array<{ id: string; similarity: number }>) {
+            // similarity is already cosine in [0,1] from the RPC
+            scores[m.id] = Math.max(0, m.similarity)
+          }
+          return NextResponse.json({ scores, source: 'stored_embedding' })
+        }
+      }
+    }
+
+    // ── Slow path fallback: embed on-the-fly ─────────────────────────────────
     const founderSummary = [
-      profile.company_name && `Company: ${profile.company_name}`,
-      profile.industry     && `Sector: ${profile.industry}`,
-      profile.stage        && `Stage: ${profile.stage}`,
-      profile.product_description  && `Product: ${profile.product_description}`,
-      profile.problem_statement    && `Problem: ${profile.problem_statement}`,
-      profile.target_customer      && `Customer: ${profile.target_customer}`,
+      profile.company_name        && `Company: ${profile.company_name}`,
+      profile.industry            && `Sector: ${profile.industry}`,
+      profile.stage               && `Stage: ${profile.stage}`,
+      profile.product_description && `Product: ${profile.product_description}`,
+      profile.problem_statement   && `Problem: ${profile.problem_statement}`,
+      profile.target_customer     && `Customer: ${profile.target_customer}`,
     ].filter(Boolean).join('\n')
 
     if (founderSummary.trim().length < 20) return NextResponse.json({ scores: {} })
 
-    // Embed founder summary
     const founderEmbedding = await embedText(founderSummary)
 
-    // Fetch active investors with thesis text
+    // Prefer investors with stored embeddings first (avoids re-embedding their theses)
+    const { data: storedInvestors } = await supabase
+      .from('demo_investors')
+      .select('id, thesis_embedding')
+      .eq('is_active', true)
+      .not('thesis_embedding', 'is', null)
+
+    if (storedInvestors && storedInvestors.length > 0) {
+      const scores: Record<string, number> = {}
+      for (const inv of storedInvestors as Array<{ id: string; thesis_embedding: string | number[] }>) {
+        try {
+          const vec: number[] = typeof inv.thesis_embedding === 'string'
+            ? JSON.parse(inv.thesis_embedding)
+            : inv.thesis_embedding
+          const sim = cosineSimilarity(founderEmbedding, vec)
+          scores[inv.id] = Math.max(0, (sim + 1) / 2)
+        } catch { /* skip malformed embedding */ }
+      }
+      return NextResponse.json({ scores, source: 'stored_thesis_embeddings' })
+    }
+
+    // Last resort: embed all investor theses live (slow, avoid in production)
     const { data: investors } = await supabase
       .from('demo_investors')
       .select('id, thesis')
@@ -76,25 +128,20 @@ export async function GET() {
 
     if (!investors || investors.length === 0) return NextResponse.json({ scores: {} })
 
-    // Embed all investor theses in one batch — max 20 per batch
-    const BATCH = 20
     const allEmbeddings: number[][] = []
-    for (let i = 0; i < investors.length; i += BATCH) {
-      const batch = investors.slice(i, i + BATCH)
-      const { embedBatch } = await import('@/features/qscore/scoring/embeddings/embedder')
+    for (let i = 0; i < investors.length; i += BATCH_SIZE) {
+      const batch = investors.slice(i, i + BATCH_SIZE)
       const batchEmbeddings = await embedBatch(batch.map((inv: { id: string; thesis: string | null }) => inv.thesis ?? ''))
       allEmbeddings.push(...batchEmbeddings)
     }
 
-    // Compute cosine similarity for each investor
     const scores: Record<string, number> = {}
     for (let i = 0; i < investors.length; i++) {
       const similarity = cosineSimilarity(founderEmbedding, allEmbeddings[i])
-      // Normalize from [-1,1] → [0,1] and apply a floor so non-matches don't go negative
       scores[investors[i].id] = Math.max(0, (similarity + 1) / 2)
     }
 
-    return NextResponse.json({ scores })
+    return NextResponse.json({ scores, source: 'live_embeddings' })
   } catch (err) {
     console.error('[matching/scores] vector scoring failed:', err)
     return NextResponse.json({ scores: {} })

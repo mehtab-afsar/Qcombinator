@@ -225,6 +225,42 @@ export async function triggerProactiveDelegations(
       userId, supabase, 'background',
     );
   }
+
+  // Susi → Patel: pipeline drops below 3 deals — ICP may need tightening
+  if (agentId === 'susi' && 'open_deals_count' in newStateUpdates &&
+      typeof newStateUpdates.open_deals_count === 'number' && newStateUpdates.open_deals_count < 3) {
+    await delegateTo(
+      'susi', 'patel',
+      'pipeline_thin',
+      { openDealsCount: newStateUpdates.open_deals_count, reason: `Pipeline dropped to ${newStateUpdates.open_deals_count} deals — ICP may need tightening` },
+      `Pipeline is thin (${newStateUpdates.open_deals_count} open deals). Audit and tighten the ICP to attract better-qualified leads.`,
+      userId, supabase, 'immediate',
+    ).catch(() => { /* non-critical */ });
+  }
+
+  // Carter → Susi: churn exceeds 5% — commercial intervention needed
+  if (agentId === 'carter' && 'churn_rate' in newStateUpdates &&
+      typeof newStateUpdates.churn_rate === 'number' && newStateUpdates.churn_rate > 5) {
+    await delegateTo(
+      'carter', 'susi',
+      'churn_risk_detected',
+      { churnRate: newStateUpdates.churn_rate, reason: `Monthly churn at ${newStateUpdates.churn_rate}% — above 5% threshold` },
+      `Churn is at ${newStateUpdates.churn_rate}%/mo. Identify at-risk accounts and generate a commercial intervention sales script.`,
+      userId, supabase, 'background',
+    ).catch(() => { /* non-critical */ });
+  }
+
+  // Riley → Maya: growth rate drops below 5% — messaging refresh may unlock top-of-funnel
+  if (agentId === 'riley' && 'monthly_growth_rate' in newStateUpdates &&
+      typeof newStateUpdates.monthly_growth_rate === 'number' && newStateUpdates.monthly_growth_rate < 5) {
+    await delegateTo(
+      'riley', 'maya',
+      'growth_stalling',
+      { growthRate: newStateUpdates.monthly_growth_rate, reason: `Growth at ${newStateUpdates.monthly_growth_rate}% MoM — below 5% target` },
+      `Growth is stalling at ${newStateUpdates.monthly_growth_rate}% MoM. Refresh brand messaging and top-of-funnel positioning to unlock new demand.`,
+      userId, supabase, 'background',
+    ).catch(() => { /* non-critical */ });
+  }
 }
 
 // ── Helper ────────────────────────────────────────────────────────────────────

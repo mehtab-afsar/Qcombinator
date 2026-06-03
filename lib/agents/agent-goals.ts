@@ -50,15 +50,28 @@ const EVALUATORS: Record<string, (s: StartupState) => EvalResult> = {
   },
 
   patel: (s) => {
+    const staleDays = s.last_icp_updated_at
+      ? Math.floor((Date.now() - new Date(s.last_icp_updated_at).getTime()) / 86_400_000)
+      : 999;
+    if (staleDays > 90) return {
+      status: 'at_risk',
+      reason: `ICP not updated in ${staleDays} days — may be targeting the wrong buyers`,
+      suggestedAction: 'Refresh ICP document with current customer data',
+    };
+    if ((s.outreach_reply_rate ?? 10) < 5) return {
+      status: 'at_risk',
+      reason: `Outreach reply rate ${s.outreach_reply_rate ?? 0}% — messaging not landing`,
+      suggestedAction: 'Rewrite outreach angle based on latest ICP insights',
+    };
+    if (s.open_deals_count != null && s.open_deals_count < 3) return {
+      status: 'at_risk',
+      reason: `Only ${s.open_deals_count} open deal(s) — pipeline thin`,
+      suggestedAction: 'Build outreach sequence for your target ICP',
+    };
     if (s.open_deals_count == null) return {
       status: 'blocked',
       reason: 'No pipeline data',
       suggestedAction: 'Run lead enrichment to build initial pipeline',
-    };
-    if (s.open_deals_count < 3) return {
-      status: 'at_risk',
-      reason: `Only ${s.open_deals_count} open deal(s) — pipeline thin`,
-      suggestedAction: 'Build outreach sequence for your target ICP',
     };
     return { status: 'on_track', reason: `${s.open_deals_count} deals in pipeline` };
   },
@@ -120,9 +133,27 @@ const EVALUATORS: Record<string, (s: StartupState) => EvalResult> = {
     return { status: 'on_track', reason: `Readiness ${s.investor_readiness_score}/100` };
   },
 
-  maya: (_s) => ({ status: 'on_track', reason: 'Brand monitoring active' }),
+  maya: (s) => {
+    const staleDays = s.last_brand_updated_at
+      ? Math.floor((Date.now() - new Date(s.last_brand_updated_at).getTime()) / 86_400_000)
+      : 999;
+    if (staleDays > 90) return {
+      status: 'at_risk',
+      reason: `Brand messaging stale — ${staleDays} days since last update`,
+      suggestedAction: 'Generate fresh brand messaging aligned with current ICP',
+    };
+    return { status: 'on_track', reason: 'Brand messaging current' };
+  },
 
-  leo: (_s) => ({ status: 'on_track', reason: 'Legal checklist maintained' }),
+  leo: (s) => {
+    const unresolved = s.legal_risk_unresolved ?? 0;
+    if (unresolved > 2) return {
+      status: 'at_risk',
+      reason: `${unresolved} unresolved legal risks flagged`,
+      suggestedAction: 'Address highest-severity legal risks and update checklist',
+    };
+    return { status: 'on_track', reason: unresolved > 0 ? `${unresolved} minor risks tracked` : 'Legal clear' };
+  },
 
   carter: (s) => {
     if (s.churn_rate != null && s.churn_rate > 5) return {

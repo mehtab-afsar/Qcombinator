@@ -84,7 +84,7 @@ export async function GET() {
         founderId: req.founder_id,
         founderName: profile?.full_name ?? 'Unknown Founder',
         startupName: profile?.startup_name ?? 'Unknown Startup',
-        oneLiner: profile?.industry ?? '',
+        oneLiner: profile?.tagline ?? '',
         stage: profile?.stage ?? 'Unknown',
         industry: profile?.industry ?? '',
         fundingTarget: '',
@@ -108,7 +108,10 @@ export async function GET() {
       }
     })
 
-    return NextResponse.json({ requests: enriched })
+    return NextResponse.json(
+      { requests: enriched },
+      { headers: { 'Cache-Control': 'private, max-age=300, stale-while-revalidate=3600' } },
+    )
   } catch (err) {
     log.error('GET /api/investor/connections', { err })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

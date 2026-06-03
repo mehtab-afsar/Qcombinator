@@ -59,6 +59,11 @@ export interface StartupState {
   outreach_reply_rate:   number | null;   // % replied
   meetings_booked:       number | null;   // from Calendly
 
+  // Agent-specific timestamps (used by evaluators)
+  last_icp_updated_at:   string | null;   // stamped by Patel on icp_document generation
+  last_brand_updated_at: string | null;   // stamped by Maya on brand_messaging generation
+  legal_risk_unresolved: number | null;   // count of unresolved items in Leo's legal_checklist
+
   // Meta
   updated_at:            string | null;
   last_updated_by:       string | null;   // agent id that last wrote
@@ -259,12 +264,25 @@ export function extractStateFromArtifact(
     }
     case 'patel': {
       if (num(artifactData.leadsGenerated)) updates.open_deals_count = artifactData.leadsGenerated as number;
+      // Stamp ICP update time whenever Patel generates an icp_document
+      if (artifactType === 'icp_document') updates.last_icp_updated_at = new Date().toISOString();
+      break;
+    }
+    case 'maya': {
+      // Stamp brand update time whenever Maya generates brand_messaging
+      if (artifactType === 'brand_messaging') updates.last_brand_updated_at = new Date().toISOString();
+      break;
+    }
+    case 'leo': {
+      // Count unresolved items in the legal checklist so Leo's evaluator can fire
+      if (artifactType === 'legal_checklist') {
+        const unresolvedCount = (artifactData.items as unknown[] ?? [])
+          .filter((item: unknown) => (item as Record<string, unknown>)?.status === 'unresolved').length;
+        updates.legal_risk_unresolved = unresolvedCount;
+      }
       break;
     }
   }
-
-  // Ignore artifact type for now — just extract by agent
-  void artifactType;
 
   return updates;
 }

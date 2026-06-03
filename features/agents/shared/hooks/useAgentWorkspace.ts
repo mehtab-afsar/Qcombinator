@@ -308,6 +308,19 @@ export function useAgentWorkspace(agentId: string): AgentWorkspaceState {
           clientBuiltTypes: [...new Set(uiMessages.filter(m => m.role === 'artifact_card' && m.artifactType).map(m => m.artifactType as string))],
         }),
       })
+      if (!res.ok) {
+        let errMsg = 'Something went wrong. Please try again.'
+        try {
+          const errJson = await res.json() as { error?: string; limitReached?: boolean }
+          if (errJson.limitReached) {
+            errMsg = "You've reached your monthly message limit. [Upgrade to Pro](/founder/billing) for unlimited access."
+          } else if (errJson.error) {
+            errMsg = errJson.error
+          }
+        } catch { /* use default */ }
+        setUiMessages(p => [...p, { role: 'agent', text: errMsg }])
+        return
+      }
       if (!res.body) throw new Error('No stream')
       const reader = res.body.getReader(); const dec = new TextDecoder()
       while (true) {

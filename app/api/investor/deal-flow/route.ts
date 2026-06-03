@@ -66,23 +66,23 @@ export async function GET() {
       { data: investorProfile },
       { data: investorWeights },
     ] = await Promise.all([
-      admin
-        .from('qscore_history')
-        .select('user_id, overall_score, p1_score, p2_score, p3_score, p4_score, p5_score, p6_score, percentile, calculated_at')
-        .in('user_id', userIds)
-        .order('calculated_at', { ascending: false })
-        .limit(userIds.length * 5),
+      // RPC returns DISTINCT ON (user_id) — one row per founder, no JS deduplication needed
+      admin.rpc('get_latest_qscores', { user_ids: userIds }),
+      // Limit to one row per user — we only need a boolean "has recent activity"
       admin
         .from('agent_activity')
         .select('user_id')
         .in('user_id', userIds)
         .gte('created_at', since7d)
-        .limit(userIds.length * 3),
+        .order('created_at', { ascending: false })
+        .limit(userIds.length),
+      // Limit to one row per user — we only need a boolean "has any artifact"
       admin
         .from('agent_artifacts')
         .select('user_id')
         .in('user_id', userIds)
-        .limit(userIds.length * 5),
+        .order('created_at', { ascending: false })
+        .limit(userIds.length),
       admin
         .from('investor_profiles')
         .select('ai_personalization, firm_name, thesis, focus_sectors, focus_stages, portfolio_companies, full_name')
@@ -95,11 +95,11 @@ export async function GET() {
         .maybeSingle(),
     ])
 
-    // Build lookup maps
+    // Build lookup maps (RPC already returns one row per user — no deduplication needed)
     type QScoreRow = { user_id: string; overall_score: number; p1_score: number; p2_score: number; p3_score: number; p4_score: number; p5_score: number; p6_score: number; percentile: number; calculated_at: string }
     const latestQScore = new Map<string, QScoreRow>()
     for (const row of (allQScores ?? []) as QScoreRow[]) {
-      if (!latestQScore.has(row.user_id)) latestQScore.set(row.user_id, row)
+      latestQScore.set(row.user_id, row)
     }
 
     const activityCountByUser = new Map<string, number>()
@@ -233,7 +233,7 @@ export async function GET() {
 
     return NextResponse.json(
       { founders: foundersWithSummary, meta: { totalFounders: withMatch.length, gated: withMatch.length - visibleWithPrefs.length, preferenceFiltered: prefSectors.length > 0 || prefStages.length > 0 } },
-      { headers: { 'Cache-Control': 'private, max-age=60, stale-while-revalidate=120' } },
+      { headers: { 'Cache-Control': 'private, max-age=300, stale-while-revalidate=3600' } },
     )
   } catch (err) {
     log.error('GET /api/investor/deal-flow', { err })

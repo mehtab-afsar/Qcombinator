@@ -1,7 +1,7 @@
 "use client";
 
 import { bg, bdr, ink, muted } from '@/lib/constants/colors';
-import { radius, font } from '@/features/shared/tokens';
+import { radius, font, shadow } from '@/features/shared/tokens';
 
 interface SectionCardProps {
   title?: string;
@@ -20,6 +20,7 @@ export function SectionCard({ title, subtitle, action, children, noPadding, styl
       border: `1px solid ${bdr}`,
       borderRadius: radius.lg,
       overflow: 'hidden',
+      boxShadow: shadow.sm,
       ...style,
     }}>
       {(title || action) && (

@@ -3,7 +3,8 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { Bell, X, Check } from 'lucide-react'
 import { useRef, useEffect } from 'react'
-import { bg, surf, bdr, ink, muted, blue } from '@/lib/constants/colors'
+import Link from 'next/link'
+import { bg, surf, bdr, ink, muted, blue, green } from '@/lib/constants/colors'
 
 export interface NotifItem {
   id: string
@@ -26,6 +27,7 @@ const TYPE_COLOR: Record<string, string> = {
   deal_flow:           '#D97706',
   startup_share:       '#0891B2',
   agent_complete:      '#6B7280',
+  agent_action:        '#7C3AED',  // autonomous agent work — purple to distinguish
   investor_view:       '#D97706',
 }
 
@@ -45,7 +47,12 @@ function timeAgo(iso: string) {
 
 function NotifRow({ n, onViewStartup }: { n: NotifItem; onViewStartup?: (id: string) => void }) {
   const accent = getAccent(n.type)
-  const founderId = n.metadata?.founderId as string | undefined
+  const founderId   = n.metadata?.founderId   as string | undefined
+  const toAgent     = n.metadata?.toAgent     as string | undefined
+  const artifactType = n.metadata?.artifactType as string | undefined
+  const fromAgent   = n.metadata?.fromAgent   as string | undefined
+  // For agent_action notifications, link to the agent's CXO workspace
+  const agentActionHref = toAgent ? `/founder/cxo/${toAgent}` : '/founder/workspace'
 
   return (
     <div style={{
@@ -93,8 +100,31 @@ function NotifRow({ n, onViewStartup }: { n: NotifItem; onViewStartup?: (id: str
             {n.body}
           </p>
         )}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 11, color: muted }}>{timeAgo(n.time)}</span>
+
+          {/* Deep link for autonomous agent work */}
+          {n.type === 'agent_action' && (
+            <Link
+              href={agentActionHref}
+              style={{
+                fontSize: 11, fontWeight: 600, color: '#7C3AED',
+                background: '#F5F3FF', border: '1px solid #DDD6FE',
+                borderRadius: 999, padding: '2px 10px', textDecoration: 'none',
+                display: 'inline-block',
+              }}
+            >
+              Open {toAgent ?? 'agent'} →
+            </Link>
+          )}
+
+          {/* Triggered-by context for agent_action */}
+          {n.type === 'agent_action' && fromAgent && (
+            <span style={{ fontSize: 10, color: muted, fontStyle: 'italic' }}>
+              via {fromAgent}
+            </span>
+          )}
+
           {n.type === 'startup_share' && founderId && onViewStartup && (
             <button
               onClick={() => onViewStartup(founderId)}
@@ -109,6 +139,17 @@ function NotifRow({ n, onViewStartup }: { n: NotifItem; onViewStartup?: (id: str
             </button>
           )}
         </div>
+        {/* Artifact type badge for autonomous actions */}
+        {n.type === 'agent_action' && artifactType && (
+          <span style={{
+            display: 'inline-block', marginTop: 4,
+            fontSize: 10, fontWeight: 600, color: green,
+            background: '#F0FDF4', border: '1px solid #BBF7D0',
+            borderRadius: 999, padding: '1px 8px', textTransform: 'capitalize',
+          }}>
+            {artifactType.replace(/_/g, ' ')}
+          </span>
+        )}
       </div>
     </div>
   )

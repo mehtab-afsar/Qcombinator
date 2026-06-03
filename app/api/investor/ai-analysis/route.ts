@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { log } from '@/lib/logger'
 
@@ -14,7 +14,8 @@ export async function GET() {
   try {
     const auth = await verifyAuth()
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
-    const supabase = await createClient()
+    const supabase = await createClient()     // user-scoped: own profiles only
+    const admin    = createAdminClient()      // service role: cross-user reads (founder data)
 
     // ── Subscription tier gate — AI analysis is a Pro feature ────────────────
     const { data: investorTierProfile } = await supabase
@@ -28,7 +29,8 @@ export async function GET() {
     }
 
     // ── 1. Fetch recent founders (onboarding completed) ──────────────────────
-    const { data: founders } = await supabase
+    // Uses admin client — founder_profiles RLS only allows self-reads, investors need service role.
+    const { data: founders } = await admin
       .from('founder_profiles')
       .select('user_id, startup_name, industry, stage, full_name, created_at')
       .eq('onboarding_completed', true)
@@ -38,7 +40,7 @@ export async function GET() {
     // ── 2. Fetch latest Q-Score for each founder ──────────────────────────────
     const founderIds = (founders ?? []).map(f => f.user_id)
     const { data: scores } = founderIds.length > 0
-      ? await supabase
+      ? await admin
           .from('qscore_history')
           .select('user_id, overall_score, p1_score, p2_score, p3_score, p4_score, p5_score, p6_score, calculated_at')
           .in('user_id', founderIds)
@@ -52,9 +54,11 @@ export async function GET() {
     }
 
     // ── 3. Connection requests (investor's deal interactions) ─────────────────
-    const { data: connections } = await supabase
+    // Filter to this investor's connections (admin client so RLS doesn't restrict by investor_id)
+    const { data: connections } = await admin
       .from('connection_requests')
       .select('founder_id, status, created_at, founder_qscore')
+      .eq('investor_id', auth.user.id)
       .order('created_at', { ascending: false })
       .limit(100)
 

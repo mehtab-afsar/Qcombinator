@@ -388,6 +388,17 @@ export default function FounderDashboard() {
   const [publicSlug,  setPublicSlug]  = useState<string | null>(null);
   const [linkCopied,  setLinkCopied]  = useState(false);
 
+  // ── Agent goal watch state ───────────────────────────────────────────────
+  type AgentGoalRow = { agent_id: string; goal: string; status: string; reason: string; suggested_action: string | null }
+  const [agentGoals, setAgentGoals] = useState<AgentGoalRow[]>([])
+
+  useEffect(() => {
+    fetch('/api/agents/agent-goals')
+      .then(r => r.ok ? r.json() : { goals: [] })
+      .then(d => setAgentGoals(d.goals ?? []))
+      .catch(() => {})
+  }, [])
+
   // ── Stripe verification state ────────────────────────────────────────────
   const [stripeStatus, setStripeStatus] = useState<{
     verified: boolean; mrr?: number; signalStrength?: number; integrityIndex?: number;
@@ -575,8 +586,8 @@ export default function FounderDashboard() {
       sub: investorMatches !== null ? (investorMatches === 0 ? "connect at IQ 60+" : `connection${investorMatches !== 1 ? "s" : ""} sent`) : "loading…",
       icon: Users, positive: true,
     },
-    { label: "Score percentile",   value: qs.percentile !== null ? `${qs.percentile}th` : "—", sub: qs.percentile !== null ? "of all founders" : "submit score to rank", icon: BarChart3, positive: null  },
-    { label: "Next milestone",     value: isDemo ? "80" : String(Math.max(80, Math.ceil(qs.overall / 10) * 10)), sub: "target Q-Score", icon: Zap, positive: null },
+    { label: "Score percentile",   value: !isDemo && qs.percentile !== null ? `${qs.percentile}th` : "—", sub: !isDemo && qs.percentile !== null ? "of all founders" : "complete assessment to rank", icon: BarChart3, positive: null  },
+    { label: "Next milestone",     value: isDemo ? "—" : String(Math.max(80, Math.ceil(qs.overall / 10) * 10)), sub: isDemo ? "submit score first" : "target Q-Score", icon: Zap, positive: null },
   ];
 
   return (
@@ -1141,6 +1152,48 @@ export default function FounderDashboard() {
             </div>
           </motion.div>
         </div>
+
+        {/* ── agent watch ───────────────────────────────────────────── */}
+        {agentGoals.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.18 }}
+            style={{ marginBottom: 20 }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+              <div style={{ height: 28, width: 28, borderRadius: 7, background: "#F5F3FF", border: "1px solid #DDD6FE", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <span style={{ fontSize: 13 }}>🤖</span>
+              </div>
+              <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", color: muted, fontWeight: 600 }}>
+                Agents watching
+              </p>
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {agentGoals.map((g) => {
+                const isAtRisk = g.status === 'at_risk';
+                const isBlocked = g.status === 'blocked';
+                const dotColor = isAtRisk ? amber : isBlocked ? red : green;
+                const bgColor = isAtRisk ? "#FFFBEB" : isBlocked ? "#FEF2F2" : "#F0FDF4";
+                const borderColor = isAtRisk ? "#FDE68A" : isBlocked ? "#FECACA" : "#BBF7D0";
+                return (
+                  <div key={g.agent_id} style={{
+                    display: "flex", alignItems: "center", gap: 6,
+                    padding: "6px 12px", borderRadius: 999,
+                    background: bgColor, border: `1px solid ${borderColor}`,
+                    fontSize: 12,
+                  }}>
+                    <div style={{ width: 6, height: 6, borderRadius: "50%", background: dotColor, flexShrink: 0 }} />
+                    <span style={{ fontWeight: 600, color: ink, textTransform: "capitalize" }}>{g.agent_id}</span>
+                    {(isAtRisk || isBlocked) && g.reason && (
+                      <span style={{ color: muted, fontSize: 11 }}>— {g.reason.slice(0, 40)}{g.reason.length > 40 ? '…' : ''}</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
 
         {/* ── today's focus ─────────────────────────────────────────── */}
         <motion.div

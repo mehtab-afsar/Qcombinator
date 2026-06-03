@@ -62,6 +62,7 @@ export default function AIAnalysisPage() {
   const [insights,  setInsights]  = useState<Insight[]>([])
   const [topFounders, setTopFounders] = useState<TopFounder[]>([])
   const [loading,   setLoading]   = useState(true)
+  const [proGated,  setProGated]  = useState(false)
 
   // Chat state
   const [messages,  setMessages]  = useState<Message[]>([])
@@ -80,7 +81,10 @@ export default function AIAnalysisPage() {
   // Load portfolio analytics
   useEffect(() => {
     fetch('/api/investor/ai-analysis')
-      .then(r => r.ok ? r.json() : null)
+      .then(async r => {
+        if (r.status === 403) { setProGated(true); return null }
+        return r.ok ? r.json() : null
+      })
       .then(d => {
         if (!d) return
         setStats(d.stats)
@@ -220,8 +224,14 @@ export default function AIAnalysisPage() {
             <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
               {loading ? (
                 <div style={{ padding: 16, textAlign: 'center' }}><Loader2 size={16} color={muted} style={{ animation: 'spin 1s linear infinite' }} /></div>
+              ) : proGated ? (
+                <div style={{ padding: '16px 14px', textAlign: 'center' }}>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 4 }}>Pro Feature</p>
+                  <p style={{ fontSize: 11, color: muted, lineHeight: 1.55, marginBottom: 12 }}>Portfolio Intelligence is available on the Pro plan. Upgrade to unlock AI-powered deal flow insights.</p>
+                  <a href="/investor/billing" style={{ display: 'inline-block', fontSize: 11, fontWeight: 600, color: '#7C3AED', textDecoration: 'none' }}>Upgrade to Pro →</a>
+                </div>
               ) : insights.length === 0 ? (
-                <p style={{ fontSize: 12, color: muted, padding: '8px 0', textAlign: 'center' }}>No insights yet — add founders to your deal flow.</p>
+                <p style={{ fontSize: 12, color: muted, padding: '8px 0', textAlign: 'center' }}>Insights will appear as founders join and complete their assessments.</p>
               ) : insights.map(ins => {
                 const c = INSIGHT_COLORS[ins.type] ?? INSIGHT_COLORS.trend
                 return (

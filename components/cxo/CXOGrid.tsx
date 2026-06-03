@@ -21,6 +21,8 @@ const CXO_PRIMARY_DIMENSION: Record<string, string> = {
   nova:   'product',
   atlas:  'market',
   sage:   'product',
+  carter: 'traction',   // Customer Success → market readiness evidence
+  riley:  'gtm',        // Growth Ops → GTM + market potential
 };
 
 interface AgentArtifact {

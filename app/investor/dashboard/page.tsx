@@ -6,13 +6,15 @@ import {
   Users, Bell, Briefcase, TrendingUp, ArrowRight,
   MessageSquare, ChevronRight, Zap, Star, Clock, Plus,
 } from "lucide-react"
+import { motion } from "framer-motion"
+import { BarChart } from "@tremor/react"
 import { bg, surf, bdr, ink, muted, blue, green, amber, alpha } from "@/lib/constants/colors"
 import { PIPELINE_STAGE_COLORS } from "@/features/investor/constants/pipeline"
 import { Avatar } from "@/features/shared/components/Avatar"
 import { ScoreBadge } from "@/features/shared/components/Badge"
-import { SectionSpinner } from "@/features/shared/components/Spinner"
 import { StatCard } from "@/features/shared/components/StatCard"
 import { SectionCard } from "@/features/shared/components/SectionCard"
+import { StatCardSkeleton, RowSkeleton } from "@/features/shared/components/Skeleton"
 
 // ─── types ────────────────────────────────────────────────────────────────────
 interface DashboardData {
@@ -105,20 +107,21 @@ export default function InvestorDashboard() {
   useEffect(() => {
     async function load() {
       try {
-        const [profileRes, pipelineRes, unreadRes, dealRes, billingRes] = await Promise.allSettled([
-          fetch("/api/investor/profile").then(r => r.json()),
-          fetch("/api/investor/pipeline").then(r => r.json()),
-          fetch("/api/investor/messages/unread").then(r => r.json()),
+        // Single consolidated call replaces 4 separate endpoints (profile, pipeline, unread, billing)
+        // Deal-flow stays separate — it has its own 5-min cache and is the heaviest query
+        const [dashRes, dealRes] = await Promise.allSettled([
+          fetch("/api/investor/dashboard").then(r => r.json()),
           fetch("/api/investor/deal-flow").then(r => r.json()),
-          fetch("/api/investor/billing/status").then(r => r.json()),
         ])
 
-        const profile  = profileRes.status  === "fulfilled" ? profileRes.value.profile  : null
-        const pipeResp = pipelineRes.status === "fulfilled" ? pipelineRes.value          : { pipeline: [], pipelineMap: {} }
+        const dash     = dashRes.status  === "fulfilled" ? dashRes.value   : {}
+        const deal     = dealRes.status  === "fulfilled" ? dealRes.value   : { founders: [] }
+
+        const profile  = (dash as Record<string, unknown>).profile ?? null
+        const pipeResp = { pipeline: (dash as Record<string, unknown>).pipeline ?? [], pipelineMap: (dash as Record<string, unknown>).pipelineMap ?? {} }
         const pipeline = (pipeResp.pipeline ?? []) as Array<{ founder_user_id: string; stage: string; updated_at: string; id: string; notes: string | null }>
-        const unread   = unreadRes.status   === "fulfilled" ? unreadRes.value   : { unreadMessages: 0, pendingRequests: 0 }
-        const deal     = dealRes.status     === "fulfilled" ? dealRes.value     : { founders: [] }
-        const billing  = billingRes.status  === "fulfilled" ? billingRes.value  : { subscriptionTier: "free" }
+        const unread   = { unreadMessages: (dash as Record<string, unknown>).unreadMessages ?? 0, pendingRequests: (dash as Record<string, unknown>).pendingRequests ?? 0 }
+        const billing  = { subscriptionTier: (dash as Record<string, unknown>).subscriptionTier ?? "free" }
 
         // Build founder map from deal-flow
         type DealFounder = {
@@ -171,14 +174,17 @@ export default function InvestorDashboard() {
           }
         })
 
+        const profileData = profile as { full_name?: string; firm_name?: string } | null
+        const billingData = billing as { subscriptionTier?: string }
+        const unreadData  = unread  as { unreadMessages?: number; pendingRequests?: number }
         setData({
-          investorName:    (profile?.full_name as string)    ?? "",
-          firmName:        (profile?.firm_name as string)    ?? "",
-          subscriptionTier: billing.subscriptionTier         ?? "free",
+          investorName:    profileData?.full_name ?? "",
+          firmName:        profileData?.firm_name ?? "",
+          subscriptionTier: billingData.subscriptionTier        ?? "free",
           pipeline:        stageRows,
           pipelineTotal:   pipeline.length,
-          pendingRequests: unread.pendingRequests             ?? 0,
-          unreadMessages:  unread.unreadMessages              ?? 0,
+          pendingRequests: unreadData.pendingRequests            ?? 0,
+          unreadMessages:  unreadData.unreadMessages             ?? 0,
           topFounders,
           dealFlowTotal:   allFounders.length,
           highSignalCount: allFounders.filter(f => (f.weightedQScore ?? f.qScore) >= 60 && f.hasScore).length,
@@ -198,8 +204,27 @@ export default function InvestorDashboard() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: "100vh", background: bg }}>
-        <SectionSpinner label="Loading dashboard…" minHeight={480} />
+      <div style={{ minHeight: "100vh", background: bg, padding: "32px 28px 80px" }}>
+        <div style={{ maxWidth: 1120, margin: "0 auto" }}>
+          {/* Header skeleton */}
+          <div style={{ marginBottom: 28 }}>
+            <div style={{ width: 80, height: 10, borderRadius: 4, background: "#E2DDD5", marginBottom: 10 }} />
+            <div style={{ width: 260, height: 28, borderRadius: 6, background: "#E2DDD5" }} />
+          </div>
+          {/* Stat cards skeleton */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 12, marginBottom: 28 }}>
+            {[...Array(5)].map((_, i) => <StatCardSkeleton key={i} />)}
+          </div>
+          {/* Main content skeleton */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 16 }}>
+            <div style={{ background: "#F0EDE6", border: "1px solid #E2DDD5", borderRadius: 14, overflow: "hidden" }}>
+              {[...Array(5)].map((_, i) => <RowSkeleton key={i} />)}
+            </div>
+            <div style={{ background: "#F0EDE6", border: "1px solid #E2DDD5", borderRadius: 14, overflow: "hidden" }}>
+              {[...Array(4)].map((_, i) => <RowSkeleton key={i} withAvatar={false} />)}
+            </div>
+          </div>
+        </div>
       </div>
     )
   }
@@ -220,53 +245,78 @@ export default function InvestorDashboard() {
       <div style={{ maxWidth: 1120, margin: "0 auto" }}>
 
         {/* ── Header ───────────────────────────────────────────────────── */}
-        <div style={{ marginBottom: 28 }}>
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          style={{ marginBottom: 28 }}>
           <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.2em", color: muted, fontWeight: 600, marginBottom: 4, fontFamily: "inherit" }}>
             {timeLabel()}
           </p>
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-            <h1 style={{ fontSize: "clamp(1.4rem,3vw,2rem)", fontWeight: 300, letterSpacing: "-0.03em", color: ink, margin: 0 }}>
+            <h1 style={{ fontSize: "clamp(1.4rem,3vw,2rem)", fontWeight: 400, fontFamily: "var(--font-display)", letterSpacing: "-0.02em", color: ink, margin: 0 }}>
               {getGreeting(d.investorName)}
             </h1>
             {d.firmName && (
               <span style={{ fontSize: 12, color: muted, fontFamily: "inherit" }}>{d.firmName}</span>
             )}
           </div>
-        </div>
+        </motion.div>
 
         {/* ── Stat row ─────────────────────────────────────────────────── */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 12, marginBottom: 28 }}>
-          <StatCard
-            icon={Briefcase} label="Active pipeline" color={blue}
-            value={activeInPipeline}
-            sub={activeInPipeline === 0 ? "Browse deal flow →" : `${d.portfolioCount} portfolio · ${d.inDDCount} in DD · ${d.meetingCount} meetings`}
-            href="/investor/pipeline"
-          />
-          <StatCard
-            icon={Star} label="High-signal founders" color={green}
-            value={d.highSignalCount}
-            sub={d.highSignalCount === 0 ? "Adjust your criteria →" : "Q-Score ≥ 60 in deal flow"}
-            href="/investor/deal-flow"
-          />
-          <StatCard
-            icon={Users} label="Pending connections" color={PIPELINE_STAGE_COLORS.in_dd.color}
-            value={d.pendingRequests}
-            sub={d.pendingRequests === 0 ? "Explore founders →" : "awaiting your review"}
-            href="/investor/connections"
-          />
-          <StatCard
-            icon={MessageSquare} label="Unread messages" color={amber}
-            value={d.unreadMessages}
-            sub={d.unreadMessages === 0 ? "No messages yet" : "from founders"}
-            href="/investor/messages"
-          />
-          <StatCard
-            icon={TrendingUp} label="Deal flow" color={ink}
-            value={d.dealFlowTotal}
-            sub="founders available"
-            href="/investor/deal-flow"
-          />
+          {[
+            { icon: Briefcase, label: "Active pipeline", color: blue, value: activeInPipeline, sub: activeInPipeline === 0 ? "Browse deal flow →" : `${d.portfolioCount} portfolio · ${d.inDDCount} in DD · ${d.meetingCount} meetings`, href: "/investor/pipeline" },
+            { icon: Star, label: "High-signal founders", color: green, value: d.highSignalCount, sub: d.highSignalCount === 0 ? "Adjust your criteria →" : "Q-Score ≥ 60 in deal flow", href: "/investor/deal-flow" },
+            { icon: Users, label: "Pending connections", color: PIPELINE_STAGE_COLORS.in_dd.color, value: d.pendingRequests, sub: d.pendingRequests === 0 ? "Explore founders →" : "awaiting your review", href: "/investor/connections" },
+            { icon: MessageSquare, label: "Unread messages", color: amber, value: d.unreadMessages, sub: d.unreadMessages === 0 ? "No messages yet" : "from founders", href: "/investor/messages" },
+            { icon: TrendingUp, label: "Deal flow", color: ink, value: d.dealFlowTotal, sub: "founders available", href: "/investor/deal-flow" },
+          ].map((card, i) => (
+            <motion.div
+              key={card.label}
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35, delay: 0.08 + i * 0.07 }}
+            >
+              <StatCard icon={card.icon} label={card.label} color={card.color} value={card.value} sub={card.sub} href={card.href} />
+            </motion.div>
+          ))}
         </div>
+
+        {/* ── Q-Score distribution chart ───────────────────────────────── */}
+        {d.topFounders.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.55 }}
+            style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 14, padding: "20px 20px 14px", marginBottom: 20 }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+              <div>
+                <p style={{ fontSize: 12, fontWeight: 600, color: ink }}>Q-Score Distribution</p>
+                <p style={{ fontSize: 11, color: muted, marginTop: 2 }}>Top {d.topFounders.length} founders in your deal flow</p>
+              </div>
+              <span style={{ fontSize: 11, color: muted }}>{d.highSignalCount} high-signal (≥60)</span>
+            </div>
+            <BarChart
+              data={[
+                { range: "0–30",  founders: d.topFounders.filter(f => f.qScore < 30).length },
+                { range: "30–50", founders: d.topFounders.filter(f => f.qScore >= 30 && f.qScore < 50).length },
+                { range: "50–70", founders: d.topFounders.filter(f => f.qScore >= 50 && f.qScore < 70).length },
+                { range: "70–85", founders: d.topFounders.filter(f => f.qScore >= 70 && f.qScore < 85).length },
+                { range: "85+",   founders: d.topFounders.filter(f => f.qScore >= 85).length },
+              ]}
+              index="range"
+              categories={["founders"]}
+              colors={["blue"]}
+              className="h-28"
+              showLegend={false}
+              showXAxis={true}
+              showYAxis={false}
+              showGridLines={false}
+            />
+          </motion.div>
+        )}
 
         {/* ── Upgrade banner (free tier only) ─────────────────────────── */}
         {d.subscriptionTier === 'free' && (

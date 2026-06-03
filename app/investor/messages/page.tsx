@@ -21,7 +21,7 @@ interface PendingRequest {
   stage: string
   industry: string
   qScore: number
-  qScoreBreakdown: { market: number; product: number; goToMarket: number; financial: number; team: number; traction: number }
+  qScoreBreakdown: { p1: number; p2: number; p3: number; p4: number; p5: number; p6: number }
   personalMessage?: string
   requestedDate: string
 }
@@ -502,11 +502,11 @@ export default function InvestorMessagesPage() {
                     </div>
                     <div style={{ width: 1, height: 40, background: bdr }} />
                     <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-                      {Object.entries(panel.data.qScoreBreakdown).map(([dim, score]) => (
-                        <div key={dim} style={{ textAlign: 'center' }}>
-                          <p style={{ fontSize: 13, fontWeight: 600, color: qColor(score as number), lineHeight: 1 }}>{score as number}</p>
+                      {([ ['p1','Mkt Ready'],['p2','Mkt Potential'],['p3','IP & Def'],['p4','Team'],['p5','Impact'],['p6','Finance'] ] as [keyof typeof panel.data.qScoreBreakdown, string][]).map(([key, label]) => (
+                        <div key={key} style={{ textAlign: 'center' }}>
+                          <p style={{ fontSize: 13, fontWeight: 600, color: qColor(panel.data.qScoreBreakdown[key]), lineHeight: 1 }}>{panel.data.qScoreBreakdown[key]}</p>
                           <p style={{ fontSize: 9, color: muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 3 }}>
-                            {dim === 'goToMarket' ? 'GTM' : dim}
+                            {label}
                           </p>
                         </div>
                       ))}
@@ -638,13 +638,19 @@ export default function InvestorMessagesPage() {
                 )}
 
                 {buildGroups(messages, myUserId ?? '').map((group, gi) => (
-                  <MessageGroupBlock
+                  <motion.div
                     key={group.messages[0].id}
-                    group={group}
-                    senderInitials={initials(panel.data.founderName)}
-                    myInitials="Me"
-                    isFirst={gi === 0}
-                  />
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.22, delay: gi < 5 ? 0 : 0 }}
+                  >
+                    <MessageGroupBlock
+                      group={group}
+                      senderInitials={initials(panel.data.founderName)}
+                      myInitials="Me"
+                      isFirst={gi === 0}
+                    />
+                  </motion.div>
                 ))}
                 <div ref={bottomRef} />
               </div>

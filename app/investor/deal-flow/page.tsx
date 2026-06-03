@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Search, ChevronRight, ChevronDown, Flame, ArrowUp, Minus, LayoutGrid, List, MessageSquare, Send, X, Loader2 } from "lucide-react";
+import { Search, ChevronRight, ChevronDown, Flame, ArrowUp, Minus, LayoutGrid, List, MessageSquare, Send, X, Loader2, Bookmark } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
 import { PIPELINE_STAGE_COLORS, momentumBadge as _momentumBadge } from '@/features/investor/constants/pipeline'
@@ -75,34 +75,41 @@ function _freshnessDot(daysAgo: number | null) {
 
 // ─── founder card (compact horizontal) ───────────────────────────────────────
 function FounderCard({
-  founder, pipelineStage, onPipelineChange, onView, onMessage,
+  founder, pipelineStage, onPipelineChange, onView, onMessage, watchedIds, onWatch,
 }: {
   founder: Founder;
   pipelineStage: string | null;
   onPipelineChange: (id: string, stage: string) => void;
   onView: (id: string) => void;
   onMessage: (founder: Founder) => void;
+  watchedIds?: Set<string>;
+  onWatch?: (founderId: string) => void;
 }) {
   const [pipelineOpen, setPipelineOpen] = useState(false);
+  const isWatched = watchedIds?.has(founder.id) ?? false;
   const scoreColor = founder.hasScore ? qScoreColor(founder.weightedQScore) : muted;
   const mb = momentumBadge(founder.momentumScore);
   const MIcon = mb?.Icon;
   const activePipeline = PIPELINE_STAGES.find(s => s.value === pipelineStage) ?? null;
 
+  const accentScore = founder.hasScore ? (founder.weightedQScore ?? 0) : 0;
+  const accentBorder = accentScore >= 70 ? `3px solid ${green}` : accentScore >= 50 ? `3px solid ${amber}` : undefined;
+
   return (
     <div
       style={{
         background: bg, border: `1px solid ${bdr}`, borderRadius: 10,
+        borderLeft: accentBorder ?? `1px solid ${bdr}`,
         display: "flex", alignItems: "center", gap: 12, padding: "12px 14px",
-        cursor: "pointer", transition: "background .12s, border-color .12s",
+        cursor: "pointer", transition: "background .15s, border-color .15s, box-shadow .15s",
       }}
       onMouseEnter={e => {
         (e.currentTarget as HTMLElement).style.background = surf;
-        (e.currentTarget as HTMLElement).style.borderColor = blue;
+        (e.currentTarget as HTMLElement).style.boxShadow = "0 2px 10px rgba(0,0,0,0.07)";
       }}
       onMouseLeave={e => {
         (e.currentTarget as HTMLElement).style.background = bg;
-        (e.currentTarget as HTMLElement).style.borderColor = bdr;
+        (e.currentTarget as HTMLElement).style.boxShadow = "none";
       }}
       onClick={() => onView(founder.id)}
     >
@@ -200,6 +207,23 @@ function FounderCard({
         )}
       </div>
 
+      {/* watch */}
+      {onWatch && (
+        <button
+          onClick={e => { e.stopPropagation(); onWatch(founder.id); }}
+          title={isWatched ? "Unwatch founder" : "Watch founder (get alerted when Q-Score rises)"}
+          style={{
+            height: 30, width: 30, display: "flex", alignItems: "center", justifyContent: "center",
+            background: isWatched ? `${blue}12` : surf,
+            border: `1px solid ${isWatched ? blue : bdr}`,
+            borderRadius: 7, cursor: "pointer", flexShrink: 0,
+            transition: "all 0.15s",
+          }}
+        >
+          <Bookmark style={{ height: 12, width: 12, color: isWatched ? blue : muted }} />
+        </button>
+      )}
+
       {/* message */}
       <button
         onClick={e => { e.stopPropagation(); onMessage(founder); }}
@@ -285,6 +309,41 @@ export default function DealFlowPage() {
   const [selectedSector, setSelectedSector] = useState("all");
   const [activeTab,      setActiveTab]      = useState<"all" | "hot" | "pipeline">("all");
   const [viewMode,       setViewMode]       = useState<"cards" | "table">("cards");
+  // Watchlist
+  const [watchedIds, setWatchedIds] = useState<Set<string>>(new Set())
+
+  // Load watchlist on mount
+  useEffect(() => {
+    fetch('/api/investor/watchlist')
+      .then(r => r.ok ? r.json() : { watchlist: [] })
+      .then(d => setWatchedIds(new Set((d.watchlist ?? []).map((w: { founder_id: string }) => w.founder_id))))
+      .catch(() => {})
+  }, [])
+
+  const handleWatch = async (founderId: string) => {
+    const isWatched = watchedIds.has(founderId)
+    // Optimistic update
+    setWatchedIds(prev => {
+      const next = new Set(prev)
+      if (isWatched) next.delete(founderId); else next.add(founderId)
+      return next
+    })
+    try {
+      await fetch('/api/investor/watchlist', {
+        method: isWatched ? 'DELETE' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ founderId }),
+      })
+    } catch {
+      // Revert optimistic update on failure
+      setWatchedIds(prev => {
+        const next = new Set(prev)
+        if (isWatched) next.add(founderId); else next.delete(founderId)
+        return next
+      })
+    }
+  }
+
   // Outreach
   const [outreachFounder,  setOutreachFounder]  = useState<Founder | null>(null);
   const [outreachMsg,      setOutreachMsg]      = useState('');
@@ -386,7 +445,7 @@ export default function DealFlowPage() {
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 28, flexWrap: "wrap", gap: 12 }}>
           <div>
             <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.2em", color: muted, fontWeight: 600, marginBottom: 6 }}>Deal Flow</p>
-            <h1 style={{ fontSize: "clamp(1.6rem,3.5vw,2.2rem)", fontWeight: 300, letterSpacing: "-0.03em", color: ink, marginBottom: 4 }}>
+            <h1 style={{ fontSize: "clamp(1.6rem,3.5vw,2.2rem)", fontWeight: 400, fontFamily: "var(--font-display)", letterSpacing: "-0.02em", color: ink, marginBottom: 4 }}>
               Investment opportunities.
             </h1>
             <p style={{ fontSize: 13, color: muted }}>Founders matched to your thesis, scored and ranked by Q-Score.</p>
@@ -483,6 +542,8 @@ export default function DealFlowPage() {
                   onPipelineChange={updatePipelineStage}
                   onView={id => router.push(`/investor/startup/${id}`)}
                   onMessage={f => { setOutreachFounder(f); setOutreachMsg(''); setOutreachDone(false); }}
+                  watchedIds={watchedIds}
+                  onWatch={handleWatch}
                 />
               </motion.div>
             ))}

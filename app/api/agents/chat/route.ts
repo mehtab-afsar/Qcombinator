@@ -25,46 +25,29 @@ import { ClaudeError } from '@/lib/claude';
 import { llmChat, llmStream } from '@/lib/llm/provider';
 import { routedText } from '@/lib/llm/router';
 import { getToolsForAgent, delegateToAgentTool } from '@/lib/llm/tools';
-import { executeTool } from '@/lib/tools/executor';
-import { getAgentContext, formatContextForPrompt } from '@/lib/agents/context';
-import { getRelevantDocumentChunks } from '@/lib/agents/document-rag';
+import { runLoopTool, runExecTool, logToolExecution, fetchTavilyResearch } from '@/lib/agents/engine/tool-runner';
+import { buildChatContext } from '@/lib/agents/engine/context-builder';
 import type { ContentBlock } from '@/lib/llm/types';
-import { orchestrate } from '@/lib/agents/orchestrator';
 import { runCritiqueLoop } from '@/lib/agents/critique';
-import { getFounderProfileContext, type FounderProfileResult } from '@/lib/agents/founder-context';
 import { evaluateArtifactIndependently } from '@/lib/agents/patel-evaluator';
-import type { PatelScores, PatelConfidence } from '@/lib/constants/patel-indicators';
 import { scoreFromArtifact } from '@/lib/qscore/artifact-scorer';
 import { applyAgentScoreSignal } from '@/features/qscore/services/agent-signal';
 import {
   FF_ARTIFACT_SELF_CRITIQUE,
   FF_COORDINATOR_WORKFLOW,
-  FF_CROSS_AGENT_ORCHESTRATION,
   FF_STREAMING_CHAT,
 } from '@/lib/feature-flags';
-import { getRelevantResources, formatResourcesForPrompt } from '@/features/knowledge/library';
-import { withCircuitBreaker } from '@/lib/circuit-breaker';
 import {
   getStartupState,
   updateStartupState,
-  formatStartupStateForPrompt,
   extractStateFromArtifact,
-  type StartupState,
 } from '@/lib/agents/startup-state';
-import { upsertAgentGoal, getAgentGoal, formatGoalForPrompt } from '@/lib/agents/agent-goals';
+import { upsertAgentGoal } from '@/lib/agents/agent-goals';
 import { log } from '@/lib/logger'
-import {
-  getPendingDelegations,
-  formatDelegationsForPrompt,
-  markDelegationRunning,
-  triggerProactiveDelegations,
-} from '@/lib/agents/delegation';
+import { triggerProactiveDelegations } from '@/lib/agents/delegation';
 import { GLOBAL_CONSTITUTION } from '@/lib/agents/constitution';
-import { getAgentMemory } from '@/lib/agents/memory-loader';
-import { updateAgentMemory } from '@/lib/agents/memory-updater';
-import { summariseAndSaveSession } from '@/lib/agents/session-summarizer';
-import { inferIterationAndAlignmentFromMessage } from '@/lib/agents/patel-indicator-updater';
-import { buildPatelQuestionBank } from '@/lib/agents/patel-question-bank';
+import { updatePatelIndicatorsFromArtifact } from '@/lib/agents/patel-indicator-updater';
+import { persistChatTurn } from '@/lib/agents/engine/chat-persistence';
 
 // ─── request schema ──────────────────────────────────────────────────────────
 const chatRequestSchema = z.object({
@@ -97,108 +80,8 @@ const AGENT_SYSTEM_PROMPTS: Record<string, string> = {
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
-/**
- * Synchronous mid-loop delegation: calls a target agent's LLM with its
- * identity + the specific task, returns a concise expert response.
- * Used by delegate_to_agent tool — result is injected back as tool_result
- * so the calling agent can use it in the next iteration.
- */
-async function executeDelegateToAgent(
-  targetAgentId: string,
-  task: string,
-  context: string | undefined,
-): Promise<string> {
-  const targetPrompt = AGENT_SYSTEM_PROMPTS[targetAgentId];
-  if (!targetPrompt) return `Unknown agent: ${targetAgentId}`;
-
-  const userContent = [
-    context ? `CONTEXT FROM REQUESTING AGENT:\n${context}` : '',
-    `TASK:\n${task}`,
-    'Respond concisely with expert output. Focus only on what was asked — do not ask clarifying questions.',
-  ].filter(Boolean).join('\n\n');
-
-  try {
-    const result = await routedText('generation', [
-      { role: 'system', content: targetPrompt },
-      { role: 'user', content: userContent },
-    ], { maxTokens: 1500 });
-    return `[${targetAgentId.toUpperCase()} RESPONSE]\n${result}`;
-  } catch {
-    return `Delegation to ${targetAgentId} failed — continuing without their input.`;
-  }
-}
-
-// Fire-and-forget tool execution logger
-function logToolExecution(
-  supabaseAdmin: SupabaseClient,
-  userId: string | undefined,
-  agentId: string,
-  toolName: string,
-  startMs: number,
-  status: 'success' | 'error' | 'timeout',
-  errorMsg?: string,
-  modelTier?: string,
-) {
-  void supabaseAdmin.from('tool_execution_logs').insert({
-    user_id:    userId ?? null,
-    agent_id:   agentId,
-    tool_name:  toolName,
-    status,
-    latency_ms: Date.now() - startMs,
-    error_msg:  errorMsg ?? null,
-    model_tier: modelTier ?? null,
-  });
-}
-
-
-async function fetchTavilyResearch(query: string): Promise<Record<string, unknown> | null> {
-  const apiKey = process.env.TAVILY_API_KEY;
-  if (!apiKey) {
-    log.warn('TAVILY_API_KEY not configured — skipping research');
-    return null;
-  }
-
-  return withCircuitBreaker('tavily', async () => {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 15_000);
-    const response = await fetch('https://api.tavily.com/search', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      signal: controller.signal,
-      body: JSON.stringify({
-        api_key: apiKey,
-        query,
-        search_depth: 'advanced',
-        max_results: 8,
-        include_answer: true,
-        include_raw_content: false,
-      }),
-    });
-    clearTimeout(timer);
-
-    if (!response.ok) {
-      log.error('Tavily error:', response.statusText);
-      return null;
-    }
-
-    const data = await response.json();
-    return {
-      answer: data.answer ?? null,
-      results: (data.results || []).map((r: { title: string; url: string; content: string }) => ({
-        title: r.title,
-        url: r.url,
-        snippet: r.content?.slice(0, 400),
-      })),
-    };
-  }, null);
-}
-
-// ─── usage limits ────────────────────────────────────────────────────────────
-// increment_usage_if_allowed RPC (see migration 20260512000003) atomically
-// locks the subscription_usage row, handles reset-window expiry, checks the
-// limit, and increments — all in one DB round-trip. This eliminates the
-// TOCTOU race where two concurrent requests both pass the limit check before
-// either one increments.
+// atomicCheckAndIncrementUsage: locks subscription_usage row, checks limit,
+// and increments in one DB round-trip (no TOCTOU race).
 async function atomicCheckAndIncrementUsage(
   userId: string,
   supabaseAdmin: SupabaseClient
@@ -212,387 +95,6 @@ async function atomicCheckAndIncrementUsage(
   const row = data?.[0]
   if (!row) throw new Error('increment_usage_if_allowed returned no row')
   return { allowed: row.allowed, remaining: row.remaining }
-}
-
-// Hunter.io lead enrichment — returns a formatted markdown table of contacts
-async function executeLeadEnrich(domain: string): Promise<string> {
-  const apiKey = process.env.HUNTER_API_KEY;
-  if (!apiKey) {
-    return '*Lead enrichment requires a Hunter.io API key. Set `HUNTER_API_KEY` in your environment.*';
-  }
-
-  const cleanDomain = domain.trim().replace(/^https?:\/\//i, '').replace(/\/.*/,'').trim();
-  if (!cleanDomain) return '*No domain provided for lead enrichment.*';
-
-  return withCircuitBreaker('hunter_io', async () => {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 10_000);
-    const res = await fetch(
-      `https://api.hunter.io/v2/domain-search?domain=${encodeURIComponent(cleanDomain)}&limit=10&api_key=${apiKey}`,
-      { signal: controller.signal }
-    );
-    clearTimeout(timer);
-
-    if (!res.ok) return `Could not enrich ${cleanDomain} — Hunter.io returned ${res.status}.`;
-
-    const data = await res.json() as {
-      data?: {
-        organization?: string;
-        emails?: Array<{ value: string; first_name?: string; last_name?: string; position?: string; confidence: number }>;
-      };
-      meta?: { results: number };
-    };
-
-    const emails = data.data?.emails ?? [];
-    const leads = emails
-      .filter(e => e.value && e.confidence >= 50)
-      .sort((a, b) => b.confidence - a.confidence)
-      .slice(0, 8);
-
-    if (leads.length === 0) return `No high-confidence leads found at **${cleanDomain}**.`;
-
-    const org = data.data?.organization ?? cleanDomain;
-    let result = `**${leads.length} leads found at ${org} (${cleanDomain}):**\n\n`;
-    result += '| Name | Email | Title | Confidence |\n|------|-------|-------|------------|\n';
-    for (const lead of leads) {
-      const name = [lead.first_name, lead.last_name].filter(Boolean).join(' ') || '—';
-      const title = lead.position || '—';
-      result += `| ${name} | ${lead.value} | ${title} | ${lead.confidence}% |\n`;
-    }
-    return result;
-  }, `*Hunter.io is temporarily unavailable. Please try again in a few minutes.*`);
-}
-
-// ─── data-tool executors (return formatted strings for observe loop) ──────────
-
-async function executeCreateDeal(
-  ctx: Record<string, unknown>,
-  userId: string | undefined,
-  supabaseAdmin: SupabaseClient,
-  agentId: string,
-): Promise<string> {
-  const company      = (ctx.company as string) || '';
-  const contactName  = (ctx.contact_name as string) || undefined;
-  const contactEmail = (ctx.contact_email as string) || undefined;
-  const contactTitle = (ctx.contact_title as string) || undefined;
-  const dealValue    = typeof ctx.value === 'number' ? ctx.value : undefined;
-  const stage        = (ctx.stage as string) || 'lead';
-  const notes        = (ctx.notes as string) || undefined;
-
-  if (!company || !userId) return 'Deal not created — missing company name or unauthenticated.';
-
-  const { data: deal } = await supabaseAdmin
-    .from('deals')
-    .insert({
-      user_id: userId, company,
-      contact_name:  contactName  ?? null,
-      contact_email: contactEmail ?? null,
-      contact_title: contactTitle ?? null,
-      stage: ['lead','qualified','proposal','negotiating','won','lost'].includes(stage) ? stage : 'lead',
-      value: dealValue ?? null,
-      notes: notes ?? null,
-      source: 'susi_chat',
-    })
-    .select()
-    .single();
-
-  if (!deal) return `Failed to create deal for ${company}.`;
-
-  void supabaseAdmin.from('agent_activity').insert({
-    user_id: userId, agent_id: agentId, action_type: 'deal_created',
-    description: `Added ${company} to pipeline as ${stage}`,
-    metadata: { deal_id: deal.id, company, stage, value: dealValue },
-  });
-
-  return [
-    `Deal created: **${company}**`,
-    dealValue ? `Value: $${dealValue.toLocaleString()}` : null,
-    `Stage: ${stage}`,
-    contactEmail ? `Contact: ${contactName || contactEmail}` : null,
-  ].filter(Boolean).join(' · ');
-}
-
-async function executeApolloSearch(ctx: Record<string, unknown>): Promise<string> {
-  const apiKey = process.env.APOLLO_API_KEY;
-  if (!apiKey) return '*Apollo.io API key not configured. Set `APOLLO_API_KEY` to enable lead search.*';
-
-  return withCircuitBreaker('apollo_io', async () => {
-    const payload: Record<string, unknown> = { page: 1, per_page: (ctx.per_page as number) ?? 25 };
-    if (ctx.job_titles)  payload.person_titles = ctx.job_titles;
-    if (ctx.industries)  payload.organization_industry_tag_values = ctx.industries;
-    if (ctx.locations)   payload.person_locations = ctx.locations;
-    if (ctx.keywords)    payload.q_keywords = ctx.keywords;
-    if (ctx.employee_count_min || ctx.employee_count_max) {
-      payload.organization_num_employees_ranges = [
-        `${ctx.employee_count_min ?? 1},${ctx.employee_count_max ?? 10000}`
-      ];
-    }
-
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 15_000);
-    const res = await fetch('https://api.apollo.io/v1/mixed_people/search', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Api-Key': apiKey },
-      signal: controller.signal,
-      body: JSON.stringify(payload),
-    });
-    clearTimeout(timer);
-
-    if (!res.ok) return `Apollo search failed: ${res.status} ${res.statusText}`;
-
-    const data = await res.json() as { people?: Array<Record<string, unknown>> };
-    const people = data.people ?? [];
-    if (people.length === 0) return 'No leads found matching those criteria. Try broadening the search.';
-
-    const lines = people.slice(0, 20).map((p: Record<string, unknown>) => {
-      const name    = [p.first_name, p.last_name].filter(Boolean).join(' ') || 'Unknown';
-      const title   = (p.title as string) || '—';
-      const company = (p.organization as Record<string, unknown>)?.name as string || '—';
-      const email   = (p.email as string) || '—';
-      const li      = (p.linkedin_url as string) || '—';
-      return `• ${name} | ${title} | ${company} | ${email} | ${li}`;
-    });
-
-    return `Found ${people.length} leads:\n${lines.join('\n')}`;
-  }, '*Apollo.io is temporarily unavailable. Please try again shortly.*');
-}
-
-async function executePosthogQuery(ctx: Record<string, unknown>): Promise<string> {
-  const apiKey     = process.env.POSTHOG_API_KEY;
-  const projectId  = process.env.POSTHOG_PROJECT_ID;
-  if (!apiKey || !projectId) return '*PostHog not configured. Set `POSTHOG_API_KEY` and `POSTHOG_PROJECT_ID`.*';
-
-  const queryType = (ctx.query_type as string) || 'active_users';
-  const dateFrom  = (ctx.date_range as string) || '-30d';
-
-  return withCircuitBreaker('posthog', async () => {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 15_000);
-    const base = `https://app.posthog.com/api/projects/${projectId}`;
-    const headers = { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' };
-
-    let result = '';
-
-    if (queryType === 'retention') {
-      const res = await fetch(`${base}/insights/retention/`, {
-        method: 'POST', headers, signal: controller.signal,
-        body: JSON.stringify({ date_from: dateFrom, period: 'Week', target_event: { id: '$pageview', name: '$pageview', type: 'events' } }),
-      });
-      clearTimeout(timer);
-      if (!res.ok) return `PostHog retention query failed: ${res.status}`;
-      const data = await res.json() as { result?: Array<{ date: string; values: Array<{ count: number }> }> };
-      const rows = (data.result ?? []).slice(0, 8);
-      if (rows.length === 0) return 'No retention data available.';
-      result = 'Retention cohorts:\n' + rows.map(r =>
-        `Week of ${r.date}: ${r.values.map((v, i) => `Day${i * 7}: ${v.count}`).join(', ')}`
-      ).join('\n');
-    } else {
-      const res = await fetch(`${base}/insights/trend/`, {
-        method: 'POST', headers, signal: controller.signal,
-        body: JSON.stringify({ date_from: dateFrom, events: [{ id: '$pageview', name: '$pageview', type: 'events' }], interval: 'week' }),
-      });
-      clearTimeout(timer);
-      if (!res.ok) return `PostHog trends query failed: ${res.status}`;
-      const data = await res.json() as { result?: Array<{ label: string; data: number[]; days: string[] }> };
-      const series = (data.result ?? [])[0];
-      if (!series) return 'No trend data available.';
-      const points = series.days.slice(-6).map((d, i) => `${d}: ${series.data[series.data.length - 6 + i] ?? 0}`);
-      result = `${queryType} trend (last 6 weeks):\n${points.join('\n')}`;
-    }
-
-    return result || 'Query returned no data.';
-  }, '*PostHog is temporarily unavailable. Please try again shortly.*');
-}
-
-async function executeCalendlyLink(ctx: Record<string, unknown>): Promise<string> {
-  const apiKey   = process.env.CALENDLY_API_KEY;
-  const userUri  = process.env.CALENDLY_USER_URI;
-  if (!apiKey || !userUri) return '*Calendly not configured. Set `CALENDLY_API_KEY` and `CALENDLY_USER_URI`.*';
-
-  return withCircuitBreaker('calendly', async () => {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 10_000);
-    const res = await fetch(`https://api.calendly.com/event_types?user=${encodeURIComponent(userUri)}&count=20`, {
-      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
-
-    if (!res.ok) return `Calendly API error: ${res.status}`;
-
-    const data = await res.json() as { collection?: Array<{ scheduling_url: string; name: string; duration: number; slug: string }> };
-    const types = data.collection ?? [];
-    const meetingType = (ctx.meeting_type as string) || 'demo';
-    const wantDuration = (ctx.duration_minutes as number) || 30;
-
-    const match = types.find(e =>
-      e.slug?.toLowerCase().includes(meetingType) || e.name?.toLowerCase().includes(meetingType)
-    ) ?? types.find(e => e.duration === wantDuration) ?? types[0];
-
-    if (!match) return 'No matching Calendly event types found.';
-
-    return `Calendly booking link generated:\n**${match.name}** (${match.duration} min)\n${match.scheduling_url}`;
-  }, '*Calendly is temporarily unavailable. Please try again shortly.*');
-}
-
-// ─── execution tool handlers ─────────────────────────────────────────────────
-
-async function executeSendOutreachSequence(
-  ctx: Record<string, unknown>,
-  userId: string | undefined,
-  supabaseAdmin: SupabaseClient,
-  agentId: string,
-): Promise<string> {
-  if (!userId) return 'Cannot send emails — user not authenticated.';
-  const contacts = (ctx.contacts as Array<{ name: string; email: string; company?: string }>) ?? [];
-  const steps    = (ctx.sequence_steps as Array<{ subject: string; body: string }>) ?? [];
-  if (contacts.length === 0) return 'No contacts provided. Run apollo_search first to find leads.';
-  if (steps.length === 0)    return 'No sequence steps provided. Generate an outreach_sequence artifact first.';
-
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
-  const res = await fetch(`${baseUrl}/api/agents/outreach/send`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-user-id': userId },
-    body: JSON.stringify({ contacts, steps, agentId }),
-  });
-  if (!res.ok) return `Outreach send failed: ${res.status} ${res.statusText}`;
-  const data = await res.json() as { sent?: number; failed?: number; pipelineAdded?: number };
-
-  void supabaseAdmin.from('agent_activity').insert({
-    user_id: userId, agent_id: agentId, action_type: 'outreach_sent',
-    description: `Sent outreach to ${data.sent ?? 0} contacts`,
-    metadata: { sent: data.sent, failed: data.failed, pipeline_added: data.pipelineAdded },
-  });
-
-  return `Outreach sent: **${data.sent ?? 0} emails dispatched**, ${data.failed ?? 0} failed, ${data.pipelineAdded ?? 0} contacts added to pipeline.`;
-}
-
-async function executeBulkEnrichPipeline(
-  ctx: Record<string, unknown>,
-  userId: string | undefined,
-  supabaseAdmin: SupabaseClient,
-  agentId: string,
-): Promise<string> {
-  if (!userId) return 'Cannot enrich pipeline — user not authenticated.';
-  const apiKey = process.env.APOLLO_API_KEY;
-  if (!apiKey) return '*Apollo.io API key not configured.*';
-
-  const payload: Record<string, unknown> = { page: 1, per_page: (ctx.per_page as number) ?? 50 };
-  if (ctx.job_titles)  payload.person_titles = ctx.job_titles;
-  if (ctx.industries)  payload.organization_industry_tag_values = ctx.industries;
-  if (ctx.locations)   payload.person_locations = ctx.locations;
-  if (ctx.keywords)    payload.q_keywords = ctx.keywords;
-  if (ctx.employee_count_min || ctx.employee_count_max) {
-    payload.organization_num_employees_ranges = [`${ctx.employee_count_min ?? 1},${ctx.employee_count_max ?? 10000}`];
-  }
-
-  const res = await fetch('https://api.apollo.io/v1/mixed_people/search', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Api-Key': apiKey },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) return `Apollo search failed: ${res.status}`;
-
-  const data = await res.json() as { people?: Array<Record<string, unknown>> };
-  const people = data.people ?? [];
-  if (people.length === 0) return 'No leads found. Try broadening the search criteria.';
-
-  const rows = people.map((p: Record<string, unknown>) => ({
-    user_id: userId,
-    company: ((p.organization as Record<string, unknown>)?.name as string) || 'Unknown',
-    contact_name: [p.first_name, p.last_name].filter(Boolean).join(' ') || null,
-    contact_email: (p.email as string) || null,
-    contact_title: (p.title as string) || null,
-    stage: 'lead',
-    source: `${agentId}_bulk_enrich`,
-  }));
-
-  const { error } = await supabaseAdmin.from('deals').insert(rows);
-  if (error) return `Pipeline insert failed: ${error.message}`;
-
-  void supabaseAdmin.from('agent_activity').insert({
-    user_id: userId, agent_id: agentId, action_type: 'pipeline_enriched',
-    description: `Bulk added ${rows.length} leads from Apollo`,
-    metadata: { count: rows.length },
-  });
-
-  return `Pipeline enriched: **${rows.length} leads added** from Apollo search.`;
-}
-
-async function executeScheduleFollowup(
-  ctx: Record<string, unknown>,
-  userId: string | undefined,
-  supabaseAdmin: SupabaseClient,
-  agentId: string,
-): Promise<string> {
-  if (!userId) return 'Cannot schedule follow-up — user not authenticated.';
-  const actionType  = (ctx.action_type as string) || 'followup_check';
-  const daysFromNow = (ctx.days_from_now as number) || 3;
-  const payload     = (ctx.payload as Record<string, unknown>) || {};
-  const dealId      = ctx.deal_id as string | undefined;
-  const company     = ctx.company as string | undefined;
-
-  const executeAt = new Date();
-  executeAt.setDate(executeAt.getDate() + daysFromNow);
-  const executeDateStr = executeAt.toISOString().split('T')[0];
-
-  const { error } = await supabaseAdmin.from('scheduled_actions').insert({
-    user_id: userId, agent_id: agentId, action_type: actionType,
-    payload: { ...payload, deal_id: dealId, company },
-    execute_at: executeAt.toISOString(), status: 'pending',
-  });
-  if (error) return `Failed to schedule follow-up: ${error.message}`;
-
-  // Write next_action_date back to the deal so the reminders banner picks it up
-  if (dealId) {
-    await supabaseAdmin.from('deals')
-      .update({ next_action: actionType, next_action_date: executeDateStr })
-      .eq('id', dealId)
-      .eq('user_id', userId);
-  }
-
-  void supabaseAdmin.from('agent_activity').insert({
-    user_id: userId, agent_id: agentId, action_type: 'followup_scheduled',
-    description: `Scheduled ${actionType} for Day +${daysFromNow}${company ? ` — ${company}` : ''}`,
-    metadata: { action_type: actionType, execute_at: executeAt.toISOString(), deal_id: dealId },
-  });
-
-  const dealNote = dealId ? ' Deal updated.' : '';
-  return `Follow-up scheduled: **${actionType}** set for ${executeAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} (Day +${daysFromNow}).${dealNote}`;
-}
-
-async function executeInitiateVoiceCall(
-  ctx: Record<string, unknown>,
-  userId: string | undefined,
-  supabaseAdmin: SupabaseClient,
-  agentId: string,
-): Promise<string> {
-  if (!userId) return 'Cannot initiate call — user not authenticated.';
-  const phoneNumber = (ctx.phone_number as string) || '';
-  if (!phoneNumber) return 'No phone number provided. Please supply a phone number in E.164 format.';
-
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
-  const res = await fetch(`${baseUrl}/api/agents/susi/vapi`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-user-id': userId },
-    body: JSON.stringify({
-      phone_number: phoneNumber,
-      lead_name: ctx.lead_name ?? '',
-      company:   ctx.company ?? '',
-      context:   ctx.context ?? '',
-      agentId,
-    }),
-  });
-  if (!res.ok) return `Voice call failed: ${res.status} ${res.statusText}`;
-  const data = await res.json() as { callId?: string; status?: string };
-
-  void supabaseAdmin.from('agent_activity').insert({
-    user_id: userId, agent_id: agentId, action_type: 'voice_call_initiated',
-    description: `AI SDR call initiated to ${ctx.lead_name ?? phoneNumber}`,
-    metadata: { phone_number: phoneNumber, call_id: data.callId, company: ctx.company },
-  });
-
-  return `Voice call initiated: AI SDR dialing **${ctx.lead_name ?? phoneNumber}**${ctx.company ? ` at ${ctx.company}` : ''}. Call ID: ${data.callId ?? 'pending'}.`;
 }
 
 // ─── GET: load conversation history ──────────────────────────────────────────
@@ -681,248 +183,24 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Use dedicated system prompt if available, fall back to built one
-    // Constitution is prepended first — it cannot be overridden by agent-specific instructions below it
-    let systemPrompt = GLOBAL_CONSTITUTION + '\n\n' + (AGENT_SYSTEM_PROMPTS[agentId] ?? buildAgentSystemPrompt(agent, userContext)) + '\n<<<CACHE_BREAK>>>'
+    // ── Build enriched system prompt + load all context in parallel ─────────
+    const baseSystemPrompt = GLOBAL_CONSTITUTION + '\n\n' + (AGENT_SYSTEM_PROMPTS[agentId] ?? buildAgentSystemPrompt(agent, userContext)) + '\n<<<CACHE_BREAK>>>'
+    const {
+      systemPrompt: systemPromptBuilt,
+      patelRawScores,
+      patelRawConfidence,
+      startupState,
+      sourcesUsed,
+      compressionInfo,
+    } = await buildChatContext({
+      agentId, userId, message,
+      existingConversationId,
+      conversationHistory: conversationHistory as Array<{ role: string; content: string }> | undefined,
+      baseSystemPrompt,
+      supabase: supabaseAdmin,
+    })
+    const systemPrompt = systemPromptBuilt
 
-    // ── Source citations — collected during context loading, emitted as first SSE event ──
-    type SourceItem = { label: string; type: 'profile' | 'memory' | 'artifact' | 'cross_agent' }
-    const sourcesUsed: SourceItem[] = []
-    // Compression info — populated inside the userId block, read in SSE start
-    let compressionInfo = { applied: false, droppedCount: 0 }
-
-    // ── Agent memory + cross-agent context (registry-driven, fail-open) ──────
-    let startupState: StartupState | null = null;
-    // Declared here so artifact generation (outside if(userId)) can access them
-    let patelRawScores: PatelScores | undefined
-    let patelRawConfidence: PatelConfidence | undefined
-    if (userId) {
-      // Run context loading + orchestration + founder profile + startup state in parallel.
-      // Orchestration is capped at 2s — it makes sub-agent LLM calls that can take 5-10s
-      // and would otherwise block time-to-first-token for every message.
-      const orchFallback = { subAgentResults: [] as Awaited<ReturnType<typeof orchestrate>>['subAgentResults'], contextInjection: '', subCallsUsed: 0 };
-      const orchWithTimeout = FF_CROSS_AGENT_ORCHESTRATION
-        ? Promise.race([
-            orchestrate(agentId, userId, message, supabaseAdmin),
-            new Promise<typeof orchFallback>(r => setTimeout(() => r(orchFallback), 2000)),
-          ])
-        : Promise.resolve(orchFallback);
-
-      const parallelTasks: [
-        Promise<Awaited<ReturnType<typeof getAgentContext>>>,
-        Promise<typeof orchFallback>,
-        Promise<FounderProfileResult>,
-        Promise<StartupState | null>,
-      ] = [
-        getAgentContext(agentId, userId, supabaseAdmin, message),
-        orchWithTimeout,
-        getFounderProfileContext(userId, supabaseAdmin, agentId),
-        getStartupState(userId, supabaseAdmin),
-      ];
-      const [ctxResult, orchResult, founderCtxResult, stateResult] = await Promise.allSettled(parallelTasks);
-
-      // Inject founder profile first — agents should see it before artifact memory
-      if (founderCtxResult.status === 'fulfilled' && founderCtxResult.value) {
-        systemPrompt += founderCtxResult.value.block;
-      }
-
-      // Extract raw Patel diagnostic scores for artifact prompt grounding (Patel sessions only)
-      patelRawScores = founderCtxResult.status === 'fulfilled' ? founderCtxResult.value?.rawScores : undefined
-      patelRawConfidence = founderCtxResult.status === 'fulfilled' ? founderCtxResult.value?.rawConfidence : undefined
-      if (agentId === 'patel' && !patelRawScores) {
-        log.warn('patel_scores_missing', { userId, agentId })
-      }
-
-      // Fix 1: inject curated DIAGNOSTIC_QUESTIONS bank for active constraint dimension
-      if (agentId === 'patel') {
-        const qBank = buildPatelQuestionBank(patelRawScores, patelRawConfidence)
-        if (qBank) systemPrompt += qBank
-      }
-
-      // Fix 2: inject questions already asked this session — prevents Patel from repeating
-      if (agentId === 'patel' && (conversationHistory || []).length > 0) {
-        const askedQuestions = (conversationHistory as Array<{ role: string; content: string }>)
-          .filter(m => m.role === 'assistant')
-          .flatMap(m => m.content.split('\n').filter(l => l.trim().endsWith('?') && l.trim().length > 20))
-          .slice(-6)
-        if (askedQuestions.length > 0) {
-          systemPrompt += `\n\nQUESTIONS ALREADY ASKED THIS SESSION — do not repeat, do not rephrase:\n${askedQuestions.map(q => `- ${q.trim()}`).join('\n')}`
-        }
-      }
-
-      // Inject shared startup state — gives every agent live facts from other agents
-      if (stateResult.status === 'fulfilled') {
-        startupState = stateResult.value;
-        const stateBlock = formatStartupStateForPrompt(startupState);
-        if (stateBlock) systemPrompt += stateBlock;
-      }
-
-      // Inject latest artifact from this conversation — lets the LLM accept "edit this" follow-ups
-      if (existingConversationId) {
-        try {
-          const { data: latestArt } = await supabaseAdmin
-            .from('agent_artifacts')
-            .select('artifact_type, title, content')
-            .eq('conversation_id', existingConversationId)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .single()
-
-          if (latestArt) {
-            const snippet = JSON.stringify(latestArt.content).slice(0, 3000)
-            systemPrompt += `\n\n<latest_artifact type="${latestArt.artifact_type}" title="${latestArt.title}">
-${snippet}
-</latest_artifact>
-When the founder asks to refine, edit, or update this document, call generate_artifact with the same artifact type — the conversation history already contains their requested changes.`
-          }
-        } catch { /* non-critical — never block the response */ }
-      }
-
-      // Load pending delegations + agent goal in parallel (non-blocking — never delays the response)
-      const [delegationsResult, goalResult] = await Promise.allSettled([
-        getPendingDelegations(agentId, userId, supabaseAdmin),
-        startupState ? getAgentGoal(agentId, userId, supabaseAdmin) : Promise.resolve(null),
-      ]);
-
-      // Inject pending delegations (high-priority: injected before artifact memory)
-      if (delegationsResult.status === 'fulfilled' && delegationsResult.value.length > 0) {
-        systemPrompt += formatDelegationsForPrompt(delegationsResult.value);
-        // Mark immediate-priority delegations as running
-        for (const task of delegationsResult.value) {
-          if (task.priority === 'immediate') void markDelegationRunning(task.id, supabaseAdmin);
-        }
-      }
-
-      // Inject agent goal status (so the agent knows what it's optimising for)
-      if (goalResult.status === 'fulfilled') {
-        systemPrompt += formatGoalForPrompt(goalResult.value);
-      }
-
-      if (ctxResult.status === 'fulfilled') {
-        systemPrompt += formatContextForPrompt(ctxResult.value);
-        if (ctxResult.value.compressionApplied && ctxResult.value.droppedCount > 0) {
-          compressionInfo = { applied: true, droppedCount: ctxResult.value.droppedCount }
-        }
-      } else {
-        log.warn('Agent context injection failed — proceeding without memory');
-      }
-
-      if (FF_CROSS_AGENT_ORCHESTRATION && orchResult.status === 'fulfilled' && orchResult.value.contextInjection) {
-        systemPrompt += `\n\nCROSS-AGENT INTELLIGENCE — Context from other advisers:\n${orchResult.value.contextInjection}`;
-        if (orchResult.value.subCallsUsed > 0) {
-          void supabaseAdmin.from('agent_activity').insert({
-            user_id: userId,
-            agent_id: agentId,
-            action_type: 'orchestration',
-            description: `Orchestrated ${orchResult.value.subCallsUsed} sub-agent call(s) for richer context`,
-            metadata: { subAgents: orchResult.value.subAgentResults.map(r => r.agentId) },
-          });
-        }
-      }
-
-      // Load relationship memory + last session summary in parallel (fail-open, never delays response)
-      const [memoryResult, summaryResult] = await Promise.allSettled([
-        getAgentMemory(agentId, userId, supabaseAdmin),
-        existingConversationId
-          ? supabaseAdmin.from('agent_conversations').select('summary').eq('id', existingConversationId).single()
-          : Promise.resolve(null),
-      ]);
-
-      // Prepend relationship memory — the agent should know its history with this founder
-      if (memoryResult.status === 'fulfilled' && memoryResult.value) {
-        const { session_count, relationship_tier, key_facts } = memoryResult.value;
-        // Strip the §PATEL_ASKED marker before showing key_facts prose (it's internal plumbing)
-        const displayKeyFacts = (key_facts ?? '').replace(/§PATEL_ASKED:[^\n]*/g, '').trim() || 'First session — no prior history.'
-        systemPrompt = `YOU AND THIS FOUNDER:\nThis is session ${session_count} with this founder. Relationship: ${relationship_tier}.\n${displayKeyFacts}\n\n` + systemPrompt;
-
-        // Patel: inject questions asked in previous sessions so they are never repeated cross-session
-        if (agentId === 'patel' && key_facts) {
-          const patelAskedMatch = key_facts.match(/§PATEL_ASKED:([^\n§]*)/)
-          if (patelAskedMatch) {
-            const crossSessionQs = patelAskedMatch[1].split('|').map((q: string) => q.trim()).filter((q: string) => q.length > 20)
-            if (crossSessionQs.length > 0) {
-              systemPrompt += `\n\nQUESTIONS ASKED IN PREVIOUS SESSIONS — do not repeat or rephrase:\n${crossSessionQs.map((q: string) => `- ${q}`).join('\n')}`
-            }
-          }
-        }
-      }
-
-      // Append last session summary so the agent picks up where it left off
-      if (summaryResult.status === 'fulfilled' && summaryResult.value) {
-        const summary = (summaryResult.value as { data?: { summary?: string | null } | null })?.data?.summary;
-        if (summary) systemPrompt += `\n\nLAST SESSION SUMMARY:\n${summary}`;
-      }
-
-      // ── Build sources_used list for client-side citation chips ──────────────
-      if (founderCtxResult.status === 'fulfilled' && founderCtxResult.value?.block?.trim())
-        sourcesUsed.push({ label: 'Your Profile', type: 'profile' });
-      if (memoryResult.status === 'fulfilled' && (memoryResult.value as { key_facts?: string | null } | null)?.key_facts?.trim())
-        sourcesUsed.push({ label: 'Session Memory', type: 'memory' });
-      if (ctxResult.status === 'fulfilled') {
-        if (ctxResult.value.ownArtifacts.length > 0)
-          sourcesUsed.push({ label: 'Your Deliverables', type: 'artifact' });
-        const seenAgents = new Set<string>();
-        for (const a of ctxResult.value.crossAgentArtifacts) {
-          if (!seenAgents.has(a.agent_id)) {
-            seenAgents.add(a.agent_id);
-            sourcesUsed.push({ label: getAgentById(a.agent_id)?.name ?? a.agent_id, type: 'cross_agent' });
-          }
-        }
-      }
-    }
-
-    // ── Knowledge library RAG injection ──────────────────────────────────────
-    // Inject up to 2 curated resources relevant to the current message.
-    // Only fires after the first 2 messages (avoid injecting before context is set).
-    const userMsgCountForLibrary = (conversationHistory || []).filter((m: { role: string }) => m.role === 'user').length;
-    if (userMsgCountForLibrary >= 1) {
-      try {
-        const resources = await getRelevantResources(supabaseAdmin, agentId, message, 2);
-        systemPrompt += formatResourcesForPrompt(resources);
-      } catch {
-        // Non-critical — never block agent response
-      }
-    }
-
-    // ── User-document RAG injection ───────────────────────────────────────────
-    // Retrieves top-3 semantically relevant chunks from files the founder uploaded
-    // via the chat file-upload button. Requires VOYAGE_API_KEY for embeddings.
-    if (userId && process.env.VOYAGE_API_KEY) {
-      try {
-        const docChunks = await getRelevantDocumentChunks(userId, message, supabaseAdmin, 3);
-        if (docChunks) {
-          systemPrompt += docChunks;
-          sourcesUsed.push({ label: 'Uploaded Documents', type: 'artifact' });
-        }
-      } catch {
-        // Non-critical — never block agent response
-      }
-    }
-
-    // ── System prompt token budget guard ──────────────────────────────────
-    // If the prompt grew too large, trim the MEMORY block to the 3 most recent entries.
-    // Uses a split-based approach rather than string-splice to avoid corrupting surrounding sections.
-    const SYSTEM_PROMPT_CHAR_LIMIT = 6000;
-    function trimMemoryBlock(prompt: string, maxEntries = 3): { prompt: string; trimmed: boolean } {
-      const MEMORY_HEADER = '\n\nMEMORY — What you have previously built'
-      const NEXT_SECTION_RE = /\n\n[A-Z]/
-      const start = prompt.indexOf(MEMORY_HEADER)
-      if (start === -1) return { prompt, trimmed: false }
-      const afterHeader = start + MEMORY_HEADER.length
-      const nextMatch = prompt.slice(afterHeader).search(NEXT_SECTION_RE)
-      const end = nextMatch !== -1 ? afterHeader + nextMatch : prompt.length
-      const block = prompt.slice(start, end)
-      const lines = block.split('\n').filter(l => l.startsWith('- '))
-      if (lines.length <= maxEntries) return { prompt, trimmed: false }
-      const kept = lines.slice(0, maxEntries).join('\n')
-      const rebuilt = MEMORY_HEADER + '\n' + kept
-      return { prompt: prompt.slice(0, start) + rebuilt + prompt.slice(end), trimmed: true }
-    }
-    if (systemPrompt.length > SYSTEM_PROMPT_CHAR_LIMIT) {
-      const { prompt: trimmed, trimmed: wasTrimmed } = trimMemoryBlock(systemPrompt)
-      systemPrompt = trimmed
-      if (wasTrimmed) log.info('context_trim', { userId, agentId, promptLen: systemPrompt.length })
-    }
 
     const CONVERSATION_RULES = `
 
@@ -1004,10 +282,9 @@ CONVERSATION RULES:
     };
 
     // ── Patel prerequisite chain ───────────────────────────────────────────────
-    // Only icp_document is in the original DB CHECK constraint and reliably persists.
-    // pains_gains_triggers, buyer_journey, positioning_messaging cannot be saved
-    // (CHECK constraint migration not yet applied), so chaining them causes
-    // infinite rebuild loops. Gate all deliverables only on icp_document.
+    // Migration 20260604000003 dropped the CHECK constraint — all artifact types
+    // (including pains_gains_triggers, buyer_journey, positioning_messaging) now
+    // save correctly. Chain remains gated on icp_document as the logical prerequisite.
     const PATEL_PREREQUISITE_CHAIN: Record<string, string[]> = {
       pains_gains_triggers:  ['icp_document'],
       buyer_journey:         ['icp_document'],
@@ -1029,9 +306,9 @@ CONVERSATION RULES:
         .select('artifact_type')
         .eq('user_id', userId)
         .in('artifact_type', required)
-      // Fallback: client tracks artifact types blocked by DB CHECK constraint (23514)
-      // and echoes them back in every request as clientBuiltTypes. This avoids a DB
-      // round-trip and works even when agent_memory migration hasn't been applied.
+      // clientBuiltTypes: defensive client-side tracking of built artifact types.
+      // Echoed back in every request so prerequisites can be checked without a DB
+      // round-trip. Works as a fast path alongside the DB query.
       const completed = new Set([
         ...(existing ?? []).map((r: { artifact_type: string }) => r.artifact_type),
         ...(clientBuiltTypes ?? []),
@@ -1142,29 +419,8 @@ CONVERSATION RULES:
                   }
                 }, 8_000);
                 try {
-                  if (toolName === 'lead_enrich') {
-                    const { result } = await executeTool('lead_enrich', { domain: (toolCtx.domain as string) || '' }, userId, supabaseAdmin, async (a) => executeLeadEnrich((a as { domain: string }).domain), existingConversationId ?? undefined);
-                    toolResult = result as string;
-                  } else if (toolName === 'web_research') {
-                    const { result } = await executeTool('web_research', { query: (toolCtx.query as string) || '' }, userId, supabaseAdmin, async (a) => fetchTavilyResearch((a as { query: string }).query), existingConversationId ?? undefined);
-                    toolResult = result ? JSON.stringify(result) : 'No results found.';
-                  } else if (toolName === 'apollo_search') {
-                    toolResult = await executeApolloSearch(toolCtx);
-                    logToolExecution(supabaseAdmin, userId, agentId, 'apollo_search', t0, 'success');
-                  } else if (toolName === 'posthog_query') {
-                    toolResult = await executePosthogQuery(toolCtx);
-                    logToolExecution(supabaseAdmin, userId, agentId, 'posthog_query', t0, 'success');
-                  } else if (toolName === 'calendly_link') {
-                    toolResult = await executeCalendlyLink(toolCtx);
-                    logToolExecution(supabaseAdmin, userId, agentId, 'calendly_link', t0, 'success');
-                  } else if (toolName === 'delegate_to_agent') {
-                    toolResult = await executeDelegateToAgent(
-                      toolCtx.agentId as string,
-                      toolCtx.task as string,
-                      toolCtx.context as string | undefined,
-                    );
-                    logToolExecution(supabaseAdmin, userId, agentId, 'delegate_to_agent', t0, 'success');
-                  }
+                  toolResult = await runLoopTool(toolName, toolCtx, { userId, supabaseAdmin, agentId, existingConversationId });
+                  logToolExecution(supabaseAdmin, userId, agentId, toolName, t0, 'success');
                 } catch (err) {
                   toolResult = `Tool failed: ${err instanceof Error ? err.message : 'unknown'}`;
                   logToolExecution(supabaseAdmin, userId, agentId, toolName, t0, 'error', toolResult);
@@ -1187,24 +443,7 @@ CONVERSATION RULES:
               } else if (EXEC_TOOLS.has(toolName)) {
                 send({ type: 'tool_start', toolName, label: TOOL_LABELS[toolName] ?? toolName });
                 try {
-                  let execResult = '';
-                  if (toolName === 'create_deal') {
-                    execResult = await executeCreateDeal(toolCtx, userId, supabaseAdmin, agentId);
-                  } else if (toolName === 'send_outreach_sequence') {
-                    execResult = await executeSendOutreachSequence(toolCtx, userId, supabaseAdmin, agentId);
-                  } else if (toolName === 'initiate_voice_call') {
-                    execResult = await executeInitiateVoiceCall(toolCtx, userId, supabaseAdmin, agentId);
-                  } else if (toolName === 'vapi_call') {
-                    // Map vapi_call's structured params to executeInitiateVoiceCall's expected shape
-                    execResult = await executeInitiateVoiceCall(
-                      { ...toolCtx, lead_name: toolCtx.contact_name, context: toolCtx.objective },
-                      userId, supabaseAdmin, agentId,
-                    );
-                  } else if (toolName === 'bulk_enrich_pipeline') {
-                    execResult = await executeBulkEnrichPipeline(toolCtx, userId, supabaseAdmin, agentId);
-                  } else if (toolName === 'schedule_followup') {
-                    execResult = await executeScheduleFollowup(toolCtx, userId, supabaseAdmin, agentId);
-                  }
+                  const execResult = await runExecTool(toolName, toolCtx, { userId, supabaseAdmin, agentId, existingConversationId });
                   lastToolCallExecuted = true
                   send({ type: 'tool_done', toolName, summary: execResult.slice(0, 100) });
                   send({ type: 'delta', text: `\n\n${execResult}` });
@@ -1278,34 +517,10 @@ CONVERSATION RULES:
                     }
                     if (saveErr) {
                       log.error('artifact insert failed:', { message: saveErr.message, code: saveErr.code });
+                      log.error('[artifact] DB save failed', { toolName, code: saveErr.code, message: saveErr.message, userId });
                       send({ type: 'debug_db_error', message: saveErr.message, code: saveErr.code, toolName });
-                      // If blocked by CHECK constraint, track completion in agent_memory as fallback
-                      // so prerequisite checks (checkPatelPrerequisites) don't loop forever.
-                      // Awaited (not fire-and-forget) so the marker is guaranteed written before
-                      // the next request comes in.
-                      if (saveErr.code === '23514' && userId) {
-                        try {
-                          const { data: mem } = await supabaseAdmin.from('agent_memory').select('key_facts')
-                            .eq('user_id', userId).eq('agent_id', agentId).maybeSingle()
-                          const keyFacts = mem?.key_facts ?? ''
-                          const existingMarker = keyFacts.match(/§PATEL_BUILT:([^\n]*)/)
-                          const builtTypes = existingMarker ? existingMarker[1].split(',').filter(Boolean) : []
-                          if (!builtTypes.includes(toolName)) builtTypes.push(toolName)
-                          const newMarker = `§PATEL_BUILT:${builtTypes.join(',')}`
-                          const baseKeyFacts = keyFacts.replace(/§PATEL_BUILT:[^\n]*/g, '').trim()
-                          const newKeyFacts = baseKeyFacts ? `${baseKeyFacts}\n${newMarker}` : newMarker
-                          const { error: upsertErr } = await supabaseAdmin.from('agent_memory').upsert({
-                            user_id: userId,
-                            agent_id: agentId,
-                            key_facts: newKeyFacts,
-                            updated_at: new Date().toISOString(),
-                          }, { onConflict: 'user_id,agent_id' })
-                          if (upsertErr) log.error('agent_memory upsert failed:', upsertErr)
-                          else log.info('§PATEL_BUILT marker written:', newMarker)
-                        } catch (e) {
-                          log.warn('Failed to write artifact completion to agent_memory:', e)
-                        }
-                      }
+                      // §PATEL_BUILT fallback removed — migration 20260604000003 drops the CHECK constraint
+                      // that caused code 23514 failures. All artifact types now save correctly.
                     }
                     artifactId = saved?.id ?? null;
                     streamArtifactId = artifactId;
@@ -1327,9 +542,15 @@ CONVERSATION RULES:
                   if (FF_ARTIFACT_SELF_CRITIQUE && artifactId && userId) {
                     void (async () => {
                       try {
-                        const { content: fc, critique } = await runCritiqueLoop(toolName, parsedContent, 3);
+                        const { content: fc, critique, passesRun } = await runCritiqueLoop(toolName, parsedContent, 3);
                         await supabaseAdmin.from('agent_artifacts').update({ content: fc, critique_metadata: critique }).eq('id', artifactId!);
-                      } catch { /* non-critical */ }
+                        // Notify client if the artifact was actually improved beyond pass 1
+                        if (passesRun > 1 || critique.needsPatch) {
+                          try { send({ type: 'artifact_improved', artifactId, passesRun, overallRating: critique.overallRating }); } catch { /* stream closed */ }
+                        }
+                      } catch (err) {
+                        log.warn('[critique] self-critique failed', { artifactId, err: (err as Error)?.message });
+                      }
                     })();
                   }
                   // Write extracted facts to world model + refresh goal + trigger delegations
@@ -1337,10 +558,14 @@ CONVERSATION RULES:
                     const stateUpdates = extractStateFromArtifact(agentId, toolName, parsedContent);
                     if (Object.keys(stateUpdates).length > 0) {
                       void (async () => {
-                        await updateStartupState(userId, stateUpdates, agentId, supabaseAdmin);
-                        const freshState = await getStartupState(userId, supabaseAdmin);
-                        if (freshState) void upsertAgentGoal(agentId, userId, freshState, supabaseAdmin);
-                        void triggerProactiveDelegations(agentId, userId, startupState, stateUpdates, supabaseAdmin);
+                        try {
+                          await updateStartupState(userId, stateUpdates, agentId, supabaseAdmin);
+                          const freshState = await getStartupState(userId, supabaseAdmin);
+                          if (freshState) await upsertAgentGoal(agentId, userId, freshState, supabaseAdmin);
+                          await triggerProactiveDelegations(agentId, userId, startupState, stateUpdates, supabaseAdmin);
+                        } catch (err) {
+                          log.warn('[state] startup state update chain failed', { userId, agentId, err: (err as Error)?.message });
+                        }
                       })();
                     }
                   }
@@ -1363,6 +588,10 @@ CONVERSATION RULES:
                         try { send({ type: 'score_signal', boosted: true, points: sig.pointsAdded, dimension: sig.dimensionLabel, newScore: sig.newOverall }); } catch { /* stream already closed */ }
                       }
                     }).catch(() => { /* non-critical */ });
+                    // Update Patel 20-indicator scores from the artifact content — fire-and-forget
+                    if (agentId === 'patel') {
+                      void updatePatelIndicatorsFromArtifact(userId, toolName, parsedContent, supabaseAdmin).catch(() => { /* non-critical */ });
+                    }
                   }
                   // Stream a brief Patel commentary so chatReply is never empty
                   // For D1: ask the P1.4/P1.5 diagnostic questions if they're still unscored
@@ -1404,46 +633,15 @@ CONVERSATION RULES:
           }
 
           // ── Persist conversation + messages before sending done ────────────────
-          let finalConversationId = existingConversationId;
+          let finalConversationId = existingConversationId ?? null;
           if (userId) {
-            try {
-              if (!existingConversationId) {
-                const { data: conv } = await supabaseAdmin
-                  .from('agent_conversations')
-                  .insert({ user_id: userId, agent_id: agentId, title: message.slice(0, 60), last_message_at: new Date().toISOString(), message_count: 1 })
-                  .select('id')
-                  .single();
-                finalConversationId = conv?.id ?? null;
-              } else {
-                await supabaseAdmin
-                  .from('agent_conversations')
-                  .update({ last_message_at: new Date().toISOString(), message_count: (conversationHistory?.length ?? 0) + 2 })
-                  .eq('id', existingConversationId);
-              }
-              if (finalConversationId) {
-                if (streamArtifactId) {
-                  await supabaseAdmin.from('agent_artifacts').update({ conversation_id: finalConversationId }).eq('id', streamArtifactId);
-                }
-                await supabaseAdmin.from('agent_messages').insert({ conversation_id: finalConversationId, role: 'user', content: message });
-                await supabaseAdmin.from('agent_messages').insert({ conversation_id: finalConversationId, role: 'assistant', content: chatReply });
-              }
-            } catch (persistErr) {
-              log.error('Conversation persistence failed', { conversationId: finalConversationId, userId, err: persistErr instanceof Error ? persistErr.message : persistErr })
-              // Notify client so UI can surface a "not saved" warning
-              send({ type: 'persist_error', conversationId: finalConversationId })
-            }
-
-            const allMsgs = [...(conversationHistory || []), { role: 'user', content: message }, { role: 'assistant', content: chatReply }];
-            // fire-and-forget: session summary + memory updates are non-blocking enrichments;
-            // the streaming response is already complete when these run
-            if (finalConversationId) void summariseAndSaveSession(finalConversationId, allMsgs, supabaseAdmin).catch(() => {});
-            void updateAgentMemory(userId, agentId, allMsgs, supabaseAdmin).catch(() => {});
-            // GAP 1: infer P1.4 (iteration) and P1.5 (team alignment) from founder message
-            if (agentId === 'patel' && patelRawScores?.['icp.specificity'] &&
-                (!patelRawScores['icp.iteration'] || !patelRawScores['icp.team_alignment']) &&
-                message.length > 20) {
-              void inferIterationAndAlignmentFromMessage(userId, message, patelRawScores, supabaseAdmin)
-            }
+            finalConversationId = await persistChatTurn({
+              userId, agentId, message, chatReply: chatReply ?? '',
+              existingConversationId, conversationHistory,
+              artifactId: streamArtifactId, patelRawScores,
+              supabase: supabaseAdmin,
+              onPersistError: (cid) => send({ type: 'persist_error', conversationId: cid }),
+            });
           }
 
           send({ type: 'done', agentId, conversationId: finalConversationId });
@@ -1489,39 +687,8 @@ CONVERSATION RULES:
         let toolResult = '';
         const t0 = Date.now();
         try {
-          if (toolName === 'lead_enrich') {
-            const { result } = await executeTool(
-              'lead_enrich', { domain: (toolCtx.domain as string) || '' },
-              userId, supabaseAdmin,
-              async (args) => executeLeadEnrich((args as { domain: string }).domain),
-              existingConversationId ?? undefined,
-            );
-            toolResult = result as string;
-          } else if (toolName === 'web_research') {
-            const { result } = await executeTool(
-              'web_research', { query: (toolCtx.query as string) || '' },
-              userId, supabaseAdmin,
-              async (args) => fetchTavilyResearch((args as { query: string }).query),
-              existingConversationId ?? undefined,
-            );
-            toolResult = result ? JSON.stringify(result) : 'No results found.';
-          } else if (toolName === 'apollo_search') {
-            toolResult = await executeApolloSearch(toolCtx);
-            logToolExecution(supabaseAdmin, userId, agentId, 'apollo_search', t0, 'success');
-          } else if (toolName === 'posthog_query') {
-            toolResult = await executePosthogQuery(toolCtx);
-            logToolExecution(supabaseAdmin, userId, agentId, 'posthog_query', t0, 'success');
-          } else if (toolName === 'calendly_link') {
-            toolResult = await executeCalendlyLink(toolCtx);
-            logToolExecution(supabaseAdmin, userId, agentId, 'calendly_link', t0, 'success');
-          } else if (toolName === 'delegate_to_agent') {
-            toolResult = await executeDelegateToAgent(
-              toolCtx.agentId as string,
-              toolCtx.task as string,
-              toolCtx.context as string | undefined,
-            );
-            logToolExecution(supabaseAdmin, userId, agentId, 'delegate_to_agent', t0, 'success');
-          }
+          toolResult = await runLoopTool(toolName, toolCtx, { userId, supabaseAdmin, agentId, existingConversationId });
+          logToolExecution(supabaseAdmin, userId, agentId, toolName, t0, 'success');
         } catch (err) {
           toolResult = `Tool failed: ${err instanceof Error ? err.message : 'unknown error'}`;
           logToolExecution(supabaseAdmin, userId, agentId, toolName, t0, 'error', toolResult);
@@ -1547,23 +714,7 @@ CONVERSATION RULES:
       if (EXEC_TOOLS.has(toolName)) {
         const t0Exec = Date.now();
         try {
-          let execResult = '';
-          if (toolName === 'create_deal') {
-            execResult = await executeCreateDeal(toolCtx, userId, supabaseAdmin, agentId);
-          } else if (toolName === 'send_outreach_sequence') {
-            execResult = await executeSendOutreachSequence(toolCtx, userId, supabaseAdmin, agentId);
-          } else if (toolName === 'initiate_voice_call') {
-            execResult = await executeInitiateVoiceCall(toolCtx, userId, supabaseAdmin, agentId);
-          } else if (toolName === 'vapi_call') {
-            execResult = await executeInitiateVoiceCall(
-              { ...toolCtx, lead_name: toolCtx.contact_name, context: toolCtx.objective },
-              userId, supabaseAdmin, agentId,
-            );
-          } else if (toolName === 'bulk_enrich_pipeline') {
-            execResult = await executeBulkEnrichPipeline(toolCtx, userId, supabaseAdmin, agentId);
-          } else if (toolName === 'schedule_followup') {
-            execResult = await executeScheduleFollowup(toolCtx, userId, supabaseAdmin, agentId);
-          }
+          const execResult = await runExecTool(toolName, toolCtx, { userId, supabaseAdmin, agentId, existingConversationId });
           logToolExecution(supabaseAdmin, userId, agentId, toolName, t0Exec, 'success');
           chatReply = llmResponse.text ? `${llmResponse.text}\n\n${execResult}` : execResult;
         } catch (err) {
@@ -1626,14 +777,22 @@ CONVERSATION RULES:
           // Q-Score boost — fire-and-forget so it doesn't block returning the artifact
           void applyAgentScoreSignal(supabaseAdmin, userId, toolName).catch(() => { /* non-critical */ });
           void scoreFromArtifact(userId, toolName, parsedContent, supabaseAdmin).catch(() => { /* fire-and-forget: non-critical score nudge */ });
+          // Update Patel 20-indicator scores from the artifact content — fire-and-forget
+          if (agentId === 'patel') {
+            void updatePatelIndicatorsFromArtifact(userId, toolName, parsedContent, supabaseAdmin).catch(() => { /* non-critical */ });
+          }
           // Write extracted facts to world model + refresh goal + trigger delegations
           const stateUpdates = extractStateFromArtifact(agentId, toolName, parsedContent);
           if (Object.keys(stateUpdates).length > 0) {
             void (async () => {
-              await updateStartupState(userId, stateUpdates, agentId, supabaseAdmin);
-              const freshState = await getStartupState(userId, supabaseAdmin);
-              if (freshState) void upsertAgentGoal(agentId, userId, freshState, supabaseAdmin);
-              void triggerProactiveDelegations(agentId, userId, startupState, stateUpdates, supabaseAdmin);
+              try {
+                await updateStartupState(userId, stateUpdates, agentId, supabaseAdmin);
+                const freshState = await getStartupState(userId, supabaseAdmin);
+                if (freshState) await upsertAgentGoal(agentId, userId, freshState, supabaseAdmin);
+                await triggerProactiveDelegations(agentId, userId, startupState, stateUpdates, supabaseAdmin);
+              } catch (err) {
+                log.warn('[state] startup state update chain failed', { userId, agentId, err: (err as Error)?.message });
+              }
             })();
           }
         }
@@ -1641,11 +800,16 @@ CONVERSATION RULES:
         if (FF_ARTIFACT_SELF_CRITIQUE && artifactId && userId) {
           void (async () => {
             try {
-              const { content: finalContent, critique } = await runCritiqueLoop(toolName, parsedContent, 3);
+              const { content: finalContent, critique, passesRun } = await runCritiqueLoop(toolName, parsedContent, 3);
               await supabaseAdmin.from('agent_artifacts').update({
                 content: finalContent, critique_metadata: critique,
               }).eq('id', artifactId!);
-            } catch { /* non-critical */ }
+              if (passesRun > 1 || critique.needsPatch) {
+                log.info('[critique] artifact improved', { artifactId, passesRun, overallRating: critique.overallRating });
+              }
+            } catch (err) {
+              log.warn('[critique] self-critique failed (non-streaming)', { artifactId, err: (err as Error)?.message });
+            }
           })();
         }
 
@@ -1662,75 +826,15 @@ CONVERSATION RULES:
     if (!chatReply) chatReply = '';
 
     // ── Persist messages to DB (fail-open — DB issues never break the response) ─
-    let conversationId = existingConversationId;
+    let conversationId = existingConversationId ?? null;
     if (userId) {
-      try {
-        if (!conversationId) {
-          const { data: conv } = await supabaseAdmin
-            .from('agent_conversations')
-            .insert({
-              user_id: userId,
-              agent_id: agentId,
-              title: message.slice(0, 60),
-              last_message_at: new Date().toISOString(),
-              message_count: 1
-            })
-            .select('id')
-            .single();
-          conversationId = conv?.id;
-
-          // Update artifact with conversation_id if we just created it
-          if (artifact?.id && conversationId) {
-            await supabaseAdmin
-              .from('agent_artifacts')
-              .update({ conversation_id: conversationId })
-              .eq('id', artifact.id);
-          }
-        } else {
-          await supabaseAdmin
-            .from('agent_conversations')
-            .update({
-              last_message_at: new Date().toISOString(),
-              message_count: (conversationHistory?.length ?? 0) + 2
-            })
-            .eq('id', conversationId);
-        }
-
-        if (conversationId) {
-          await supabaseAdmin.from('agent_messages').insert({
-            conversation_id: conversationId,
-            role: 'user',
-            content: message
-          });
-          await supabaseAdmin.from('agent_messages').insert({
-            conversation_id: conversationId,
-            role: 'assistant',
-            content: chatReply
-          });
-        }
-      } catch {
-        // Persistence failed — the AI reply is still returned to the user
-        log.warn('Message persistence failed — response still returned to client');
-      }
-
-      // Async session summary + relationship memory update (fire-and-forget, Haiku)
-      const allMsgs = [
-        ...(conversationHistory || []),
-        { role: 'user', content: message },
-        { role: 'assistant', content: chatReply ?? '' },
-      ];
-      // fire-and-forget: session summary + memory updates enrich future context;
-      // the JSON response is already prepared when these run
-      if (conversationId) {
-        void summariseAndSaveSession(conversationId, allMsgs, supabaseAdmin).catch(() => {});
-      }
-      void updateAgentMemory(userId, agentId, allMsgs, supabaseAdmin).catch(() => {});
-      // GAP 1: infer P1.4 (iteration) and P1.5 (team alignment) from founder message
-      if (agentId === 'patel' && patelRawScores?.['icp.specificity'] &&
-          (!patelRawScores['icp.iteration'] || !patelRawScores['icp.team_alignment']) &&
-          message.length > 20) {
-        void inferIterationAndAlignmentFromMessage(userId, message, patelRawScores, supabaseAdmin)
-      }
+      conversationId = await persistChatTurn({
+        userId, agentId, message, chatReply: chatReply ?? '',
+        existingConversationId, conversationHistory,
+        artifactId: artifact?.id ?? null, patelRawScores,
+        supabase: supabaseAdmin,
+        onPersistError: (cid) => log.error('[chat] message persistence failed (non-streaming)', { userId, agentId, conversationId: cid }),
+      });
     }
 
     return NextResponse.json({

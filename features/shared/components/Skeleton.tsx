@@ -53,3 +53,38 @@ export function HeaderSkeleton() {
     </div>
   )
 }
+
+/** Matches StatCard layout exactly */
+export function StatCardSkeleton() {
+  return (
+    <div style={{
+      background: '#F9F7F2', border: `1px solid ${bdr}`,
+      borderRadius: 14, padding: 20,
+      display: 'flex', flexDirection: 'column', gap: 14,
+    }}>
+      <Skeleton width={36} height={36} radius={10} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <Skeleton width="40%" height={26} />
+        <Skeleton width="55%" height={10} />
+        <Skeleton width="45%" height={10} />
+      </div>
+    </div>
+  )
+}
+
+/** Matches a compact list row (pipeline entries, founder rows, messages) */
+export function RowSkeleton({ withAvatar = true }: { withAvatar?: boolean }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 12,
+      padding: '12px 16px', borderBottom: `1px solid ${bdr}`,
+    }}>
+      {withAvatar && <Skeleton width={34} height={34} radius={999} />}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 5 }}>
+        <Skeleton width="42%" height={12} />
+        <Skeleton width="58%" height={10} />
+      </div>
+      <Skeleton width={32} height={18} radius={999} />
+    </div>
+  )
+}

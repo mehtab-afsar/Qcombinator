@@ -14,6 +14,7 @@ import { log } from '@/lib/logger'
 const AGENT_EMOJIS: Record<string, string> = {
   patel: '📣', susi: '🤝', maya: '🎨', felix: '📊',
   leo: '⚖️', harper: '👥', nova: '🔬', atlas: '🔭', sage: '🧭',
+  carter: '💚', riley: '🚀', system: '⚙️',
 }
 
 export async function POST() {
@@ -65,11 +66,18 @@ export async function POST() {
     function agentSection(agentId: string, rows: { action_type: string; description: string }[]) {
       const emoji = AGENT_EMOJIS[agentId] ?? '🤖'
       const name  = agentId.charAt(0).toUpperCase() + agentId.slice(1)
-      const items = rows.slice(0, 4).map(r =>
-        `<div style="display:flex;gap:8px;margin-bottom:6px"><span style="color:#8A867C;flex-shrink:0">→</span><p style="font-size:13px;color:#18160F;line-height:1.5;margin:0">${r.description}</p></div>`
-      ).join('')
+      const autonomousRows = rows.filter(r => r.action_type === 'autonomous_delegation')
+      const regularRows    = rows.filter(r => r.action_type !== 'autonomous_delegation')
+      const displayRows    = [...autonomousRows, ...regularRows].slice(0, 4)
+      const items = displayRows.map(r => {
+        const isAuto = r.action_type === 'autonomous_delegation'
+        return `<div style="display:flex;gap:8px;margin-bottom:6px">
+          <span style="color:${isAuto ? '#7C3AED' : '#8A867C'};flex-shrink:0">${isAuto ? '🤖' : '→'}</span>
+          <p style="font-size:13px;color:#18160F;line-height:1.5;margin:0">${r.description}${isAuto ? ' <span style="font-size:10px;color:#7C3AED;font-weight:700">AUTONOMOUS</span>' : ''}</p>
+        </div>`
+      }).join('')
       return `
-        <div style="margin-bottom:16px;padding:14px 16px;background:#F9F7F2;border-radius:10px;border:1px solid #E2DDD5">
+        <div style="margin-bottom:16px;padding:14px 16px;background:#F9F7F2;border-radius:10px;border:1px solid ${autonomousRows.length > 0 ? '#DDD6FE' : '#E2DDD5'}">
           <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#8A867C;margin:0 0 8px">${emoji} ${name}</p>
           ${items}
           ${rows.length > 4 ? `<p style="font-size:11px;color:#8A867C;margin-top:4px">+ ${rows.length - 4} more actions</p>` : ''}
@@ -81,11 +89,18 @@ export async function POST() {
       .map(([id, rows]) => agentSection(id, rows))
       .join('')
 
+    const investorVisibility = currScore !== undefined && currScore >= 60
+      ? `<p style="font-size:11px;color:#16A34A;margin:4px 0 0;font-weight:600">✓ Visible to investors in marketplace</p>`
+      : currScore !== undefined
+        ? `<p style="font-size:11px;color:#8A867C;margin:4px 0 0">${60 - currScore} more points to unlock investor marketplace</p>`
+        : ''
+
     const scoreSection = currScore !== undefined ? `
       <div style="background:#F9F7F2;border-radius:10px;padding:14px 16px;border:1px solid #E2DDD5;margin-bottom:16px;display:flex;align-items:center;gap:20px">
         <div style="text-align:center;flex-shrink:0">
           <p style="font-size:28px;font-weight:900;color:#18160F;margin:0">${currScore}</p>
           <p style="font-size:10px;color:#8A867C;text-transform:uppercase;letter-spacing:0.1em;margin:0">Q-Score</p>
+          ${investorVisibility}
         </div>
         ${scoreDelta !== null ? `<p style="font-size:13px;color:${scoreDelta >= 0 ? '#16A34A' : '#DC2626'};font-weight:600">
           ${scoreDelta >= 0 ? '▲' : '▼'} ${Math.abs(scoreDelta)} points ${scoreDelta >= 0 ? 'gained' : 'lost'} this week

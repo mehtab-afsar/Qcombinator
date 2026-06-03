@@ -30,8 +30,8 @@ interface ConnectionRequest {
   qScore: number;
   qScorePercentile: number;
   qScoreBreakdown: {
-    market: number; product: number; goToMarket: number;
-    financial: number; team: number; traction: number;
+    p1: number; p2: number; p3: number;
+    p4: number; p5: number; p6: number;
   };
   status: Status;
   personalMessage?: string;
@@ -79,8 +79,12 @@ function statusLabel(status: Status): string {
 }
 
 const DIM_LABELS: [keyof ConnectionRequest['qScoreBreakdown'], string][] = [
-  ['market', 'Market'], ['product', 'Product'], ['goToMarket', 'GTM'],
-  ['financial', 'Financial'], ['team', 'Team'], ['traction', 'Traction'],
+  ['p1', 'Market Readiness'],
+  ['p2', 'Market Potential'],
+  ['p3', 'IP & Defensibility'],
+  ['p4', 'Founder & Team'],
+  ['p5', 'Structural Impact'],
+  ['p6', 'Financials'],
 ];
 
 function scoreColor(s: number) { return s >= 70 ? green : s >= 50 ? amber : red; }

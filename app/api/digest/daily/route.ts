@@ -53,25 +53,22 @@ export async function POST() {
     }).slice(0, 5)
 
     // Yesterday's actions
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const yesterdayActivity = (recentActivity as any[]).filter(a => (a.created_at as string) >= oneDayAgo)
+    type ActivityRow = { created_at: string; agent_id: string; description: string }
+    type DealRow     = { company: string; stage: string; next_action?: string }
+    const yesterdayActivity = (recentActivity as ActivityRow[]).filter(a => a.created_at >= oneDayAgo)
 
     // Build context for LLM
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const context = [
       `Founder: ${founderName} at ${company}`,
       `Today: ${todayStr}`,
       qscore ? `Q-Score: ${qscore.overall_score}` : '',
       activeDeals.length > 0 ? `Pipeline: ${activeDeals.length} active deals` : '',
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      staleDeals.length > 0 ? `Stale deals needing follow-up: ${(staleDeals as any[]).map(d => d.company).join(', ')}` : '',
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      staleDeals.length > 0 ? `Stale deals needing follow-up: ${(staleDeals as DealRow[]).map(d => d.company).join(', ')}` : '',
       yesterdayActivity.length > 0
         ? `Yesterday's activity: ${yesterdayActivity.slice(0, 5).map(a => a.description).join('; ')}`
         : 'No activity logged yesterday',
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       recentActivity.length > 0
-        ? `Recent agent usage: ${[...new Set((recentActivity as any[]).map(a => a.agent_id))].join(', ')}`
+        ? `Recent agent usage: ${[...new Set((recentActivity as ActivityRow[]).map(a => a.agent_id))].join(', ')}`
         : '',
     ].filter(Boolean).join('\n')
 

@@ -19,6 +19,7 @@ import { getCachedSectorWeights, setCachedSectorWeights } from '@/lib/cache/qsco
 import { getAllIndicatorPercentiles } from '@/features/qscore/benchmarking/benchmark-engine'
 import { generateScoreIntelligence, type ScoreIntelligence } from '@/features/qscore/services/score-intelligence'
 import type { SectionData } from '@/lib/profile-builder/data-merger'
+import { embedText } from '@/features/qscore/scoring/embeddings/embedder'
 
 export async function POST(_req: NextRequest) {
   try {
@@ -249,6 +250,35 @@ export async function POST(_req: NextRequest) {
 
     // fire-and-forget: deal-flow notification is non-critical; score save already committed above
     void triggerDealFlowAlerts(userId, finalScore).catch(() => {})
+
+    // fire-and-forget: embed founder summary for semantic investor matching
+    // Stored in founder_profiles.iq_summary_embedding and used by /api/matching/scores
+    if (process.env.VOYAGE_API_KEY) {
+      void (async () => {
+        try {
+          const { data: fp } = await supabase
+            .from('founder_profiles')
+            .select('company_name, product_description, problem_statement, industry, stage, target_customer')
+            .eq('user_id', userId)
+            .maybeSingle()
+          if (!fp) return
+          const summary = [
+            fp.company_name        && `Company: ${fp.company_name}`,
+            fp.industry            && `Sector: ${fp.industry}`,
+            fp.stage               && `Stage: ${fp.stage}`,
+            fp.product_description && `Product: ${fp.product_description}`,
+            fp.problem_statement   && `Problem: ${fp.problem_statement}`,
+            fp.target_customer     && `Customer: ${fp.target_customer}`,
+            `IQ Score: ${finalScore}/100`,
+          ].filter(Boolean).join('\n')
+          if (summary.length < 30) return
+          const embedding = await embedText(summary)
+          await supabase.from('founder_profiles')
+            .update({ iq_summary_embedding: JSON.stringify(embedding) })
+            .eq('user_id', userId)
+        } catch { /* non-critical */ }
+      })()
+    }
 
     // 15. Log reconciliation results for observability
     const loggable = reconciliationResults.filter(r => r.applied || r.error)

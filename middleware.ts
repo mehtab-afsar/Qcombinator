@@ -211,25 +211,38 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
-  // Role-based redirect — only on root dashboard pages to keep middleware fast
+  // Role-based redirect — only on root dashboard pages to keep middleware fast.
+  // Uses a short-lived cookie (5 min) to skip the DB lookup on repeat navigations.
   if (user) {
     if (pathname === '/founder/dashboard' || pathname === '/founder') {
-      const { data: fp } = await supabase
-        .from('founder_profiles')
-        .select('role')
-        .eq('user_id', user.id)
-        .maybeSingle()
-      if (!fp || fp.role !== 'founder') {
-        return NextResponse.redirect(new URL('/investor/dashboard', request.url))
+      const cachedRole = request.cookies.get('role_verified')?.value
+      if (cachedRole !== 'founder') {
+        const { data: fp } = await supabase
+          .from('founder_profiles')
+          .select('role')
+          .eq('user_id', user.id)
+          .maybeSingle()
+        if (!fp || fp.role !== 'founder') {
+          return NextResponse.redirect(new URL('/investor/dashboard', request.url))
+        }
+        response.cookies.set('role_verified', 'founder', {
+          maxAge: 300, httpOnly: true, sameSite: 'strict', path: '/',
+        })
       }
     } else if (pathname === '/investor/dashboard' || pathname === '/investor') {
-      const { data: ip } = await supabase
-        .from('investor_profiles')
-        .select('user_id')
-        .eq('user_id', user.id)
-        .maybeSingle()
-      if (!ip) {
-        return NextResponse.redirect(new URL('/investor/onboarding', request.url))
+      const cachedRole = request.cookies.get('role_verified')?.value
+      if (cachedRole !== 'investor') {
+        const { data: ip } = await supabase
+          .from('investor_profiles')
+          .select('user_id')
+          .eq('user_id', user.id)
+          .maybeSingle()
+        if (!ip) {
+          return NextResponse.redirect(new URL('/investor/onboarding', request.url))
+        }
+        response.cookies.set('role_verified', 'investor', {
+          maxAge: 300, httpOnly: true, sameSite: 'strict', path: '/',
+        })
       }
     }
   }
