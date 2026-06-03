@@ -34,26 +34,30 @@ export async function loadInvestorSettings(): Promise<InvestorSettingsData | nul
       .single(),
     supabase
       .from('notification_preferences')
-      .select('high_q_score, connection_req, weekly_digest, deal_flow_notifications')
+      .select('high_q_score, connection_req, weekly_digest, deal_flow_notifications, email_notifications, qscore_updates, investor_messages, runway_alerts')
       .eq('user_id', user.id)
       .maybeSingle(),
   ])
 
   return {
-    email:        user.email ?? '',
-    displayName:  profile?.full_name   ?? (user.user_metadata?.full_name as string) ?? '',
-    fundName:     profile?.firm_name   ?? '',
-    title:        profile?.title       ?? '',
-    thesis:       profile?.thesis      ?? '',
-    sectors:      profile?.sectors     ?? [],
-    stages:       profile?.stages      ?? [],
-    checkSizes:   profile?.check_sizes ?? [],
-    avatarUrl:    profile?.avatar_url   ?? '',
-    firmLogoUrl:  profile?.firm_logo_url ?? '',
-    newFounders:  notifPrefs?.deal_flow_notifications !== false,
-    highQScore:   notifPrefs?.high_q_score    !== false,
-    connectionReq: notifPrefs?.connection_req !== false,
-    weeklyDigest: notifPrefs?.weekly_digest   === true,
+    email:          user.email ?? '',
+    displayName:    profile?.full_name   ?? (user.user_metadata?.full_name as string) ?? '',
+    fundName:       profile?.firm_name   ?? '',
+    title:          profile?.title       ?? '',
+    thesis:         profile?.thesis      ?? '',
+    sectors:        profile?.sectors     ?? [],
+    stages:         profile?.stages      ?? [],
+    checkSizes:     profile?.check_sizes ?? [],
+    avatarUrl:      profile?.avatar_url   ?? '',
+    firmLogoUrl:    profile?.firm_logo_url ?? '',
+    newFounders:    notifPrefs?.deal_flow_notifications !== false,
+    highQScore:     notifPrefs?.high_q_score    !== false,
+    connectionReq:  notifPrefs?.connection_req  !== false,
+    weeklyDigest:   notifPrefs?.weekly_digest   === true,
+    emailNotifications: notifPrefs?.email_notifications !== false,
+    qscoreUpdates:  notifPrefs?.qscore_updates  !== false,
+    investorMessages: notifPrefs?.investor_messages !== false,
+    runwayAlerts:   notifPrefs?.runway_alerts   !== false,
   }
 }
 
@@ -119,6 +123,10 @@ export interface SaveNotificationsInput {
   highQScore: boolean
   connectionReq: boolean
   weeklyDigest: boolean
+  emailNotifications: boolean
+  qscoreUpdates: boolean
+  investorMessages: boolean
+  runwayAlerts: boolean
 }
 
 export async function saveInvestorNotifications(input: SaveNotificationsInput): Promise<void> {
@@ -129,11 +137,15 @@ export async function saveInvestorNotifications(input: SaveNotificationsInput): 
   const { error } = await supabase
     .from('notification_preferences')
     .upsert({
-      user_id:                user.id,
+      user_id:                 user.id,
       deal_flow_notifications: input.newFounders,
-      high_q_score:           input.highQScore,
-      connection_req:         input.connectionReq,
-      weekly_digest:          input.weeklyDigest,
+      high_q_score:            input.highQScore,
+      connection_req:          input.connectionReq,
+      weekly_digest:           input.weeklyDigest,
+      email_notifications:     input.emailNotifications,
+      qscore_updates:          input.qscoreUpdates,
+      investor_messages:       input.investorMessages,
+      runway_alerts:           input.runwayAlerts,
     }, { onConflict: 'user_id' })
 
   if (error) throw error

@@ -3,6 +3,7 @@ import { Inter, Manrope, Fraunces, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/features/auth/hooks/useAuth";
 import { QScoreProvider } from "@/features/qscore/hooks/useQScore";
+import { PostHogProvider } from "@/components/providers/PostHogProvider";
 import { Toaster } from "sonner";
 import { APP_NAME, APP_TAGLINE, APP_URL as APP_BASE_URL } from "@/lib/constants/app";
 
@@ -54,12 +55,14 @@ export default function RootLayout({
   return (
     <html lang="en" data-scroll-behavior="smooth">
       <body className={`${inter.className} ${manrope.variable} ${fraunces.variable} ${jetbrainsMono.variable} antialiased`}>
-        <AuthProvider>
-          <QScoreProvider>
-            {children}
-            <Toaster position="top-right" richColors />
-          </QScoreProvider>
-        </AuthProvider>
+        <PostHogProvider>
+          <AuthProvider>
+            <QScoreProvider>
+              {children}
+              <Toaster position="top-right" richColors />
+            </QScoreProvider>
+          </AuthProvider>
+        </PostHogProvider>
       </body>
     </html>
   );

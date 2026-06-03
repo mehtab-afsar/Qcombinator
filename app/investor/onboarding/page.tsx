@@ -38,6 +38,7 @@ type Mode = 'choice' | 'signin' | 'signup'
 export default function InvestorOnboarding() {
   const [mode, setMode]           = useState<Mode>('choice')
   const [step, setStep]           = useState(1)
+  const [isMobile, setIsMobile]   = useState(false)
   const [form, setForm]           = useState<FormData>(INITIAL)
   const [showPwd, setShowPwd]     = useState(false)
   const [loading, setLoading]     = useState(false)
@@ -58,6 +59,13 @@ export default function InvestorOnboarding() {
       .then(session => { if (session) router.replace('/investor/dashboard') })
       .catch(() => {})
   }, [router])
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 640)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   const set = (field: keyof FormData, value: string | string[]) =>
     setForm(prev => ({ ...prev, [field]: value }))
@@ -581,7 +589,7 @@ export default function InvestorOnboarding() {
     <div>
       {sectionHeader(2, 'Personal Information', 'Tell us who you are')}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
           <div>
             <label style={labelStyle}>First Name</label>
             <input style={inputStyle} value={form.firstName}
@@ -672,7 +680,7 @@ export default function InvestorOnboarding() {
               ))}
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
             <div>
               <label style={labelStyle}>Website <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span></label>
               <input style={inputStyle} value={form.website}
@@ -862,7 +870,7 @@ export default function InvestorOnboarding() {
             placeholder="Portfolio referrals, university networks, co-investment with other VCs…"
           />
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
           <div>
             <label style={labelStyle}>Decision Timeline</label>
             <select
@@ -1108,7 +1116,7 @@ export default function InvestorOnboarding() {
       </div>
 
       {/* body */}
-      <div style={{ maxWidth: isChoice ? 560 : 640, margin: '0 auto', padding: '48px 24px 80px' }}>
+      <div style={{ maxWidth: isChoice ? 560 : 640, margin: '0 auto', padding: isMobile ? '24px 12px 64px' : '48px 24px 80px' }}>
         {isChoice && renderChoice()}
         {mode === 'signin' && renderSignIn()}
         {mode === 'signup' && step === 1 && renderStep1()}

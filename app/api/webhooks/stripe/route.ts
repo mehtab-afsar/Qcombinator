@@ -3,6 +3,13 @@ import { getStripe } from '@/lib/stripe'
 import { createAdminClient } from '@/lib/supabase/server'
 import type Stripe from 'stripe'
 import { log } from '@/lib/logger'
+import * as Sentry from '@sentry/nextjs'
+import { trackUpgradedToPremium, trackChurned } from '@/lib/analytics'
+
+function nextMonthStart(): string {
+  const d = new Date()
+  return new Date(d.getFullYear(), d.getMonth() + 1, 1).toISOString()
+}
 
 export async function POST(req: NextRequest) {
   const body = await req.text()
@@ -55,6 +62,24 @@ export async function POST(req: NextRequest) {
             stripe_customer_id:     session.customer as string,
             stripe_subscription_id: session.subscription as string,
           }).eq('user_id', userId)
+
+          void Promise.resolve().then(() => trackUpgradedToPremium(userId, { plan: 'founder_premium' }))
+          // Upgrade usage limits: premium founders get 500 agent chats/mo
+          // and effectively unlimited investor connections + Q-Score recalcs.
+          await Promise.all([
+            admin.from('subscription_usage').upsert(
+              { user_id: userId, feature: 'agent_chat',           limit_count: 500,    usage_count: 0, reset_at: nextMonthStart() },
+              { onConflict: 'user_id,feature' }
+            ),
+            admin.from('subscription_usage').upsert(
+              { user_id: userId, feature: 'investor_connection',  limit_count: 999999, usage_count: 0, reset_at: nextMonthStart() },
+              { onConflict: 'user_id,feature' }
+            ),
+            admin.from('subscription_usage').upsert(
+              { user_id: userId, feature: 'qscore_recalc',        limit_count: 999999, usage_count: 0, reset_at: nextMonthStart() },
+              { onConflict: 'user_id,feature' }
+            ),
+          ])
         } else {
           await admin.from('investor_profiles').update({
             subscription_tier:      'pro',
@@ -62,6 +87,12 @@ export async function POST(req: NextRequest) {
             stripe_customer_id:     session.customer as string,
             stripe_subscription_id: session.subscription as string,
           }).eq('user_id', userId)
+
+          // Investor Pro: effectively unlimited deal-flow connections
+          await admin.from('subscription_usage').upsert(
+            { user_id: userId, feature: 'investor_connection', limit_count: 999999, usage_count: 0, reset_at: nextMonthStart() },
+            { onConflict: 'user_id,feature' }
+          )
         }
         break
       }
@@ -107,10 +138,32 @@ export async function POST(req: NextRequest) {
             subscription_status: 'canceled',
           }).eq('stripe_subscription_id', sub.id)
         } else {
+          // Reset founder usage limits back to free tier on cancellation
+          const { data: fp } = await admin
+            .from('founder_profiles')
+            .select('user_id')
+            .eq('stripe_subscription_id', sub.id)
+            .maybeSingle()
+
           await admin.from('founder_profiles').update({
             subscription_tier:   'free',
             subscription_status: 'canceled',
           }).eq('stripe_subscription_id', sub.id)
+
+          if (fp?.user_id) {
+            void Promise.resolve().then(() => trackChurned(fp.user_id, { plan: 'founder_premium' }))
+            await Promise.all([
+              admin.from('subscription_usage')
+                .update({ limit_count: 50 })
+                .eq('user_id', fp.user_id).eq('feature', 'agent_chat'),
+              admin.from('subscription_usage')
+                .update({ limit_count: 3 })
+                .eq('user_id', fp.user_id).eq('feature', 'investor_connection'),
+              admin.from('subscription_usage')
+                .update({ limit_count: 2 })
+                .eq('user_id', fp.user_id).eq('feature', 'qscore_recalc'),
+            ])
+          }
         }
         break
       }
@@ -120,6 +173,7 @@ export async function POST(req: NextRequest) {
     }
   } catch (err) {
     log.error('Webhook handler error:', err)
+    Sentry.captureException(err, { tags: { source: 'stripe_webhook', event_type: event.type } })
     return NextResponse.json({ error: 'Handler error' }, { status: 500 })
   }
 

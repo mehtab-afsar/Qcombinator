@@ -721,6 +721,7 @@ export interface AgentChatPanelProps {
   name:                    string
   accent:                  string
   badge?:                  string
+  description?:            string
   suggestedPrompts?:       string[]
   convId?:                 string
   onConversationCreated?:  (id: string) => void
@@ -734,6 +735,7 @@ export function AgentChatPanel({
   name,
   accent,
   badge,
+  description,
   suggestedPrompts = [],
   convId,
   onConversationCreated,
@@ -823,14 +825,29 @@ export function AgentChatPanel({
             <AnimatePresence>
               {workspace.showPrompts && suggestedPrompts.length > 0 && (
                 <motion.div key="prompts" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}>
-                  <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
-                    <div style={{ height: 32, width: 32, borderRadius: 10, flexShrink: 0, marginTop: 2, background: `${accent}15`, border: `1.5px solid ${accent}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: accent }}>
+                  <div style={{ display: 'flex', gap: 14, marginBottom: 20 }}>
+                    <div style={{ height: 40, width: 40, borderRadius: 12, flexShrink: 0, background: `${accent}15`, border: `1.5px solid ${accent}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, color: accent }}>
                       {name[0]}
                     </div>
-                    <div style={{ paddingTop: 4, fontSize: 13, lineHeight: 1.7, color: ink, maxWidth: '82%' }}>
-                      <span style={{ fontWeight: 600 }}>{name}</span> — ready when you are.
+                    <div style={{ paddingTop: 2 }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: ink, marginBottom: 4 }}>
+                        {name}{badge ? `, ${badge}` : ''}
+                      </div>
+                      {description && (
+                        <div style={{ fontSize: 13, lineHeight: 1.65, color: muted, maxWidth: 520 }}>
+                          {description}
+                        </div>
+                      )}
+                      {!description && (
+                        <div style={{ fontSize: 13, color: muted }}>Ready when you are.</div>
+                      )}
                     </div>
                   </div>
+                  {suggestedPrompts.length > 0 && (
+                    <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: muted, opacity: 0.6, marginBottom: 8, paddingLeft: 1 }}>
+                      Start here
+                    </div>
+                  )}
                   <div style={{ paddingLeft: 44, display: 'flex', flexDirection: 'column', gap: 4 }}>
                     {suggestedPrompts.map((p, i) => (
                       <button key={i} onClick={() => workspace.send(p)}

@@ -69,10 +69,14 @@ export default function InvestorSettingsPage() {
   const [sectors,     setSectors]     = useState<string[]>([])
   const [stages,      setStages]      = useState<string[]>([])
   const [checkSizes,  setCheckSizes]  = useState<string[]>([])
-  const [newFounders,   setNewFounders]   = useState(true)
-  const [highQScore,    setHighQScore]    = useState(true)
-  const [connectionReq, setConnectionReq] = useState(true)
-  const [weeklyDigest,  setWeeklyDigest]  = useState(false)
+  const [newFounders,        setNewFounders]        = useState(true)
+  const [highQScore,         setHighQScore]         = useState(true)
+  const [connectionReq,      setConnectionReq]      = useState(true)
+  const [weeklyDigest,       setWeeklyDigest]       = useState(false)
+  const [emailNotifications, setEmailNotifications] = useState(true)
+  const [qscoreUpdates,      setQscoreUpdates]      = useState(true)
+  const [investorMessages,   setInvestorMessages]   = useState(true)
+  const [runwayAlerts,       setRunwayAlerts]        = useState(true)
 
   // Portfolio display config
   const [portfolioCfg, setPortfolioCfg] = useState({
@@ -103,6 +107,10 @@ export default function InvestorSettingsPage() {
     setHighQScore(initialSettings.highQScore)
     setConnectionReq(initialSettings.connectionReq)
     setWeeklyDigest(initialSettings.weeklyDigest)
+    if ('emailNotifications' in initialSettings) setEmailNotifications((initialSettings as Record<string, unknown>).emailNotifications as boolean ?? true)
+    if ('qscoreUpdates'      in initialSettings) setQscoreUpdates((initialSettings as Record<string, unknown>).qscoreUpdates as boolean ?? true)
+    if ('investorMessages'   in initialSettings) setInvestorMessages((initialSettings as Record<string, unknown>).investorMessages as boolean ?? true)
+    if ('runwayAlerts'       in initialSettings) setRunwayAlerts((initialSettings as Record<string, unknown>).runwayAlerts as boolean ?? true)
     setAvatarUrl((initialSettings as unknown as Record<string, unknown>).avatarUrl as string | null ?? null)
     setFirmLogoUrl((initialSettings as unknown as Record<string, unknown>).firmLogoUrl as string | null ?? null)
   }, [initialSettings])
@@ -228,7 +236,7 @@ export default function InvestorSettingsPage() {
   const handleSaveNotifications = async () => {
     setSaving(true)
     try {
-      await saveInvestorNotifications({ newFounders, highQScore, connectionReq, weeklyDigest })
+      await saveInvestorNotifications({ newFounders, highQScore, connectionReq, weeklyDigest, emailNotifications, qscoreUpdates, investorMessages, runwayAlerts })
       showToast('Notification preferences saved')
     } catch {
       showToast('Failed to save', 'error')
@@ -644,33 +652,64 @@ export default function InvestorSettingsPage() {
               <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>Notification Preferences</p>
             </div>
             <div style={{ padding: '4px 0' }}>
+              {/* Deal flow alerts */}
+              <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, padding: '12px 20px 4px' }}>Deal Flow Alerts</p>
               {[
                 { label: 'New high-quality founders join the platform', sub: 'Founders with Q-Score 70+ in your sectors', state: newFounders, set: setNewFounders },
                 { label: 'Q-Score updates from founders you follow', sub: 'When a connected founder improves their score', state: highQScore, set: setHighQScore },
-                { label: 'Connection request notifications', sub: 'When a founder sends you a connection request', state: connectionReq, set: setConnectionReq },
-                { label: 'Weekly digest email', sub: 'Summary of top founders and deal flow insights', state: weeklyDigest, set: setWeeklyDigest },
+                { label: 'Runway alerts', sub: 'When a founder you follow drops below 6 months of runway', state: runwayAlerts, set: setRunwayAlerts },
               ].map((item, i, arr) => (
                 <div
                   key={item.label}
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: i < arr.length - 1 ? `1px solid ${bdr}` : 'none' }}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: i < arr.length - 1 ? `1px solid ${bdr}` : 'none' }}
                 >
                   <div>
                     <p style={{ fontSize: 13, fontWeight: 500, color: ink, marginBottom: 2 }}>{item.label}</p>
                     <p style={{ fontSize: 11, color: muted }}>{item.sub}</p>
                   </div>
-                  <button
-                    onClick={() => item.set(!item.state)}
-                    style={{
-                      width: 40, height: 22, borderRadius: 999, border: 'none', cursor: 'pointer',
-                      background: item.state ? green : bdr, transition: 'background .2s', flexShrink: 0,
-                      position: 'relative',
-                    }}
-                  >
-                    <div style={{
-                      position: 'absolute', top: 3, left: item.state ? 20 : 3,
-                      width: 16, height: 16, borderRadius: '50%', background: '#fff',
-                      transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-                    }} />
+                  <button onClick={() => item.set(!item.state)} style={{ width: 40, height: 22, borderRadius: 999, border: 'none', cursor: 'pointer', background: item.state ? green : bdr, transition: 'background .2s', flexShrink: 0, position: 'relative' }}>
+                    <div style={{ position: 'absolute', top: 3, left: item.state ? 20 : 3, width: 16, height: 16, borderRadius: '50%', background: '#fff', transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+                  </button>
+                </div>
+              ))}
+              {/* Communication */}
+              <div style={{ height: 1, background: bdr, margin: '4px 0' }} />
+              <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, padding: '12px 20px 4px' }}>Communication</p>
+              {[
+                { label: 'Connection request notifications', sub: 'When a founder sends you a connection request', state: connectionReq, set: setConnectionReq },
+                { label: 'Investor messages', sub: 'When a founder replies to your message', state: investorMessages, set: setInvestorMessages },
+                { label: 'Q-Score milestone alerts', sub: 'When a followed founder hits a new Q-Score tier', state: qscoreUpdates, set: setQscoreUpdates },
+              ].map((item, i, arr) => (
+                <div
+                  key={item.label}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: i < arr.length - 1 ? `1px solid ${bdr}` : 'none' }}
+                >
+                  <div>
+                    <p style={{ fontSize: 13, fontWeight: 500, color: ink, marginBottom: 2 }}>{item.label}</p>
+                    <p style={{ fontSize: 11, color: muted }}>{item.sub}</p>
+                  </div>
+                  <button onClick={() => item.set(!item.state)} style={{ width: 40, height: 22, borderRadius: 999, border: 'none', cursor: 'pointer', background: item.state ? green : bdr, transition: 'background .2s', flexShrink: 0, position: 'relative' }}>
+                    <div style={{ position: 'absolute', top: 3, left: item.state ? 20 : 3, width: 16, height: 16, borderRadius: '50%', background: '#fff', transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+                  </button>
+                </div>
+              ))}
+              {/* Email delivery */}
+              <div style={{ height: 1, background: bdr, margin: '4px 0' }} />
+              <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, padding: '12px 20px 4px' }}>Email Delivery</p>
+              {[
+                { label: 'Email notifications', sub: 'Master toggle — disabling this pauses all email alerts', state: emailNotifications, set: setEmailNotifications },
+                { label: 'Weekly digest email', sub: 'Summary of top founders and deal flow insights, sent every Monday', state: weeklyDigest, set: setWeeklyDigest },
+              ].map((item, i, arr) => (
+                <div
+                  key={item.label}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: i < arr.length - 1 ? `1px solid ${bdr}` : 'none' }}
+                >
+                  <div>
+                    <p style={{ fontSize: 13, fontWeight: 500, color: ink, marginBottom: 2 }}>{item.label}</p>
+                    <p style={{ fontSize: 11, color: muted }}>{item.sub}</p>
+                  </div>
+                  <button onClick={() => item.set(!item.state)} style={{ width: 40, height: 22, borderRadius: 999, border: 'none', cursor: 'pointer', background: item.state ? green : bdr, transition: 'background .2s', flexShrink: 0, position: 'relative' }}>
+                    <div style={{ position: 'absolute', top: 3, left: item.state ? 20 : 3, width: 16, height: 16, borderRadius: '50%', background: '#fff', transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
                   </button>
                 </div>
               ))}

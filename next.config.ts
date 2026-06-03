@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from '@sentry/nextjs'
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ['pdf-parse'],
@@ -41,4 +42,19 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  org:     process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+
+  // Only upload source maps in CI/production — skip in local dev
+  silent: !process.env.CI,
+
+  // Upload source maps so stack traces are readable in Sentry
+  widenClientFileUpload: true,
+
+  // Automatically tree-shake Sentry logger in production
+  disableLogger: true,
+
+  // Disable Sentry entirely if DSN is not set (e.g. local dev without Sentry)
+  ...(process.env.SENTRY_DSN ? {} : { autoInstrumentServerFunctions: false }),
+});

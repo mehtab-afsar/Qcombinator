@@ -7,6 +7,7 @@ import { startupProfileDataSchema } from '@/lib/api/jsonb-schemas';
 import { log } from '@/lib/logger'
 import { routedText } from '@/lib/llm/router'
 import { sendWelcomeAndConfirmEmail } from '@/lib/email/send'
+import { trackFounderSignedUp } from '@/lib/analytics'
 
 export async function POST(request: NextRequest) {
   try {
@@ -182,6 +183,9 @@ export async function POST(request: NextRequest) {
     if (usageErr) {
       log.error('subscription_usage insert failed (non-fatal — user created successfully):', usageErr);
     }
+
+    // Track signup — fire-and-forget, never block the response
+    void Promise.resolve().then(() => trackFounderSignedUp(authData.user.id, { method: 'email' }))
 
     // Fire-and-forget: clean + summarise onboarding text in background (~2–5s)
     void enrichOnboardingText(authData.user.id, problemStatement, targetCustomer, supabaseAdmin)

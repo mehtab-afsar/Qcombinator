@@ -299,16 +299,8 @@ export async function executeScheduleFollowup(ctx: Record<string, unknown>, user
   return `Follow-up scheduled: **${actionType}** set for ${executeAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} (Day +${daysFromNow}).${dealId ? ' Deal updated.' : ''}`
 }
 
-export async function executeInitiateVoiceCall(ctx: Record<string, unknown>, userId: string | undefined, supabaseAdmin: SupabaseClient, agentId: string): Promise<string> {
-  if (!userId) return 'Cannot initiate call — user not authenticated.'
-  const phoneNumber = (ctx.phone_number as string) || ''
-  if (!phoneNumber) return 'No phone number provided. Please supply a phone number in E.164 format.'
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
-  const res = await fetch(`${baseUrl}/api/agents/susi/vapi`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-user-id': userId }, body: JSON.stringify({ phone_number: phoneNumber, lead_name: ctx.lead_name ?? '', company: ctx.company ?? '', context: ctx.context ?? '', agentId }) })
-  if (!res.ok) return `Voice call failed: ${res.status} ${res.statusText}`
-  const data = await res.json() as { callId?: string; status?: string }
-  void supabaseAdmin.from('agent_activity').insert({ user_id: userId, agent_id: agentId, action_type: 'voice_call_initiated', description: `AI SDR call initiated to ${ctx.lead_name ?? phoneNumber}`, metadata: { phone_number: phoneNumber, call_id: data.callId, company: ctx.company } })
-  return `Voice call initiated: AI SDR dialing **${ctx.lead_name ?? phoneNumber}**${ctx.company ? ` at ${ctx.company}` : ''}. Call ID: ${data.callId ?? 'pending'}.`
+export async function executeInitiateVoiceCall(_ctx: Record<string, unknown>, _userId: string | undefined, _supabaseAdmin: SupabaseClient, _agentId: string): Promise<string> {
+  return 'AI voice calls are coming in a future update. For now, use **calendly_link** to generate a booking link and share it with your prospect to schedule a call.'
 }
 
 // ─── Dispatchers ──────────────────────────────────────────────────────────────
@@ -350,8 +342,7 @@ export async function runExecTool(
   const { userId, supabaseAdmin, agentId } = ctx
   if (toolName === 'create_deal')              return executeCreateDeal(toolCtx, userId, supabaseAdmin, agentId)
   if (toolName === 'send_outreach_sequence')   return executeSendOutreachSequence(toolCtx, userId, supabaseAdmin, agentId)
-  if (toolName === 'initiate_voice_call')      return executeInitiateVoiceCall(toolCtx, userId, supabaseAdmin, agentId)
-  if (toolName === 'vapi_call')                return executeInitiateVoiceCall({ ...toolCtx, lead_name: toolCtx.contact_name, context: toolCtx.objective }, userId, supabaseAdmin, agentId)
+  if (toolName === 'initiate_voice_call' || toolName === 'vapi_call') return executeInitiateVoiceCall(toolCtx, userId, supabaseAdmin, agentId)
   if (toolName === 'bulk_enrich_pipeline')     return executeBulkEnrichPipeline(toolCtx, userId, supabaseAdmin, agentId)
   if (toolName === 'schedule_followup')        return executeScheduleFollowup(toolCtx, userId, supabaseAdmin, agentId)
   return `Unknown exec tool: ${toolName}`

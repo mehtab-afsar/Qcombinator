@@ -21,6 +21,7 @@ export function CXOChat({ config, agentId, convId, onConversationCreated, onOpen
       name={config.name}
       accent={config.colour}
       badge={config.role}
+      description={config.description}
       suggestedPrompts={config.chatPrompts}
       convId={convId}
       onConversationCreated={onConversationCreated}

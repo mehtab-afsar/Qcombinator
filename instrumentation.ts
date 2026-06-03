@@ -1,9 +1,11 @@
 /**
  * Next.js instrumentation hook — runs once at server startup.
- * Validates all required environment variables before the first request is served.
+ * Initialises Sentry and validates required environment variables.
  */
 export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
+    await import('./sentry.server.config')
+
     try {
       const { validateRequiredEnv } = await import('./lib/env')
       validateRequiredEnv()
@@ -12,4 +14,9 @@ export async function register() {
       throw error
     }
   }
+
+  if (process.env.NEXT_RUNTIME === 'edge') {
+    await import('./sentry.edge.config')
+  }
 }
+

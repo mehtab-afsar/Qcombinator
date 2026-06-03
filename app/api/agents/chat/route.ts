@@ -27,6 +27,7 @@ import { routedText } from '@/lib/llm/router';
 import { getToolsForAgent, delegateToAgentTool } from '@/lib/llm/tools';
 import { runLoopTool, runExecTool, logToolExecution, fetchTavilyResearch } from '@/lib/agents/engine/tool-runner';
 import { buildChatContext } from '@/lib/agents/engine/context-builder';
+import { compactHistoryIfNeeded } from '@/lib/agents/compact';
 import type { ContentBlock } from '@/lib/llm/types';
 import { runCritiqueLoop } from '@/lib/agents/critique';
 import { evaluateArtifactIndependently } from '@/lib/agents/patel-evaluator';
@@ -46,6 +47,8 @@ import { upsertAgentGoal } from '@/lib/agents/agent-goals';
 import { log } from '@/lib/logger'
 import { triggerProactiveDelegations } from '@/lib/agents/delegation';
 import { GLOBAL_CONSTITUTION } from '@/lib/agents/constitution';
+import * as Sentry from '@sentry/nextjs';
+import { trackArtifactGenerated, trackAgentMessageSent } from '@/lib/analytics';
 import { updatePatelIndicatorsFromArtifact } from '@/lib/agents/patel-indicator-updater';
 import { persistChatTurn } from '@/lib/agents/engine/chat-persistence';
 
@@ -201,6 +204,11 @@ export async function POST(request: NextRequest) {
     })
     const systemPrompt = systemPromptBuilt
 
+    // Track every agent message — fire-and-forget, never block
+    if (userId) {
+      const isFirst = !conversationHistory || conversationHistory.length === 0
+      void Promise.resolve().then(() => trackAgentMessageSent(userId, { agentId, isFirstMessage: isFirst }))
+    }
 
     const CONVERSATION_RULES = `
 
@@ -213,28 +221,18 @@ CONVERSATION RULES:
 - If you don't know their specific situation, ask before advising.
 - NEVER use these phrases: "Great question", "I'd be happy to", "Let me break this down", "Absolutely!", "Certainly!", "Of course!", "I understand your concern", "I hope this helps", "That's a great point". These are chatbot phrases. You are a specialist advisor, not a customer service bot.`;
 
-    // Build conversation context — token-budget slice keeps history under ~60k tokens
-    // (rough heuristic: 1 token ≈ 4 chars) so we never exceed the model context window.
-    function sliceHistoryByTokenBudget(
-      history: Array<{ role: string; content: string }>,
-      budgetTokens = 60_000
-    ): Array<{ role: string; content: string }> {
-      let total = 0
-      const result: Array<{ role: string; content: string }> = []
-      for (let i = history.length - 1; i >= 0; i--) {
-        const est = Math.ceil((history[i].content?.length ?? 0) / 4)
-        if (total + est > budgetTokens) break
-        result.unshift(history[i])
-        total += est
-      }
-      return result
-    }
+    // Compact conversation history if it's grown too long.
+    // compactHistoryIfNeeded summarises the oldest portion with Haiku rather than
+    // silently dropping messages — key decisions, metrics, and artifacts are preserved.
+    const { messages: compactedHistory, compacted: wasCompacted } =
+      await compactHistoryIfNeeded(conversationHistory || [])
+
     const messages = [
       {
         role: "system" as const,
         content: systemPrompt + CONVERSATION_RULES,
       },
-      ...sliceHistoryByTokenBudget(conversationHistory || []).map((msg: { role: string; content: string }) => ({
+      ...compactedHistory.map((msg: { role: string; content: string }) => ({
         role: msg.role === 'user' ? 'user' as const : 'assistant' as const,
         content: msg.content,
       })),
@@ -527,6 +525,7 @@ CONVERSATION RULES:
                   }
                   if (artifactId && userId) void scoreFromArtifact(userId, toolName, parsedContent, supabaseAdmin).catch(() => { /* fire-and-forget: non-critical */ });
                   if (artifactId && userId) void postArtifactFeedEvent(userId, toolName, artifactTitle, supabaseAdmin);
+                  if (artifactId && userId) void Promise.resolve().then(() => trackArtifactGenerated(userId, { agentId, artifactType: toolName }));
                   // Quality evaluator and self-critique run in background — don't block showing the artifact
                   if (artifactId && userId) {
                     void (async () => {
@@ -774,6 +773,7 @@ CONVERSATION RULES:
         }
 
         if (artifactId && userId) {
+          void Promise.resolve().then(() => trackArtifactGenerated(userId, { agentId, artifactType: toolName }));
           // Q-Score boost — fire-and-forget so it doesn't block returning the artifact
           void applyAgentScoreSignal(supabaseAdmin, userId, toolName).catch(() => { /* non-critical */ });
           void scoreFromArtifact(userId, toolName, parsedContent, supabaseAdmin).catch(() => { /* fire-and-forget: non-critical score nudge */ });
@@ -848,6 +848,7 @@ CONVERSATION RULES:
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : String(error);
     log.error('Agent chat error: ' + errMsg, error);
+    Sentry.captureException(error);
 
     let userMessage: string;
     let httpStatus = 500;

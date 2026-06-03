@@ -62,6 +62,7 @@ export interface AgentWorkspaceState {
   uploadingFile:        boolean
   fileUploadError:      string | null
   contextCompressed:    { droppedCount: number } | null
+  limitReached:         boolean
   attachFile:           (file: File) => Promise<void>
   removeFile:           (id: string) => void
   send:                 (text?: string) => void
@@ -97,6 +98,7 @@ export function useAgentWorkspace(agentId: string): AgentWorkspaceState {
   const [uploadingFile,  setUploadingFile] = useState(false)
   const [fileUploadError, setFileUploadError] = useState<string | null>(null)
   const [contextCompressed, setContextCompressed] = useState<{ droppedCount: number } | null>(null)
+  const [limitReached,   setLimitReached]   = useState(false)
 
   const bottomRef        = useRef<HTMLDivElement>(null)
   const abortRef         = useRef<AbortController | null>(null)
@@ -313,7 +315,9 @@ export function useAgentWorkspace(agentId: string): AgentWorkspaceState {
         try {
           const errJson = await res.json() as { error?: string; limitReached?: boolean }
           if (errJson.limitReached) {
-            errMsg = "You've reached your monthly message limit. [Upgrade to Pro](/founder/billing) for unlimited access."
+            setLimitReached(true)
+            setTyping(false)
+            return
           } else if (errJson.error) {
             errMsg = errJson.error
           }

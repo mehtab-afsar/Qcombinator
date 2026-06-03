@@ -224,6 +224,7 @@ export default function OnboardingPage() {
   const [loading, setLoading]   = useState(false)
   const [error,   setError]     = useState('')
   const [showPwd, setShowPwd]   = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
   // Photo: store File + local preview — actual upload happens in handleSubmit
   const [avatarFile,    setAvatarFile]    = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
@@ -240,6 +241,13 @@ export default function OnboardingPage() {
       }
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 640)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
   }, [])
 
   // Per-step validation
@@ -335,14 +343,14 @@ export default function OnboardingPage() {
       </div>
 
       {/* Main content */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: `${space[8]}px ${space[4]}px 64px` }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: `${space[8]}px ${isMobile ? space[3] : space[4]}px 64px` }}>
 
         <ProgressDots step={page} />
 
         {/* Card */}
         <div style={{
           width: '100%', maxWidth: 640,
-          background: surf, borderRadius: radius.lg,
+          background: surf, borderRadius: isMobile ? radius.md : radius.lg,
           border: `1px solid ${bdr}`,
           overflow: 'hidden',
           boxShadow: shadow.sm,
@@ -357,7 +365,7 @@ export default function OnboardingPage() {
               animate="center"
               exit="exit"
               transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-              style={{ padding: `${space[8]}px ${space[8]}px 0` }}
+              style={{ padding: isMobile ? `${space[5]}px ${space[4]}px 0` : `${space[8]}px ${space[8]}px 0` }}
             >
 
               {/* Step header */}
@@ -591,7 +599,7 @@ export default function OnboardingPage() {
           </AnimatePresence>
 
           {/* Nav footer */}
-          <div style={{ padding: `${space[6]}px ${space[8]}px ${space[6] + 4}px`, display: 'flex', justifyContent: page === 1 ? 'flex-end' : 'space-between', alignItems: 'center' }}>
+          <div style={{ padding: isMobile ? `${space[4]}px ${space[4]}px ${space[4] + 4}px` : `${space[6]}px ${space[8]}px ${space[6] + 4}px`, display: 'flex', justifyContent: page === 1 ? 'flex-end' : 'space-between', alignItems: 'center' }}>
             {page > 1 && (
               <button onClick={() => go(page - 1)} style={backBtn}>← Back</button>
             )}
