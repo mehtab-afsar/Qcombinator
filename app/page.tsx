@@ -295,7 +295,7 @@ function QScoreCard() {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function LandingPage() {
   const router = useRouter();
-  const [faqOpen,       setFaqOpen]       = useState<number | null>(null);
+  const [_faqOpen,      _setFaqOpen]      = useState<number | null>(null);
   const [activeAgent,   setActiveAgent]   = useState(0);
   const [activeTestimonial, setActiveTestimonial] = useState(0);
   const [activeFaq,     setActiveFaq]     = useState(0);
@@ -475,7 +475,7 @@ export default function LandingPage() {
           <motion.div initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.7 }} style={{ flex: "1 1 320px", maxWidth: 460 }}>
             <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.22em", textTransform: "uppercase", color: C.ember, marginBottom: 16, fontFamily: "monospace" }}>Investor Marketplace</p>
             <h2 style={{ fontFamily: FONT_SERIF, fontSize: "clamp(36px, 5vw, 56px)", fontWeight: 300, letterSpacing: "-0.04em", color: C.ink, lineHeight: 1.05, marginBottom: 20 }}>
-              When you're ready,<br />the investors are waiting.
+              When you&apos;re ready,<br />the investors are waiting.
             </h2>
             <p style={{ fontSize: 15, color: C.muted, lineHeight: 1.7, fontWeight: 300, letterSpacing: "-0.01em", marginBottom: 32 }}>
               500+ verified investors, thesis-matched by AI. The marketplace unlocks automatically when your Q-Score reaches 70.
@@ -555,7 +555,7 @@ export default function LandingPage() {
           <motion.div initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.7 }} style={{ textAlign: "center", marginBottom: 64 }}>
             <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.22em", textTransform: "uppercase", color: C.ember, marginBottom: 16, fontFamily: "monospace" }}>Pricing</p>
             <h2 style={{ fontFamily: FONT_SERIF, fontSize: "clamp(36px, 5vw, 60px)", fontWeight: 300, letterSpacing: "-0.04em", color: C.ink, lineHeight: 1.05, marginBottom: 16 }}>
-              Free until you're ready to raise.
+              Free until you&apos;re ready to raise.
             </h2>
             <p style={{ fontSize: 15, color: C.muted, fontWeight: 300, letterSpacing: "-0.01em" }}>Start building for free. Upgrade when the investor marketplace opens.</p>
           </motion.div>

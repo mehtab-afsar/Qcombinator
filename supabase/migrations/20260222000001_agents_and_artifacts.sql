@@ -62,15 +62,9 @@ CREATE POLICY "Users can update own artifacts"
 -- Migration: Add onboarding data persistence columns
 -- ============================================================
 
--- Store extracted data from onboarding conversation
-ALTER TABLE founder_profiles
-  ADD COLUMN IF NOT EXISTS onboarding_extracted_data JSONB DEFAULT '{}',
-  ADD COLUMN IF NOT EXISTS onboarding_chat_history JSONB DEFAULT '[]';
+-- founder_profiles onboarding columns defined in 20260700000001_founder_profiles_squashed.sql
 
--- Track data source for each Q-Score entry (onboarding vs assessment vs combined)
-ALTER TABLE qscore_history
-  ADD COLUMN IF NOT EXISTS data_source TEXT DEFAULT 'assessment'
-    CHECK (data_source IN ('onboarding', 'assessment', 'combined'));
+-- qscore_history data_source column defined in 20260200000001_qscore_history_squashed.sql
 
 -- ============================================================
 -- SOURCE: 20260225000001_agent_actions.sql
@@ -114,71 +108,5 @@ CREATE POLICY "Users can manage own actions"
 -- Ensure daily reset column exists (reset_at already in table)
 -- No structural change needed — the table exists. This is a no-op migration note.
 
--- ============================================================
--- SOURCE: 20260225000003_ai_actions.sql
--- ============================================================
-
--- Add ai_actions column to qscore_history
--- Stores the 5 LLM-generated personalized action items for "What gets me to 80?"
--- Generated lazily on first view and cached here permanently.
-
-ALTER TABLE qscore_history
-  ADD COLUMN IF NOT EXISTS ai_actions JSONB DEFAULT '[]'::jsonb;
-
-COMMENT ON COLUMN qscore_history.ai_actions IS
-  'LLM-generated personalized action items to improve Q-Score toward 80. Cached after first generation.';
-
--- ============================================================
--- SOURCE: 20260225000004_agent_score_signal.sql
--- ============================================================
-
--- Add source_artifact_type to qscore_history
--- Tracks when a score row was produced by an agent artifact completion
--- (data_source = 'agent_completion') so we can prevent double-counting
--- boosts for the same artifact type per user.
-
-ALTER TABLE qscore_history
-  ADD COLUMN IF NOT EXISTS source_artifact_type TEXT;
-
-COMMENT ON COLUMN qscore_history.source_artifact_type IS
-  'Set when data_source = ''agent_completion''. Prevents the same artifact type from boosting the score twice for the same user.';
-
-CREATE INDEX IF NOT EXISTS idx_qscore_history_artifact_signal
-  ON qscore_history(user_id, source_artifact_type)
-  WHERE source_artifact_type IS NOT NULL;
-
--- Refresh the delta view to include data_source and source_artifact_type
--- DROP + CREATE because CREATE OR REPLACE cannot change column order/position
-DROP VIEW IF EXISTS qscore_with_delta;
-CREATE VIEW qscore_with_delta AS
-SELECT
-  cur.id,
-  cur.user_id,
-  cur.assessment_id,
-  cur.previous_score_id,
-  cur.overall_score,
-  cur.percentile,
-  cur.grade,
-  cur.market_score,
-  cur.product_score,
-  cur.gtm_score,
-  cur.financial_score,
-  cur.team_score,
-  cur.traction_score,
-  cur.calculated_at,
-  cur.data_source,
-  cur.source_artifact_type,
-
-  -- Overall change
-  cur.overall_score   - COALESCE(prev.overall_score,   cur.overall_score) AS overall_change,
-
-  -- Dimension changes
-  cur.market_score    - COALESCE(prev.market_score,    cur.market_score)  AS market_change,
-  cur.product_score   - COALESCE(prev.product_score,   cur.product_score) AS product_change,
-  cur.gtm_score       - COALESCE(prev.gtm_score,       cur.gtm_score)     AS gtm_change,
-  cur.financial_score - COALESCE(prev.financial_score, cur.financial_score) AS financial_change,
-  cur.team_score      - COALESCE(prev.team_score,      cur.team_score)    AS team_change,
-  cur.traction_score  - COALESCE(prev.traction_score,  cur.traction_score) AS traction_change
-
-FROM qscore_history cur
-LEFT JOIN qscore_history prev ON cur.previous_score_id = prev.id;
+-- qscore_history ai_actions, source_artifact_type, indexes, and qscore_with_delta view
+-- defined in 20260200000001_qscore_history_squashed.sql

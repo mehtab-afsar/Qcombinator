@@ -12,15 +12,8 @@
 -- SOURCE: 20260326000001_public_portfolio.sql
 -- ============================================================
 
--- Add public portfolio fields to founder_profiles
-ALTER TABLE founder_profiles
-  ADD COLUMN IF NOT EXISTS is_public   BOOLEAN DEFAULT false,
-  ADD COLUMN IF NOT EXISTS public_slug TEXT    UNIQUE;
-
--- Index for fast slug lookup
-CREATE INDEX IF NOT EXISTS idx_founder_profiles_public_slug
-  ON founder_profiles (public_slug)
-  WHERE public_slug IS NOT NULL;
+-- founder_profiles public portfolio columns (is_public, public_slug) and their indexes
+-- are defined in 20260700000001_founder_profiles_squashed.sql
 
 -- ============================================================
 -- SOURCE: 20260326000002_qscore_knowledge_chunks.sql
@@ -362,15 +355,7 @@ ALTER TABLE public.agent_artifacts
     'legal_checklist','legal_documents'
   ));
 
--- Expand qscore_history.data_source CHECK to all supported source values
-ALTER TABLE public.qscore_history
-  DROP CONSTRAINT IF EXISTS qscore_history_data_source_check;
-
-ALTER TABLE public.qscore_history
-  ADD CONSTRAINT qscore_history_data_source_check CHECK (data_source IN (
-    'registration','profile_builder','agent_completion','agent_artifact',
-    'manual','onboarding','assessment','combined'
-  ));
+-- qscore_history data_source constraint (full allowlist) defined in 20260200000001_qscore_history_squashed.sql
 
 -- ============================================================
 -- SOURCE: 20260326000004_sector_weights_spec_alignment.sql
@@ -419,20 +404,5 @@ update qscore_dimension_weights set weight = 0.08 where sector in ('biotech_deep
 -- SOURCE: 20260326000005_relax_stage_constraint.sql
 -- ============================================================
 
--- Drop the legacy stage CHECK constraint so all onboarding stage values are valid.
--- The API maps new values (pre-product, beta, growing) to legacy equivalents,
--- but removing the constraint future-proofs the column.
-
-ALTER TABLE founder_profiles
-  DROP CONSTRAINT IF EXISTS founder_profiles_stage_check;
-
--- ============================================================
--- SOURCE: 20260329000001_relax_funding_constraint.sql
--- ============================================================
-
--- Drop the legacy funding CHECK constraint.
--- Onboarding form sends values like 'friends-and-family' and 'series-a-plus'
--- which the old constraint rejects. The API maps these to legacy values,
--- but dropping the constraint future-proofs the column.
-ALTER TABLE founder_profiles
-  DROP CONSTRAINT IF EXISTS founder_profiles_funding_check;
+-- Legacy stage/funding CHECK constraints are not present in the squashed table definition.
+-- Constraints are set correctly in 20260700000001_founder_profiles_squashed.sql.

@@ -22,6 +22,7 @@ export async function POST(request: NextRequest) {
       revenueStatus, fundingStatus, teamSize, founderName,
       teamToken,
       problemStatement, targetCustomer, location, tagline,
+      marketSizeEstimate, gtmStrategy, founderBackground,
     } = parsed.data;
 
     // Use admin client with service role key to bypass email confirmation
@@ -137,6 +138,9 @@ export async function POST(request: NextRequest) {
         profile_builder_completed: false,
         tagline: tagline || null,
         location: location || null,
+        market_size_estimate: marketSizeEstimate || null,
+        gtm_strategy: gtmStrategy || null,
+        founder_background: founderBackground || [],
         email_confirm_token: confirmToken,
         startup_profile_data: startupProfileDataSchema.parse({
           problemStatement: problemStatement || undefined,
@@ -227,7 +231,7 @@ export async function POST(request: NextRequest) {
     void supabaseAdmin.from('notifications').insert({
       user_id:  authData.user.id,
       type:     'qscore_update',
-      title:    `Welcome to QCombinator, ${fullName.split(' ')[0]}! 🎉`,
+      title:    `Welcome to Edge Alpha, ${fullName.split(' ')[0]}! 🎉`,
       body:     'Your profile is set up. Complete your Q-Score profile to appear in investor deal flow.',
       metadata: { action: 'profile-builder', href: '/founder/profile-builder' },
       read:     false,

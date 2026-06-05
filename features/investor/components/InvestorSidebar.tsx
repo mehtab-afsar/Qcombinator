@@ -3,7 +3,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, PieChart, MessageSquare, Building2,
-  ChevronsUpDown, LogOut, Settings, UserCircle, Kanban, CreditCard, LayoutDashboard, Rss,
+  ChevronsUpDown, LogOut, Settings, UserCircle, Kanban, CreditCard, LayoutDashboard,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -23,13 +23,11 @@ const BASE_NAV = [
   { name: "Pipeline",    href: "/investor/pipeline",             icon: Kanban,          badge: null   },
   { name: "Portfolio",   href: "/investor/portfolio-companies",  icon: Building2,       badge: null   },
   { name: "Connected",   href: "/investor/portfolio",            icon: PieChart,        badge: null   },
-  { name: "Pulse",       href: "/feed",                          icon: Rss,             badge: "New"  },
   { name: "Messages",    href: "/investor/messages",             icon: MessageSquare,   badge: null   },
 ];
 
 const BADGE: Record<string, { bg: string; color: string }> = {
   "Live": { bg: "#F0FDF4", color: "#166534" },
-  "New":  { bg: "#F5F3FF", color: "#6B21A8" },
 };
 
 function badgeStyle(badge: string): { bg: string; color: string } {

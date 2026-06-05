@@ -170,7 +170,6 @@ export default function InvestorSettingsPage() {
       .finally(() => setInvTeamLoading(false))
   }
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (activeTab === 'team') loadInvTeam() }, [activeTab])
 
   async function handleSendInvTeamInvite() {
@@ -403,7 +402,7 @@ export default function InvestorSettingsPage() {
               <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div>
                   <p style={{ fontSize: 13, fontWeight: 500, color: ink, marginBottom: 4 }}>Change Password</p>
-                  <p style={{ fontSize: 12, color: muted, marginBottom: 12 }}>We'll send a reset link to your email address.</p>
+                  <p style={{ fontSize: 12, color: muted, marginBottom: 12 }}>We&apos;ll send a reset link to your email address.</p>
                   <button
                     onClick={async () => {
                       const { data: { user: u } } = await (await import('@/lib/supabase/client')).createClient().auth.getUser()
@@ -447,7 +446,7 @@ export default function InvestorSettingsPage() {
         )}
 
         {/* ── preferences tab ── */}
-        {activeTab === 'preferences-removed' && (
+        {false && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
             {/* Investment Thesis PDF upload — extract sectors/stages/check sizes automatically */}
             <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden' }}>
@@ -475,36 +474,36 @@ export default function InvestorSettingsPage() {
                     style={{ marginTop: 20, padding: '16px', background: surf, border: `1px solid ${bdr}`, borderRadius: 10 }}
                   >
                     <p style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 12 }}>Extracted Data Preview</p>
-                    {thesisExtracted.thesis && (
+                    {thesisExtracted?.thesis && (
                       <div style={{ marginBottom: 10 }}>
                         <p style={{ fontSize: 11, color: muted, marginBottom: 3 }}>Thesis</p>
-                        <p style={{ fontSize: 12, color: ink }}>{thesisExtracted.thesis}</p>
+                        <p style={{ fontSize: 12, color: ink }}>{thesisExtracted?.thesis}</p>
                       </div>
                     )}
-                    {thesisExtracted.sectors.length > 0 && (
+                    {(thesisExtracted?.sectors?.length ?? 0) > 0 && (
                       <div style={{ marginBottom: 10 }}>
                         <p style={{ fontSize: 11, color: muted, marginBottom: 5 }}>Sectors</p>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                          {thesisExtracted.sectors.map(s => (
+                          {thesisExtracted?.sectors.map(s => (
                             <span key={s} style={{ padding: '2px 8px', borderRadius: 999, background: '#EFF6FF', color: blue, fontSize: 11, fontWeight: 500 }}>{s}</span>
                           ))}
                         </div>
                       </div>
                     )}
-                    {thesisExtracted.stages.length > 0 && (
+                    {(thesisExtracted?.stages?.length ?? 0) > 0 && (
                       <div style={{ marginBottom: 10 }}>
                         <p style={{ fontSize: 11, color: muted, marginBottom: 5 }}>Stages</p>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                          {thesisExtracted.stages.map(s => (
+                          {thesisExtracted?.stages.map(s => (
                             <span key={s} style={{ padding: '2px 8px', borderRadius: 999, background: surf, border: `1px solid ${bdr}`, color: ink, fontSize: 11 }}>{s}</span>
                           ))}
                         </div>
                       </div>
                     )}
-                    {thesisExtracted.checkSize && (
+                    {thesisExtracted?.checkSize && (
                       <div style={{ marginBottom: 14 }}>
                         <p style={{ fontSize: 11, color: muted, marginBottom: 3 }}>Check Size</p>
-                        <p style={{ fontSize: 12, color: ink }}>{thesisExtracted.checkSize}</p>
+                        <p style={{ fontSize: 12, color: ink }}>{thesisExtracted?.checkSize}</p>
                       </div>
                     )}
                     <div style={{ display: 'flex', gap: 8 }}>
@@ -884,7 +883,7 @@ export default function InvestorSettingsPage() {
         )}
 
         {/* Security */}
-        {activeTab === 'security-removed' && (
+        {false && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             {/* Password reset */}

@@ -52,7 +52,7 @@ export async function PATCH(req: NextRequest) {
           ? '✅ Your investor profile is verified'
           : 'Profile update required',
         body:    status === 'verified'
-          ? 'Your QCombinator investor profile has been verified. You now have full access to deal flow and founder connections.'
+          ? 'Your Edge Alpha investor profile has been verified. You now have full access to deal flow and founder connections.'
           : 'Your investor profile could not be verified at this time. Please contact support for more information.',
         read:    false,
       })

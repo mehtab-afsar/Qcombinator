@@ -2,17 +2,11 @@
 -- Migration 002: Create indexes for performance
 -- ============================================================
 
--- founder_profiles
-CREATE INDEX IF NOT EXISTS idx_founder_profiles_user_id ON founder_profiles(user_id);
-CREATE INDEX IF NOT EXISTS idx_founder_profiles_subscription ON founder_profiles(subscription_tier);
-
 -- qscore_assessments
 CREATE INDEX IF NOT EXISTS idx_assessments_user ON qscore_assessments(user_id);
 CREATE INDEX IF NOT EXISTS idx_assessments_status ON qscore_assessments(status);
 
--- qscore_history
-CREATE INDEX IF NOT EXISTS idx_qscore_history_user ON qscore_history(user_id);
-CREATE INDEX IF NOT EXISTS idx_qscore_history_calculated ON qscore_history(calculated_at DESC);
+-- qscore_history indexes defined in 20260200000001_qscore_history_squashed.sql
 
 -- agent_conversations
 CREATE INDEX IF NOT EXISTS idx_conversations_user ON agent_conversations(user_id);

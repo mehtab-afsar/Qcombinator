@@ -13,8 +13,8 @@ import type { TeamRole } from '@/lib/team/permissions';
 
 const ink   = '#18160F';
 const muted = '#8A867C';
+const bdr   = '#E8E4DE';
 
-// Dimension each CXO primarily drives (for score challenge detection)
 const CXO_PRIMARY_DIMENSION: Record<string, string> = {
   patel:  'gtm',
   susi:   'traction',
@@ -25,8 +25,8 @@ const CXO_PRIMARY_DIMENSION: Record<string, string> = {
   nova:   'product',
   atlas:  'market',
   sage:   'product',
-  carter: 'traction',   // Customer Success → market readiness evidence
-  riley:  'gtm',        // Growth Ops → GTM + market potential
+  carter: 'traction',
+  riley:  'gtm',
 };
 
 interface AgentArtifact {
@@ -79,7 +79,6 @@ export function CXOGrid({ userId, qScoreBreakdown }: CXOGridProps) {
     return () => { cancelled = true; };
   }, [userId]);
 
-  // Determine bottom 3 dimensions for score challenges
   const bottom3Dims = qScoreBreakdown
     ? Object.entries(qScoreBreakdown)
         .sort(([, a], [, b]) => (a ?? 0) - (b ?? 0))
@@ -87,23 +86,6 @@ export function CXOGrid({ userId, qScoreBreakdown }: CXOGridProps) {
         .map(([dim]) => dim)
     : [];
 
-  if (loading) {
-    return (
-      <div style={{ fontFamily: 'system-ui, sans-serif', padding: '40px 32px' }}>
-        <div style={{ marginBottom: 28 }}>
-          <div style={{ height: 22, width: 180, background: '#E8E5DF', borderRadius: 6, marginBottom: 8 }} />
-          <div style={{ height: 14, width: 340, background: '#E8E5DF', borderRadius: 4 }} />
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
-          {Array.from({ length: 9 }).map((_, i) => (
-            <div key={i} style={{ height: 140, background: '#F0EDE6', borderRadius: 10 }} />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  // Group artifacts by agent
   const countsByAgent: Record<string, number> = {};
   const latestByAgent: Record<string, string> = {};
   for (const a of artifacts) {
@@ -111,23 +93,41 @@ export function CXOGrid({ userId, qScoreBreakdown }: CXOGridProps) {
     if (!latestByAgent[a.agent_id]) latestByAgent[a.agent_id] = a.title;
   }
 
+  const totalDeliverables = artifacts.length;
+
+  if (loading) {
+    return (
+      <div style={{ fontFamily: 'system-ui, sans-serif', padding: '40px 32px' }}>
+        <div style={{ height: 22, width: 140, background: '#E8E5DF', borderRadius: 6, marginBottom: 32 }} />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
+          {Array.from({ length: 9 }).map((_, i) => (
+            <div key={i} style={{ height: 130, background: '#F5F3EF', borderRadius: 12 }} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ fontFamily: 'system-ui, sans-serif', padding: '40px 32px' }}>
-      {/* Heading */}
-      <div style={{ marginBottom: 28 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: ink, margin: '0 0 6px' }}>
-          Your CXO Team
-        </h1>
-        <p style={{ fontSize: 14, color: muted, margin: 0 }}>
-          Your AI executive team. Click any role to open their workspace.
-        </p>
+
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 28 }}>
+        <div>
+          <h1 style={{ fontSize: 22, fontWeight: 500, letterSpacing: '-0.02em', color: ink, margin: '0 0 4px' }}>
+            Advisory Board
+          </h1>
+          <p style={{ fontSize: 13, color: muted, margin: 0 }}>
+            {ALL_AGENT_IDS.length} advisers · {totalDeliverables} deliverable{totalDeliverables !== 1 ? 's' : ''} built
+          </p>
+        </div>
       </div>
 
       {/* Grid */}
       <div style={{
-        display:             'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-        gap:                 16,
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+        gap: 12,
       }}>
         {ALL_AGENT_IDS.map(agentId => {
           const config = CXO_CONFIGS[agentId];
@@ -141,18 +141,26 @@ export function CXOGrid({ userId, qScoreBreakdown }: CXOGridProps) {
 
           if (isLocked) {
             return (
-              <div key={agentId} style={{ border: '1px solid #E2DDD5', borderRadius: 10, background: '#FAFAF9', padding: '0 0 18px', overflow: 'hidden', opacity: 0.6, cursor: 'not-allowed', fontFamily: 'system-ui, sans-serif' }}>
-                <div style={{ height: 4, background: '#E2DDD5' }} />
-                <div style={{ padding: '16px 18px 0' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                    <p style={{ fontSize: 14, fontWeight: 700, color: '#8A867C', margin: 0 }}>{config.role.split(' — ')[0]}</p>
-                    <Lock style={{ width: 13, height: 13, color: '#8A867C' }} />
+              <div
+                key={agentId}
+                style={{
+                  border: `1px solid ${bdr}`, borderRadius: 12,
+                  background: '#fff', padding: '20px 20px 16px',
+                  opacity: 0.45, cursor: 'not-allowed',
+                  fontFamily: 'system-ui, sans-serif',
+                  display: 'flex', flexDirection: 'column', gap: 16,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                  <div>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: ink, margin: '0 0 3px' }}>{config.name}</p>
+                    <p style={{ fontSize: 12, color: muted, margin: 0 }}>{config.role.split(/[—–-]/)[0].trim()}</p>
                   </div>
-                  <p style={{ fontSize: 12, color: '#C0BDB5', margin: '0 0 14px' }}>{config.name}</p>
-                  <div style={{ borderTop: '1px solid #E2DDD5', paddingTop: 10 }}>
-                    <p style={{ fontSize: 11, color: '#C0BDB5', margin: 0 }}>Owners &amp; Admins only</p>
-                  </div>
+                  <Lock style={{ width: 12, height: 12, color: muted, marginTop: 4 }} />
                 </div>
+                <p style={{ fontSize: 11, color: '#C0BDB5', margin: 0, borderTop: `1px solid ${bdr}`, paddingTop: 12 }}>
+                  Owner &amp; Admin only
+                </p>
               </div>
             );
           }

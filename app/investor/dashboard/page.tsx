@@ -16,6 +16,8 @@ import { StatCard } from "@/features/shared/components/StatCard"
 import { SectionCard } from "@/features/shared/components/SectionCard"
 import { StatCardSkeleton, RowSkeleton } from "@/features/shared/components/Skeleton"
 import { WelcomeModal, INVESTOR_WELCOME_SLIDES } from "@/components/ui/WelcomeModal"
+import { TopPersonalizedMatches } from "@/components/investor/TopPersonalizedMatches"
+import type { FounderProfile } from "@/lib/services/deal-matching.service"
 
 // ─── types ────────────────────────────────────────────────────────────────────
 interface DashboardData {
@@ -105,6 +107,7 @@ export default function InvestorDashboard() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [verificationStatus, setVerificationStatus] = useState<'pending' | 'verified' | 'rejected' | null>(null)
+  const [founderProfiles, setFounderProfiles] = useState<FounderProfile[]>([])
 
   useEffect(() => {
     async function load() {
@@ -149,6 +152,20 @@ export default function InvestorDashboard() {
           .map(stage => ({ stage, count: stageCounts[stage] ?? 0 }))
           .filter(r => r.count > 0)
 
+        // Convert founders to FounderProfile format for personalized matching
+        const founderProfilesList: FounderProfile[] = allFounders.map(f => ({
+          id: f.id,
+          stage: (f.stage as FounderProfile['stage']) || 'idea',
+          industry: f.sector || 'Unknown',
+          location: 'Unknown',
+          valuation: 0,
+          qscore: {
+            qscore: f.qScore || 0,
+            overall: f.qScore || 0,
+            p1: 0, p2: 0, p3: 0, p4: 0, p5: 0, p6: 0,
+          },
+        }))
+
         // Top 6 founders by match/q-score
         const topFounders = allFounders
           .slice(0, 6)
@@ -183,6 +200,7 @@ export default function InvestorDashboard() {
         const profileData = profile as { full_name?: string; firm_name?: string } | null
         const billingData = billing as { subscriptionTier?: string }
         const unreadData  = unread  as { unreadMessages?: number; pendingRequests?: number }
+        setFounderProfiles(founderProfilesList)
         setData({
           investorName:    profileData?.full_name ?? "",
           firmName:        profileData?.firm_name ?? "",
@@ -381,14 +399,14 @@ export default function InvestorDashboard() {
         {/* ── Main grid ────────────────────────────────────────────────── */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 300px", gap: 18, alignItems: "start" }}>
 
-          {/* ── Top founder matches ───────────────────────────────────── */}
+          {/* ── Top founder matches (with personalized ranking) ──────────── */}
           <SectionCard
             style={{ gridColumn: "1 / 3" }}
             title=""
             action={<SectionHeader title="Top matches for you" href="/investor/deal-flow" />}
             noPadding
           >
-            {d.topFounders.length === 0 ? (
+            {founderProfiles.length === 0 ? (
               <div style={{ padding: "40px 20px", textAlign: "center" }}>
                 <p style={{ fontSize: 13, color: muted, marginBottom: 16, fontFamily: "inherit" }}>
                   No founders yet — they appear here as founders complete onboarding.
@@ -402,44 +420,11 @@ export default function InvestorDashboard() {
                 </Link>
               </div>
             ) : (
-              <div>
-                {d.topFounders.map((f, i) => (
-                  <Link
-                    key={f.id}
-                    href={`/investor/startup/${f.id}`}
-                    style={{ textDecoration: "none", display: "block" }}
-                  >
-                    <div style={{
-                      padding: "13px 20px",
-                      borderBottom: i < d.topFounders.length - 1 ? `1px solid ${bdr}` : "none",
-                      display: "flex", alignItems: "center", gap: 12,
-                      transition: "background 0.12s",
-                    }}
-                      onMouseEnter={e => ((e.currentTarget as HTMLElement).style.background = `${blue}05`)}
-                      onMouseLeave={e => ((e.currentTarget as HTMLElement).style.background = "transparent")}
-                    >
-                      <Avatar url={f.companyLogoUrl ?? f.avatarUrl ?? null} name={f.name} size={38} radius={9} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "inherit" }}>
-                            {f.name}
-                          </span>
-                          {f.qScore > 0 && <ScoreBadge score={f.qScore} />}
-                          {f.matchScore && f.matchScore >= 80 && (
-                            <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 999, background: "#F0FDF4", color: "#166534", fontFamily: "inherit" }}>
-                              {f.matchScore}% match
-                            </span>
-                          )}
-                        </div>
-                        <p style={{ fontSize: 11, color: muted, margin: "2px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "inherit" }}>
-                          {[f.sector, f.stage].filter(Boolean).join(" · ")}
-                          {f.tagline ? ` — ${f.tagline}` : ""}
-                        </p>
-                      </div>
-                      <ChevronRight style={{ width: 13, height: 13, color: muted, flexShrink: 0 }} />
-                    </div>
-                  </Link>
-                ))}
+              <div style={{ padding: "16px 20px" }}>
+                <TopPersonalizedMatches
+                  founders={founderProfiles}
+                  limit={6}
+                />
               </div>
             )}
           </SectionCard>

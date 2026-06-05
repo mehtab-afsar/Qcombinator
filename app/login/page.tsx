@@ -70,20 +70,29 @@ function LoginForm() {
 
   return (
     <div style={{ minHeight: "100vh", background: bg, color: ink, fontFamily: "inherit" }}>
-      {/* nav */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "18px 28px", borderBottom: `1px solid ${bdr}` }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontWeight: 600, fontSize: 15, letterSpacing: "-0.01em" }}>Edge Alpha</span>
+      {/* Floating pill nav */}
+      <div style={{ position: "fixed", top: 16, left: 0, right: 0, zIndex: 50, display: "flex", justifyContent: "center", padding: "0 24px", pointerEvents: "none" }}>
+        <div style={{
+          pointerEvents: "auto",
+          width: "100%", maxWidth: 780,
+          padding: "10px 20px",
+          background: "rgba(249,247,242,0.92)",
+          backdropFilter: "blur(20px) saturate(1.6)",
+          WebkitBackdropFilter: "blur(20px) saturate(1.6)",
+          border: `1px solid rgba(232,226,217,0.8)`,
+          borderRadius: 999,
+          boxShadow: "0 4px 24px rgba(0,0,0,0.07)",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+        }}>
+          <span style={{ fontWeight: 700, fontSize: 15, letterSpacing: "-0.02em", color: ink }}>Edge Alpha</span>
+          <Link href="/" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: muted, textDecoration: "none" }}>
+            <ArrowLeft size={13} /> Home
+          </Link>
         </div>
-        <Link href="/" style={{ display: "flex", alignItems: "center", gap: 6,
-          fontSize: 13, color: muted, textDecoration: "none" }}>
-          <ArrowLeft size={14} /> Home
-        </Link>
       </div>
 
       {/* body */}
-      <div style={{ maxWidth: 400, margin: "0 auto", padding: "64px 24px" }}>
+      <div style={{ maxWidth: 400, margin: "0 auto", padding: "100px 24px 64px" }}>
         <h1 style={{ fontSize: 28, fontWeight: 300, letterSpacing: "-0.03em", marginBottom: 8 }}>
           Welcome back.
         </h1>

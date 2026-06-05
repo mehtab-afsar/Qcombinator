@@ -16,9 +16,7 @@ CREATE TABLE IF NOT EXISTS startups (
   created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Link founder_profiles → startups (nullable during migration window)
-ALTER TABLE founder_profiles
-  ADD COLUMN IF NOT EXISTS startup_id UUID REFERENCES startups(id) ON DELETE SET NULL;
+-- founder_profiles.startup_id FK defined in 20260700000001_founder_profiles_squashed.sql
 
 -- Backfill: create one startup per existing founder_profile and link it
 INSERT INTO startups (id, name, industry, stage, website, description, owner_user_id)
@@ -105,7 +103,7 @@ CREATE INDEX IF NOT EXISTS idx_inv_team_invites_investor ON investor_team_invite
 CREATE INDEX IF NOT EXISTS idx_startup_members_startup  ON startup_members(startup_id);
 CREATE INDEX IF NOT EXISTS idx_startup_members_user     ON startup_members(user_id);
 CREATE INDEX IF NOT EXISTS idx_startups_owner           ON startups(owner_user_id);
-CREATE INDEX IF NOT EXISTS idx_founder_profiles_startup ON founder_profiles(startup_id);
+-- idx_founder_profiles_startup defined in 20260700000001_founder_profiles_squashed.sql
 
 -- ── 6. RLS ────────────────────────────────────────────────────────────────────
 ALTER TABLE startups              ENABLE ROW LEVEL SECURITY;

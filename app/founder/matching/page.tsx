@@ -1,10 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import {
   Search,
-  Lock,
   Send,
   ArrowRight,
   ChevronDown,
@@ -64,8 +63,8 @@ export default function InvestorMatching() {
     }
   }
   const { qScore } = useQScore()
-  const founderQScore = qScore?.overall ?? 62   // use 62 as demo default so gate is visible
-  const isLocked = founderQScore < 60
+  const founderQScore = qScore?.overall ?? 0
+  const isLocked = founderQScore < 65
 
   const {
     investors, setInvestors,
@@ -74,7 +73,6 @@ export default function InvestorMatching() {
   } = useMatchingData(founderQScore)
 
   const handleConnectClick = (investor: Investor) => {
-    if (isLocked) return
     setSelectedInvestor(investor)
     setIsModalOpen(true)
     fetchRationale(investor)
@@ -145,8 +143,7 @@ export default function InvestorMatching() {
           </h1>
           <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
             {/* Dynamic: how many investors can see this founder */}
-            {!isLocked && (
-              <div style={{
+            <div style={{
                 display: "flex", alignItems: "center", gap: 8,
                 padding: "6px 14px", borderRadius: 999,
                 background: "#F0FDF4", border: "1px solid #BBF7D0",
@@ -157,7 +154,6 @@ export default function InvestorMatching() {
                 </span>
                 <span style={{ fontSize: 11, color: muted }}>· Q-Score {founderQScore}</span>
               </div>
-            )}
             {[
               { value: "1,247", label: "active investors" },
               { value: "89%",   label: "match accuracy" },
@@ -204,42 +200,27 @@ export default function InvestorMatching() {
 
         {/* ── investor list ───────────────────────────────────────────── */}
         <div style={{ position: "relative" }}>
-          {/* lock overlay */}
-          <AnimatePresence>
-            {isLocked && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                style={{
-                  position: "absolute", inset: 0, zIndex: 10,
-                  backdropFilter: "blur(8px)",
-                  WebkitBackdropFilter: "blur(8px)",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  borderRadius: 14,
-                  background: "rgba(249,247,242,0.75)",
-                }}
-              >
-                <div style={{ textAlign: "center", maxWidth: 340, padding: "0 24px" }}>
-                  <div style={{ height: 48, width: 48, borderRadius: 12, background: surf, border: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-                    <Lock style={{ height: 20, width: 20, color: muted }} />
-                  </div>
-                  <h3 style={{ fontSize: 18, fontWeight: 300, letterSpacing: "-0.02em", color: ink, marginBottom: 8 }}>
-                    Marketplace unlocks at Q-Score 60
-                  </h3>
-                  <p style={{ fontSize: 13, color: muted, marginBottom: 20, lineHeight: 1.6 }}>
-                    You&apos;re at {founderQScore}. Just {60 - founderQScore} more points to access 500+ verified investors.
-                  </p>
-                  <Link href="/founder/assessment"
-                    style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "12px 24px", background: ink, color: bg, borderRadius: 999, fontSize: 14, fontWeight: 500, textDecoration: "none" }}
-                  >
-                    Improve my Q-Score <ArrowRight style={{ height: 14, width: 14 }} />
-                  </Link>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
 
-          {/* rich investor cards */}
+          {/* lock gate — no blur, clean card */}
+          {isLocked && (
+            <div style={{ padding: "48px 24px", textAlign: "center", background: "#F9F7F2", borderRadius: 14, border: `1px solid ${bdr}`, marginBottom: 16 }}>
+              <p style={{ fontSize: 20, fontWeight: 300, letterSpacing: "-0.02em", color: ink, marginBottom: 8 }}>
+                Investor marketplace unlocks at Q-Score 65
+              </p>
+              <p style={{ fontSize: 13, color: muted, marginBottom: 24, lineHeight: 1.6 }}>
+                You&apos;re at {founderQScore}. {65 - founderQScore} more points to access 500+ verified investors.
+              </p>
+              <Link href="/founder/profile-builder"
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "10px 22px", background: ink, color: "#F9F7F2", borderRadius: 999, fontSize: 13, fontWeight: 500, textDecoration: "none" }}
+              >
+                Improve my Q-Score <ArrowRight style={{ height: 13, width: 13 }} />
+              </Link>
+            </div>
+          )}
+
+          {/* investor cards — hidden when locked */}
+          {!isLocked && (
+          <>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {filtered.map((investor, i) => {
             const matchColor = investor.matchScore >= 80 ? green : investor.matchScore >= 60 ? blue : amber
@@ -303,7 +284,7 @@ export default function InvestorMatching() {
                     <ConnectionStatusBadge status={investor.connectionStatus} />
                   ) : (
                     <button
-                      onClick={() => handleConnectClick(investor)}
+                      onClick={() => !isLocked && handleConnectClick(investor)}
                       disabled={isLocked}
                       style={{
                         display: "inline-flex", alignItems: "center", gap: 5,
@@ -373,15 +354,15 @@ export default function InvestorMatching() {
             )
           })}
           </div>
-
           {filtered.length === 0 && (
             <p style={{ textAlign: "center", padding: "40px 0", color: muted, fontSize: 14 }}>No investors match your current filters.</p>
           )}
+          </>
+          )}
         </div>
 
-        {/* ── bottom cta ─────────────────────────────────────────────── */}
-        {!isLocked && (
-          <motion.div
+        {/* ── bottom cta — only when unlocked ────────────────────────── */}
+        {!isLocked && (<motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
@@ -398,8 +379,7 @@ export default function InvestorMatching() {
             >
               Complete assessment <ArrowRight style={{ height: 13, width: 13 }} />
             </Link>
-          </motion.div>
-        )}
+          </motion.div>)}
 
       </div>
 

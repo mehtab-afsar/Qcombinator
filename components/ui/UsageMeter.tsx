@@ -1,6 +1,6 @@
 'use client'
 
-import { bg, bdr, ink, muted, blue } from '@/lib/constants/colors'
+import { bdr, ink, muted, blue } from '@/lib/constants/colors'
 
 interface Props {
   label:     string

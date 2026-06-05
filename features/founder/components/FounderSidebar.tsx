@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Brain, ChevronsUpDown,
   ClipboardList, CreditCard, GraduationCap, Home, LogOut, MessageSquare,
-  Settings, Target, UserCircle, Rss,
+  Settings, Target,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -27,7 +27,6 @@ const BASE_NAV = [
   { name: "CXO Suite",         href: "/founder/cxo",             icon: Brain,         badge: "9"     },
   { name: "Investor Matching", href: "/founder/matching",        icon: Target,        badge: "Smart" },
   { name: "Academy",           href: "/founder/academy",         icon: GraduationCap, badge: "NEW"   },
-  { name: "Pulse",             href: "/feed",                    icon: Rss,           badge: "New"   },
   { name: "Messages",          href: "/founder/messages",        icon: MessageSquare, badge: null    },
 ];
 
@@ -35,7 +34,6 @@ const BADGE: Record<string, { bg: string; color: string }> = {
   "9":     { bg: "#EEF2FF", color: "#3730A3" },
   "Smart": { bg: "#F0FDF4", color: "#166534" },
   "NEW":   { bg: "#FDF4FF", color: "#6B21A8" },
-  "New":   { bg: "#F5F3FF", color: "#6B21A8" },
 };
 
 function msgBadgeStyle(count: number): { bg: string; color: string } {
@@ -384,7 +382,6 @@ export default function FounderSidebar() {
               </span>
             </div>
             <DropSep />
-            <DropItem href="/founder/profile"              icon={UserCircle} label="Profile" />
             <DropItem href="/founder/settings"             icon={Settings}   label="Settings" />
             <DropItem href="/founder/billing" icon={CreditCard} label="Subscription" />
             <DropSep />

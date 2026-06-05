@@ -5,25 +5,26 @@ import type { CXOConfig } from '@/lib/cxo/cxo-config';
 
 const ink   = '#18160F';
 const muted = '#8A867C';
-const bdr   = '#E2DDD5';
-const surf  = '#F0EDE6';
-const green = '#16A34A';
-const amber = '#D97706';
+const bdr   = '#E8E4DE';
+const surf  = '#F9F7F2';
 
 interface CXOCardProps {
-  config: CXOConfig;
-  artifactCount: number;
+  config:              CXOConfig;
+  artifactCount:       number;
   latestArtifactTitle?: string;
-  hasScoreChallenge: boolean;
-  onClick: () => void;
+  hasScoreChallenge:   boolean;
+  onClick:             () => void;
 }
 
 export function CXOCard({ config, artifactCount, latestArtifactTitle, hasScoreChallenge, onClick }: CXOCardProps) {
   const [hovered, setHovered] = useState(false);
 
-  const totalDeliverables = config.deliverables.length;
-  const pct = totalDeliverables > 0 ? Math.min(1, artifactCount / totalDeliverables) : 0;
-  const isComplete = artifactCount >= totalDeliverables && totalDeliverables > 0;
+  const total      = config.deliverables.length;
+  const pct        = total > 0 ? Math.min(1, artifactCount / total) : 0;
+  const isComplete = artifactCount >= total && total > 0;
+
+  // Role label — first part before dash or em-dash
+  const roleLabel  = config.role.split(/[—–-]/)[0].trim();
 
   return (
     <div
@@ -34,73 +35,57 @@ export function CXOCard({ config, artifactCount, latestArtifactTitle, hasScoreCh
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        border:        `1px solid ${hovered ? config.colour : bdr}`,
-        borderRadius:  10,
-        background:    '#FFFFFF',
-        padding:       '0 0 18px',
-        cursor:        'pointer',
-        transition:    'border-color 0.15s',
-        overflow:      'hidden',
-        fontFamily:    'system-ui, sans-serif',
-        userSelect:    'none',
+        border:      `1px solid ${hovered ? '#D0CCC5' : bdr}`,
+        borderRadius: 12,
+        background:   hovered ? surf : '#fff',
+        padding:      '20px 20px 16px',
+        cursor:       'pointer',
+        transition:   'background 0.12s, border-color 0.12s',
+        fontFamily:   'system-ui, sans-serif',
+        userSelect:   'none',
+        display:      'flex',
+        flexDirection: 'column',
+        gap:          16,
       }}
     >
-      {/* Colour accent top bar */}
-      <div style={{ height: 4, background: config.colour }} />
-
-      <div style={{ padding: '16px 18px 0' }}>
-        {/* Header */}
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-            <p style={{ fontSize: 14, fontWeight: 700, color: ink, margin: 0, lineHeight: 1.3 }}>
-              {config.role.split(' — ')[0]}
-            </p>
-            {isComplete && (
-              <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 999, background: '#F0FDF4', color: green, border: `1px solid ${green}33` }}>
-                Complete
-              </span>
-            )}
-            {hasScoreChallenge && !isComplete && (
-              <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 999, background: '#FFFBEB', color: amber, border: `1px solid ${amber}33` }}>
-                Needs attention
-              </span>
-            )}
-          </div>
-          <p style={{ fontSize: 12, color: muted, margin: '2px 0 0' }}>{config.name}</p>
+      {/* Top: name + color dot */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+        <div>
+          <p style={{ fontSize: 14, fontWeight: 600, color: ink, margin: '0 0 3px', lineHeight: 1.2 }}>
+            {config.name}
+          </p>
+          <p style={{ fontSize: 12, color: muted, margin: 0 }}>{roleLabel}</p>
         </div>
-
-        {/* Progress bar */}
-        <div style={{ marginBottom: 10 }}>
-          <div style={{ height: 4, background: surf, borderRadius: 999, overflow: 'hidden' }}>
-            <div style={{
-              height: '100%', width: `${pct * 100}%`,
-              background: config.colour, borderRadius: 999,
-              transition: 'width 0.4s ease',
-            }} />
-          </div>
-          <p style={{ fontSize: 11, color: muted, margin: '5px 0 0' }}>
-            {artifactCount} of {totalDeliverables} deliverables
-          </p>
-        </div>
-
-        {/* Latest artifact */}
-        {latestArtifactTitle ? (
-          <p style={{
-            fontSize: 11, color: muted,
-            margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            borderTop: `1px solid ${bdr}`, paddingTop: 10,
-          }}>
-            Latest: {latestArtifactTitle}
-          </p>
-        ) : (
-          <p style={{
-            fontSize: 11, color: '#C0BDB5', margin: 0,
-            borderTop: `1px solid ${bdr}`, paddingTop: 10,
-          }}>
-            Not started yet
-          </p>
-        )}
+        <div style={{
+          width: 8, height: 8, borderRadius: 999,
+          background: isComplete ? '#16A34A' : hasScoreChallenge ? '#D97706' : config.colour,
+          flexShrink: 0, marginTop: 5,
+          opacity: isComplete || hasScoreChallenge ? 1 : 0.5,
+        }} />
       </div>
+
+      {/* Progress */}
+      <div>
+        <div style={{ height: 2, background: bdr, borderRadius: 999, overflow: 'hidden', marginBottom: 6 }}>
+          <div style={{ height: '100%', width: `${pct * 100}%`, background: config.colour, borderRadius: 999, transition: 'width 0.4s ease' }} />
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+          <p style={{ fontSize: 11, color: muted, margin: 0 }}>
+            {artifactCount === 0 ? 'No deliverables yet' : `${artifactCount} of ${total} deliverables`}
+          </p>
+          {isComplete && <p style={{ fontSize: 11, color: '#16A34A', margin: 0 }}>Complete</p>}
+          {hasScoreChallenge && !isComplete && <p style={{ fontSize: 11, color: '#D97706', margin: 0 }}>Weak area</p>}
+        </div>
+      </div>
+
+      {/* Latest */}
+      <p style={{
+        fontSize: 11, color: latestArtifactTitle ? muted : '#C0BDB5',
+        margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        borderTop: `1px solid ${bdr}`, paddingTop: 12,
+      }}>
+        {latestArtifactTitle ?? 'Ready to brief'}
+      </p>
     </div>
   );
 }

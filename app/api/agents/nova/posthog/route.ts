@@ -18,7 +18,9 @@ import { createClient } from '@supabase/supabase-js';
 
 const POSTHOG_API_BASE = 'https://app.posthog.com';
 
-async function getUserId(req: NextRequest): Promise<string | null> {
+async function resolvePostHogCreds(req: NextRequest): Promise<{
+  userId: string; apiKey: string; projectId: string;
+} | null> {
   const token = req.headers.get('authorization')?.replace('Bearer ', '');
   if (!token) return null;
   const supabase = createClient(
@@ -26,7 +28,20 @@ async function getUserId(req: NextRequest): Promise<string | null> {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   );
   const { data } = await supabase.auth.getUser(token);
-  return data.user?.id ?? null;
+  const userId = data.user?.id;
+  if (!userId) return null;
+
+  // Prefer per-founder keys; fall back to platform env keys
+  const { data: profile } = await supabase
+    .from('founder_profiles')
+    .select('posthog_api_key, posthog_project_id')
+    .eq('user_id', userId)
+    .single();
+
+  const apiKey    = profile?.posthog_api_key    || process.env.POSTHOG_API_KEY    || '';
+  const projectId = profile?.posthog_project_id || process.env.POSTHOG_PROJECT_ID || '';
+  if (!apiKey || !projectId) return null;
+  return { userId, apiKey, projectId };
 }
 
 // Map query_type to PostHog API endpoint + payload
@@ -128,18 +143,14 @@ function buildPostHogQuery(
 }
 
 export async function POST(req: NextRequest) {
-  const apiKey     = process.env.POSTHOG_API_KEY;
-  const projectId  = process.env.POSTHOG_PROJECT_ID;
-
-  if (!apiKey || !projectId) {
+  const creds = await resolvePostHogCreds(req);
+  if (!creds) {
     return NextResponse.json(
-      { error: 'PostHog not configured. Add POSTHOG_API_KEY and POSTHOG_PROJECT_ID to your environment.' },
+      { error: 'PostHog not configured. Connect PostHog in Settings → Integrations or add POSTHOG_API_KEY and POSTHOG_PROJECT_ID to your environment.' },
       { status: 503 },
     );
   }
-
-  const userId = await getUserId(req);
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const { userId: _userId, apiKey, projectId } = creds;
 
   let body: {
     query_type?: string;
@@ -155,7 +166,12 @@ export async function POST(req: NextRequest) {
 
   const { query_type = 'active_users', date_range = '30d', segment } = body;
 
-  const { endpoint, payload } = buildPostHogQuery(query_type, date_range, segment);
+  const { endpoint: rawEndpoint, payload } = buildPostHogQuery(query_type, date_range, segment);
+  // Replace the placeholder project ID with the resolved one (in case env differs from founder's)
+  const endpoint = rawEndpoint.replace(
+    `/api/projects/${process.env.POSTHOG_PROJECT_ID ?? '__PROJECT__'}/`,
+    `/api/projects/${projectId}/`,
+  );
 
   try {
     const phRes = await fetch(`${POSTHOG_API_BASE}${endpoint}`, {

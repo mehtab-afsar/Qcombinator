@@ -2,23 +2,33 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { motion } from 'framer-motion'
-import { CheckCircle, CreditCard, Zap, BarChart3, Search, FileText, RefreshCw, Crown } from 'lucide-react'
-import { bg, surf, bdr, ink, muted, blue, green, amber } from '@/lib/constants/colors'
+import { Check, RefreshCw } from 'lucide-react'
+import { bg, ink } from '@/lib/constants/colors'
 
-const PRO_FEATURES = [
-  { icon: Search,     label: 'Unlimited deal flow access' },
-  { icon: BarChart3,  label: 'AI match scores + personalization' },
-  { icon: Zap,        label: 'Pipeline management & kanban' },
-  { icon: FileText,   label: 'Thesis extraction from PDF' },
-  { icon: CheckCircle,label: 'Founder deep-dive profiles' },
-  { icon: Crown,      label: 'Priority support' },
+const C = {
+  sep:   '#E8E4DE',
+  text2: '#6B6560',
+  green: '#16A34A',
+  amber: '#D97706',
+}
+
+const FEATURES = [
+  ['Unlimited deal flow access',          'View every scored founder'],
+  ['AI match scores + personalisation',   'Ranked to your thesis'],
+  ['Pipeline management',                 'Kanban board & notes'],
+  ['Thesis extraction from PDF',          'Auto-parsed criteria'],
+  ['Founder deep-dive profiles',          'Score breakdown + artifacts'],
+  ['Priority support',                    'Direct access'],
 ]
 
 interface BillingInfo {
-  subscriptionTier: 'free' | 'pro'
+  subscriptionTier:   'free' | 'pro'
   subscriptionStatus: string | null
-  periodEnd: string | null
+  periodEnd:          string | null
+}
+
+function fmt(d: string) {
+  return new Date(d).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
 }
 
 function BillingInner() {
@@ -26,22 +36,20 @@ function BillingInner() {
   const searchParams = useSearchParams()
   const success      = searchParams.get('success') === '1'
 
-  const [billing,    setBilling]    = useState<BillingInfo | null>(null)
-  const [loading,    setLoading]    = useState(true)
-  const [acting,     setActing]     = useState(false)
-  const [toast,      setToast]      = useState<string | null>(null)
+  const [billing, setBilling] = useState<BillingInfo | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [acting,  setActing]  = useState(false)
+  const [toast,   setToast]   = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/investor/billing/status')
-      .then(r => r.json())
-      .then(d => setBilling(d))
-      .catch(() => {})
-      .finally(() => setLoading(false))
+      .then(r => r.json()).then(d => setBilling(d))
+      .catch(() => {}).finally(() => setLoading(false))
   }, [])
 
   useEffect(() => {
     if (success) {
-      showToast('🎉 Welcome to Pro! Your subscription is now active.')
+      showToast('Subscription activated — welcome to Pro.')
       router.replace('/investor/billing')
     }
   }, [success, router])
@@ -80,166 +88,104 @@ function BillingInner() {
   const isPro = billing?.subscriptionTier === 'pro'
 
   return (
-    <div style={{ minHeight: '100vh', background: bg, color: ink, padding: '40px 24px 80px' }}>
+    <div style={{ minHeight: '100vh', background: bg, color: ink, padding: '48px 24px 100px', fontFamily: 'system-ui,-apple-system,sans-serif' }}>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
 
-      {/* Toast */}
       {toast && (
-        <div style={{
-          position: 'fixed', top: 20, right: 20, zIndex: 9999,
-          padding: '12px 20px', borderRadius: 10,
-          background: ink, color: bg, fontSize: 13, fontWeight: 600,
-          boxShadow: '0 4px 24px rgba(0,0,0,0.18)', maxWidth: 360,
-        }}>
+        <div style={{ position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 9999, padding: '11px 20px', borderRadius: 10, background: ink, color: bg, fontSize: 13, fontWeight: 500, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', whiteSpace: 'nowrap' }}>
           {toast}
         </div>
       )}
 
-      <div style={{ maxWidth: 760, margin: '0 auto' }}>
+      <div style={{ maxWidth: 680, margin: '0 auto' }}>
 
         {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          style={{ marginBottom: 36 }}
-        >
-          <p style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.18em', color: muted, fontWeight: 600, marginBottom: 8 }}>
-            Investor · Billing
-          </p>
-          <h1 style={{ fontSize: 'clamp(1.8rem,4vw,2.4rem)', fontWeight: 300, letterSpacing: '-0.03em', color: ink }}>
-            Billing & Subscription
-          </h1>
-        </motion.div>
+        <div style={{ marginBottom: 48 }}>
+          <h1 style={{ fontSize: 28, fontWeight: 500, letterSpacing: '-0.03em', color: ink, margin: 0 }}>Subscription</h1>
+          <p style={{ fontSize: 14, color: C.text2, marginTop: 6 }}>Manage your investor plan and access.</p>
+        </div>
 
-        {/* Current Plan Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, delay: 0.08 }}
-          style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden', marginBottom: 24 }}
-        >
-          <div style={{ padding: '16px 20px', borderBottom: `1px solid ${bdr}`, background: surf, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <CreditCard style={{ height: 14, width: 14, color: muted }} />
-            <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>Current Plan</p>
-          </div>
-          <div style={{ padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
-            {loading ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <RefreshCw style={{ height: 14, width: 14, color: muted, animation: 'spin 1s linear infinite' }} />
-                <span style={{ fontSize: 13, color: muted }}>Loading…</span>
-              </div>
-            ) : (
-              <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{
-                    padding: '4px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700,
-                    background: isPro ? '#EFF6FF' : surf,
-                    color: isPro ? blue : muted,
-                    border: `1px solid ${isPro ? '#BFDBFE' : bdr}`,
-                  }}>
-                    {isPro ? '⚡ Pro' : 'Free'}
-                  </div>
-                  {isPro && billing?.periodEnd && (
-                    <span style={{ fontSize: 11, color: muted }}>
-                      Renews {new Date(billing.periodEnd).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                    </span>
-                  )}
-                  {billing?.subscriptionStatus && billing.subscriptionStatus !== 'inactive' && (
-                    <span style={{
-                      padding: '2px 8px', borderRadius: 999, fontSize: 10, fontWeight: 600,
-                      background: billing.subscriptionStatus === 'active' ? '#ECFDF5' : '#FFFBEB',
-                      color: billing.subscriptionStatus === 'active' ? green : amber,
-                    }}>
-                      {billing.subscriptionStatus}
-                    </span>
-                  )}
-                </div>
-                {isPro ? (
-                  <button
-                    onClick={handleManage}
-                    disabled={acting}
-                    style={{ padding: '8px 16px', borderRadius: 8, border: `1px solid ${bdr}`, background: 'transparent', color: ink, fontSize: 12, fontWeight: 500, cursor: acting ? 'not-allowed' : 'pointer', opacity: acting ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}
-                  >
-                    <CreditCard style={{ height: 12, width: 12 }} />
-                    {acting ? 'Loading…' : 'Manage subscription'}
-                  </button>
-                ) : null}
-              </>
-            )}
-          </div>
-        </motion.div>
-
-        {/* Pro Plan Card */}
-        {!isPro && (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35, delay: 0.14 }}
-            style={{
-              background: bg, border: `2px solid ${blue}`, borderRadius: 14, overflow: 'hidden',
-            }}
-          >
-            <div style={{ padding: '20px 24px', borderBottom: `1px solid ${bdr}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <span style={{ padding: '2px 10px', borderRadius: 999, background: blue, color: '#fff', fontSize: 11, fontWeight: 700 }}>
-                    ⚡ Pro
-                  </span>
-                </div>
-                <p style={{ fontSize: 26, fontWeight: 700, color: ink, lineHeight: 1 }}>
-                  $99<span style={{ fontSize: 14, fontWeight: 400, color: muted }}> / month</span>
-                </p>
-              </div>
-              <button
-                onClick={handleUpgrade}
-                disabled={acting}
-                style={{
-                  padding: '12px 28px', borderRadius: 10, border: 'none',
-                  background: blue, color: '#fff',
-                  fontSize: 14, fontWeight: 600, cursor: acting ? 'not-allowed' : 'pointer',
-                  opacity: acting ? 0.7 : 1,
-                  display: 'inline-flex', alignItems: 'center', gap: 8,
-                  boxShadow: '0 2px 12px rgba(59,130,246,0.3)',
-                }}
-              >
-                <Zap style={{ height: 14, width: 14 }} />
-                {acting ? 'Loading…' : 'Upgrade to Pro'}
-              </button>
+        {/* Plan row */}
+        <div style={{ padding: '20px 0', borderTop: `1px solid ${C.sep}`, borderBottom: `1px solid ${C.sep}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 40 }}>
+          {loading ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <RefreshCw style={{ height: 12, width: 12, color: C.text2, animation: 'spin 1s linear infinite' }} />
+              <span style={{ fontSize: 13, color: C.text2 }}>Loading…</span>
             </div>
-            <div style={{ padding: '20px 24px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
-              {PRO_FEATURES.map(({ icon: Icon, label }) => (
-                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ height: 28, width: 28, borderRadius: 7, background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <Icon style={{ height: 13, width: 13, color: blue }} />
+          ) : (
+            <>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+                <span style={{ fontSize: 15, fontWeight: 600, color: ink }}>{isPro ? 'Pro' : 'Free'}</span>
+                {isPro && billing?.periodEnd && (
+                  <span style={{ fontSize: 13, color: C.text2 }}>Renews {fmt(billing.periodEnd)}</span>
+                )}
+                {!isPro && (
+                  <span style={{ fontSize: 13, color: C.text2 }}>No active subscription</span>
+                )}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                {billing?.subscriptionStatus && billing.subscriptionStatus !== 'inactive' && (
+                  <span style={{ fontSize: 12, color: billing.subscriptionStatus === 'active' ? C.green : C.amber }}>
+                    {billing.subscriptionStatus === 'active' ? 'Active' : billing.subscriptionStatus}
+                  </span>
+                )}
+                {isPro && (
+                  <button onClick={handleManage} disabled={acting} style={{ padding: '7px 14px', borderRadius: 7, border: `1px solid ${C.sep}`, background: 'transparent', color: ink, fontSize: 12, fontWeight: 500, cursor: acting ? 'not-allowed' : 'pointer', opacity: acting ? 0.5 : 1 }}>
+                    {acting ? 'Loading…' : 'Manage'}
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Upgrade card — only on Free */}
+        {!isPro && !loading && (
+          <div style={{ marginBottom: 48 }}>
+            <div style={{ background: ink, borderRadius: 16, padding: '32px 36px', color: '#fff' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 32 }}>
+                <div>
+                  <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 10 }}>Pro plan</p>
+                  <p style={{ fontSize: 36, fontWeight: 300, letterSpacing: '-0.04em', lineHeight: 1, color: '#fff' }}>
+                    $99 <span style={{ fontSize: 15, fontWeight: 400, color: 'rgba(255,255,255,0.4)' }}>/ month</span>
+                  </p>
+                </div>
+                <button
+                  onClick={handleUpgrade}
+                  disabled={acting}
+                  style={{ padding: '11px 24px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.1)', color: '#fff', fontSize: 13, fontWeight: 500, cursor: acting ? 'not-allowed' : 'pointer', opacity: acting ? 0.5 : 1, transition: 'background .15s', flexShrink: 0 }}
+                  onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.18)'}
+                  onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.1)'}
+                >
+                  {acting ? 'Loading…' : 'Upgrade'}
+                </button>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
+                {FEATURES.map(([label, sub]) => (
+                  <div key={label} style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+                    <Check style={{ height: 12, width: 12, color: 'rgba(255,255,255,0.45)', flexShrink: 0, marginTop: 1 }} />
+                    <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)' }}>{label}</span>
+                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginLeft: 'auto', whiteSpace: 'nowrap', paddingLeft: 12 }}>{sub}</span>
                   </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Already Pro — quiet feature list */}
+        {isPro && !loading && (
+          <div style={{ borderTop: `1px solid ${C.sep}`, paddingTop: 32, marginBottom: 48 }}>
+            <p style={{ fontSize: 12, fontWeight: 600, color: C.text2, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 18 }}>Included features</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
+              {FEATURES.map(([label]) => (
+                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Check style={{ height: 11, width: 11, color: C.green, flexShrink: 0 }} />
                   <span style={{ fontSize: 13, color: ink }}>{label}</span>
                 </div>
               ))}
             </div>
-          </motion.div>
-        )}
-
-        {/* Already Pro — full feature confirmation */}
-        {isPro && (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35, delay: 0.14 }}
-            style={{ background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: 14, padding: '20px 24px' }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-              <CheckCircle style={{ height: 16, width: 16, color: green }} />
-              <p style={{ fontSize: 14, fontWeight: 600, color: green }}>You&apos;re on the Pro plan</p>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10 }}>
-              {PRO_FEATURES.map(({ icon: Icon, label }) => (
-                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Icon style={{ height: 12, width: 12, color: green }} />
-                  <span style={{ fontSize: 12, color: '#166534' }}>{label}</span>
-                </div>
-              ))}
-            </div>
-          </motion.div>
+          </div>
         )}
 
       </div>
@@ -248,9 +194,5 @@ function BillingInner() {
 }
 
 export default function InvestorBillingPage() {
-  return (
-    <Suspense>
-      <BillingInner />
-    </Suspense>
-  )
+  return <Suspense><BillingInner /></Suspense>
 }

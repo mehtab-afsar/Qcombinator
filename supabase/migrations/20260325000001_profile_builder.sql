@@ -8,15 +8,7 @@
 -- SOURCE: 20260325000001_profile_builder_draft.sql
 -- ============================================================
 
--- Profile Builder draft persistence
--- Stores partial answers so founders can resume mid-flow
-
-ALTER TABLE founder_profiles
-  ADD COLUMN IF NOT EXISTS profile_builder_draft JSONB,
-  ADD COLUMN IF NOT EXISTS profile_builder_completed_at TIMESTAMPTZ,
-  ADD COLUMN IF NOT EXISTS revenue_status TEXT,
-  ADD COLUMN IF NOT EXISTS customer_proof TEXT,
-  ADD COLUMN IF NOT EXISTS fundraising_status TEXT;
+-- founder_profiles draft/status columns defined in 20260700000001_founder_profiles_squashed.sql
 
 -- ============================================================
 -- SOURCE: 20260325000002_profile_builder.sql
@@ -69,21 +61,4 @@ CREATE POLICY "profile_builder_uploads_owner"
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
--- ── founder_profiles — new columns ────────────────────────────────────────────
-ALTER TABLE founder_profiles
-  ADD COLUMN IF NOT EXISTS company_name              text,
-  ADD COLUMN IF NOT EXISTS website                   text,
-  ADD COLUMN IF NOT EXISTS founded_date              text,
-  ADD COLUMN IF NOT EXISTS incorporation_type        text,
-  ADD COLUMN IF NOT EXISTS description               text,
-  ADD COLUMN IF NOT EXISTS revenue_status            text,
-  ADD COLUMN IF NOT EXISTS funding_status            text,
-  ADD COLUMN IF NOT EXISTS team_size                 text,
-  ADD COLUMN IF NOT EXISTS founder_name              text,
-  ADD COLUMN IF NOT EXISTS linkedin_url              text,
-  ADD COLUMN IF NOT EXISTS cofounder_count           int,
-  ADD COLUMN IF NOT EXISTS years_on_problem          text,
-  ADD COLUMN IF NOT EXISTS prior_experience          text,
-  ADD COLUMN IF NOT EXISTS registration_completed    boolean DEFAULT false,
-  ADD COLUMN IF NOT EXISTS profile_builder_completed boolean DEFAULT false,
-  ADD COLUMN IF NOT EXISTS profile_builder_completed_at timestamptz;
+-- founder_profiles profile builder columns defined in 20260700000001_founder_profiles_squashed.sql

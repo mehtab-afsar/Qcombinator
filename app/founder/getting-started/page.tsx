@@ -48,7 +48,7 @@ function getSteps(p: FounderProgress): Step[] {
       id: 'account',
       icon: UserCircle,
       title: 'Account created',
-      description: 'Your QCombinator account is live.',
+      description: 'Your Edge Alpha account is live.',
       detail: '',
       href: '/founder/settings',
       completed: true,

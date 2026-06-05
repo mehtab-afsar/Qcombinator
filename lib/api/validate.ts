@@ -49,7 +49,10 @@ export const signupSchema = z.object({
   targetCustomer:   z.string().max(300).optional(),
   location:         z.string().max(100).optional(),
   tagline:          z.string().max(140).optional(),
-  teamToken:        z.string().max(128).optional(), // team invite token — auto-joins workspace on signup
+  marketSizeEstimate: z.string().max(500).optional(),  // TAM/addressable market estimate
+  gtmStrategy:      z.string().max(300).optional(),    // Go-to-market strategy
+  founderBackground: z.array(z.string()).optional(),   // Array of background tags
+  teamToken:        z.string().max(128).optional(),    // team invite token — auto-joins workspace on signup
 })
 
 export type SignupInput = z.infer<typeof signupSchema>

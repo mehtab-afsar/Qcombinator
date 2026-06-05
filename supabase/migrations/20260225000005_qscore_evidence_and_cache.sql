@@ -39,25 +39,8 @@ CREATE POLICY "Users can manage their own evidence"
 CREATE INDEX IF NOT EXISTS score_evidence_user_id_idx ON score_evidence (user_id);
 CREATE INDEX IF NOT EXISTS score_evidence_dimension_idx ON score_evidence (user_id, dimension);
 
--- ============================================================
--- SOURCE: 20260225000012_qscore_assessment_data.sql
--- ============================================================
-
--- Add assessment_data to qscore_history
--- Several API routes (qscore/actions, investor/startup/:id, useFounderData)
--- query assessment_data directly from qscore_history for convenience.
--- Previously it only existed on qscore_assessments (separate table).
-
-ALTER TABLE qscore_history
-  ADD COLUMN IF NOT EXISTS assessment_data JSONB DEFAULT '{}'::jsonb;
-
-COMMENT ON COLUMN qscore_history.assessment_data IS
-  'Copy of the AssessmentData object that produced this score row. Cached here for fast access without a join.';
-
--- Index to speed up the common "latest score with assessment data" query
-CREATE INDEX IF NOT EXISTS idx_qscore_history_assessment_data
-  ON qscore_history(user_id, calculated_at DESC)
-  WHERE assessment_data IS NOT NULL AND assessment_data != '{}'::jsonb;
+-- qscore_history assessment_data column and index
+-- defined in 20260200000001_qscore_history_squashed.sql
 
 -- ============================================================
 -- SOURCE: 20260225000015_portfolio_views.sql

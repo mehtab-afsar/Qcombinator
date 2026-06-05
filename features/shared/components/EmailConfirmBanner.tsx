@@ -95,7 +95,7 @@ export function EmailConfirmBanner({ statusApiPath, resendApiPath }: Props) {
                 Confirm your email
               </p>
               <p style={{ fontSize: 12, color: '#6B7280', margin: 0, lineHeight: 1.5 }}>
-                Your email isn't verified yet. Confirm it to unlock investor matching.
+                Your email isn&apos;t verified yet. Confirm it to unlock investor matching.
               </p>
             </div>
           </div>

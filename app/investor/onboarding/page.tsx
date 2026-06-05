@@ -228,7 +228,6 @@ function ProcessingScreen({ step }: { step: number }) {
   )
 }
 
-// ── Landing screen ────────────────────────────────────────────────────────────
 function InvestorLanding({ onStart }: { onStart: () => void }) {
   const STATS = [
     { value: '847+', label: 'Scored founders' },
@@ -237,20 +236,33 @@ function InvestorLanding({ onStart }: { onStart: () => void }) {
   ]
   const QUOTES = [
     { text: 'The deal flow quality is unlike anything I\'ve seen. Every founder has a real score — not just a pitch deck.', name: 'Priya V.', role: 'GP, Seed-stage VC' },
-    { text: 'I replaced three sourcing tools with QCombinator. The thesis matching actually works.', name: 'James K.', role: 'Angel, 40+ investments' },
+    { text: 'I replaced three sourcing tools with Edge Alpha. The thesis matching actually works.', name: 'James K.', role: 'Angel, 40+ investments' },
   ]
 
   return (
     <div style={{ minHeight: '100vh', background: PAGE_BG, fontFamily: f.family, display: 'flex', flexDirection: 'column' }}>
-      {/* Top bar */}
-      <div style={{ padding: '16px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid rgba(0,0,0,0.07)`, background: PAGE_BG }}>
-        <div style={{ display: 'inline-flex', alignItems: 'center', padding: '5px 12px', borderRadius: 999, background: ink, color: '#fff', fontSize: 13, fontWeight: 700 }}>
-          QCombinator
+      {/* Floating dark pill nav */}
+      <div style={{ position: 'fixed', top: 16, left: 0, right: 0, zIndex: 50, display: 'flex', justifyContent: 'center', padding: '0 24px', pointerEvents: 'none' }}>
+        <div style={{
+          pointerEvents: 'auto',
+          width: '100%', maxWidth: 780,
+          padding: '11px 20px',
+          background: 'rgba(15,14,12,0.90)',
+          backdropFilter: 'blur(24px) saturate(1.4)',
+          WebkitBackdropFilter: 'blur(24px) saturate(1.4)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: 999,
+          boxShadow: '0 4px 28px rgba(0,0,0,0.22)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}>
+          <span style={{ fontSize: 15, fontWeight: 700, color: '#fff', letterSpacing: '-0.02em' }}>Edge Alpha</span>
+          <a href="/login" style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', textDecoration: 'none', transition: 'color .2s' }}
+            onMouseEnter={e => (e.currentTarget.style.color = '#fff')}
+            onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.45)')}>Sign in</a>
         </div>
-        <a href="/login" style={{ fontSize: 13, color: muted, textDecoration: 'none' }}>Sign in</a>
       </div>
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'row', maxWidth: 1100, margin: '0 auto', width: '100%', padding: '60px 24px', gap: 48, alignItems: 'center' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'row', maxWidth: 1100, margin: '0 auto', width: '100%', padding: '96px 24px 60px', gap: 48, alignItems: 'center' }}>
 
         {/* Left — dark branding panel */}
         <div style={{ flex: 1, background: ink, borderRadius: 20, padding: '48px 40px', color: '#fff', display: 'flex', flexDirection: 'column', gap: 32 }}>
@@ -281,7 +293,7 @@ function InvestorLanding({ onStart }: { onStart: () => void }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {QUOTES.map(q => (
               <div key={q.name} style={{ padding: '16px 20px', background: 'rgba(255,255,255,0.06)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.08)' }}>
-                <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', margin: '0 0 10px', lineHeight: 1.6 }}>"{q.text}"</p>
+                <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', margin: '0 0 10px', lineHeight: 1.6 }}>&ldquo;{q.text}&rdquo;</p>
                 <div>
                   <span style={{ fontSize: 12, fontWeight: 600, color: '#fff' }}>{q.name}</span>
                   <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginLeft: 6 }}>· {q.role}</span>
@@ -395,7 +407,7 @@ export default function InvestorOnboarding() {
   const canStep1 = !!(form.email.trim() && form.password.length >= 8)
   const canStep2 = !!(form.firstName.trim() && form.lastName.trim() && (form.isSoloGP || form.firmName.trim()) && form.location.trim())
   const canStep3 = form.stages.length > 0 && form.sectors.length > 0 && form.checkSize.length > 0
-  const canGoNext = step === 1 ? canStep1 : step === 2 ? canStep2 : step === 3 ? canStep3 : true
+  const _canGoNext = step === 1 ? canStep1 : step === 2 ? canStep2 : step === 3 ? canStep3 : true
 
   function go(n: number) { setStep(n); setError('') }
 
@@ -470,25 +482,31 @@ export default function InvestorOnboarding() {
   return (
     <div style={{ minHeight: '100vh', background: PAGE_BG, fontFamily: f.family, color: ink }}>
 
-      {/* Top bar */}
-      <div style={{
-        position: 'sticky', top: 0, zIndex: 20, background: PAGE_BG,
-        borderBottom: `1px solid ${SEP}`,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: `14px ${isMobile ? 20 : 32}px`,
-      }}>
-        <div style={{ display: 'inline-flex', alignItems: 'center', padding: '5px 12px', borderRadius: 999, background: ink, color: '#fff', fontSize: 13, fontWeight: 700, letterSpacing: '-0.02em' }}>
-          QCombinator
-        </div>
-        {step === 1 && (
-          <a href="/founder/onboarding" style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: muted, textDecoration: 'none' }}>
+      {/* Floating dark pill nav */}
+      <div style={{ position: 'fixed', top: 16, left: 0, right: 0, zIndex: 50, display: 'flex', justifyContent: 'center', padding: '0 24px', pointerEvents: 'none' }}>
+        <div style={{
+          pointerEvents: 'auto',
+          width: '100%', maxWidth: 780,
+          padding: '11px 20px',
+          background: 'rgba(15,14,12,0.90)',
+          backdropFilter: 'blur(24px) saturate(1.4)',
+          WebkitBackdropFilter: 'blur(24px) saturate(1.4)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: 999,
+          boxShadow: '0 4px 28px rgba(0,0,0,0.22)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}>
+          <span style={{ fontSize: 15, fontWeight: 700, color: '#fff', letterSpacing: '-0.02em' }}>Edge Alpha</span>
+          <a href="/founder/onboarding" style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: 'rgba(255,255,255,0.45)', textDecoration: 'none', opacity: step === 1 ? 1 : 0, pointerEvents: step === 1 ? 'auto' : 'none', transition: 'color .2s' }}
+            onMouseEnter={e => (e.currentTarget.style.color = '#fff')}
+            onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.45)')}>
             <ArrowLeft size={13} /> Joining as a founder?
           </a>
-        )}
+        </div>
       </div>
 
       {/* Content */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: `40px ${isMobile ? 16 : 24}px 80px` }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: `80px ${isMobile ? 16 : 24}px 80px` }}>
 
         <StepProgress step={step} />
 
@@ -592,7 +610,7 @@ export default function InvestorOnboarding() {
                 {!form.isSoloGP
                   ? <InputField value={form.firmName} onChange={v => set('firmName', v)} placeholder="e.g. Sequoia Capital, Andreessen Horowitz…" />
                   : <div style={{ padding: '10px 14px', borderRadius: 8, background: '#F5F3F0', border: '1px solid rgba(0,0,0,0.08)', fontSize: 13, color: muted }}>
-                      You'll appear as an independent investor on founder profiles.
+                      You&apos;ll appear as an independent investor on founder profiles.
                     </div>
                 }
               </div>

@@ -45,7 +45,7 @@ function getSteps(p: InvestorProgress): Step[] {
       id: 'account',
       icon: Target,
       title: 'Account created',
-      description: 'Your QCombinator investor account is live.',
+      description: 'Your Edge Alpha investor account is live.',
       detail: '',
       href: '/investor/settings',
       completed: true,
@@ -179,7 +179,7 @@ export default function InvestorGettingStarted() {
           <h1 style={{ fontSize: font.size['3xl'], fontWeight: font.weight.bold, letterSpacing: '-0.04em', margin: `0 0 ${space[3]}px`, color: ink, lineHeight: 1.1 }}>
             {allDone
               ? `You're all set, ${firstName}!`
-              : `Welcome to QCombinator, ${firstName}`
+              : `Welcome to Edge Alpha, ${firstName}`
             }
           </h1>
           <p style={{ fontSize: font.size.lg, color: muted, margin: 0, lineHeight: 1.6 }}>

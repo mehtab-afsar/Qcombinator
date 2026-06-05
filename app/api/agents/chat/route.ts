@@ -20,7 +20,6 @@ import {
   rileySystemPrompt,
 } from '@/features/agents';
 import { getArtifactPrompt } from '@/features/agents/patel/prompts/artifact-prompts';
-import { postArtifactFeedEvent } from '@/lib/feed/auto-events';
 import { ClaudeError } from '@/lib/claude';
 import { llmChat, llmStream } from '@/lib/llm/provider';
 import { routedText } from '@/lib/llm/router';
@@ -553,7 +552,6 @@ CONVERSATION RULES:
                     streamArtifactId = artifactId;
                   }
                   if (artifactId && userId) void scoreFromArtifact(userId, toolName, parsedContent, supabaseAdmin).catch(() => { /* fire-and-forget: non-critical */ });
-                  if (artifactId && userId) void postArtifactFeedEvent(userId, toolName, artifactTitle, supabaseAdmin);
                   if (artifactId && userId) void Promise.resolve().then(() => trackArtifactGenerated(userId, { agentId, artifactType: toolName }));
                   // Quality evaluator and self-critique run in background — don't block showing the artifact
                   if (artifactId && userId) {

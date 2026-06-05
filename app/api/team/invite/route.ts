@@ -1,96 +1,77 @@
-/**
- * POST /api/team/invite
- * Send a team invite email and create a pending team_invites row.
- * Requires: owner or admin role.
- */
 import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { randomBytes } from 'crypto'
 import { getAdminClient } from '@/lib/supabase/server'
-import { verifyAuth } from '@/lib/auth/verify'
-import { getMyTeamRole, canInviteMembers } from '@/lib/team/permissions'
-import { sendTeamInviteEmail } from '@/lib/email/send'
-import { log } from '@/lib/logger'
 
-const schema = z.object({
-  email: z.string().email(),
-  role:  z.enum(['admin', 'member', 'viewer']),
-})
-
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    const auth = await verifyAuth()
-    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
-    const { user } = auth
-
-    const body = await req.json()
-    const parsed = schema.safeParse(body)
-    if (!parsed.success) return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
-    const { email, role } = parsed.data
-
-    const admin = getAdminClient()
-    const { role: callerRole, startupId } = await getMyTeamRole(user.id, admin)
-
-    if (!startupId) return NextResponse.json({ error: 'No startup found' }, { status: 404 })
-    if (!callerRole || !canInviteMembers(callerRole)) {
-      return NextResponse.json({ error: 'Only owners and admins can invite members' }, { status: 403 })
+    const authHeader = request.headers.get('authorization')
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check if already a member
-    const { data: existing } = await admin
-      .from('startup_members')
-      .select('id')
-      .eq('startup_id', startupId)
-      .eq('user_id', (await admin.from('founder_profiles').select('user_id').eq('user_id', email).maybeSingle())?.data?.user_id ?? '')
-      .maybeSingle()
-    if (existing) return NextResponse.json({ error: 'User is already a team member' }, { status: 409 })
+    const token = authHeader.slice(7)
+    const body = await request.json()
+    const { email, role = 'member' } = body
 
-    // Upsert invite (resend = new token + reset expiry)
-    const { data: invite, error: inviteErr } = await admin
-      .from('team_invites')
-      .upsert(
-        {
-          startup_id:  startupId,
-          email:       email.toLowerCase(),
-          role,
-          invited_by:  user.id,
-          token:       undefined, // let DB default generate new token
-          expires_at:  new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-          accepted_at: null,
-        },
-        { onConflict: 'startup_id,email', ignoreDuplicates: false }
-      )
-      .select('token, startup_id')
-      .single()
-
-    if (inviteErr || !invite) {
-      log.error('team invite upsert failed:', inviteErr)
-      return NextResponse.json({ error: 'Failed to create invite' }, { status: 500 })
+    if (!email || typeof email !== 'string') {
+      return NextResponse.json({ error: 'Email is required' }, { status: 400 })
     }
 
-    // Fetch startup name for email
-    const { data: startup } = await admin
-      .from('startups')
-      .select('name')
-      .eq('id', startupId)
-      .single()
+    const supabase = getAdminClient()
 
-    const { data: inviterProfile } = await admin
+    // Get current user
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token)
+    if (userError || !user) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
+    }
+
+    // Get founder profile to find startup_id
+    const { data: profile, error: profileError } = await supabase
       .from('founder_profiles')
-      .select('full_name')
+      .select('startup_id')
       .eq('user_id', user.id)
       .single()
 
-    void sendTeamInviteEmail({
-      toEmail:     email,
-      inviterName: inviterProfile?.full_name ?? 'Your co-founder',
-      startupName: startup?.name ?? 'your startup',
-      role,
-      token:       invite.token,
-    }).catch(e => log.warn('team invite email failed:', e instanceof Error ? e.message : e))
+    if (profileError || !profile?.startup_id) {
+      return NextResponse.json({ error: 'No workspace found' }, { status: 400 })
+    }
 
-    return NextResponse.json({ ok: true })
-  } catch (err) {
-    log.error('POST /api/team/invite', { err })
+    const startupId = profile.startup_id
+
+    // Generate invite token
+    const inviteToken = randomBytes(16).toString('hex')
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+
+    // Create invite
+    const { data: invite, error: inviteError } = await supabase
+      .from('team_invites')
+      .insert({
+        startup_id: startupId,
+        email: email.toLowerCase(),
+        role,
+        token: inviteToken,
+        expires_at: expiresAt,
+      })
+      .select()
+      .single()
+
+    if (inviteError) {
+      console.error('Invite creation error:', inviteError)
+      return NextResponse.json({ error: 'Failed to create invite' }, { status: 500 })
+    }
+
+    // TODO: Send email with invite link
+    // await sendTeamInviteEmail({
+    //   to: email,
+    //   token: inviteToken,
+    //   companyName: profile.company_name,
+    //   role: role,
+    //   invitedBy: user.user_metadata?.full_name || user.email
+    // })
+
+    return NextResponse.json({ invite }, { status: 201 })
+  } catch (error) {
+    console.error('Team invite endpoint error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

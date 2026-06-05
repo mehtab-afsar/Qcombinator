@@ -3,28 +3,45 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Check, Zap, Loader2 } from 'lucide-react'
-import { bg, surf, bdr, ink, muted, blue } from '@/lib/constants/colors'
+import { bg, bdr, ink, muted, blue } from '@/lib/constants/colors'
 
 interface Props {
-  open:      boolean
-  onClose:   () => void
-  feature?:  string  // which feature triggered the gate (optional, for messaging)
+  open:       boolean
+  onClose:    () => void
+  feature?:   string           // which feature triggered the gate
+  userType?:  'founder' | 'investor'  // defaults to founder
 }
 
-const BENEFITS = [
+const FOUNDER_BENEFITS = [
   '500 AI advisor conversations / month',
   'Unlimited Q-Score recalculations',
   'Unlimited investor connections',
   'Priority support',
 ]
 
-export function UpgradeModal({ open, onClose, feature }: Props) {
+const INVESTOR_BENEFITS = [
+  'Unlimited deal flow browsing',
+  'AI-powered match scoring',
+  'Direct founder messaging',
+  'Thesis extraction & analysis',
+  'Portfolio tracking',
+  'Team seats (up to 3 analysts)',
+]
+
+export function UpgradeModal({ open, onClose, feature, userType = 'founder' }: Props) {
   const [loading, setLoading] = useState(false)
+
+  const isFounder = userType === 'founder'
+  const tierName = isFounder ? 'Premium' : 'Pro'
+  const price = isFounder ? '$29' : '$99'
+  const benefits = isFounder ? FOUNDER_BENEFITS : INVESTOR_BENEFITS
 
   const featureMessages: Record<string, string> = {
     agent_chat:          "You've used all your AI advisor conversations this month.",
     qscore_recalc:       "You've used all your Q-Score recalculations this month.",
     investor_connection: "You've used all your investor connections this month.",
+    deal_flow:           "You've reached your deal flow limit this month.",
+    messaging:           "Upgrade to message founders directly.",
   }
 
   const featureMsg = feature ? featureMessages[feature] : null
@@ -32,12 +49,14 @@ export function UpgradeModal({ open, onClose, feature }: Props) {
   async function handleUpgrade() {
     setLoading(true)
     try {
-      const res = await fetch('/api/founder/billing/checkout', { method: 'POST' })
+      const endpoint = isFounder ? '/api/founder/billing/checkout' : '/api/investor/billing/checkout'
+      const res = await fetch(endpoint, { method: 'POST' })
       const { url } = await res.json() as { url?: string }
       if (url) window.location.href = url
     } catch {
       // fallback — navigate to billing
-      window.location.href = '/founder/billing'
+      const billingUrl = isFounder ? '/founder/billing' : '/investor/billing'
+      window.location.href = billingUrl
     }
     setLoading(false)
   }
@@ -89,7 +108,7 @@ export function UpgradeModal({ open, onClose, feature }: Props) {
                 <Zap size={22} color={blue} fill={blue} />
               </div>
               <h2 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.03em', color: ink, margin: '0 0 6px' }}>
-                Unlock Premium
+                Unlock {tierName}
               </h2>
               {featureMsg && (
                 <p style={{ fontSize: 13, color: muted, margin: 0 }}>{featureMsg}</p>
@@ -103,14 +122,16 @@ export function UpgradeModal({ open, onClose, feature }: Props) {
 
             {/* Pricing */}
             <div style={{ textAlign: 'center', padding: '16px 0', borderTop: `1px solid ${bdr}`, borderBottom: `1px solid ${bdr}`, marginBottom: 20 }}>
-              <span style={{ fontSize: 32, fontWeight: 800, color: ink, letterSpacing: '-0.04em' }}>$29</span>
+              <span style={{ fontSize: 32, fontWeight: 800, color: ink, letterSpacing: '-0.04em' }}>{price}</span>
               <span style={{ fontSize: 15, color: muted }}> / month</span>
-              <p style={{ fontSize: 12, color: muted, margin: '4px 0 0' }}>Cancel anytime · No contracts</p>
+              <p style={{ fontSize: 12, color: muted, margin: '4px 0 0' }}>
+                14-day free trial · Cancel anytime
+              </p>
             </div>
 
             {/* Benefits */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 22 }}>
-              {BENEFITS.map(b => (
+              {benefits.map(b => (
                 <div key={b} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#ECFDF5', border: '1px solid #A7F3D0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <Check size={11} color="#059669" strokeWidth={3} />
@@ -155,12 +176,13 @@ export function UpgradeModal({ open, onClose, feature }: Props) {
 // Wraps a feature trigger. If user is at limit, shows upgrade modal instead.
 
 interface GateProps {
-  blocked:   boolean          // true when user has hit the limit
-  feature?:  string
-  children:  React.ReactNode  // the actual feature UI (hidden when blocked)
+  blocked:    boolean                   // true when user has hit the limit
+  feature?:   string
+  userType?:  'founder' | 'investor'
+  children:   React.ReactNode           // the actual feature UI (hidden when blocked)
 }
 
-export function UpgradeGate({ blocked, feature, children }: GateProps) {
+export function UpgradeGate({ blocked, feature, userType = 'founder', children }: GateProps) {
   const [open, setOpen] = useState(false)
 
   if (!blocked) return <>{children}</>
@@ -187,7 +209,7 @@ export function UpgradeGate({ blocked, feature, children }: GateProps) {
         </div>
       </div>
 
-      <UpgradeModal open={open} onClose={() => setOpen(false)} feature={feature} />
+      <UpgradeModal open={open} onClose={() => setOpen(false)} feature={feature} userType={userType} />
     </>
   )
 }

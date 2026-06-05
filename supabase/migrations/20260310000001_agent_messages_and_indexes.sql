@@ -42,8 +42,7 @@ CREATE INDEX IF NOT EXISTS idx_agent_artifacts_user_type
 CREATE INDEX IF NOT EXISTS idx_agent_messages_user_created
   ON agent_messages(user_id, created_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_qscore_history_user_calculated
-  ON qscore_history(user_id, calculated_at DESC);
+-- idx_qscore_history_user_calculated defined in 20260200000001_qscore_history_squashed.sql
 
 CREATE INDEX IF NOT EXISTS idx_outreach_sends_resend_id
   ON outreach_sends(resend_id);

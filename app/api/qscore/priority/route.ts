@@ -29,7 +29,7 @@ export async function GET() {
     ] = await Promise.all([
       supabase
         .from('founder_profiles')
-        .select('startup_name, industry, stage')
+        .select('startup_name, industry, stage, weekly_goal, weekly_metric_value, customer_calls_count')
         .eq('user_id', user.id)
         .single(),
       supabase
@@ -79,55 +79,45 @@ export async function GET() {
     const usedAgents   = [...new Set((recentActivity ?? []).map(a => a.agent_id))].filter(Boolean)
 
     if (!latestScore || overallScore < 15) {
-      // Determine exactly where the founder is stuck
-      const step1Done = hasArtifacts || hasActivity  // touched something in the product
-
+      const stage = profile?.stage ?? ''
+      const weeklyGoal  = (profile as Record<string, unknown>)?.weekly_goal as string | null ?? null
       const onboardingPriorities = []
 
-      // Step 1 — always: complete profile builder to get a real score
-      onboardingPriorities.push({
-        title: 'Complete the Profile Builder to get your Q-Score',
-        why: `You need a Q-Score before AI recommendations can be personalised. ${step1Done ? 'You\'ve started — finish all 5 sections for a full score.' : 'It takes 10–15 minutes and unlocks investor visibility.'}`,
-        action: 'Open Profile Builder → upload your pitch deck → answer all 5 section questions → click Submit.',
-        agentId: undefined,
-        urgency: 'high' as const,
-      })
-
-      // Step 2 — if they haven't used any agents yet, point to most relevant one by stage/industry
-      if (!step1Done) {
+      // Priority 1 — always: if no weekly goal set, set one
+      if (!weeklyGoal) {
         onboardingPriorities.push({
-          title: 'Upload your pitch deck for instant AI extraction',
-          why: 'Uploading a PDF lets the system auto-fill your metrics, team, and market data — saving 10+ minutes of manual entry.',
-          action: 'In Profile Builder, click "Upload PDF" and select your latest deck or one-pager.',
+          title: 'Set your #1 goal for this week',
+          why: 'YC founders who state a specific weekly goal are 3× more likely to hit it. Start every week with one concrete target — a number, a meeting, a shipped feature.',
+          action: 'Open your dashboard, click "Set this week\'s goal", and write one sentence with a measurable outcome.',
           agentId: undefined,
           urgency: 'high' as const,
         })
       }
 
-      // Step 3 — recommend most relevant first agent based on stage
-      const stage = profile?.stage ?? ''
-      const firstAgent =
-        stage === 'idea'       ? { id: 'nova',  name: 'Nova',  task: 'validate your problem statement with a Problem Validation analysis' } :
-        stage === 'mvp'        ? { id: 'atlas', name: 'Atlas', task: 'run a competitive landscape scan' } :
-        stage === 'pre-seed' || stage === 'preseed' ? { id: 'patel', name: 'Patel', task: 'build your ICP (Ideal Customer Profile)' } :
-        stage === 'seed'       ? { id: 'felix', name: 'Felix', task: 'build a financial model and runway projection' } :
-        usedAgents.length > 0  ? null :
-                                 { id: 'atlas', name: 'Atlas', task: 'run a competitive landscape scan' }
+      // Priority 2 — complete profile builder (get a score)
+      onboardingPriorities.push({
+        title: 'Complete the Profile Builder to get your Q-Score',
+        why: `Without a Q-Score, recommendations stay generic. ${hasArtifacts || hasActivity ? 'You\'ve started — finish all 5 sections.' : 'It takes 10–15 min and unlocks investor visibility.'}`,
+        action: 'Open Profile Builder → upload your pitch deck → answer all 5 sections → click Submit.',
+        agentId: undefined,
+        urgency: weeklyGoal ? 'high' : 'medium' as const,
+      })
 
-      if (firstAgent && !usedAgents.includes(firstAgent.id)) {
+      // Priority 3 — recommend a behavior (not a document) based on stage
+      const stageBehavior: Record<string, { id: string; name: string; behavior: string }> = {
+        idea:       { id: 'patel',  name: 'Patel',  behavior: 'do 10 customer discovery calls — no selling, only listening' },
+        mvp:        { id: 'nova',   name: 'Nova',   behavior: 'put your MVP in front of 5 real users this week and capture their feedback' },
+        'pre-seed': { id: 'patel',  name: 'Patel',  behavior: 'get 3 signed LOIs or verbal commitments from potential customers' },
+        seed:       { id: 'felix',  name: 'Felix',  behavior: 'nail your unit economics: make sure LTV:CAC > 3:1 before scaling spend' },
+      }
+      const rec = stageBehavior[stage] ?? { id: 'atlas', name: 'Atlas', behavior: 'run a competitive scan to find the 3 players you must beat' }
+
+      if (!usedAgents.includes(rec.id)) {
         onboardingPriorities.push({
-          title: `Use ${firstAgent.name} to ${firstAgent.task.split(' ')[0]} your first deliverable`,
-          why: `Each agent deliverable adds verified evidence to your Q-Score dimensions. ${firstAgent.name} is the highest-impact starting point for your ${stage || 'current'} stage.`,
-          action: `Go to the CXO Hub → open ${firstAgent.name} → ask them to ${firstAgent.task}.`,
-          agentId: firstAgent.id,
-          urgency: 'medium' as const,
-        })
-      } else if (!hasArtifacts) {
-        onboardingPriorities.push({
-          title: 'Build your first AI deliverable in the CXO Hub',
-          why: 'Agent deliverables (competitive analysis, GTM playbook, financial model) add hard evidence to each Q-Score dimension.',
-          action: 'Open the CXO Hub, pick an agent relevant to your biggest challenge, and complete one deliverable.',
-          agentId: 'atlas',
+          title: `This week: ${rec.behavior.split(' ').slice(0, 6).join(' ')}…`,
+          why: `YC's #1 advice for ${stage || 'early'}-stage founders: ${rec.behavior}. ${rec.name} can help you prepare and structure this.`,
+          action: `Open ${rec.name} in the CXO Hub → explain your current stage → let them help you execute: ${rec.behavior}.`,
+          agentId: rec.id,
           urgency: 'medium' as const,
         })
       }
@@ -165,11 +155,18 @@ export async function GET() {
 
     const activityLast24h = (recentActivity ?? []).filter(a => a.created_at > since24h).length
 
+    const weeklyGoalCtx    = (profile as Record<string, unknown>)?.weekly_goal as string | null ?? null
+    const weeklyMetricCtx  = (profile as Record<string, unknown>)?.weekly_metric_value as string | null ?? null
+    const callsThisWeek    = ((profile as Record<string, unknown>)?.customer_calls_count as number | null) ?? 0
+
     const contextBlock = `
 Founder: ${profile?.startup_name ?? 'Startup'} | Industry: ${profile?.industry ?? 'Unknown'} | Stage: ${profile?.stage ?? 'Unknown'}
 Q-Score: ${overall}/100
 Dimension scores: ${JSON.stringify(dimScores)}
 3 lowest-scoring dimensions: ${lowestDims.join(', ')}
+${weeklyGoalCtx ? `This week's stated goal: "${weeklyGoalCtx}"` : 'Weekly goal: not set yet'}
+${weeklyMetricCtx ? `Primary metric: ${weeklyMetricCtx}` : ''}
+Customer calls this week: ${callsThisWeek}
 Completed deliverables: ${[...completedArtifactTypes].join(', ') || 'none'}
 Active agents this week: ${recentAgents.join(', ') || 'none'}
 Agent actions in last 24h: ${activityLast24h}
@@ -189,27 +186,30 @@ ${overdueDeal ? `⚠️ Overdue deal: "${overdueDeal.contact_name}" has a past-d
       [
         {
           role: 'system',
-          content: `You are an AI co-pilot for a startup founder. Given their current state, identify the 3 most impactful things they should work on TODAY.
+          content: `You are a YC-style startup advisor — direct, data-driven, focused on behaviors not documents.
+
+Given the founder's current state, identify the 3 most impactful things they should DO TODAY. Not documents to generate — behaviors to execute.
 
 Return ONLY valid JSON (no markdown):
 {
   "priorities": [
     {
-      "title": "short action title (max 8 words)",
-      "why": "one sentence explaining the business impact",
-      "action": "specific first step to take right now (one sentence)",
-      "agentId": "which agent helps most: patel|susi|maya|felix|leo|harper|nova|atlas|sage (optional)",
+      "title": "behavior-centric action (max 8 words, starts with a verb)",
+      "why": "one sentence linking this behavior to a business outcome",
+      "action": "specific first step the founder can take in the next hour",
+      "agentId": "which agent helps most: patel|susi|felix|leo|harper|nova|atlas|sage (optional)",
       "urgency": "high|medium|low"
     }
   ]
 }
 
 Rules:
-- Focus on the lowest-scoring dimensions first
+- If the founder has a stated weekly goal, ALL 3 priorities must help them hit that goal
+- If customer_calls_count is 0 and stage is idea/mvp, ALWAYS include "Talk to 3 customers today" as a priority
 - If there's an overdue deal, that's always priority #1
-- Don't repeat what they've already done this week
-- Be specific — not "improve GTM" but "Build your ICP document with Patel to define your top 3 customer segments"
-- urgency: high = needs to happen today, medium = this week, low = but important`,
+- Focus on the lowest-scoring dimensions — but frame the fix as a behavior ("Get 3 LOIs" not "Build pipeline document")
+- The agent is the HELPER, not the deliverable — say "Patel can help you structure your ICP calls" not "Build ICP with Patel"
+- urgency: high = founder should do this in the next 4 hours, medium = this week, low = important but not urgent`,
         },
         {
           role: 'user',

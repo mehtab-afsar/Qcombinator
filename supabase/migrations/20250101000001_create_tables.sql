@@ -3,19 +3,7 @@
 -- ============================================================
 
 -- TABLE 1: founder_profiles
-CREATE TABLE IF NOT EXISTS founder_profiles (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE UNIQUE,
-  full_name TEXT NOT NULL,
-  startup_name TEXT,
-  industry TEXT,
-  stage TEXT CHECK (stage IN ('idea', 'mvp', 'launched', 'scaling')),
-  subscription_tier TEXT DEFAULT 'free' CHECK (subscription_tier IN ('free', 'premium', 'enterprise')),
-  onboarding_completed BOOLEAN DEFAULT false,
-  assessment_completed BOOLEAN DEFAULT false,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+-- → Defined in 20260700000001_founder_profiles_squashed.sql (single source of truth)
 
 -- TABLE 2: qscore_assessments
 CREATE TABLE IF NOT EXISTS qscore_assessments (
@@ -29,22 +17,7 @@ CREATE TABLE IF NOT EXISTS qscore_assessments (
 );
 
 -- TABLE 3: qscore_history
-CREATE TABLE IF NOT EXISTS qscore_history (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-  assessment_id UUID REFERENCES qscore_assessments(id),
-  overall_score INTEGER NOT NULL CHECK (overall_score BETWEEN 0 AND 100),
-  percentile INTEGER CHECK (percentile BETWEEN 0 AND 100),
-  grade TEXT CHECK (grade IN ('A+', 'A', 'B+', 'B', 'C+', 'C', 'D', 'F')),
-  market_score INTEGER CHECK (market_score BETWEEN 0 AND 100),
-  product_score INTEGER CHECK (product_score BETWEEN 0 AND 100),
-  gtm_score INTEGER CHECK (gtm_score BETWEEN 0 AND 100),
-  financial_score INTEGER CHECK (financial_score BETWEEN 0 AND 100),
-  team_score INTEGER CHECK (team_score BETWEEN 0 AND 100),
-  traction_score INTEGER CHECK (traction_score BETWEEN 0 AND 100),
-  calculated_at TIMESTAMPTZ DEFAULT NOW(),
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
+-- → Defined in 20260200000001_qscore_history_squashed.sql (single source of truth)
 
 -- TABLE 4: agent_conversations
 CREATE TABLE IF NOT EXISTS agent_conversations (

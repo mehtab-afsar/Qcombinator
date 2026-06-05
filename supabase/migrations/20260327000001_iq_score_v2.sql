@@ -11,27 +11,8 @@
 -- SOURCE: 20260327000001_iq_score_version.sql
 -- ============================================================
 
--- ============================================================================
--- Edge Alpha IQ Score v2 — Migration 1: score_version column + is_impact_focused
--- Freeze legacy v1_prd scores, new submissions tagged v2_iq
--- ============================================================================
-
--- 1. Add score_version to qscore_history (safely idempotent)
-ALTER TABLE qscore_history
-  ADD COLUMN IF NOT EXISTS score_version TEXT NOT NULL DEFAULT 'v1_prd';
-
--- Backfill existing rows as legacy
-UPDATE qscore_history
-  SET score_version = 'v1_prd'
-  WHERE score_version IS NULL OR score_version = '';
-
--- 2. Add is_impact_focused to founder_profiles
-ALTER TABLE founder_profiles
-  ADD COLUMN IF NOT EXISTS is_impact_focused BOOLEAN NOT NULL DEFAULT false;
-
--- 3. Index for version-filtered queries (dashboard/investor portal)
-CREATE INDEX IF NOT EXISTS qscore_history_version_idx
-  ON qscore_history(user_id, score_version, calculated_at DESC);
+-- qscore_history score_version column and index defined in 20260200000001_qscore_history_squashed.sql
+-- founder_profiles.is_impact_focused defined in 20260700000001_founder_profiles_squashed.sql
 
 -- ============================================================
 -- SOURCE: 20260327000002_sector_weight_profiles.sql
@@ -293,20 +274,5 @@ CREATE POLICY "Service role manage reconciliation logs"
 -- SOURCE: 20260327000005_iq_score_v2_history_columns.sql
 -- ============================================================
 
--- ============================================================================
--- Edge Alpha IQ Score v2 — Migration 5: qscore_history v2 columns
--- Adds iq_breakdown JSONB and available_iq for the new scoring system
--- Adds track column (commercial | impact) for P5 routing
--- ============================================================================
-
-ALTER TABLE qscore_history
-  ADD COLUMN IF NOT EXISTS iq_breakdown       JSONB,
-  ADD COLUMN IF NOT EXISTS available_iq       NUMERIC(5,2),
-  ADD COLUMN IF NOT EXISTS track              TEXT DEFAULT 'commercial',
-  ADD COLUMN IF NOT EXISTS reconciliation_flags JSONB DEFAULT '[]',
-  ADD COLUMN IF NOT EXISTS validation_warnings  JSONB DEFAULT '[]';
-
--- Index for fast version-filtered queries
-CREATE INDEX IF NOT EXISTS qscore_history_v2_idx
-  ON qscore_history(user_id, score_version, calculated_at DESC)
-  WHERE score_version = 'v2_iq';
+-- qscore_history iq_breakdown, available_iq, track, reconciliation_flags, validation_warnings,
+-- and qscore_history_v2_idx defined in 20260200000001_qscore_history_squashed.sql

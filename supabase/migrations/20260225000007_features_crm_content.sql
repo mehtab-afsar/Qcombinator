@@ -422,27 +422,9 @@ CREATE POLICY "Users manage own legal documents"
 -- Stored as JSONB to avoid 30+ column proliferation.
 -- ============================================================
 
-ALTER TABLE founder_profiles
-  ADD COLUMN IF NOT EXISTS startup_profile_data JSONB DEFAULT '{}',
-  ADD COLUMN IF NOT EXISTS startup_profile_completed BOOLEAN DEFAULT false,
-  ADD COLUMN IF NOT EXISTS description TEXT;
-
-CREATE INDEX IF NOT EXISTS idx_founder_profiles_startup_profile_completed
-  ON founder_profiles (startup_profile_completed)
-  WHERE startup_profile_completed = true;
-
--- ============================================================
--- SOURCE: 20260228000003_founder_notification_preferences.sql
--- ============================================================
-
--- Store founder notification preferences in a JSONB column.
--- Mirrors the investor_profiles.notification_preferences pattern.
-
-ALTER TABLE founder_profiles
-  ADD COLUMN IF NOT EXISTS notification_preferences JSONB DEFAULT '{}';
-
-COMMENT ON COLUMN founder_profiles.notification_preferences IS
-  'JSONB map of per-type notification flags: { emailNotifications, qScoreUpdates, investorMessages, weeklyDigest }';
+-- founder_profiles columns (startup_profile_data, startup_profile_completed, description,
+-- notification_preferences) and their indexes are defined in
+-- 20260700000001_founder_profiles_squashed.sql
 
 -- ============================================================
 -- SOURCE: 20260228000005_phase4_additions.sql

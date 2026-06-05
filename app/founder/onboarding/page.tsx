@@ -2,14 +2,15 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
 import {
-  Check, ChevronRight, ArrowLeft, Camera, Eye, EyeOff, Upload, X,
+  Check, ChevronRight, ArrowLeft, Eye, EyeOff,
 } from 'lucide-react'
-import { ink, muted, blue } from '@/lib/constants/colors'
-import { Loader2 } from 'lucide-react'
+import { ink, muted } from '@/lib/constants/colors'
+import { IndustrySelector } from '@/components/onboarding/IndustrySelector'
+import { FounderBackgroundSelector } from '@/components/onboarding/FounderBackgroundSelector'
+import type { FounderBackground } from '@/components/onboarding/FounderBackgroundSelector'
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const PAGE_BG      = '#F9F7F2'
@@ -22,7 +23,7 @@ const LABEL_COLOR  = '#6B6560'
 const f            = { family: 'system-ui, -apple-system, sans-serif' }
 
 // ── Option data ───────────────────────────────────────────────────────────────
-const INDUSTRIES = [
+const _INDUSTRIES = [
   { value: 'medtech-biotech',   label: 'MedTech & Biotech',   sub: 'Pharma, diagnostics, life science' },
   { value: 'ai-software',       label: 'AI & Software',        sub: 'Enterprise SaaS, AI-native products' },
   { value: 'robotics-hardware', label: 'Robotics & Hardware',  sub: 'Physical systems, industrial tech'  },
@@ -56,11 +57,10 @@ const FUNDING = [
 ]
 
 const STEPS = [
-  { name: 'Account',  title: 'Create your account',      sub: 'Join QCombinator — the platform for founder-investor intelligence.'  },
-  { name: 'Startup',  title: 'Your startup',             sub: 'This is the first thing investors see on your profile.'              },
-  { name: 'Traction', title: 'Your traction',            sub: 'Honest answers give investors a useful signal on your momentum.'      },
-  { name: 'Problem',  title: 'Your problem & customer',  sub: 'The two questions every investor asks first. Be specific.'           },
-  { name: 'Profile',  title: 'Add a face to your profile', sub: 'Optional — a photo makes your profile 3× more memorable.'         },
+  { name: 'Account',  title: 'Create your account',      sub: 'Welcome to QCombinator. Join the platform for founder-investor intelligence.' },
+  { name: 'Startup',  title: 'Your startup',             sub: 'This is the first thing investors see on your profile.' },
+  { name: 'Traction', title: 'Your traction & strategy', sub: 'Help investors understand your momentum and go-to-market approach.' },
+  { name: 'Problem',  title: 'Your problem & customer',  sub: 'The two questions every investor asks first. Be specific.' },
 ]
 const TOTAL = STEPS.length
 
@@ -77,12 +77,14 @@ interface FormData {
   companyName: string; tagline: string; industry: string; stage: string
   revenueStatus: string; teamSize: string; fundingStatus: string
   problemStatement: string; targetCustomer: string; location: string
+  marketSizeEstimate: string; gtmStrategy: string; founderBackground: FounderBackground[]
 }
 const EMPTY: FormData = {
   founderName: '', email: '', password: '',
   companyName: '', tagline: '', industry: '', stage: '',
   revenueStatus: '', teamSize: '', fundingStatus: '',
   problemStatement: '', targetCustomer: '', location: '',
+  marketSizeEstimate: '', gtmStrategy: '', founderBackground: [],
 }
 
 // ── Shared sub-components ─────────────────────────────────────────────────────
@@ -281,12 +283,12 @@ export default function OnboardingPage() {
   const [error,     setError]     = useState('')
   const [showPwd,   setShowPwd]   = useState(false)
   const [isMobile,  setIsMobile]  = useState(false)
-  const [avatarFile,    setAvatarFile]    = useState<File | null>(null)
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
-  const [logoFile,      setLogoFile]      = useState<File | null>(null)
-  const [logoPreview,   setLogoPreview]   = useState<string | null>(null)
-  const avatarRef = useRef<HTMLInputElement>(null)
-  const logoRef   = useRef<HTMLInputElement>(null)
+  const [avatarFile,    _setAvatarFile]    = useState<File | null>(null)
+  const [_avatarPreview, _setAvatarPreview] = useState<string | null>(null)
+  const [logoFile,      _setLogoFile]      = useState<File | null>(null)
+  const [_logoPreview,   _setLogoPreview]   = useState<string | null>(null)
+  const _avatarRef = useRef<HTMLInputElement>(null)
+  const _logoRef   = useRef<HTMLInputElement>(null)
 
   const set = (k: keyof FormData) => (v: string) => setForm(f => ({ ...f, [k]: v }))
 
@@ -309,11 +311,11 @@ export default function OnboardingPage() {
   const canNext2  = !!(form.companyName.trim() && form.tagline.trim() && form.industry && form.stage)
   const canNext3  = !!(form.revenueStatus && form.teamSize && form.fundingStatus)
   const canSubmit = !!(form.problemStatement.trim() && form.targetCustomer.trim())
-  const canGoNext = page === 1 ? canNext1 : page === 2 ? canNext2 : page === 3 ? canNext3 : page === 4 ? canSubmit : true
+  const _canGoNext = page === 1 ? canNext1 : page === 2 ? canNext2 : page === 3 ? canNext3 : page === 4 ? canSubmit : true
 
   function go(n: number) { setDir(n > page ? 1 : -1); setPage(n); setError('') }
 
-  function pickFile(file: File, setF: (f: File | null) => void, setPrev: (s: string | null) => void, prev: string | null) {
+  function _pickFile(file: File, setF: (f: File | null) => void, setPrev: (s: string | null) => void, prev: string | null) {
     if (!file.type.startsWith('image/')) return
     if (file.size > 5 * 1024 * 1024) { setError('File must be under 5MB'); return }
     setF(file); if (prev) URL.revokeObjectURL(prev); setPrev(URL.createObjectURL(file))
@@ -331,6 +333,7 @@ export default function OnboardingPage() {
           teamSize: form.teamSize, founderName: form.founderName,
           problemStatement: form.problemStatement, targetCustomer: form.targetCustomer,
           location: form.location, tagline: form.tagline,
+          marketSizeEstimate: form.marketSizeEstimate, gtmStrategy: form.gtmStrategy, founderBackground: form.founderBackground,
         }),
       })
       const data = await res.json()
@@ -348,9 +351,6 @@ export default function OnboardingPage() {
     } catch { setError('Something went wrong. Please try again.'); setLoading(false) }
   }
 
-  async function handleStep4Next() { if (canSubmit) go(5) }
-  async function handleFinalSubmit() { await handleSubmit() }
-
   if (loading) return (
     <div style={{ minHeight: '100vh', background: PAGE_BG, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20, fontFamily: f.family }}>
       <div style={{ width: 52, height: 52, borderRadius: '50%', background: CARD_BG, border: `1px solid ${CARD_BORDER}`, boxShadow: CARD_SHADOW, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -363,34 +363,34 @@ export default function OnboardingPage() {
 
   const px = isMobile ? 20 : 32
 
-  const initials = form.founderName.split(' ').map(n => n[0] ?? '').join('').slice(0, 2).toUpperCase() || 'YO'
+  const _initials = form.founderName.split(' ').map(n => n[0] ?? '').join('').slice(0, 2).toUpperCase() || 'YO'
 
   return (
     <div style={{ minHeight: '100vh', background: PAGE_BG, fontFamily: f.family, color: ink }}>
 
-      {/* Top bar */}
-      <div style={{
-        position: 'sticky', top: 0, zIndex: 20, background: PAGE_BG,
-        borderBottom: `1px solid ${SEP}`,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: `14px ${isMobile ? 20 : 32}px`,
-      }}>
-        <div style={{ display: 'inline-flex', alignItems: 'center', padding: '5px 12px', borderRadius: 999, background: ink, color: '#fff', fontSize: 13, fontWeight: 700, letterSpacing: '-0.02em' }}>
-          QCombinator
-        </div>
-        <div style={{ display: 'inline-flex', gap: 8, padding: 4, background: '#f0ede7', borderRadius: 8 }}>
-          <button style={{ padding: '8px 16px', borderRadius: 6, border: 'none', background: '#fff', color: ink, fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: f.family }}>Founder</button>
-          <button onClick={() => router.push('/investor/onboarding')} style={{ padding: '8px 16px', borderRadius: 6, border: 'none', background: 'transparent', color: muted, fontWeight: 500, fontSize: 13, cursor: 'pointer', fontFamily: f.family, transition: 'all .2s' }} onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = ink; }} onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = muted; }}>Investor</button>
-        </div>
-        {page === 1 && (
-          <a href="/login" style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: muted, textDecoration: 'none' }}>
+      {/* Floating pill nav */}
+      <div style={{ position: 'fixed', top: 16, left: 0, right: 0, zIndex: 50, display: 'flex', justifyContent: 'center', padding: '0 24px', pointerEvents: 'none' }}>
+        <div style={{
+          pointerEvents: 'auto',
+          width: '100%', maxWidth: 780,
+          padding: '10px 16px',
+          background: 'rgba(249,247,242,0.92)',
+          backdropFilter: 'blur(20px) saturate(1.6)',
+          WebkitBackdropFilter: 'blur(20px) saturate(1.6)',
+          border: '1px solid rgba(232,226,217,0.8)',
+          borderRadius: 999,
+          boxShadow: '0 4px 24px rgba(0,0,0,0.07)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}>
+          <span style={{ fontSize: 15, fontWeight: 700, color: ink, letterSpacing: '-0.02em' }}>Edge Alpha</span>
+          <a href="/login" style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: muted, textDecoration: 'none', opacity: page === 1 ? 1 : 0, pointerEvents: page === 1 ? 'auto' : 'none' }}>
             <ArrowLeft size={13} /> Sign in
           </a>
-        )}
+        </div>
       </div>
 
       {/* Content */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: `40px ${isMobile ? 16 : 24}px 80px` }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: `80px ${isMobile ? 16 : 24}px 80px` }}>
 
         <StepProgress step={page} />
 
@@ -499,12 +499,12 @@ export default function OnboardingPage() {
                   <Hint text='"We help hospital labs eliminate manual reporting using AI-powered result capture."' />
                 </div>
                 <div>
-                  <SectionTitle>Industry</SectionTitle>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-                    {INDUSTRIES.map(o => (
-                      <SelectCard key={o.value} label={o.label} sub={o.sub} active={form.industry === o.value} onClick={() => set('industry')(o.value)} />
-                    ))}
-                  </div>
+                  <Label>Industry</Label>
+                  <IndustrySelector
+                    value={form.industry}
+                    onChange={v => set('industry')(Array.isArray(v) ? v[0] : v)}
+                    placeholder="Search industries..."
+                  />
                 </div>
                 <div>
                   <SectionTitle>Stage</SectionTitle>
@@ -516,7 +516,7 @@ export default function OnboardingPage() {
                 </div>
               </>)}
 
-              {/* ── STEP 3 — Traction ── */}
+              {/* ── STEP 3 — Traction & Context ── */}
               {page === 3 && (<>
                 <div>
                   <SectionTitle>Revenue</SectionTitle>
@@ -541,6 +541,27 @@ export default function OnboardingPage() {
                       <SelectCard key={o.value} label={o.label} sub={o.sub} active={form.fundingStatus === o.value} onClick={() => set('fundingStatus')(o.value)} />
                     ))}
                   </div>
+                </div>
+                <div style={{ height: 1, background: SEP, margin: '4px 0' }} />
+                <div>
+                  <Label optional>Market size estimate</Label>
+                  <Input value={form.marketSizeEstimate} onChange={set('marketSizeEstimate')} placeholder="e.g. $5B total addressable market" />
+                  <Hint text='"Hospital lab software is a ~$8B market growing 12% annually."' />
+                </div>
+                <div>
+                  <Label optional>Go-to-market strategy</Label>
+                  <TextArea
+                    value={form.gtmStrategy} onChange={set('gtmStrategy')}
+                    placeholder="How will you acquire your first customers? (1-2 sentences)" rows={3} maxLength={300}
+                  />
+                  <Hint text="We'll target hospital procurement departments directly via partnerships with lab management consultants." />
+                </div>
+                <div>
+                  <Label optional>Your background</Label>
+                  <FounderBackgroundSelector
+                    value={form.founderBackground}
+                    onChange={v => setForm(f => ({ ...f, founderBackground: v }))}
+                  />
                 </div>
               </>)}
 
@@ -579,92 +600,6 @@ export default function OnboardingPage() {
                 )}
               </>)}
 
-              {/* ── STEP 5 — Profile ── */}
-              {page === 5 && (<>
-                {/* Avatar */}
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-                  <Label>Profile photo</Label>
-                  <div style={{ position: 'relative' }}>
-                    <label htmlFor="av-input" style={{ display: 'block', cursor: 'pointer' }}>
-                      <div style={{
-                        width: 88, height: 88, borderRadius: '50%',
-                        border: `2px dashed ${avatarPreview ? ink : 'rgba(0,0,0,0.2)'}`,
-                        background: avatarPreview ? 'transparent' : '#F5F3F0',
-                        overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        position: 'relative', transition: 'border-color 0.15s',
-                      }}>
-                        {avatarPreview
-                          ? <Image src={avatarPreview} alt="Avatar" fill style={{ objectFit: 'cover' }} />
-                          : <span style={{ fontSize: 26, fontWeight: 700, color: muted, letterSpacing: '-0.02em' }}>{initials}</span>
-                        }
-                        <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'rgba(0,0,0,0)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.15s' }}
-                          onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(0,0,0,0.28)' }}
-                          onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(0,0,0,0)' }}
-                        >
-                          <Camera size={18} color="#fff" />
-                        </div>
-                      </div>
-                    </label>
-                    {avatarPreview && (
-                      <button onClick={() => { setAvatarFile(null); setAvatarPreview(null) }}
-                        style={{ position: 'absolute', top: -3, right: -3, width: 20, height: 20, borderRadius: '50%', background: '#DC2626', border: '2px solid #fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
-                        <X size={10} color="#fff" strokeWidth={3} />
-                      </button>
-                    )}
-                    <input id="av-input" ref={avatarRef} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }}
-                      onChange={e => { const f = e.target.files?.[0]; if (f) pickFile(f, setAvatarFile, setAvatarPreview, avatarPreview); e.target.value = '' }} />
-                  </div>
-                  <p style={{ fontSize: 12, color: avatarPreview ? '#059669' : muted, fontWeight: avatarPreview ? 600 : 400 }}>
-                    {avatarPreview ? '✓ Photo selected' : 'Click to upload · JPG or PNG, max 5MB'}
-                  </p>
-                </div>
-
-                <div style={{ height: 1, background: SEP }} />
-
-                {/* Logo */}
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                    <Label>Company logo</Label>
-                    <span style={{ fontSize: 11, color: muted }}>optional</span>
-                  </div>
-                  {logoPreview ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 10, border: `1.5px solid ${ink}`, background: 'rgba(24,22,15,0.03)' }}>
-                      <div style={{ width: 36, height: 36, borderRadius: 8, overflow: 'hidden', flexShrink: 0, border: `1px solid ${SEP}`, position: 'relative' }}>
-                        <Image src={logoPreview} alt="Logo" fill style={{ objectFit: 'cover' }} />
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <p style={{ fontSize: 12, fontWeight: 600, color: '#059669', margin: 0 }}>✓ Logo uploaded</p>
-                        <p style={{ fontSize: 11, color: muted, margin: '2px 0 0' }}>{logoFile?.name}</p>
-                      </div>
-                      <button onClick={() => { setLogoFile(null); setLogoPreview(null) }}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: muted, padding: 4 }}>
-                        <X size={15} />
-                      </button>
-                    </div>
-                  ) : (
-                    <label htmlFor="logo-input" style={{ display: 'block', cursor: 'pointer' }}>
-                      <div style={{ padding: '20px 14px', borderRadius: 10, border: `1.5px dashed rgba(0,0,0,0.15)`, background: '#FAFAF8', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, transition: 'all 0.15s' }}
-                        onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(0,0,0,0.3)'; (e.currentTarget as HTMLDivElement).style.background = '#F5F3F0' }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(0,0,0,0.15)'; (e.currentTarget as HTMLDivElement).style.background = '#FAFAF8' }}
-                      >
-                        <Upload size={18} color={muted} />
-                        <p style={{ fontSize: 13, color: muted, margin: 0 }}>
-                          Drag & drop or <span style={{ color: ink, fontWeight: 600 }}>click to browse</span>
-                        </p>
-                        <p style={{ fontSize: 11, color: muted, margin: 0 }}>JPG, PNG · max 5MB</p>
-                      </div>
-                    </label>
-                  )}
-                  <input id="logo-input" ref={logoRef} type="file" accept="image/jpeg,image/png" style={{ display: 'none' }}
-                    onChange={e => { const f = e.target.files?.[0]; if (f) pickFile(f, setLogoFile, setLogoPreview, logoPreview); e.target.value = '' }} />
-                </div>
-
-                {error && (
-                  <div style={{ padding: '10px 14px', borderRadius: 8, background: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626', fontSize: 13 }}>
-                    {error}
-                  </div>
-                )}
-              </>)}
 
             </motion.div>
           </AnimatePresence>
@@ -713,31 +648,14 @@ export default function OnboardingPage() {
               </button>
             )}
             {page === 4 && (
-              <button onClick={handleStep4Next} disabled={!canSubmit} style={{
+              <button onClick={handleSubmit} disabled={!canSubmit} style={{
                 width: '100%', height: 44, borderRadius: 10,
                 background: canSubmit ? ink : 'rgba(0,0,0,0.18)', color: '#fff', border: 'none',
                 fontSize: 15, fontWeight: 700, cursor: canSubmit ? 'pointer' : 'not-allowed',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                 fontFamily: f.family, letterSpacing: '-0.01em', transition: 'background 0.15s',
               }}>
-                Continue <ChevronRight size={15} />
-              </button>
-            )}
-            {page === 5 && (
-              <button onClick={handleFinalSubmit} style={{
-                width: '100%', height: 44, borderRadius: 10,
-                background: ink, color: '#fff', border: 'none',
-                fontSize: 15, fontWeight: 700, cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                fontFamily: f.family, letterSpacing: '-0.01em',
-              }}>
-                Launch my profile
-              </button>
-            )}
-
-            {page === 5 && (
-              <button onClick={handleFinalSubmit} style={{ width: '100%', marginTop: 10, background: 'none', border: 'none', fontSize: 13, color: muted, cursor: 'pointer', textDecoration: 'underline', fontFamily: f.family }}>
-                Skip for now
+                Create account <ChevronRight size={15} />
               </button>
             )}
           </div>

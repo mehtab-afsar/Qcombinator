@@ -19,6 +19,7 @@ import {
   DollarSign,
   Target,
   Loader2,
+  Phone,
 } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/features/auth/hooks/useAuth";
@@ -28,7 +29,10 @@ import { useMetrics } from "@/features/founder/hooks/useFounderData";
 import { useDashboardData } from "@/features/founder/hooks/useDashboardData";
 import { agents } from "@/features/agents/data/agents";
 import { WelcomeModal, FOUNDER_WELCOME_SLIDES } from "@/components/ui/WelcomeModal";
-import { X as XIcon, CheckCircle2 } from "lucide-react";
+import { ShareQScoreModal } from "@/components/ui/ShareQScoreModal";
+import { GettingStartedCards } from "@/components/onboarding/GettingStartedCards";
+import { WeeklyCheckin } from "@/components/onboarding/WeeklyCheckin";
+import { UpgradeModal } from "@/components/ui/UpgradeModal";
 import { getUpcomingWorkshops } from "@/features/academy/data/workshops";
 import { bg, surf, bdr, ink, muted, blue, green, amber, red, purple, cyan, alpha } from '@/lib/constants/colors'
 import { PageSpinner } from '@/features/shared/components/Spinner'
@@ -85,6 +89,17 @@ const DIMENSION_AGENT: Record<string, { agentId: string; agentName: string; labe
   p4:         { agentId: "harper", agentName: "Harper", label: "Hiring Plan"          },
   p5:         { agentId: "sage",   agentName: "Sage",   label: "Strategic Plan"       },
   p6:         { agentId: "felix",  agentName: "Felix",  label: "Financial Summary"    },
+};
+
+// Behavior-centric framing for each Q-Score dimension.
+// The challenge is the behavior, the agent is the helper — not the deliverable generator.
+const DIMENSION_BEHAVIOR: Record<string, { action: string; evidence: string }> = {
+  p1: { action: "Validate your ICP with real customers",   evidence: "5+ discovery calls logged" },
+  p2: { action: "Map the market opportunity with data",    evidence: "TAM/SAM/SOM documented"    },
+  p3: { action: "Define your defensible moat",             evidence: "Moat narrative written"     },
+  p4: { action: "Close a critical team gap",               evidence: "Hire or advisor added"      },
+  p5: { action: "Articulate your 'why now' clearly",       evidence: "Market timing argument ready"},
+  p6: { action: "Get your unit economics to target",       evidence: "LTV:CAC > 3:1 verified"    },
 };
 
 // Pick the next upcoming workshop by date (relative to today)
@@ -386,13 +401,14 @@ export default function FounderDashboard() {
   const { data: dashData, loading: dashLoading, removePendingAction } = useDashboardData();
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [profileBuilderCompleted, setProfileBuilderCompleted] = useState<boolean | null>(null);
-  const [gsDismissed, setGsDismissed] = useState(() => {
+  const [_gsDismissed, _setGsDismissed] = useState(() => {
     if (typeof window === 'undefined') return false
     return localStorage.getItem('qc_gs_dismissed') === '1'
   });
   const [selectedDimension, setSelectedDimension] = useState<string | null>(null);
   const [publicSlug,  setPublicSlug]  = useState<string | null>(null);
   const [linkCopied,  setLinkCopied]  = useState(false);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
   const [qScoreCopied, setQScoreCopied] = useState(false);
 
   // ── Agent goal watch state ───────────────────────────────────────────────
@@ -406,26 +422,87 @@ export default function FounderDashboard() {
       .catch(() => {})
   }, [])
 
-  // ── Stripe verification state ────────────────────────────────────────────
+  // ── Weekly check-in + stage gate state ──────────────────────────────────────
+  const [weeklyGoal,        setWeeklyGoal]        = useState<string | null>(null);
+  const [weeklyMetric,      setWeeklyMetric]       = useState<string | null>(null);
+  const [_weeklyCheckinAt,  _setWeeklyCheckinAt]   = useState<string | null>(null);
+  const [gateProgress,      setGateProgress]       = useState<Record<string, boolean>>({});
+  const [customerCallsCount, setCustomerCallsCount] = useState(0);
+  const [showWeeklyCheckin, setShowWeeklyCheckin]  = useState(false);
+
+  // ── Stripe verification state (read-only — connect via Settings → Integrations) ──
   const [stripeStatus, setStripeStatus] = useState<{
     verified: boolean; mrr?: number; signalStrength?: number; integrityIndex?: number;
   } | null>(null);
-  const [stripeKey,        setStripeKey]        = useState("");
-  const [stripeConnecting, setStripeConnecting] = useState(false);
-  const [stripeError,      setStripeError]      = useState("");
-  const [showStripeModal,  setShowStripeModal]  = useState(false);
 
-  // Check profile_builder_completed
+  // ── Usage & subscription state ────────────────────────────────────────────
+  const [upgradeModal, setUpgradeModal] = useState<{ open: boolean; feature?: string }>({ open: false });
+  const [usage, setUsage] = useState<{ agentChat: number; qscoreRecalc: number; investorConnection: number } | null>(null);
+  const [subscriptionTier, setSubscriptionTier] = useState<'free' | 'premium'>('free');
+
+  // Mock usage data — TODO: replace with real API call
+  useEffect(() => {
+    if (!user) return;
+    // Mock data for now
+    setUsage({
+      agentChat: 32,
+      qscoreRecalc: 1,
+      investorConnection: 2,
+    });
+    setSubscriptionTier('free');
+  }, [user]);
+
+  // Check profile_builder_completed + load stage and basic profile fields
+  const [founderStage,       setFounderStage]       = useState<string>('idea')
+  const [founderCompanyName, setFounderCompanyName] = useState<string>('Startup')
+  const [founderOneLiner,    setFounderOneLiner]    = useState<string>('')
+  const [founderIndustry,    setFounderIndustry]    = useState<string>('')
   useEffect(() => {
     if (!user) return
     const supabase = createClient()
     void supabase
       .from("founder_profiles")
-      .select("profile_builder_completed")
+      .select("profile_builder_completed, stage, startup_name, tagline, industry")
       .eq("user_id", user.id)
       .single()
-      .then(({ data }) => setProfileBuilderCompleted(data?.profile_builder_completed ?? false))
+      .then(({ data }) => {
+        setProfileBuilderCompleted(data?.profile_builder_completed ?? false)
+        if (data?.stage)        setFounderStage(data.stage)
+        if (data?.startup_name) setFounderCompanyName(data.startup_name)
+        if (data?.tagline)      setFounderOneLiner(data.tagline)
+        if (data?.industry)     setFounderIndustry(data.industry)
+      })
   }, [user])
+
+  // Load weekly check-in + stage gate data and decide whether to show the check-in modal
+  useEffect(() => {
+    if (!user) return;
+    const supabase = createClient();
+    void supabase
+      .from("founder_profiles")
+      .select("weekly_goal, weekly_metric_value, weekly_checkin_at, gate_progress, customer_calls_count")
+      .eq("user_id", user.id)
+      .single()
+      .then(({ data }) => {
+        if (!data) return;
+        setWeeklyGoal(data.weekly_goal ?? null);
+        setWeeklyMetric(data.weekly_metric_value ?? null);
+        _setWeeklyCheckinAt(data.weekly_checkin_at ?? null);
+        setGateProgress(data.gate_progress ?? {});
+        setCustomerCallsCount(data.customer_calls_count ?? 0);
+
+        // Show weekly check-in if: never done, or last check-in was before this week's Monday
+        const now = new Date();
+        const dayOfWeek = now.getDay(); // 0 = Sun
+        const monday = new Date(now);
+        monday.setDate(now.getDate() - ((dayOfWeek + 6) % 7));
+        monday.setHours(0, 0, 0, 0);
+        const lastCheckin = data.weekly_checkin_at ? new Date(data.weekly_checkin_at) : null;
+        if (!lastCheckin || lastCheckin < monday) {
+          setShowWeeklyCheckin(true);
+        }
+      });
+  }, [user]);
 
   // Fetch public_slug for share button
   useEffect(() => {
@@ -456,44 +533,12 @@ export default function FounderDashboard() {
       .catch(() => {});
   }, []);
 
-  async function handleStripeConnect() {
-    if (!stripeKey.startsWith("rk_")) {
-      setStripeError("Key must start with rk_");
-      return;
-    }
-    setStripeConnecting(true);
-    setStripeError("");
-    try {
-      const res = await fetch("/api/stripe/connect", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ restrictedKey: stripeKey }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setStripeError(data.error ?? "Connection failed");
-      } else {
-        setStripeStatus({
-          verified:       true,
-          mrr:            data.verified?.mrr,
-          signalStrength: data.signalStrength,
-          integrityIndex: data.integrityIndex,
-        });
-        setShowStripeModal(false);
-        setStripeKey("");
-      }
-    } catch {
-      setStripeError("Network error — please try again");
-    } finally {
-      setStripeConnecting(false);
-    }
-  }
 
   const scoreHistory   = dashData?.scoreHistory   ?? [];
   const usedAgentIds   = dashData?.usedAgentIds   ?? new Set<string>();
   const pendingActions = dashData?.pendingActions  ?? [];
   const weeklyActivity = dashData?.weeklyActivity  ?? null;
-  const investorMatches= dashData?.investorMatches ?? null;
+  const _investorMatches = dashData?.investorMatches ?? null;
   const portfolioViews = dashData?.portfolioViews  ?? null;
   const priorities     = dashData?.priorities      ?? [];
   const conflictDims   = dashData?.conflictDims    ?? new Set<string>();
@@ -580,18 +625,29 @@ export default function FounderDashboard() {
   const circumference = 2 * Math.PI * 52;
   const dash = circumference * (1 - displayScore / 100);
 
+  async function handleLogCall() {
+    if (!user) return;
+    const next = customerCallsCount + 1;
+    setCustomerCallsCount(next);
+    const supabase = createClient();
+    await supabase
+      .from("founder_profiles")
+      .update({ customer_calls_count: next })
+      .eq("user_id", user.id);
+  }
+
   const quickStats = [
     {
-      label: "Sessions this week",
+      label: "Agent sessions",
       value: weeklyActivity !== null ? String(weeklyActivity) : "—",
-      sub: weeklyActivity !== null ? (weeklyActivity > 0 ? "agent actions logged" : "start a session") : "loading…",
+      sub: weeklyActivity !== null ? (weeklyActivity > 0 ? "actions logged this week" : "start a session") : "loading…",
       icon: Bot, positive: true,
     },
     {
-      label: "Investor outreach",
-      value: investorMatches !== null ? String(investorMatches) : "—",
-      sub: investorMatches !== null ? (investorMatches === 0 ? "connect at IQ 60+" : `connection${investorMatches !== 1 ? "s" : ""} sent`) : "loading…",
-      icon: Users, positive: true,
+      label: "Customer calls",
+      value: String(customerCallsCount),
+      sub: customerCallsCount > 0 ? "logged this week" : "tap + to log a call",
+      icon: Phone, positive: customerCallsCount > 0,
     },
     { label: "Score percentile",   value: !isDemo && qs.percentile !== null ? `${qs.percentile}th` : "—", sub: !isDemo && qs.percentile !== null ? "of all founders" : "complete assessment to rank", icon: BarChart3, positive: null  },
     { label: "Next milestone",     value: isDemo ? "—" : String(Math.max(80, Math.ceil(qs.overall / 10) * 10)), sub: isDemo ? "submit score first" : "target Q-Score", icon: Zap, positive: null },
@@ -599,6 +655,20 @@ export default function FounderDashboard() {
 
   return (
     <div style={{ minHeight: "100vh", background: bg, color: ink, padding: "36px 28px 72px" }}>
+      {/* ── Weekly check-in modal ─────────────────────────────────────── */}
+      {showWeeklyCheckin && !isDemo && user && (
+        <WeeklyCheckin
+          userId={user.id}
+          lastGoal={weeklyGoal}
+          onComplete={(goal, metric) => {
+            setWeeklyGoal(goal);
+            setWeeklyMetric(metric);
+            setShowWeeklyCheckin(false);
+          }}
+          onDismiss={() => setShowWeeklyCheckin(false)}
+        />
+      )}
+
       <div style={{ maxWidth: 1120, margin: "0 auto" }}>
 
         {/* ── page header ───────────────────────────────────────────── */}
@@ -630,62 +700,45 @@ export default function FounderDashboard() {
           </div>
         </motion.div>
 
-        {/* ── Getting Started card (dismissable, shows until profile builder done) ── */}
-        {!gsDismissed && profileBuilderCompleted === false && (
+        {/* ── Usage warning banner (free tier only) ── */}
+        {subscriptionTier === 'free' && usage && (
           <div style={{
-            background: "#fff", border: "1px solid rgba(0,0,0,0.09)",
-            borderRadius: 14, padding: "20px 22px", marginBottom: 20,
-            boxShadow: "0 2px 12px rgba(0,0,0,0.05)",
+            background: `${amber}12`, border: `1px solid ${amber}30`,
+            borderRadius: 12, padding: '14px 16px', marginBottom: 20,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
           }}>
-            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
+              <Zap size={16} color={amber} />
               <div>
-                <h3 style={{ fontSize: 15, fontWeight: 700, color: ink, margin: "0 0 3px", letterSpacing: "-0.01em" }}>
-                  Get investor-ready in 4 steps
-                </h3>
-                <p style={{ fontSize: 12, color: muted, margin: 0 }}>Complete these to appear in investor deal flow</p>
+                <p style={{ fontSize: 12, fontWeight: 600, color: ink, margin: 0 }}>
+                  Q-Score recalculations: {usage.qscoreRecalc} / 2 this month
+                </p>
+                <p style={{ fontSize: 11, color: muted, margin: '2px 0 0' }}>
+                  Upgrade to Premium for unlimited recalculations
+                </p>
               </div>
-              <button
-                onClick={() => { localStorage.setItem("qc_gs_dismissed", "1"); setGsDismissed(true) }}
-                style={{ background: "none", border: "none", cursor: "pointer", color: muted, padding: 2, display: "flex" }}
-              >
-                <XIcon size={16} />
-              </button>
             </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>
-              {[
-                { done: true,  label: "Account created",         href: null,                           sub: "Done ✓" },
-                { done: true,  label: "Startup info added",       href: null,                           sub: "Done ✓" },
-                { done: false, label: "Complete Q-Score profile", href: "/founder/profile-builder",     sub: "~10 min · Unlocks investor visibility" },
-                { done: false, label: "Invite a co-founder",      href: "/founder/settings?tab=team",   sub: "Optional · Team credibility signal" },
-              ].map(item => (
-                <div key={item.label} style={{
-                  display: "flex", alignItems: "flex-start", gap: 10,
-                  padding: "12px 14px", borderRadius: 10,
-                  background: item.done ? "#F0FDF4" : "#FAFAF8",
-                  border: `1px solid ${item.done ? "#A7F3D0" : "rgba(0,0,0,0.08)"}`,
-                }}>
-                  <div style={{ flexShrink: 0, marginTop: 1 }}>
-                    {item.done
-                      ? <CheckCircle2 size={16} color="#059669" />
-                      : <div style={{ width: 16, height: 16, borderRadius: "50%", border: "2px solid rgba(0,0,0,0.2)" }} />
-                    }
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: item.done ? "#059669" : ink, margin: "0 0 2px", textDecoration: item.done ? "line-through" : "none" }}>
-                      {item.label}
-                    </p>
-                    <p style={{ fontSize: 11, color: muted, margin: 0 }}>{item.sub}</p>
-                    {!item.done && item.href && (
-                      <Link href={item.href} style={{ fontSize: 11, color: blue, fontWeight: 600, textDecoration: "none", marginTop: 4, display: "inline-block" }}>
-                        Start →
-                      </Link>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <button
+              onClick={() => setUpgradeModal({ open: true, feature: 'qscore_recalc' })}
+              style={{
+                padding: '7px 14px', borderRadius: 8, border: 'none', background: amber, color: '#fff',
+                fontSize: 12, fontWeight: 600, cursor: 'pointer', flexShrink: 0,
+              }}
+            >
+              Upgrade →
+            </button>
           </div>
+        )}
+
+        {/* ── Stage Gate Progress ─ */}
+        {!isDemo && (
+          <GettingStartedCards
+            qscoreOverall={qs.overall}
+            stage={founderStage}
+            gateProgress={gateProgress}
+            customerCallsCount={customerCallsCount}
+            onLogCall={handleLogCall}
+          />
         )}
 
         {/* ── empty state (real score is 0, profile builder unknown/done) ─ */}
@@ -833,98 +886,37 @@ export default function FounderDashboard() {
           </motion.div>
         )}
 
-        {/* ── Stripe verification card ──────────────────────────────── */}
-        {stripeStatus !== null && (
-          <>
-            {stripeStatus.verified ? (
-              <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-                style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 20px", borderRadius: 12, marginBottom: 16, background: alpha(blue, 0.06), border: `1px solid ${alpha(blue, 0.25)}` }}
-              >
-                <div style={{ height: 36, width: 36, borderRadius: 9, flexShrink: 0, background: alpha(blue, 0.15), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17 }}>✓</div>
-                <div style={{ flex: 1 }}>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: blue, marginBottom: 2 }}>
-                    Revenue verified via Stripe{stripeStatus.mrr !== undefined && ` · $${stripeStatus.mrr.toLocaleString()} MRR`}
-                  </p>
-                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 4 }}>
-                    {stripeStatus.signalStrength !== undefined && <span style={{ fontSize: 11, color: blue }}>Signal Strength: <strong>{stripeStatus.signalStrength}</strong>/100</span>}
-                    {stripeStatus.integrityIndex !== undefined && <span style={{ fontSize: 11, color: blue }}>Integrity Index: <strong>{stripeStatus.integrityIndex}</strong>/100</span>}
-                  </div>
-                </div>
-              </motion.div>
-            ) : (
-              <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-                style={{ padding: "20px 24px", borderRadius: 14, marginBottom: 16, background: bg, border: `1px solid ${bdr}` }}
-              >
-                <div style={{ display: "flex", alignItems: "flex-start", gap: 16 }}>
-                  <div style={{ height: 44, width: 44, borderRadius: 11, flexShrink: 0, background: "#F0EDFF", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                      <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 18a8 8 0 100-16 8 8 0 000 16zm-1-11h2v6h-2zm0-4h2v2h-2z" fill="#635BFF"/>
-                    </svg>
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <p style={{ fontSize: 14, fontWeight: 600, color: ink, marginBottom: 4 }}>Stripe Revenue Verification</p>
-                    <p style={{ fontSize: 12, color: muted, lineHeight: 1.6, marginBottom: 16 }}>
-                      Connect your Stripe account to verify revenue and raise your Signal Strength to 1.0×. Verified metrics unlock higher investor trust, better deal flow ranking, and an integrity badge.
-                    </p>
-                    <button
-                      onClick={() => { setShowStripeModal(true); setStripeError(""); }}
-                      style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 20px", background: "#635BFF", color: "#fff", border: "none", borderRadius: 9, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 2px 10px rgba(99,91,255,0.3)" }}
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 18a8 8 0 100-16 8 8 0 000 16z" fill="white" fillOpacity="0.7"/><path d="M9 9h6M9 12h6M9 15h4" stroke="white" strokeWidth="1.5" strokeLinecap="round"/></svg>
-                      Connect with Stripe
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {/* Stripe connect modal */}
-            {showStripeModal && (
-              <>
-                <div onClick={() => { setShowStripeModal(false); setStripeError(""); }} style={{ position: "fixed", inset: 0, zIndex: 59, background: "rgba(0,0,0,0.3)" }} />
-                <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 60, width: 460, background: bg, border: `1px solid ${bdr}`, borderRadius: 16, padding: "28px", boxShadow: "0 24px 64px rgba(0,0,0,0.15)" }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <div style={{ height: 36, width: 36, borderRadius: 9, background: "#F0EDFF", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 18a8 8 0 100-16 8 8 0 000 16zm-1-11h2v6h-2zm0-4h2v2h-2z" fill="#635BFF"/></svg>
-                      </div>
-                      <p style={{ fontSize: 15, fontWeight: 600, color: ink }}>Connect Stripe</p>
-                    </div>
-                    <button onClick={() => { setShowStripeModal(false); setStripeError(""); }} style={{ height: 28, width: 28, display: "flex", alignItems: "center", justifyContent: "center", background: "transparent", border: `1px solid ${bdr}`, borderRadius: 7, cursor: "pointer", color: muted, fontSize: 16 }}>×</button>
-                  </div>
-
-                  <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 }}>
-                    {[
-                      { step: 1, text: <>In Stripe Dashboard → <strong>Developers</strong> → <strong>Restricted keys</strong> → Create new key</> },
-                      { step: 2, text: <>Enable <strong>Read</strong> access on Revenue, Subscriptions, and Customers</> },
-                      { step: 3, text: <>Paste the key below — it starts with <code style={{ background: surf, padding: "1px 5px", borderRadius: 4, fontSize: 11 }}>rk_live_</code></> },
-                    ].map(({ step, text }) => (
-                      <div key={step} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                        <div style={{ height: 22, width: 22, borderRadius: "50%", background: "#635BFF", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#fff", flexShrink: 0, marginTop: 1 }}>{step}</div>
-                        <p style={{ fontSize: 13, color: ink, lineHeight: 1.6 }}>{text}</p>
-                      </div>
-                    ))}
-                  </div>
-
-                  <input
-                    value={stripeKey}
-                    onChange={e => setStripeKey(e.target.value)}
-                    placeholder="rk_live_…"
-                    style={{ width: "100%", padding: "10px 14px", background: surf, border: `1px solid ${stripeError ? red : bdr}`, borderRadius: 9, fontSize: 13, color: ink, outline: "none", fontFamily: "inherit", marginBottom: 10, boxSizing: "border-box" }}
-                  />
-                  {stripeError && <p style={{ fontSize: 11, color: red, marginBottom: 10 }}>{stripeError}</p>}
-
-                  <button
-                    onClick={handleStripeConnect}
-                    disabled={stripeConnecting}
-                    style={{ width: "100%", padding: "11px", background: "#635BFF", color: "#fff", border: "none", borderRadius: 9, fontSize: 13, fontWeight: 600, cursor: stripeConnecting ? "not-allowed" : "pointer", opacity: stripeConnecting ? 0.7 : 1, fontFamily: "inherit" }}
-                  >
-                    {stripeConnecting ? "Verifying…" : "Verify & Connect"}
-                  </button>
-                </div>
-              </>
-            )}
-          </>
+        {/* ── Stripe status bar (connect via Settings → Integrations) ──── */}
+        {stripeStatus !== null && !stripeStatus.verified && (
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+            style={{ display: "flex", alignItems: "center", gap: 14, padding: "13px 18px", borderRadius: 12, marginBottom: 16, background: bg, border: `1px solid ${bdr}` }}
+          >
+            <div style={{ height: 32, width: 32, borderRadius: 8, flexShrink: 0, background: "#F0EDFF", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15 }}>💳</div>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: 13, fontWeight: 600, color: ink, marginBottom: 2 }}>Verify your revenue with Stripe</p>
+              <p style={{ fontSize: 11, color: muted }}>Unlock Signal Strength 1.0× and investor trust badges.</p>
+            </div>
+            <Link href="/founder/settings?tab=integrations"
+              style={{ fontSize: 12, fontWeight: 600, padding: "7px 14px", borderRadius: 8, background: "#635BFF", color: "#fff", textDecoration: "none", whiteSpace: "nowrap" }}>
+              Connect →
+            </Link>
+          </motion.div>
+        )}
+        {stripeStatus?.verified && (
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+            style={{ display: "flex", alignItems: "center", gap: 14, padding: "13px 18px", borderRadius: 12, marginBottom: 16, background: alpha(blue, 0.06), border: `1px solid ${alpha(blue, 0.25)}` }}
+          >
+            <div style={{ height: 32, width: 32, borderRadius: 8, flexShrink: 0, background: alpha(blue, 0.15), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15 }}>✓</div>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: 13, fontWeight: 600, color: blue, marginBottom: 2 }}>
+                Revenue verified via Stripe{stripeStatus.mrr !== undefined && ` · $${stripeStatus.mrr.toLocaleString()} MRR`}
+              </p>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                {stripeStatus.signalStrength !== undefined && <span style={{ fontSize: 11, color: blue }}>Signal Strength: <strong>{stripeStatus.signalStrength}</strong>/100</span>}
+                {stripeStatus.integrityIndex !== undefined && <span style={{ fontSize: 11, color: blue }}>Integrity Index: <strong>{stripeStatus.integrityIndex}</strong>/100</span>}
+              </div>
+            </div>
+          </motion.div>
         )}
 
         {/* ── hero: Q-Score + dimensions ────────────────────────────── */}
@@ -1291,11 +1283,29 @@ export default function FounderDashboard() {
               <div style={{ height: 28, width: 28, borderRadius: 7, background: "#EFF6FF", border: "1px solid #BFDBFE", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <Target style={{ height: 13, width: 13, color: blue }} />
               </div>
-              <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", color: muted, fontWeight: 600 }}>
-                Today&apos;s focus
-              </p>
+              <div>
+                <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", color: muted, fontWeight: 600, margin: 0 }}>
+                  Today&apos;s focus
+                </p>
+                {weeklyGoal && (
+                  <p style={{ fontSize: 11, color: ink, margin: "2px 0 0", fontWeight: 500 }}>
+                    This week: <span style={{ fontWeight: 600 }}>{weeklyGoal}</span>
+                    {weeklyMetric && <span style={{ color: muted, fontWeight: 400 }}> · {weeklyMetric}</span>}
+                  </p>
+                )}
+              </div>
             </div>
-            {dashLoading && <Loader2 style={{ height: 14, width: 14, color: muted, animation: "spin 1s linear infinite" }} />}
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              {!weeklyGoal && !isDemo && (
+                <button
+                  onClick={() => setShowWeeklyCheckin(true)}
+                  style={{ fontSize: 11, fontWeight: 600, color: blue, background: alpha(blue, 0.07), border: "none", borderRadius: 6, padding: "4px 10px", cursor: "pointer" }}
+                >
+                  Set this week&apos;s goal
+                </button>
+              )}
+              {dashLoading && <Loader2 style={{ height: 14, width: 14, color: muted, animation: "spin 1s linear infinite" }} />}
+            </div>
           </div>
 
           {dashLoading && priorities.length === 0 ? (
@@ -1363,7 +1373,7 @@ export default function FounderDashboard() {
         >
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
             <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", color: muted, fontWeight: 600 }}>
-              Score challenges — complete a deliverable to boost your weakest dimensions
+              Score challenges — do the behavior, {"{"}agent{"}"} generates the evidence
             </p>
             <Link href="/founder/improve-qscore" style={{ fontSize: 11, color: blue, textDecoration: "none", fontWeight: 500 }}>
               View all →
@@ -1371,9 +1381,10 @@ export default function FounderDashboard() {
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
             {topActions.map(([key, dim], i) => {
-              const meta    = DIMENSION_META[key];
-              const aInfo   = DIMENSION_AGENT[key];
-              const col     = scoreColor(dim.score);
+              const meta     = DIMENSION_META[key];
+              const aInfo    = DIMENSION_AGENT[key];
+              const behavior = DIMENSION_BEHAVIOR[key];
+              const col      = scoreColor(dim.score);
               const TrendIcon = dim.trend === "up" ? TrendingUp : dim.trend === "down" ? TrendingDown : Minus;
               return (
                 <Link key={key} href={`/founder/cxo/${aInfo.agentId}?challenge=${key}`} style={{ textDecoration: "none" }}>
@@ -1390,7 +1401,9 @@ export default function FounderDashboard() {
                     onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = bdr; }}
                   >
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: col }}>{dim.score}</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: col, background: alpha(col, 0.08), borderRadius: 4, padding: "1px 7px" }}>
+                        {dim.score} — {meta.label}
+                      </span>
                       <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
                         <TrendIcon style={{ height: 10, width: 10, color: dim.trend === "up" ? green : dim.trend === "down" ? red : muted }} />
                         {dim.change !== 0 && (
@@ -1403,14 +1416,14 @@ export default function FounderDashboard() {
                     <div style={{ height: 3, background: bdr, borderRadius: 999, marginBottom: 12, overflow: "hidden" }}>
                       <div style={{ width: `${dim.score}%`, height: "100%", background: col, borderRadius: 999 }} />
                     </div>
-                    <p style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 3 }}>
-                      {meta.label} — Challenge
+                    <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 4, lineHeight: 1.35 }}>
+                      {behavior?.action ?? meta.label}
                     </p>
-                    <p style={{ fontSize: 11, color: muted, marginBottom: 10 }}>
-                      Build a {aInfo.label} with {aInfo.agentName}
+                    <p style={{ fontSize: 11, color: muted, marginBottom: 10, lineHeight: 1.5 }}>
+                      Evidence: {behavior?.evidence ?? `Build a ${aInfo.label}`} — {aInfo.agentName} can help
                     </p>
                     <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, color: col }}>
-                      Start challenge <ChevronRight style={{ height: 11, width: 11 }} />
+                      Start with {aInfo.agentName} <ChevronRight style={{ height: 11, width: 11 }} />
                     </div>
                   </motion.div>
                 </Link>
@@ -1448,7 +1461,7 @@ export default function FounderDashboard() {
         {stripeStatus && (
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
             <Link
-              href="/founder/settings?tab=connectors"
+              href="/founder/settings?tab=integrations"
               style={{
                 display: "inline-flex", alignItems: "center", gap: 6, textDecoration: "none",
                 padding: "5px 12px", borderRadius: 999,
@@ -1462,7 +1475,7 @@ export default function FounderDashboard() {
               </span>
             </Link>
             {(["LinkedIn", "Google Sheets", "Gmail", "Slack"] as const).map(name => (
-              <Link key={name} href="/founder/settings?tab=connectors" style={{
+              <Link key={name} href="/founder/settings?tab=integrations" style={{
                 display: "inline-flex", alignItems: "center", gap: 6, textDecoration: "none",
                 padding: "5px 12px", borderRadius: 999, background: surf, border: `1px solid ${bdr}`,
               }}>
@@ -1617,22 +1630,27 @@ export default function FounderDashboard() {
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
               {publicSlug && (
                 <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(`${window.location.origin}/startup/${publicSlug}`).then(() => {
-                      setLinkCopied(true);
-                      setTimeout(() => setLinkCopied(false), 2500);
-                    });
-                  }}
+                  onClick={() => setShareModalOpen(true)}
                   style={{
                     display: "inline-flex", alignItems: "center", gap: 6,
-                    padding: "7px 14px", background: linkCopied ? green : surf,
-                    color: linkCopied ? "#fff" : muted,
-                    border: `1px solid ${linkCopied ? green : bdr}`,
+                    padding: "7px 14px", background: surf,
+                    color: muted,
+                    border: `1px solid ${bdr}`,
                     borderRadius: 999, fontSize: 12, fontWeight: 500, cursor: "pointer",
                     whiteSpace: "nowrap", transition: "all 0.2s",
                   }}
+                  onMouseEnter={e => {
+                    ;(e.currentTarget as HTMLElement).style.background = "rgba(37,99,235,0.1)"
+                    ;(e.currentTarget as HTMLElement).style.color = blue
+                    ;(e.currentTarget as HTMLElement).style.borderColor = blue
+                  }}
+                  onMouseLeave={e => {
+                    ;(e.currentTarget as HTMLElement).style.background = surf
+                    ;(e.currentTarget as HTMLElement).style.color = muted
+                    ;(e.currentTarget as HTMLElement).style.borderColor = bdr
+                  }}
                 >
-                  {linkCopied ? "Link copied!" : "Share profile"}
+                  Share Q-Score
                 </button>
               )}
               <Link href="/founder/portfolio" style={{
@@ -1872,6 +1890,28 @@ export default function FounderDashboard() {
 
       </div>
 
+      {/* Share Q-Score Modal */}
+      <ShareQScoreModal
+        isOpen={shareModalOpen}
+        onClose={() => setShareModalOpen(false)}
+        shareUrl={publicSlug ? `${typeof window !== 'undefined' ? window.location.origin : ''}/startup/${publicSlug}` : undefined}
+        qscoreData={{
+          companyName: founderCompanyName,
+          oneLiner: founderOneLiner,
+          industry: founderIndustry,
+          stage: founderStage,
+          overallScore: Math.round(qs.overall || 0),
+          dimensions: {
+            marketReadiness: Math.round((qs as Record<string, number>).p1 || 0),
+            marketPotential: Math.round((qs as Record<string, number>).p2 || 0),
+            ipDefensibility: Math.round((qs as Record<string, number>).p3 || 0),
+            founderTeam: Math.round((qs as Record<string, number>).p4 || 0),
+            structuralImpact: Math.round((qs as Record<string, number>).p5 || 0),
+            financials: Math.round((qs as Record<string, number>).p6 || 0),
+          },
+        }}
+      />
+
       {/* responsive styles */}
       <style>{`
         @media (max-width: 900px) {
@@ -1886,6 +1926,14 @@ export default function FounderDashboard() {
       <WelcomeModal
         storageKey="qc_founder_welcome_v1"
         slides={FOUNDER_WELCOME_SLIDES}
+      />
+
+      {/* Upgrade modal — triggered by usage gates */}
+      <UpgradeModal
+        open={upgradeModal.open}
+        onClose={() => setUpgradeModal({ open: false })}
+        feature={upgradeModal.feature}
+        userType="founder"
       />
     </div>
   );

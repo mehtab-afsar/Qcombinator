@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { motion } from 'framer-motion';
-import { User, Building2, Bell, Lock, Download, Trash2, RefreshCw, Save, AlertTriangle, Plug, CheckCircle, Users, Mail, Loader2, X, ChevronDown, Shield } from 'lucide-react';
+import { User, Bell, Lock, Download, Trash2, RefreshCw, Save, AlertTriangle, Plug, CheckCircle, Users, Mail, Loader2 } from 'lucide-react';
 import { useFounderData } from '@/features/founder/hooks/useFounderData';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
@@ -17,36 +17,54 @@ import {
 import { bg, surf, bdr, ink, muted, blue, green, red } from '@/lib/constants/colors'
 import { Avatar } from '@/features/shared/components/Avatar'
 import { TabNav } from '@/features/shared/components/TabNav'
+import { InviteModal } from '@/components/ui/InviteModal'
 
-type TabId = 'profile' | 'notifications' | 'team';
+type TabId = 'profile' | 'notifications' | 'team' | 'integrations';
 
 const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: 'profile',       label: 'Profile',        icon: User   },
   { id: 'notifications', label: 'Notifications',  icon: Bell   },
   { id: 'team',          label: 'Team',           icon: Users  },
+  { id: 'integrations',  label: 'Integrations',   icon: Plug   },
 ];
 
-// ─── connectors data ──────────────────────────────────────────────────────────
-const CONNECTORS = [
-  { id: 'stripe',  name: 'Stripe',        desc: 'Revenue & MRR data',          available: true,  link: '/founder/dashboard' },
-  { id: 'linkedin',name: 'LinkedIn',      desc: 'Team & founder signals',       available: false, link: null },
-  { id: 'sheets',  name: 'Google Sheets', desc: 'Financial models',             available: false, link: null },
-  { id: 'gmail',   name: 'Gmail',         desc: 'Customer conversations',       available: false, link: null },
-  { id: 'slack',   name: 'Slack',         desc: 'Team structure',               available: false, link: null },
+// ─── integrations catalog ─────────────────────────────────────────────────────
+const CONNECTORS: {
+  id: string; name: string; color: string; letter: string;
+  desc: string; agents: string[];
+  type: 'founder_key' | 'platform' | 'oauth'; available: boolean;
+}[] = [
+  // Per-founder — needs their own key
+  { id: 'stripe',    name: 'Stripe',        color: '#635BFF', letter: 'S', desc: 'Live MRR, ARR & subscription metrics — boosts Signal Strength for investors',    agents: ['Felix'],              type: 'founder_key', available: true  },
+  { id: 'posthog',   name: 'PostHog',       color: '#F54E00', letter: 'P', desc: 'Retention curves, funnels & PMF signals from your live product analytics',        agents: ['Nova', 'Carter'],     type: 'founder_key', available: true  },
+  { id: 'calendly',  name: 'Calendly',      color: '#006BFF', letter: 'C', desc: 'Real booking links for demos, discovery calls & interviews',                      agents: ['Susi', 'Harper'],     type: 'founder_key', available: true  },
+  // Platform-provided — always enabled
+  { id: 'apollo',    name: 'Apollo.io',     color: '#1A56DB', letter: 'A', desc: 'Lead enrichment & verified contact emails for GTM outreach',                      agents: ['Patel', 'Riley'],     type: 'platform',    available: true  },
+  { id: 'vapi',      name: 'Vapi.ai',       color: '#7C3AED', letter: 'V', desc: 'AI voice calls to qualified leads',                                               agents: ['Susi'],               type: 'platform',    available: true  },
+  { id: 'resend',    name: 'Resend',        color: '#171717', letter: 'R', desc: 'Outreach email sequences and transactional delivery',                              agents: ['Patel'],              type: 'platform',    available: true  },
+  // Coming soon
+  { id: 'fireflies', name: 'Fireflies.ai',  color: '#FF4F68', letter: 'F', desc: 'Sales call transcripts and deal intelligence for Susi',                           agents: ['Susi'],               type: 'founder_key', available: false },
+  { id: 'linkedin',  name: 'LinkedIn',      color: '#0077B5', letter: 'L', desc: 'Founder & team signals for investor discovery',                                   agents: ['Harper'],             type: 'oauth',       available: false },
+  { id: 'sheets',    name: 'Google Sheets', color: '#34A853', letter: 'G', desc: 'Financial models & cap table ingestion for Felix',                                 agents: ['Felix'],              type: 'oauth',       available: false },
+  { id: 'gmail',     name: 'Gmail',         color: '#EA4335', letter: 'G', desc: 'Customer conversation tracking for Carter',                                        agents: ['Carter'],             type: 'oauth',       available: false },
+  { id: 'slack',     name: 'Slack',         color: '#4A154B', letter: 'S', desc: 'Team structure & async context for Sage',                                          agents: ['Sage'],               type: 'oauth',       available: false },
 ];
 
 function SettingsInner() {
   const router   = useRouter();
   const params   = useSearchParams();
-  const urlTab   = params.get('tab') as TabId | null;
+  const urlTab   = params.get('tab');  // string | null
 
   const { loading } = useFounderData();
-  const [activeTab, setActiveTab] = useState<TabId>((urlTab === 'account' || urlTab === 'company' || urlTab === 'security' || urlTab === 'data' || urlTab === 'integrations') ? 'profile' : (urlTab ?? 'profile'));
+  const VALID_TABS: TabId[] = ['profile', 'notifications', 'team', 'integrations'];
+  const [activeTab, setActiveTab] = useState<TabId>(
+    VALID_TABS.includes(urlTab as TabId) ? (urlTab as TabId) : 'profile'
+  );
 
   // Sync from URL
   useEffect(() => {
     if (urlTab && TABS.some(t => t.id === urlTab)) {
-      setActiveTab(urlTab);
+      setActiveTab(urlTab as TabId);
     }
   }, [urlTab]);
 
@@ -94,8 +112,22 @@ function SettingsInner() {
   const [teamLoading,    setTeamLoading]    = useState(false);
   const [inviteEmail,    setInviteEmail]    = useState('');
   const [inviteRole,     setInviteRole]     = useState<'admin' | 'member' | 'viewer'>('member');
-  const [inviteSending,  setInviteSending]  = useState(false);
-  const [showInviteForm, setShowInviteForm] = useState(false);
+  const [_inviteSending,  setInviteSending]  = useState(false);
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
+
+  // Integrations
+  const [intConnected, setIntConnected]         = useState<Record<string, boolean>>({})
+  const [intLoaded,    setIntLoaded]            = useState(false)
+  const [activeConnectForm, setActiveConnectForm] = useState<string | null>(null)
+  const [keyInput,     setKeyInput]             = useState('')
+  const [projectIdInput, setProjectIdInput]     = useState('')
+  const [intSaving,    setIntSaving]            = useState(false)
+  const [intError,     setIntError]             = useState('')
+  const [stripeConnected,  setStripeConnected]  = useState(false)
+  const [stripeMrr,        setStripeMrr]        = useState<number | undefined>()
+  const [stripeKey,        setStripeKey]        = useState('')
+  const [stripeConnecting, setStripeConnecting] = useState(false)
+  const [stripeError,      setStripeError]      = useState('')
 
   // Notifications
   const [emailNotifications, setEmailNotifications] = useState(true);
@@ -134,35 +166,202 @@ function SettingsInner() {
 
   function loadTeam() {
     setTeamLoading(true);
-    fetch('/api/team/members')
-      .then(r => r.json())
-      .then(d => {
-        setTeamMembers(d.members ?? []);
-        setTeamInvites(d.invites ?? []);
-        setMyTeamRole(d.myRole ?? null);
-      })
-      .catch(() => {})
-      .finally(() => setTeamLoading(false));
+    (async () => {
+      try {
+        const sb = (await import('@/lib/supabase/client')).createClient();
+        const { data: { user } } = await sb.auth.getUser();
+        if (!user) return;
+
+        // Get founder profile to find startup_id
+        const { data: profile, error: profileError } = await sb
+          .from('founder_profiles')
+          .select('startup_id')
+          .eq('user_id', user.id)
+          .single();
+
+        if (profileError || !profile?.startup_id) {
+          console.log('No startup found for user');
+          setTeamMembers([]);
+          setTeamInvites([]);
+          setMyTeamRole('owner');
+          setTeamLoading(false);
+          return;
+        }
+
+        const startupId = profile.startup_id;
+
+        // Get members via direct query (avoid RLS issues)
+        const { data: members, error: membersError } = await sb
+          .from('founder_profiles')
+          .select('user_id, full_name')
+          .eq('startup_id', startupId);
+
+        if (membersError) {
+          console.warn('Failed to fetch members:', membersError);
+        }
+
+        // Get pending invites
+        const { data: invites, error: invitesError } = await sb
+          .from('team_invites')
+          .select('id, email, role, created_at')
+          .eq('startup_id', startupId)
+          .is('accepted_at', null);
+
+        if (invitesError) {
+          console.warn('Failed to fetch invites:', invitesError);
+        }
+
+        // Transform members to match expected shape
+        const transformedMembers = (members || []).map(m => ({
+          id: m.user_id,
+          role: m.user_id === user.id ? 'owner' : 'member',
+          joined_at: new Date().toISOString(),
+          founder_profiles: { full_name: m.full_name, user_id: m.user_id },
+        }));
+
+        setTeamMembers(transformedMembers);
+        setTeamInvites(invites ?? []);
+        setMyTeamRole('owner');
+        setTeamLoading(false);
+      } catch (err) {
+        console.error('Failed to load team:', err);
+        setTeamLoading(false);
+      }
+    })();
   }
 
   useEffect(() => { if (activeTab === 'team') loadTeam(); }, [activeTab]);
+  useEffect(() => { if (activeTab === 'integrations') loadIntegrations(); }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function loadIntegrations() {
+    if (intLoaded) return
+    setIntLoaded(true)
+    try {
+      const [stripeRes, sbModule] = await Promise.all([
+        fetch('/api/stripe/connect').catch(() => null),
+        import('@/lib/supabase/client'),
+      ])
+      if (stripeRes?.ok) {
+        const d = await stripeRes.json()
+        if (d.profile?.stripe_verified) {
+          setStripeConnected(true)
+          setStripeMrr(d.profile.stripe_mrr)
+        }
+      }
+      const sb = sbModule.createClient()
+      const { data: { user } } = await sb.auth.getUser()
+      if (!user) return
+      const { data: profile } = await sb
+        .from('founder_profiles')
+        .select('posthog_api_key, calendly_api_key, fireflies_api_key')
+        .eq('user_id', user.id)
+        .single()
+      if (profile) {
+        setIntConnected({
+          posthog:   !!profile.posthog_api_key,
+          calendly:  !!profile.calendly_api_key,
+          fireflies: !!profile.fireflies_api_key,
+        })
+      }
+    } catch {}
+  }
+
+  async function handleConnectIntegration(id: string) {
+    setIntSaving(true)
+    setIntError('')
+    try {
+      const sb = (await import('@/lib/supabase/client')).createClient()
+      const { data: { session } } = await sb.auth.getSession()
+      if (!session) { setIntError('Not authenticated'); return }
+      const res = await fetch('/api/integrations/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ integration: id, key: keyInput.trim(), projectId: projectIdInput.trim() || undefined }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setIntError(data.error ?? 'Failed'); return }
+      setIntConnected(prev => ({ ...prev, [id]: true }))
+      setActiveConnectForm(null)
+      setKeyInput('')
+      setProjectIdInput('')
+      showToast(`${id[0].toUpperCase()}${id.slice(1)} connected`)
+    } catch { setIntError('Network error') }
+    finally { setIntSaving(false) }
+  }
+
+  async function handleDisconnectIntegration(id: string) {
+    if (!confirm('Remove this integration?')) return
+    try {
+      const sb = (await import('@/lib/supabase/client')).createClient()
+      const { data: { session } } = await sb.auth.getSession()
+      if (!session) return
+      await fetch(`/api/integrations/connect?integration=${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${session.access_token}` },
+      })
+      setIntConnected(prev => ({ ...prev, [id]: false }))
+      showToast(`${id[0].toUpperCase()}${id.slice(1)} disconnected`)
+    } catch {}
+  }
+
+  async function handleStripeConnect() {
+    if (!stripeKey.startsWith('rk_')) { setStripeError('Key must start with rk_'); return }
+    setStripeConnecting(true)
+    setStripeError('')
+    try {
+      const res = await fetch('/api/stripe/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ restrictedKey: stripeKey }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setStripeError(data.error ?? 'Connection failed'); return }
+      setStripeConnected(true)
+      setStripeMrr(data.verified?.mrr)
+      setActiveConnectForm(null)
+      setStripeKey('')
+      showToast('Stripe connected — revenue verified')
+    } catch { setStripeError('Network error — try again') }
+    finally { setStripeConnecting(false) }
+  }
 
   async function handleSendInvite() {
     if (!inviteEmail.trim()) return;
     setInviteSending(true);
     try {
-      const res = await fetch('/api/team/invite', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ email: inviteEmail.trim(), role: inviteRole }),
-      });
-      const data = await res.json();
-      if (!res.ok) { showToast(data.error ?? 'Failed to send invite', 'error'); return; }
+      const sb = (await import('@/lib/supabase/client')).createClient();
+      const { data: { user } } = await sb.auth.getUser();
+      if (!user) { showToast('Not authenticated', 'error'); return; }
+
+      // Get founder profile to find startup_id
+      const { data: profile } = await sb
+        .from('founder_profiles')
+        .select('startup_id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!profile?.startup_id) { showToast('No workspace found', 'error'); return; }
+
+      // Create invite
+      const { data: _invite, error } = await sb
+        .from('team_invites')
+        .insert({
+          startup_id: profile.startup_id,
+          email: inviteEmail.trim().toLowerCase(),
+          role: inviteRole,
+          token: Math.random().toString(36).slice(2),
+          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        })
+        .select()
+        .single();
+
+      if (error) { showToast(error.message ?? 'Failed to send invite', 'error'); return; }
+
       showToast(`Invite sent to ${inviteEmail.trim()}`);
       setInviteEmail('');
-      setShowInviteForm(false);
+      setInviteModalOpen(false);
       loadTeam();
-    } catch { showToast('Failed to send invite', 'error'); }
+    } catch (_err) { showToast('Failed to send invite', 'error'); }
     finally { setInviteSending(false); }
   }
 
@@ -368,6 +567,42 @@ function SettingsInner() {
           {/* Account */}
           {activeTab === 'profile' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              {/* Profile Completion Summary */}
+              <div style={{
+                background: 'linear-gradient(135deg, rgba(59,130,246,0.1) 0%, rgba(99,102,241,0.05) 100%)',
+                border: `1px solid rgba(59,130,246,0.2)`,
+                borderRadius: 14,
+                padding: '20px 24px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 20,
+              }}>
+                <div>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 8px' }}>Profile Completeness</p>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: ink, margin: '0 0 6px' }}>
+                    {Math.round(((fullName ? 1 : 0) + (startupName ? 1 : 0) + (companyLogoUrl ? 1 : 0) + (avatarUrl ? 1 : 0)) / 4 * 100)}% Complete
+                  </p>
+                  <p style={{ fontSize: 11, color: muted, margin: 0 }}>
+                    Add photo, logo, and company info to complete your profile
+                  </p>
+                </div>
+                <div style={{
+                  width: 80,
+                  height: 80,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'rgba(255,255,255,0.5)',
+                  borderRadius: '50%',
+                  fontSize: 24,
+                  fontWeight: 700,
+                  color: '#3B82F6',
+                }}>
+                  {Math.round(((fullName ? 1 : 0) + (startupName ? 1 : 0) + (companyLogoUrl ? 1 : 0) + (avatarUrl ? 1 : 0)) / 4 * 100)}%
+                </div>
+              </div>
+
               <SettingsCard title="Profile Photo & Logo" description="Upload your profile photo and company logo">
                 <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
                   {/* Profile photo */}
@@ -483,7 +718,7 @@ function SettingsInner() {
           )}
 
           {/* Company (merged into Profile tab above — this block now hidden) */}
-          {activeTab === 'company-removed' && (
+          {(activeTab as string) === 'company-removed' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               <SettingsCard title="Company Details" description="Manage your startup information">
                 <FieldRow label="Company Name">
@@ -665,66 +900,136 @@ function SettingsInner() {
             </div>
           )}
 
-          {/* Integrations — removed (MCP integration planned for later) */}
-          {activeTab === 'integrations-removed' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div style={{ marginBottom: 8 }}>
-                <p style={{ fontSize: 13, color: muted }}>
-                  Connect external tools to enrich your Q-Score and investor profile with verified data.
-                </p>
-              </div>
-              {CONNECTORS.map(c => (
-                <div
-                  key={c.id}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 14,
-                    padding: '16px 20px',
-                    background: surf, border: `1px solid ${bdr}`, borderRadius: 14,
-                  }}
-                >
-                  <div style={{
-                    width: 38, height: 38, borderRadius: 10, flexShrink: 0,
-                    background: bg, border: `1px solid ${bdr}`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    <Plug style={{ width: 16, height: 16, color: muted }} />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>{c.name}</p>
-                    <p style={{ fontSize: 11, color: muted }}>{c.desc}</p>
-                  </div>
-                  {!c.available ? (
-                    <span style={{
-                      fontSize: 10, fontWeight: 600, padding: '3px 10px', borderRadius: 999,
-                      background: surf, color: muted, border: `1px solid ${bdr}`,
-                    }}>
-                      Coming soon
-                    </span>
-                  ) : c.link ? (
-                    <a
-                      href={c.link}
-                      style={{
-                        fontSize: 12, fontWeight: 600, padding: '7px 16px', borderRadius: 999,
-                        background: ink, color: bg, textDecoration: 'none',
-                        display: 'inline-flex', alignItems: 'center', gap: 5,
-                      }}
-                    >
-                      <CheckCircle style={{ width: 12, height: 12 }} />
-                      Connect
-                    </a>
-                  ) : (
-                    <span style={{ fontSize: 12, color: muted }}>—</span>
-                  )}
-                </div>
-              ))}
-              <p style={{ fontSize: 12, color: muted, marginTop: 4 }}>
-                More integrations launching soon — Stripe live metrics, LinkedIn signals, and Google Sheets models.
+          {/* Integrations */}
+          {activeTab === 'integrations' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+              <p style={{ fontSize: 13, color: muted, lineHeight: 1.6 }}>
+                Connect tools to give your AI advisors live data. <strong style={{ color: ink }}>Requires setup</strong> cards use your own API key — <strong style={{ color: ink }}>Platform</strong> cards are managed by Edge Alpha and always on.
               </p>
+
+              {/* Requires your own key */}
+              <div>
+                <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: 'uppercase', letterSpacing: '0.15em', marginBottom: 10 }}>
+                  Requires setup — your API key
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {/* Stripe */}
+                  <IntCard
+                    id="stripe" name="Stripe" color="#635BFF" letter="S"
+                    desc="Live MRR, ARR & subscription metrics — boosts Signal Strength for investors"
+                    agents={['Felix']}
+                    connected={stripeConnected}
+                    badge={stripeConnected && stripeMrr !== undefined ? `$${stripeMrr.toLocaleString()} MRR` : undefined}
+                    isOpen={activeConnectForm === 'stripe'}
+                    onConnect={() => { setActiveConnectForm('stripe'); setStripeError(''); }}
+                    onClose={() => { setActiveConnectForm(null); setStripeKey(''); setStripeError(''); }}
+                    formContent={
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        {[
+                          { step: 1, text: <>In Stripe Dashboard → <strong>Developers</strong> → <strong>Restricted keys</strong> → Create new key</> },
+                          { step: 2, text: <>Enable <strong>Read</strong> on Revenue, Subscriptions, Customers</> },
+                          { step: 3, text: <>Paste the key below — starts with <code style={{ fontSize: 11, background: bg, padding: '1px 5px', borderRadius: 4 }}>rk_live_</code></> },
+                        ].map(({ step, text }) => (
+                          <div key={step} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                            <div style={{ height: 20, width: 20, borderRadius: '50%', background: '#635BFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#fff', flexShrink: 0, marginTop: 2 }}>{step}</div>
+                            <p style={{ fontSize: 12, color: ink, lineHeight: 1.6, margin: 0 }}>{text}</p>
+                          </div>
+                        ))}
+                        <input value={stripeKey} onChange={e => setStripeKey(e.target.value)} placeholder="rk_live_…"
+                          style={{ width: '100%', padding: '9px 12px', background: bg, border: `1px solid ${stripeError ? red : bdr}`, borderRadius: 8, fontSize: 13, color: ink, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                        {stripeError && <p style={{ fontSize: 11, color: red, margin: 0 }}>{stripeError}</p>}
+                        <button onClick={handleStripeConnect} disabled={stripeConnecting}
+                          style={{ padding: '9px 18px', background: '#635BFF', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: stripeConnecting ? 'not-allowed' : 'pointer', opacity: stripeConnecting ? 0.7 : 1, fontFamily: 'inherit' }}>
+                          {stripeConnecting ? 'Verifying…' : 'Verify & Connect'}
+                        </button>
+                      </div>
+                    }
+                  />
+
+                  {/* PostHog */}
+                  <IntCard
+                    id="posthog" name="PostHog" color="#F54E00" letter="P"
+                    desc="Retention curves, funnels & PMF signals from your live product analytics"
+                    agents={['Nova', 'Carter']}
+                    connected={!!intConnected.posthog}
+                    isOpen={activeConnectForm === 'posthog'}
+                    onConnect={() => { setActiveConnectForm('posthog'); setKeyInput(''); setProjectIdInput(''); setIntError(''); }}
+                    onClose={() => { setActiveConnectForm(null); setKeyInput(''); setProjectIdInput(''); setIntError(''); }}
+                    onDisconnect={() => handleDisconnectIntegration('posthog')}
+                    formContent={
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <input value={keyInput} onChange={e => setKeyInput(e.target.value)} placeholder="PostHog personal API key (phx_…)"
+                          style={{ width: '100%', padding: '9px 12px', background: bg, border: `1px solid ${intError ? red : bdr}`, borderRadius: 8, fontSize: 13, color: ink, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                        <input value={projectIdInput} onChange={e => setProjectIdInput(e.target.value)} placeholder="Project ID (found in Project Settings)"
+                          style={{ width: '100%', padding: '9px 12px', background: bg, border: `1px solid ${bdr}`, borderRadius: 8, fontSize: 13, color: ink, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                        {intError && <p style={{ fontSize: 11, color: red, margin: 0 }}>{intError}</p>}
+                        <button onClick={() => handleConnectIntegration('posthog')} disabled={intSaving}
+                          style={{ padding: '9px 18px', background: '#F54E00', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: intSaving ? 'not-allowed' : 'pointer', opacity: intSaving ? 0.7 : 1, fontFamily: 'inherit' }}>
+                          {intSaving ? 'Saving…' : 'Connect PostHog'}
+                        </button>
+                      </div>
+                    }
+                  />
+
+                  {/* Calendly */}
+                  <IntCard
+                    id="calendly" name="Calendly" color="#006BFF" letter="C"
+                    desc="Real booking links for demos, discovery calls & interviews"
+                    agents={['Susi', 'Harper']}
+                    connected={!!intConnected.calendly}
+                    isOpen={activeConnectForm === 'calendly'}
+                    onConnect={() => { setActiveConnectForm('calendly'); setKeyInput(''); setIntError(''); }}
+                    onClose={() => { setActiveConnectForm(null); setKeyInput(''); setIntError(''); }}
+                    onDisconnect={() => handleDisconnectIntegration('calendly')}
+                    formContent={
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <input value={keyInput} onChange={e => setKeyInput(e.target.value)} placeholder="Calendly personal access token"
+                          style={{ width: '100%', padding: '9px 12px', background: bg, border: `1px solid ${intError ? red : bdr}`, borderRadius: 8, fontSize: 13, color: ink, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                        {intError && <p style={{ fontSize: 11, color: red, margin: 0 }}>{intError}</p>}
+                        <button onClick={() => handleConnectIntegration('calendly')} disabled={intSaving}
+                          style={{ padding: '9px 18px', background: '#006BFF', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: intSaving ? 'not-allowed' : 'pointer', opacity: intSaving ? 0.7 : 1, fontFamily: 'inherit' }}>
+                          {intSaving ? 'Saving…' : 'Connect Calendly'}
+                        </button>
+                      </div>
+                    }
+                  />
+                </div>
+              </div>
+
+              {/* Platform-provided */}
+              <div>
+                <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: 'uppercase', letterSpacing: '0.15em', marginBottom: 10 }}>
+                  Platform — always enabled
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {CONNECTORS.filter(c => c.type === 'platform').map(c => (
+                    <IntCard key={c.id} {...c} connected={true} isOpen={false} />
+                  ))}
+                </div>
+              </div>
+
+              {/* Coming soon */}
+              <div>
+                <p style={{ fontSize: 10, fontWeight: 700, color: muted, textTransform: 'uppercase', letterSpacing: '0.15em', marginBottom: 10 }}>
+                  Coming soon
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {/* Fireflies — coming soon but has a key form placeholder */}
+                  <IntCard
+                    id="fireflies" name="Fireflies.ai" color="#FF4F68" letter="F"
+                    desc="Sales call transcripts and deal intelligence for Susi"
+                    agents={['Susi']} connected={false} isOpen={false} available={false}
+                  />
+                  {CONNECTORS.filter(c => !c.available && c.type === 'oauth').map(c => (
+                    <IntCard key={c.id} {...c} connected={false} isOpen={false} />
+                  ))}
+                </div>
+              </div>
             </div>
           )}
 
           {/* Data & Privacy — merged into Profile tab */}
-          {activeTab === 'data-removed' && (
+          {(activeTab as string) === 'data-removed' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <SettingsCard title="Data Management" description="Export or manage your data">
                 {/* Export */}
@@ -773,7 +1078,7 @@ function SettingsInner() {
           )}
 
           {/* Security — merged into Profile tab */}
-          {activeTab === 'security-removed' && (
+          {(activeTab as string) === 'security-removed' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <SettingsCard title="Password" description="Update your account password">
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -846,7 +1151,7 @@ function SettingsInner() {
                 </div>
                 {(myTeamRole === 'owner' || myTeamRole === 'admin') && (
                   <button
-                    onClick={() => setShowInviteForm(v => !v)}
+                    onClick={() => setInviteModalOpen(true)}
                     style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 16px', borderRadius: 9, background: blue, border: 'none', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
                   >
                     <Mail style={{ width: 13, height: 13 }} /> Invite member
@@ -854,50 +1159,6 @@ function SettingsInner() {
                 )}
               </div>
 
-              {/* Invite form */}
-              {showInviteForm && (
-                <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 14, padding: '20px 22px' }}>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: ink, marginBottom: 14 }}>Send invite</p>
-                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                    <input
-                      type="email"
-                      placeholder="colleague@startup.com"
-                      value={inviteEmail}
-                      onChange={e => setInviteEmail(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && handleSendInvite()}
-                      style={{ flex: 1, minWidth: 200, padding: '9px 12px', borderRadius: 8, border: `1.5px solid ${bdr}`, fontSize: 13, color: ink, background: '#fff', fontFamily: 'inherit', outline: 'none' }}
-                    />
-                    <div style={{ position: 'relative' }}>
-                      <select
-                        value={inviteRole}
-                        onChange={e => setInviteRole(e.target.value as 'admin' | 'member' | 'viewer')}
-                        style={{ padding: '9px 32px 9px 12px', borderRadius: 8, border: `1.5px solid ${bdr}`, fontSize: 13, color: ink, background: '#fff', fontFamily: 'inherit', cursor: 'pointer', appearance: 'none', outline: 'none' }}
-                      >
-                        <option value="admin">Co-founder (Admin)</option>
-                        <option value="member">Team Member</option>
-                        <option value="viewer">Viewer (read-only)</option>
-                      </select>
-                      <ChevronDown style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: muted, pointerEvents: 'none' }} />
-                    </div>
-                    <button
-                      onClick={handleSendInvite}
-                      disabled={inviteSending || !inviteEmail.trim()}
-                      style={{ padding: '9px 18px', borderRadius: 8, background: inviteSending ? muted : blue, border: 'none', color: '#fff', fontSize: 13, fontWeight: 600, cursor: inviteSending ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
-                    >
-                      {inviteSending ? <Loader2 style={{ width: 13, height: 13 }} className="animate-spin" /> : null}
-                      Send invite
-                    </button>
-                    <button onClick={() => setShowInviteForm(false)} style={{ padding: '9px 12px', borderRadius: 8, background: 'transparent', border: `1px solid ${bdr}`, color: muted, cursor: 'pointer' }}>
-                      <X style={{ width: 13, height: 13 }} />
-                    </button>
-                  </div>
-                  <p style={{ fontSize: 11, color: muted, marginTop: 10 }}>
-                    <strong>Admin:</strong> Full access, can invite others.&ensp;
-                    <strong>Member:</strong> Operational agents only.&ensp;
-                    <strong>Viewer:</strong> Read-only (Q-Score + artifacts).
-                  </p>
-                </div>
-              )}
 
               {/* Members list */}
               <div style={{ background: '#fff', border: `1px solid ${bdr}`, borderRadius: 16, overflow: 'hidden' }}>
@@ -997,6 +1258,17 @@ function SettingsInner() {
 
         </motion.div>
       </div>
+
+      {/* Invite Modal */}
+      <InviteModal
+        isOpen={inviteModalOpen}
+        onClose={() => setInviteModalOpen(false)}
+        onSendInvite={async (email, role) => {
+          setInviteEmail(email)
+          setInviteRole(role)
+          await handleSendInvite()
+        }}
+      />
     </div>
   );
 }
@@ -1014,6 +1286,75 @@ export default function SettingsPage() {
 }
 
 // ─── sub-components ───────────────────────────────────────────────────────────
+
+function IntCard({
+  id: _id, name, color, letter, desc, agents,
+  type = 'founder_key', available = true,
+  connected, badge, isOpen,
+  onConnect, onClose, onDisconnect, formContent,
+}: {
+  id: string; name: string; color: string; letter: string;
+  desc: string; agents: string[];
+  type?: 'founder_key' | 'platform' | 'oauth'; available?: boolean;
+  connected?: boolean; badge?: string; isOpen?: boolean;
+  onConnect?: () => void; onClose?: () => void; onDisconnect?: () => void;
+  formContent?: React.ReactNode;
+}) {
+  return (
+    <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px' }}>
+        {/* Icon */}
+        <div style={{ width: 36, height: 36, borderRadius: 9, background: `${color}1A`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 13, fontWeight: 700, color, fontFamily: 'system-ui' }}>
+          {letter}
+        </div>
+        {/* Name + agents + desc */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3, flexWrap: 'wrap' }}>
+            <p style={{ fontSize: 13, fontWeight: 600, color: ink, margin: 0 }}>{name}</p>
+            {agents.map(a => (
+              <span key={a} style={{ fontSize: 10, fontWeight: 600, padding: '1px 7px', borderRadius: 999, background: `${blue}18`, color: blue }}>{a}</span>
+            ))}
+          </div>
+          <p style={{ fontSize: 11, color: muted, lineHeight: 1.4, margin: 0 }}>{desc}</p>
+        </div>
+        {/* Status + action */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0 }}>
+          {!available ? (
+            <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 10px', borderRadius: 999, background: surf, color: muted, border: `1px solid ${bdr}` }}>Coming soon</span>
+          ) : type === 'platform' ? (
+            <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 10px', borderRadius: 999, background: `${blue}12`, color: blue }}>Platform enabled</span>
+          ) : connected ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 10, fontWeight: 600, padding: '3px 10px', borderRadius: 999, background: '#ECFDF5', color: '#059669' }}>
+                <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#059669', flexShrink: 0 }} />
+                {badge ?? 'Connected'}
+              </span>
+              {onDisconnect && (
+                <button onClick={onDisconnect} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 7, background: 'transparent', border: `1px solid ${bdr}`, color: muted, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  Disconnect
+                </button>
+              )}
+            </div>
+          ) : (
+            <button onClick={onConnect} style={{ fontSize: 12, fontWeight: 600, padding: '7px 14px', borderRadius: 8, background: ink, color: bg, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+              Connect
+            </button>
+          )}
+        </div>
+      </div>
+      {/* Inline key form */}
+      {isOpen && formContent && (
+        <div style={{ padding: '16px 18px', borderTop: `1px solid ${bdr}`, background: bg }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <p style={{ fontSize: 12, fontWeight: 600, color: ink, margin: 0 }}>Connect {name}</p>
+            <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: muted, fontSize: 20, lineHeight: 1, padding: '0 2px' }}>×</button>
+          </div>
+          {formContent}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function SettingsCard({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
   return (

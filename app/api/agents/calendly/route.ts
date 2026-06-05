@@ -20,7 +20,9 @@ import { createClient } from '@supabase/supabase-js';
 
 const CALENDLY_API_BASE = 'https://api.calendly.com';
 
-async function getUserId(req: NextRequest): Promise<string | null> {
+async function resolveCalendlyCreds(req: NextRequest): Promise<{
+  userId: string; apiKey: string; userUri: string;
+} | null> {
   const token = req.headers.get('authorization')?.replace('Bearer ', '');
   if (!token) return null;
   const supabase = createClient(
@@ -28,7 +30,35 @@ async function getUserId(req: NextRequest): Promise<string | null> {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   );
   const { data } = await supabase.auth.getUser(token);
-  return data.user?.id ?? null;
+  const userId = data.user?.id;
+  if (!userId) return null;
+
+  // Prefer per-founder key; fall back to platform env key
+  const { data: profile } = await supabase
+    .from('founder_profiles')
+    .select('calendly_api_key')
+    .eq('user_id', userId)
+    .single();
+
+  const apiKey = profile?.calendly_api_key || process.env.CALENDLY_API_KEY || '';
+  if (!apiKey) return null;
+
+  // If using the founder's own key, fetch their user URI dynamically
+  let userUri = process.env.CALENDLY_USER_URI || '';
+  if (profile?.calendly_api_key) {
+    try {
+      const meRes = await fetch(`${CALENDLY_API_BASE}/users/me`, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        signal: AbortSignal.timeout(5_000),
+      });
+      if (meRes.ok) {
+        const me = await meRes.json();
+        userUri = me.resource?.uri ?? userUri;
+      }
+    } catch {}
+  }
+  if (!userUri) return null;
+  return { userId, apiKey, userUri };
 }
 
 // Friendly names for each meeting type
@@ -42,19 +72,14 @@ const MEETING_TYPE_LABELS: Record<string, string> = {
 };
 
 export async function POST(req: NextRequest) {
-  const apiKey    = process.env.CALENDLY_API_KEY;
-  const userUri   = process.env.CALENDLY_USER_URI;
-
-  if (!apiKey || !userUri) {
-    // Graceful fallback — return a generic scheduling note
+  const creds = await resolveCalendlyCreds(req);
+  if (!creds) {
     return NextResponse.json(
-      { error: 'Calendly not configured. Add CALENDLY_API_KEY and CALENDLY_USER_URI to your environment.' },
+      { error: 'Calendly not configured. Connect Calendly in Settings → Integrations or add CALENDLY_API_KEY and CALENDLY_USER_URI to your environment.' },
       { status: 503 },
     );
   }
-
-  const userId = await getUserId(req);
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const { userId: _userId, apiKey, userUri } = creds;
 
   let body: {
     meeting_type?: string;

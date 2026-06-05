@@ -1,8 +1,6 @@
--- Add image URL columns to profile tables
-ALTER TABLE founder_profiles
-  ADD COLUMN IF NOT EXISTS avatar_url TEXT,
-  ADD COLUMN IF NOT EXISTS company_logo_url TEXT;
+-- founder_profiles image URL columns defined in 20260700000001_founder_profiles_squashed.sql
 
+-- Add image URL columns to investor_profiles
 ALTER TABLE investor_profiles
   ADD COLUMN IF NOT EXISTS avatar_url TEXT,
   ADD COLUMN IF NOT EXISTS firm_logo_url TEXT;

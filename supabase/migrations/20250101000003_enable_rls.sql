@@ -3,27 +3,13 @@
 -- ============================================================
 
 -- Enable RLS on all tables
-ALTER TABLE founder_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE qscore_assessments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE qscore_history ENABLE ROW LEVEL SECURITY;
+-- qscore_history RLS defined in 20260200000001_qscore_history_squashed.sql
 ALTER TABLE agent_conversations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE agent_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE subscription_usage ENABLE ROW LEVEL SECURITY;
 ALTER TABLE connection_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE analytics_events ENABLE ROW LEVEL SECURITY;
-
--- ---- founder_profiles ----
-CREATE POLICY "Users can view own profile"
-  ON founder_profiles FOR SELECT
-  USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can insert own profile"
-  ON founder_profiles FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update own profile"
-  ON founder_profiles FOR UPDATE
-  USING (auth.uid() = user_id);
 
 -- ---- qscore_assessments ----
 CREATE POLICY "Users can view own assessments"
@@ -38,14 +24,7 @@ CREATE POLICY "Users can update own assessments"
   ON qscore_assessments FOR UPDATE
   USING (auth.uid() = user_id);
 
--- ---- qscore_history ----
-CREATE POLICY "Users can view own qscore history"
-  ON qscore_history FOR SELECT
-  USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can insert own qscore history"
-  ON qscore_history FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+-- qscore_history policies defined in 20260200000001_qscore_history_squashed.sql
 
 -- ---- agent_conversations ----
 CREATE POLICY "Users can view own conversations"

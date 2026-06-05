@@ -9,63 +9,8 @@
 -- SOURCE: 20260212000001_qscore_previous_score.sql
 -- ============================================================
 
--- ============================================================
--- Migration 004: Add previous_score_id chain to qscore_history
---
--- Purpose: Links each Q-Score row to the one before it via a
--- self-referencing FK. This makes week-over-week delta lookups
--- O(1) (single JOIN) instead of relying on ORDER BY + LIMIT 2,
--- which can return wrong results when two scores land at the
--- same millisecond (e.g. during testing).
--- ============================================================
-
-ALTER TABLE qscore_history
-  ADD COLUMN IF NOT EXISTS previous_score_id UUID
-    REFERENCES qscore_history(id) ON DELETE SET NULL;
-
--- Index for fast delta lookups
-CREATE INDEX IF NOT EXISTS idx_qscore_history_previous
-  ON qscore_history(previous_score_id);
-
--- ============================================================
--- View: qscore_with_delta
--- Joins current row to previous row so the API can read both
--- in a single query without application-level N+1s.
--- ============================================================
-
--- NOTE: qscore_with_delta is recreated by migration 20260506000001_retire_legacy_dimensions.sql
--- with P1-P6 columns. This original definition is kept for historical reference only.
--- The active view definition lives in 20260506000001_retire_legacy_dimensions.sql.
-CREATE OR REPLACE VIEW qscore_with_delta AS
-SELECT
-  cur.id,
-  cur.user_id,
-  cur.assessment_id,
-  cur.previous_score_id,
-  cur.overall_score,
-  cur.percentile,
-  cur.grade,
-  cur.p1_score,
-  cur.p2_score,
-  cur.p3_score,
-  cur.p4_score,
-  cur.p5_score,
-  cur.p6_score,
-  cur.calculated_at,
-
-  -- Overall change
-  cur.overall_score - COALESCE(prev.overall_score, cur.overall_score) AS overall_change,
-
-  -- Parameter changes (P1-P6)
-  cur.p1_score - COALESCE(prev.p1_score, cur.p1_score) AS p1_change,
-  cur.p2_score - COALESCE(prev.p2_score, cur.p2_score) AS p2_change,
-  cur.p3_score - COALESCE(prev.p3_score, cur.p3_score) AS p3_change,
-  cur.p4_score - COALESCE(prev.p4_score, cur.p4_score) AS p4_change,
-  cur.p5_score - COALESCE(prev.p5_score, cur.p5_score) AS p5_change,
-  cur.p6_score - COALESCE(prev.p6_score, cur.p6_score) AS p6_change
-
-FROM qscore_history cur
-LEFT JOIN qscore_history prev ON cur.previous_score_id = prev.id;
+-- qscore_history previous_score_id, index, and qscore_with_delta view
+-- defined in 20260200000001_qscore_history_squashed.sql
 
 -- ============================================================
 -- SOURCE: 20260212000002_onboarding_profiles.sql
@@ -91,38 +36,9 @@ LEFT JOIN qscore_history prev ON cur.previous_score_id = prev.id;
 -- ============================================================
 
 
--- ============================================================
--- PART 1: Extend founder_profiles with fields missing from
---         the original schema (non-destructive ALTER only)
--- ============================================================
-
--- Collected at Screen 1 (Quick Questions)
-ALTER TABLE founder_profiles
-  ADD COLUMN IF NOT EXISTS funding TEXT
-    CHECK (funding IN ('pre-seed', 'seed', 'series-a', 'bootstrapped')),
-  ADD COLUMN IF NOT EXISTS time_commitment TEXT
-    CHECK (time_commitment IN ('15-mins', 'save-later'));
-
--- Role flag — differentiates founder vs investor accounts
-ALTER TABLE founder_profiles
-  ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'founder'
-    CHECK (role IN ('founder', 'investor'));
-
--- Richer profile fields — populated from assessment or profile-edit page
-ALTER TABLE founder_profiles
-  ADD COLUMN IF NOT EXISTS tagline     TEXT,   -- one-liner elevator pitch
-  ADD COLUMN IF NOT EXISTS bio         TEXT,   -- founder bio / backstory
-  ADD COLUMN IF NOT EXISTS website     TEXT,   -- startup website URL
-  ADD COLUMN IF NOT EXISTS linkedin_url TEXT,  -- founder LinkedIn URL
-  ADD COLUMN IF NOT EXISTS location    TEXT;   -- city, country
-
--- Indexes for role/stage queries (investor deal flow, matching filters)
-CREATE INDEX IF NOT EXISTS idx_founder_profiles_role  ON founder_profiles(role);
-CREATE INDEX IF NOT EXISTS idx_founder_profiles_stage ON founder_profiles(stage);
-CREATE INDEX IF NOT EXISTS idx_founder_profiles_assessment_completed
-  ON founder_profiles(assessment_completed)
-  WHERE assessment_completed = true;
-
+-- founder_profiles columns (funding, time_commitment, role, tagline, bio, website,
+-- linkedin_url, location) and their indexes are defined in
+-- 20260700000001_founder_profiles_squashed.sql
 
 -- ============================================================
 -- PART 2: investor_profiles  (new table)
