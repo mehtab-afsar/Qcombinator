@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EDGE ALPHA — Merch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:ital,wght@0,400;0,500;0,700;0,800;0,900;1,900&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg:       #FAFAF8;
+  --text:     #0E1116;
+  --dim:      rgba(14,17,22,0.4);
+  --dimmer:   rgba(14,17,22,0.18);
+  --line:     rgba(14,17,22,0.08);
+  --green:    #47FF95;
+  --green-bg: #DDFBEA;
+  --blue:     #1A6CFF;
+  --blue-bg:  #EAF2FF;
+  --cream:    #F7F4EF;
+  --card:     #FFFFFF;
+  --sans:     'Inter Tight', Helvetica, Arial, sans-serif;
+  --mono:     'IBM Plex Mono', 'Courier New', monospace;
+}
+
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+a { color: inherit; text-decoration: none; }
+
+/* ─── NAV ─── */
+nav {
+  position: sticky; top: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 40px; height: 52px;
+  background: rgba(250,250,248,0.94);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--line);
+}
+.nav-logo {
+  font-family: var(--mono); font-size: 11px;
+  letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--text); display: flex; align-items: center; gap: 10px;
+}
+.nav-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--green); border: 1px solid rgba(14,17,22,0.1);
+  animation: blink 2.4s ease-in-out infinite;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+.nav-right {
+  font-family: var(--mono); font-size: 10px;
+  letter-spacing: 0.12em; color: var(--dim);
+  display: flex; gap: 32px; align-items: center;
+}
+.nav-right a { transition: color 0.15s; }
+.nav-right a:hover { color: var(--text); }
+.nav-cta {
+  font-family: var(--mono); font-size: 10px;
+  letter-spacing: 0.15em; text-transform: uppercase;
+  background: var(--text); color: var(--bg);
+  border: none; padding: 9px 18px; cursor: pointer;
+  transition: opacity 0.15s;
+}
+.nav-cta:hover { opacity: 0.75; }
+
+/* ─── HERO ─── */
+.hero {
+  padding: 80px 40px 72px;
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 40px; align-items: end;
+}
+.hero-eyebrow {
+  font-family: var(--mono); font-size: 10px;
+  letter-spacing: 0.25em; text-transform: uppercase;
+  color: var(--dimmer); margin-bottom: 20px;
+}
+.hero-h1 {
+  font-size: clamp(72px, 11vw, 148px);
+  font-weight: 900; line-height: 0.86;
+  letter-spacing: -0.06em; text-transform: uppercase;
+  color: var(--text); margin-bottom: 28px;
+}
+.hero-tagline {
+  font-size: 16px; color: var(--dim); line-height: 1.65;
+}
+.hero-tagline strong { color: var(--text); font-weight: 500; }
+.hero-right {
+  padding-left: 40px; border-left: 1px solid var(--line);
+  align-self: end; padding-bottom: 4px;
+}
+.hero-qscore-label {
+  font-family: var(--mono); font-size: 9px;
+  letter-spacing: 0.25em; text-transform: uppercase;
+  color: var(--dimmer); margin-bottom: 12px;
+}
+.hero-qscore-val {
+  font-family: var(--mono); font-size: 11px;
+  letter-spacing: 0.1em; color: var(--dim); line-height: 2.1;
+}
+.hero-qscore-val b { color: var(--text); font-weight: 500; }
+.hero-qscore-val .acc { color: var(--blue); }
+
+/* ─── BESTSELLERS — FLIP CARDS ─── */
+.bestsellers {
+  display: grid; grid-template-columns: repeat(3,1fr);
+  border-bottom: 1px solid var(--line);
+}
+/* Flip wrapper */
+.bs-item {
+  border-right: 1px solid var(--line);
+  height: 260px;
+  perspective: 1000px;
+  cursor: pointer;
+}
+.bs-item:last-child { border-right: none; }
+.bs-inner {
+  position: relative; width: 100%; height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.55s cubic-bezier(0.4,0.2,0.2,1);
+}
+.bs-item:hover .bs-inner { transform: rotateY(180deg); }
+/* Front & Back shared */
+.bs-front, .bs-back {
+  position: absolute; inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  padding: 32px 36px;
+  display: flex; flex-direction: column; justify-content: space-between;
+}
+.bs-front { background: var(--card); }
+.bs-back  { background: var(--text); transform: rotateY(180deg); }
+/* Front content */
+.bs-rank { font-family: var(--mono); font-size: 9px; letter-spacing: 0.25em; text-transform: uppercase; color: var(--dimmer); margin-bottom: 0; }
+.bs-name { font-size: clamp(18px,2vw,26px); font-weight: 800; letter-spacing: -0.03em; text-transform: uppercase; color: var(--text); line-height: 1.05; }
+.bs-desc { font-size: 12px; color: var(--dim); line-height: 1.55; }
+.bs-cta  { font-family: var(--mono); font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--dimmer); display: flex; align-items: center; gap: 6px; }
+.bs-cta-arrow { display: inline-block; transition: transform 0.2s; }
+.bs-item:hover .bs-cta-arrow { transform: translateX(4px); }
+/* Colour bar at bottom of front */
+.bs-bar {
+  position: absolute; bottom: 0; left: 0;
+  height: 2px; width: 0; transition: width 0.35s;
+}
+.bs-item:nth-child(1) .bs-bar { background: var(--green); }
+.bs-item:nth-child(2) .bs-bar { background: var(--blue); }
+.bs-item:nth-child(3) .bs-bar { background: var(--text); }
+.bs-item:hover .bs-bar { width: 100%; }
+/* Back content */
+.bs-why-label {
+  font-family: var(--mono); font-size: 9px; letter-spacing: 0.3em;
+  text-transform: uppercase; color: rgba(245,245,245,0.3);
+}
+.bs-why-name {
+  font-size: clamp(16px,1.8vw,22px); font-weight: 800;
+  letter-spacing: -0.02em; text-transform: uppercase;
+  color: #F5F5F5; line-height: 1.05;
+}
+.bs-why-body {
+  font-size: 12px; color: rgba(245,245,245,0.55);
+  line-height: 1.75; flex: 1; padding: 16px 0;
+}
+.bs-why-body strong { color: rgba(245,245,245,0.85); font-weight: 500; }
+.bs-why-cta {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.15em;
+  text-transform: uppercase; color: var(--bg);
+  background: var(--green); border: none; cursor: pointer; padding: 12px 20px;
+  font-family: var(--mono); width: 100%;
+  transition: opacity 0.15s;
+}
+.bs-why-cta:hover { opacity: 0.85; }
+
+/* ─── SCORE-GATE BUTTON (replaces Acquire) ─── */
+.acquire-btn {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+  background: var(--text); color: var(--bg); border: none; padding: 9px 16px; cursor: pointer;
+  transition: background 0.15s; white-space: nowrap;
+}
+.acquire-btn:hover { background: #1A6CFF; }
+
+/* ─── SCORE MODAL ─── */
+.modal-overlay {
+  display: none; position: fixed; inset: 0; z-index: 200;
+  background: rgba(14,17,22,0.7); backdrop-filter: blur(8px);
+  align-items: center; justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--card); max-width: 480px; width: 90%;
+  border: 1px solid var(--line);
+  padding: 0; overflow: hidden;
+  animation: modal-in 0.3s ease;
+}
+@keyframes modal-in {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.modal-top {
+  background: var(--text); padding: 32px 36px 28px;
+}
+.modal-eyebrow {
+  font-family: var(--mono); font-size: 9px; letter-spacing: 0.3em;
+  text-transform: uppercase; color: rgba(245,245,245,0.3);
+  margin-bottom: 12px;
+}
+.modal-headline {
+  font-size: clamp(22px,3vw,34px); font-weight: 900;
+  letter-spacing: -0.04em; text-transform: uppercase;
+  color: #F5F5F5; line-height: 1.05; margin-bottom: 0;
+}
+.modal-headline em { color: var(--green); font-style: normal; }
+.modal-body { padding: 28px 36px 32px; }
+.modal-product {
+  font-family: var(--mono); font-size: 9px; letter-spacing: 0.2em;
+  text-transform: uppercase; color: var(--dimmer);
+  margin-bottom: 8px;
+}
+.modal-product span { color: var(--text); font-weight: 500; }
+.modal-copy {
+  font-size: 13px; color: var(--dim); line-height: 1.75;
+  margin-bottom: 24px;
+}
+.modal-copy strong { color: var(--text); font-weight: 600; }
+.modal-cta {
+  display: block; width: 100%; padding: 16px;
+  background: var(--text); color: var(--bg);
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.2em;
+  text-transform: uppercase; text-align: center; text-decoration: none;
+  border: none; cursor: pointer; margin-bottom: 10px;
+  transition: background 0.15s;
+}
+.modal-cta:hover { background: var(--blue); color: white; }
+.modal-close {
+  display: block; width: 100%; padding: 10px;
+  background: none; border: none; cursor: pointer;
+  font-family: var(--mono); font-size: 9px; letter-spacing: 0.15em;
+  text-transform: uppercase; color: var(--dimmer);
+  transition: color 0.15s;
+}
+.modal-close:hover { color: var(--text); }
+
+/* ─── FUNNEL BANNER ─── */
+.funnel-banner {
+  background: var(--text); color: #F5F5F5;
+  padding: 56px 40px; text-align: center;
+  border-top: 1px solid rgba(245,245,245,0.06);
+}
+.funnel-banner-eyebrow {
+  font-family: var(--mono); font-size: 9px; letter-spacing: 0.3em;
+  text-transform: uppercase; color: rgba(245,245,245,0.3);
+  margin-bottom: 16px;
+}
+.funnel-banner-headline {
+  font-size: clamp(28px,4vw,52px); font-weight: 900;
+  letter-spacing: -0.04em; text-transform: uppercase;
+  line-height: 1; margin-bottom: 16px;
+}
+.funnel-banner-headline em { color: var(--green); font-style: normal; }
+.funnel-banner-sub {
+  font-size: 14px; color: rgba(245,245,245,0.45);
+  line-height: 1.65; max-width: 440px; margin: 0 auto 32px;
+}
+.funnel-banner-sub strong { color: rgba(245,245,245,0.8); font-weight: 500; }
+.funnel-banner-cta {
+  display: inline-block;
+  background: var(--green); color: var(--text);
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.2em;
+  text-transform: uppercase; padding: 16px 40px;
+  border: none; cursor: pointer; text-decoration: none;
+  transition: opacity 0.15s;
+}
+.funnel-banner-cta:hover { opacity: 0.85; }
+.funnel-steps {
+  display: flex; justify-content: center; gap: 0;
+  margin-top: 48px; border-top: 1px solid rgba(245,245,245,0.06);
+  padding-top: 40px;
+}
+.funnel-step {
+  flex: 1; max-width: 200px; padding: 0 24px;
+  border-right: 1px solid rgba(245,245,245,0.06);
+  text-align: left;
+}
+.funnel-step:last-child { border-right: none; }
+.funnel-step-num {
+  font-family: var(--mono); font-size: 9px; letter-spacing: 0.2em;
+  color: rgba(245,245,245,0.2); text-transform: uppercase; margin-bottom: 8px;
+}
+.funnel-step-label {
+  font-size: 13px; font-weight: 700; letter-spacing: -0.01em;
+  color: rgba(245,245,245,0.7); margin-bottom: 4px;
+}
+.funnel-step-desc {
+  font-size: 11px; color: rgba(245,245,245,0.3); line-height: 1.5;
+}
+.funnel-step-active .funnel-step-label { color: var(--green); }
+
+/* ─── COLLECTION BLOCKS ─── */
+.coll-block { padding-bottom: 16px; }
+.coll-head {
+  padding: 56px 40px 0;
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 28px;
+}
+.coll-title { font-family: var(--mono); font-size: 10px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--dimmer); }
+.coll-count { font-family: var(--mono); font-size: 10px; letter-spacing: 0.15em; color: var(--dimmer); }
+.section-q      { background: var(--green-bg); }
+.section-os     { background: var(--blue-bg); }
+.section-signal { background: var(--cream); }
+
+/* ─── GRID ─── */
+.grid {
+  padding: 0 40px 40px;
+  display: grid;
+  grid-template-columns: repeat(3,1fr);
+  gap: 10px;
+}
+
+/* ─── CARD ─── */
+.card {
+  background: var(--card);
+  border: 1px solid rgba(14,17,22,0.07);
+  display: flex; flex-direction: column;
+  transition: transform 0.25s, box-shadow 0.25s;
+  cursor: pointer;
+}
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 48px rgba(14,17,22,0.1);
+}
+
+/* ─── PRODUCT IMAGE AREA ─── */
+.product-image {
+  background: #F2F0EB;
+  aspect-ratio: 3/4;
+  display: flex; align-items: center; justify-content: center;
+  position: relative; overflow: hidden;
+  border-bottom: 1px solid rgba(14,17,22,0.06);
+}
+.product-image svg {
+  width: 85%; height: 85%;
+  transition: transform 0.4s ease;
+  filter: drop-shadow(0 12px 32px rgba(14,17,22,0.18));
+}
+.card:hover .product-image svg { transform: scale(1.03) translateY(-4px); }
+
+/* Mug background slightly different */
+.product-image.mug-bg { background: #EDECEA; aspect-ratio: 1; }
+
+/* Card body */
+.card-body { padding: 18px 20px 22px; flex: 1; display: flex; flex-direction: column; }
+.card-num {
+  font-family: var(--mono); font-size: 9px;
+  letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--dimmer); margin-bottom: 6px;
+  display: flex; align-items: center; gap: 8px;
+}
+.card-badge {
+  font-size: 8px; letter-spacing: 0.1em; padding: 2px 7px; border-radius: 2px; font-weight: 500;
+}
+.badge-founding { background: #DDFBEA; color: #0B6830; }
+.badge-geeky    { background: #EAF2FF; color: #0D3A8F; }
+
+.card-name { font-size: clamp(15px,1.6vw,19px); font-weight: 800; letter-spacing: -0.025em; text-transform: uppercase; color: var(--text); line-height: 1.05; margin-bottom: 5px; }
+.card-line { font-size: 12px; color: var(--dim); line-height: 1.5; margin-bottom: 16px; flex: 1; }
+.card-footer { display: flex; align-items: center; justify-content: space-between; padding-top: 14px; border-top: 1px solid var(--line); }
+.card-price { font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; color: var(--dimmer); }
+.acquire-btn {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+  background: var(--text); color: var(--bg); border: none; padding: 9px 16px; cursor: pointer; transition: opacity 0.15s;
+}
+.acquire-btn:hover { opacity: 0.75; }
+
+/* ─── WIDE CARD ─── */
+.card-wide {
+  grid-column: 1 / -1;
+  display: grid; grid-template-columns: 5fr 7fr; gap: 0;
+}
+.card-wide .product-image {
+  aspect-ratio: unset; min-height: 340px;
+  border-bottom: none; border-right: 1px solid rgba(14,17,22,0.06);
+  background: #EEECEA;
+}
+.card-wide .card-body { padding: 36px 36px 36px; justify-content: space-between; }
+.card-wide .card-name { font-size: clamp(24px,3.5vw,44px); margin-bottom: 10px; }
+.card-wide .card-line { font-size: 14px; margin-bottom: 28px; }
+
+/* ─── STRIP ─── */
+.strip {
+  border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+  overflow: hidden; height: 38px;
+  display: flex; align-items: center; background: var(--bg);
+}
+.strip-track { display: flex; animation: scroll 44s linear infinite; white-space: nowrap; }
+.strip-item { font-family: var(--mono); font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--dimmer); padding: 0 36px; }
+.strip-item em { color: var(--blue); font-style: normal; margin-right: 10px; }
+@keyframes scroll { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
+
+/* ─── FOOTER ─── */
+footer {
+  border-top: 1px solid var(--line); padding: 48px 40px;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: end;
+}
+.footer-terminal { font-family: var(--mono); }
+.t-prompt { font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--dimmer); margin-bottom: 8px; }
+.t-prompt span { color: #0B6830; }
+.t-row { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--dimmer); line-height: 2.1; display: flex; gap: 16px; }
+.t-key { min-width: 96px; }
+.t-val { color: var(--text); font-weight: 500; }
+.t-val.online { color: #0B6830; }
+.t-val.detected { color: var(--blue); }
+.t-cursor { display: inline-block; width: 7px; height: 11px; background: var(--text); opacity: 0.3; vertical-align: middle; margin-left: 2px; animation: cur 1.1s step-end infinite; }
+@keyframes cur { 0%,100%{opacity:0.3} 50%{opacity:0} }
+.footer-right { text-align: right; font-family: var(--mono); font-size: 9px; letter-spacing: 0.15em; color: var(--dimmer); line-height: 2.4; }
+.footer-right a { display: block; transition: color 0.15s; }
+.footer-right a:hover { color: var(--text); }
+
+/* ─── RESPONSIVE ─── */
+@media (max-width: 860px) {
+  nav { padding: 0 20px; }
+  .nav-right { display: none; }
+  .hero { padding: 56px 20px 48px; grid-template-columns: 1fr; }
+  .hero-right { display: none; }
+  .bestsellers { grid-template-columns: 1fr; }
+  .bs-item { border-right: none; border-bottom: 1px solid var(--line); height: 240px; }
+  .coll-head { padding: 40px 20px 0; }
+  .grid { padding: 0 20px 40px; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .card-wide { grid-template-columns: 1fr; }
+  .card-wide .product-image { min-height: 240px; border-right: none; border-bottom: 1px solid rgba(14,17,22,0.06); }
+  footer { padding: 40px 20px; grid-template-columns: 1fr; }
+  .footer-right { text-align: left; }
+}
+@media (max-width: 540px) {
+  .grid { grid-template-columns: 1fr; }
+  .hero-h1 { font-size: 72px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ─── SVG DEFS: reusable shirt and mug shapes ─── -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+
+    <!-- DARK SHIRT template -->
+    <symbol id="shirt-dark-base" viewBox="0 0 240 280">
+      <defs>
+        <linearGradient id="sd-grad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#1a1e26"/>
+          <stop offset="100%" stop-color="#0c0e13"/>
+        </linearGradient>
+        <linearGradient id="sd-sleeve-l" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#10131a"/>
+          <stop offset="100%" stop-color="#1a1e26"/>
+        </linearGradient>
+        <linearGradient id="sd-sleeve-r" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#1a1e26"/>
+          <stop offset="100%" stop-color="#10131a"/>
+        </linearGradient>
+        <linearGradient id="sd-fold" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="rgba(255,255,255,0.03)"/>
+          <stop offset="100%" stop-color="rgba(0,0,0,0.12)"/>
+        </linearGradient>
+      </defs>
+      <!-- Body -->
+      <path d="M68 52 L22 80 L10 130 L40 134 L40 272 L200 272 L200 134 L230 130 L218 80 L172 52" fill="url(#sd-grad)"/>
+      <!-- Left sleeve -->
+      <path d="M68 52 L22 80 L10 130 L40 134 L40 100 L68 52" fill="url(#sd-sleeve-l)"/>
+      <!-- Right sleeve -->
+      <path d="M172 52 L218 80 L230 130 L200 134 L200 100 L172 52" fill="url(#sd-sleeve-r)"/>
+      <!-- Collar -->
+      <path d="M68 52 Q90 36 120 34 Q150 36 172 52 Q155 68 120 70 Q85 68 68 52Z" fill="#141720"/>
+      <!-- Subtle fold lines -->
+      <line x1="120" y1="72" x2="115" y2="272" stroke="rgba(255,255,255,0.025)" stroke-width="1.5"/>
+      <line x1="90" y1="140" x2="85" y2="272" stroke="rgba(255,255,255,0.018)" stroke-width="1"/>
+      <line x1="150" y1="140" x2="155" y2="272" stroke="rgba(255,255,255,0.018)" stroke-width="1"/>
+      <!-- Bottom hem -->
+      <line x1="40" y1="270" x2="200" y2="270" stroke="rgba(255,255,255,0.04)" stroke-width="1.5"/>
+    </symbol>
+
+    <!-- LIGHT SHIRT template -->
+    <symbol id="shirt-light-base" viewBox="0 0 240 280">
+      <defs>
+        <linearGradient id="sl-grad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#F5F2EC"/>
+          <stop offset="100%" stop-color="#E8E4DB"/>
+        </linearGradient>
+        <linearGradient id="sl-sleeve-l" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#DDD9D0"/>
+          <stop offset="100%" stop-color="#F0EDE6"/>
+        </linearGradient>
+        <linearGradient id="sl-sleeve-r" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#F0EDE6"/>
+          <stop offset="100%" stop-color="#DDD9D0"/>
+        </linearGradient>
+      </defs>
+      <path d="M68 52 L22 80 L10 130 L40 134 L40 272 L200 272 L200 134 L230 130 L218 80 L172 52" fill="url(#sl-grad)"/>
+      <path d="M68 52 L22 80 L10 130 L40 134 L40 100 L68 52" fill="url(#sl-sleeve-l)"/>
+      <path d="M172 52 L218 80 L230 130 L200 134 L200 100 L172 52" fill="url(#sl-sleeve-r)"/>
+      <path d="M68 52 Q90 36 120 34 Q150 36 172 52 Q155 68 120 70 Q85 68 68 52Z" fill="#D8D4CA"/>
+      <line x1="120" y1="72" x2="115" y2="272" stroke="rgba(0,0,0,0.04)" stroke-width="1.5"/>
+      <line x1="90" y1="140" x2="85" y2="272" stroke="rgba(0,0,0,0.025)" stroke-width="1"/>
+      <line x1="150" y1="140" x2="155" y2="272" stroke="rgba(0,0,0,0.025)" stroke-width="1"/>
+      <line x1="40" y1="270" x2="200" y2="270" stroke="rgba(0,0,0,0.06)" stroke-width="1.5"/>
+    </symbol>
+
+    <!-- MUG template -->
+    <symbol id="mug-base" viewBox="0 0 200 200">
+      <defs>
+        <linearGradient id="mug-body" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#1e2228"/>
+          <stop offset="60%" stop-color="#141720"/>
+          <stop offset="100%" stop-color="#0e1016"/>
+        </linearGradient>
+        <linearGradient id="mug-top" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#2a2f38"/>
+          <stop offset="100%" stop-color="#1e2228"/>
+        </linearGradient>
+        <linearGradient id="mug-handle" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#1a1e26"/>
+          <stop offset="50%" stop-color="#0e1016"/>
+          <stop offset="100%" stop-color="#1a1e26"/>
+        </linearGradient>
+        <linearGradient id="mug-shine" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="rgba(255,255,255,0.06)"/>
+          <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+        </linearGradient>
+        <!-- Shadow ellipse -->
+        <radialGradient id="mug-shadow" cx="50%" cy="50%">
+          <stop offset="0%" stop-color="rgba(14,17,22,0.35)"/>
+          <stop offset="100%" stop-color="rgba(14,17,22,0)"/>
+        </radialGradient>
+      </defs>
+      <!-- Shadow -->
+      <ellipse cx="95" cy="192" rx="55" ry="8" fill="url(#mug-shadow)"/>
+      <!-- Body -->
+      <path d="M30 52 Q30 40 95 38 Q160 40 160 52 L155 175 Q155 185 95 185 Q35 185 35 175 Z" fill="url(#mug-body)"/>
+      <!-- Top rim ellipse -->
+      <ellipse cx="95" cy="52" rx="65" ry="14" fill="url(#mug-top)"/>
+      <!-- Inner rim -->
+      <ellipse cx="95" cy="52" rx="52" ry="10" fill="#0a0c10"/>
+      <!-- Handle -->
+      <path d="M155 80 Q188 80 190 110 Q192 140 160 145" fill="none" stroke="url(#mug-handle)" stroke-width="13" stroke-linecap="round"/>
+      <path d="M155 80 Q182 80 184 110 Q186 138 160 143" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+      <!-- Shine -->
+      <path d="M42 58 Q42 52 55 50 L55 120 Q42 115 42 58Z" fill="url(#mug-shine)"/>
+    </symbol>
+
+  </defs>
+</svg>
+
+<!-- ─── NAV ─── -->
+<nav>
+  <div class="nav-logo"><div class="nav-dot"></div>Edge Alpha™</div>
+  <div class="nav-right">
+    <a href="#q">Q Series</a>
+    <a href="#os">Startup OS</a>
+    <a href="#signal">Signal</a>
+    <a href="https://edgealpha.vc" target="_blank">edgealpha.vc ↗</a>
+  </div>
+  <button class="nav-cta">Acquire</button>
+</nav>
+
+<!-- ─── HERO ─── -->
+<div class="hero">
+  <div class="hero-left">
+    <div class="hero-eyebrow">Edge Alpha Merch — Powered by Q Score™</div>
+    <h1 class="hero-h1">Q &gt;<br>FOMO.</h1>
+    <p class="hero-tagline">
+      The unofficial uniform of startup readiness.<br><br>
+      Gear for <strong>founders</strong>, <strong>operators</strong>,<br>and <strong>signal hunters</strong>.
+    </p>
+  </div>
+  <div class="hero-right">
+    <div class="hero-qscore-label">Edge Alpha Q Score™</div>
+    <div class="hero-qscore-val">
+      Domains &nbsp;&nbsp;&nbsp; <b>5</b><br>
+      Indicators &nbsp;<b>25</b><br>
+      India 2026 &nbsp;<b class="acc">72.4</b>
+    </div>
+  </div>
+</div>
+
+<!-- ─── BESTSELLERS ─── -->
+<!-- ─── BESTSELLERS — FLIP CARDS ─── -->
+<div class="bestsellers">
+
+  <!-- 01 Q > FOMO -->
+  <div class="bs-item">
+    <div class="bs-inner">
+      <div class="bs-front">
+        <div class="bs-rank">Best Seller № 01</div>
+        <div class="bs-name">Q &gt; FOMO</div>
+        <div class="bs-desc">Most startup mistakes start with FOMO.</div>
+        <div class="bs-cta">Why It Exists <span class="bs-cta-arrow">→</span></div>
+        <div class="bs-bar"></div>
+      </div>
+      <div class="bs-back">
+        <div class="bs-why-label">Why It Exists</div>
+        <div class="bs-why-name">Q &gt; FOMO</div>
+        <div class="bs-why-body">
+          FOMO is how founders lose discipline. <strong>Capital, markets, narratives</strong> — all chased before real readiness is built.<br><br>
+          Q &gt; FOMO is the Edge Alpha rule:<br><strong>measure first, move second.</strong>
+        </div>
+        <button class="bs-why-cta" onclick="openModal('Q > FOMO')">Get Your Q Score →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 02 Raise Q -->
+  <div class="bs-item">
+    <div class="bs-inner">
+      <div class="bs-front">
+        <div class="bs-rank">Best Seller № 02</div>
+        <div class="bs-name">Raise Q.<br>Not Just Capital.</div>
+        <div class="bs-desc">Investors fund readiness.</div>
+        <div class="bs-cta">Why It Exists <span class="bs-cta-arrow">→</span></div>
+        <div class="bs-bar"></div>
+      </div>
+      <div class="bs-back">
+        <div class="bs-why-label">Why It Exists</div>
+        <div class="bs-why-name">Raise Q.</div>
+        <div class="bs-why-body">
+          Capital does not fix weak readiness.<br><strong>It amplifies whatever is already there.</strong><br><br>
+          Founders who raise Q first raise capital on better terms, with better outcomes, to better investors.
+        </div>
+        <button class="bs-why-cta" onclick="openModal('Raise Q. Not Just Capital.')">Get Your Q Score →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 03 Structure Reveals -->
+  <div class="bs-item">
+    <div class="bs-inner">
+      <div class="bs-front">
+        <div class="bs-rank">Best Seller № 03</div>
+        <div class="bs-name">Structure Reveals.</div>
+        <div class="bs-desc">Chaos is expensive.</div>
+        <div class="bs-cta">Why It Exists <span class="bs-cta-arrow">→</span></div>
+        <div class="bs-bar"></div>
+      </div>
+      <div class="bs-back">
+        <div class="bs-why-label">Why It Exists</div>
+        <div class="bs-why-name">Structure Reveals.</div>
+        <div class="bs-why-body">
+          Chaos hides problems. <strong>Structure shows where the company is actually ready</strong> — and where it is not.<br><br>
+          The score implies where to look first.
+        </div>
+        <button class="bs-why-cta" onclick="openModal('Structure Reveals.')">Get Your Q Score →</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ════════════════════════════════
+     COLLECTION 01: Q SERIES
+════════════════════════════════ -->
+<div class="coll-block section-q" id="q">
+  <div class="coll-head">
+    <div class="coll-title">Collection 01 — Q Series</div>
+    <div class="coll-count">5 items</div>
+  </div>
+  <div class="grid">
+
+    <!-- Q > FOMO — WIDE FLAGSHIP -->
+    <div class="card card-wide">
+      <div class="product-image">
+        <svg viewBox="0 0 240 280" xmlns="http://www.w3.org/2000/svg">
+          <use href="#shirt-dark-base"/>
+          <text x="120" y="148" text-anchor="middle" font-family="'Inter Tight',sans-serif" font-weight="900" font-size="28" fill="#F5F5F5" letter-spacing="-1">Q &gt; FOMO</text>
+          <text x="120" y="255" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="6" fill="rgba(245,245,245,0.2)" letter-spacing="2">EDGE ALPHA™</text>
+        </svg>
+      </div>
+      <div class="card-body">
+        <div>
+          <div class="card-num">01 <span class="card-badge badge-founding">Founding Edition · 2026</span></div>
+          <div class="card-name">Q &gt; FOMO</div>
+          <div class="card-line">Most startup mistakes start with FOMO.</div>
+        </div>
+        <div class="card-footer">
+          <div class="card-price">CHF 55</div>
+          <button class="acquire-btn" onclick="openModal(this.closest('.card').querySelector('.card-name').textContent)">Get Your Q Score →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Raise Q — light shirt -->
+    <div class="card">
+      <div class="product-image">
+        <svg viewBox="0 0 240 280" xmlns="http://www.w3.org/2000/svg">
+          <use href="#shirt-light-base"/>
+          <text x="120" y="132" text-anchor="middle" font-family="'Inter Tight',sans-serif" font-weight="900" font-size="19" fill="#0E1116" letter-spacing="-0.5">RAISE Q.</text>
+          <text x="120" y="156" text-anchor="middle" font-family="'Inter Tight',sans-serif" font-weight="900" font-size="19" fill="#0E1116" letter-spacing="-0.5">NOT JUST</text>
+          <text x="120" y="180" text-anchor="middle" font-family="'Inter Tight',sans-serif" font-weight="900" font-size="19" fill="#0E1116" letter-spacing="-0.5">CAPITAL.</text>
+          <text x="120" y="255" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="6" fill="rgba(14,17,22,0.2)" letter-spacing="2">EDGE ALPHA Q SCORE™</text>
+        </svg>
+      </div>
+      <div class="card-body">
+        <div class="card-num">02</div>
+        <div class="card-name">Raise Q. Not Just Capital.</div>
+        <div class="card-line">Investors fund readiness.</div>
+        <div class="card-footer">
+          <div class="card-price">CHF 55</div>
+          <button class="acquire-btn" onclick="openModal(this.closest('.card').querySelector('.card-name').textContent)">Get Your Q Score →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Long Q — dark shirt -->
+    <div class="card">
+      <div class="product-image">
+        <svg viewBox="0 0 240 280" xmlns="http://www.w3.org/2000/svg">
+          <use href="#shirt-dark-base"/>
+          <text x="120" y="158" text-anchor="middle" font-family="'Inter Tight',sans-serif" font-weight="900" font-size="32" fill="#F5F5F5" letter-spacing="2">LONG Q</text>
+          <text x="120" y="255" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="6" fill="rgba(245,245,245,0.2)" letter-spacing="2">EDGE ALPHA™</text>
+        </svg>
+      </div>
+      <div class="card-body">
+        <div class="card-num">05</div>
+        <div class="card-name">Long Q</div>
+        <div class="card-line">Investing in readiness.</div>
+        <div class="card-footer">
+          <div class="card-price">CHF 55</div>
+          <button class="acquire-btn" onclick="openModal(this.closest('.card').querySelector('.card-name').textContent)">Get Your Q Score →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Q↑ mug -->
+    <div class="card">
+      <div class="product-image mug-bg">
+        <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" style="width:78%;height:78%">
+          <use href="#mug-base"/>
+          <text x="84" y="112" text-anchor="middle" font-family="'Inter Tight',sans-serif" font-weight="900" font-size="26" fill="#F5F5F5" letter-spacing="-0.5">Q ↑</text>
+          <text x="84" y="148" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="6.5" fill="rgba(245,245,245,0.22)" letter-spacing="1.5">EDGE ALPHA</text>
+          <text x="84" y="160" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="6.5" fill="rgba(245,245,245,0.18)" letter-spacing="1.5">Q SCORE™</text>
+        </svg>
+      </div>
+      <div class="card-body">
+        <div class="card-num">06</div>
+        <div class="card-name">Q ↑</div>
+        <div class="card-line">Improve. Measure. Repeat.</div>
+        <div class="card-footer">
+          <div class="card-price">CHF 38</div>
+          <button class="acquire-btn" onclick="openModal(this.closest('.card').querySelector('.card-name').textContent)">Get Your Q Score →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Q Score 87 — geeky dark shirt -->
+    <div class="card">
+      <div class="product-image">
+        <svg viewBox="0 0 240 280" xmlns="http://www.w3.org/2000/svg">
+          <use href="#shirt-dark-base"/>
+          <!-- The number -->
+          <text x="120" y="168" text-anchor="middle" font-family="'Inter Tight',sans-serif" font-weight="900" font-size="58" fill="#47FF95" letter-spacing="-3">87</text>
+          <text x="120" y="255" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="6" fill="rgba(245,245,245,0.2)" letter-spacing="2">EDGE ALPHA™</text>
+        </svg>
+      </div>
+      <div class="card-body">
+        <div class="card-num">07 <span class="card-badge badge-geeky">Geeky</span></div>
+        <div class="card-name">87</div>
+        <div class="card-line">Front: a number. Back: EDGE ALPHA.<br>People will ask. That's the point.</div>
+        <div class="card-footer">
+          <div class="card-price">CHF 55</div>
+          <button class="acquire-btn" onclick="openModal(this.closest('.card').querySelector('.card-name').textContent)">Get Your Q Score →</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="strip">
+  <div class="strip-track">
+    <span class="strip-item"><em>◆</em> Q &gt; FOMO</span>
+    <span class="strip-item"><em>◆</em> Structure Reveals</span>
+    <span class="strip-item"><em>◆</em> Signal &gt; Noise</span>
+    <span class="strip-item"><em>◆</em> Readiness Before Fundraising</span>
+    <span class="strip-item"><em>◆</em> Improve · Measure · Repeat</span>
+    <span class="strip-item"><em>◆</em> Q Index™ · India 2026 · 72.4</span>
+    <span class="strip-item"><em>◆</em> Neither Are Outcomes</span>
+    <span class="strip-item"><em>◆</em> Alpha Is Detected · Not Invented</span>
+    <span class="strip-item"><em>◆</em> Q &gt; FOMO</span>
+    <span class="strip-item"><em>◆</em> Structure Reveals</span>
+    <span class="strip-item"><em>◆</em> Signal &gt; Noise</span>
+    <span class="strip-item"><em>◆</em> Readiness Before Fundraising</span>
+    <span class="strip-item"><em>◆</em> Improve · Measure · Repeat</span>
+    <span class="strip-item"><em>◆</em> Q Index™ · India 2026 · 72.4</span>
+    <span class="strip-item"><em>◆</em> Neither Are Outcomes</span>
+    <span class="strip-item"><em>◆</em> Alpha Is Detected · Not Invented</span>
+  </div>
+</div>
+
+<!-- ════════════════════════════════
+     COLLECTION 02: STARTUP OS
+════════════════════════════════ -->
+<div class="coll-block section-os" id="os">
+  <div class="coll-head">
+    <div class="coll-title">Collection 02 — Startup OS</div>
+    <div class="coll-count">3 items</div>
+  </div>
+  <div class="grid">
+
+    <!-- Structure Reveals WIDE — light shirt -->
+    <div class="card card-wide">
+      <div class="product-image" style="background:#EEECE7;">
+        <svg viewBox="0 0 240 280" xmlns="http://www.w3.org/2000/svg">
+          <use href="#shirt-light-base"/>
+          <text x="120" y="143" text-anchor="middle" font-family="'Inter Tight',sans-serif" font-weight="900" font-size="24" fill="#0E1116" letter-spacing="-0.5">STRUCTURE</text>
+          <text x="120" y="170" text-anchor="middle" font-family="'Inter Tight',sans-serif" font-weight="900" font-size="24" fill="#0E1116" letter-spacing="-0.5">REVEALS.</text>
+          <text x="120" y="255" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="6" fill="rgba(14,17,22,0.2)" letter-spacing="2">EDGE ALPHA STARTUP OS™</text>
+        </svg>
+      </div>
+      <div class="card-body">
+        <div>
+          <div class="card-num">03</div>
+          <div class="card-name">Structure Reveals.</div>
+          <div class="card-line">Chaos is expensive.</div>
+        </div>
+        <div class="card-footer">
+          <div class="card-price">CHF 65</div>
+          <button class="acquire-btn" onclick="openModal(this.closest('.card').querySelector('.card-name').textContent)">Get Your Q Score →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Readiness Is Not Random — dark shirt -->
+    <div class="card">
+      <div class="product-image">
+        <svg viewBox="0 0 240 280" xmlns="http://www.w3.org/2000/svg">
+          <use href="#shirt-dark-base"/>
+          <text x="120" y="130" text-anchor="middle" font-family="'Inter Tight',sans-serif" font-weight="900" font-size="17" fill="#F5F5F5" letter-spacing="-0.3">READINESS</text>
+          <text x="120" y="152" text-anchor="middle" font-family="'Inter Tight',sans-serif" font-weight="900" font-size="17" fill="#F5F5F5" letter-spacing="-0.3">IS NOT</text>
+          <text x="120" y="174" text-anchor="middle" font-family="'Inter Tight',sans-serif" font-weight="900" font-size="17" fill="#F5F5F5" letter-spacing="-0.3">RANDOM.</text>
+          <text x="120" y="255" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="6" fill="rgba(245,245,245,0.2)" letter-spacing="2">EDGE ALPHA™</text>
+        </svg>
+      </div>
+      <div class="card-body">
+        <div class="card-num">04</div>
+        <div class="card-name">Readiness Is Not Random.</div>
+        <div class="card-line">Neither are outcomes.</div>
+        <div class="card-footer">
+          <div class="card-price">CHF 55</div>
+          <button class="acquire-btn" onclick="openModal(this.closest('.card').querySelector('.card-name').textContent)">Get Your Q Score →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Q Index mug -->
+    <div class="card">
+      <div class="product-image mug-bg">
+        <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" style="width:78%;height:78%">
+          <use href="#mug-base"/>
+          <text x="84" y="100" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="8" fill="rgba(245,245,245,0.3)" letter-spacing="2">INDIA · 2026</text>
+          <text x="84" y="132" text-anchor="middle" font-family="'Inter Tight',sans-serif" font-weight="900" font-size="30" fill="#47FF95" letter-spacing="-1">72.4</text>
+          <text x="84" y="152" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="6.5" fill="rgba(245,245,245,0.2)" letter-spacing="1.5">Q INDEX™</text>
+        </svg>
+      </div>
+      <div class="card-body">
+        <div class="card-num">08</div>
+        <div class="card-name">Q Index™</div>
+        <div class="card-line">India · 2026 · 72.4<br>Feels like Bloomberg. Because it is.</div>
+        <div class="card-footer">
+          <div class="card-price">CHF 38</div>
+          <button class="acquire-btn" onclick="openModal(this.closest('.card').querySelector('.card-name').textContent)">Get Your Q Score →</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ════════════════════════════════
+     COLLECTION 03: SIGNAL SERIES
+════════════════════════════════ -->
+<div class="coll-block section-signal" id="signal">
+  <div class="coll-head">
+    <div class="coll-title">Collection 03 — Signal Series</div>
+    <div class="coll-count">2 items</div>
+  </div>
+  <div class="grid">
+
+    <!-- Signal > Noise WIDE — dark shirt -->
+    <div class="card card-wide">
+      <div class="product-image" style="background:#EAE7E0;">
+        <svg viewBox="0 0 240 280" xmlns="http://www.w3.org/2000/svg">
+          <use href="#shirt-dark-base"/>
+          <text x="120" y="143" text-anchor="middle" font-family="'Inter Tight',sans-serif" font-weight="900" font-size="26" fill="#F5F5F5" letter-spacing="-0.5">SIGNAL &gt;</text>
+          <text x="120" y="170" text-anchor="middle" font-family="'Inter Tight',sans-serif" font-weight="900" font-size="26" fill="#F5F5F5" letter-spacing="-0.5">NOISE</text>
+          <text x="120" y="255" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="6" fill="rgba(245,245,245,0.2)" letter-spacing="2">EDGE ALPHA™</text>
+        </svg>
+      </div>
+      <div class="card-body">
+        <div>
+          <div class="card-num">09</div>
+          <div class="card-name">Signal &gt; Noise</div>
+          <div class="card-line">The original edge.</div>
+        </div>
+        <div class="card-footer">
+          <div class="card-price">CHF 55</div>
+          <button class="acquire-btn" onclick="openModal(this.closest('.card').querySelector('.card-name').textContent)">Get Your Q Score →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- The Score Implies — light shirt -->
+    <div class="card" style="grid-column: 1 / 2;">
+      <div class="product-image" style="background:#EEEAE2;">
+        <svg viewBox="0 0 240 280" xmlns="http://www.w3.org/2000/svg">
+          <use href="#shirt-light-base"/>
+          <text x="120" y="127" text-anchor="middle" font-family="'Inter Tight',sans-serif" font-weight="900" font-size="14" fill="#0E1116" letter-spacing="-0.2">THE SCORE IMPLIES</text>
+          <text x="120" y="148" text-anchor="middle" font-family="'Inter Tight',sans-serif" font-weight="900" font-size="14" fill="#0E1116" letter-spacing="-0.2">WHERE TO LOOK</text>
+          <text x="120" y="169" text-anchor="middle" font-family="'Inter Tight',sans-serif" font-weight="900" font-size="14" fill="#0E1116" letter-spacing="-0.2">FIRST.</text>
+          <text x="120" y="255" text-anchor="middle" font-family="'IBM Plex Mono',monospace" font-size="6" fill="rgba(14,17,22,0.2)" letter-spacing="2">EDGE ALPHA STARTUP OS™</text>
+        </svg>
+      </div>
+      <div class="card-body">
+        <div class="card-num">10</div>
+        <div class="card-name">The Score Implies…</div>
+        <div class="card-line">Diagnosis before action. Most insider piece.</div>
+        <div class="card-footer">
+          <div class="card-price">CHF 55</div>
+          <button class="acquire-btn" onclick="openModal(this.closest('.card').querySelector('.card-name').textContent)">Get Your Q Score →</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ─── FOOTER ─── -->
+<footer>
+  <div class="footer-terminal">
+    <div class="t-prompt"><span>$</span> edge-alpha --status</div>
+    <div class="t-row"><span class="t-key">SYSTEM</span><span class="t-val">Edge Alpha Q Score™</span></div>
+    <div class="t-row"><span class="t-key">STATUS</span><span class="t-val online">ONLINE</span></div>
+    <div class="t-row"><span class="t-key">SIGNALS</span><span class="t-val detected">DETECTED</span></div>
+    <div class="t-row"><span class="t-key">Q INDEX™</span><span class="t-val">India 2026 · 72.4</span></div>
+    <div class="t-row"><span class="t-key">LOCATION</span><span class="t-val">Zürich · Bhubaneswar</span></div>
+    <div class="t-row"><span class="t-cursor"></span></div>
+  </div>
+  <div class="footer-right">
+    <a href="https://edgealpha.vc" target="_blank">edgealpha.vc ↗</a>
+    <a href="#">Shipping</a>
+    <a href="#">Returns</a>
+    <a href="#">Size Guide</a>
+    <a href="#">Contact</a>
+  </div>
+</footer>
+
+</body>
+</html>

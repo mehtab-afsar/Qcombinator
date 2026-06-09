@@ -73,20 +73,18 @@ export async function GET() {
       : rawOverall;
 
     // Write decayed score back so DB stays in sync with what users see.
-    // Only update when decay actually changed the value and wasn't already applied today.
+    // Atomic update prevents race condition: only update if decay hasn't been applied today.
+    // WHERE clause ensures we don't double-apply decay on concurrent requests.
     if (decayApplied && latest.id) {
-      const lastDecayed = latest.last_decayed_at as string | null;
-      const alreadyDecayedToday = lastDecayed &&
-        new Date(lastDecayed).toDateString() === new Date().toDateString();
-      if (!alreadyDecayedToday) {
-        void supabase
-          .from('qscore_history')
-          .update({ overall_score: effectiveOverall, last_decayed_at: new Date().toISOString() })
-          .eq('id', latest.id as string)
-          .then(({ error: decayErr }) => {
-            if (decayErr) log.warn('Failed to write back decayed score:', decayErr.message);
-          });
-      }
+      void supabase
+        .from('qscore_history')
+        .update({ overall_score: effectiveOverall, last_decayed_at: new Date().toISOString() })
+        .eq('id', latest.id as string)
+        // Condition: only update if last_decayed_at is null OR older than today (race-safe)
+        .or(`last_decayed_at.is.null,last_decayed_at.lt.${new Date().toISOString().split('T')[0]}`)
+        .then(({ error: decayErr }) => {
+          if (decayErr) log.warn('Failed to write back decayed score:', decayErr.message);
+        });
     }
 
     // ── Score confidence interval (±X) ───────────────────────────────────────

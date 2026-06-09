@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { parseBody, investorOnboardingSchema } from '@/lib/api/validate'
 import { log } from '@/lib/logger'
+import { embedText } from '@/features/qscore/scoring/embeddings/embedder'
 
 export async function POST(request: NextRequest) {
   try {
@@ -124,6 +125,29 @@ export async function POST(request: NextRequest) {
       }
     } catch (demoErr) {
       log.warn('demo_investors upsert failed (non-fatal)', { err: demoErr, userId: user.id })
+    }
+
+    // fire-and-forget: embed investor thesis for semantic matching with founders
+    // Stored in investor_profiles.thesis_embedding and used by /api/matching/scores
+    if (process.env.VOYAGE_API_KEY && thesis) {
+      void (async () => {
+        try {
+          const summary = [
+            `Thesis: ${thesis}`,
+            firmName && `Firm: ${firmName}`,
+            sectors && sectors.length > 0 && `Sectors: ${sectors.join(', ')}`,
+            stages && stages.length > 0 && `Stages: ${stages.join(', ')}`,
+            checkSize && checkSize.length > 0 && `Check size: ${checkSize.join(', ')}`,
+          ].filter(Boolean).join('\n')
+          if (summary.length < 30) return
+          const embedding = await embedText(summary)
+          await supabase.from('investor_profiles')
+            .update({ thesis_embedding: JSON.stringify(embedding) })
+            .eq('user_id', user.id)
+        } catch (err) {
+          log.warn('[investor/onboarding] thesis embedding failed (non-fatal)', { userId: user.id, err })
+        }
+      })()
     }
 
     return NextResponse.json({ success: true, profile })

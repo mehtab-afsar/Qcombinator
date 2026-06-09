@@ -626,6 +626,8 @@ export async function POST(req: NextRequest) {
     const sectionSummaries: SectionSummary[] = []
 
     if (section === 0 && Object.keys(extractedFields).length > 0) {
+      const sectionsToUpsert: Array<{ section: number; extracted_fields: unknown; confidence_map: unknown; completion_score: number; uploaded_documents: Array<{ uploadId: string; filename: string; fields: number }> }> = []
+
       for (const secNum of [1, 2, 3, 4, 5] as const) {
         const sectionFields = getSectionRelevantFields(extractedFields, secNum)
         const completionScore = getSectionCompletionPct(sectionFields, secNum, founderStage, confidenceMap)
@@ -657,24 +659,35 @@ export async function POST(req: NextRequest) {
           missingLabels: missing.map(f => MISSING_FIELD_LABELS[f] ?? f),
         })
 
-        // Upsert into profile_builder_data so submission can count it
+        // Queue section for atomic upsert
         if (Object.keys(sectionFields).length > 0) {
-          const { error: upsertErr } = await supabase.from('profile_builder_data').upsert({
-            user_id: userId,
+          sectionsToUpsert.push({
             section: secNum,
-            raw_conversation: '',
             extracted_fields: sectionFields,
             confidence_map: confidenceMap,
             completion_score: completionScore,
             uploaded_documents: [{ uploadId, filename, fields: snippets.length }],
-            updated_at: new Date().toISOString(),
-          }, { onConflict: 'user_id,section' })
-          if (upsertErr) {
-            log.error(`[upload] upsert section ${secNum} failed:`, upsertErr)
-            return NextResponse.json({
-              error: `Failed to save extracted data (section ${secNum}): ${upsertErr.message}`,
-            }, { status: 500 })
-          }
+          })
+        }
+      }
+
+      // Atomically upsert all sections together (transaction: all or nothing)
+      if (sectionsToUpsert.length > 0) {
+        const { error: rpcErr } = await supabase.rpc('upsert_profile_builder_sections', {
+          p_user_id: userId,
+          p_sections: sectionsToUpsert.map(s => ({
+            section: String(s.section),
+            extracted_fields: s.extracted_fields,
+            confidence_map: s.confidence_map,
+            completion_score: String(s.completion_score),
+            uploaded_documents: s.uploaded_documents,
+          })),
+        })
+        if (rpcErr) {
+          log.error('[upload] atomic upsert failed:', rpcErr)
+          return NextResponse.json({
+            error: `Failed to save extracted data: ${rpcErr.message}`,
+          }, { status: 500 })
         }
       }
     }

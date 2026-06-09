@@ -3,7 +3,6 @@ import { randomUUID } from 'crypto'
 import { type SupabaseClient } from '@supabase/supabase-js';
 import { getAdminClient } from '@/lib/supabase/server';
 import { parseBody, signupSchema } from '@/lib/api/validate';
-import { startupProfileDataSchema } from '@/lib/api/jsonb-schemas';
 import { log } from '@/lib/logger'
 import { routedText } from '@/lib/llm/router'
 import { sendWelcomeAndConfirmEmail } from '@/lib/email/send'
@@ -22,7 +21,6 @@ export async function POST(request: NextRequest) {
       revenueStatus, fundingStatus, teamSize, founderName,
       teamToken,
       problemStatement, targetCustomer, location, tagline,
-      marketSizeEstimate, gtmStrategy, founderBackground,
     } = parsed.data;
 
     // Use admin client with service role key to bypass email confirmation
@@ -66,7 +64,6 @@ export async function POST(request: NextRequest) {
       'friends-and-family': 'pre-seed',
       'series-a-plus':      'series-a',
     };
-    const dbFunding = fundingStatus ? (FUNDING_MAP[fundingStatus] ?? fundingStatus) : null;
 
     const REVENUE_MAP: Record<string, string> = {
       'early-revenue': 'first-revenue',
@@ -123,7 +120,6 @@ export async function POST(request: NextRequest) {
         startup_name: uniqueStartupName,
         industry: dbIndustry,
         stage: dbStage,
-        funding: dbFunding,
         role: 'founder',
         subscription_tier: 'free',
         onboarding_completed: true,
@@ -138,14 +134,6 @@ export async function POST(request: NextRequest) {
         profile_builder_completed: false,
         tagline: tagline || null,
         location: location || null,
-        market_size_estimate: marketSizeEstimate || null,
-        gtm_strategy: gtmStrategy || null,
-        founder_background: founderBackground || [],
-        email_confirm_token: confirmToken,
-        startup_profile_data: startupProfileDataSchema.parse({
-          problemStatement: problemStatement || undefined,
-          targetCustomer:   targetCustomer   || undefined,
-        }),
       })
       .select()
       .single();

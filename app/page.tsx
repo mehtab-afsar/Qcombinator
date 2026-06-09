@@ -169,7 +169,7 @@ function Nav() {
         <span style={{ fontSize: 15, fontWeight: 500, color: C.ink, letterSpacing: "-0.02em", fontFamily: FONT_SERIF, paddingLeft: 4 }}>Edge Alpha</span>
 
         <div style={{ display: "flex", alignItems: "center", gap: 36 }} className="hidden md:flex">
-          {[{ label: "How it works", href: "#how" }, { label: "Pricing", href: "#pricing" }, { label: "Library", href: "/library" }].map(l => (
+          {[{ label: "How it works", href: "#how" }, { label: "Pricing", href: "#pricing" }, { label: "Library", href: "/library" }, { label: "Merch", href: "/merch" }].map(l => (
             <a key={l.label} href={l.href} style={{ fontSize: 14, color: C.muted, textDecoration: "none", fontWeight: 400, letterSpacing: "-0.01em", transition: "color .2s" }}
               onMouseEnter={e => (e.currentTarget.style.color = C.ink)}
               onMouseLeave={e => (e.currentTarget.style.color = C.muted)}
@@ -199,7 +199,7 @@ function Nav() {
         {mobileOpen && (
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
             style={{ position: "fixed", top: 76, left: 16, right: 16, zIndex: 99, background: C.bg, border: `1px solid ${C.bdr}`, borderRadius: 16, padding: "16px 20px 24px", boxShadow: "0 8px 32px rgba(0,0,0,0.10)" }}>
-            {[{ label: "How it works", href: "#how" }, { label: "Pricing", href: "#pricing" }, { label: "Library", href: "/library" }].map(l => (
+            {[{ label: "How it works", href: "#how" }, { label: "Pricing", href: "#pricing" }, { label: "Library", href: "/library" }, { label: "Merch", href: "/merch" }].map(l => (
               <a key={l.label} href={l.href} onClick={() => setMobileOpen(false)} style={{ display: "block", fontSize: 16, color: C.ink, textDecoration: "none", padding: "12px 0", borderBottom: `1px solid ${C.bdr}` }}>{l.label}</a>
             ))}
             <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 20 }}>

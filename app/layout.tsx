@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Manrope, Fraunces, JetBrains_Mono } from "next/font/google";
+import { Inter, Manrope, Fraunces, JetBrains_Mono, IBM_Plex_Mono, Inter_Tight } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/features/auth/hooks/useAuth";
 import { QScoreProvider } from "@/features/qscore/hooks/useQScore";
@@ -23,6 +23,16 @@ const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
   variable: "--font-mono",
   weight: ["400", "500"],
+});
+const ibmPlexMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  variable: "--font-ibm-plex-mono",
+  weight: ["300", "400", "500"],
+});
+const interTight = Inter_Tight({
+  subsets: ["latin"],
+  variable: "--font-inter-tight",
+  weight: ["400", "500", "700", "800", "900"],
 });
 
 const TITLE = `${APP_NAME} | ${APP_TAGLINE}`
@@ -54,7 +64,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" data-scroll-behavior="smooth">
-      <body className={`${inter.className} ${manrope.variable} ${fraunces.variable} ${jetbrainsMono.variable} antialiased`}>
+      <body className={`${inter.className} ${manrope.variable} ${fraunces.variable} ${jetbrainsMono.variable} ${ibmPlexMono.variable} ${interTight.variable} antialiased`}>
         <PostHogProvider>
           <AuthProvider>
             <QScoreProvider>
