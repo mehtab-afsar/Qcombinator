@@ -29,12 +29,19 @@ const ARTIFACT_META: Record<string, { icon: React.ElementType; label: string; co
 };
 
 const DIMENSION_META: Record<string, { label: string }> = {
-  market:     { label: "Market"        },
-  product:    { label: "Product"       },
-  goToMarket: { label: "Go-to-Market"  },
-  financial:  { label: "Financial"     },
-  team:       { label: "Team"          },
-  traction:   { label: "Traction"      },
+  p1:       { label: "Market Readiness"      },
+  p2:       { label: "Market Potential"      },
+  p3:       { label: "IP & Defensibility"    },
+  p4:       { label: "Founder & Team"        },
+  p5:       { label: "Structural Impact"     },
+  p6:       { label: "Financials"            },
+  // legacy fallback for old keys
+  market:   { label: "Market Readiness"      },
+  product:  { label: "IP & Defensibility"    },
+  goToMarket: { label: "Market Potential"    },
+  financial: { label: "Financials"           },
+  team:     { label: "Founder & Team"        },
+  traction: { label: "Structural Impact"     },
 };
 
 function gradeLabel(s: number) {

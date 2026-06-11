@@ -3,10 +3,15 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { log } from '@/lib/logger'
 
-// GET /api/investor/deal-flow
+// GET /api/investor/deal-flow?page=1&limit=50
 // Returns founders sorted by score. Requires investor access (any tier except 'free').
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const url = new URL(request.url)
+    const page = Math.max(1, parseInt(url.searchParams.get('page') || '1'))
+    const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get('limit') || '50')))
+    const offset = (page - 1) * limit
+
     const auth = await verifyAuth()
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
     const { user } = auth
@@ -14,7 +19,7 @@ export async function GET() {
     const admin = createAdminClient()
 
     // ── Step 1: tier check + founder fetch in parallel ───────────────────────
-    const [{ data: tierRow }, { data: founders, error: founderErr }] = await Promise.all([
+    const [{ data: tierRow }, { data: founders, error: founderErr }, { count: totalCount }] = await Promise.all([
       admin.from('investor_profiles').select('subscription_tier').eq('user_id', user.id).maybeSingle(),
       admin
         .from('founder_profiles')
@@ -26,7 +31,11 @@ export async function GET() {
         `)
         .neq('role', 'investor')
         .order('updated_at', { ascending: false })
-        .limit(50),
+        .range(offset, offset + limit - 1),
+      admin
+        .from('founder_profiles')
+        .select('user_id', { count: 'exact', head: true })
+        .neq('role', 'investor'),
     ])
 
     // ── Subscription gate ────────────────────────────────────────────────────
@@ -242,8 +251,9 @@ export async function GET() {
       aiMatchSummary: (aiMatches[f.id]?.reason as string | undefined) ?? null,
     }))
 
+    const totalPages = Math.ceil((totalCount ?? 0) / limit)
     return NextResponse.json(
-      { founders: foundersWithSummary, meta: { totalFounders: withMatch.length, gated: withMatch.length - visibleWithPrefs.length, preferenceFiltered: prefSectors.length > 0 || prefStages.length > 0 } },
+      { founders: foundersWithSummary, meta: { totalFounders: withMatch.length, gated: withMatch.length - visibleWithPrefs.length, preferenceFiltered: prefSectors.length > 0 || prefStages.length > 0, pagination: { page, limit, totalCount: totalCount ?? 0, totalPages, hasNextPage: page < totalPages } } },
       { headers: { 'Cache-Control': 'private, max-age=300, stale-while-revalidate=3600' } },
     )
   } catch (err) {

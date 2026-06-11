@@ -202,7 +202,7 @@ export function ShareQScoreModal({ isOpen, onClose, shareUrl, qscoreData }: Shar
             }}
           >
             <Download size={16} />
-            Download PDF
+            Download Card
           </button>
         </div>
       </div>

@@ -140,10 +140,11 @@ export function generateQScoreHTML(data: QScoreExportData): string {
 
 export function downloadQScore(data: QScoreExportData, _format: 'pdf' = 'pdf') {
   const html = generateQScoreHTML(data)
-  const win = window.open('', '_blank')
-  if (win) {
-    win.document.write(html)
-    win.document.title = `Q-Score - ${data.companyName}`
-    setTimeout(() => win.print(), 500)
-  }
+  const blob = new Blob([html], { type: 'text/html' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `qscore-${data.companyName.toLowerCase().replace(/\s+/g, '-')}.html`
+  a.click()
+  URL.revokeObjectURL(url)
 }

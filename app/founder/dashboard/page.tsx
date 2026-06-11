@@ -19,7 +19,6 @@ import {
   DollarSign,
   Target,
   Loader2,
-  Phone,
 } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/features/auth/hooks/useAuth";
@@ -30,7 +29,6 @@ import { useDashboardData } from "@/features/founder/hooks/useDashboardData";
 import { agents } from "@/features/agents/data/agents";
 import { WelcomeModal, FOUNDER_WELCOME_SLIDES } from "@/components/ui/WelcomeModal";
 import { ShareQScoreModal } from "@/components/ui/ShareQScoreModal";
-import { GettingStartedCards } from "@/components/onboarding/GettingStartedCards";
 import { WeeklyCheckin } from "@/components/onboarding/WeeklyCheckin";
 import { UpgradeModal } from "@/components/ui/UpgradeModal";
 import { getUpcomingWorkshops } from "@/features/academy/data/workshops";
@@ -409,7 +407,6 @@ export default function FounderDashboard() {
   const [publicSlug,  setPublicSlug]  = useState<string | null>(null);
   const [linkCopied,  setLinkCopied]  = useState(false);
   const [shareModalOpen, setShareModalOpen] = useState(false);
-  const [qScoreCopied, setQScoreCopied] = useState(false);
 
   // ── Agent goal watch state ───────────────────────────────────────────────
   type AgentGoalRow = { agent_id: string; goal: string; status: string; reason: string; suggested_action: string | null }
@@ -426,8 +423,6 @@ export default function FounderDashboard() {
   const [weeklyGoal,        setWeeklyGoal]        = useState<string | null>(null);
   const [weeklyMetric,      setWeeklyMetric]       = useState<string | null>(null);
   const [_weeklyCheckinAt,  _setWeeklyCheckinAt]   = useState<string | null>(null);
-  const [gateProgress,      setGateProgress]       = useState<Record<string, boolean>>({});
-  const [customerCallsCount, setCustomerCallsCount] = useState(0);
   const [showWeeklyCheckin, setShowWeeklyCheckin]  = useState(false);
 
   // ── Stripe verification state (read-only — connect via Settings → Integrations) ──
@@ -443,13 +438,19 @@ export default function FounderDashboard() {
   // Mock usage data — TODO: replace with real API call
   useEffect(() => {
     if (!user) return;
-    // Mock data for now
-    setUsage({
-      agentChat: 32,
-      qscoreRecalc: 1,
-      investorConnection: 2,
-    });
-    setSubscriptionTier('free');
+    const fetchBillingStatus = async () => {
+      try {
+        const res = await fetch('/api/founder/billing/status');
+        if (!res.ok) throw new Error('Failed to fetch billing status');
+        const { usage, tier } = await res.json();
+        setUsage(usage);
+        setSubscriptionTier(tier);
+      } catch (e) {
+        console.error('Billing status fetch failed:', e);
+        setSubscriptionTier('free');
+      }
+    };
+    fetchBillingStatus();
   }, [user]);
 
   // Check profile_builder_completed + load stage and basic profile fields
@@ -625,29 +626,12 @@ export default function FounderDashboard() {
   const circumference = 2 * Math.PI * 52;
   const dash = circumference * (1 - displayScore / 100);
 
-  async function handleLogCall() {
-    if (!user) return;
-    const next = customerCallsCount + 1;
-    setCustomerCallsCount(next);
-    const supabase = createClient();
-    await supabase
-      .from("founder_profiles")
-      .update({ customer_calls_count: next })
-      .eq("user_id", user.id);
-  }
-
   const quickStats = [
     {
       label: "Agent sessions",
       value: weeklyActivity !== null ? String(weeklyActivity) : "—",
       sub: weeklyActivity !== null ? (weeklyActivity > 0 ? "actions logged this week" : "start a session") : "loading…",
       icon: Bot, positive: true,
-    },
-    {
-      label: "Customer calls",
-      value: String(customerCallsCount),
-      sub: customerCallsCount > 0 ? "logged this week" : "tap + to log a call",
-      icon: Phone, positive: customerCallsCount > 0,
     },
     { label: "Score percentile",   value: !isDemo && qs.percentile !== null ? `${qs.percentile}th` : "—", sub: !isDemo && qs.percentile !== null ? "of all founders" : "complete assessment to rank", icon: BarChart3, positive: null  },
     { label: "Next milestone",     value: isDemo ? "—" : String(Math.max(80, Math.ceil(qs.overall / 10) * 10)), sub: isDemo ? "submit score first" : "target Q-Score", icon: Zap, positive: null },
@@ -728,17 +712,6 @@ export default function FounderDashboard() {
               Upgrade →
             </button>
           </div>
-        )}
-
-        {/* ── Stage Gate Progress ─ */}
-        {!isDemo && (
-          <GettingStartedCards
-            qscoreOverall={qs.overall}
-            stage={founderStage}
-            gateProgress={gateProgress}
-            customerCallsCount={customerCallsCount}
-            onLogCall={handleLogCall}
-          />
         )}
 
         {/* ── empty state (real score is 0, profile builder unknown/done) ─ */}
@@ -872,7 +845,7 @@ export default function FounderDashboard() {
               </p>
             </div>
             <Link
-              href="/founder/assessment"
+              href="/founder/improve-qscore"
               style={{
                 flexShrink: 0, padding: "7px 16px",
                 background: amber,
@@ -1047,25 +1020,19 @@ export default function FounderDashboard() {
                 {/* Share Q-Score badge */}
                 {user && !isDemo && (
                   <button
-                    onClick={() => {
-                      const url = `${window.location.origin}/q/${user.id}`;
-                      navigator.clipboard.writeText(url).then(() => {
-                        setQScoreCopied(true);
-                        setTimeout(() => setQScoreCopied(false), 2500);
-                      });
-                    }}
+                    onClick={() => setShareModalOpen(true)}
                     style={{
                       display: "inline-flex", alignItems: "center", gap: 6,
                       padding: "9px 20px",
-                      background: qScoreCopied ? "rgba(22,163,74,0.25)" : "rgba(124,58,237,0.15)",
-                      border: `1px solid ${qScoreCopied ? "rgba(22,163,74,0.4)" : "rgba(124,58,237,0.3)"}`,
+                      background: "rgba(124,58,237,0.15)",
+                      border: `1px solid rgba(124,58,237,0.3)`,
                       borderRadius: 999, fontSize: 12,
-                      color: qScoreCopied ? "#86EFAC" : "#C4B5FD",
+                      color: "#C4B5FD",
                       fontWeight: 500, cursor: "pointer",
                       transition: "all 0.2s", whiteSpace: "nowrap",
                     }}
                   >
-                    {qScoreCopied ? "Badge link copied!" : "Share Q-Score →"}
+                    Share Q-Score →
                   </button>
                 )}
 
@@ -1519,7 +1486,7 @@ export default function FounderDashboard() {
                     transition={{ delay: 0.45 + i * 0.07 }}
                     style={{ borderBottom: i < 2 ? `1px solid ${bdr}` : "none" }}
                   >
-                    <Link href={agent ? `/founder/cxo/${agent.id}` : "/founder/assessment"} style={{ textDecoration: "none" }}>
+                    <Link href={agent ? `/founder/cxo/${agent.id}` : "/founder/improve-qscore"} style={{ textDecoration: "none" }}>
                       <div
                         style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 22px", cursor: "pointer", transition: "background 0.15s" }}
                         onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = surf)}
@@ -1584,13 +1551,13 @@ export default function FounderDashboard() {
               <div>
                 <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.16em", color: muted, fontWeight: 600, marginBottom: 3 }}>Deliverables Workspace</p>
                 <p style={{ fontSize: 14, fontWeight: 500, color: ink }}>
-                  {usedAgentIds.size} of 9 advisers have produced deliverables
+                  {usedAgentIds.size} of {agents.length} advisers have produced deliverables
                 </p>
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{ width: 180, height: 6, background: bdr, borderRadius: 999, overflow: "hidden" }}>
-                <div style={{ width: `${(usedAgentIds.size / 9) * 100}%`, height: "100%", borderRadius: 999, background: usedAgentIds.size === 9 ? green : blue }} />
+                <div style={{ width: `${(usedAgentIds.size / agents.length) * 100}%`, height: "100%", borderRadius: 999, background: usedAgentIds.size === agents.length ? green : blue }} />
               </div>
               <Link href="/founder/workspace" style={{
                 display: "inline-flex", alignItems: "center", gap: 6,
@@ -1835,7 +1802,7 @@ export default function FounderDashboard() {
                 <p style={{ fontSize: 11, color: muted, marginBottom: 14 }}>
                   Reach Q-Score 45 to access 500+ investors.
                 </p>
-                <Link href="/founder/assessment" style={{
+                <Link href="/founder/improve-qscore" style={{
                   display: "inline-flex", alignItems: "center", gap: 6,
                   padding: "8px 18px", background: ink, color: bg,
                   fontSize: 12, fontWeight: 500, borderRadius: 999, textDecoration: "none",

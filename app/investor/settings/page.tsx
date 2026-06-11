@@ -437,6 +437,21 @@ export default function InvestorSettingsPage() {
               </div>
               <p style={{ fontSize: 12, color: muted, marginBottom: 14 }}>Permanently delete your account and all associated data.</p>
               <button
+                onClick={async () => {
+                  if (!window.confirm('Are you sure? This action cannot be undone. All your account data will be permanently deleted.')) return;
+                  try {
+                    const response = await fetch('/api/investor/delete-account', { method: 'POST' });
+                    if (response.ok) {
+                      showToast('Account deleted successfully', 'success');
+                      await new Promise(r => setTimeout(r, 500));
+                      router.push('/');
+                    } else {
+                      showToast('Failed to delete account', 'error');
+                    }
+                  } catch {
+                    showToast('Failed to delete account', 'error');
+                  }
+                }}
                 style={{ padding: '8px 18px', borderRadius: 8, border: 'none', background: red, color: 'white', fontSize: 12, fontWeight: 500, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
               >
                 <LogOut style={{ height: 12, width: 12 }} /> Delete Account
@@ -446,7 +461,7 @@ export default function InvestorSettingsPage() {
         )}
 
         {/* ── preferences tab ── */}
-        {false && (
+        {(
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
             {/* Investment Thesis PDF upload — extract sectors/stages/check sizes automatically */}
             <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden' }}>
@@ -883,7 +898,7 @@ export default function InvestorSettingsPage() {
         )}
 
         {/* Security */}
-        {false && (
+        {(
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             {/* Password reset */}

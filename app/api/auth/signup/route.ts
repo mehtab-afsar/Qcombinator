@@ -57,14 +57,6 @@ export async function POST(request: NextRequest) {
     };
     const dbIndustry = INDUSTRY_MAP[industry ?? ''] ?? industry ?? null;
 
-    const FUNDING_MAP: Record<string, string> = {
-      'friends-family':     'pre-seed',
-      'angel':              'pre-seed',
-      'vc':                 'seed',
-      'friends-and-family': 'pre-seed',
-      'series-a-plus':      'series-a',
-    };
-
     const REVENUE_MAP: Record<string, string> = {
       'early-revenue': 'first-revenue',
       'recurring':     'mrr-10k-100k',

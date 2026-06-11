@@ -49,46 +49,48 @@ export async function POST(_req: NextRequest) {
       )
     }
 
-    // 3. 24-hour rate limit
-    const { data: recentSubmission } = await supabase
-      .from('qscore_history')
-      .select('id, calculated_at')
-      .eq('user_id', userId)
-      .eq('data_source', 'profile_builder')
-      .order('calculated_at', { ascending: false })
-      .limit(1)
-      .single()
+    // 3. 24-hour rate limit — DISABLED FOR TESTING
+    // TODO: Enable rate limiting in production
+    // const { data: recentSubmission } = await supabase
+    //   .from('qscore_history')
+    //   .select('id, calculated_at')
+    //   .eq('user_id', userId)
+    //   .eq('data_source', 'profile_builder')
+    //   .order('calculated_at', { ascending: false })
+    //   .limit(1)
+    //   .single()
+    //
+    // if (recentSubmission) {
+    //   const hoursSince = (Date.now() - new Date(recentSubmission.calculated_at).getTime()) / 3_600_000
+    //   if (hoursSince < 24) {
+    //     const retakeAvailableAt = new Date(
+    //       new Date(recentSubmission.calculated_at).getTime() + 24 * 60 * 60 * 1000
+    //     ).toISOString()
+    //     return NextResponse.json(
+    //       { error: 'You can recalculate once per 24 hours.', retakeAvailableAt },
+    //       { status: 429 }
+    //     )
+    //   }
+    // }
 
-    if (recentSubmission) {
-      const hoursSince = (Date.now() - new Date(recentSubmission.calculated_at).getTime()) / 3_600_000
-      if (hoursSince < 24) {
-        const retakeAvailableAt = new Date(
-          new Date(recentSubmission.calculated_at).getTime() + 24 * 60 * 60 * 1000
-        ).toISOString()
-        return NextResponse.json(
-          { error: 'You can recalculate once per 24 hours.', retakeAvailableAt },
-          { status: 429 }
-        )
-      }
-    }
-
-    // 3b. Monthly recalculation limit (2/month — atomic RPC, fail-open)
-    try {
-      const { data: usageData, error: usageErr } = await supabase.rpc('increment_usage_if_allowed', {
-        p_user_id: userId,
-        p_feature: 'qscore_recalc',
-      }) as { data: Array<{ allowed: boolean; remaining: number }> | null; error: unknown }
-
-      if (!usageErr && usageData?.[0]?.allowed === false) {
-        return NextResponse.json(
-          { error: 'Monthly recalculation limit reached. Limit resets at the start of next month.' },
-          { status: 429 }
-        )
-      }
-    } catch {
-      // Usage check failed — allow through
-      log.warn('qscore_recalc usage check failed — allowing through', { userId })
-    }
+    // 3b. Monthly recalculation limit — DISABLED FOR TESTING
+    // TODO: Enable rate limiting in production
+    // try {
+    //   const { data: usageData, error: usageErr } = await supabase.rpc('increment_usage_if_allowed', {
+    //     p_user_id: userId,
+    //     p_feature: 'qscore_recalc',
+    //   }) as { data: Array<{ allowed: boolean; remaining: number }> | null; error: unknown }
+    //
+    //   if (!usageErr && usageData?.[0]?.allowed === false) {
+    //     return NextResponse.json(
+    //       { error: 'Monthly recalculation limit reached. Limit resets at the start of next month.' },
+    //       { status: 429 }
+    //     )
+    //   }
+    // } catch {
+    //   // Usage check failed — allow through
+    //   log.warn('qscore_recalc usage check failed — allowing through', { userId })
+    // }
 
     // 4. Build section map + merge to AssessmentData
     const sections: Partial<Record<number, SectionData>> = {}

@@ -137,6 +137,48 @@ export async function createFounderAccount(opts: {
 }
 
 /**
+ * Sign in as the seeded Nexus Power test account (Q-Score 65).
+ * Email: nishita@nexuspower-test.example.com
+ * Password: NexusPower2024!
+ */
+export async function signInAsNexusPower(page: Page): Promise<void> {
+  await page.goto('/login')
+  await page.waitForLoadState('networkidle')
+  await page.fill('input[type="email"]', 'nishita@nexuspower-test.example.com')
+  await page.fill('input[type="password"]', 'NexusPower2024!')
+  await page.click('button[type="submit"]')
+  await page.waitForURL(/\/founder/, { timeout: 15_000 })
+}
+
+/**
+ * Make an authenticated API request using the page's session cookies.
+ * Uses page.evaluate to ensure credentials are included.
+ */
+export async function makeAuthenticatedRequest(
+  page: Page,
+  path: string,
+  options?: {
+    method?: string
+    body?: Record<string, unknown>
+  }
+): Promise<{ status: number; data: unknown }> {
+  const { method = 'GET', body } = options ?? {}
+  return page.evaluate(
+    async ({ path, method, body }) => {
+      const res = await fetch(path, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: body ? JSON.stringify(body) : undefined,
+      })
+      const data = await res.json().catch(() => null)
+      return { status: res.status, data }
+    },
+    { path, method, body }
+  )
+}
+
+/**
  * Create a fresh investor account via Admin API + complete onboarding via API.
  */
 export async function createInvestorAccount(opts: {

@@ -233,12 +233,36 @@ function CsvImportModal({ onClose, onImported }: { onClose: () => void; onImport
   const fileRef = useRef<HTMLInputElement>(null);
 
   function parseCSV(text: string): CsvRow[] {
+    const parseCSVLine = (line: string): string[] => {
+      const result: string[] = [];
+      let current = '';
+      let insideQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        const nextChar = line[i + 1];
+        if (char === '"') {
+          if (insideQuotes && nextChar === '"') {
+            current += '"';
+            i++;
+          } else {
+            insideQuotes = !insideQuotes;
+          }
+        } else if (char === ',' && !insideQuotes) {
+          result.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      result.push(current.trim());
+      return result;
+    };
     const lines = text.trim().split("\n");
-    const header = lines[0].split(",").map(h => h.trim().toLowerCase().replace(/\s+/g, "_").replace(/[^a-z_]/g, ""));
+    const header = parseCSVLine(lines[0]).map(h => h.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z_]/g, "").replace(/^"|"$/g, ""));
     return lines.slice(1).map(line => {
-      const cols = line.split(",");
+      const cols = parseCSVLine(line);
       const obj: Record<string, string> = {};
-      header.forEach((h, i) => { obj[h] = (cols[i] ?? "").trim().replace(/^"|"$/g, ""); });
+      header.forEach((h, i) => { obj[h] = (cols[i] ?? "").replace(/^"|"$/g, ""); });
       return {
         company_name:    obj.company || obj.company_name || "",
         founder_name:    obj.founder_name || obj.founder || "",
