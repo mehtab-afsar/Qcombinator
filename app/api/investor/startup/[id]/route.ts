@@ -21,31 +21,17 @@ export async function GET(
 
     // Verify the caller is an investor — must have an investor_profiles row.
     // Free-tier investors are blocked; null/pro tier are allowed.
-    let { data: investorProfile } = await admin
+    const { data: investorProfile } = await admin
       .from('investor_profiles')
       .select('subscription_tier')
       .eq('user_id', user.id)
       .single()
 
-    // Auto-create investor profile on first access so direct URL access works
     if (!investorProfile) {
-      const email = user.email ?? ''
-      const name  = (user.user_metadata?.full_name as string | undefined)
-                    ?? (user.user_metadata?.name as string | undefined)
-                    ?? email.split('@')[0]
-                    ?? 'Investor'
-      const { data: created } = await admin
-        .from('investor_profiles')
-        .upsert(
-          { user_id: user.id, full_name: name, email, subscription_tier: 'pro', updated_at: new Date().toISOString() },
-          { onConflict: 'user_id' }
-        )
-        .select('subscription_tier')
-        .single()
-      investorProfile = created
+      return NextResponse.json({ error: 'Investor account required' }, { status: 403 })
     }
 
-    if (investorProfile?.subscription_tier === 'free') {
+    if (investorProfile.subscription_tier === 'free') {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 

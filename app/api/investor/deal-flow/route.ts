@@ -39,19 +39,11 @@ export async function GET(request: Request) {
     ])
 
     // ── Subscription gate ────────────────────────────────────────────────────
-    // Auto-enroll on first access — creates a pro investor profile so the user
-    // isn't locked out before going through the full investor onboarding flow.
     if (!tierRow) {
-      const email = user.email ?? ''
-      const name  = (user.user_metadata?.full_name as string | undefined)
-                    ?? (user.user_metadata?.name as string | undefined)
-                    ?? email.split('@')[0]
-                    ?? 'Investor'
-      await admin.from('investor_profiles').upsert(
-        { user_id: user.id, full_name: name, email, subscription_tier: 'pro', updated_at: new Date().toISOString() },
-        { onConflict: 'user_id' }
-      )
-    } else if (tierRow.subscription_tier === 'free') {
+      return NextResponse.json({ error: 'Investor account required' }, { status: 403 })
+    }
+
+    if (tierRow.subscription_tier === 'free') {
       return NextResponse.json({ error: 'Pro subscription required' }, { status: 403 })
     }
 

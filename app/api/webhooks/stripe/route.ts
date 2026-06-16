@@ -30,22 +30,20 @@ export async function POST(req: NextRequest) {
   const admin = createAdminClient()
 
   // Idempotency: deduplicate Stripe retries using the event ID.
-  // Stripe retries webhooks up to 3 times on non-2xx responses.
-  const { data: existing } = await admin
+  // Uses INSERT ... ON CONFLICT DO NOTHING to prevent TOCTOU race on concurrent retries.
+  const { count } = await admin
     .from('processed_webhook_events')
-    .select('id')
-    .eq('event_id', event.id)
-    .maybeSingle()
+    .insert({
+      event_id:     event.id,
+      source:       'stripe',
+      processed_at: new Date().toISOString(),
+    }, { count: 'exact' })
+    .onConflict('event_id')
+    .ignore()
 
-  if (existing) {
+  if (count === 0) {
     return NextResponse.json({ received: true, deduplicated: true })
   }
-
-  await admin.from('processed_webhook_events').insert({
-    event_id: event.id,
-    source: 'stripe',
-    processed_at: new Date().toISOString(),
-  })
 
   try {
     switch (event.type) {

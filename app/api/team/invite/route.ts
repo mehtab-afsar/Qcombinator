@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
 import { getAdminClient } from '@/lib/supabase/server'
+import { sendTeamInviteEmail } from '@/lib/email/send'
 
 export async function POST(request: NextRequest) {
   try {
@@ -60,14 +61,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to create invite' }, { status: 500 })
     }
 
-    // TODO: Send email with invite link
-    // await sendTeamInviteEmail({
-    //   to: email,
-    //   token: inviteToken,
-    //   companyName: profile.company_name,
-    //   role: role,
-    //   invitedBy: user.user_metadata?.full_name || user.email
-    // })
+    void sendTeamInviteEmail({
+      toEmail:     email,
+      token:       inviteToken,
+      startupName: String(user.user_metadata?.startup_name ?? user.user_metadata?.full_name ?? 'Your team'),
+      role,
+      inviterName: String(user.user_metadata?.full_name ?? user.email ?? 'A team member'),
+    }).catch((err: unknown) => console.error('[team-invite] email failed:', err))
 
     return NextResponse.json({ invite }, { status: 201 })
   } catch (error) {

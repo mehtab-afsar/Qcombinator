@@ -151,6 +151,10 @@ export async function POST(request: NextRequest) {
     const { data: { user: authedUser } } = await userClient.auth.getUser();
     const userId: string | undefined = authedUser?.id;
 
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const rawBody = await request.json();
     const parsed = chatRequestSchema.safeParse(rawBody);
     if (!parsed.success) {

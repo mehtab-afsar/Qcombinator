@@ -4,7 +4,7 @@ import type { LLMProvider, LLMChatResponse, RoutingTier, ToolDefinition, ChatMes
 
 const MODEL_MAP: Record<RoutingTier, string> = {
   fast:    'claude-haiku-4-5-20251001',
-  capable: 'claude-sonnet-4-6',
+  capable: 'claude-sonnet-4-5',
 }
 
 const CACHE_SENTINEL = '<<<CACHE_BREAK>>>'

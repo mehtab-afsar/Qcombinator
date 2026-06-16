@@ -824,7 +824,10 @@ async function reseedCompanies() {
     name: string;
     email: string;
     userId: string;
-    success: boolean;
+    success?: boolean;
+    password?: string;
+    qScore?: number;
+    sector?: string;
   }
 
   const results: ReseedResult[] = [];

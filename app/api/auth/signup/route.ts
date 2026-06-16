@@ -126,6 +126,7 @@ export async function POST(request: NextRequest) {
         profile_builder_completed: false,
         tagline: tagline || null,
         location: location || null,
+        email_confirm_token: confirmToken,
       })
       .select()
       .single();
@@ -265,14 +266,17 @@ Return ONLY valid JSON, no markdown fences:
   "problemSummary": "One clear sentence: what they build and who it's for."
 }`
 
-  const ctrl = new AbortController()
-  const timer = setTimeout(() => ctrl.abort(), 8_000)
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error('LLM enrichment timeout')), 8_000)
+  )
   try {
-    const raw = await routedText('extraction', [
-      { role: 'system', content: prompt },
-      { role: 'user', content: 'Clean and summarise.' },
+    const raw = await Promise.race([
+      routedText('extraction', [
+        { role: 'system', content: prompt },
+        { role: 'user', content: 'Clean and summarise.' },
+      ]),
+      timeout,
     ])
-    clearTimeout(timer)
     const cleaned = JSON.parse(
       raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     ) as { problemStatementCleaned?: string; targetCustomerCleaned?: string; problemSummary?: string }
@@ -285,7 +289,6 @@ Return ONLY valid JSON, no markdown fences:
       },
     })
   } catch (err) {
-    clearTimeout(timer)
     log.warn('Onboarding text enrichment failed — raw text retained', {
       userId,
       err: err instanceof Error ? err.message : String(err),
@@ -337,11 +340,11 @@ async function autoLinkPortfolioByEmail(
         .upsert({ investor_user_id: match.investor_user_id, founder_user_id: userId, stage: 'portfolio' },
                  { onConflict: 'investor_user_id,founder_user_id' }),
 
-      // Auto-accept connection (upsert to be idempotent)
+      // Create a pending connection request — founder must accept explicitly
       supabase
         .from('connection_requests')
         .upsert(
-          { founder_id: userId, investor_id: match.investor_user_id, status: 'accepted', personal_message: 'Auto-linked via portfolio email match', founder_qscore: 0 },
+          { founder_id: userId, investor_id: match.investor_user_id, status: 'pending', personal_message: 'Auto-linked via portfolio email match', founder_qscore: 0 },
           { onConflict: 'founder_id,investor_id', ignoreDuplicates: true }
         ),
 

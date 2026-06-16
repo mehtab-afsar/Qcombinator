@@ -158,7 +158,7 @@ async function calculateQScores() {
       const paramMap: Record<string, ParamInfo> = {};
       if (result.parameters) {
         for (const param of result.parameters) {
-          paramMap[param.parameterId || 'unknown'] = param as ParamInfo;
+          paramMap[param.id || 'unknown'] = param as unknown as ParamInfo;
         }
       }
 

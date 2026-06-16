@@ -40,7 +40,7 @@ const BUILD_COMPLEXITY_MAP: Record<string, number> = {
   '3-6 months': 4.5, 'three to six months': 4.5, '3 to 6 months': 4.5, '3-6': 4.5,
   '6-12 months': 9, 'six to twelve months': 9, '6 to 12 months': 9, '6-12': 9,
   '12+ months': 18, 'more than a year': 18, 'over a year': 18, 'over 12 months': 18,
-  '12+ ': 18, '12 months+': 18, '12 months': 18, 'year': 18,
+  '12+': 18, '12 months+': 18, '12 months': 18, 'year': 18,
 }
 
 function buildComplexityToMonths(s: string): number | null {

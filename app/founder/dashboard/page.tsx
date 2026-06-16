@@ -424,6 +424,8 @@ export default function FounderDashboard() {
   const [weeklyMetric,      setWeeklyMetric]       = useState<string | null>(null);
   const [_weeklyCheckinAt,  _setWeeklyCheckinAt]   = useState<string | null>(null);
   const [showWeeklyCheckin, setShowWeeklyCheckin]  = useState(false);
+  const [gateProgress,      setGateProgress]       = useState<Record<string, unknown>>({});
+  const [customerCallsCount, setCustomerCallsCount] = useState<number>(0);
 
   // ── Stripe verification state (read-only — connect via Settings → Integrations) ──
   const [stripeStatus, setStripeStatus] = useState<{

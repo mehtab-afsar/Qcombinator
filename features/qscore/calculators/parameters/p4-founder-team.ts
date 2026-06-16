@@ -286,7 +286,7 @@ function score_4_5_TeamCohesion(data: AssessmentData, _stage: ScoreStage): Indic
     }
   }
 
-  // Penalise recent churn (metadata flag only — adjust confidence, not rawScore)
+  // Penalise recent churn: deduct from rawScore (signals instability in team composition)
   if (teamChurnRecent) {
     raw = Math.max(1.0, raw - 1.0)
   }

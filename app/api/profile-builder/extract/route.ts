@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
       existingConfidenceMap?: Record<string, number>
     } = body
 
-    if (!section || !conversationText) {
+    if ((section === undefined || section === null) || !conversationText) {
       return NextResponse.json({ error: 'section and conversationText required' }, { status: 400 })
     }
 
