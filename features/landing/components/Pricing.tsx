@@ -36,7 +36,7 @@ function Plan({ plan, featured }: { plan: typeof PRICING.free | typeof PRICING.p
         ))}
       </ul>
       <Link
-        href="/signup"
+        href="/founder/onboarding"
         className="lp-cta"
         style={{
           display: "block", textAlign: "center",

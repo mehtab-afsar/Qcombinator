@@ -38,14 +38,14 @@ function CtaRow({ center = false, variant = "dusk" }: { center?: boolean; varian
   const dusk = variant === "dusk";
   return (
     <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: center ? "center" : "flex-start" }}>
-      <Link href="/signup" className="lp-cta" style={{
+      <Link href="/founder/onboarding" className="lp-cta" style={{
         display: "inline-flex", alignItems: "center", gap: 8,
         background: dusk ? DUSK.text : L.ink, color: dusk ? "#141B33" : L.bg,
         padding: "13px 26px", borderRadius: 999, fontSize: 15, fontWeight: 600, textDecoration: "none",
       }}>
         Get your Q-Score <ArrowRight size={16} aria-hidden="true" />
       </Link>
-      <Link href="/investor/onboarding" className="lp-cta" style={{
+      <Link href="/login" className="lp-cta" style={{
         display: "inline-flex", alignItems: "center",
         background: dusk ? "rgba(245,239,228,0.06)" : L.card,
         color: dusk ? DUSK.text : L.ink,

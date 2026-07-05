@@ -97,7 +97,7 @@ export const FAQS = [
 ] as const;
 
 export const FOOTER_LINKS = [
-  { title: "Product",   links: [{ label: "Q-Score", href: "/signup" }, { label: "AI Advisers", href: "/signup" }, { label: "Investor Marketplace", href: "/investor/onboarding" }, { label: "Pricing", href: "#pricing" }] },
-  { title: "Founders",  links: [{ label: "Get started", href: "/signup" }, { label: "Sign in", href: "/login" }] },
-  { title: "Investors", links: [{ label: "Join as investor", href: "/investor/onboarding" }, { label: "Sign in", href: "/login" }] },
+  { title: "Product",   links: [{ label: "Q-Score", href: "/founder/onboarding" }, { label: "AI Advisers", href: "/founder/onboarding" }, { label: "Investor Marketplace", href: "/login" }, { label: "Pricing", href: "#pricing" }] },
+  { title: "Founders",  links: [{ label: "Get started", href: "/founder/onboarding" }, { label: "Sign in", href: "/login" }] },
+  { title: "Investors", links: [{ label: "Join as investor", href: "/login" }, { label: "Sign in", href: "/login" }] },
 ] as const;

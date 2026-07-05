@@ -21,10 +21,10 @@ export function FinalCta() {
             Find out exactly how investors will read your startup — and what to fix first. Free.
           </p>
           <div style={{ display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap", position: "relative" }}>
-            <Link href="/signup" className="lp-cta" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: L.bg, color: L.ink, padding: "15px 32px", borderRadius: 999, fontSize: 15.5, fontWeight: 600, textDecoration: "none" }}>
+            <Link href="/founder/onboarding" className="lp-cta" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: L.bg, color: L.ink, padding: "15px 32px", borderRadius: 999, fontSize: 15.5, fontWeight: 600, textDecoration: "none" }}>
               Get your Q-Score <ArrowRight size={16} aria-hidden="true" />
             </Link>
-            <Link href="/investor/onboarding" className="lp-cta" style={{ display: "inline-flex", alignItems: "center", background: "transparent", color: L.alpha(L.bg, 0.85), padding: "15px 26px", borderRadius: 999, border: `1px solid ${L.alpha(L.bg, 0.25)}`, fontSize: 15.5, fontWeight: 500, textDecoration: "none" }}>
+            <Link href="/login" className="lp-cta" style={{ display: "inline-flex", alignItems: "center", background: "transparent", color: L.alpha(L.bg, 0.85), padding: "15px 26px", borderRadius: 999, border: `1px solid ${L.alpha(L.bg, 0.25)}`, fontSize: 15.5, fontWeight: 500, textDecoration: "none" }}>
               I invest — show me deal flow
             </Link>
           </div>
