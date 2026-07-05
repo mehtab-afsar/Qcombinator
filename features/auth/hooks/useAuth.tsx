@@ -15,6 +15,11 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Public /founder/* and /investor/* pages — must stay in sync with
+// PUBLIC_PATHS in middleware.ts. Visitors here have no session by design;
+// a SIGNED_OUT event on these pages must never bounce them to /login.
+const PUBLIC_FOUNDER_INVESTOR_PATHS = ['/founder/onboarding', '/founder/profile-builder', '/investor/onboarding'];
+
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
@@ -74,7 +79,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Skip public routes so unauthenticated visitors to onboarding aren't bounced
         if (event === 'SIGNED_OUT' && typeof window !== 'undefined') {
           const { pathname } = window.location;
-          if (pathname.startsWith('/founder/') || pathname.startsWith('/investor/')) {
+          const isProtected = pathname.startsWith('/founder/') || pathname.startsWith('/investor/');
+          const isPublic = PUBLIC_FOUNDER_INVESTOR_PATHS.includes(pathname);
+          if (isProtected && !isPublic) {
             console.error('[AUTH] Redirecting to /login from', pathname)
             window.location.href = '/login';
           }
