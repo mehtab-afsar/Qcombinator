@@ -222,7 +222,12 @@ export async function middleware(request: NextRequest) {
           .select('role')
           .eq('user_id', user.id)
           .maybeSingle()
-        if (!fp || fp.role !== 'founder') {
+        if (!fp) {
+          // No profile of any kind yet — send them to create a founder
+          // profile rather than assuming investor intent.
+          return NextResponse.redirect(new URL('/founder/onboarding', request.url))
+        }
+        if (fp.role !== 'founder') {
           return NextResponse.redirect(new URL('/investor/dashboard', request.url))
         }
         response.cookies.set('role_verified', 'founder', {

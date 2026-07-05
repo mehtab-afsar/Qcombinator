@@ -294,9 +294,18 @@ export default function OnboardingPage() {
 
   useEffect(() => {
     const sb = createClient()
-    sb.auth.getSession().then(({ data }) => {
-      if (data.session && !sessionStorage.getItem('ea_signup_pending'))
-        router.replace('/founder/dashboard')
+    sb.auth.getSession().then(async ({ data }) => {
+      if (!data.session || sessionStorage.getItem('ea_signup_pending')) return
+      // Only skip onboarding if this session already has a founder profile —
+      // otherwise a logged-in-but-profile-less visitor (e.g. an investor
+      // session, or an incomplete signup) would bounce through the dashboard
+      // role-redirect and land on investor onboarding instead of here.
+      const { data: fp } = await sb
+        .from('founder_profiles')
+        .select('user_id')
+        .eq('user_id', data.session.user.id)
+        .maybeSingle()
+      if (fp) router.replace('/founder/dashboard')
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

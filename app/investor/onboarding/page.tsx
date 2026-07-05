@@ -394,7 +394,20 @@ export default function InvestorOnboarding() {
   useEffect(() => {
     import('@/features/auth/services/auth.service')
       .then(({ getSession }) => getSession())
-      .then(s => { if (s) router.replace('/investor/dashboard') })
+      .then(async (s) => {
+        if (!s) return
+        // Only skip onboarding if an investor profile already exists —
+        // otherwise a profile-less session would bounce right back here
+        // from the dashboard role-redirect, and could loop.
+        const { createClient } = await import('@/lib/supabase/client')
+        const sb = createClient()
+        const { data: ip } = await sb
+          .from('investor_profiles')
+          .select('user_id')
+          .eq('user_id', s.user.id)
+          .maybeSingle()
+        if (ip) router.replace('/investor/dashboard')
+      })
       .catch(() => {})
   }, [router])
 
