@@ -41,10 +41,15 @@ export async function POST() {
         .eq('user_id', user.id)
     }
 
+    const priceId = process.env.STRIPE_FOUNDER_PREMIUM_PRICE_ID
+    if (!priceId) {
+      return NextResponse.json({ error: 'Billing not configured' }, { status: 503 })
+    }
+
     const session = await getStripe().checkout.sessions.create({
       customer: customerId,
       mode: 'subscription',
-      line_items: [{ price: process.env.STRIPE_FOUNDER_PREMIUM_PRICE_ID!, quantity: 1 }],
+      line_items: [{ price: priceId, quantity: 1 }],
       subscription_data: { trial_period_days: 14 },
       success_url: `${process.env.NEXT_PUBLIC_APP_URL}/founder/billing?success=1`,
       cancel_url:  `${process.env.NEXT_PUBLIC_APP_URL}/founder/billing`,

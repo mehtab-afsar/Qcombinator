@@ -9,7 +9,10 @@ const APP_URL = APP_BASE_URL
 
 function getResend(): Resend | null {
   const key = process.env.RESEND_API_KEY
-  if (!key) return null
+  if (!key) {
+    log.warn('[email] RESEND_API_KEY not set — all email silently skipped')
+    return null
+  }
   return new Resend(key)
 }
 

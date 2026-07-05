@@ -233,7 +233,6 @@ export async function POST(request: NextRequest) {
         email: authData.user.email,
         fullName,
       },
-      profile,
     }, { status: 201 });
   } catch (error) {
     log.error('Error during signup:', error);
