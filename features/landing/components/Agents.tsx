@@ -81,12 +81,17 @@ export function Agents() {
             {ADVISERS.map((a, i) => {
               const on = selected === i;
               return (
-                <button
+                <motion.button
                   key={a.name}
                   role="tab"
                   aria-selected={on}
                   onClick={() => setSelected(i)}
-                  className={`lp-cloud lp-cloud-${i % 3}`}
+                  className="lp-cloud"
+                  initial={reduced ? undefined : { opacity: 0, scale: 0.9, y: 12 }}
+                  whileInView={reduced ? undefined : { opacity: 1, scale: 1, y: 0 }}
+                  whileHover={reduced ? undefined : { y: -4 }}
+                  viewport={{ once: true, margin: "-40px" }}
+                  transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1], delay: i * 0.06 }}
                   style={{
                     display: "flex", flexDirection: "column", gap: 5, textAlign: "left",
                     background: on ? L.alpha(a.color, 0.07) : L.card,
@@ -103,7 +108,7 @@ export function Agents() {
                   <span style={{ fontFamily: FONT_MONO, fontSize: 10.5, color: on ? a.color : L.muted, marginTop: 2, letterSpacing: "0.04em" }}>
                     {on ? `→ ${a.name}` : a.name}
                   </span>
-                </button>
+                </motion.button>
               );
             })}
           </div>
