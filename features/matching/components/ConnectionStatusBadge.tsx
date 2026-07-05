@@ -1,5 +1,6 @@
 import { Clock, Eye, Calendar, X } from "lucide-react";
 import { ConnectionStatus, ConnectionStatusBadgeProps } from "../types/matching.types";
+import type { LucideIcon } from 'lucide-react'
 
 // ─── palette ──────────────────────────────────────────────────────────────────
 const bdr   = "#E2DDD5";
@@ -9,7 +10,7 @@ const green = "#16A34A";
 const red   = "#DC2626";
 
 const STATUS_CONFIG: Record<Exclude<ConnectionStatus, 'none'>, {
-  icon: React.ElementType;
+  icon: LucideIcon;
   label: string;
   color: string;
   bg: string;

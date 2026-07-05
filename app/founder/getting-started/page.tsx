@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import {
   Check, ChevronRight, Lock, ArrowUpRight,
   UserCircle, FileText, Target, TrendingUp, Users, DollarSign,
+  type LucideIcon,
 } from 'lucide-react'
 import { bg, surf, bdr, ink, muted, blue } from '@/lib/constants/colors'
 
@@ -32,7 +33,7 @@ interface FounderProgress {
 
 interface Step {
   id: string
-  icon: React.ElementType
+  icon: LucideIcon
   title: string
   description: string
   detail: string

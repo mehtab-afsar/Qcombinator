@@ -11,6 +11,7 @@ import { useMetrics } from "@/features/founder/hooks/useFounderData";
 import Link from "next/link";
 import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
 import { PageSpinner } from '@/features/shared/components/Spinner'
+import type { LucideIcon } from 'lucide-react'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 function trendColor(v: number) { return v > 0 ? green : v < 0 ? red : muted; }
@@ -43,7 +44,7 @@ function KpiCard({
   label, value, change, sub, icon: Icon, delay = 0,
 }: {
   label: string; value: string; change?: number;
-  sub?: string; icon: React.ElementType; delay?: number;
+  sub?: string; icon: LucideIcon; delay?: number;
 }) {
   const TrendIcon = change !== undefined ? trendIcon(change) : null;
   const tc = change !== undefined ? trendColor(change) : muted;

@@ -32,6 +32,7 @@ import {
 import Link from "next/link";
 import { useQScore } from "@/features/qscore/hooks/useQScore";
 import { bg, surf, bdr, ink, muted, blue, green, amber, red, purple, alpha } from '@/lib/constants/colors'
+import type { LucideIcon } from 'lucide-react'
 
 // ─── types ────────────────────────────────────────────────────────────────────
 interface AIAction {
@@ -120,7 +121,7 @@ const DIMENSIONS: DimensionDef[] = [
 
 // ─── challenges (paramKey = p1…p6) ───────────────────────────────────────────
 interface Challenge {
-  type: string; label: string; icon: React.ElementType;
+  type: string; label: string; icon: LucideIcon;
   paramKey: string; agentId: string; agentName: string; points: number; color: string;
 }
 

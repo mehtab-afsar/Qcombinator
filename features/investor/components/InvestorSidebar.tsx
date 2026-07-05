@@ -15,6 +15,7 @@ import { Avatar } from '@/features/shared/components/Avatar'
 import { useInvestorNotifications } from '@/features/investor/hooks/useInvestorNotifications'
 import { useInvestorGettingStarted } from '@/features/investor/hooks/useInvestorGettingStarted'
 import { NotificationDropdown, NotificationBellButton, NotifItem } from '@/features/shared/components/NotificationPanel'
+import type { LucideIcon } from 'lucide-react'
 
 // ─── nav items ────────────────────────────────────────────────────────────────
 const BASE_NAV = [
@@ -93,7 +94,7 @@ function DropItem({
   danger,
 }: {
   href?: string;
-  icon: React.ElementType;
+  icon: LucideIcon;
   label: string;
   onClick?: () => void;
   danger?: boolean;

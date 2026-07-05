@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
 import { UpgradeModal } from '@/components/ui/UpgradeModal'
+import type { LucideIcon } from 'lucide-react'
 
 const surf2 = '#EAE7E0'   // deeper sand — agent bubbles, hover
 
@@ -1239,7 +1240,7 @@ export default function ProfileBuilderPage() {
               ] : [
                 { key: 'pitch', label: 'Your Pitch', Icon: Target },
               ]),
-            ] as Array<{ key: string; label: string; Icon: React.ElementType }>).map(({ key, label, Icon }) => {
+            ] as Array<{ key: string; label: string; Icon: LucideIcon }>).map(({ key, label, Icon }) => {
               const isActive = String(currentStep) === key
               return (
                 <button
@@ -1275,7 +1276,7 @@ export default function ProfileBuilderPage() {
               { key: '3', label: 'IP & Defensibility', Icon: Shield },
               { key: '4', label: 'Founder & Team',     Icon: User },
               { key: '5', label: 'Financials',         Icon: DollarSign },
-            ] as Array<{ key: string; label: string; Icon: React.ElementType }>).map(({ key, label, Icon }) => {
+            ] as Array<{ key: string; label: string; Icon: LucideIcon }>).map(({ key, label, Icon }) => {
               const isActive = String(currentStep) === key
               const sec = sections[key]
               const pct = animatedScores[key] ?? sec?.completionScore ?? 0
@@ -2015,7 +2016,7 @@ export default function ProfileBuilderPage() {
                   const isStrong = s.completionPct >= 60
                   const isPartial = s.completionPct > 0 && s.completionPct < 60
                   const willAsk = smartQuestions.some(q => q.sectionKey === s.sectionKey)
-                  const _sectionIcons: Record<string, React.ElementType> = { '1': Users, '2': TrendingUp, '3': Shield, '4': User, '5': DollarSign }
+                  const _sectionIcons: Record<string, LucideIcon> = { '1': Users, '2': TrendingUp, '3': Shield, '4': User, '5': DollarSign }
                   const SIcon = _sectionIcons[s.sectionKey] ?? BarChart2
                   const barColor = isStrong ? green : isPartial ? (willAsk ? amber : blue) : bdr
                   const statusLabel = isStrong ? 'Strong' : willAsk ? 'Will be asked' : isPartial ? 'Partial' : 'No data'

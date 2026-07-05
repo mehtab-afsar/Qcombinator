@@ -19,6 +19,7 @@ import { APP_NAME } from '@/lib/constants/app'
 import { Avatar } from '@/features/shared/components/Avatar'
 import { EmailConfirmBanner } from '@/features/shared/components/EmailConfirmBanner'
 import { NotificationDropdown, NotificationBellButton, NotifItem } from '@/features/shared/components/NotificationPanel'
+import type { LucideIcon } from 'lucide-react'
 
 // ─── nav items ────────────────────────────────────────────────────────────────
 const BASE_NAV = [
@@ -97,7 +98,7 @@ function DropItem({
   danger,
 }: {
   href?: string;
-  icon: React.ElementType;
+  icon: LucideIcon;
   label: string;
   onClick?: () => void;
   danger?: boolean;

@@ -2,11 +2,12 @@
 
 import { bdr, ink, muted } from '@/lib/constants/colors';
 import { font } from '@/features/shared/tokens';
+import type { LucideIcon } from 'lucide-react'
 
 interface Tab {
   id: string;
   label: string;
-  icon?: React.ElementType;
+  icon?: LucideIcon;
 }
 
 interface TabNavProps {

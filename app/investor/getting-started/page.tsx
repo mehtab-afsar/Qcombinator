@@ -9,6 +9,7 @@ import {
   Building2, Target, Sparkles, SlidersHorizontal, Users,
 } from 'lucide-react'
 import { bg, surf, bdr, ink, muted, blue } from '@/lib/constants/colors'
+import type { LucideIcon } from 'lucide-react'
 
 const font = {
   family: 'system-ui, -apple-system, sans-serif',
@@ -30,7 +31,7 @@ interface InvestorProgress {
 
 interface Step {
   id: string
-  icon: React.ElementType
+  icon: LucideIcon
   title: string
   description: string
   detail: string

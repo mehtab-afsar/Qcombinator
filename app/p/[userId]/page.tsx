@@ -12,9 +12,10 @@ import {
 import Link from "next/link";
 import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
 import { Avatar } from '@/features/shared/components/Avatar'
+import type { LucideIcon } from 'lucide-react'
 
 // ─── artifact meta ────────────────────────────────────────────────────────────
-const ARTIFACT_META: Record<string, { icon: React.ElementType; color: string }> = {
+const ARTIFACT_META: Record<string, { icon: LucideIcon; color: string }> = {
   icp_document:       { icon: FileText,   color: blue       },
   outreach_sequence:  { icon: Mail,       color: green      },
   battle_card:        { icon: Swords,     color: red        },

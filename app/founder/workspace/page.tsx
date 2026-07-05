@@ -11,9 +11,10 @@ import {
 import Link from "next/link";
 import { agents } from "@/features/agents/data/agents";
 import { bg, surf, bdr, ink, muted, blue, green } from '@/lib/constants/colors'
+import type { LucideIcon } from 'lucide-react'
 
 // ─── artifact meta ────────────────────────────────────────────────────────────
-const ARTIFACT_META: Record<string, { icon: React.ElementType; label: string; color: string; agentId: string }> = {
+const ARTIFACT_META: Record<string, { icon: LucideIcon; label: string; color: string; agentId: string }> = {
   icp_document:       { icon: FileText,   label: "ICP Document",         color: blue,      agentId: "patel" },
   outreach_sequence:  { icon: Mail,       label: "Outreach Sequence",    color: green,     agentId: "patel" },
   battle_card:        { icon: Swords,     label: "Battle Card",          color: "#DC2626", agentId: "patel" },

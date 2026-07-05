@@ -11,9 +11,10 @@ import Link from "next/link";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { usePortfolioData } from "@/features/founder/hooks/usePortfolioData";
 import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
+import type { LucideIcon } from 'lucide-react'
 
 // ─── artifact meta ────────────────────────────────────────────────────────────
-const ARTIFACT_META: Record<string, { icon: React.ElementType; label: string; color: string }> = {
+const ARTIFACT_META: Record<string, { icon: LucideIcon; label: string; color: string }> = {
   icp_document:       { icon: FileText,   label: "ICP Document",         color: blue       },
   outreach_sequence:  { icon: Mail,       label: "Outreach Sequence",    color: green      },
   battle_card:        { icon: Swords,     label: "Battle Card",          color: red        },

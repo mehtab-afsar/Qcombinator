@@ -3,9 +3,10 @@
 import Link from 'next/link';
 import { surf, bdr, ink, muted, blue, alpha } from '@/lib/constants/colors';
 import { radius, shadow } from '@/features/shared/tokens';
+import type { LucideIcon } from 'lucide-react'
 
 interface StatCardProps {
-  icon: React.ElementType;
+  icon: LucideIcon;
   label: string;
   value: string | number;
   sub?: string;

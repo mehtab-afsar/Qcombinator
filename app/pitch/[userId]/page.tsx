@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { bg, surf, bdr, ink, muted, blue, green, amber, red } from "@/lib/constants/colors";
+import type { LucideIcon } from 'lucide-react'
 
 // ─── types ────────────────────────────────────────────────────────────────────
 interface QScoreBreakdown {
@@ -134,7 +135,7 @@ function Section({
   children,
 }: {
   title: string;
-  icon: React.ElementType;
+  icon: LucideIcon;
   color?: string;
   children: React.ReactNode;
 }) {

@@ -18,10 +18,11 @@ import { bg, surf, bdr, ink, muted, blue, green, red } from '@/lib/constants/col
 import { Avatar } from '@/features/shared/components/Avatar'
 import { TabNav } from '@/features/shared/components/TabNav'
 import { InviteModal } from '@/components/ui/InviteModal'
+import type { LucideIcon } from 'lucide-react'
 
 type TabId = 'profile' | 'notifications' | 'team' | 'integrations';
 
-const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
+const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
   { id: 'profile',       label: 'Profile',        icon: User   },
   { id: 'notifications', label: 'Notifications',  icon: Bell   },
   { id: 'team',          label: 'Team',           icon: Users  },

@@ -15,11 +15,12 @@ import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/consta
 import { Avatar } from '@/features/shared/components/Avatar'
 import { TabNav } from '@/features/shared/components/TabNav'
 import { PageSpinner } from '@/features/shared/components/Spinner'
+import type { LucideIcon } from 'lucide-react'
 
 // ─── types ────────────────────────────────────────────────────────────────────
 type TabId = 'profile' | 'notifications' | 'team'
 
-const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
+const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
   { id: 'profile',       label: 'Profile',        icon: User   },
   { id: 'notifications', label: 'Notifications',  icon: Bell   },
   { id: 'team',          label: 'Team',           icon: Users  },
