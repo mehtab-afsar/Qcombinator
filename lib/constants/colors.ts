@@ -27,3 +27,47 @@ export const indigo = "#4F46E5"  // secondary accent variant
 export function alpha(hex: string, opacity: number): string {
   return hex + Math.round(opacity * 255).toString(16).padStart(2, "0")
 }
+
+// ─── Landing Page Theme (YC Startup Dark) ─────────────────────────────────────
+// Neon accents + dark surfaces. Used exclusively by /app/page.tsx
+export const landingTheme = {
+  // Dark surfaces
+  bg: "#0F0F1A",           // deep navy background
+  surface: "#16172B",      // card surface
+
+  // Text on dark
+  text: {
+    primary: "#FFFFFF",                    // white
+    secondary: "rgba(255,255,255,0.70)",   // muted white
+    tertiary: "rgba(255,255,255,0.40)",    // faint white
+  },
+
+  // Borders
+  border: "rgba(255,255,255,0.08)",
+  borderStrong: "rgba(255,255,255,0.15)",
+
+  // Signature neon accents
+  green: "#47FF95",       // bright lime (YC-style)
+  blue: "#1A6CFF",        // electric blue
+
+  // Button
+  ctaBg: "#ECF2C4",        // pale cream
+  ctaText: "#0A0A0A",      // dark text
+
+  // Gradients
+  gradientAccent: "linear-gradient(135deg, #1A6CFF 0%, #47FF95 100%)",
+  gradientSoft: "linear-gradient(135deg, rgba(26,108,255,0.12), rgba(71,255,149,0.12))",
+
+  // Glows
+  glowGreen: "0 0 20px rgba(71, 255, 149, 0.25)",
+  glowBlue: "0 0 20px rgba(26, 108, 255, 0.25)",
+
+  // Utility
+  success: "#10B981",
+  warning: "#F59E0B",
+  error: "#EF4444",
+
+  // Raised surface (cards on cards) + dim ring stroke for the Q-Prism hero
+  surfaceRaised: "#1C1E36",
+  ringDim: "rgba(255,255,255,0.12)",
+}
