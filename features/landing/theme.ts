@@ -25,6 +25,29 @@ export const L = {
   windowOn: "#F5B944",   // lit window (warm amber glow)
 } as const;
 
+/** Cinematic dusk palette — hero band only; the rest of the page stays light. */
+export const DUSK = {
+  skyTop: "#141B33",       // deep indigo zenith
+  skyMid: "#2A3454",       // slate blue
+  skyHorizon: "#C8734B",   // burnt amber at the horizon
+  skyGlow: "#F0A05A",      // sun glow core
+  haze: "#8A93B8",         // atmospheric haze tint
+  towerLight: "#3A4266",   // sun-side glass
+  towerDark: "#1C2238",    // shade-side glass
+  towerEdge: "#6E7BA8",    // lit edge highlight
+  paneOff: "#252D48",      // unlit pane (barely lighter than facade)
+  paneOn: "#FFC46B",       // lit pane core
+  paneOnHot: "#FFE3B0",    // lit pane highlight
+  cityFar: "#39415F",      // far silhouettes (hazier = lighter)
+  cityMid: "#242C49",      // mid silhouettes
+  cityWin: "#AEB9DF",      // sparse cool windows in the city
+  ground: "#12172B",       // plaza silhouette
+  lamp: "#FFB35C",         // street lamp glow
+  text: "#F5EFE4",         // warm white type over the scene
+  textDim: "rgba(245,239,228,0.66)",
+  textFaint: "rgba(245,239,228,0.42)",
+} as const;
+
 export const FONT_SERIF = "var(--font-fraunces), Georgia, serif";
 export const FONT_MONO = "var(--font-mono), 'SF Mono', monospace";
 export const EASE = [0.22, 1, 0.36, 1] as const;

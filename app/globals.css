@@ -257,12 +257,26 @@
 }
 .lp-rays { animation: lp-rays-kf 14s ease-in-out infinite; }
 
+/* dusk hero: star twinkle, beacon pulse, sun-break breathing, dark-nav hover */
+@keyframes lp-star-kf { 0%, 100% { opacity: 0.25; } 50% { opacity: 0.85; } }
+.lp-star { animation: lp-star-kf 4s ease-in-out infinite; }
+@keyframes lp-beacon-kf { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+.lp-beacon { animation: lp-beacon-kf 2.2s ease-in-out infinite; }
+@keyframes lp-sunbreak-kf { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.12); opacity: 0.85; } }
+.lp-sunbreak { animation: lp-sunbreak-kf 6s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
+.lp-nav-a-dark { transition: color 0.15s ease; }
+.lp-nav-a-dark:hover { color: #FFFFFF !important; }
+.lp-nav-a-dark:focus-visible { outline: 2px solid #F0A05A; outline-offset: 3px; border-radius: 6px; }
+
 /* ── Reduced motion: freeze decorative animation globally ───────────────────── */
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto !important; }
   .lp-pulse,
   .lp-bird,
   .lp-rays,
+  .lp-star,
+  .lp-beacon,
+  .lp-sunbreak,
   .mq-inner-l,
   .mq-inner-r,
   .lp-faq-content[data-state="open"],

@@ -1,51 +1,49 @@
 "use client";
 
-import { L } from "../../theme";
+import { DUSK } from "../../theme";
 import { FLOOR_COUNT } from "./geometry";
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
 /**
- * The "fundable" moment: warm light rays burst from behind the hero roofline
- * once the tower crosses the threshold (score ≈ 70). Low-opacity amber/cream
- * beams with a soft halo — dramatic but not neon.
+ * The "fundable" moment at dusk: the horizon glow surges behind the finished
+ * tower — a soft lens-bloom disc, a warm gradient wall of light, and faint
+ * wide beams. Photographic, not cartoon rays.
  */
 export function GodRays({ builtFloors, animate = true }: { builtFloors: number; animate?: boolean }) {
   const reveal = clamp01((builtFloors - (FLOOR_COUNT - 0.9)) / 0.9);
   if (reveal <= 0.01) return null;
 
-  // rays fan out from just behind the roof apex
-  const cx = 200, cy = 132;
-  const rays = [-72, -48, -26, -6, 14, 38, 62].map((deg, i) => {
-    const len = 210 + (i % 3) * 46;
-    const halfW = 7 + (i % 2) * 5;
-    const rad = ((deg - 90) * Math.PI) / 180;
-    const px = (a: number, r: number) => `${(cx + r * Math.cos(a)).toFixed(1)},${(cy + r * Math.sin(a)).toFixed(1)}`;
-    const spread = (halfW * Math.PI) / 180;
-    return `M ${cx} ${cy} L ${px(rad - spread, len)} L ${px(rad + spread, len)} Z`;
-  });
+  const cx = 200, cy = 190;
 
   return (
     <svg viewBox="0 0 400 470" aria-hidden="true" style={{ width: "100%", height: "100%", display: "block", overflow: "visible", opacity: reveal }}>
       <defs>
-        <linearGradient id="ray-grad" x1="0" y1="1" x2="0" y2="0">
-          <stop offset="0%" stopColor={L.alpha(L.windowOn, 0.34)} />
-          <stop offset="70%" stopColor={L.alpha(L.windowOn, 0.08)} />
-          <stop offset="100%" stopColor={L.alpha(L.windowOn, 0)} />
-        </linearGradient>
-        <radialGradient id="ray-halo" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor={L.alpha(L.windowOn, 0.30)} />
-          <stop offset="100%" stopColor={L.alpha(L.windowOn, 0)} />
+        <radialGradient id="sb-bloom" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor={DUSK.skyGlow} stopOpacity="0.55" />
+          <stop offset="38%" stopColor={DUSK.skyGlow} stopOpacity="0.22" />
+          <stop offset="100%" stopColor={DUSK.skyGlow} stopOpacity="0" />
         </radialGradient>
+        <radialGradient id="sb-core" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#FFF3DC" stopOpacity="0.8" />
+          <stop offset="100%" stopColor="#FFF3DC" stopOpacity="0" />
+        </radialGradient>
+        <linearGradient id="sb-beam" x1="0" y1="1" x2="0" y2="0">
+          <stop offset="0%" stopColor={DUSK.skyGlow} stopOpacity="0.16" />
+          <stop offset="100%" stopColor={DUSK.skyGlow} stopOpacity="0" />
+        </linearGradient>
       </defs>
-      {/* halo behind the roofline */}
-      <circle cx={cx} cy={cy + 16} r={98} fill="url(#ray-halo)" />
-      {/* the beams — slow ceremonial rotation */}
-      <g className={animate ? "lp-rays" : undefined} style={{ transformOrigin: `${cx}px ${cy}px` }}>
-        {rays.map((d, i) => (
-          <path key={i} d={d} fill="url(#ray-grad)" />
-        ))}
-      </g>
+
+      {/* wide horizon bloom behind the tower */}
+      <ellipse cx={cx} cy={cy + 60} rx={220} ry={150} fill="url(#sb-bloom)" />
+      {/* bright core just behind the crown */}
+      <circle cx={cx} cy={cy - 46} r={54} fill="url(#sb-core)" className={animate ? "lp-sunbreak" : undefined} />
+      {/* two faint wide light shafts */}
+      <polygon points={`${cx},${cy - 40} ${cx - 130},${cy - 300} ${cx - 58},${cy - 300}`} fill="url(#sb-beam)" />
+      <polygon points={`${cx},${cy - 40} ${cx + 64},${cy - 300} ${cx + 138},${cy - 300}`} fill="url(#sb-beam)" />
+      {/* lens streak */}
+      <rect x={cx - 120} y={cy - 48} width={240} height={1.6} fill="#FFF3DC" opacity={0.4} rx={1} />
+      <rect x={cx - 60} y={cy - 48.5} width={120} height={2.6} fill="#FFF8EA" opacity={0.5} rx={1.3} />
     </svg>
   );
 }
