@@ -16,6 +16,24 @@ import { FLOORS, HERO_SCORE } from "../copy";
 import { useMotionPrefs } from "../hooks/useMotionPrefs";
 import { useIsWide } from "../hooks/useIsWide";
 import { HeroBuilding } from "./building/HeroBuilding";
+import { CityBackdrop } from "./building/CityBackdrop";
+import { Crane } from "./building/Crane";
+import { GodRays } from "./building/GodRays";
+import { Foreground } from "./building/Foreground";
+
+/** Tiny drifting birds — far layer life. Hidden under reduced motion via CSS. */
+function Birds() {
+  return (
+    <div aria-hidden="true" style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+      {[{ top: "16%", delay: "0s", scale: 1 }, { top: "10%", delay: "7s", scale: 0.7 }, { top: "22%", delay: "13s", scale: 0.85 }].map((b, i) => (
+        <svg key={i} className="lp-bird" viewBox="0 0 14 6" width={14 * b.scale} height={6 * b.scale}
+          style={{ position: "absolute", top: b.top, left: "-8%", animationDelay: b.delay }}>
+          <path d="M1 4 Q4 0.5 7 4 Q10 0.5 13 4" fill="none" stroke={L.alpha(L.ink, 0.45)} strokeWidth="1.1" strokeLinecap="round" />
+        </svg>
+      ))}
+    </div>
+  );
+}
 
 function CtaRow({ center = false }: { center?: boolean }) {
   return (
@@ -83,7 +101,19 @@ function StaticHero() {
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 8 }}><CtaRow center /></div>
       </div>
       <div style={{ position: "relative", width: "min(84vw, 380px)", margin: "34px auto 0" }}>
+        <div aria-hidden="true" style={{ position: "absolute", top: 0, bottom: 0, width: "175%", left: "-37.5%", pointerEvents: "none" }}>
+          <CityBackdrop row="back" />
+        </div>
+        <div aria-hidden="true" style={{ position: "absolute", top: 0, bottom: 0, width: "175%", left: "-37.5%", pointerEvents: "none" }}>
+          <CityBackdrop row="mid" />
+        </div>
+        <div aria-hidden="true" style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+          <GodRays builtFloors={6} animate={false} />
+        </div>
         <HeroBuilding builtFloors={6} />
+        <div aria-hidden="true" style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+          <Foreground />
+        </div>
       </div>
       <div style={{ position: "relative", textAlign: "center", marginTop: 8 }}>
         <span style={{ fontFamily: FONT_MONO, fontSize: 40, fontWeight: 700, color: L.ink, fontVariantNumeric: "tabular-nums" }}>{HERO_SCORE}</span>
@@ -118,7 +148,9 @@ function PinnedHero() {
   const sceneRotX = useSpring(useTransform(my, [-0.5, 0.5], [5, -5]), SPRING);
   const sceneRotY = useSpring(useTransform(mx, [-0.5, 0.5], [-8, 8]), SPRING);
   // closer layers shift more with the cursor (classic parallax)
+  const skyX = useSpring(useTransform(mx, [-0.5, 0.5], [-7, 7]), SPRING);
   const cloudX = useSpring(useTransform(mx, [-0.5, 0.5], [-14, 14]), SPRING);
+  const midX = useSpring(useTransform(mx, [-0.5, 0.5], [-19, 19]), SPRING);
   const buildX = useSpring(useTransform(mx, [-0.5, 0.5], [-26, 26]), SPRING);
   const foreX = useSpring(useTransform(mx, [-0.5, 0.5], [-46, 46]), SPRING);
   const foreY = useSpring(useTransform(my, [-0.5, 0.5], [-14, 14]), SPRING);
@@ -166,7 +198,7 @@ function PinnedHero() {
           </p>
         </motion.div>
 
-        {/* parallax depth scene: far clouds · building · foreground */}
+        {/* parallax depth scene: skyline · clouds · neighbors · hero+crane+rays · plaza */}
         <motion.div
           style={{
             position: "relative", zIndex: 1, marginTop: "6vh",
@@ -174,20 +206,42 @@ function PinnedHero() {
             rotateX: sceneRotX, rotateY: sceneRotY,
           }}
         >
-          {/* far layer — drifting clouds */}
-          <motion.div aria-hidden="true" style={{ position: "absolute", inset: "-40% -60%", x: cloudX, y: cloudDrift, z: -160, pointerEvents: "none" }}>
-            <div style={{ position: "absolute", top: "10%", left: "18%", width: 150, height: 150, borderRadius: "50%", background: L.card, opacity: 0.55, filter: "blur(26px)" }} />
-            <div style={{ position: "absolute", top: "24%", right: "20%", width: 200, height: 200, borderRadius: "50%", background: L.card, opacity: 0.4, filter: "blur(34px)" }} />
-            <div style={{ position: "absolute", top: "4%", right: "36%", width: 90, height: 90, borderRadius: "50%", background: L.card, opacity: 0.5, filter: "blur(20px)" }} />
-          </motion.div>
+          <div style={{ position: "relative", width: "min(58vh, 440px)", height: "min(72vh, 560px)", transformStyle: "preserve-3d" }}>
+            {/* farthest — horizon skyline of other startups + birds */}
+            <motion.div aria-hidden="true" style={{ position: "absolute", top: 0, bottom: 0, width: "175%", left: "-37.5%", x: skyX, z: -220, pointerEvents: "none" }}>
+              <CityBackdrop row="back" />
+              <Birds />
+            </motion.div>
 
-          {/* mid layer — the building */}
-          <motion.div style={{ x: buildX, z: 0, width: "min(58vh, 440px)", height: "min(72vh, 560px)", display: "flex", alignItems: "flex-end" }}>
-            <HeroBuilding builtFloors={built} />
-          </motion.div>
+            {/* drifting clouds */}
+            <motion.div aria-hidden="true" style={{ position: "absolute", inset: "-40% -60%", x: cloudX, y: cloudDrift, z: -160, pointerEvents: "none" }}>
+              <div style={{ position: "absolute", top: "10%", left: "18%", width: 150, height: 150, borderRadius: "50%", background: L.card, opacity: 0.55, filter: "blur(26px)" }} />
+              <div style={{ position: "absolute", top: "24%", right: "20%", width: 200, height: 200, borderRadius: "50%", background: L.card, opacity: 0.4, filter: "blur(34px)" }} />
+              <div style={{ position: "absolute", top: "4%", right: "36%", width: 90, height: 90, borderRadius: "50%", background: L.card, opacity: 0.5, filter: "blur(20px)" }} />
+            </motion.div>
 
-          {/* near layer — foreground ground haze */}
-          <motion.div aria-hidden="true" style={{ position: "absolute", left: "-30%", right: "-30%", bottom: "-6%", height: 120, x: foreX, y: foreY, z: 110, pointerEvents: "none", background: `radial-gradient(60% 80% at 50% 100%, ${L.alpha(L.amber, 0.12)}, transparent 70%)`, filter: "blur(8px)" }} />
+            {/* mid — unlit neighbor towers */}
+            <motion.div aria-hidden="true" style={{ position: "absolute", top: 0, bottom: 0, width: "175%", left: "-37.5%", x: midX, z: -90, pointerEvents: "none" }}>
+              <CityBackdrop row="mid" />
+            </motion.div>
+
+            {/* hero layer — god-rays behind, tower, crane in front */}
+            <motion.div style={{ position: "absolute", inset: 0, x: buildX, z: 0, display: "flex", alignItems: "flex-end" }}>
+              <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+                <GodRays builtFloors={built} />
+              </div>
+              <HeroBuilding builtFloors={built} />
+              <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+                <Crane builtFloors={built} />
+              </div>
+            </motion.div>
+
+            {/* nearest — plaza, trees, warm ground haze */}
+            <motion.div aria-hidden="true" style={{ position: "absolute", inset: 0, x: foreX, y: foreY, z: 120, pointerEvents: "none" }}>
+              <Foreground />
+              <div style={{ position: "absolute", left: "-20%", right: "-20%", bottom: "-4%", height: 110, background: `radial-gradient(60% 80% at 50% 100%, ${L.alpha(L.amber, 0.12)}, transparent 70%)`, filter: "blur(8px)" }} />
+            </motion.div>
+          </div>
         </motion.div>
 
         {/* score readout, lower-left */}

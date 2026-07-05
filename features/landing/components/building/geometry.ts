@@ -117,3 +117,55 @@ export function buildBuilding(): BuildingGeo {
     groundRy: 16,
   };
 }
+
+// ─── Neighbor towers (the rest of the market — never lit) ────────────────────
+
+export interface NeighborGeo {
+  left: string;
+  right: string;
+  top: string;
+  leftWindows: string[];
+  rightWindows: string[];
+}
+
+/**
+ * A simplified isometric tower for the surrounding city. `cx` is the tower's
+ * horizontal centre, `groundY` the apex of its base at street level, `hw` the
+ * iso half-width and `height` the shaft height in px.
+ */
+export function buildNeighborBlock(cx: number, groundY: number, hw: number, height: number): NeighborGeo {
+  const a = groundY - height; // apex of the roofline
+
+  const LT = { x: cx - hw, y: a + hw / 2 };
+  const MT = { x: cx,      y: a + hw };
+  const RT = { x: cx + hw, y: a + hw / 2 };
+  const MB = { x: cx,      y: groundY + hw };
+  const LB = { x: cx - hw, y: groundY + hw / 2 };
+  const RB = { x: cx + hw, y: groundY + hw / 2 };
+
+  const left = [LT, MT, MB, LB].map((q) => p(q.x, q.y)).join(" ");
+  const right = [MT, RT, RB, MB].map((q) => p(q.x, q.y)).join(" ");
+  const top = [
+    p(cx, a),
+    p(cx + hw, a + hw / 2),
+    p(cx, a + hw),
+    p(cx - hw, a + hw / 2),
+  ].join(" ");
+
+  // sparse unlit window strips (2-3 bands per face depending on height)
+  const bands = Math.max(2, Math.min(4, Math.floor(height / 34)));
+  const leftWindows: string[] = [];
+  const rightWindows: string[] = [];
+  for (let bIdx = 0; bIdx < bands; bIdx++) {
+    const v0 = 0.12 + (bIdx / bands) * 0.78;
+    const v1 = v0 + 0.10;
+    leftWindows.push(
+      windowPoly(LT.x, LT.y, MT.x - LT.x, MT.y - LT.y, LB.x - LT.x, LB.y - LT.y, 0.22, 0.78, v0, v1)
+    );
+    rightWindows.push(
+      windowPoly(MT.x, MT.y, RT.x - MT.x, RT.y - MT.y, MB.x - MT.x, MB.y - MT.y, 0.22, 0.78, v0, v1)
+    );
+  }
+
+  return { left, right, top, leftWindows, rightWindows };
+}

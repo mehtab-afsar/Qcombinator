@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { L, FONT_SERIF, FONT_MONO } from "../theme";
 import { ADVISERS } from "../copy";
 import { Reveal, Eyebrow } from "./Section";
@@ -41,6 +41,23 @@ export function Agents() {
   const [typing, setTyping] = useState(false);
   const active = ADVISERS[selected];
 
+  // 3D stage: cursor-driven tilt (springed), shadow shifts opposite the tilt
+  const mx = useMotionValue(0);
+  const my = useMotionValue(0);
+  const SPRING = { stiffness: 90, damping: 18, mass: 0.4 };
+  const rotX = useSpring(useTransform(my, [-0.5, 0.5], [3.5, -3.5]), SPRING);
+  const rotY = useSpring(useTransform(mx, [-0.5, 0.5], [-5, 5]), SPRING);
+  const shadowX = useSpring(useTransform(mx, [-0.5, 0.5], [18, -18]), SPRING);
+  const boxShadow = useTransform(shadowX, (sx) => `${sx}px 30px 60px -28px rgba(24,22,15,0.30)`);
+
+  const onMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (reduced) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    mx.set((e.clientX - r.left) / r.width - 0.5);
+    my.set((e.clientY - r.top) / r.height - 0.5);
+  };
+  const onLeave = () => { mx.set(0); my.set(0); };
+
   useEffect(() => {
     if (reduced) { setTyping(false); return; }
     setTyping(true);
@@ -61,8 +78,41 @@ export function Agents() {
         </p>
       </Reveal>
 
-      <Reveal>
-        <div style={{ maxWidth: 860, margin: "0 auto", background: L.card, border: `1px solid ${L.bdr}`, borderRadius: 20, overflow: "hidden", boxShadow: "0 24px 60px -30px rgba(24,22,15,0.22)" }}>
+      <div
+        onMouseMove={onMove}
+        onMouseLeave={onLeave}
+        style={{ maxWidth: 860, margin: "0 auto", position: "relative", perspective: 1400 }}
+      >
+        {/* ambient depth orbs behind the card, tinted by the active adviser */}
+        <div aria-hidden="true" style={{ position: "absolute", inset: "-12%", pointerEvents: "none", zIndex: 0 }}>
+          {[{ top: "-6%", left: "-4%", size: 190, dur: 9 }, { bottom: "-10%", right: "-3%", size: 240, dur: 12 }, { top: "34%", right: "-9%", size: 120, dur: 7 }].map((o, i) => (
+            <motion.span
+              key={i}
+              animate={reduced ? undefined : { y: [0, -14, 0] }}
+              transition={reduced ? undefined : { duration: o.dur, repeat: Infinity, ease: "easeInOut", delay: i * 1.3 }}
+              style={{
+                position: "absolute", top: o.top, left: o.left, right: o.right, bottom: o.bottom,
+                width: o.size, height: o.size, borderRadius: "50%",
+                background: L.alpha(active.color, 0.10), filter: "blur(34px)",
+                transition: "background 0.6s ease", display: "block",
+              }}
+            />
+          ))}
+        </div>
+
+        <motion.div
+          initial={reduced ? undefined : { opacity: 0, rotateX: 16, z: -180, y: 44 }}
+          whileInView={reduced ? undefined : { opacity: 1, rotateX: 0, z: 0, y: 0 }}
+          viewport={{ once: true, margin: "-100px" }}
+          transition={{ duration: 0.9, ease: EASE }}
+          style={{
+            position: "relative", zIndex: 1,
+            rotateX: reduced ? 0 : rotX, rotateY: reduced ? 0 : rotY,
+            transformStyle: "preserve-3d",
+            background: L.card, border: `1px solid ${L.bdr}`, borderRadius: 20,
+            overflow: "hidden", boxShadow: reduced ? "0 24px 60px -30px rgba(24,22,15,0.22)" : boxShadow,
+          }}
+        >
           {/* chat header — reads like the product */}
           <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 20px", borderBottom: `1px solid ${L.bdr}`, background: L.cream2 }}>
             <div style={{ display: "flex" }}>
@@ -97,7 +147,14 @@ export function Agents() {
 
             {/* adviser reply — left aligned, types in */}
             <div style={{ display: "flex", justifyContent: "flex-start", alignItems: "flex-start", gap: 10 }}>
-              <Avatar color={active.color} letter={active.name[0]} />
+              <motion.div
+                key={`av-${selected}`}
+                initial={reduced ? false : { scale: 0.4, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ type: "spring", stiffness: 380, damping: 22 }}
+              >
+                <Avatar color={active.color} letter={active.name[0]} />
+              </motion.div>
               <div style={{ maxWidth: "80%" }}>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 6 }}>
                   <span style={{ fontSize: 14, fontWeight: 700, color: L.ink }}>{active.name}</span>
@@ -111,11 +168,11 @@ export function Agents() {
                     </motion.div>
                   ) : (
                     <motion.div key={`a-${selected}`}
-                      initial={reduced ? false : { opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
+                      initial={reduced ? false : { opacity: 0, y: 8, rotateX: -36 }}
+                      animate={{ opacity: 1, y: 0, rotateX: 0 }}
                       exit={reduced ? undefined : { opacity: 0 }}
-                      transition={{ duration: 0.3, ease: EASE }}
-                      style={{ background: L.surf, color: L.ink, padding: "11px 16px", borderRadius: "4px 16px 16px 16px", fontSize: 15, lineHeight: 1.5 }}>
+                      transition={{ duration: 0.34, ease: EASE }}
+                      style={{ background: L.surf, color: L.ink, padding: "11px 16px", borderRadius: "4px 16px 16px 16px", fontSize: 15, lineHeight: 1.5, transformOrigin: "top left", transformPerspective: 600 }}>
                       {active.advice}
                     </motion.div>
                   )}
@@ -152,8 +209,8 @@ export function Agents() {
               })}
             </div>
           </div>
-        </div>
-      </Reveal>
+        </motion.div>
+      </div>
     </section>
   );
 }

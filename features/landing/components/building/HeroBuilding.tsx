@@ -70,12 +70,9 @@ export function HeroBuilding({ builtFloors }: { builtFloors: number }) {
         );
       })}
 
-      {/* roof + flag on the top floor */}
+      {/* roof of the top floor */}
       <g style={{ opacity: roofReveal, transform: `translateY(${(1 - roofReveal) * 12}px)`, transition: "opacity 0.5s ease, transform 0.5s ease" }}>
         <polygon points={b.roof} fill={L.brickTop} stroke={L.alpha(L.ink, 0.07)} strokeWidth={0.5} />
-        {/* rooftop flag */}
-        <line x1={200} y1={98} x2={200} y2={128} stroke={L.ink} strokeWidth={2} />
-        <polygon points="200,98 218,104 200,110" fill={L.green} />
       </g>
     </svg>
   );

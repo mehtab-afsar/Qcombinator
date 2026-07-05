@@ -241,15 +241,34 @@
 }
 .lp-pulse { animation: lp-pulse-kf 4.5s ease-in-out infinite; }
 
+/* hero scene life: drifting birds + ceremonial god-ray rotation */
+@keyframes lp-bird-kf {
+  0%   { transform: translate(0, 0); opacity: 0; }
+  6%   { opacity: 1; }
+  50%  { transform: translate(420px, -14px); }
+  94%  { opacity: 1; }
+  100% { transform: translate(840px, 4px); opacity: 0; }
+}
+.lp-bird { animation: lp-bird-kf 26s linear infinite; }
+@keyframes lp-rays-kf {
+  from { transform: rotate(-3deg); }
+  50%  { transform: rotate(3deg); }
+  to   { transform: rotate(-3deg); }
+}
+.lp-rays { animation: lp-rays-kf 14s ease-in-out infinite; }
+
 /* ── Reduced motion: freeze decorative animation globally ───────────────────── */
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto !important; }
   .lp-pulse,
+  .lp-bird,
+  .lp-rays,
   .mq-inner-l,
   .mq-inner-r,
   .lp-faq-content[data-state="open"],
   .lp-faq-content[data-state="closed"] {
     animation: none !important;
   }
+  .lp-bird { opacity: 0 !important; }
   .lp-cta, .lp-cloud { transition: none; }
 }
