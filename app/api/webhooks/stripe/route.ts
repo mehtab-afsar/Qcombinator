@@ -30,16 +30,20 @@ export async function POST(req: NextRequest) {
   const admin = createAdminClient()
 
   // Idempotency: deduplicate Stripe retries using the event ID.
-  // Uses INSERT ... ON CONFLICT DO NOTHING to prevent TOCTOU race on concurrent retries.
-  const { count } = await admin
+  // upsert with ignoreDuplicates = INSERT ... ON CONFLICT DO NOTHING, so a
+  // concurrent retry can't TOCTOU past the check; count 0 means already processed.
+  const { error: dedupError, count } = await admin
     .from('processed_webhook_events')
-    .insert({
+    .upsert({
       event_id:     event.id,
       source:       'stripe',
       processed_at: new Date().toISOString(),
-    }, { count: 'exact' })
-    .onConflict('event_id')
-    .ignore()
+    }, { onConflict: 'event_id', ignoreDuplicates: true, count: 'exact' })
+
+  if (dedupError) {
+    log.error('Stripe webhook dedup insert failed:', dedupError)
+    return NextResponse.json({ error: 'Dedup failure' }, { status: 500 })
+  }
 
   if (count === 0) {
     return NextResponse.json({ received: true, deduplicated: true })
@@ -51,14 +55,28 @@ export async function POST(req: NextRequest) {
         const session = event.data.object as Stripe.Checkout.Session
         const userId   = session.metadata?.user_id
         const userType = session.metadata?.userType  // 'founder' | undefined (investors don't set this)
-        if (!userId) break
+        // customer/subscription are string | expanded object | null in Stripe types
+        const customerId     = typeof session.customer === 'string' ? session.customer : session.customer?.id
+        const subscriptionId = typeof session.subscription === 'string' ? session.subscription : session.subscription?.id
+
+        if (!userId || !customerId || !subscriptionId) {
+          // Permanently malformed session (e.g. created without metadata or not a
+          // subscription checkout) — ack with 200; a Stripe retry cannot fix this.
+          log.error('Stripe checkout.session.completed missing required fields — skipped', {
+            sessionId: session.id,
+            hasUserId: Boolean(userId),
+            hasCustomer: Boolean(customerId),
+            hasSubscription: Boolean(subscriptionId),
+          })
+          break
+        }
 
         if (userType === 'founder') {
           await admin.from('founder_profiles').update({
             subscription_tier:      'premium',
             subscription_status:    'active',
-            stripe_customer_id:     session.customer as string,
-            stripe_subscription_id: session.subscription as string,
+            stripe_customer_id:     customerId,
+            stripe_subscription_id: subscriptionId,
           }).eq('user_id', userId)
 
           void Promise.resolve().then(() => trackUpgradedToPremium(userId, { plan: 'founder_premium' }))
@@ -82,8 +100,8 @@ export async function POST(req: NextRequest) {
           await admin.from('investor_profiles').update({
             subscription_tier:      'pro',
             subscription_status:    'active',
-            stripe_customer_id:     session.customer as string,
-            stripe_subscription_id: session.subscription as string,
+            stripe_customer_id:     customerId,
+            stripe_subscription_id: subscriptionId,
           }).eq('user_id', userId)
 
           // Investor Pro: effectively unlimited deal-flow connections

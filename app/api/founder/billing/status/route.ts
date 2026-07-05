@@ -25,7 +25,7 @@ export async function GET() {
 
       admin
         .from('subscription_usage')
-        .select('feature, used_count')
+        .select('feature, usage_count')
         .eq('user_id', user.id)
         .in('feature', ['agent_chat', 'qscore_recalc', 'investor_connection']),
     ])
@@ -35,7 +35,7 @@ export async function GET() {
 
     const usage: Record<string, number> = {}
     for (const row of usageRows ?? []) {
-      usage[row.feature as string] = row.used_count as number
+      usage[row.feature as string] = row.usage_count as number
     }
 
     return NextResponse.json({
