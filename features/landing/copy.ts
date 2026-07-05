@@ -32,15 +32,15 @@ export const PARAMETERS = [
 // `domain` is the founder's worry (the thought-cloud); `advice` is what the
 // specialist says when you click it.
 export const ADVISERS = [
-  { name: "Patel",  role: "GTM Control",    color: "#DC2626", domain: "Growth",  thought: "Why won't they buy?",        advice: "Your constraint is activation, not traffic — fix onboarding first." },
-  { name: "Sage",   role: "CEO Adviser",    color: "#2563EB", domain: "Focus",   thought: "Am I on the right thing?",   advice: "Two of your plans contradict. Here's the one that actually wins." },
-  { name: "Felix",  role: "CFO Adviser",    color: "#D97706", domain: "Runway",  thought: "How long have I got?",       advice: "18 months of runway — but CAC payback is 14. Tighten it before you raise." },
-  { name: "Atlas",  role: "Competitive",    color: "#16A34A", domain: "Rivals",  thought: "Who else does this?",        advice: "Three real competitors. Here's the wedge only you can own." },
-  { name: "Nova",   role: "Product & PMF",  color: "#7C3AED", domain: "Demand",  thought: "Do they actually want it?",  advice: "40% would be gutted without you. That's PMF — now pour fuel on it." },
-  { name: "Maya",   role: "Brand & Growth", color: "#DB2777", domain: "Story",   thought: "Why doesn't it land?",       advice: "You're selling features. Lead with the outcome — the rewrite's done." },
-  { name: "Harper", role: "Hiring & Team",  color: "#0891B2", domain: "Hiring",  thought: "Who do I hire next?",        advice: "A senior AE before another engineer. Here's the JD and the comp band." },
-  { name: "Susi",   role: "Sales Process",  color: "#EA580C", domain: "Closing", thought: "Why do deals stall?",        advice: "You lose them at pricing. Here's the objection script that converts." },
-  { name: "Leo",    role: "Legal & Ops",    color: "#059669", domain: "Risk",    thought: "What am I missing?",         advice: "Your IP assignment has a gap. Close it before diligence opens it." },
+  { name: "Patel",  role: "GTM Control",    color: "#DC2626", domain: "Growth",  thought: "Why won't they buy?",       advice: "It isn't your traffic — it's the first five minutes. 60% of signups never reach the aha moment. I've mapped the onboarding flow that fixes it, step by step." },
+  { name: "Sage",   role: "CEO Adviser",    color: "#2563EB", domain: "Focus",   thought: "Am I on the right thing?",  advice: "Two of your three priorities cancel each other out. Focus here for the next six weeks — I've sequenced the plan and the things worth saying no to." },
+  { name: "Felix",  role: "CFO Adviser",    color: "#D97706", domain: "Runway",  thought: "How long have I got?",      advice: "18 months on paper, 11 once the Q3 hires land. Pull CAC payback from 14 months to 9 and you buy back a full quarter of runway." },
+  { name: "Atlas",  role: "Competitive",    color: "#16A34A", domain: "Rivals",  thought: "Who else does this?",       advice: "Three real competitors, not the twelve you're worried about. Here's the wedge only you can own — and the two features that widen it." },
+  { name: "Nova",   role: "Product & PMF",  color: "#7C3AED", domain: "Demand",  thought: "Do they actually want it?", advice: "42% of your users would be 'very disappointed' without you — that clears the PMF bar. Now pour everything into the segment driving it." },
+  { name: "Maya",   role: "Brand & Growth", color: "#DB2777", domain: "Story",   thought: "Why doesn't it land?",      advice: "You're leading with features; buyers buy the outcome. I've rewritten your hero and three emails — same product, roughly double the reply rate." },
+  { name: "Harper", role: "Hiring & Team",  color: "#0891B2", domain: "Hiring",  thought: "Who do I hire next?",       advice: "Not another engineer — a senior AE. You have supply, not distribution. Here's the JD, the comp band, and where the good ones are hiding." },
+  { name: "Susi",   role: "Sales Process",  color: "#EA580C", domain: "Closing", thought: "Why do deals stall?",       advice: "They stall at price, not product. Here's the three-line reframe and the objection script that's closing at 34% in your stage." },
+  { name: "Leo",    role: "Legal & Ops",    color: "#059669", domain: "Risk",    thought: "What am I missing?",        advice: "Your IP assignment has a gap two co-founders left open. Close it this week — it's a red flag on every diligence checklist." },
 ] as const;
 
 // ─── How it works ────────────────────────────────────────────────────────────
