@@ -24,6 +24,7 @@ import Link from "next/link";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { createClient } from "@/lib/supabase/client";
 import { useQScore } from "@/features/qscore/hooks/useQScore";
+import { QScoreDial } from "@/features/qscore/components/QScoreDial";
 import { useMetrics } from "@/features/founder/hooks/useFounderData";
 import { useDashboardData } from "@/features/founder/hooks/useDashboardData";
 import { agents } from "@/features/agents/data/agents";
@@ -625,8 +626,15 @@ export default function FounderDashboard() {
   const runwayLow    = runwayMonths !== null && runwayMonths < 6;
   const runwayCritical = runwayMonths !== null && runwayMonths <= 2;
   const topActions = effectiveSortedDims.slice(0, 3);
-  const circumference = 2 * Math.PI * 52;
-  const dash = circumference * (1 - displayScore / 100);
+
+  // Living Q-Score dial — six dimension segments in P1–P6 order, real per-dim scores
+  const _dimScore: Record<string, number> = {};
+  effectiveSortedDims.forEach(([id, d]) => { _dimScore[id] = d.score; });
+  const dialSegments = (['p1', 'p2', 'p3', 'p4', 'p5', 'p6'] as const).map(id => ({
+    value: _dimScore[id] ?? displayScore,
+    color: DIM_COLORS[id],
+    label: DIM_LABELS[id],
+  }));
 
   const quickStats = [
     {
@@ -949,25 +957,13 @@ export default function FounderDashboard() {
             ) : (
               /* ── Real score ── */
               <>
-                <div style={{ position: "relative", height: 128, width: 128 }}>
-                  <svg style={{ position: "absolute", inset: 0, transform: "rotate(-90deg)" }} viewBox="0 0 120 120">
-                    <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="7" />
-                    <motion.circle
-                      cx="60" cy="60" r="52"
-                      fill="none" stroke="#F9F7F2" strokeWidth="7" strokeLinecap="round"
-                      strokeDasharray={`${circumference}`}
-                      initial={{ strokeDashoffset: circumference }}
-                      animate={{ strokeDashoffset: dash }}
-                      transition={{ duration: 1.4, delay: 0.3, ease: "easeOut" }}
-                    />
-                  </svg>
-                  <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-                    <span style={{ fontSize: 38, fontWeight: 600, color: "#F9F7F2", lineHeight: 1 }}>{displayScore}</span>
-                    <span style={{ fontSize: 10, color: "rgba(249,247,242,0.5)", marginTop: 3, textTransform: "uppercase", letterSpacing: "0.12em" }}>
-                      {isPartial ? `${answeredParameters}/6 params` : "Q-Score"}
-                    </span>
-                  </div>
-                </div>
+                <QScoreDial
+                  score={displayScore}
+                  segments={dialSegments}
+                  size={132}
+                  dark
+                  centerLabel={isPartial ? `${answeredParameters}/6 params` : "Q-Score"}
+                />
                 <div style={{ textAlign: "center" }}>
                   <p style={{ fontSize: 15, fontWeight: 500, color: "#F9F7F2" }}>{gradeLabel(displayScore)}</p>
                   <p style={{ fontSize: 11, color: "rgba(249,247,242,0.5)", marginTop: 2 }}>

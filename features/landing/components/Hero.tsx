@@ -7,6 +7,8 @@ import {
   useScroll,
   useTransform,
   useMotionValueEvent,
+  useMotionValue,
+  useSpring,
 } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import { L, FONT_SERIF, FONT_MONO } from "../theme";
@@ -109,6 +111,27 @@ function PinnedHero() {
   const ctaY = useTransform(scrollYProgress, [0.76, 0.88], [28, 0]);
   const hintOpacity = useTransform(scrollYProgress, [0, 0.08], [1, 0]);
 
+  // ── 2.5D parallax: cursor tilt + depth layers ──────────────────────────────
+  const SPRING = { stiffness: 70, damping: 16, mass: 0.4 };
+  const mx = useMotionValue(0);
+  const my = useMotionValue(0);
+  const sceneRotX = useSpring(useTransform(my, [-0.5, 0.5], [5, -5]), SPRING);
+  const sceneRotY = useSpring(useTransform(mx, [-0.5, 0.5], [-8, 8]), SPRING);
+  // closer layers shift more with the cursor (classic parallax)
+  const cloudX = useSpring(useTransform(mx, [-0.5, 0.5], [-14, 14]), SPRING);
+  const buildX = useSpring(useTransform(mx, [-0.5, 0.5], [-26, 26]), SPRING);
+  const foreX = useSpring(useTransform(mx, [-0.5, 0.5], [-46, 46]), SPRING);
+  const foreY = useSpring(useTransform(my, [-0.5, 0.5], [-14, 14]), SPRING);
+  // scroll drift for the far cloud layer
+  const cloudDrift = useTransform(scrollYProgress, [0, 1], [0, -70]);
+
+  const onMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    mx.set((e.clientX - r.left) / r.width - 0.5);
+    my.set((e.clientY - r.top) / r.height - 0.5);
+  };
+  const onLeave = () => { mx.set(0); my.set(0); };
+
   useMotionValueEvent(builtMv, "change", (v) => setBuilt(v));
   useMotionValueEvent(scoreMv, "change", (v) => {
     if (scoreRef.current) scoreRef.current.textContent = String(Math.round(v));
@@ -123,7 +146,11 @@ function PinnedHero() {
 
   return (
     <section ref={ref} style={{ height: "340vh", position: "relative" }} aria-label="Edge Alpha — build a fundable business, then raise">
-      <div style={{ position: "sticky", top: 0, height: "100vh", overflow: "hidden", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+      <div
+        onMouseMove={onMove}
+        onMouseLeave={onLeave}
+        style={{ position: "sticky", top: 0, height: "100vh", overflow: "hidden", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", perspective: 1200 }}
+      >
         <SkyBackdrop />
 
         {/* headline / stage-A copy (fades out) */}
@@ -139,10 +166,29 @@ function PinnedHero() {
           </p>
         </motion.div>
 
-        {/* the building */}
-        <div style={{ position: "relative", zIndex: 1, width: "min(58vh, 440px)", height: "min(72vh, 560px)", display: "flex", alignItems: "flex-end", marginTop: "6vh" }}>
-          <HeroBuilding builtFloors={built} />
-        </div>
+        {/* parallax depth scene: far clouds · building · foreground */}
+        <motion.div
+          style={{
+            position: "relative", zIndex: 1, marginTop: "6vh",
+            transformStyle: "preserve-3d",
+            rotateX: sceneRotX, rotateY: sceneRotY,
+          }}
+        >
+          {/* far layer — drifting clouds */}
+          <motion.div aria-hidden="true" style={{ position: "absolute", inset: "-40% -60%", x: cloudX, y: cloudDrift, z: -160, pointerEvents: "none" }}>
+            <div style={{ position: "absolute", top: "10%", left: "18%", width: 150, height: 150, borderRadius: "50%", background: L.card, opacity: 0.55, filter: "blur(26px)" }} />
+            <div style={{ position: "absolute", top: "24%", right: "20%", width: 200, height: 200, borderRadius: "50%", background: L.card, opacity: 0.4, filter: "blur(34px)" }} />
+            <div style={{ position: "absolute", top: "4%", right: "36%", width: 90, height: 90, borderRadius: "50%", background: L.card, opacity: 0.5, filter: "blur(20px)" }} />
+          </motion.div>
+
+          {/* mid layer — the building */}
+          <motion.div style={{ x: buildX, z: 0, width: "min(58vh, 440px)", height: "min(72vh, 560px)", display: "flex", alignItems: "flex-end" }}>
+            <HeroBuilding builtFloors={built} />
+          </motion.div>
+
+          {/* near layer — foreground ground haze */}
+          <motion.div aria-hidden="true" style={{ position: "absolute", left: "-30%", right: "-30%", bottom: "-6%", height: 120, x: foreX, y: foreY, z: 110, pointerEvents: "none", background: `radial-gradient(60% 80% at 50% 100%, ${L.alpha(L.amber, 0.12)}, transparent 70%)`, filter: "blur(8px)" }} />
+        </motion.div>
 
         {/* score readout, lower-left */}
         <div style={{ position: "absolute", left: "clamp(24px, 9vw, 150px)", top: "50%", transform: "translateY(-50%)", zIndex: 3 }}>
