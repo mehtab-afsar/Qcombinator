@@ -88,6 +88,26 @@
 **Rejected:** deleting the old agents first.
 **Salvage note:** `features/agents/{persona}/components/*Renderer.tsx` are reusable UI — keep them.
 
+## ADR-022 — `epoch` counts confirmed mandates; `version` counts rows 🔒
+**Decision:** on `executive_contracts` the two columns mean different things.
+- **`version`** increments on **every row** — including drafts the founder redrafts or never confirms.
+- **`epoch`** increments only when a **new mandate supersedes a confirmed one**. Drafting does not burn an epoch.
+
+> draft `v1 e1` → redraft `v2 e1` → founder confirms `v2 e1` → later change → `v3 e2`.
+
+**Why this needed deciding:** four documents state *"a new version **=** a new operating epoch"* as an identity (CLAUDE.md §0, ADR-003, PRD §4, Featureinventory F08) while PRD §8's schema gives **two columns**. Taken literally they are always equal — the same fact in two places, which CLAUDE.md §4 names a red flag ("no value defined in three places") and which *will* drift the first time someone updates one and not the other.
+**Why this reading:** ADR-003's own rationale is *"a coherent 'what were we operating under, when'"* — that is the **epoch**, an operating period, not a row counter. Story 2's Assets and Briefings can be stamped with the epoch that governed them. And a founder redrafting before they commit should not consume an epoch — nothing was operating under a draft.
+**Cost:** the two numbers diverge, so neither can be inferred from the other. That is the point.
+**Rejected:** dropping `version` (loses redraft history); keeping both always-equal as the PRD literally reads (CLAUDE.md §4 — one fact, one column).
+**Consequence:** `epoch` is what the founder and the audit trail care about; `version` is bookkeeping.
+
+## ADR-023 — The mandate composes through the same Composer, but is not a Program 🔒
+**Decision:** `lib/prompts/compose.ts` gains a second entry point, `composeMandatePrompt()`, for S001/S002. Same module, same discipline — fixed order, validation, source refs, Company Context fenced as data. It is **not** a second Composer (CLAUDE.md §0.2); it is the same one, which is what ADR-013 requires ("mandate generation runs through the same Prompt Composer and Execution Engine").
+**Why not model the mandate as a Program** — the decisive argument: **ADR-008 makes the Rhythm run every contract-active Program, every cycle.** A Contract-generation Program would therefore **regenerate the founder's mandate weekly**, directly contradicting *"the founder confirms — once"* (ADR-002) and *"Contracts are immutable"* (ADR-003). Escaping that would need a `runsWhen`-style exception, which ADR-008 forbids. Modelling the mandate as a Program is not awkward — it is wrong.
+**Shape:** the workbook's Executive Registry lists S001/S002 as the CEO's **System Prompt Refs**, one per function ("Strategy", "Executive Contract"). So a mandate package is *Executive System Prompt (S002) + Company Context* — layers 1 and 4. Layers 2 and 3 do not apply: S002 states outright *"This prompt does not create management assets or actions."*
+**Cost:** two entry points into one module; a mandate package has two layers, not four.
+**Rejected:** Programs for the CEO (above); making `programId` optional on `composePrompt` (pushes an "is this a mandate?" branch into every validation rule of the one function everything depends on).
+
 ## ADR-020 — Action is the genus; "cadence" is a frequency, not an entity 🔒
 **Decision:** an **Action** is any operational work a Program generates. It is **one-off or recurring** — `ActionDef.kind: 'oneoff' | 'recurring'` (PRD §7.1, the authoritative runtime type). A **cadence** is **not a thing that executes**: it is the *frequency* of a recurring Action, a value such as `'weekly'` stored in `scheduled_actions.cadence` (PRD §8).
 

@@ -10,6 +10,7 @@
  */
 
 import { S003_GROWTH } from './knowledge/growth'
+import { S001_STRATEGY_SESSION, S002_EXECUTIVE_CONTRACT } from './knowledge/ceo'
 import { P001_GTM_PROMPT } from './programs/p001'
 import { AS001_ICP_PROFILES_PROMPT } from './assets/as001'
 import { AS002_PAINS_GAINS_PROMPT } from './assets/as002'
@@ -18,18 +19,23 @@ import { AS004_POSITIONING_PROMPT } from './assets/as004'
 import { AS005_CHANNEL_STRATEGY_PROMPT } from './assets/as005'
 
 /**
- * Executive System Prompts, by `Executive.systemPromptRef`.
+ * Executive System Prompts, by `Executive.systemPromptRef` — and, for the CEO, by
+ * function (ADR-023).
  *
- * Only S003 is lifted: it is the only Executive that owns a seeded Program, so it
- * is the only one that can currently be composed with. S001/S002 arrive with
- * F07/F08 (the mandate flow); S004–S006 when their Programs are seeded.
+ * The CEO has two: the workbook's Executive Registry lists S001 (Strategy) and
+ * S002 (Executive Contract) as separate System Prompt Refs for its two functions.
+ * `Executive.systemPromptRef` holds only S001 (PRD §7.1 allows one), so S002 is
+ * reached by `composeMandatePrompt({ kind: 'contract' })` rather than by looking
+ * up the executive.
  *
- * Note S004 (CTO) is deliberately ABSENT and that is not a gap. The
- * "P001 with S004 is invalid" rule (PRD §7.2) is a Registry relationship check —
- * `P001.owner === 'growth'` — and fails before any text is fetched. Composition
- * is blocked by ownership, not by a missing prompt.
+ * S004–S006 are absent, and that is not a gap. The "P001 with S004 is invalid"
+ * rule (PRD §7.2) is a Registry relationship check — `P001.owner === 'growth'` —
+ * which fails before any text is fetched. Composition is blocked by ownership,
+ * not by a missing prompt.
  */
 const EXECUTIVE_PROMPTS: Readonly<Record<string, string>> = {
+  S001: S001_STRATEGY_SESSION,
+  S002: S002_EXECUTIVE_CONTRACT,
   S003: S003_GROWTH,
 }
 
