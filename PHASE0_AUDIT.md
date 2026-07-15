@@ -12,6 +12,7 @@
 
 | # | Finding | Severity | Frozen? |
 |---|---|---|---|
+| 0 | **THE CI WORKFLOW HAS NEVER RUN — not once.** It triggers on `[main, develop]`; the default branch is **`master`** and neither of those branches exists. This is the **root cause** of almost every finding below | 🔴🔴 **root cause** | — |
 | 1 | **`atlas/weekly-scan` cron auth fails open** — CRON_SECRET confirmed **absent** in prod, so it is public **today**; harmless only because `TAVILY_API_KEY` is also missing. Fixed (ADR-017), undeployed | 🔴 **active** security | Yes |
 | 2 | **Artifact creation is NOT confined to `app/api/agents/**`** — the docs' assumption is refuted; 3 paths live outside the frozen tree, one of them client-side | 🔴 architectural | Partly |
 | 3 | **The only approval gate is inert in both directions** — nothing is ever queued, and approving executes nothing | 🟠 | Yes |
@@ -366,6 +367,49 @@ Phase 0 twice recorded that `npx tsc --noEmit` reported "3 pre-existing errors, 
 **The lesson, identical to §8's stale tests:** a corrupt generated artifact can silently disable typechecking for the whole repo. If `tsc` reports errors inside `.next/`, do not dismiss them — **`rm -rf .next/dev` and re-run**, because everything after the first syntax error goes unchecked. CI is immune (fresh checkout, no `.next`), which is exactly why the gate belongs in CI.
 
 *(The duplicate stale claim that stood here has been corrected — see §9.)*
+
+---
+
+## 8c. Step 6 — CI
+
+### 🔴🔴 ROOT CAUSE: the CI workflow had NEVER RUN. Not once.
+
+**The repo's default branch is `master`. There is no `main` and no `develop`** — not locally, not on the remote (`origin/HEAD -> origin/master`; the only remote branches are `master`, `edge-alpha1`, and a Vercel CVE branch).
+
+The workflow triggered on `[main, develop]`. **So it never fired.** Every push landed on `master`, which matched nothing. `deploy-check` was gated on `refs/heads/main` — also never true.
+
+**This single fact explains nearly every other finding in this document:**
+
+| Finding | Actual explanation |
+|---|---|
+| "Jest never runs in CI" (§8) | **CI never runs.** Jest wasn't overlooked — nothing was wired to anything |
+| 3 improvements shipped and orphaned their tests (§8) | Nothing was checking |
+| A test asserted the opposite of its own mock (§8, #7) | Nothing was checking |
+| Billing had no test at all (§6b) | Nothing was checking |
+| A corrupt artifact masked 5 type errors (§8, above) | No CI typecheck existed to catch it |
+| "Advisory phases 2–5" | Moot — none of them ever executed |
+
+The docs frame this as CI needing *tuning* — Architecture.md §9 and Roadmap Phase 0 both say *"make advisory phases blocking · E2E on prod build · Node 20+"*, as though it worked and needed sharpening. **It did not work at all.** There were no green checkmarks to trust, because there were no checkmarks.
+
+**Fixed:** the trigger now lists `master` first; `deploy-check` accepts it. **The push of the Phase 0 branch is the first CI run in this repository's history.**
+
+### What is now blocking, and what is not
+
+| Gate | Before | Now |
+|---|---|---|
+| **The workflow itself** | **never ran** | ✅ **runs on `master`** |
+| **Jest unit tests** | never ran | ✅ **blocking** (`unit-and-types` job) |
+| **Typecheck** | no script existed | ✅ **blocking** (`npm run typecheck`) |
+| Node | **18** (Next 16 needs ≥20.9) | ✅ **20** via `.nvmrc` + `engines` |
+| E2E target | built, then tested `npm run dev` | ✅ **`npm run start`** — the production build |
+| Phase 1 + Baseline | "blocking" (never ran) | ✅ blocking, and now actually runs |
+| Phases 2–5 | advisory | ⚠️ **still advisory** — see below |
+
+Jest and typecheck run in a separate `unit-and-types` job that **gates** the E2E job, so they fail in ~1 minute rather than after a 60-minute run.
+
+**Phases 2–5 were deliberately NOT flipped.** Amendment A says one at a time; their results cannot be observed from here (they need a live server plus real Supabase credentials), so flipping them unverified would break CI for everyone on the next push. **Guessing is not hardening.** The step-by-step procedure is documented in the workflow, immediately above those steps.
+
+**Noted, not changed:** `quality-gates` and `deploy-check` are echo-only jobs. They assert nothing and cannot fail — a green tick there means "the jobs above passed", nothing more. Kept in case branch protection references them by name.
 
 ---
 
