@@ -46,6 +46,17 @@ const NEW_MODEL_PATHS = [
  * (a barrel re-export, a dynamic import, a string-built specifier). It catches
  * a direct call and a direct import, which is how this would realistically be
  * reintroduced.
+ *
+ * ⚠️ IT ALSO TRIPS ON PROSE. Naming the symbol in a comment inside a scanned
+ * folder fails this test. That is deliberate, and it has already happened once
+ * (lib/prompts/compose.ts documented the rule and tripped it).
+ *
+ * The fix is to reword the comment — NOT to teach this scan about comments.
+ * A guard that parses code is a guard that can be argued with, and this one
+ * protects a locked decision (ADR-005) against a change nobody would make on
+ * purpose. Blunt and unbypassable beats clever and negotiable. Refer to the
+ * writer as "the score signal" in prose; the code is the only place its name
+ * belongs.
  */
 const FORBIDDEN_SYMBOL = 'applyAgentScoreSignal';
 const FORBIDDEN_MODULE = 'agent-signal';
