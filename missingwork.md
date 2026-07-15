@@ -93,6 +93,29 @@ Each of these makes an advertised feature a no-op. No error, no warning; it just
 
 ---
 
+## 8b. The design workbook has three bugs — only you can fix the source
+
+`docs/registry-source/Edge_Alpha_Agentic_OS_Template.xlsx` is the **design source** (ADR-010). The code works around all three, but a corrupted source re-corrupts the next lift — and the next person may not notice.
+
+- [ ] 🔴 **S003 (Growth) is pasted into its cell TWICE.** Two byte-identical 8,522-character copies, back to back. The cell reads 17,124 chars; the real prompt is ~8,600. Lifting it raw sends the model **the same instructions twice** — wasted context and a real confusion risk. *The code deduplicates on lift and a test pins it, so nothing is broken today.* Fix: delete the second copy (everything from the second `## Executive Motto` onward).
+- [x] ~~**S001 (CEO Strategy) has 3 repeated headings** — the same class of bug~~ — **RETRACTED, my error.** S001 is **fine**. It describes six steps (`## Company Situation`, `## Executive Constraint Review`, `## Executive Recommendation`) and then, under `# Final Output`, gives the output document's template — which naturally reuses those same section names. Correct prompt design, not duplication. Nothing to fix. *(The extractor refused to trim it because the two halves are not identical — which is exactly why it only ever removes a provably identical copy. An aggressive dedupe would have deleted your output template.)*
+- [ ] 🟠 **The Action layer was never generated.** The **Action Registry sheet is empty**, and the "Action Prompt" sheet contains a single row — `ACT001 — Action Registry Generator`, a *meta-prompt whose job is to generate the Action Registry*. It looks like it was written but never run. Consequences:
+  - Action ids, `irreversible` flags and connector mappings **do not exist** anywhere in the workbook. The Registry derives all five of P001's actions from PRD §10 instead, and says so in each file.
+  - There are **no per-action instruction prompts**, so Actions cannot be composed. The Composer validates them correctly and then throws a clear "no prompt registered for ref" error. **Asset composition is complete and unaffected.**
+  - **This blocks Story 3 (F14 — Actions + approval), not Story 1 or 2.** Either run ACT001 to generate the registry, or accept that PRD §10 is the source for P001's actions and the rest get defined when their Programs are.
+
+## 8c. 🔴 A real security bug — 4 tables have RLS enabled but not enforced
+
+*Engineering work, not keys — but it needs your decision on when, so it lives here too. Full detail: `PHASE0_AUDIT.md` §8d.*
+
+- [ ] **Drop 4 broken RLS policies.** `founder_metric_snapshots`, `scheduled_actions`, `agent_goals`, `delegation_tasks` each carry a `for all using (true)` policy with **no `TO` clause**. That applies to *everyone*, and Postgres OR's policies together — so it **overrides** the founder-scoped rule next to it.
+
+  **In plain English:** any person with an account can read every other founder's **financial metrics** and **outreach contact lists** from their browser. The policies were meant to give the service role access — but Supabase's service role bypasses RLS anyway, so they grant the world access to achieve nothing.
+
+  The fix is to delete four lines. It is deliberately **not** bundled into the Story 1 work, because it changes live data access and deserves its own review and its own cross-tenant tests.
+
+  ⚠️ Note `20260421000008_fix_missing_rls.sql` — a migration named *"fix missing RLS"* — added a correct policy but never deleted the broken one, so it fixed nothing. Worth knowing that a past attempt at this already missed.
+
 ## 9. Vercel plan
 
 - [ ] **Confirm the plan.** The Cron page showed *"Cron jobs on Hobby have a flexible time window of 1-hour"* — so you're on **Hobby**, with **5** crons registered.

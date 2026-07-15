@@ -6,9 +6,14 @@ name: CI
 # improvements shipped and orphaned their tests, a test contradicted its own
 # mock, and billing had no test at all. Nothing was ever checking.
 # Keep `master` first. Do not remove it.
+#
+# Work branches are matched by PATTERN, not by name. A named branch here rots the
+# moment the next one is cut — `phase-0-**` would already have missed
+# `story-1-mandate`, silently, which is precisely the failure above repeating
+# itself one branch later. Name work branches `phase-*` or `story-*` and CI runs.
 on:
   push:
-    branches: [ master, main, develop, 'phase-0-**' ]
+    branches: [ master, main, develop, 'phase-**', 'story-**' ]
   pull_request:
     branches: [ master, main, develop ]
 

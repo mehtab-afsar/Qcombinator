@@ -4,6 +4,31 @@
 
 ---
 
+## Master phase sheet — the whole arc (source of truth)
+
+*Phases 0–7 achieve the PRD. Phases 8–10 are explicitly beyond it (ADR-009) — do not build them early.*
+
+| # | Phase | What it achieves | Window | Status |
+|---|---|---|---|---|
+| **0** | **Ground clearing** | Know the codebase · CI actually runs · billing guarded · score invariant pinned · old model frozen. **Nothing built, nothing deleted.** | Jul 2026 | ✅ **DONE** |
+| **1** | **Story 1 — Mandate** | Registry · Prompt Composer · Strategy Session · Executive Contract · Command View. **The skeleton begins.** | late Jul → mid Aug | ← **NEXT** |
+| **2** | **Story 2 — Rhythm + Assets** | Versioned Assets (founder-editable) · Briefings · the weekly engine. **The system starts breathing.** | mid Aug → mid Sep | |
+| **3** | **Story 3 — Actions + Connectors** | Gmail OAuth · connector vault · just-in-time approval. **It touches the real world.** | mid → end Sep | |
+| — | *Sprint II ends* | Stories 1–3 complete, behind the flag | **end Sep** | |
+| **4** | **Pilot + Retention Gate ★** | Real founders through the loop. **Week-4 retention decides whether anything widens** (ADR-016). | Oct | **GATE** |
+| **5** | **Broaden** | More Programs · more Executives · more Connectors → **reach parity** with the old model. | Nov → Dec | |
+| **6** | **Migrate + flip the flag** | All founders on the new model; `NEW_EXECUTIVE_MODEL` on by default. | Dec → Jan | |
+| **7** | **Retire the old model** | **Delete the 173 routes + 11 personas + old config. THIS is "the cleaning."** | Q1 2027 | 🎯 **PRD achieved** |
+| 8 | Deferred layers | `runsWhen` (cost) → Outcome Loop → Evidence Pack | after | *beyond PRD* |
+| 9 | Investor side | Marketplace, investor-facing score/evidence | after | *beyond PRD* |
+| 10 | Platform (a bet) | External MCP hub, Program marketplace | 2027+ | *beyond PRD* |
+
+**Read this sheet twice if you're wondering "when do we clean up the mess?"** — Phase 7. Not before. The old model runs untouched until the new one provably replaces it (ADR-014). Deleting early is how rewrites die.
+
+**The gate that matters:** Phase 4. If founders don't come back in week 4, we stop and fix the loop — we do **not** proceed to Phase 5. *(This requires analytics configured before October — see Risks.)*
+
+---
+
 ## Assumptions (change these and the dates move)
 
 - **Team:** ~2 engineers + product/design part-time. This is the biggest lever — more capacity compresses everything.
@@ -130,6 +155,9 @@ Run the loop with a small pilot cohort behind the flag. Measure activation and �
 
 ## What could slow this down
 
+- **⚠️ Analytics not configured → the gate is unreadable.** PostHog is in the stack but not set up. Week-4 retention is the *single number* Phase 4 gates on (ADR-016). Unconfigured, we arrive in October unable to read the answer — and retention can't be measured retroactively. **Fix now, in Phase 1. It is minutes of work today and impossible in October.**
+- **Two "engine" modules have never executed.** `lib/agents/task-graph.ts` and `lib/actions/executor.ts` have **zero callers** (Phase 0 audit). "Reuse the engine, don't fork it" still holds — but treat them as *unproven*, not *working*. Budget debugging time in Stories 2–3; the PRD's "two-thirds of the machinery exists" needs this asterisk.
+- **Missing keys gate Story 3.** Resend (sends) and Stripe (billing) aren't provisioned; Vercel Hobby limits cron jobs and Story 2 adds a sixth. None block Story 1 — but check them before mid-August. See `missingwork.md`.
 - **Connector/OAuth reliability** — the classic time sink. Mitigation: the Story-3 contingency above.
 - **The Rhythm engine** (idempotency, partial failures, retries) — genuinely hard; give it the buffer, not the connector.
 - **Cost of running all contract-active Programs weekly** — keep the active set small during the pilot; `runsWhen` is deferred.
