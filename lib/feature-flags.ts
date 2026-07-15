@@ -40,3 +40,12 @@ export const FF_AGENT_CONTEXT_COMPRESSION = flag('AGENT_CONTEXT_COMPRESSION', tr
 
 /** 5.9 — coordinator/worker typed task graph + mid-loop delegate_to_agent */
 export const FF_COORDINATOR_WORKFLOW = flag('COORDINATOR_WORKFLOW', true)
+
+/**
+ * Strangler migration — the new Executive model (ADR-014). Default OFF.
+ *
+ * Gates the Registry / Composer / Mandate / Rhythm / Asset-versioning /
+ * Connector layers. The old agent model runs unaffected while this is off,
+ * and is deleted only once the new model reaches parity.
+ */
+export const FF_NEW_EXECUTIVE_MODEL = flag('NEW_EXECUTIVE_MODEL', false)
