@@ -1,10 +1,16 @@
 name: CI
 
+# ⚠️ This repo's default branch is `master`. There is no `main` and no `develop`.
+# Until Phase 0 this workflow triggered only on [main, develop], so IT HAD NEVER
+# RUN — not once. That is the root cause of the Phase 0 findings: three
+# improvements shipped and orphaned their tests, a test contradicted its own
+# mock, and billing had no test at all. Nothing was ever checking.
+# Keep `master` first. Do not remove it.
 on:
   push:
-    branches: [ main, develop, 'phase-0-**' ]
+    branches: [ master, main, develop, 'phase-0-**' ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ master, main, develop ]
 
 env:
   NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
@@ -170,7 +176,7 @@ jobs:
   deploy-check:
     runs-on: ubuntu-latest
     needs: quality-gates
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
 
     steps:
       - name: Deployment readiness check
