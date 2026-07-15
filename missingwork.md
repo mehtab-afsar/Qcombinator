@@ -104,6 +104,18 @@ Each of these makes an advertised feature a no-op. No error, no warning; it just
   - There are **no per-action instruction prompts**, so Actions cannot be composed. The Composer validates them correctly and then throws a clear "no prompt registered for ref" error. **Asset composition is complete and unaffected.**
   - **This blocks Story 3 (F14 — Actions + approval), not Story 1 or 2.** Either run ACT001 to generate the registry, or accept that PRD §10 is the source for P001's actions and the rest get defined when their Programs are.
 
+## 8c. 🔴 A real security bug — 4 tables have RLS enabled but not enforced
+
+*Engineering work, not keys — but it needs your decision on when, so it lives here too. Full detail: `PHASE0_AUDIT.md` §8d.*
+
+- [ ] **Drop 4 broken RLS policies.** `founder_metric_snapshots`, `scheduled_actions`, `agent_goals`, `delegation_tasks` each carry a `for all using (true)` policy with **no `TO` clause**. That applies to *everyone*, and Postgres OR's policies together — so it **overrides** the founder-scoped rule next to it.
+
+  **In plain English:** any person with an account can read every other founder's **financial metrics** and **outreach contact lists** from their browser. The policies were meant to give the service role access — but Supabase's service role bypasses RLS anyway, so they grant the world access to achieve nothing.
+
+  The fix is to delete four lines. It is deliberately **not** bundled into the Story 1 work, because it changes live data access and deserves its own review and its own cross-tenant tests.
+
+  ⚠️ Note `20260421000008_fix_missing_rls.sql` — a migration named *"fix missing RLS"* — added a correct policy but never deleted the broken one, so it fixed nothing. Worth knowing that a past attempt at this already missed.
+
 ## 9. Vercel plan
 
 - [ ] **Confirm the plan.** The Cron page showed *"Cron jobs on Hobby have a flexible time window of 1-hour"* — so you're on **Hobby**, with **5** crons registered.

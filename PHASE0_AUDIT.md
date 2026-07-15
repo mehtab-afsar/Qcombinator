@@ -413,6 +413,54 @@ Jest and typecheck run in a separate `unit-and-types` job that **gates** the E2E
 
 ---
 
+## 8d. 🔴 RLS is enabled but not enforced on 4 tables (found during Story 1 / F07)
+
+**Any authenticated user can read, update and delete every founder's rows in four tables.** Found while copying the house RLS style for `strategy_sessions`.
+
+### The bug
+
+```sql
+-- supabase/migrations/20260417000003_scheduled_actions.sql:22
+create policy "founders read own scheduled actions"
+  on scheduled_actions for select
+  using (auth.uid() = user_id);          -- ✅ correct
+
+create policy "service role full access"
+  on scheduled_actions for all
+  using (true) with check (true);        -- 🔴 NO `TO` CLAUSE
+```
+
+A policy with no `TO` clause defaults to **`TO PUBLIC`** — `anon` and `authenticated`. Postgres **OR**s permissive policies together, so the second policy **overrides the first**. The founder-scoped rule becomes decoration.
+
+**The policy is not merely wrong, it is unnecessary.** Supabase's `service_role` has `BYPASSRLS` — it never consults policies. This grants the whole world access to achieve nothing.
+
+### Affected
+
+| Table | Migration | Exposed |
+|---|---|---|
+| `founder_metric_snapshots` | `20260317000001:~` | **Every founder's MRR, burn, runway** (`metrics` jsonb) |
+| `scheduled_actions` | `20260417000003:29` | **Outreach payloads — third-party contact lists and email bodies** |
+| `agent_goals` | `20260417000001:~` | Every founder's agent goals |
+| `delegation_tasks` | `20260417000002:35` | Cross-agent task payloads |
+
+**Exploitable from a browser console with an ordinary account** — the client uses the anon key + user JWT, which respects RLS. Server routes mostly use the service role (which bypasses RLS regardless), so this is exploitable deliberately rather than triggered accidentally. That lowers the urgency, not the severity.
+
+### The twist
+
+`20260421000008_fix_missing_rls.sql` — a migration **named "fix missing RLS"** — added a correctly scoped `FOR ALL TO service_role` policy to `delegation_tasks`, but **never dropped the broken one**. Because policies are additive and OR'd, it fixed nothing there. **No `DROP POLICY` for these exists anywhere in the 60 migrations.**
+
+Later migrations got it right (`agent_activity`, `startup_state`, and the academy tables all use `FOR ALL TO service_role`), so the pattern was learned — the early tables were never revisited.
+
+### Not fixed here — deliberately (Mo, 15 Jul 2026)
+
+The fix is one `DROP POLICY` per table (the service role needs no policy at all). But it changes live data access on four tables and deserves **its own focused diff with its own cross-tenant tests** — not a footnote buried inside a feature commit.
+
+**F07 does not copy this pattern.** `strategy_sessions` ships with founder-scoped policies only, no permissive escape hatch, and a test proving cross-tenant reads are blocked.
+
+**"RLS is enabled" ≠ "RLS restricts."** 28 migrations enable RLS and there are 142 policies; that number told us nothing. Any future security review must read the policies, not count them.
+
+---
+
 ## 9. What this means for the new model
 
 - **Freezing `app/api/agents/**` does not freeze artifact creation** (§1a). Two live paths sit outside it, one client-side. The strangler boundary in the docs is drawn in the wrong place.
