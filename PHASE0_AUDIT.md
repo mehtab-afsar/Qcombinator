@@ -232,11 +232,34 @@ Three independent defects each individually prevent the bulk-outreach path from 
 
 ## 8. Quarantine list (Amendment A)
 
-*Populated in Step 6 when `npm test` first runs in CI. Suites failing on first run are listed here explicitly — never silently skipped — with an owner and a ticket. Empty until then.*
+*Suites failing on first run are listed here **explicitly — never silently skipped**. Discovered in Step 3 rather than Step 6, because running the suite locally was the only way to prove the Step 3 change broke nothing.*
 
-| Suite | Failure | Ticket | Owner |
+**Baseline established 15 Jul 2026** (`npx jest`, clean tree): **7 failed · 162 passed · 169 total · 4 suites failing.**
+After Step 3: **7 failed · 178 passed · 185 total.** Identical failure set — the 16 new tests all pass and nothing regressed.
+
+### 🔴 These are pre-existing and have been failing invisibly, because Jest has never run in CI.
+
+| # | Suite | Failing test | Notes |
 |---|---|---|---|
-| *(none yet — Step 6 not started)* | | | |
+| 1 | `features/qscore/tests/q-score-calculator.test.ts` | `constant denominator: Σ/150 regardless of exclusions` | **Q-Score engine.** Expected <0.2 deviation, got **3.87** |
+| 2 | `features/qscore/tests/q-score-calculator.test.ts` | `pre-product stage: all P6 rawScore=0, still counted in denominator` | **Q-Score engine** |
+| 3 | `features/qscore/tests/q-score-calculator.test.ts` | `commercial track: P5 all excluded, still in denominator` | **Q-Score engine** |
+| 4 | `features/qscore/tests/reconciliation-engine.test.ts` | `2.5 low deviation → no vcAlert` | **Q-Score engine** |
+| 5 | `features/qscore/tests/reconciliation-engine.test.ts` | `extreme deviation on 3.5 → vcAlert set, rawScore untouched` | **Q-Score engine** |
+| 6 | `features/qscore/tests/p6-financials.test.ts` | `6.5 excluded when no COGS and no deal size` | **Q-Score engine** |
+| 7 | `__tests__/agents/critical.test.ts` | `uses existing_artifact source when Maya artifact exists — no sub-call fired` | Old model (frozen) |
+
+### Why this matters more than a normal quarantine list
+
+**Six of the seven failures are in the Q-Score engine** — `features/qscore/**`, which every doc designates *reuse, untouched* (CLAUDE.md §0.3, ADR-014, Architecture.md §11), and which is the **input to the entire product**: it feeds the mandate, and ADR-016 makes it the thing the founder is scored on.
+
+Failure #1 is not a stale assertion — the calculator's headline invariant ("the denominator is always 150") is off by **3.87 points**. Either the invariant is wrong or the calculator is. Both are load-bearing, and nobody has been told, because nothing runs these tests.
+
+**This does not change the Step 3 result** (identical failure sets, verified by stash/compare). It does mean the "reuse the Q-Score engine untouched" premise deserves scrutiny before Story 1 depends on it — alongside §1b/§6 (`task-graph.ts` and `lib/actions/executor.ts` have never executed).
+
+**Decision needed:** triage these before Story 1, or quarantine and proceed? They are not caused by Phase 0 and block nothing mechanically — but #1–#6 mean the score may be miscomputed today.
+
+**Known blocker for the `typecheck` script:** `tsconfig.json` includes `.next/dev/types/**/*.ts` (generated). `npx tsc --noEmit` reports **3 pre-existing syntax errors** in `.next/dev/types/routes.d.ts` — present before and after every Phase 0 change. A `typecheck` script cannot go green until that include is addressed.
 
 **Known blocker for the `typecheck` script:** `tsconfig.json` includes `.next/dev/types/**/*.ts` (generated). `npx tsc --noEmit` currently reports **3 pre-existing syntax errors** in `.next/dev/types/routes.d.ts` — present both before and after the Step 1 change. A `typecheck` script cannot go green until this include is addressed.
 

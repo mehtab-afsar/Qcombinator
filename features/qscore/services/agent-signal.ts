@@ -1,7 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { calculateGrade } from '@/features/qscore/types/qscore.types';
-import { ARTIFACT_TYPES, type ArtifactType } from '@/lib/constants/artifact-types';
-import { AGENTS } from '@/lib/edgealpha.config';
+import { ARTIFACT_TYPES } from '@/lib/constants/artifact-types';
 import { fetchDimensionWeights } from '@/features/qscore/services/threshold-config';
 import { log } from '@/lib/logger'
 
@@ -61,10 +60,18 @@ export function inferArtifactQuality(content: unknown): ArtifactQuality {
  *
  * - No-ops if the artifact type was already signalled for this user
  * - No-ops if the user has no existing Q-Score (no base to nudge)
- * - No-ops if no agent in the registry owns this artifact type
+ * - No-ops if the artifact type has no ARTIFACT_BOOST entry (13 of 63 do)
  * - Inserts a new qscore_history row (data_source = 'agent_completion')
  *   so deltas are tracked correctly via the previous_score_id chain
  * - quality multiplier: full=1.0, partial=0.6, minimal=0.3
+ *
+ * OLD MODEL ONLY. Nothing in the new Executive model may call this — the
+ * Q-Score is a separate diagnostic fed by Company Builder artefacts, and
+ * creating an Asset never raises it (ADR-005). Enforced by
+ * __tests__/score-invariant.test.ts.
+ *
+ * This function does NOT check that the calling agent owns the artifact type.
+ * See PHASE0_AUDIT.md §5.
  */
 export async function applyAgentScoreSignal(
   supabase: SupabaseClient,
@@ -72,14 +79,6 @@ export async function applyAgentScoreSignal(
   artifactType: string,
   quality: ArtifactQuality = 'full',
 ): Promise<SignalResult> {
-  // Verify ownership via registry (also validates the artifact type is known)
-  const owningAgent = AGENTS.find(a =>
-    a.tools.includes(artifactType as ArtifactType)
-  );
-  if (!owningAgent) {
-    // Fall back to legacy ARTIFACT_BOOST lookup for unknown types
-  }
-
   const boost = ARTIFACT_BOOST[artifactType];
   if (!boost) return { boosted: false };
 
