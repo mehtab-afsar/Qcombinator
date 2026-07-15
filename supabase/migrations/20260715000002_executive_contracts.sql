@@ -99,10 +99,12 @@ create index if not exists programs_founder_idx  on programs (founder_id, status
 alter table executive_contracts enable row level security;
 alter table programs            enable row level security;
 
+drop policy if exists "executive_contracts_select_own" on executive_contracts;
 create policy "executive_contracts_select_own"
   on executive_contracts for select
   using (auth.uid() = founder_id);
 
+drop policy if exists "executive_contracts_insert_own" on executive_contracts;
 create policy "executive_contracts_insert_own"
   on executive_contracts for insert
   with check (auth.uid() = founder_id);
@@ -117,6 +119,7 @@ create policy "executive_contracts_insert_own"
 -- Postgres cannot compare OLD to NEW inside a policy, so "priorities never
 -- change" is additionally enforced by the trigger below. The policy narrows the
 -- door; the trigger guards what comes through it.
+drop policy if exists "executive_contracts_transition_own" on executive_contracts;
 create policy "executive_contracts_transition_own"
   on executive_contracts for update
   using (auth.uid() = founder_id)
@@ -124,15 +127,18 @@ create policy "executive_contracts_transition_own"
 
 -- No DELETE policy — history is never destroyed (CLAUDE.md §4, ADR-003).
 
+drop policy if exists "programs_select_own" on programs;
 create policy "programs_select_own"
   on programs for select
   using (auth.uid() = founder_id);
 
+drop policy if exists "programs_insert_own" on programs;
 create policy "programs_insert_own"
   on programs for insert
   with check (auth.uid() = founder_id);
 
 -- Pausing/completing a Program is a lifecycle change the founder may make.
+drop policy if exists "programs_update_own" on programs;
 create policy "programs_update_own"
   on programs for update
   using (auth.uid() = founder_id)
@@ -178,6 +184,7 @@ begin
 end;
 $$;
 
+drop trigger if exists executive_contracts_immutable on executive_contracts;
 create trigger executive_contracts_immutable
   before update on executive_contracts
   for each row

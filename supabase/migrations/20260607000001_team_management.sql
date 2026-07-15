@@ -113,6 +113,7 @@ ALTER TABLE investor_team_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE investor_team_invites ENABLE ROW LEVEL SECURITY;
 
 -- startups: readable by members, writable by owner/admin
+drop policy if exists "startup members can read their startup" on startups;
 CREATE POLICY "startup members can read their startup"
   ON startups FOR SELECT
   USING (
@@ -121,11 +122,13 @@ CREATE POLICY "startup members can read their startup"
     )
   );
 
+drop policy if exists "startup owner can update" on startups;
 CREATE POLICY "startup owner can update"
   ON startups FOR UPDATE
   USING (owner_user_id = auth.uid());
 
 -- startup_members: members can read their workspace; owner can insert/delete
+drop policy if exists "members can read their workspace members" on startup_members;
 CREATE POLICY "members can read their workspace members"
   ON startup_members FOR SELECT
   USING (
@@ -134,6 +137,7 @@ CREATE POLICY "members can read their workspace members"
     )
   );
 
+drop policy if exists "owner or admin can add members" on startup_members;
 CREATE POLICY "owner or admin can add members"
   ON startup_members FOR INSERT
   WITH CHECK (
@@ -145,6 +149,7 @@ CREATE POLICY "owner or admin can add members"
     )
   );
 
+drop policy if exists "owner can remove members" on startup_members;
 CREATE POLICY "owner can remove members"
   ON startup_members FOR DELETE
   USING (
@@ -158,6 +163,7 @@ CREATE POLICY "owner can remove members"
   );
 
 -- team_invites: readable by workspace members; creatable by owner/admin
+drop policy if exists "workspace members can read invites" on team_invites;
 CREATE POLICY "workspace members can read invites"
   ON team_invites FOR SELECT
   USING (
@@ -166,6 +172,7 @@ CREATE POLICY "workspace members can read invites"
     )
   );
 
+drop policy if exists "owner or admin can create invites" on team_invites;
 CREATE POLICY "owner or admin can create invites"
   ON team_invites FOR INSERT
   WITH CHECK (
@@ -177,6 +184,7 @@ CREATE POLICY "owner or admin can create invites"
     )
   );
 
+drop policy if exists "owner or admin can delete invites" on team_invites;
 CREATE POLICY "owner or admin can delete invites"
   ON team_invites FOR DELETE
   USING (
@@ -189,6 +197,7 @@ CREATE POLICY "owner or admin can delete invites"
   );
 
 -- investor_team_members: readable by the investor and their members
+drop policy if exists "investor team members can read" on investor_team_members;
 CREATE POLICY "investor team members can read"
   ON investor_team_members FOR SELECT
   USING (
@@ -196,11 +205,13 @@ CREATE POLICY "investor team members can read"
     OR member_user_id = auth.uid()
   );
 
+drop policy if exists "investor owner can manage team" on investor_team_members;
 CREATE POLICY "investor owner can manage team"
   ON investor_team_members FOR ALL
   USING (investor_user_id = auth.uid());
 
 -- investor_team_invites: readable/writable by the investor owner
+drop policy if exists "investor owner can manage invites" on investor_team_invites;
 CREATE POLICY "investor owner can manage invites"
   ON investor_team_invites FOR ALL
   USING (investor_user_id = auth.uid());

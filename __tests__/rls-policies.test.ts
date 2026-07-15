@@ -48,14 +48,33 @@ function livePolicies(): Policy[] {
   for (const file of migrationFiles()) {
     const sql = executable(readFileSync(join(MIGRATIONS, file), 'utf8'))
 
+    // ⚠️ IN SOURCE ORDER, not grouped by kind.
+    //
+    // Migrations are written `drop policy if exists "x"; create policy "x" ...`
+    // so they can be re-run. Processing every create and THEN every drop applies
+    // that drop last and deletes the policy the file just created — reporting
+    // correctly-guarded tables as having no policies at all. (It did exactly
+    // that the first time.)
+    const events: Array<{ at: number; kind: 'create' | 'drop'; policy: Policy | null; k: string }> = []
+
     for (const m of sql.matchAll(/create\s+policy\s+"([^"]+)"([\s\S]*?);/gi)) {
       const statement = m[0]
       const table = statement.match(/\bon\s+([a-z_.]+)/i)?.[1] ?? '?'
-      live.set(key(table, m[1]), { file, statement, table, name: m[1] })
+      events.push({
+        at: m.index ?? 0,
+        kind: 'create',
+        policy: { file, statement, table, name: m[1] },
+        k: key(table, m[1]),
+      })
     }
 
     for (const m of sql.matchAll(/drop\s+policy\s+(?:if\s+exists\s+)?"([^"]+)"\s+on\s+([a-z_.]+)/gi)) {
-      live.delete(key(m[2], m[1]))
+      events.push({ at: m.index ?? 0, kind: 'drop', policy: null, k: key(m[2], m[1]) })
+    }
+
+    for (const e of events.sort((a, b) => a.at - b.at)) {
+      if (e.kind === 'create') live.set(e.k, e.policy!)
+      else live.delete(e.k)
     }
   }
   return [...live.values()]

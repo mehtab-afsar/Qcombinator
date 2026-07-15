@@ -69,10 +69,12 @@ create index if not exists strategy_sessions_founder_idx
 
 alter table strategy_sessions enable row level security;
 
+drop policy if exists "strategy_sessions_select_own" on strategy_sessions;
 create policy "strategy_sessions_select_own"
   on strategy_sessions for select
   using (auth.uid() = founder_id);
 
+drop policy if exists "strategy_sessions_insert_own" on strategy_sessions;
 create policy "strategy_sessions_insert_own"
   on strategy_sessions for insert
   with check (auth.uid() = founder_id);
@@ -81,6 +83,7 @@ create policy "strategy_sessions_insert_own"
 -- Content is never edited in place: a change is a new row (PRD §8 — versioned,
 -- never overwritten). The USING clause scopes the rows a founder may touch; the
 -- WITH CHECK clause prevents them writing a row back as current.
+drop policy if exists "strategy_sessions_retire_own" on strategy_sessions;
 create policy "strategy_sessions_retire_own"
   on strategy_sessions for update
   using (auth.uid() = founder_id)
