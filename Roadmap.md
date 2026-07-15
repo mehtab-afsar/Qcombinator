@@ -44,7 +44,7 @@ Deferred layers (see below)                              ███████�
 | Single-source the score-boost signal **and decouple it from Asset creation** | M | Creating an Asset never moves the Q-Score |
 | Add the billing integration test (checkout → webhook → DB) | M | Test passes; the known-broken flow is guarded |
 | Type the Supabase admin client at billing/webhook call sites | S | No `any` there |
-| Settle "action" (one-off) vs "cadence" (recurring); add `NEW_EXECUTIVE_MODEL` flag | S | Names fixed; flag exists (off) |
+| Settle action-vs-cadence naming (→ **ADR-020**: Action is the genus, `kind:'oneoff'\|'recurring'`; a cadence is a *frequency*, not an entity); add `NEW_EXECUTIVE_MODEL` flag | S | Names fixed; flag exists (off) |
 | Freeze old agent routes | — | Agreed; strangler target stops moving |
 | CI: advisory phases blocking · E2E on prod build · Node 20+ | M | Green CI means safe to ship |
 

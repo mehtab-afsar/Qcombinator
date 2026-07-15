@@ -328,20 +328,20 @@ Executive System Prompt       = executive knowledge and operating principles
 **User stories.**
 - **US-14.1 (P0)** As a founder, irreversible Actions (send/publish/spend/change-price) wait for my approval.
 - **US-14.2 (P0)** As the system, I log every attempt and result immutably.
-- **US-14.3 (P1)** As a founder, recurring cadences run on schedule and never while a Program is paused.
+- **US-14.3 (P1)** As a founder, recurring Actions run on their cadence and never while a Program is paused.
 
 **UC-14 — build flow.**
 1. `action_log` (`pending_approval|executed|failed|declined`, `approved_by`, request/result) + RLS.
 2. Program creates an Action → **payload prepared** → if `irreversible`, create `pending_approval` and surface on F09; else run.
 3. Approve → execute via F13 → `executed` + `approved_by`. Decline → `declined`. Failure → `failed` (idempotent — no double-send).
 4. Founder sees: prepared Action · payload · target system · execution status · delivery result · failure/retry.
-5. Recurring cadences extend `scheduled_actions` (`cadence`, `next_run_at`); skip while paused.
+5. Recurring Actions (`ActionDef.kind:'recurring'`) extend `scheduled_actions` (`cadence` = the frequency, `next_run_at`); skip while paused. A recurring Action is still an Action — **if it is irreversible it needs approval too** (ADR-004, ADR-020).
 6. Re-check mandate/program-active **at execution time**, not just at generation.
 
 **Acceptance.**
 - [ ] Given an irreversible Action, Then nothing executes until approved; the attempt is logged.
 - [ ] Given a retry after partial failure, Then no double execution.
-- [ ] Given a paused Program, Then its cadence does not fire.
+- [ ] Given a paused Program, Then its recurring Actions do not fire.
 
 **Data & API.** `action_log`, `scheduled_actions`; `POST /api/programs/:id/actions/:actionId`.
 **Edge cases.** Mass/expensive send → extra confirmation; Program paused after generation → block at execution.

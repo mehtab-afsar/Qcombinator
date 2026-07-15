@@ -88,6 +88,29 @@
 **Rejected:** deleting the old agents first.
 **Salvage note:** `features/agents/{persona}/components/*Renderer.tsx` are reusable UI — keep them.
 
+## ADR-020 — Action is the genus; "cadence" is a frequency, not an entity 🔒
+**Decision:** an **Action** is any operational work a Program generates. It is **one-off or recurring** — `ActionDef.kind: 'oneoff' | 'recurring'` (PRD §7.1, the authoritative runtime type). A **cadence** is **not a thing that executes**: it is the *frequency* of a recurring Action, a value such as `'weekly'` stored in `scheduled_actions.cadence` (PRD §8).
+
+> One-off Action · recurring Action · a recurring Action **has** a cadence. There is no "Cadence" entity.
+
+**Why (this settles the Roadmap's own question, and rejects its framing):** `Roadmap.md:47` and `PRD §12` pose the task as *settle "action" (one-off) vs "cadence" (recurring)* — which reads as two **sibling entities**. That framing is rejected, because:
+1. **It contradicts the authoritative type.** `ActionDef.kind: 'oneoff'|'recurring'` already makes recurrence a *property* of an Action. Siblings would need a second `CadenceDef` shape and a second execution path — CLAUDE.md §0.2 ("one of each") and §0.1 ("config over code").
+2. **Safety — the real argument.** ADR-004: *"every **irreversible Action** requires just-in-time approval."* If a cadence were a separate entity, that rule would not obviously bind it, and a recurring send could slip the gate on a technicality. One genus ⇒ ADR-004 covers recurring work **for free**, with no second rule to keep in sync. `PHASE0_AUDIT.md` §6 shows this is not hypothetical: the outreach path already schedules future sends via `schedule_followup` with **no approval**, because it sits in `EXEC_TOOLS` and not `APPROVAL_REQUIRED_TOOLS`.
+3. **The data model already says so.** `cadence` is a `text` **column**, not a table (PRD §8). Entities get tables; values get columns.
+
+**The word was doing three jobs** (Phase 0 audit): a recurring entity (`Roadmap:47`), a frequency column (`PRD:427`), and the rhythm's schedule (`PRD:537`, *"Rhythm cadence configuration"*). Senses 2 and 3 are the same idea — a frequency — and both survive. Sense 1 is retired.
+
+**Consequences:** `Featureinventory.md` F14.3/UC-14.5 should read *"recurring **Actions** extend `scheduled_actions` (`cadence`, `next_run_at`)"*, not *"recurring cadences extend…"*. "Rhythm cadence configuration" (PRD §14.1) stays — it is sense 3, and correct.
+**Cost:** one Roadmap line is now non-normative. Recorded here rather than silently overridden.
+**Rejected:** action/cadence as siblings (above); dropping "cadence" entirely (clearer, but churns the data model and discards a word already in three docs for no safety gain).
+
+## ADR-021 — The connector namespace is `connectors`, not `connections` 🕒
+**Decision:** the connector vault table is **`connector_connections`** and its routes live at **`app/api/connectors/**`** — e.g. `POST /api/connectors/:provider/oauth`.
+**Why:** the documented path (`/api/connections/:provider/oauth`, table `connections`) **collides with a live feature**. `app/api/connections/route.ts` already exists and serves founder→investor intro requests against the `connection_requests` table. Two different meanings of "connection" on one path is how outages get made. `connectors` also matches the `/connectors/gmail/send` nomenclature already used in the PRD's own connector section.
+**Status:** 🕒 **adopted, pending Roman's confirmation** (`DOC_RECONCILIATION.md`). Applied across the PRD, Architecture, Featureinventory and Starthere on 15 Jul 2026. **Build to it**; if Roman rejects it, the change is a rename before Story 3 — no code depends on it yet.
+**Cost:** the docs diverge from Roman's original naming until confirmed.
+**Rejected:** reusing `/api/connections` (collides with live routes); renaming the existing founder→investor flow (churns working product to free up a word).
+
 ## ADR-017 — One freeze exception: security guards may be fixed in place 🔒
 **Decision:** the freeze on `features/agents/**` and `app/api/agents/**` (ADR-014, CLAUDE.md §0.4) does **not** cover a fix that restores a security invariant CLAUDE.md §3 already mandates. Such a fix must be minimal, reviewed, and recorded here.
 **First and only application:** `app/api/agents/atlas/weekly-scan/route.ts:210` — the cron auth guard read `if (cronSecret && authHeader !== …)`, which **fails open**: with `CRON_SECRET` unset the route was fully public and would spend paid Tavily budget across up to 500 founders. Changed to `if (!cronSecret || …)`. One word.
