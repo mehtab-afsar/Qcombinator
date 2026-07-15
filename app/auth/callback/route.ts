@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { sendWelcomeAndConfirmEmail } from '@/lib/email/send'
 import { log } from '@/lib/logger'
+import { FOUNDER_PLAN_LIMITS } from '@/lib/billing/plans'
 
 // Handles the OAuth redirect from Google (and any other provider).
 // Exchanges the code for a session, then routes the user by role.
@@ -86,9 +87,9 @@ export async function GET(req: NextRequest) {
       }),
 
       admin.from('subscription_usage').insert([
-        { user_id: user.id, feature: 'agent_chat',          usage_count: 0, limit_count: 50, reset_at: getNextMonthDate() },
-        { user_id: user.id, feature: 'qscore_recalc',       usage_count: 0, limit_count: 2,  reset_at: getNextMonthDate() },
-        { user_id: user.id, feature: 'investor_connection', usage_count: 0, limit_count: 3,  reset_at: getNextMonthDate() },
+        { user_id: user.id, feature: 'agent_chat',          usage_count: 0, limit_count: FOUNDER_PLAN_LIMITS.free.agent_chat,          reset_at: getNextMonthDate() },
+        { user_id: user.id, feature: 'qscore_recalc',       usage_count: 0, limit_count: FOUNDER_PLAN_LIMITS.free.qscore_recalc,       reset_at: getNextMonthDate() },
+        { user_id: user.id, feature: 'investor_connection', usage_count: 0, limit_count: FOUNDER_PLAN_LIMITS.free.investor_connection, reset_at: getNextMonthDate() },
       ]).then(({ error: e }) => {
         if (e) log.error('[oauth-callback] subscription_usage insert failed:', e)
       }),

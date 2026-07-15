@@ -206,6 +206,48 @@ Three independent defects each individually prevent the bulk-outreach path from 
 
 ---
 
+## 6b. Billing (Step 5) — the gap was narrower than documented, but sharper
+
+**The webhook is in better shape than the docs claim.** Idempotency already existed (`processed_webhook_events` upsert with `ignoreDuplicates` + count), and the `string | Customer | null` handling the PRD flags as unsafe (§13.5) was **already correct** at `webhooks/stripe/route.ts:59-60`. The real gap was that **nothing tested any of it**.
+
+### 🔴 `null` means opposite things in two layers — the live billing trap
+
+| Layer | `limit_count = null` means | Source |
+|---|---|---|
+| **Database / enforcement** | **50 — the FREE cap** | `20260512000003_increment_usage_rpc.sql:48` — `v_limit := COALESCE(v_row.limit_count, 50)` |
+| **UI** | **"Unlimited"** | `app/founder/billing/page.tsx:52` — `limit === null ? 'Unlimited' : …` |
+
+`subscription_usage.limit_count` **is nullable** (`20250101000001:48`), so nothing at the DB level prevents the mistake. **If the webhook ever wrote `null` for a premium founder, the enforcement RPC would silently throttle a paying customer to the free tier** — a billing bug that produces no error, one plausible "let's use null for unlimited, it's cleaner" refactor away. This is why `999999` is load-bearing, not a wart.
+
+Encoded in `lib/billing/plans.ts` (the warning is the file's opening comment) and pinned by a regression test (`never writes null for an unlimited feature`).
+
+### Limits were in **five** places, not the documented three
+
+`auth/callback:89` · `api/auth/signup:155` · `webhooks/stripe:87,173` · `founder/billing/status:6` (a `PLAN_LIMITS` constant **no other file imported**) · and **SQL** — `increment_usage_rpc.sql:24,37,48` hardcodes the free `agent_chat` value of 50 three times.
+
+The four TypeScript sites now import `lib/billing/plans.ts`. **The SQL cannot** — it is a DB function and cannot import from TypeScript. That coupling is documented in `plans.ts`: changing the free `agent_chat` limit requires a migration too. **This is a residual single-source violation (CLAUDE.md §4) that Phase 0 does not close.**
+
+### Typing: the TODO understated the problem by 4×
+
+`lib/supabase/server.ts` carried a note to wire in the `Database` generic "once all API routes are updated (~50 files to fix)". The real count is **203**. `getAdminClient(): any` was explicitly `any` with an eslint-disable. Typing all of it is a migration, not a Phase 0 task — so `createTypedAdminClient()` was added and adopted **at the webhook only**, per the Roadmap's "type the admin client at billing/webhook call sites". The webhook typechecks clean against the real generated types. The other 202 call sites are untouched and remain untyped.
+
+### The test was verified by mutation, not by passing
+
+A mocked test that passes proves nothing. Each guard was confirmed to **fail** when the code is broken:
+
+| Mutation | Caught? |
+|---|---|
+| Ignore the dedup result (`count === 0` → `false`) | ✅ idempotency test fails |
+| Skip the missing-signature check | ✅ signature test fails |
+| Premium `agent_chat` 500 → 50 (silent downgrade) | ✅ *after* a fix — see below |
+| `UNLIMITED` → `null` (throttles paying founders) | ✅ two tests fail |
+
+**The limits assertions were initially circular and worthless** — they compared the DB write against `FOUNDER_PLAN_LIMITS`, the same constant the route reads, so both sides moved together and mutation 3 passed silently. Rewritten to assert **literal production values** (500 / 999999 / 50 / 2 / 3), with a separate test proving the route still reads from the single source. Found only because the test was mutation-checked.
+
+**Also noted, not fixed:** `increment_usage_rpc.sql:36-37` **fails open** on a limit check (`RETURN QUERY SELECT true, 50, NULL` when the row is not found), contrary to CLAUDE.md §3 ("fail closed"). Marked "should never happen" in the code. Out of Phase 0 scope; flagged for the billing owner.
+
+---
+
 ## 7. Decisions taken (Mo, 15 Jul 2026)
 
 1. **`atlas/weekly-scan` fail-open → FIXED under an explicit freeze exception.** `:210` changed from `if (cronSecret && …)` to `if (!cronSecret || …)`. One word. Rationale: it restores the fail-closed rule CLAUDE.md §3 already mandates, and it is the lone outlier among six `CRON_SECRET` consumers. Recorded as ADR-017.
