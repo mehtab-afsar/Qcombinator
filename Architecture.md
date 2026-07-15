@@ -69,7 +69,7 @@ Three properties define the shape:
 | Query layer | Raw `@supabase/supabase-js` + generated types (no ORM) | DB access | 🟢 *(type the admin client)* |
 | Registry | TypeScript modules (`lib/registry/**`) | Executives/Programs/Assets/Actions as code | 🔵 |
 | Prompt composition | `lib/prompts/compose.ts` (4-layer + validation) | Deterministic, validated assembly | 🔵 |
-| LLM routing | `lib/llm/router.ts` → **Groq** + **Anthropic** | Task-class model selection; vendor independence | 🟢 |
+| LLM routing | `lib/llm/router.ts` → **Anthropic** (only) | Task-class model selection | 🟢 |
 | Autonomous engine | `lib/rhythm/**` on **Vercel Cron** + `operating_rhythm_runs` | Weekly, idempotent cycle | 🔵 |
 | Execution engine | `task-graph.ts`, `delegation.ts`, `orchestrator.ts`, `lib/actions/executor.ts`, `lib/tools/executor.ts` | Multi-step program/action execution | 🟢 |
 | Scheduler / async | Vercel Cron (5 jobs) + DB-row jobs (`scheduled_actions`, `artifact_jobs`) | Recurring cadences, long jobs | 🟢 *(extend)* |
@@ -109,7 +109,9 @@ Three properties define the shape:
 
 ## 5. AI / intelligence architecture
 
-- **LLM Router (`lib/llm/router.ts`).** All model calls route through one place that selects a provider by declared task class — Groq for fast/cheap, Anthropic for premium reasoning. Vendor independence is architectural: a new provider is a config change. Never hardcode a model at a call site.
+- **LLM Router (`lib/llm/router.ts`).** All model calls route through one place, which selects a model tier by declared task class. Never hardcode a model at a call site.
+  **The stack is Anthropic-only** (decided 15 Jul 2026). `ANTHROPIC_API_KEY` is the only LLM key in production. `lib/llm/providers/groq.ts` exists but is **dead code** — `providers/index.ts:15-21` returns null without a key, so the circuit-breaker fallback (`:43-53`) can never fire. It should be removed when the LLM layer is next touched.
+  **This is a single-vendor architecture, and that is a deliberate trade.** Do not claim vendor independence: an Anthropic outage stops chat, artifact generation and Q-Score reconciliation, with no failover. Accepted for simplicity. The router still isolates model choice to one place, so adding a second provider later remains a contained change — but it is not one today.
 - **Prompt Composer (4 layers).** `Executive System Prompt + Program Prompt + Asset/Action Instructions + Company Context`, assembled deterministically then **validated** before execution (hierarchy preserved; Program compatible with its Executive; no capability outside the Contract). Invalid → runtime error, not a bad call.
 - **Stateless reasoning.** Programs reason from the current Asset versions and Q-Score, not from accumulated conversation — designing out the drift failure mode of chat-based AI.
 - **Q-Score (separate diagnostic).** Confidence-weighted scoring across 6 dimensions, updated from **Company Builder artefacts**. **Creating an Asset never raises it.** Nothing in the new model calls `applyAgentScoreSignal()` — a unit test enforces this.

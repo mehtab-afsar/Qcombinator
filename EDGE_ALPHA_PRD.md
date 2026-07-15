@@ -163,7 +163,7 @@ The three stories are also the build sequence (§12).
 ## 6. System architecture
 
 ### 6.1 Current state (verified, not inherited)
-Next.js 16 (App Router, RSC) · TypeScript strict · Supabase Postgres (no ORM) · Vercel · Groq + Anthropic via `lib/llm/router.ts` · Stripe · Resend · Upstash Redis (rate-limit only) · Sentry + PostHog. No message queue; 5 Vercel Cron jobs + a DB-row job pattern.
+Next.js 16 (App Router, RSC) · TypeScript strict · Supabase Postgres (no ORM) · Vercel · **Anthropic** via `lib/llm/router.ts` (single-vendor; see Architecture.md §5) · Stripe · Resend · Upstash Redis (rate-limit only) · Sentry + PostHog. No message queue; 5 Vercel Cron jobs + a DB-row job pattern.
 
 Measured facts: chat route `app/api/agents/chat/route.ts` = **1,039 lines**. Monolith pages: profile-builder **3,100**, dashboard **1,905**, settings **1,472**. **275** API routes, ~170 per-agent. CI runs `npm run build` then serves E2E against `npm run dev`. Node pinned to 18; advisory CI phases non-blocking. **No billing integration test** (verified gap). A partial system-prompt assembler exists (`lib/agents/compose-system-prompt.ts`); 13 per-persona prompt files and ~26 per-agent route folders remain.
 

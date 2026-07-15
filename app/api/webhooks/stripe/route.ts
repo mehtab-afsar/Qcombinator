@@ -161,14 +161,18 @@ export async function POST(req: NextRequest) {
           }).eq('stripe_subscription_id', sub.id)
 
           if (fp?.user_id) {
-            void Promise.resolve().then(() => trackChurned(fp.user_id, { plan: 'founder_premium' }))
+            // Captured locally: TypeScript drops the fp?.user_id narrowing inside
+            // the callbacks below, since a property could change before they run.
+            const churnedUserId = fp.user_id
+
+            void Promise.resolve().then(() => trackChurned(churnedUserId, { plan: 'founder_premium' }))
 
             const free = FOUNDER_PLAN_LIMITS.free
             await Promise.all(
               (['agent_chat', 'investor_connection', 'qscore_recalc'] as const).map(feature =>
                 admin.from('subscription_usage')
                   .update({ limit_count: free[feature] })
-                  .eq('user_id', fp.user_id).eq('feature', feature)
+                  .eq('user_id', churnedUserId).eq('feature', feature)
               )
             )
           }

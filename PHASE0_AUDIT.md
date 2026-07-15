@@ -12,7 +12,7 @@
 
 | # | Finding | Severity | Frozen? |
 |---|---|---|---|
-| 1 | **`atlas/weekly-scan` cron auth fails open** — public, unbounded, paid-API-spending endpoint if `CRON_SECRET` is ever unset | 🔴 latent security | Yes |
+| 1 | **`atlas/weekly-scan` cron auth fails open** — CRON_SECRET confirmed **absent** in prod, so it is public **today**; harmless only because `TAVILY_API_KEY` is also missing. Fixed (ADR-017), undeployed | 🔴 **active** security | Yes |
 | 2 | **Artifact creation is NOT confined to `app/api/agents/**`** — the docs' assumption is refuted; 3 paths live outside the frozen tree, one of them client-side | 🔴 architectural | Partly |
 | 3 | **The only approval gate is inert in both directions** — nothing is ever queued, and approving executes nothing | 🟠 | Yes |
 | 4 | **Founder-typed metrics are stored as Felix's work and shown to investors as such** — provenance is lost at the boundary | 🟠 provenance | No |
@@ -78,9 +78,15 @@ If `CRON_SECRET` is unset, the guard evaluates to false and **the route is fully
 
 This directly violates CLAUDE.md §3 — *"Fail closed, not open. Auth/rate-limit/mandate errors deny + alert; never silently allow."*
 
-**Assessed as latent, not active.** If `CRON_SECRET` were unset, `weekly-automation` and `drip-emails` would return 503 and no founder would receive any email. Working emails ⇒ the secret is set ⇒ this hole is currently closed. It opens on any rotation or misconfiguration.
+**⚠️ CORRECTED 15 Jul 2026 — this hole is ACTIVE, not latent.**
 
-**Not fixed here.** The file is frozen (CLAUDE.md §0.4). The one-word fix (`if (!cronSecret || authHeader !== ...)`) requires an explicit decision from Mo — see §7.
+The original assessment reasoned: *"if `CRON_SECRET` were unset, `weekly-automation` and `drip-emails` would 503 and no founder would receive email. Working emails ⇒ the secret is set."* **That inference was invalid.** Vercel's Project env scope holds only 5 variables — `CRON_SECRET` is **absent**, and so is `RESEND_API_KEY`. The emails were never arriving, so their "working" was assumed, never checked. A missing key was treated as evidence that a different key existed.
+
+**So the endpoint is publicly callable today.** It is harmless *only* by accident: `TAVILY_API_KEY` is also missing, and the scan guards on it (`:44`, `:66` — `if (tavilyKey && ...)`), so it makes **zero paid calls**. Two gaps cancelling out.
+
+**This creates a live sequencing trap.** Adding `TAVILY_API_KEY` — on its own, with the best intentions — converts a public endpoint into a public way to spend money across up to 500 founders. **Deploy the ADR-017 fix first.** Recorded in `missingwork.md`.
+
+**Fixed under ADR-017** (`if (!cronSecret || ...)`), on branch `phase-0-ground-clearing`, **not yet deployed**.
 
 ---
 
@@ -229,7 +235,9 @@ The four TypeScript sites now import `lib/billing/plans.ts`. **The SQL cannot** 
 
 ### Typing: the TODO understated the problem by 4×
 
-`lib/supabase/server.ts` carried a note to wire in the `Database` generic "once all API routes are updated (~50 files to fix)". The real count is **203**. `getAdminClient(): any` was explicitly `any` with an eslint-disable. Typing all of it is a migration, not a Phase 0 task — so `createTypedAdminClient()` was added and adopted **at the webhook only**, per the Roadmap's "type the admin client at billing/webhook call sites". The webhook typechecks clean against the real generated types. The other 202 call sites are untouched and remain untyped.
+`lib/supabase/server.ts` carried a note to wire in the `Database` generic "once all API routes are updated (~50 files to fix)". The real count is **203**. `getAdminClient(): any` was explicitly `any` with an eslint-disable. Typing all of it is a migration, not a Phase 0 task — so `createTypedAdminClient()` was added and adopted **at the webhook only**, per the Roadmap's "type the admin client at billing/webhook call sites". The other 202 call sites are untouched and remain untyped.
+
+⚠️ **Correction:** Step 5 originally claimed "the webhook typechecks clean against the real generated types". **It did not** — typing it surfaced two real `string | null` errors that a corrupt generated artifact was masking. See §9. Both are now fixed.
 
 ### The test was verified by mutation, not by passing
 
@@ -334,9 +342,30 @@ Failure #1 is not a stale assertion — the calculator's headline invariant ("th
 
 **Decision needed:** triage these before Story 1, or quarantine and proceed? They are not caused by Phase 0 and block nothing mechanically — but #1–#6 mean the score may be miscomputed today.
 
-**Known blocker for the `typecheck` script:** `tsconfig.json` includes `.next/dev/types/**/*.ts` (generated). `npx tsc --noEmit` reports **3 pre-existing syntax errors** in `.next/dev/types/routes.d.ts` — present before and after every Phase 0 change. A `typecheck` script cannot go green until that include is addressed.
+### 🔴 The "3 harmless generated errors" were MASKING 5 real ones
 
-**Known blocker for the `typecheck` script:** `tsconfig.json` includes `.next/dev/types/**/*.ts` (generated). `npx tsc --noEmit` currently reports **3 pre-existing syntax errors** in `.next/dev/types/routes.d.ts` — present both before and after the Step 1 change. A `typecheck` script cannot go green until this include is addressed.
+Phase 0 twice recorded that `npx tsc --noEmit` reported "3 pre-existing errors, all in generated `.next/dev/types/routes.d.ts`, harmless". **That was wrong, and the method was wrong.**
+
+`.next/dev/types/routes.d.ts` was **corrupt** — a partial write from a dev server left a truncated fragment (`ndlers` at line 403). Those are *syntax* errors, so **`tsc` bails before checking the rest of the codebase**. Removing the artifact did not drop the count from 3 to 0; it **raised it to 5**:
+
+| Error | Origin |
+|---|---|
+| `webhooks/stripe:164` — `string \| null` not assignable to `string` | **Introduced by Phase 0 Step 5** (typing the admin client) |
+| `webhooks/stripe:171` — same | **Introduced by Phase 0 Step 5** |
+| `e2e/flows/founder-full-journey:162` — `Locator` passed where an options object belongs | pre-existing |
+| `e2e/flows/patel-gtm-playbook:150` — no overload matches | pre-existing |
+| `e2e/flows/patel-gtm-playbook:151` — `suggestedFilename` missing on `WebError` | pre-existing |
+
+**Commit `79d67da` shipped with 2 type errors that were reported as clean.** The verification was compromised, not merely unlucky — "the errors are only in generated files" was an assumption that was never tested.
+
+**All 5 are now fixed. `npm run typecheck` reports zero errors — the first time that has been true.**
+
+- The two webhook errors were **real bugs the typed client surfaced**: `fp?.user_id` narrowing is dropped inside callbacks (a property could change before the callback runs), so `string | null` reached `.eq()` and `trackChurned()`. Fixed with a captured local. The untyped client hid this as `any` — exactly the incident class PRD §13.5 describes. **Typing the client worked; the verification of it did not.**
+- The three E2E errors were **real Playwright misuse in the blocking Phase 1 suite**: `page.locator(sel, locator)` (the 2nd arg is an options object, so that locator never scoped anything) and `page.context().waitForEvent('download')` (a Page event — on a context it resolves to `WebError`). Neither failed CI only because both sit behind `if (isVisible)` guards that never fire.
+
+**The lesson, identical to §8's stale tests:** a corrupt generated artifact can silently disable typechecking for the whole repo. If `tsc` reports errors inside `.next/`, do not dismiss them — **`rm -rf .next/dev` and re-run**, because everything after the first syntax error goes unchecked. CI is immune (fresh checkout, no `.next`), which is exactly why the gate belongs in CI.
+
+*(The duplicate stale claim that stood here has been corrected — see §9.)*
 
 ---
 
