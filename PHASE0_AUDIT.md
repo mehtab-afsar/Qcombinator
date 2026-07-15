@@ -249,6 +249,24 @@ After Step 3: **7 failed · 178 passed · 185 total.** Identical failure set —
 | 6 | `features/qscore/tests/p6-financials.test.ts` | `6.5 excluded when no COGS and no deal size` | **Q-Score engine** |
 | 7 | `__tests__/agents/critical.test.ts` | `uses existing_artifact source when Maya artifact exists — no sub-call fired` | Old model (frozen) |
 
+### ✅ TRIAGE RESULT (15 Jul 2026) — all six Q-Score failures are STALE TESTS. The score is **not** miscomputing.
+
+Each failure is the same shape: **the code was deliberately improved, documented, and the test was never updated** — invisible because Jest never runs in CI.
+
+| # | Root cause | Verdict |
+|---|---|---|
+| 1–3 | **Formula v1 → v2.** Tests assert a *constant* `/150` denominator using *raw* scores. `q-score-calculator.ts:4-10,124-134` states and implements the opposite: *"Denominator is DYNAMIC — only non-excluded indicators count"*, plus a confidence multiplier `clamp(conf/0.90, 0.50, 1.00)` and a sparsity penalty. Three effects the tests don't model — which is exactly where the 3.87 went. The test names give it away: *"still counted in denominator"* is the v1 behaviour v2 removed. | **stale test** |
+| 4–5 | **LLM router migration.** `lib/profile-builder/reconciliation-engine.ts:19` imports `routedText` from `lib/llm/router` and **never calls `callClaude`**. The tests `jest.mock('@/lib/claude')` — an inert mock. The real call runs, fails without an API key, and the non-blocking error path returns `applied:false`. | **stale test** |
+| 6 | **SaaS-default estimation added.** `p6-financials.ts:254-257` no longer excludes 6.5 when COGS is missing but MRR exists — it estimates gross margin from an 80% SaaS default, honestly marked (`confidence: 0.50`, reason *"SaaS default — no COGS provided; add COGS to improve accuracy"*). The exclusion rule at `:59` gained `&& !mrr` to match. The test asserts pre-feature behaviour. | **stale test** |
+
+**Conclusion:** the calculator, the reconciliation engine and the P6 scorer are each *more* correct than their tests. No founder's score is wrong. ADR-019's revisit trigger ("if triage shows the calculator is genuinely miscomputing, that is a P0") **did not fire**.
+
+**But the meta-finding stands, and it is the real lesson:** three separate improvements shipped, each leaving its tests behind, and nobody knew — because nothing runs them. The tests aren't just failing, they are **encoding a version of the product that no longer exists**. That is worse than having no tests, because it is what someone will read to learn how the score works. This is the argument for Step 6 being non-negotiable.
+
+**Remaining:** #7 (`__tests__/agents/critical.test.ts`) is in the frozen old model — lower priority, untriaged.
+
+**Recommended:** update the six stale tests to assert the current, documented behaviour. That is *new work on test files only* — it touches no product code and changes no behaviour. Needs Mo's go-ahead.
+
 ### Why this matters more than a normal quarantine list
 
 **Six of the seven failures are in the Q-Score engine** — `features/qscore/**`, which every doc designates *reuse, untouched* (CLAUDE.md §0.3, ADR-014, Architecture.md §11), and which is the **input to the entire product**: it feeds the mandate, and ADR-016 makes it the thing the founder is scored on.

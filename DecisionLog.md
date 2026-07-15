@@ -105,6 +105,32 @@
 **Cost:** a wider migration surface than planned.
 **Rejected:** treating both as out of scope (leaves the provenance hole permanently, and lets "parity" be declared falsely).
 
+## ADR-019 — "Reuse the engine" means *present*, not *proven* 🕒
+**Decision:** ADR-014 stands — we still build on the existing engine. But the docs imply that engine is battle-tested, and **it is not**. Anything reused must be treated as **unverified until it has a passing test**, not as a working foundation.
+
+**Verified state (Phase 0 audit, 15 Jul 2026):**
+
+| Component | Docs say | Actually |
+|---|---|---|
+| `lib/agents/task-graph.ts` (389 lines) | CLAUDE.md §0.3 "reuse, don't fork" | **Zero callers.** `executeTaskGraph:253` has never executed in production |
+| `lib/actions/executor.ts` (228 lines) | CLAUDE.md §0.3 "reuse, don't fork" | **Zero callers.** `executeAction:174` has never executed |
+| `features/qscore/**` | "Keep, untouched" · "reuse" (Architecture.md §11) | Live and exercised. 6 failing tests — **triaged: all stale, the score is correct** (see below) |
+| Jest suite (8 files) | CLAUDE.md §7 "Demand tests" | **Never runs in CI.** Failing invisibly for an unknown period |
+
+**Q-Score triage outcome (15 Jul 2026): the engine is exonerated.** All six failures are stale tests, not defects — the formula moved v1→v2 (constant→dynamic denominator), the LLM layer migrated to `lib/llm/router`, and P6 gained SaaS-default estimation. In each case the code was improved and documented; the tests were left behind. `features/qscore` is therefore **genuinely reusable**, as the docs claim. Detail: `PHASE0_AUDIT.md` §8.
+
+**Why this is an ADR and not just an audit note:** PRD §1 justifies the plan with *"~two-thirds of the machinery exists but is wired to the wrong shape."* That sentence is doing real work — it is why this is scoped as *mostly refactoring*. Two of the named modules have never run, and the third has failing tests. **Existing ≠ working.** Story 1+ must not assume otherwise.
+
+**What this does NOT change:** the reuse decision itself. Unexecuted is not the same as broken, and rewriting from scratch is worse. `delegation.ts`, `orchestrator.ts`, `lib/tools/executor.ts` and `lib/llm/router.ts` **are** live and exercised.
+
+**Consequences:**
+1. Q-Score triage is timeboxed and happens **before Story 1** — it feeds the mandate and is what ADR-016 measures.
+2. First reuse of `task-graph.ts` or `lib/actions/executor.ts` carries a test, and is estimated as new code.
+3. Jest becomes blocking in CI (Phase 0 Step 6) so this cannot recur.
+
+**Revisit trigger:** if triage shows the Q-Score calculator is genuinely miscomputing, that is a P0 on its own — it means live founder scores are wrong.
+**Rejected:** re-opening ADR-014 on this evidence (unexecuted ≠ broken); leaving it in the audit only (the PRD's premise would stay uncorrected).
+
 ## ADR-015 — Engineering invariants (non-negotiable) 🔒
 Generic routes (never per-agent) · immutable Asset versioning with provenance · idempotent rhythm cycles · a shared Connector abstraction · runtime validation on composition and persistence · RLS on every table · immutable audit logging (`action_log`) · secrets by reference only. See `CLAUDE.md`.
 
