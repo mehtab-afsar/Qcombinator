@@ -116,6 +116,16 @@ Each of these makes an advertised feature a no-op. No error, no warning; it just
 
   ⚠️ Note `20260421000008_fix_missing_rls.sql` — a migration named *"fix missing RLS"* — added a correct policy but never deleted the broken one, so it fixed nothing. Worth knowing that a past attempt at this already missed.
 
+## 8d. 🟡 A timer leak in the Q-Score reconciliation engine
+
+*Small, pre-existing, engineering-only. Tracked so it isn't lost.*
+
+- [ ] **`lib/profile-builder/reconciliation-engine.ts:148` never clears its timeout.** It races the LLM call against `setTimeout(... 5000)` but doesn't `clearTimeout` the loser — `Promise.race` abandons the loser, it does not cancel it. So every reconciliation leaves timers pending for 5 seconds after the work finishes, which on serverless keeps the lambda alive that much longer. Four indicators per reconcile = four timers.
+
+  Jest reports it as *"did not exit one second after the test run"* — visible on `master` today, and the reason the full suite prints that warning.
+
+  Fix: capture the timer and `clearTimeout` it in a `finally`. Three lines. `lib/mandate/generate.ts` does exactly this and has a comment pointing here — I copied the bug from this file before noticing it.
+
 ## 9. Vercel plan
 
 - [ ] **Confirm the plan.** The Cron page showed *"Cron jobs on Hobby have a flexible time window of 1-hour"* — so you're on **Hobby**, with **5** crons registered.

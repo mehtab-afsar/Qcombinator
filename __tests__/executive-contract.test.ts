@@ -37,7 +37,7 @@ const contract = (over: Partial<ExecutiveContract> = {}): ExecutiveContract => (
   priorities: ['Win 10 design partners'], successMetrics: ['£40k MRR'],
   responsibilities: [{ executive: 'growth', mandate: 'GTM' }],
   activePrograms: ['P001'], previousContractId: null,
-  confirmedAt: '2026-07-15T00:00:00Z', createdAt: '',
+  confirmedAt: '2026-07-15T00:00:00Z', createdAt: '', document: null,
   ...over,
 })
 

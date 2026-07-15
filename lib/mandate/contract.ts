@@ -11,6 +11,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getProgram, ProgramNotFoundError, type ProgramId } from '@/lib/registry'
 import { getCurrentStrategy, isStrategyComplete, type StrategySession } from './strategy'
+import { generateMandate, MandateGenerationError } from './generate'
 import { log } from '@/lib/logger'
 
 export type ContractStatus = 'draft' | 'confirmed' | 'superseded'
@@ -32,6 +33,15 @@ export interface ExecutiveContract {
   previousContractId: string | null
   confirmedAt: string | null
   createdAt: string
+  /**
+   * S002's full Executive Contract document (F08b). The founder-facing record of
+   * WHAT was agreed and WHY. Null on a deterministic fallback draft, and on
+   * contracts drafted before F08b.
+   *
+   * NOT authoritative for execution — `activePrograms` is. F10 must never parse
+   * this to decide what may run.
+   */
+  document: string | null
 }
 
 export interface ProgramInstance {
@@ -49,6 +59,7 @@ interface ContractRow {
   epoch: number; version: number; is_current: boolean; status: ContractStatus
   priorities: unknown; success_metrics: unknown; responsibilities: unknown; active_programs: unknown
   previous_contract_id: string | null; confirmed_at: string | null; created_at: string
+  contract_document: string | null
 }
 
 function toContract(row: ContractRow): ExecutiveContract {
@@ -68,6 +79,7 @@ function toContract(row: ContractRow): ExecutiveContract {
     previousContractId: row.previous_contract_id,
     confirmedAt: row.confirmed_at,
     createdAt: row.created_at,
+    document: row.contract_document ?? null,
   }
 }
 
@@ -169,10 +181,13 @@ export interface ContractDraft {
 /**
  * Build a draft mandate from the founder's Strategy.
  *
- * ⚠️ DETERMINISTIC FOR NOW — F08b swaps in the real S002 LLM call via
- * composeMandatePrompt(). The lifecycle (draft → confirm → epoch) is the part
- * that must be right first, and it is testable only if generation is predictable.
- * Everything downstream of this function is final; only its innards change.
+ * ⚠️ THE FALLBACK, not the main path. F08b runs S002 for real; this is what
+ * happens when that fails — an LLM outage must not leave a founder unable to set
+ * their direction. It produces a thin but honest mandate straight from their
+ * strategy, with no document attached.
+ *
+ * Also what the lifecycle tests run against: draft → confirm → epoch has to be
+ * verifiable without a live model.
  */
 export function buildDraft(strategy: StrategySession): ContractDraft {
   if (!isStrategyComplete(strategy)) {
@@ -211,7 +226,32 @@ export async function createDraft(
     throw new ContractError('Set your direction first — there is no strategy to build a mandate from.')
   }
 
-  const draft = buildDraft(strategy)
+  // Blocks an incomplete strategy before spending anything on a model call —
+  // F07's edge case landing exactly where it was designed to.
+  if (!isStrategyComplete(strategy)) {
+    throw new ContractError(
+      'Your strategy needs a mission and at least one priority before a contract can be drafted.',
+    )
+  }
+
+  // S002 for real (F08b). On failure, fall back to the deterministic builder: an
+  // LLM outage must not stop a founder setting their direction. The fallback is
+  // thinner — no document — and that is visible rather than pretended.
+  let draft: ContractDraft
+  let document: string | null = null
+  try {
+    const generated = await generateMandate({
+      companyName: undefined,
+      strategy: [strategy.mission, ...strategy.priorities, ...strategy.goals].filter(Boolean).join('\n'),
+    })
+    draft = generated
+    document = generated.document
+  } catch (err) {
+    if (!(err instanceof MandateGenerationError)) throw err
+    log.warn('S002 unavailable — falling back to a deterministic draft', { founderId })
+    draft = buildDraft(strategy)
+  }
+
   assertProgramsExist(draft.activePrograms)
 
   const existing = await getCurrentContract(supabase, founderId)
@@ -242,6 +282,7 @@ export async function createDraft(
       success_metrics: draft.successMetrics,
       responsibilities: draft.responsibilities,
       active_programs: draft.activePrograms,
+      contract_document: document,
       previous_contract_id: existing?.id ?? null,
     })
     .select()

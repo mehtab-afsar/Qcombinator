@@ -299,7 +299,48 @@ export interface ComposeMandateInput {
   kind: MandateKind
   context: CompanyContext
   executionId?: string
+  /**
+   * Append a machine-readable tail (F08b).
+   *
+   * The prompt keeps producing its document exactly as written; this asks it to
+   * ALSO end with a fenced JSON block carrying the fields the database needs.
+   * One call, one act of reasoning — the prose and the data cannot disagree,
+   * because they are written together.
+   *
+   * It lives here rather than in the workbook because it is a RUNTIME need (our
+   * schema), not part of the executive's design. ADR-010: the workbook is the
+   * design source and stays clean.
+   */
+  structuredTail?: MandateKind extends never ? never : 'contract'
 }
+
+/**
+ * Asks for the four fields `executive_contracts` stores, in a fenced block.
+ *
+ * Named sections mirror S002's own headings so the model is transcribing its own
+ * document rather than inventing a second answer.
+ */
+const CONTRACT_JSON_TAIL = [
+  '# Machine-readable summary (required)',
+  '',
+  'After the document above, output ONE fenced JSON block — nothing after it.',
+  'It must transcribe what you have just written; do not introduce anything new.',
+  '',
+  '```json',
+  '{',
+  '  "priorities":       ["from your Executive Priorities section"],',
+  '  "successMetrics":   ["from your Success Metrics section"],',
+  '  "responsibilities": [{ "executive": "growth", "mandate": "what they own" }],',
+  '  "activePrograms":   ["P001"]',
+  '}',
+  '```',
+  '',
+  'Rules:',
+  '- `activePrograms` may contain ONLY Program IDs that appear in Company Context',
+  '  above. Do not invent one. An unknown ID is rejected and the draft fails.',
+  '- `executive` must be one of: ceo, growth, product, operations, finance.',
+  '- 3–5 priorities. At least one success metric. At least one program.',
+].join('\n')
 
 /**
  * Assemble a mandate package — S001 (Strategy Session) or S002 (Executive
@@ -351,7 +392,9 @@ export function composeMandatePrompt(input: ComposeMandateInput): ExecutionPacka
     },
   ]
 
-  const text = [MANDATE_PREAMBLE, ...layers.map(l => l.text)].join(SEPARATOR)
+  const parts = [MANDATE_PREAMBLE, ...layers.map(l => l.text)]
+  if (input.structuredTail === 'contract') parts.push(CONTRACT_JSON_TAIL)
+  const text = parts.join(SEPARATOR)
 
   return {
     executionId,
