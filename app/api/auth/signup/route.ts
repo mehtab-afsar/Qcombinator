@@ -7,6 +7,7 @@ import { log } from '@/lib/logger'
 import { routedText } from '@/lib/llm/router'
 import { sendWelcomeAndConfirmEmail } from '@/lib/email/send'
 import { trackFounderSignedUp } from '@/lib/analytics'
+import { FOUNDER_PLAN_LIMITS } from '@/lib/billing/plans'
 
 export async function POST(request: NextRequest) {
   try {
@@ -152,9 +153,9 @@ export async function POST(request: NextRequest) {
     // Insert usage limit rows — non-fatal: a failed insert logs but does not block signup.
     // The CHECK constraint on feature allows: agent_chat, investor_connection, qscore_recalc, workshop, agent_generate.
     const featureLimits = [
-      { feature: 'agent_chat',           usage_count: 0, limit_count: 50 },
-      { feature: 'qscore_recalc',        usage_count: 0, limit_count: 2  },
-      { feature: 'investor_connection',  usage_count: 0, limit_count: 3  },
+      { feature: 'agent_chat',           usage_count: 0, limit_count: FOUNDER_PLAN_LIMITS.free.agent_chat          },
+      { feature: 'qscore_recalc',        usage_count: 0, limit_count: FOUNDER_PLAN_LIMITS.free.qscore_recalc       },
+      { feature: 'investor_connection',  usage_count: 0, limit_count: FOUNDER_PLAN_LIMITS.free.investor_connection },
     ];
     const usageResults = await Promise.all(featureLimits.map(limit =>
       supabaseAdmin.from('subscription_usage').insert({

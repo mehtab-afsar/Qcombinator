@@ -103,12 +103,37 @@ describe('getP6Exclusions — growth stage with full data', () => {
     expect(excl.has('6.4')).toBe(true)
   })
 
-  test('6.5 excluded when no COGS and no deal size', () => {
+  // 6.5 Gross Margin is only excluded when there is NOTHING to work from:
+  // no COGS, no deal size AND no MRR (p6-financials.ts:59). When MRR exists but
+  // COGS does not, the scorer estimates gross margin from an 80% SaaS default
+  // rather than giving up (:254-257). These tests asserted the pre-estimation
+  // behaviour until Phase 0 — see PHASE0_AUDIT.md §8.
+
+  test('6.5 excluded when no COGS, no deal size AND no MRR', () => {
     const data = baseData()
-    data.financial = { mrr: 15_000, arr: 180_000, monthlyBurn: 8_000, runway: 18 }
-    // No cogs, no averageDealSize
+    data.financial = { monthlyBurn: 8_000, runway: 18 }
     const excl = getP6Exclusions('growth', data)
     expect(excl.has('6.5')).toBe(true)
+  })
+
+  test('6.5 NOT excluded when MRR exists without COGS — estimated from SaaS default', () => {
+    const data = baseData()
+    data.financial = { mrr: 15_000, arr: 180_000, monthlyBurn: 8_000, runway: 18 }
+    const excl = getP6Exclusions('growth', data)
+    expect(excl.has('6.5')).toBe(false)
+  })
+
+  test('the SaaS default is applied honestly — reduced confidence, stated reason', () => {
+    const data = baseData()
+    data.financial = { mrr: 15_000, arr: 180_000, monthlyBurn: 8_000, runway: 18 }
+
+    const gm = scoreP6(data, 'growth').find(i => i.id === '6.5')!
+
+    expect(gm.excluded).toBe(false)
+    // An estimate must never be presented with the confidence of real data.
+    expect(gm.dataQuality?.confidence).toBe(0.50)
+    expect(gm.dataQuality?.verificationLevel).toBe('unverified')
+    expect(gm.dataQuality?.reasons?.[0]).toContain('SaaS default')
   })
 })
 

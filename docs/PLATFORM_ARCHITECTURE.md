@@ -1,5 +1,9 @@
 # Edge Alpha — Full Platform Architecture
 
+> ⛔ **SUPERSEDED — see `Architecture.md` at the repo root.** Retained for history only.
+> Describes the pre-Registry design (11 personas, per-agent routes) that the Executive
+> model replaces. **Do not build from this document.** Canonical spec: `EDGE_ALPHA_PRD.md`.
+
 > A founder-facing startup operating system: AI agents, an IQ Score engine, investor matching, and a complete startup toolkit — all under one roof.
 
 ---

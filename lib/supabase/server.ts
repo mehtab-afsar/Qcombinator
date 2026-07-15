@@ -1,9 +1,13 @@
 import { createServerClient } from '@supabase/ssr'
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { createClient as createSupabaseClient, type SupabaseClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { log } from '@/lib/logger'
-// Database types generated — see types/supabase.ts. Wire in via createServerClient<Database>
-// once all API routes are updated to handle strict Json typing (~50 files to fix).
+import type { Database } from '@/types/supabase'
+// The anon/admin clients below are untyped: supabase-js resolves unknown tables
+// to `any` when no Database generic is supplied. Typing them wholesale means
+// updating 203 call sites for strict Json typing, so it is a migration rather
+// than a single change. createTypedAdminClient() below is the typed path —
+// adopt it per-route, money paths first.
 
 export async function createClient() {
   const cookieStore = await cookies()
@@ -43,8 +47,36 @@ export async function createClient() {
   )
 }
 
+/**
+ * Service-role client with the generated Database types wired in.
+ *
+ * Prefer this over createAdminClient()/getAdminClient() in any route where a
+ * wrong column name or shape has real consequences — the untyped clients below
+ * resolve every table to `any`, which is the root cause of the billing incident
+ * class (EDGE_ALPHA_PRD.md §13.5).
+ *
+ * This is deliberately additive. The untyped clients stay because 203 files use
+ * them and typing them all at once is a migration, not a Phase 0 task. Adopt
+ * this one route at a time, starting with the paths that move money.
+ *
+ * Callers: app/api/webhooks/stripe/route.ts
+ */
+export function createTypedAdminClient(): SupabaseClient<Database> {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error('SUPABASE_SERVICE_ROLE_KEY is not configured')
+  }
+
+  return createSupabaseClient<Database>(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  })
+}
+
 // Service-role client — bypasses RLS. Use only in server-side API routes
 // where the caller's identity has already been verified via createClient().
+// Untyped: prefer createTypedAdminClient() for new call sites.
 export function createAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY

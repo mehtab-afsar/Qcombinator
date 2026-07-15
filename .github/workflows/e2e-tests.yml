@@ -1,10 +1,16 @@
-name: E2E Tests
+name: CI
 
+# ⚠️ This repo's default branch is `master`. There is no `main` and no `develop`.
+# Until Phase 0 this workflow triggered only on [main, develop], so IT HAD NEVER
+# RUN — not once. That is the root cause of the Phase 0 findings: three
+# improvements shipped and orphaned their tests, a test contradicted its own
+# mock, and billing had no test at all. Nothing was ever checking.
+# Keep `master` first. Do not remove it.
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ master, main, develop, 'phase-0-**' ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ master, main, develop ]
 
 env:
   NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
@@ -12,14 +18,10 @@ env:
   SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
 jobs:
-  e2e-tests:
+  # Fast gates — these fail in ~1 minute rather than after a 60-minute E2E run.
+  unit-and-types:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
-
-    strategy:
-      fail-fast: false
-      matrix:
-        node-version: [18.x]
+    timeout-minutes: 10
 
     steps:
       - uses: actions/checkout@v4
@@ -27,7 +29,39 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # BLOCKING. Jest had never run in CI before Phase 0 — three separate
+      # improvements shipped and orphaned their tests, and nobody knew.
+      # Green at time of wiring: 202 passed / 0 failed / 12 suites.
+      - name: Unit tests (Jest)
+        run: npm test
+
+      # BLOCKING. CLAUDE.md §6 requires "no new type errors"; until Phase 0
+      # there was no script to check.
+      # NOTE: a corrupt .next/dev/types/routes.d.ts can MASK real errors — a file
+      # with syntax errors makes tsc bail before checking everything else. CI is
+      # safe (fresh checkout, no .next). Locally, `rm -rf .next/dev` if tsc
+      # reports errors inside .next.
+      - name: Typecheck
+        run: npm run typecheck
+
+  e2e-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    needs: unit-and-types
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
           cache: 'npm'
 
       - name: Install dependencies
@@ -39,17 +73,42 @@ jobs:
       - name: Build application
         run: npm run build
 
-      - name: Start dev server
-        run: npm run dev &
+      # E2E runs against the PRODUCTION build. This previously ran `npm run dev`,
+      # so the build above was made and thrown away — the tested app was not the
+      # shipped app.
+      - name: Start production server
+        run: npm run start &
         env:
-          NODE_ENV: test
+          NODE_ENV: production
 
       - name: Wait for server to be ready
-        run: npx wait-on http://localhost:3000 --timeout 30000
+        run: npx wait-on http://localhost:3000 --timeout 60000
 
       - name: Run Phase 1 - Critical Path Tests (Required)
         run: npx playwright test e2e/flows/
 
+      # ── Phases 2-5 are still advisory. Read this before "just flipping them". ──
+      #
+      # Amendment A (Phase 0): flip these to blocking ONE AT A TIME, never all at
+      # once, and quarantine any known failure EXPLICITLY on the tracked list in
+      # PHASE0_AUDIT.md §8 — never by silently re-adding continue-on-error.
+      #
+      # They were NOT flipped during Phase 0 because their result could not be
+      # observed: they need a live server plus real Supabase credentials, so
+      # flipping them unverified would simply break CI for everyone on the next
+      # push. Guessing is not hardening.
+      #
+      # The procedure, once a real CI run has been observed:
+      #   1. Read the playwright-report artifact from a green-ish run.
+      #   2. Pick ONE phase. Remove its continue-on-error. Push. Observe.
+      #   3. Passes -> keep it blocking, move to the next phase.
+      #      Fails   -> record each failing spec in PHASE0_AUDIT.md §8 with an
+      #                 owner, then either fix it or skip that spec by name.
+      #                 Do NOT restore continue-on-error for the whole phase.
+      #   4. Repeat until all four are blocking.
+      #
+      # Tracked in PHASE0_AUDIT.md §8. Jest and typecheck (the unit-and-types job)
+      # are already blocking and are the gates that matter most day to day.
       - name: Run Phase 2 - API Route Tests
         run: npx playwright test e2e/api/
         continue-on-error: true
@@ -89,35 +148,40 @@ jobs:
       - name: Report test summary
         if: always()
         run: |
-          echo "## E2E Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "## CI Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Job status: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- Phase 1 (Critical Paths) and Baseline are required and gate this workflow." >> $GITHUB_STEP_SUMMARY
-          echo "- Phases 2-5 (API, Performance, Security, Accessibility) are advisory; see the playwright-report artifact for their results." >> $GITHUB_STEP_SUMMARY
+          echo "**Blocking:** Jest unit tests · typecheck · Phase 1 (Critical Paths) · Baseline." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Advisory (still):** Phases 2-5 — API, Performance, Security, Accessibility." >> $GITHUB_STEP_SUMMARY
+          echo "See the playwright-report artifact, then flip ONE phase to blocking at a time." >> $GITHUB_STEP_SUMMARY
+          echo "Procedure + rationale: the comment above these steps, and PHASE0_AUDIT.md §8." >> $GITHUB_STEP_SUMMARY
 
+  # NOTE: quality-gates and deploy-check are echo-only. They assert nothing and
+  # cannot fail — a green tick here means "the jobs above passed", nothing more.
+  # Kept because branch protection may reference them by name. The real gates are
+  # unit-and-types (Jest + typecheck) and e2e-tests (Phase 1 + Baseline).
   quality-gates:
     runs-on: ubuntu-latest
-    needs: e2e-tests
+    needs: [unit-and-types, e2e-tests]
 
     steps:
       - name: Check test suite status
         run: |
-          echo "E2E Test Suite Status"
-          echo "===================="
-          echo "Required gates (Phase 1 Critical Paths + Baseline) passed."
-          echo "Advisory phases (API, Performance, Security, Accessibility)"
-          echo "may contain failures — check the playwright-report artifact."
+          echo "Blocking gates passed: Jest, typecheck, Phase 1 Critical Paths, Baseline."
+          echo "Advisory phases (API, Performance, Security, Accessibility) may still"
+          echo "contain failures — check the playwright-report artifact."
 
   deploy-check:
     runs-on: ubuntu-latest
     needs: quality-gates
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
 
     steps:
       - name: Deployment readiness check
         run: |
           echo "Qcombinator Deployment Readiness"
           echo "================================="
-          echo "Critical path E2E tests and baseline suite passed on main."
+          echo "Unit tests, typecheck, critical-path E2E and baseline passed on main."
           echo "Status: gated checks green"

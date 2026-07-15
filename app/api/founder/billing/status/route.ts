@@ -2,11 +2,8 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { log } from '@/lib/logger'
+import { FOUNDER_PLAN_LIMITS, toDisplayLimit, type FounderTier } from '@/lib/billing/plans'
 
-const PLAN_LIMITS = {
-  free:    { agent_chat: 50,  qscore_recalc: 2,   investor_connection: 3   },
-  premium: { agent_chat: 500, qscore_recalc: null, investor_connection: null },
-}
 
 export async function GET() {
   try {
@@ -30,8 +27,8 @@ export async function GET() {
         .in('feature', ['agent_chat', 'qscore_recalc', 'investor_connection']),
     ])
 
-    const tier = ((profile?.subscription_tier as string) ?? 'free') as 'free' | 'premium'
-    const limits = PLAN_LIMITS[tier] ?? PLAN_LIMITS.free
+    const tier = ((profile?.subscription_tier as string) ?? 'free') as FounderTier
+    const limits = FOUNDER_PLAN_LIMITS[tier] ?? FOUNDER_PLAN_LIMITS.free
 
     const usage: Record<string, number> = {}
     for (const row of usageRows ?? []) {
@@ -42,10 +39,12 @@ export async function GET() {
       subscriptionTier:   tier,
       subscriptionStatus: (profile?.subscription_status as string) ?? null,
       periodEnd:          (profile?.subscription_current_period_end as string) ?? null,
+      // toDisplayLimit maps the UNLIMITED sentinel back to null, which
+      // app/founder/billing/page.tsx:52 renders as "Unlimited".
       usage: {
-        agentChat:           { used: usage.agent_chat ?? 0,          limit: limits.agent_chat          },
-        qscoreRecalc:        { used: usage.qscore_recalc ?? 0,       limit: limits.qscore_recalc       },
-        investorConnection:  { used: usage.investor_connection ?? 0,  limit: limits.investor_connection  },
+        agentChat:           { used: usage.agent_chat ?? 0,           limit: toDisplayLimit(limits.agent_chat)          },
+        qscoreRecalc:        { used: usage.qscore_recalc ?? 0,        limit: toDisplayLimit(limits.qscore_recalc)       },
+        investorConnection:  { used: usage.investor_connection ?? 0,  limit: toDisplayLimit(limits.investor_connection) },
       },
     })
   } catch (err) {

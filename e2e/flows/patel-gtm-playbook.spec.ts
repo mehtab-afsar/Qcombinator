@@ -146,8 +146,11 @@ test('Deliverable panel actions work', async ({ page }) => {
   }
 
   if (await downloadBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-    // Click download (expect a download or new tab)
-    const [download] = await Promise.all([page.context().waitForEvent('download'), downloadBtn.click()])
+    // Click download (expect a download or new tab).
+    // 'download' is a Page event, not a BrowserContext one — page.context()
+    // resolved the overload to 'weberror', which is why suggestedFilename()
+    // did not exist. This never ran, because it sits behind the guard above.
+    const [download] = await Promise.all([page.waitForEvent('download'), downloadBtn.click()])
     expect(download.suggestedFilename()).toMatch(/\.(html|pdf)$/)
   }
 })

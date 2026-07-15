@@ -12,9 +12,15 @@ import { applyReconciliationFlags } from '@/lib/profile-builder/reconciliation-e
 import type { ReconciliationResult } from '@/lib/profile-builder/reconciliation-engine'
 import type { IndicatorScore } from '../types/qscore.types'
 
-// Mock callClaude so no real API calls are made
-jest.mock('@/lib/claude', () => ({
-  callClaude: jest.fn(),
+// Mock the LLM layer so no real API calls are made.
+//
+// This MUST mock @/lib/llm/router. The engine calls routedText
+// (reconciliation-engine.ts:19,140) and does not call callClaude at all. These
+// tests previously mocked @/lib/claude — an inert mock that intercepted
+// nothing, so the real network call ran, failed without an API key, and the
+// non-blocking error path returned applied:false. See PHASE0_AUDIT.md §8.
+jest.mock('@/lib/llm/router', () => ({
+  routedText: jest.fn(),
 }))
 
 // Mock cache to prevent cross-test pollution
@@ -25,11 +31,22 @@ jest.mock('@/lib/cache/qscore-cache', () => ({
   setCachedSectorWeights: jest.fn(),
 }))
 
-import { callClaude } from '@/lib/claude'
+import { routedText } from '@/lib/llm/router'
 import { reconcileIndicators } from '@/lib/profile-builder/reconciliation-engine'
 import type { AssessmentData } from '../types/qscore.types'
 
-const mockedCallClaude = callClaude as jest.Mock
+const mockedRoutedText = routedText as jest.Mock
+
+/**
+ * routedText(taskClass, messages, overrides) — messages is the SECOND argument.
+ * Helper so each test reads the system prompt without re-stating the signature.
+ */
+type LlmMessage = { role: string; content: string }
+function mockLlmBySystemPrompt(respond: (systemPrompt: string) => string): void {
+  mockedRoutedText.mockImplementation((_taskClass: string, messages: LlmMessage[]) =>
+    Promise.resolve(respond(messages?.[0]?.content ?? '')),
+  )
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -197,11 +214,11 @@ describe('applyReconciliationFlags', () => {
 
 describe('reconcileIndicators — LLM mocked', () => {
   beforeEach(() => {
-    mockedCallClaude.mockClear()
+    mockedRoutedText.mockClear()
   })
 
   test('returns 4 results (one per indicator)', async () => {
-    mockedCallClaude.mockResolvedValue(
+    mockedRoutedText.mockResolvedValue(
       JSON.stringify({ aiSamUsd: 1_000_000_000, reasoning: 'test', confidence: 0.8 })
     )
 
@@ -212,7 +229,7 @@ describe('reconcileIndicators — LLM mocked', () => {
 
   test('LLM timeout → applied=false, no throw', async () => {
     // Simulate timeout on all calls
-    mockedCallClaude.mockImplementation(
+    mockedRoutedText.mockImplementation(
       () => new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 100))
     )
 
@@ -223,7 +240,7 @@ describe('reconcileIndicators — LLM mocked', () => {
   }, 10_000)
 
   test('LLM error → applied=false with error field', async () => {
-    mockedCallClaude.mockRejectedValue(new Error('API rate limit exceeded'))
+    mockedRoutedText.mockRejectedValue(new Error('API rate limit exceeded'))
 
     const results = await reconcileIndicators(baseData(), 'user-error')
     for (const r of results) {
@@ -233,7 +250,7 @@ describe('reconcileIndicators — LLM mocked', () => {
   })
 
   test('LLM returns malformed JSON → applied=false', async () => {
-    mockedCallClaude.mockResolvedValue('not valid json at all')
+    mockedRoutedText.mockResolvedValue('not valid json at all')
 
     const results = await reconcileIndicators(baseData(), 'user-bad-json')
     // malformed JSON causes parse error → applied=false
@@ -244,17 +261,15 @@ describe('reconcileIndicators — LLM mocked', () => {
 
   test('2.5 low deviation → no vcAlert', async () => {
     // Founder says 3 competitors, AI says 4 — small deviation
-    mockedCallClaude.mockImplementation((msgs: unknown[]) => {
-      const system = (msgs as Array<{role:string;content:string}>)[0]?.content ?? ''
-      if (system.includes('competitive intelligence')) {
-        return Promise.resolve(JSON.stringify({
-          estimatedCompetitors: 4,
-          reasoning: 'Similar to founder estimate',
-          confidence: 0.85,
-        }))
-      }
-      return Promise.resolve(JSON.stringify({ aiSamUsd: null, reasoning: 'test', confidence: 0 }))
-    })
+    mockLlmBySystemPrompt(system =>
+      system.includes('competitive intelligence')
+        ? JSON.stringify({
+            estimatedCompetitors: 4,
+            reasoning: 'Similar to founder estimate',
+            confidence: 0.85,
+          })
+        : JSON.stringify({ aiSamUsd: null, reasoning: 'test', confidence: 0 }),
+    )
 
     const results = await reconcileIndicators(baseData(), 'user-low-dev')
     const r25 = results.find(r => r.indicatorId === '2.5')!
@@ -265,17 +280,15 @@ describe('reconcileIndicators — LLM mocked', () => {
 
   test('extreme deviation on 3.5 → vcAlert set, rawScore untouched', async () => {
     // Founder says $3M replication cost, AI says $50K
-    mockedCallClaude.mockImplementation((msgs: unknown[]) => {
-      const system = (msgs as Array<{role:string;content:string}>)[0]?.content ?? ''
-      if (system.includes('technical due diligence')) {
-        return Promise.resolve(JSON.stringify({
-          estimatedCostUsd: 50_000,
-          reasoning: 'Simple CRUD app',
-          confidence: 0.80,
-        }))
-      }
-      return Promise.resolve(JSON.stringify({ aiSamUsd: null, reasoning: 'test', confidence: 0 }))
-    })
+    mockLlmBySystemPrompt(system =>
+      system.includes('technical due diligence')
+        ? JSON.stringify({
+            estimatedCostUsd: 50_000,
+            reasoning: 'Simple CRUD app',
+            confidence: 0.80,
+          })
+        : JSON.stringify({ aiSamUsd: null, reasoning: 'test', confidence: 0 }),
+    )
 
     const results = await reconcileIndicators(baseData(), 'user-extreme-35')
     const r35 = results.find(r => r.indicatorId === '3.5')!

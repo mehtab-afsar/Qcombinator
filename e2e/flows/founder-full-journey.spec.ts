@@ -158,9 +158,14 @@ test.describe('Founder Full Journey', () => {
     const url = page.url()
     expect(url).not.toContain('/login')
 
-    // Look for Q-Score display
-    const scoreCard = page.locator('text=/Q-Score|Score|IQ/', page.locator('[class*="card"], [class*="score"]').first())
-    const scoreVisible = await scoreCard.isVisible({ timeout: 5000 }).catch(() => false)
+    // Look for Q-Score display. page.locator()'s second argument is an options
+    // object ({has, hasText, ...}), never a Locator — the previous form passed a
+    // Locator and never scoped anything. Scoping to the card is what was meant.
+    const scoreCard = page
+      .locator('[class*="card"], [class*="score"]')
+      .filter({ hasText: /Q-Score|Score|IQ/ })
+      .first()
+    await scoreCard.isVisible({ timeout: 5000 }).catch(() => false)
 
     // Even if score card not visible, dashboard should exist
     const dashboardContent = page.locator('h1, h2')
