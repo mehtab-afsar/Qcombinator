@@ -263,9 +263,24 @@ Each failure is the same shape: **the code was deliberately improved, documented
 
 **But the meta-finding stands, and it is the real lesson:** three separate improvements shipped, each leaving its tests behind, and nobody knew — because nothing runs them. The tests aren't just failing, they are **encoding a version of the product that no longer exists**. That is worse than having no tests, because it is what someone will read to learn how the score works. This is the argument for Step 6 being non-negotiable.
 
-**Remaining:** #7 (`__tests__/agents/critical.test.ts`) is in the frozen old model — lower priority, untriaged.
+**#7 — `__tests__/agents/critical.test.ts`: also stale, and self-inconsistent.** It asserted `content` contains `'Positioning:'`, while **its own mock** supplies the key `positioningStatement` — which `orchestrator.ts:132-133` correctly renders as `"Positioning Statement:"` (the label is derived from the key). The code was right; the assertion string was never updated. *(This file is in `__tests__/agents/`, not the frozen `features/agents/**` or `app/api/agents/**`.)*
 
-**Recommended:** update the six stale tests to assert the current, documented behaviour. That is *new work on test files only* — it touches no product code and changes no behaviour. Needs Mo's go-ahead.
+## ✅ RESOLVED — quarantine list is EMPTY, suite is green
+
+All seven stale tests updated to assert current, documented behaviour. **Test files only — no product code touched, no behaviour changed.**
+
+| | Baseline | Now |
+|---|---|---|
+| Tests | 162 passed / **7 failed** / 169 | **188 passed / 0 failed / 188** |
+| Suites | 6 passed / **4 failed** | **11 passed / 0 failed** |
+
+**The count went UP (169 → 188), not down** — the failures were fixed by asserting the real contract, never by deleting or weakening a test. Net +19: 16 score-invariant tests, plus 3 new assertions that close the gaps the stale tests had been hiding:
+
+- `excluded indicators leave BOTH numerator and denominator` — a **structural** invariant (`activeIndicators + excluded === 30`; `availableIQ` tracks the active count) that is independent of the formula, so it fails loudly if the denominator ever silently reverts to a constant.
+- `6.5 NOT excluded when MRR exists without COGS` — pins the SaaS-default behaviour that had no test at all.
+- `the SaaS default is applied honestly` — asserts an estimate is never presented with the confidence of real data (`confidence === 0.50`, `verificationLevel === 'unverified'`, reason states *"SaaS default"*). Directly serves the verified-vs-self-reported principle in §4.
+
+**Step 6's blocking Jest gate is now achievable rather than aspirational** — there is nothing left to quarantine.
 
 ### Why this matters more than a normal quarantine list
 

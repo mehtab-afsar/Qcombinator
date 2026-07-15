@@ -125,7 +125,13 @@ describe('Cross-agent orchestration sub-call logic', () => {
     const mayaResult = result.subAgentResults.find(r => r.agentId === 'maya');
     expect(mayaResult).toBeDefined();
     expect(mayaResult!.source).toBe('existing_artifact');
-    expect(mayaResult!.content).toContain('Positioning:');
+    // The label is derived from the artifact key: positioningStatement ->
+    // "Positioning Statement" (orchestrator.ts:132-133). This asserted
+    // "Positioning:" until Phase 0 — inconsistent with its own mock above.
+    expect(mayaResult!.content).toContain('Positioning Statement:');
+    // The point of the test: the existing artifact's actual content reached
+    // the caller, rather than a sub-call being fired to regenerate it.
+    expect(mayaResult!.content).toContain('Helping SMBs manage their teams effortlessly');
     // Maya used existing artifact (no sub-call for maya); other deps (atlas/felix) may still sub-call
     expect(result.subCallsUsed).toBeLessThanOrEqual(2);
   });

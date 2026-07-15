@@ -59,21 +59,55 @@ function baseData(): AssessmentData {
   }
 }
 
-// ── Test: Constant denominator invariant ──────────────────────────────────────
+// ── The v2 formula, mirrored from q-score-calculator.ts:124-144 ──────────────
+//
+// Final IQ = Σ(confidence-adjusted rawScores of ACTIVE indicators)
+//            / (activeCount × 5) × 100  −  sparsityPenalty
+//
+// The denominator is DYNAMIC: excluded indicators leave both the numerator and
+// the denominator. (v1 used a constant /150 over raw scores; these tests were
+// written against v1 and asserted the opposite until Phase 0 — see
+// PHASE0_AUDIT.md §8.)
+const TOTAL_INDICATORS = 30
 
-test('constant denominator: Σ/150 regardless of exclusions', () => {
+function expectedFinalIQ(result: ReturnType<typeof calculateQScore>): number {
+  const active = result.parameters.flatMap(p => p.indicators).filter(i => !i.excluded)
+  if (active.length === 0) return 0
+
+  const activeRaw = active.reduce((sum, i) => {
+    const confidence = i.dataQuality?.confidence ?? 0.60
+    const multiplier = Math.min(1.0, Math.max(0.50, confidence / 0.90))
+    return sum + i.rawScore * multiplier
+  }, 0)
+
+  const denominator = active.length * 5
+  const sparsityPenalty = active.length < 20 ? Math.min(5, (20 - active.length) * 0.5) : 0
+
+  return Math.max(0, Math.round(((activeRaw / denominator) * 100 - sparsityPenalty) * 10) / 10)
+}
+
+// ── Test: dynamic denominator invariant ──────────────────────────────────────
+
+test('dynamic denominator: Σ(confidence-adjusted active) / (activeCount × 5)', () => {
   const data = baseData()
   const result = calculateQScore(data, 'growth', 'b2b_saas')
 
-  // Denominator must always be 150 (30 × 5)
-  const totalRaw = result.parameters.flatMap(p => p.indicators).reduce((s, i) => s + i.rawScore, 0)
-  const expectedFinalIQ = (totalRaw / 150) * 100
-  expect(Math.abs(result.finalIQ - expectedFinalIQ)).toBeLessThan(0.2)
+  expect(result.finalIQ).toBeCloseTo(expectedFinalIQ(result), 1)
+})
+
+test('excluded indicators leave BOTH numerator and denominator', () => {
+  const data = baseData()
+  const result = calculateQScore(data, 'growth', 'b2b_saas')
+
+  // Structural invariant — independent of the formula above, so this still
+  // fails loudly if the denominator silently reverts to a constant.
+  expect(result.indicatorsActive + result.indicatorsExcluded).toBe(TOTAL_INDICATORS)
+  expect(result.availableIQ).toBeCloseTo((result.indicatorsActive * 5) / (TOTAL_INDICATORS * 5) * 100, 1)
 })
 
 // ── Test: Pre-product stage excludes P6 ──────────────────────────────────────
 
-test('pre-product stage: all P6 rawScore=0, still counted in denominator', () => {
+test('pre-product stage: P6 excluded from the denominator, not zero-weighted in it', () => {
   const data = baseData()
   data.financial = { monthlyBurn: 5000 }  // no MRR
   data.hasPayingCustomers = false
@@ -83,17 +117,16 @@ test('pre-product stage: all P6 rawScore=0, still counted in denominator', () =>
 
   const p6 = result.parameters.find(p => p.id === 'p6')!
   expect(p6.indicators.every(i => i.excluded || i.rawScore === 0)).toBe(true)
-
-  // Final IQ uses /150, not /125
-  const totalRaw = result.parameters.flatMap(p => p.indicators).reduce((s, i) => s + i.rawScore, 0)
-  const expected = (totalRaw / 150) * 100
-  expect(Math.abs(result.finalIQ - expected)).toBeLessThan(0.2)
   expect(result.indicatorsExcluded).toBeGreaterThan(0)
+
+  expect(result.finalIQ).toBeCloseTo(expectedFinalIQ(result), 1)
+  // Exclusions shrink the denominator, so the reachable ceiling drops below 100.
+  expect(result.availableIQ).toBeLessThan(100)
 })
 
 // ── Test: Commercial track excludes P5 ───────────────────────────────────────
 
-test('commercial track: P5 all excluded, still in denominator', () => {
+test('commercial track: P5 excluded from the denominator', () => {
   const data = baseData()
   const result = calculateQScore(data, 'mid', 'b2b_saas', 'commercial')
 
@@ -101,9 +134,9 @@ test('commercial track: P5 all excluded, still in denominator', () => {
   expect(p5.indicators.every(i => i.excluded)).toBe(true)
   expect(result.track).toBe('commercial')
 
-  // P5 excluded means 5 indicators have rawScore=0 but denominator is still 150
-  const totalRaw = result.parameters.flatMap(p => p.indicators).reduce((s, i) => s + i.rawScore, 0)
-  expect(Math.abs(result.finalIQ - (totalRaw / 150) * 100)).toBeLessThan(0.2)
+  // All 5 P5 indicators excluded → denominator loses 25 points of headroom.
+  expect(result.indicatorsActive).toBeLessThanOrEqual(TOTAL_INDICATORS - 5)
+  expect(result.finalIQ).toBeCloseTo(expectedFinalIQ(result), 1)
 })
 
 // ── Test: Impact track scores P5 ─────────────────────────────────────────────
