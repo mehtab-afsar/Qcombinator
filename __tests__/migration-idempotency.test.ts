@@ -105,3 +105,27 @@ describe('pending migrations are safe to re-run', () => {
     expect(offenders).toEqual([])
   })
 })
+
+/**
+ * `ALTER PUBLICATION ... ADD TABLE` has no IF NOT EXISTS form and errors
+ * (SQLSTATE 42710) if the table is already a member — which aborts `db push`
+ * against a DB where Realtime is already configured. This is checked across ALL
+ * migrations, not just recent ones: it is never safe bare, there is exactly one
+ * occurrence in the repo, and it is now guarded — so this can only regress by a
+ * NEW bad statement, which this catches. (My earlier audit missed this class and
+ * the push hit it as a live blocker.)
+ */
+describe('ALTER PUBLICATION ADD TABLE is always guarded', () => {
+  it('no migration adds a table to a publication without a catalogue guard', () => {
+    const offenders: string[] = []
+    for (const file of readdirSync(MIGRATIONS).filter(f => f.endsWith('.sql'))) {
+      const sql = executable(readFileSync(join(MIGRATIONS, file), 'utf8'))
+      for (const m of sql.matchAll(/alter\s+publication\s+\w+\s+add\s+table\s+(\w+)/gi)) {
+        // Safe form: guarded by a check on pg_publication_tables shortly before it.
+        const guarded = /pg_publication_tables/i.test(sql.slice(Math.max(0, m.index! - 400), m.index!))
+        if (!guarded) offenders.push(`${file}: bare ALTER PUBLICATION ADD TABLE ${m[1]}`)
+      }
+    }
+    expect(offenders).toEqual([])
+  })
+})
