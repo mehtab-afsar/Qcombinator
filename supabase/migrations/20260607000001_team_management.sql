@@ -16,27 +16,49 @@ CREATE TABLE IF NOT EXISTS startups (
   created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
--- founder_profiles.startup_id FK defined in 20260700000001_founder_profiles_squashed.sql
+-- Backfill: one startup per existing founder, then link it via startup_id.
+--
+-- ⚠️ GUARDED + MADE IDEMPOTENT (19 Jul 2026). Two bugs surfaced on `db push`:
+--
+--  1. ORDERING. This June migration writes `founder_profiles.startup_id`, but that
+--     column is defined in the JULY squash (20260700000001) that runs *after*
+--     this one — and does not exist in production. Replaying in date order,
+--     June-before-July, the UPDATE aborted with "column startup_id does not
+--     exist" (SQLSTATE 42703). When these dashboard-first migrations were written
+--     every object existed at once, so ordering was never exercised.
+--
+--  2. NON-IDEMPOTENT INSERT. The original `INSERT ... ON CONFLICT DO NOTHING`
+--     conflicts on the random-UUID primary key, so it never conflicts — a re-run
+--     would create a duplicate startup for every founder.
+--
+-- Fix: guard the whole backfill on the column existing (no-op until it does —
+-- linking is impossible without it, so creating orphan startups is pointless),
+-- and insert only for founders who don't already have a startup.
+--
+-- This touches only backfill DATA of the old-model team feature; no old code path.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name   = 'founder_profiles'
+      AND column_name  = 'startup_id'
+  ) THEN
+    INSERT INTO startups (id, name, industry, stage, website, description, owner_user_id)
+    SELECT gen_random_uuid(),
+           COALESCE(fp.startup_name, fp.company_name, 'Untitled Startup'),
+           fp.industry, fp.stage, fp.website, NULL, fp.user_id
+    FROM founder_profiles fp
+    WHERE fp.startup_id IS NULL
+      AND NOT EXISTS (SELECT 1 FROM startups s WHERE s.owner_user_id = fp.user_id);
 
--- Backfill: create one startup per existing founder_profile and link it
-INSERT INTO startups (id, name, industry, stage, website, description, owner_user_id)
-SELECT
-  gen_random_uuid(),
-  COALESCE(startup_name, company_name, 'Untitled Startup'),
-  industry,
-  stage,
-  website,
-  NULL,
-  user_id
-FROM founder_profiles
-ON CONFLICT DO NOTHING;
-
--- Link each profile to its backfilled startup
-UPDATE founder_profiles fp
-SET    startup_id = s.id
-FROM   startups s
-WHERE  s.owner_user_id = fp.user_id
-  AND  fp.startup_id IS NULL;
+    UPDATE founder_profiles fp
+    SET    startup_id = s.id
+    FROM   startups s
+    WHERE  s.owner_user_id = fp.user_id
+      AND  fp.startup_id IS NULL;
+  END IF;
+END $$;
 
 -- ── 2. Workspace membership ───────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS startup_members (
@@ -62,7 +84,12 @@ CREATE TABLE IF NOT EXISTS team_invites (
   startup_id  UUID NOT NULL REFERENCES startups(id) ON DELETE CASCADE,
   email       TEXT NOT NULL,
   role        TEXT NOT NULL CHECK (role IN ('admin', 'member', 'viewer')),
-  token       TEXT UNIQUE NOT NULL DEFAULT encode(gen_random_bytes(32), 'hex'),
+  token       TEXT UNIQUE NOT NULL
+                          -- pgcrypto's gen_random_bytes is not enabled on this DB and no
+                          -- migration installs it; use the built-in gen_random_uuid (already
+                          -- the PK default above). Two dash-stripped UUIDs = a 64-char hex
+                          -- token, equivalent to encode(gen_random_bytes(32),'hex'). (db push blocker #6)
+                          DEFAULT replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''),
   invited_by  UUID REFERENCES auth.users(id),
   expires_at  TIMESTAMPTZ DEFAULT NOW() + INTERVAL '7 days',
   accepted_at TIMESTAMPTZ,
@@ -89,7 +116,9 @@ CREATE TABLE IF NOT EXISTS investor_team_invites (
   investor_user_id  UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   email             TEXT NOT NULL,
   role              TEXT NOT NULL CHECK (role IN ('admin', 'analyst')),
-  token             TEXT UNIQUE NOT NULL DEFAULT encode(gen_random_bytes(32), 'hex'),
+  token             TEXT UNIQUE NOT NULL
+                          -- see the team_invites token note above (pgcrypto not available).
+                          DEFAULT replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''),
   invited_by        UUID REFERENCES auth.users(id),
   expires_at        TIMESTAMPTZ DEFAULT NOW() + INTERVAL '7 days',
   accepted_at       TIMESTAMPTZ,

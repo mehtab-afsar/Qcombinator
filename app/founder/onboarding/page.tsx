@@ -157,11 +157,12 @@ export default function FounderOnboardingPage() {
   }
 
   if (loading) return (
-    <div style={{ minHeight: '100vh', background: O.bg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20 }}>
-      <div style={{ width: 52, height: 52, borderRadius: '50%', background: O.card, border: `1px solid ${O.bdr}`, boxShadow: '0 12px 48px rgba(0,0,0,0.09)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ minHeight: '100vh', background: O.bg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 24 }}>
+      <div style={{ width: 100, height: 100 }}><RocketDoodle color={ACCENT} /></div>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
         <div style={{ width: 20, height: 20, borderRadius: '50%', border: `2.5px solid ${ACCENT}`, borderTopColor: 'transparent', animation: 'spin 0.7s linear infinite' }} />
+        <p style={{ fontSize: 14, color: O.muted, margin: 0 }}>Setting up your workspace…</p>
       </div>
-      <p style={{ fontSize: 14, color: O.muted, margin: 0 }}>Setting up your workspace…</p>
       <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
     </div>
   )

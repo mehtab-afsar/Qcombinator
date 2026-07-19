@@ -84,5 +84,20 @@ CREATE INDEX IF NOT EXISTS feed_posts_type_created_idx
 
 
 -- ── notifications: enable Realtime ───────────────────────────────────────────
+--
+-- ⚠️ MADE IDEMPOTENT (19 Jul 2026). `ALTER PUBLICATION ... ADD TABLE` has no
+-- IF NOT EXISTS form and errors (SQLSTATE 42710) if the table is already a member
+-- — which it is in production, so a bare ADD aborted `db push`. Guard on the
+-- catalogue so re-runs (and an already-configured DB) are no-ops.
 
-ALTER PUBLICATION supabase_realtime ADD TABLE notifications;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime'
+      AND schemaname = 'public'
+      AND tablename = 'notifications'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE notifications;
+  END IF;
+END $$;
