@@ -112,10 +112,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS qscore_history_user_artifact_unique
 
 ALTER TABLE qscore_history ENABLE ROW LEVEL SECURITY;
 
+drop policy if exists "Users can view own qscore history" on qscore_history;
 CREATE POLICY "Users can view own qscore history"
   ON qscore_history FOR SELECT
   USING (auth.uid() = user_id);
 
+drop policy if exists "Users can insert own qscore history" on qscore_history;
 CREATE POLICY "Users can insert own qscore history"
   ON qscore_history FOR INSERT
   WITH CHECK (auth.uid() = user_id);
