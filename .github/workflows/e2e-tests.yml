@@ -60,36 +60,77 @@ jobs:
     timeout-minutes: 60
     needs: unit-and-types
 
+    # ADVISORY, not blocking (decided 19 Jul 2026).
+    #
+    # These tests boot the REAL app (npm run start) and drive it, so they need a
+    # live backend: Supabase + an Anthropic key. GitHub Actions has neither, so
+    # the server refuses to start ("Server cannot start — missing required
+    # environment variables") and every run fails before a single test executes.
+    #
+    # The BLOCKING gate is `unit-and-types` (Jest + typecheck) — those catch bugs
+    # and need no backend. A red X that only means "CI has no database" trains
+    # everyone to ignore CI, which is the exact disease Phase 0 cured. Green must
+    # mean something.
+    #
+    # TO MAKE THIS BLOCKING AGAIN: stand up a dedicated TEST Supabase project,
+    # run the migrations against it, add these as repo secrets —
+    #   NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    #   SUPABASE_SERVICE_ROLE_KEY, ANTHROPIC_API_KEY (this last is NOT in the
+    #   workflow env block yet — add it) — then delete continue-on-error and the
+    #   skip guard below.
+    continue-on-error: true
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Skip when no backend is configured
+        id: backend
+        run: |
+          if [ -z "${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "No Supabase secret set — skipping E2E (advisory). See the job comment." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Every step below is guarded on the backend check: with no Supabase secret
+      # the whole job is a clean no-op (skipped steps, ~seconds) rather than a
+      # doomed 4-minute build that dies at server startup.
+      - if: steps.backend.outputs.configured == 'true'
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
+        if: steps.backend.outputs.configured == 'true'
         uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
           cache: 'npm'
 
       - name: Install dependencies
+        if: steps.backend.outputs.configured == 'true'
         run: npm ci
 
       - name: Install Playwright browsers
+        if: steps.backend.outputs.configured == 'true'
         run: npx playwright install --with-deps
 
       - name: Build application
+        if: steps.backend.outputs.configured == 'true'
         run: npm run build
 
       # E2E runs against the PRODUCTION build. This previously ran `npm run dev`,
       # so the build above was made and thrown away — the tested app was not the
       # shipped app.
       - name: Start production server
+        if: steps.backend.outputs.configured == 'true'
         run: npm run start &
         env:
           NODE_ENV: production
 
       - name: Wait for server to be ready
+        if: steps.backend.outputs.configured == 'true'
         run: npx wait-on http://localhost:3000 --timeout 60000
 
       - name: Run Phase 1 - Critical Path Tests (Required)
+        if: steps.backend.outputs.configured == 'true'
         run: npx playwright test e2e/flows/
 
       # ── Phases 2-5 are still advisory. Read this before "just flipping them". ──
@@ -115,28 +156,32 @@ jobs:
       # Tracked in PHASE0_AUDIT.md §8. Jest and typecheck (the unit-and-types job)
       # are already blocking and are the gates that matter most day to day.
       - name: Run Phase 2 - API Route Tests
+        if: steps.backend.outputs.configured == 'true'
         run: npx playwright test e2e/api/
         continue-on-error: true
 
       - name: Run Phase 3 - Performance Tests
+        if: steps.backend.outputs.configured == 'true'
         run: npx playwright test e2e/performance/
         continue-on-error: true
 
       - name: Run Phase 4 - Security Tests
+        if: steps.backend.outputs.configured == 'true'
         run: npx playwright test e2e/security/
         continue-on-error: true
 
       - name: Run Phase 5 - Accessibility Tests
+        if: steps.backend.outputs.configured == 'true'
         run: npx playwright test e2e/accessibility/
         continue-on-error: true
 
       - name: Run Baseline Tests (Required)
+        if: steps.backend.outputs.configured == 'true'
         run: npx playwright test e2e/comprehensive-working.spec.ts
-        if: always()
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
-        if: always()
+        if: always() && steps.backend.outputs.configured == 'true'
         with:
           name: playwright-report
           path: playwright-report/
@@ -144,24 +189,11 @@ jobs:
 
       - name: Upload test videos
         uses: actions/upload-artifact@v4
-        if: always()
+        if: always() && steps.backend.outputs.configured == 'true'
         with:
           name: test-videos
           path: test-results/
           retention-days: 7
-
-      - name: Report test summary
-        if: always()
-        run: |
-          echo "## CI Results" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Job status: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Blocking:** Jest unit tests · typecheck · Phase 1 (Critical Paths) · Baseline." >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Advisory (still):** Phases 2-5 — API, Performance, Security, Accessibility." >> $GITHUB_STEP_SUMMARY
-          echo "See the playwright-report artifact, then flip ONE phase to blocking at a time." >> $GITHUB_STEP_SUMMARY
-          echo "Procedure + rationale: the comment above these steps, and PHASE0_AUDIT.md §8." >> $GITHUB_STEP_SUMMARY
 
   # NOTE: quality-gates and deploy-check are echo-only. They assert nothing and
   # cannot fail — a green tick here means "the jobs above passed", nothing more.
@@ -174,9 +206,12 @@ jobs:
     steps:
       - name: Check test suite status
         run: |
-          echo "Blocking gates passed: Jest, typecheck, Phase 1 Critical Paths, Baseline."
-          echo "Advisory phases (API, Performance, Security, Accessibility) may still"
-          echo "contain failures — check the playwright-report artifact."
+          echo "BLOCKING gate passed: Jest (unit) + typecheck. These need no backend."
+          echo ""
+          echo "ADVISORY: the e2e-tests job. It boots the real app, which needs a"
+          echo "Supabase + Anthropic backend CI does not have, so it is non-blocking"
+          echo "and skips itself when no secret is configured. To make it a real gate,"
+          echo "add a test backend — see the comment on the e2e-tests job."
 
   deploy-check:
     runs-on: ubuntu-latest
