@@ -34,6 +34,7 @@ const NEW_MODEL_PATHS = [
   'lib/mandate',
   'lib/rhythm',
   'lib/assets',
+  'lib/briefings',
   'lib/connectors',
   'features/executive',
 ];

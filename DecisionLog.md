@@ -119,6 +119,18 @@
 **Rejected:** an FK to a table that doesn't exist yet (would block F11 on F10); user-scoped asset writes (reopens the gate bypass); moving Registry validation into the database (impossible — ADR-010); a separate `assets` + `asset_versions` split (one versioned table suffices).
 **Related:** ADR-005 (F11 never moves the Q-Score — tested), ADR-006 (no Asset Review), ADR-007 (founder edit → new current version, `authored_by='founder'`, no approval), ADR-010, ADR-021 (the same RPC-exposure class applies to `confirm_executive_contract` — FU-001).
 
+## ADR-025 — Briefings are per-Program append-only rows; a digest is a view, not a schema 🔒
+**Decision (Story 2 / F12, `executive_briefings`):**
+1. **One briefing per Program per run, append-only.** This resolves the open question — *"Whether Briefings aggregate into one digest when several Programs are active"* (previously Open / "decide during Story 2"). Store **per-program rows**: the schema's `program_id`, F12's acceptance ("one Briefing per Program run"), and the plural read API all point here. **A digest is a *view* over these rows, not a different storage shape** — if founders ever want one (only relevant with several active Programs; the P001 pilot has one), it is rendered later with no migration. So per-program is the correct foundation regardless. Briefings are never edited or removed: no `version`/`is_current`, a plain insert, and a trigger rejecting UPDATE **and** DELETE (CLAUDE.md §4 append-only, stricter than `asset_versions`' retire-only rule).
+2. **Execution ref deferred (as F11).** `execution_id` is a bare `uuid` with no FK — the run table (`operating_rhythm_runs`) is F10's. Idempotency ("one briefing per Program run") is a partial unique index on `(program_id, execution_id)`; the FK lands in F10.
+3. **Epoch stamped via `contract_id`.** ADR-022 says briefings carry the epoch, but PRD §8's briefing schema omits the column. Added `contract_id uuid references executive_contracts(id)` (nullable, set by the writer); epoch derives from the immutable contract — single source, no duplicated int.
+4. **Writes server-side only, no RPC.** The table is read-only for `authenticated` (a single `SELECT`-own policy; no write policy → direct writes RLS-denied); the rhythm writes via the service-role client. A single insert is already atomic, so unlike F11 there is no function to expose or revoke.
+5. **F12 ships the store + write path + read API + the wired Command-View panel; the LLM *generation* of briefing content is F10's** (via the Composer/F06). "Generate per cycle" is realised when F10 lands.
+**Why:** briefing volume/fatigue (ADR-008) is a *rendering/frequency* concern, not a reason to fold the data model into a lossy digest up front — per-program rows keep every run's record and let a digest be an additive view. Append-only matches ADR-003 (briefings are preserved history across epochs).
+**Cost:** with several active Programs, N briefings per cycle — mitigated by keeping the active set small in the pilot (ADR-008), and by an optional future digest view.
+**Rejected:** a single aggregated digest row per cycle (lossy — can't retrieve one Program's briefing in order, contradicts F12 acceptance; and it's derivable as a view anyway); an FK to `operating_rhythm_runs` now (blocks F12 on F10); a duplicated `epoch int` column (two sources of one fact — CLAUDE.md §4).
+**Related:** ADR-008 (rhythm runs all active Programs → the "volume" this addresses), ADR-022 (epoch stamping), ADR-024 (F11's sibling deferral + server-side-write pattern), ADR-005 (F12 never moves the Q-Score — tested).
+
 ## ADR-020 — Action is the genus; "cadence" is a frequency, not an entity 🔒
 **Decision:** an **Action** is any operational work a Program generates. It is **one-off or recurring** — `ActionDef.kind: 'oneoff' | 'recurring'` (PRD §7.1, the authoritative runtime type). A **cadence** is **not a thing that executes**: it is the *frequency* of a recurring Action, a value such as `'weekly'` stored in `scheduled_actions.cadence` (PRD §8).
 
@@ -200,7 +212,7 @@ Generic routes (never per-agent) · immutable Asset versioning with provenance �
 
 - Rhythm cadence configuration (weekly default — per-company override?). *Decide during Story 2.*
 - Which Executive/Program follows P001. *Decide after the retention gate.*
-- Whether Briefings aggregate into one digest when several Programs are active. *Decide during Story 2.*
+- ~~Whether Briefings aggregate into one digest when several Programs are active.~~ **Resolved (ADR-025):** per-Program rows; a digest is a later view, not a schema change.
 
 **Operational (owner: Mo, outside this doc):** InnoSphere-owned accounts + migration off personal accounts · a quality-management/review agenda · a human security review of the Connector layer before Story 3 ships.
 

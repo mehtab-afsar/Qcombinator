@@ -109,19 +109,20 @@ describe('the page is command, not approval', () => {
 
 // ─── No fabricated dates ──────────────────────────────────────────────────────
 
-describe('the briefings placeholder tells the truth', () => {
+describe('the briefings panel tells the truth', () => {
   const panel = stripComments(readFileSync('features/executive/components/BriefingsPanel.tsx', 'utf8'))
 
-  it('does NOT print a next-cycle date', () => {
-    // F09's edge case says: no Briefing yet -> "first cycle runs [date]". But F10
-    // (the rhythm) does not exist, so there IS no next cycle. A date here would be
-    // a lie on the first screen a founder sees. This test exists so nobody adds
-    // one to satisfy the spec literally.
-    expect(panel).not.toMatch(/toLocaleDateString|Date\.now|new Date\(/)
+  it('does NOT fabricate a date (real briefing dates are fine, invented ones are not)', () => {
+    // F12 wired the panel to real data, so rendering a briefing's actual created_at
+    // (new Date(b.createdAt)) is legitimate. What stays forbidden is INVENTING a date
+    // the data doesn't support: a "now" stamp (Date.now / new Date() with no argument),
+    // or a fabricated next-cycle date ("runs on [date]"). Those were the original lie.
+    expect(panel).not.toMatch(/Date\.now|new Date\(\s*\)/)
     expect(panel).not.toMatch(/runs (on|at) /i)
   })
 
-  it('says plainly that nothing has run', () => {
+  it('still says plainly that nothing has run, while empty', () => {
+    // The empty state (no rhythm has run yet) keeps the honest copy.
     expect(panel).toMatch(/nothing has run yet/i)
   })
 })
