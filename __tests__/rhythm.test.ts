@@ -15,15 +15,17 @@ jest.mock('@/lib/mandate/strategy', () => ({ getCurrentStrategy: jest.fn() }))
 jest.mock('@/lib/assets/versioning', () => ({ getCurrentAsset: jest.fn() }))
 jest.mock('@/lib/briefings/generate', () => ({ generateBriefing: jest.fn() }))
 jest.mock('@/lib/rhythm/judge', () => ({ generateAssetContent: jest.fn() }))
+jest.mock('@/lib/rhythm/delta', () => ({ collectCycleDelta: jest.fn() }))
 jest.mock('@/lib/rhythm/runs', () => {
   const actual = jest.requireActual('@/lib/rhythm/runs')
-  return { ...actual, createRun: jest.fn(), finishRun: jest.fn() }
+  return { ...actual, createRun: jest.fn(), finishRun: jest.fn(), getLastCompletedRun: jest.fn() }
 })
 
 import { weekCycleKey } from '@/lib/rhythm/cycle-key'
 import { runCycle, RhythmError } from '@/lib/rhythm/run'
-import { createRun, finishRun, CycleAlreadyRanError } from '@/lib/rhythm/runs'
+import { createRun, finishRun, getLastCompletedRun, CycleAlreadyRanError } from '@/lib/rhythm/runs'
 import { generateAssetContent } from '@/lib/rhythm/judge'
+import { collectCycleDelta } from '@/lib/rhythm/delta'
 import { generateBriefing } from '@/lib/briefings/generate'
 import { getCurrentContract, getProgramsForContract } from '@/lib/mandate/contract'
 import { getCurrentStrategy } from '@/lib/mandate/strategy'
@@ -50,6 +52,9 @@ beforeEach(() => {
   m(getProgramsForContract).mockResolvedValue([activeP001])
   m(getCurrentAsset).mockResolvedValue({ content: 'prior version' })
   m(createRun).mockResolvedValue({ id: 'run1', cycleKey: '2026-W29' })
+  m(getLastCompletedRun).mockResolvedValue(null)
+  // Default: the founder DID something this week, so regeneration proceeds (ADR-028).
+  m(collectCycleDelta).mockResolvedValue({ digest: '- founder edited AS001', hasNewInput: true })
   m(generateAssetContent).mockResolvedValue({ id: 'v1' })
   m(generateBriefing).mockResolvedValue({ id: 'b1' })
   m(finishRun).mockResolvedValue(undefined)
@@ -100,14 +105,52 @@ describe('F10 runCycle', () => {
     }
   })
 
-  it('a failed asset stage blocks the briefing, marks the run failed, and records it', async () => {
+  it('a failed asset stage reads FAILED (not pending), blocks the briefing, fails the run', async () => {
     m(generateAssetContent).mockRejectedValue(new Error('anthropic down'))
     const result = await runCycle(admin, { founderId: 'f1' })
     expect(result.status).toBe('failed')
-    expect(result.stages.P001.error).toMatch(/anthropic down/)
+    // B4: the stage that failed must SAY so — 'pending' would look like "not started".
+    expect(result.stages.P001.assets).toBe('failed')
     expect(result.stages.P001.briefing).toBe('blocked')
+    expect(result.stages.P001.error).toMatch(/anthropic down/)
     expect(m(generateBriefing)).not.toHaveBeenCalled()
     expect(m(finishRun).mock.calls[0][2].status).toBe('failed')
+  })
+
+  it('ADR-028: no new founder input + assets exist → regeneration SKIPPED, no-change briefing still published', async () => {
+    m(collectCycleDelta).mockResolvedValue({ digest: undefined, hasNewInput: false })
+    const result = await runCycle(admin, { founderId: 'f1' })
+    // No LLM asset spend; the honest 'skipped' status; the briefing still runs (which, with
+    // zero new versions for this execution, is the reachable no-change path).
+    expect(m(generateAssetContent)).not.toHaveBeenCalled()
+    expect(result.stages.P001.assets).toBe('skipped')
+    expect(m(generateBriefing)).toHaveBeenCalledTimes(1)
+    expect(result.status).toBe('completed')
+  })
+
+  it('ADR-028: first cycle (assets missing) regenerates even with no new input', async () => {
+    m(collectCycleDelta).mockResolvedValue({ digest: undefined, hasNewInput: false })
+    m(getCurrentAsset).mockResolvedValue(null) // nothing exists yet
+    await runCycle(admin, { founderId: 'f1' })
+    expect(m(generateAssetContent)).toHaveBeenCalledTimes(P001_ASSETS)
+  })
+
+  it('ADR-028: the delta digest is fed to judgement as New Information, windowed on the last completed run', async () => {
+    m(getLastCompletedRun).mockResolvedValue({ id: 'prev', startedAt: '2026-07-13T09:00:00Z' })
+    await runCycle(admin, { founderId: 'f1' })
+    expect(m(collectCycleDelta)).toHaveBeenCalledWith(admin, 'f1', '2026-07-13T09:00:00Z')
+    const judgeContext = m(generateAssetContent).mock.calls[0][1].context
+    expect(judgeContext.newInformation).toBe('- founder edited AS001')
+  })
+
+  it('a failed briefing stage reads FAILED while its completed assets stay completed', async () => {
+    // B4's second failure path: assets succeed, the briefing throws.
+    m(generateBriefing).mockRejectedValue(new Error('briefing exploded'))
+    const result = await runCycle(admin, { founderId: 'f1' })
+    expect(result.status).toBe('failed')
+    expect(result.stages.P001.assets).toBe('completed')
+    expect(result.stages.P001.briefing).toBe('failed') // not 'pending', not 'blocked'
+    expect(result.stages.P001.error).toMatch(/briefing exploded/)
   })
 })
 

@@ -121,17 +121,34 @@ CREATE POLICY "Investors can update own profile"
 
 -- Founders with a completed Q-Score can see verified investor profiles
 -- (used by the matching page to fetch real investors)
-CREATE POLICY "Founders can view verified investors for matching"
-  ON investor_profiles FOR SELECT
-  USING (
-    verified = true
-    AND EXISTS (
-      SELECT 1 FROM founder_profiles fp
-      WHERE fp.user_id   = auth.uid()
-        AND fp.role      = 'founder'
-        AND fp.assessment_completed = true
-    )
-  );
+--
+-- ⚠️ REPLAY-GUARDED (20 Jul 2026, FU-003). This file's header claims founder_profiles comes
+-- from 20250101000001; in fact its creation lives in the JULY squash (20260700000001), which
+-- replays AFTER this file — so a rebuild-from-empty died here (SQLSTATE 42P01). Guarded to
+-- skip when the table is absent; the squash recreates this policy once founder_profiles
+-- exists. Production is unaffected either way: it ran this file back when the table already
+-- existed, and applied migrations are never re-run.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'founder_profiles'
+  ) THEN
+    EXECUTE $policy$
+      CREATE POLICY "Founders can view verified investors for matching"
+        ON investor_profiles FOR SELECT
+        USING (
+          verified = true
+          AND EXISTS (
+            SELECT 1 FROM founder_profiles fp
+            WHERE fp.user_id   = auth.uid()
+              AND fp.role      = 'founder'
+              AND fp.assessment_completed = true
+          )
+        )
+    $policy$;
+  END IF;
+END $$;
 
 
 -- ============================================================

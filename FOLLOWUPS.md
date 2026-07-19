@@ -75,3 +75,38 @@ but mechanical. Worth doing before the team grows or CI gets a database.
 
 **Why deferred:** it's a pre-existing, repo-wide migration-hygiene task, entirely separate from
 F11. Folding it in would balloon F11's diff and mix concerns.
+
+---
+
+## FU-004 — A run stuck in `running` (crash mid-cycle) blocks its week
+
+**Found:** during the B5 fix (Story 2 remediation). B5 made **failed** runs retryable; a run
+whose process *crashed* (row left `status='running'`, never finished) still blocks the week —
+deliberately, because auto-clearing a 'running' row risks racing a genuinely live run.
+
+**Severity: low-medium.** A crash mid-cycle is rare; the cost is one blocked week for one founder.
+
+**Do:** add a staleness rule — e.g. treat a `running` run older than N hours as crashed and allow
+the same delete-and-recreate path B5 uses for `failed`. Needs a careful timeout choice (a cycle
+is minutes, so 2h is generous). Test the race: a live run must never be cleared.
+
+---
+
+## FU-005 — Audit quality items deferred from the Story 2 remediation (Mo's scope call)
+
+- **Q-1:** the three-line `flagOff()` feature-flag guard is duplicated in ~6 new-model routes
+  (`strategy`, `contracts`, `contracts/new-epoch`, `assets/[id]`, `briefings`, `rhythm/run`).
+  Extract one helper into `lib/api/response.ts`. It grows by one copy per feature — the exact
+  mechanism that produced the 173-route sprawl.
+- **Q-3:** record an ADR that the ~300-line file limit applies to *code*; prompt-content modules
+  (`lib/prompts/programs/**` etc., zero functions) are exempt. Undocumented, the exemption will
+  be either violated or wrongly cited.
+
+---
+
+## FU-006 — Confirm the Upstash rate-limit env vars in Vercel prod (owner: Mo)
+
+The middleware rate limiter **fails open** when `UPSTASH_REDIS_REST_URL` / `_TOKEN` are unset
+(`middleware.ts` returns null and skips the check). S-1/S-2 added auth so nothing is *public*
+any more, and B2's server-side `cycleKey` holds regardless — but every rate limit in the app is
+advisory until these vars are confirmed present. Minutes to check in Vercel → Settings → Env.

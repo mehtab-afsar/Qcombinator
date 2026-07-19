@@ -64,12 +64,42 @@ export class RunError extends Error {
  * Create the run row. Must happen before any LLM work: the unique (founder_id, cycle_key)
  * constraint makes a duplicate trigger fail here, for free.
  *
- * @throws CycleAlreadyRanError on a duplicate week (23505); RunError otherwise.
+ * B5 — a FAILED week is retryable without weakening idempotency for successful runs:
+ *   completed → CycleAlreadyRanError (the guarantee, unchanged)
+ *   running   → CycleAlreadyRanError (never race a live run; a crashed 'running' row is a
+ *               known limitation — see FOLLOWUPS — better stuck than doubled)
+ *   failed    → delete the stale row and start fresh. Its partial asset/briefing
+ *               execution_ids go NULL (on delete set null); the versions and briefings
+ *               themselves remain as history — nothing is destroyed but the run record.
+ * Two concurrent retries still serialize on the unique constraint at the insert (23505).
+ *
+ * @throws CycleAlreadyRanError on a completed/running week or a lost race; RunError otherwise.
  */
 export async function createRun(
   admin: SupabaseClient,
   args: { founderId: string; contractId: string | null; cycleKey: string },
 ): Promise<RhythmRun> {
+  const { data: existing, error: readError } = await admin
+    .from('operating_rhythm_runs')
+    .select('id, status')
+    .eq('founder_id', args.founderId)
+    .eq('cycle_key', args.cycleKey)
+    .maybeSingle()
+
+  if (readError) throw new RunError(`Failed to check for an existing run: ${readError.message}`)
+
+  if (existing) {
+    if (existing.status !== 'failed') throw new CycleAlreadyRanError(args.cycleKey)
+    // The status filter guards a race where the run changed between read and delete —
+    // it deletes only if the row is still 'failed'.
+    const { error: deleteError } = await admin
+      .from('operating_rhythm_runs')
+      .delete()
+      .eq('id', existing.id)
+      .eq('status', 'failed')
+    if (deleteError) throw new RunError(`Failed to clear the failed run: ${deleteError.message}`)
+  }
+
   const { data, error } = await admin
     .from('operating_rhythm_runs')
     .insert({ founder_id: args.founderId, contract_id: args.contractId, cycle_key: args.cycleKey })
@@ -81,6 +111,24 @@ export async function createRun(
     throw new RunError(`Failed to create run: ${error.message}`)
   }
   return toRun(data as RunRow)
+}
+
+/** The founder's most recent COMPLETED run — the delta window's start (ADR-028). Null = first cycle. */
+export async function getLastCompletedRun(
+  admin: SupabaseClient,
+  founderId: string,
+): Promise<RhythmRun | null> {
+  const { data, error } = await admin
+    .from('operating_rhythm_runs')
+    .select('*')
+    .eq('founder_id', founderId)
+    .eq('status', 'completed')
+    .order('started_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) throw new RunError(`Failed to read the last completed run: ${error.message}`)
+  return data ? toRun(data as RunRow) : null
 }
 
 /** Close the run with its terminal status and per-stage detail. */

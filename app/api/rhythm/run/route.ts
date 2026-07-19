@@ -36,8 +36,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const parsed = await parseBody(req, bodySchema)
     if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
 
+    // B2: a client-supplied cycleKey would let a founder bypass the once-a-week guard and run
+    // unlimited paid cycles. Honour it ONLY outside production (for local/dev testing); in
+    // production the key is always derived server-side (runCycle defaults to the current week).
+    const cycleKey = process.env.NODE_ENV !== 'production' ? parsed.data.cycleKey : undefined
+
     const admin = createAdminClient()
-    const run = await runCycle(admin, { founderId: auth.user.id, cycleKey: parsed.data.cycleKey })
+    const run = await runCycle(admin, { founderId: auth.user.id, cycleKey })
 
     return NextResponse.json({ run }, { status: 201 })
   } catch (err) {

@@ -29,8 +29,19 @@ CREATE INDEX IF NOT EXISTS idx_agent_messages_conversation_id
   ON agent_messages(conversation_id, created_at DESC);
 
 -- 4. Founder profiles lookup by role (used in deal-flow filtering)
-CREATE INDEX IF NOT EXISTS idx_founder_profiles_role
-  ON founder_profiles(role, assessment_completed);
+--
+-- ⚠️ REPLAY-GUARDED (20 Jul 2026, FU-003): founder_profiles arrives with the July squash,
+-- after this file. Skipped when absent. Known nuance: the squash creates a same-named index
+-- on (role) alone, so a rebuilt-from-empty DB gets the narrower index while prod (which ran
+-- THIS file) has (role, assessment_completed) — a perf detail, not a correctness drift.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables
+             WHERE table_schema = 'public' AND table_name = 'founder_profiles') THEN
+    CREATE INDEX IF NOT EXISTS idx_founder_profiles_role
+      ON founder_profiles(role, assessment_completed);
+  END IF;
+END $$;
 
 -- 5. Subscription usage lookup by user and feature (used in quota checks)
 --    WHERE reset_at > NOW() removed — non-immutable.

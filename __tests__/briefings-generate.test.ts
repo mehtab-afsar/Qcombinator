@@ -24,9 +24,10 @@ import { persistBriefing } from '@/lib/briefings/briefings'
 import { generateBriefing, parseBriefing, BriefingGenerationError } from '@/lib/briefings/generate'
 
 const admin = {} as unknown as SupabaseClient
+const PROGRAM_ROW = '00000000-0000-0000-0000-0000000000aa' // programs-table UUID
 const baseArgs = {
-  founderId: 'f1', programId: 'P001', executionId: 'run-1', contractId: 'c1',
-  context: { companyName: 'Acme' },
+  founderId: 'f1', templateId: 'P001' as const, programRowId: PROGRAM_ROW,
+  executionId: 'run-1', contractId: 'c1', context: { companyName: 'Acme' },
 }
 
 const mockRouted = routedText as jest.Mock
@@ -72,6 +73,9 @@ describe('F12 generateBriefing', () => {
     const written = mockPersist.mock.calls[0][1]
     expect(written.verdict).toBe('3 partners engaged')
     expect(written.executiveId).toBe('growth') // P001 is owned by the growth executive
+    // B1 guard: the DB program_id column must get the UUID, never the Registry id.
+    expect(written.programId).toBe(PROGRAM_ROW)
+    expect(written.programId).not.toBe('P001')
     // Links come from the DB rows, not the model.
     expect(written.body.changedAssets).toEqual([
       { assetId: 'AS001', versionId: 'v-1', name: 'ICP Profiles' },

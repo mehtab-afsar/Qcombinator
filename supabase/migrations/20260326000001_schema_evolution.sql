@@ -373,28 +373,42 @@ ALTER TABLE public.agent_artifacts
 --   biotech_deeptech: product 0.18 → 0.22, goToMarket 0.17 → 0.12
 -- ──────────────────────────────────────────────────────────────────────────────
 
--- SaaS B2B: GTM is the primary competitive signal — raise to 0.25
-update qscore_dimension_weights set weight = 0.25 where sector = 'saas_b2b' and dimension = 'goToMarket';
-update qscore_dimension_weights set weight = 0.18 where sector = 'saas_b2b' and dimension = 'market';
-update qscore_dimension_weights set weight = 0.12 where sector = 'saas_b2b' and dimension = 'team';
--- market(0.18) + product(0.18) + goToMarket(0.25) + financial(0.18) + team(0.12) + traction(0.09) = 1.00
-update qscore_dimension_weights set weight = 0.09 where sector = 'saas_b2b' and dimension = 'traction';
+-- ⚠️ REPLAY-GUARDED (20 Jul 2026, FU-003). qscore_dimension_weights was created via the
+-- dashboard (no migration ever creates it) and is DROPPED for good in 20260507000001
+-- (IQ v1 retired). On a rebuild-from-empty the table never exists, so these tuning UPDATEs
+-- crashed the replay. Guarded to no-op when absent — the weights live in TypeScript
+-- (PRD_WEIGHTS) since v2, so nothing needs recreating. Production ran this in March against
+-- the then-live table; applied migrations are never re-run.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'qscore_dimension_weights'
+  ) THEN
+    -- SaaS B2B: GTM is the primary competitive signal — raise to 0.25
+    update qscore_dimension_weights set weight = 0.25 where sector = 'saas_b2b' and dimension = 'goToMarket';
+    update qscore_dimension_weights set weight = 0.18 where sector = 'saas_b2b' and dimension = 'market';
+    update qscore_dimension_weights set weight = 0.12 where sector = 'saas_b2b' and dimension = 'team';
+    -- market(0.18) + product(0.18) + goToMarket(0.25) + financial(0.18) + team(0.12) + traction(0.09) = 1.00
+    update qscore_dimension_weights set weight = 0.09 where sector = 'saas_b2b' and dimension = 'traction';
 
--- SaaS B2C: Traction / viral growth matters more; GTM also important
-update qscore_dimension_weights set weight = 0.22 where sector = 'saas_b2c' and dimension = 'goToMarket';
-update qscore_dimension_weights set weight = 0.15 where sector = 'saas_b2c' and dimension = 'traction';
-update qscore_dimension_weights set weight = 0.13 where sector = 'saas_b2c' and dimension = 'team';
--- market(0.20) + product(0.18) + goToMarket(0.22) + financial(0.12) + team(0.13) + traction(0.15) = 1.00
-update qscore_dimension_weights set weight = 0.12 where sector = 'saas_b2c' and dimension = 'financial';
+    -- SaaS B2C: Traction / viral growth matters more; GTM also important
+    update qscore_dimension_weights set weight = 0.22 where sector = 'saas_b2c' and dimension = 'goToMarket';
+    update qscore_dimension_weights set weight = 0.15 where sector = 'saas_b2c' and dimension = 'traction';
+    update qscore_dimension_weights set weight = 0.13 where sector = 'saas_b2c' and dimension = 'team';
+    -- market(0.20) + product(0.18) + goToMarket(0.22) + financial(0.12) + team(0.13) + traction(0.15) = 1.00
+    update qscore_dimension_weights set weight = 0.12 where sector = 'saas_b2c' and dimension = 'financial';
 
--- Biotech/DeepTech: Product/IP and Team credentials dominate; GTM less important pre-commercialization
-update qscore_dimension_weights set weight = 0.22 where sector in ('biotech_deeptech','deeptech','healthtech') and dimension = 'product';
-update qscore_dimension_weights set weight = 0.22 where sector in ('biotech_deeptech','deeptech','healthtech') and dimension = 'team';
-update qscore_dimension_weights set weight = 0.12 where sector in ('biotech_deeptech','deeptech','healthtech') and dimension = 'goToMarket';
-update qscore_dimension_weights set weight = 0.20 where sector in ('biotech_deeptech','deeptech','healthtech') and dimension = 'market';
-update qscore_dimension_weights set weight = 0.16 where sector in ('biotech_deeptech','deeptech','healthtech') and dimension = 'financial';
-update qscore_dimension_weights set weight = 0.08 where sector in ('biotech_deeptech','deeptech','healthtech') and dimension = 'traction';
--- 0.22 + 0.22 + 0.12 + 0.20 + 0.16 + 0.08 = 1.00
+    -- Biotech/DeepTech: Product/IP and Team credentials dominate; GTM less important pre-commercialization
+    update qscore_dimension_weights set weight = 0.22 where sector in ('biotech_deeptech','deeptech','healthtech') and dimension = 'product';
+    update qscore_dimension_weights set weight = 0.22 where sector in ('biotech_deeptech','deeptech','healthtech') and dimension = 'team';
+    update qscore_dimension_weights set weight = 0.12 where sector in ('biotech_deeptech','deeptech','healthtech') and dimension = 'goToMarket';
+    update qscore_dimension_weights set weight = 0.20 where sector in ('biotech_deeptech','deeptech','healthtech') and dimension = 'market';
+    update qscore_dimension_weights set weight = 0.16 where sector in ('biotech_deeptech','deeptech','healthtech') and dimension = 'financial';
+    update qscore_dimension_weights set weight = 0.08 where sector in ('biotech_deeptech','deeptech','healthtech') and dimension = 'traction';
+    -- 0.22 + 0.22 + 0.12 + 0.20 + 0.16 + 0.08 = 1.00
+  END IF;
+END $$;
 
 -- Invalidate the 1h weight cache so next scoring run picks up new values immediately
 -- (The cache is in-process memory — a deploy clears it automatically.

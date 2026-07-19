@@ -197,3 +197,35 @@ drop policy if exists "Users can update own profile" on founder_profiles;
 CREATE POLICY "Users can update own profile"
   ON founder_profiles FOR UPDATE
   USING (auth.uid() = user_id);
+
+-- ─── Replay repair (FU-003, 20 Jul 2026) ─────────────────────────────────────
+-- 20260212000001 defines this policy on investor_profiles but replays BEFORE this squash
+-- creates founder_profiles, so it guards itself out on a rebuild-from-empty. Recreate it
+-- here, where the table finally exists. Idempotent; on production (where both files were
+-- applied long ago and never re-run) this simply never executes again.
+drop policy if exists "Founders can view verified investors for matching" on investor_profiles;
+CREATE POLICY "Founders can view verified investors for matching"
+  ON investor_profiles FOR SELECT
+  USING (
+    verified = true
+    AND EXISTS (
+      SELECT 1 FROM founder_profiles fp
+      WHERE fp.user_id   = auth.uid()
+        AND fp.role      = 'founder'
+        AND fp.assessment_completed = true
+    )
+  );
+
+-- ─── Replay repair (FU-003, 20 Jul 2026): objects defined in pre-squash files ─
+-- These earlier files guard themselves out on a rebuild-from-empty because this squash
+-- (which creates founder_profiles) replays after them. Recreated here, where the table
+-- exists. Idempotent; on production these already exist and this file is never re-run.
+
+-- from 20260422000010_perf_indexes.sql
+CREATE INDEX IF NOT EXISTS idx_founder_profiles_startup_name
+  ON founder_profiles(startup_name)
+  WHERE startup_name IS NOT NULL;
+
+-- from 20260603000001_document_rag_investor_embeddings.sql
+ALTER TABLE founder_profiles
+  ADD COLUMN IF NOT EXISTS iq_summary_embedding vector(1024);

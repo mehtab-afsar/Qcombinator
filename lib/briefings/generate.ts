@@ -12,7 +12,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { routedText } from '@/lib/llm/router'
 import { composeBriefingPrompt, type CompanyContext } from '@/lib/prompts/compose'
-import { getAsset, getProgram, type AssetId } from '@/lib/registry'
+import { getAsset, getProgram, type AssetId, type ProgramId } from '@/lib/registry'
 import { getCurrentAsset, getAssetVersionsForExecution } from '@/lib/assets/versioning'
 import { persistBriefing, type Briefing } from './briefings'
 import { log } from '@/lib/logger'
@@ -28,7 +28,14 @@ export class BriefingGenerationError extends Error {
 
 export interface GenerateBriefingArgs {
   founderId: string
-  programId: string
+  /**
+   * The Registry ProgramId (e.g. 'P001') — used for the Registry lookup and the Composer.
+   * Deliberately NOT called `programId`: that name previously got confused with the DB row
+   * UUID and made every briefing throw (B1). Keep the two ids named apart.
+   */
+  templateId: ProgramId
+  /** The `programs` table row UUID — written to the `program_id` column. */
+  programRowId: string
   /** The rhythm run producing this briefing. */
   executionId: string
   contractId?: string | null
@@ -94,7 +101,7 @@ export async function generateBriefing(
   admin: SupabaseClient,
   args: GenerateBriefingArgs,
 ): Promise<Briefing> {
-  const program = getProgram(args.programId) // throws on unknown id
+  const program = getProgram(args.templateId) // Registry lookup — needs 'P001', not a UUID
   const executiveId = program.owner
 
   // What changed this run — the authoritative set F11 wrote.
@@ -104,7 +111,7 @@ export async function generateBriefing(
   if (changed.length === 0) {
     return persistBriefing(admin, {
       founderId: args.founderId,
-      programId: args.programId,
+      programId: args.programRowId, // the DB column takes the UUID
       executionId: args.executionId,
       contractId: args.contractId,
       executiveId,
@@ -121,7 +128,7 @@ export async function generateBriefing(
   }
 
   const pkg = composeBriefingPrompt({
-    programId: program.id,
+    programId: args.templateId, // the Composer takes the Registry id
     executionId: args.executionId,
     context: { ...args.context, currentAssets },
   })
@@ -147,7 +154,7 @@ export async function generateBriefing(
 
   return persistBriefing(admin, {
     founderId: args.founderId,
-    programId: args.programId,
+    programId: args.programRowId, // the DB column takes the UUID
     executionId: args.executionId,
     contractId: args.contractId,
     executiveId,

@@ -15,8 +15,9 @@ import { getCurrentAsset } from '@/lib/assets/versioning'
 import { generateBriefing } from '@/lib/briefings/generate'
 import type { CompanyContext } from '@/lib/prompts/compose'
 import { log } from '@/lib/logger'
-import { createRun, finishRun } from './runs'
+import { createRun, finishRun, getLastCompletedRun } from './runs'
 import { generateAssetContent } from './judge'
+import { collectCycleDelta } from './delta'
 import { weekCycleKey } from './cycle-key'
 
 export class RhythmError extends Error {
@@ -94,7 +95,15 @@ export async function runCycle(admin: SupabaseClient, args: RunCycleArgs): Promi
   // Create the run FIRST — a duplicate week fails here, before any LLM spend (idempotency).
   const run = await createRun(admin, { founderId: args.founderId, contractId: contract.id, cycleKey })
 
-  const baseContext = await buildContext(admin, args.founderId, contract)
+  // ADR-028 — the delta digest: what the founder actually did since the last completed cycle.
+  // This is what each cycle reasons FROM; without it, regeneration is model variance.
+  const lastCompleted = await getLastCompletedRun(admin, args.founderId)
+  const delta = await collectCycleDelta(admin, args.founderId, lastCompleted?.startedAt ?? null)
+
+  const baseContext = {
+    ...(await buildContext(admin, args.founderId, contract)),
+    newInformation: delta.digest,
+  }
   const programs = (await getProgramsForContract(admin, contract.id)).filter(p => p.status === 'active')
 
   const stages: Record<string, StageStatus> = {}
@@ -105,11 +114,21 @@ export async function runCycle(admin: SupabaseClient, args: RunCycleArgs): Promi
   for (const program of programs) {
     const stage: StageStatus = { assets: 'pending', briefing: 'pending' }
     stages[program.templateId] = stage
+
+    // B4 — two separate catches so the stage that failed is NAMED 'failed', never left
+    // looking 'pending'. The founder-facing stages jsonb must not contradict the run status.
     try {
       const assetIds = getProgram(program.templateId).assets
       const currentAssets = await currentAssetsFor(admin, args.founderId, assetIds)
 
+      let generated = 0
       for (const assetId of assetIds) {
+        // ADR-028 (amending ADR-008 at the asset level): an existing asset with NO new
+        // founder input is not regenerated — rewriting identical inputs is model variance,
+        // not maintenance. A missing asset is always generated (first cycle). This skip is
+        // what makes the "no material change" briefing reachable rather than decorative.
+        if (currentAssets[assetId] !== undefined && !delta.hasNewInput) continue
+
         await generateAssetContent(admin, {
           founderId: args.founderId,
           program,
@@ -119,13 +138,26 @@ export async function runCycle(admin: SupabaseClient, args: RunCycleArgs): Promi
           activePrograms: contract.activePrograms,
           context: { ...baseContext, currentAssets },
         })
+        generated++
       }
-      stage.assets = 'completed'
+      // 'skipped' is honest: nothing needed doing. 'completed' would imply work happened.
+      stage.assets = generated > 0 ? 'completed' : 'skipped'
+    } catch (err) {
+      anyFailed = true
+      stage.assets = 'failed'
+      stage.briefing = 'blocked' // the dependent stage never ran — blocked, not failed
+      stage.error = (err as Error)?.message ?? 'unknown error'
+      log.warn('rhythm assets failed', { programId: program.templateId, cycleKey, err: stage.error })
+      continue // next program; this one's briefing cannot proceed
+    }
 
+    try {
       // The Briefing depends on the Assets — it derives "what changed" from run.id.
+      // Pass both ids explicitly: the Registry template id AND the programs-row UUID (B1).
       await generateBriefing(admin, {
         founderId: args.founderId,
-        programId: program.id,
+        templateId: program.templateId,
+        programRowId: program.id,
         executionId: run.id,
         contractId: contract.id,
         context: baseContext,
@@ -133,9 +165,9 @@ export async function runCycle(admin: SupabaseClient, args: RunCycleArgs): Promi
       stage.briefing = 'completed'
     } catch (err) {
       anyFailed = true
+      stage.briefing = 'failed'
       stage.error = (err as Error)?.message ?? 'unknown error'
-      if (stage.assets !== 'completed') stage.briefing = 'blocked' // block the dependent stage
-      log.warn('rhythm program failed', { programId: program.templateId, cycleKey, err: stage.error })
+      log.warn('rhythm briefing failed', { programId: program.templateId, cycleKey, err: stage.error })
     }
   }
 

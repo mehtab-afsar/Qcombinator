@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
+import { verifyAuth } from '@/lib/auth/verify'
 import { log } from '@/lib/logger'
 
 // GET /api/investors
@@ -9,6 +10,11 @@ import { log } from '@/lib/logger'
 // matching page know which FK to use when creating a connection_request.
 export async function GET() {
   try {
+    // S-2: this reads a curated directory with the service-role client (RLS bypassed), so it
+    // must not be public — require a session. Its only caller is the authed matching flow.
+    const auth = await verifyAuth()
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
     const supabase = createAdminClient()
 
     const [{ data: demoRows, error: demoErr }, { data: realRows, error: realErr }] =

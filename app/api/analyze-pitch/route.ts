@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { callClaude } from '@/lib/claude'
+import { verifyAuth } from '@/lib/auth/verify'
 import { log } from '@/lib/logger'
 
 interface PitchAnalysis {
@@ -34,6 +35,10 @@ const FALLBACK: PitchAnalysis = {
 
 export async function POST(request: NextRequest) {
   try {
+    // S-1: this endpoint spends the LLM budget — require a session so it is not public.
+    const auth = await verifyAuth()
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
     const { pitchText } = await request.json()
 
     if (!pitchText || typeof pitchText !== 'string') {

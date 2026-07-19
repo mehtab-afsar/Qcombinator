@@ -38,10 +38,41 @@ export interface JudgeArgs {
   context: CompanyContext
 }
 
-/** An Asset's content is the whole output: raw markdown, or the JSON it emitted. */
+/**
+ * B3 — the saved Asset must be the artefact, not the chat.
+ *
+ * Models sometimes wrap the document in a code fence, or lead with prose ("Here's your
+ * updated ICP: …"). Both would otherwise be persisted verbatim as the authoritative Asset.
+ * Sanitise conservatively: unwrap a fence that encloses the WHOLE document, then drop a
+ * short conversational lead-in when the document proper (a markdown heading) follows.
+ * Over-stripping is worse than a stray line, so anything ambiguous is left alone.
+ */
+function sanitiseMarkdown(raw: string): string {
+  let text = raw.trim()
+
+  // 1. Drop a short chatty preamble before the document proper (which starts at a markdown
+  //    heading or a code fence). Handles "Here's your updated ICP:\n\n# ICP …" and the same
+  //    in front of a fenced document.
+  const docStart = text.search(/^(#{1,6}\s|```)/m)
+  if (docStart > 0) {
+    const lead = text.slice(0, docStart).trim()
+    const chatty =
+      /^(here('s| is| are)?|below( is)?|i('ve| have)|sure|certainly|of course|as requested|this is|updated)/i.test(lead)
+      || /:$/.test(lead)
+    if (lead.length <= 300 && chatty) text = text.slice(docStart).trim()
+  }
+
+  // 2. Unwrap a fence that encloses the entire remaining document.
+  const fence = text.match(/^```(?:markdown|md)?\s*\n([\s\S]*?)\n?```$/)
+  if (fence) text = fence[1].trim()
+
+  return text
+}
+
+/** An Asset's content is the whole output: sanitised markdown, or the JSON it emitted. */
 function parseAssetContent(raw: string, schema: 'markdown' | 'json'): unknown {
   if (schema === 'markdown') {
-    const text = raw.trim()
+    const text = sanitiseMarkdown(raw)
     if (!text) throw new JudgementError('the model returned an empty asset')
     return text
   }

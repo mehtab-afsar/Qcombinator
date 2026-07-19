@@ -12,6 +12,8 @@ const RATE_LIMIT_RULES: Record<string, { requests: number; window: string }> = {
   '/api/agents/research':     { requests: 10, window: '1 m'  },
   '/api/qscore/actions':      { requests: 6,  window: '1 m'  },
   '/api/analyze-pitch':       { requests: 8,  window: '1 m'  },
+  '/api/rhythm/run':          { requests: 3,  window: '60 m' }, // a cycle is several paid LLM calls
+
   '/api/auth/signup':         { requests: 5,  window: '60 m' },
   '/api/auth/reset-password': { requests: 3,  window: '15 m' },
 }

@@ -52,6 +52,7 @@
 **Cost:** real LLM spend and possible briefing volume — mitigated by keeping the active set small in the pilot.
 **Revisit trigger:** when cost or briefing fatigue shows up at scale → introduce `runsWhen` as an optimisation.
 **Rejected:** "runs all *registered* Programs" (wrong — the Contract decides).
+**Amended by ADR-028 (20 Jul 2026):** this decision governs *Program-level scheduling*, which stays unconditional. *Asset-level regeneration* within a cycle is now conditional on the founder-activity delta — an unchanged asset is not rewritten. See ADR-028.
 
 ## ADR-009 — Investor features, Outcome Loop and Evidence Pack are deferred 🕒
 **Decision:** the investor marketplace, the investor-trusted-score thesis, the dedicated Outcome Loop (`lib/outcomes/`, `POST /api/outcomes`, score mapping) and the Evidence Pack are **out of the current core**.
@@ -142,6 +143,61 @@
 **Cost:** v1 runs **sequentially** (parallelism where dependencies allow is a deferred optimisation — correctness first) and omits the Q-Score from the compose context (additive, noted in `F10_DESIGN.md`).
 **Rejected:** enabling the cron / auto-spend as part of the build (must be an explicit pilot decision); `runsWhen` event-skipping (ADR-008 forbids it in v1); running from a *draft* mandate; folding external Actions in (Story 3); an `execution_id` FK that predates this table (it lands here, closing ADR-024/025's deferral).
 **Related:** ADR-002, ADR-004, ADR-006, ADR-008, ADR-017, ADR-024, ADR-025.
+
+## ADR-027 — A failed rhythm cycle is retryable; a successful one is not 🔒
+**Decision (Story 2 remediation, B5):** `createRun` inspects the existing run for `(founder,
+cycle_key)` before inserting: **`completed` → rejected** (the once-a-week guarantee, unchanged) ·
+**`running` → rejected** (never race a live run) · **`failed` → the stale run row is deleted and a
+fresh run created.** The delete is status-guarded (only if still `failed`) and two concurrent
+retries still serialize on the unique constraint at the insert — so idempotency for successful
+runs is not weakened.
+**Why:** without this, any transient failure (LLM outage, timeout) stranded the founder with a
+half-written week and no recovery until the next ISO week. An idempotency rule that blocks
+*recovery* protects the mistake, not the founder.
+**Amends ADR-026 (deliberately):** the run record is audit history for *completed* cycles; a
+**failed** run row is operational state, not history — its deletion is the retry mechanism. What
+IS preserved regardless: every asset version and briefing the failed run produced (append-only
+tables; their `execution_id` links go null via `on delete set null`, the content remains).
+**Known limitation:** a run *crashed* mid-cycle (stuck `running`) still blocks its week — a
+staleness rule is FU-004, deferred so a live run can never be cleared by accident.
+**Rejected:** upsert/reset-in-place of the failed row (an UPDATE-based reset invites partial
+state to leak into the new run; delete-and-recreate is unambiguous); auto-clearing `running`
+(race with a live run); keying idempotency on "a completed run exists" only (would allow
+unbounded concurrent attempts while none has completed).
+
+## ADR-028 — A cycle is fed by a founder-activity delta; unchanged assets are not regenerated 🔒
+**Decision (B8, Option 1 — Mo, 20 Jul 2026):** each Operating-Rhythm cycle builds a **delta
+digest** of founder activity since the last *completed* run — direct Asset edits (ADR-007),
+Company Builder uploads/artefacts, Q-Score changes, metric snapshots — and feeds it to judgement
+as the Composer's "New Information This Cycle". **An asset that already exists and has no new
+input is not regenerated** (relevance is cycle-level in v1); a missing asset is always generated.
+With nothing new, the cycle publishes the honest "no material change" briefing — which this
+decision makes **reachable** for the first time (previously the engine regenerated
+unconditionally, so that path was decorative and every briefing reported model variance as
+change).
+**Amendment to ADR-008 — explicit, not a side note (Mo's first amendment):** ADR-008 governs two
+levels that this decision now separates. **Program-level scheduling stays unconditional** — the
+rhythm still runs every contract-active Program, every cycle, on the calendar; no `runsWhen`,
+exactly as ADR-008 locked. **Asset-level regeneration becomes conditional** on the delta. ADR-008
+is hereby amended to say so rather than pretending the skip lives outside it.
+**Open question for the pilot (Mo's second amendment):** every signal in the digest requires
+*founder action*. A passive founder therefore produces honest no-change briefings — correct, but
+it means the system is only as alive as its founder. Whether an **autonomous external signal**
+(market news, competitor moves, connected-account data) is needed to give a passive founder a
+reason to return is deliberately left open until the pilot shows how often real founders go
+quiet. Do not build it pre-emptively.
+**Why:** without new inputs, cross-cycle "improvement" is temperature-0.3 variance — Story 2's
+exit criterion was unmeetable and week-4 retention indefensible (see `B8_DECISION.md`). The
+criterion's honest restatement: *cycle N+1's assets demonstrably incorporate founder signal from
+week N.*
+**Cost:** reads of three old-model tables (read-only — the freeze and ADR-005 are intact); a
+quiet week produces a briefing that says so rather than fresh-looking documents.
+**Rejected:** event-driven cycles (Option 2 — reopens ADR-008's scheduling level for little
+gain); repositioning the claim instead of fixing the feed (Option 3 — measures the wrong
+product); per-asset relevance mapping in v1 (over-engineering before pilot data).
+**Related:** ADR-007 (the edit signal, consumed as designed), ADR-008 (amended as above),
+ADR-009 (Story 3's Action outcomes join the digest later — the minimal Outcome-Loop slice),
+ADR-026/027.
 
 ## ADR-020 — Action is the genus; "cadence" is a frequency, not an entity 🔒
 **Decision:** an **Action** is any operational work a Program generates. It is **one-off or recurring** — `ActionDef.kind: 'oneoff' | 'recurring'` (PRD §7.1, the authoritative runtime type). A **cadence** is **not a thing that executes**: it is the *frequency* of a recurring Action, a value such as `'weekly'` stored in `scheduled_actions.cadence` (PRD §8).

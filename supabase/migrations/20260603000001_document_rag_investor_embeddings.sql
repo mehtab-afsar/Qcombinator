@@ -86,8 +86,17 @@ create index if not exists demo_investors_embedding_idx
 -- Computed at Q-Score submission time from a concatenation of founder profile fields.
 -- Used for cosine matching against investor thesis at match time.
 
-alter table founder_profiles
-  add column if not exists iq_summary_embedding vector(1024);
+-- ⚠️ REPLAY-GUARDED (20 Jul 2026, FU-003): founder_profiles is created by the July squash,
+-- which replays after this file. Skipped when absent; the squash adds this column at its
+-- foot. Production ran this in June against the live table; never re-run.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables
+             WHERE table_schema = 'public' AND table_name = 'founder_profiles') THEN
+    alter table founder_profiles
+      add column if not exists iq_summary_embedding vector(1024);
+  END IF;
+END $$;
 
 -- ── 5. match_investors_by_embedding RPC ────────────────────────────────────
 -- Returns investors ranked by cosine similarity to the founder's IQ summary embedding.
