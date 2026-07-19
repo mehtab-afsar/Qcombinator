@@ -102,10 +102,22 @@ CREATE INDEX IF NOT EXISTS qscore_history_v2_idx
   ON qscore_history(user_id, score_version, calculated_at DESC)
   WHERE score_version = 'v2_iq';
 
--- Partial unique index: guarantees each artifact type only boosts a user's score once.
-CREATE UNIQUE INDEX IF NOT EXISTS qscore_history_user_artifact_unique
-  ON qscore_history(user_id, source_artifact_type)
-  WHERE source_artifact_type IS NOT NULL;
+-- Partial unique index — guarantees each artifact type boosts a user's score once.
+--
+-- ⚠️ MOVED OUT of this squash (19 Jul 2026). This table already exists in
+-- production and its live data violates the uniqueness — the old-model boost path
+-- (applyAgentScoreSignal) double-boosted at least one (user, artifact_type)
+-- because this index was never actually applied. Building it here aborts the push
+-- with SQLSTATE 23505 on the existing rows.
+--
+-- A squash documents an existing schema and must apply as a clean no-op. Data
+-- clean-up does not belong in it. The de-duplication AND this index now live
+-- together in 20260715000005_dedup_qscore_boost_history.sql, which runs last:
+-- dedup first (with an audit trail), unique index second — so the DB can never be
+-- in a state where the index is expected but the data isn't clean.
+--
+-- The non-unique idx_qscore_history_artifact_signal above (same columns) already
+-- covers query performance; only the uniqueness guarantee moved.
 
 
 -- ── Row Level Security ────────────────────────────────────────────────────────
