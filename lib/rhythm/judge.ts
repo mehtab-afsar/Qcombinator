@@ -12,7 +12,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { routedText } from '@/lib/llm/router'
+import { routedCall } from '@/lib/llm/router'
 import { composePrompt, type CompanyContext } from '@/lib/prompts/compose'
 import { getAsset, type AssetId, type ExecutiveId, type ProgramId } from '@/lib/registry'
 import { persistAssetVersion, type AssetVersion } from '@/lib/assets/versioning'
@@ -91,10 +91,22 @@ function parseAssetContent(raw: string, schema: 'markdown' | 'json'): unknown {
 async function callLLM(text: string): Promise<string> {
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
-    return await Promise.race([
-      routedText('reasoning', [{ role: 'user', content: text }], { maxTokens: 3_000, temperature: 0.3 }),
+    const response = await Promise.race([
+      // 6k is a BACKSTOP — the Composer's length rule (~1,500-2,000 words) is what shapes
+      // the document. Trial run 2: a 3k cap truncated all five assets mid-sentence.
+      routedCall({
+        taskClass: 'reasoning',
+        messages: [{ role: 'user', content: text }],
+        overrides: { maxTokens: 6_000, temperature: 0.3 },
+      }),
       new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('timeout')), TIMEOUT_MS) }),
     ])
+    // A truncated document must NEVER be persisted as an authoritative asset version. The
+    // stage fails loudly instead (B4), and B5's retry makes the week recoverable.
+    if (response.stopReason === 'max_tokens') {
+      throw new JudgementError('the model hit the token cap — the asset would be truncated')
+    }
+    return response.text
   } finally {
     clearTimeout(timer)
   }
@@ -125,7 +137,12 @@ export async function generateAssetContent(
   try {
     raw = await callLLM(pkg.text)
   } catch (first) {
-    // Retry once — "retry technical operations within limits" (UC-10 step 5).
+    // Truncation is NOT transient — the same prompt hits the same cap. Retrying it just
+    // doubles the spend on a doomed call (run 3 proved it). Fail immediately; only
+    // technical faults (timeout, network) earn the one retry (UC-10 step 5).
+    if (first instanceof JudgementError) {
+      throw new JudgementError(`Judgement failed for ${args.assetId}: ${first.message}`)
+    }
     log.warn('asset judgement retrying', { assetId: args.assetId, err: (first as Error)?.message })
     try {
       raw = await callLLM(pkg.text)

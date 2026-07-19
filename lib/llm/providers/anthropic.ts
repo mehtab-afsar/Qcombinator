@@ -124,7 +124,7 @@ export class AnthropicProvider implements LLMProvider {
           toolCall = { id: block.id, name: block.name, args: block.input as Record<string, unknown> }
         }
       }
-      return { text, toolCall }
+      return { text, toolCall, stopReason: response.stop_reason ?? undefined }
     } catch (err) {
       if (err instanceof Anthropic.RateLimitError)
         throw new ClaudeError('Anthropic rate limit exceeded — please try again later', 429)

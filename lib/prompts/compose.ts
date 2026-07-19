@@ -239,6 +239,26 @@ const ASSET_FORMAT_RULE = [
   'contains an output or report template (for example an executive letter), that template',
   'is for program-level reporting and does not apply here. Produce ONLY the artefact,',
   'in the structure layer 3 defines — no letter framing, no verdict, no covering note.',
+  '',
+  // The length contract (trial run 2: all five artefacts hit the token cap mid-sentence —
+  // the model elaborated early sections until the guillotine). The cap is a backstop; THIS
+  // is what shapes the document.
+  'Length rule: the artefact must be COMPLETE — it must never end mid-sentence, mid-table',
+  'or mid-section. Target roughly 1,500-2,000 words. Where layer 3\'s structure lists many',
+  'sections, cover EVERY section concisely rather than elaborating early ones at length:',
+  'completeness across all sections beats depth in a few. Budget your length so the final',
+  'section is as finished as the first.',
+].join('\n')
+
+/** The last thing the model reads before writing an asset — see the note at the call site. */
+const ASSET_CLOSING_REMINDER = [
+  '# Final reminder before you write (binding)',
+  '',
+  'Produce ONLY the artefact layer 3 defines — no letter framing, no covering note.',
+  'It must be COMPLETE: cover every section of layer 3\'s structure CONCISELY, target',
+  '1,500-2,000 words total, and never end mid-sentence or mid-table. If you are running',
+  'long, compress the remaining sections — a short finished section always beats a long',
+  'truncated one. Plan the whole document\'s budget before you start writing.',
 ].join('\n')
 
 const SEPARATOR = '\n\n---\n\n'
@@ -293,7 +313,12 @@ export function composePrompt(input: ComposeInput): ExecutionPackage {
   ]
 
   const preamble = input.assetId ? HIERARCHY_PREAMBLE + ASSET_FORMAT_RULE : HIERARCHY_PREAMBLE
-  const text = [preamble, ...layers.map(l => l.text)].join(SEPARATOR)
+  const parts = [preamble, ...layers.map(l => l.text)]
+  // Recency bites: the preamble's length rule sits tens of thousands of tokens before the
+  // model starts writing, and run 3 showed it alone does not hold against a large layer-3
+  // structure. A closing reminder — the last thing read before writing — is what binds.
+  if (input.assetId) parts.push(ASSET_CLOSING_REMINDER)
+  const text = parts.join(SEPARATOR)
 
   return {
     executionId,

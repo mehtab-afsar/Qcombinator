@@ -4,9 +4,16 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { parseAssetContent } from '@/lib/rhythm/judge'
+import { parseAssetContent, generateAssetContent, JudgementError } from '@/lib/rhythm/judge'
 import { createRun, CycleAlreadyRanError, RunError } from '@/lib/rhythm/runs'
 import { buildDigest, type CycleSignals } from '@/lib/rhythm/delta'
+import { routedCall } from '@/lib/llm/router'
+import { persistAssetVersion } from '@/lib/assets/versioning'
+
+// Mocked ONLY for the truncation-guard tests below; parseAssetContent/buildDigest/createRun
+// tests don't touch these modules.
+jest.mock('@/lib/llm/router', () => ({ routedCall: jest.fn() }))
+jest.mock('@/lib/assets/versioning', () => ({ persistAssetVersion: jest.fn() }))
 
 // ─── B3 — sanitise model output before persisting ─────────────────────────────
 
@@ -40,6 +47,53 @@ describe('B3 parseAssetContent (markdown) — the artefact, not the chat', () =>
 
   it('still rejects an empty asset', () => {
     expect(() => parseAssetContent('   ', 'markdown')).toThrow(/empty asset/)
+  })
+})
+
+// ─── Truncation guard — a cut document is never persisted ─────────────────────
+
+describe('generateAssetContent — truncation is a loud failure, never a stored document', () => {
+  const admin = {} as unknown as SupabaseClient
+  const program = {
+    id: 'row-1', contractId: 'c1', templateId: 'P001' as const, owner: 'growth',
+    objective: 'o', successMetric: 's', status: 'active' as const,
+  }
+  const args = {
+    founderId: 'f1', program, assetId: 'AS001' as const, executionId: 'run-1',
+    contractId: 'c1', activePrograms: ['P001' as const], context: {},
+  }
+
+  beforeEach(() => jest.clearAllMocks())
+
+  it('stopReason max_tokens → JudgementError, nothing persisted, NO retry (runs 2+3 lessons)', async () => {
+    ;(routedCall as jest.Mock).mockResolvedValue({ text: '# Cut docum', toolCall: null, stopReason: 'max_tokens' })
+    await expect(generateAssetContent(admin, args)).rejects.toThrow(/token cap/)
+    expect(persistAssetVersion).not.toHaveBeenCalled()
+    // Truncation is deterministic — retrying the same prompt doubles the spend for nothing.
+    expect(routedCall).toHaveBeenCalledTimes(1)
+  })
+
+  it('a transient failure (timeout) still earns one retry', async () => {
+    ;(routedCall as jest.Mock)
+      .mockRejectedValueOnce(new Error('timeout'))
+      .mockResolvedValueOnce({ text: '# Doc\n\nComplete.', toolCall: null, stopReason: 'end_turn' })
+    ;(persistAssetVersion as jest.Mock).mockResolvedValue({ id: 'v1' })
+    await expect(generateAssetContent(admin, args)).resolves.toBeDefined()
+    expect(routedCall).toHaveBeenCalledTimes(2)
+  })
+
+  it('a complete response (end_turn) persists normally', async () => {
+    ;(routedCall as jest.Mock).mockResolvedValue({ text: '# ICP Profiles\n\nComplete document.', toolCall: null, stopReason: 'end_turn' })
+    ;(persistAssetVersion as jest.Mock).mockResolvedValue({ id: 'v1' })
+    await generateAssetContent(admin, args)
+    expect(persistAssetVersion).toHaveBeenCalledTimes(1)
+    expect((persistAssetVersion as jest.Mock).mock.calls[0][1].content).toContain('Complete document')
+  })
+
+  it('a provider that omits stopReason is not treated as truncated', async () => {
+    ;(routedCall as jest.Mock).mockResolvedValue({ text: '# Doc\n\nBody.', toolCall: null })
+    ;(persistAssetVersion as jest.Mock).mockResolvedValue({ id: 'v1' })
+    await expect(generateAssetContent(admin, args)).resolves.toBeDefined()
   })
 })
 

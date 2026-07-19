@@ -25,6 +25,13 @@ export interface LLMChatResponse {
   text: string;
   /** Structured tool call, or null if no tool was invoked */
   toolCall: ToolCallResult | null;
+  /**
+   * Why generation stopped — 'end_turn', 'max_tokens', etc. Optional: providers that don't
+   * report it simply omit it. 'max_tokens' means the text is TRUNCATED; callers persisting
+   * model output must check this rather than storing a cut document (learned in trial run 2,
+   * where all five assets were silently persisted mid-sentence).
+   */
+  stopReason?: string;
 }
 
 /** Internal capability tier — provider maps this to a concrete model ID */

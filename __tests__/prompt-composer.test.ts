@@ -161,6 +161,25 @@ describe('layer 4 is data, never instructions', () => {
     expect(pkg.text).toContain('no letter framing, no verdict, no covering note')
   })
 
+  it('an ASSET package carries the length contract (trial run 2: all five truncated)', () => {
+    // The token cap is a backstop; the prompt is what shapes the document. Without this,
+    // the model elaborates early sections until the guillotine cuts it mid-sentence.
+    const pkg = composePrompt(valid)
+    expect(pkg.text).toContain('never end mid-sentence')
+    expect(pkg.text).toContain('completeness across all sections beats depth in a few')
+    const mandate = composeMandatePrompt({ kind: 'contract', context })
+    expect(mandate.text).not.toContain('never end mid-sentence')
+  })
+
+  it('the length reminder is the LAST thing in an asset package (recency binds)', () => {
+    // Run 3: the preamble's length rule, tens of thousands of tokens before the writing
+    // starts, did not hold on its own. The closing reminder is positioned after layer 4.
+    const pkg = composePrompt(valid)
+    const reminderAt = pkg.text.indexOf('Final reminder before you write')
+    expect(reminderAt).toBeGreaterThan(-1)
+    expect(reminderAt).toBeGreaterThan(pkg.text.indexOf('# Company Context'))
+  })
+
   it('mandate and briefing packages do not carry the asset format rule', () => {
     // The rule is asset-scoped. (An action-package negative isn't possible yet — no
     // action instruction prompts exist, a known workbook gap until Story 3.)
