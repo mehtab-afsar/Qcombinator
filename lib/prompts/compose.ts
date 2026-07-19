@@ -467,22 +467,27 @@ export interface ComposeBriefingInput {
 const BRIEFING_STRUCTURE = [
   '# Executive Briefing (required output)',
   '',
-  'Write this cycle\'s briefing for the founder — a five-minute read, in your voice as this',
-  'program\'s executive. Base it ONLY on the Current Management Assets and what changed this',
-  'cycle (Company Context above). Do not invent progress; if little changed, say so plainly.',
+  'Produce this cycle\'s briefing for the founder, in your voice as this program\'s',
+  'executive. Base it ONLY on the Current Management Assets and what changed this cycle',
+  '(Company Context above). Do not invent progress; if little changed, say so plainly.',
   '',
-  'After the briefing, output ONE fenced JSON block — nothing after it — transcribing it:',
+  // JSON ONLY — deliberately no prose-then-transcribe. The store keeps verdict + body;
+  // any prose before the block was being DISCARDED by the parser, and writing it first
+  // exhausted the token budget before the JSON arrived (both real-AI trials failed here).
+  // The briefing's substance lives in the sections.
+  'Output exactly ONE fenced JSON block and NOTHING else — no prose before or after it:',
   '',
   '```json',
   '{',
   '  "verdict":  "one line — where this program stands after this cycle",',
   '  "summary":  "2-3 sentences a busy founder can act on",',
-  '  "sections": [{ "heading": "...", "detail": "..." }]',
+  '  "sections": [{ "heading": "...", "detail": "a substantial paragraph — this is the briefing\'s body" }]',
   '}',
   '```',
   '',
   'Rules:',
   '- `verdict` is required and must be a single line.',
+  '- 3-6 sections; the founder reads ONLY this JSON, so the sections carry the whole briefing.',
   '- Ground every claim in the Assets above; cite no metric you were not given.',
 ].join('\n')
 

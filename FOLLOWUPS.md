@@ -122,9 +122,14 @@ not content: asset packages now carry an `ASSET_FORMAT_RULE` in the preamble —
 defines the artefact's shape; layers 1–2 govern judgement; a higher layer's report template
 (P001's letter) applies to program-level reporting, never the artefact. Pinned by two tests
 (asset packages carry the rule; mandate/briefing packages don't).
-**⚠️ Unverified against the real model** — Mo deferred the trial re-run (real AI spend). The
-prompt-text change is the standard remedy for this failure shape, but until one live cycle
-shows five distinctly-shaped artefacts, treat FU-007 as fixed-pending-retrial.
+**✅ VERIFIED (20 Jul 2026, trial run 2):** all five assets came back as distinct artefacts
+with zero letter-frame leakage — "# ICP Profiles Report", "# Pains & Gains Matrix", "# Buyer
+Journey Map", "# Positioning & Messaging Framework", "# Channel Strategy". The instruction
+held; the structural escalation (splitting the program prompt's report section out of asset
+packages) was NOT needed. Run 2 also caught a second real flaw: the briefing prompt asked for
+prose-then-JSON, but the parser discards the prose — wasted tokens that starved the JSON tail
+(the cause of both briefing failures). Fixed by asking for JSON only; verified live (43s,
+half the prior cost). FU-007 is closed.
 
 ---
 
