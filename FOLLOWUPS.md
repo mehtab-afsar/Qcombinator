@@ -115,11 +115,16 @@ per-asset instructions (layer 3), so every asset inherited the letter format. Th
 briefing then flagged it unprompted ("five deliverables … each containing similar 90-day
 execution plans — false progress"). **Substance was strong; the FORM is wrong.**
 
-**Do (content/Registry work, before any pilot):** give each Asset's layer-3 instruction an
-explicit output structure and make asset-mode composition state that layer 3 defines the
-ARTEFACT FORMAT (the program prompt governs judgement, not document shape) — or compose
-asset-mode packages with a trimmed program prompt. Workbook + `lib/prompts/registry` content
-task, not engine code. Re-run the trial after.
+**FIX LANDED (20 Jul 2026) — verification owed.** Investigation showed the per-asset output
+structures already exist in layer 3 (as001–as005.ts are 374–461 lines each, with full artefact
+structures); the model simply obeyed the hierarchy. So the fix is in the Composer's framing,
+not content: asset packages now carry an `ASSET_FORMAT_RULE` in the preamble — layer 3 alone
+defines the artefact's shape; layers 1–2 govern judgement; a higher layer's report template
+(P001's letter) applies to program-level reporting, never the artefact. Pinned by two tests
+(asset packages carry the rule; mandate/briefing packages don't).
+**⚠️ Unverified against the real model** — Mo deferred the trial re-run (real AI spend). The
+prompt-text change is the standard remedy for this failure shape, but until one live cycle
+shows five distinctly-shaped artefacts, treat FU-007 as fixed-pending-retrial.
 
 ---
 

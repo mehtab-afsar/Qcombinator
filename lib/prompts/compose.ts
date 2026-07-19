@@ -220,6 +220,27 @@ const HIERARCHY_PREAMBLE = [
   'higher layer wins.',
 ].join('\n')
 
+/**
+ * Appended to ASSET packages only (FU-007, learned from the first real-AI trial).
+ *
+ * The hierarchy governs AUTHORITY, and this preamble is where the engine partitions each
+ * layer's jurisdiction. Without it, a Program Prompt that contains its own report template
+ * (P001's "Dear Founder" letter Structure) legitimately outranks the Asset Instructions —
+ * so every asset came back as the same executive letter instead of five distinct artefacts.
+ * The per-asset structures were always there in layer 3; the model was just never told that
+ * layer 3 owns the document's SHAPE. Now it is. Higher layers still win on judgement,
+ * priorities and quality — jurisdiction, not rank, is what changed.
+ */
+const ASSET_FORMAT_RULE = [
+  '',
+  'Format rule for this package: you are producing the ASSET defined in layer 3, and',
+  'layer 3 alone specifies the artefact\'s structure and format. Layers 1-2 govern your',
+  'judgement, priorities and quality bar — not the document\'s shape. If a higher layer',
+  'contains an output or report template (for example an executive letter), that template',
+  'is for program-level reporting and does not apply here. Produce ONLY the artefact,',
+  'in the structure layer 3 defines — no letter framing, no verdict, no covering note.',
+].join('\n')
+
 const SEPARATOR = '\n\n---\n\n'
 
 /**
@@ -271,7 +292,8 @@ export function composePrompt(input: ComposeInput): ExecutionPackage {
     },
   ]
 
-  const text = [HIERARCHY_PREAMBLE, ...layers.map(l => l.text)].join(SEPARATOR)
+  const preamble = input.assetId ? HIERARCHY_PREAMBLE + ASSET_FORMAT_RULE : HIERARCHY_PREAMBLE
+  const text = [preamble, ...layers.map(l => l.text)].join(SEPARATOR)
 
   return {
     executionId,
