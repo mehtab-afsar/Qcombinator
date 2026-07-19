@@ -183,14 +183,17 @@ CREATE INDEX IF NOT EXISTS idx_founder_profiles_matching
 
 ALTER TABLE founder_profiles ENABLE ROW LEVEL SECURITY;
 
+drop policy if exists "Users can view own profile" on founder_profiles;
 CREATE POLICY "Users can view own profile"
   ON founder_profiles FOR SELECT
   USING (auth.uid() = user_id);
 
+drop policy if exists "Users can insert own profile" on founder_profiles;
 CREATE POLICY "Users can insert own profile"
   ON founder_profiles FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
+drop policy if exists "Users can update own profile" on founder_profiles;
 CREATE POLICY "Users can update own profile"
   ON founder_profiles FOR UPDATE
   USING (auth.uid() = user_id);
