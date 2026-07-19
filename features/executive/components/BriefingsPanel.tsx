@@ -21,6 +21,8 @@ interface Briefing {
   createdAt: string
 }
 
+interface ChangedAsset { assetId: string; name?: string }
+
 /** Best-effort read of a human summary from the (F10-defined) body. */
 function bodySummary(body: unknown): string | null {
   if (body && typeof body === 'object' && 'summary' in body) {
@@ -28,6 +30,18 @@ function bodySummary(body: unknown): string | null {
     if (typeof s === 'string' && s.trim()) return s
   }
   return null
+}
+
+/** The Asset versions this briefing describes — links through to them (ADR-007). */
+function changedAssets(body: unknown): ChangedAsset[] {
+  if (body && typeof body === 'object' && 'changedAssets' in body) {
+    const list = (body as { changedAssets: unknown }).changedAssets
+    if (Array.isArray(list)) {
+      return list.filter((a): a is ChangedAsset =>
+        Boolean(a) && typeof a === 'object' && typeof (a as ChangedAsset).assetId === 'string')
+    }
+  }
+  return []
 }
 
 export function BriefingsPanel() {
@@ -85,6 +99,20 @@ export function BriefingsPanel() {
           <p style={{ color: muted, fontSize: 14, marginTop: 8, lineHeight: 1.6 }}>
             {bodySummary(latest.body)}
           </p>
+        )}
+        {changedAssets(latest.body).length > 0 && (
+          <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+            <span style={{ color: muted, fontSize: 12 }}>Assets updated:</span>
+            {changedAssets(latest.body).map(a => (
+              <a key={a.assetId} href={`/founder/assets/${a.assetId}`}
+                style={{
+                  color: blue, fontSize: 12, textDecoration: 'none',
+                  border: `1px solid ${bdr}`, borderRadius: 6, padding: '2px 8px',
+                }}>
+                {a.name ?? a.assetId}
+              </a>
+            ))}
+          </div>
         )}
       </div>
 

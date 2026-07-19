@@ -13,7 +13,7 @@ import { pickLatestPerProgram, type Briefing } from '@/lib/briefings/briefings'
 
 const b = (over: Partial<Briefing>): Briefing => ({
   id: 'x', founderId: 'f', programId: 'P1', executionId: 'e', contractId: null,
-  verdict: 'v', body: {}, createdAt: '2026-07-20T00:00:00Z', ...over,
+  executiveId: null, verdict: 'v', body: {}, createdAt: '2026-07-20T00:00:00Z', ...over,
 })
 
 describe('F12 pickLatestPerProgram', () => {

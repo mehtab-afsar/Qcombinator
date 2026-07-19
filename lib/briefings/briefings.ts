@@ -20,6 +20,7 @@ export interface Briefing {
   programId: string | null
   executionId: string | null
   contractId: string | null
+  executiveId: string | null
   verdict: string
   body: unknown
   createdAt: string
@@ -33,6 +34,8 @@ export interface PersistBriefingArgs {
   executionId: string
   /** The governing contract, for epoch stamping (ADR-022). */
   contractId?: string | null
+  /** The owning Executive (derived from the program) — provenance. */
+  executiveId?: string | null
   verdict: string
   body?: unknown
 }
@@ -43,6 +46,7 @@ interface BriefingRow {
   program_id: string | null
   execution_id: string | null
   contract_id: string | null
+  executive_id: string | null
   verdict: string
   body: unknown
   created_at: string
@@ -55,6 +59,7 @@ function toBriefing(row: BriefingRow): Briefing {
     programId: row.program_id,
     executionId: row.execution_id,
     contractId: row.contract_id,
+    executiveId: row.executive_id,
     verdict: row.verdict,
     body: row.body ?? {},
     createdAt: row.created_at,
@@ -145,6 +150,7 @@ export async function persistBriefing(
       program_id: args.programId,
       execution_id: args.executionId,
       contract_id: args.contractId ?? null,
+      executive_id: args.executiveId ?? null,
       verdict: args.verdict,
       body: args.body ?? {},
     })

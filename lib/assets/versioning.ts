@@ -108,6 +108,25 @@ export async function getCurrentAsset(
   return data ? toVersion(data as AssetVersionRow) : null
 }
 
+/**
+ * Every Asset version written by one execution (rhythm run). Used to tell what changed
+ * this cycle — F12's briefing generator reads it, and F10 will too.
+ */
+export async function getAssetVersionsForExecution(
+  supabase: SupabaseClient,
+  founderId: string,
+  executionId: string,
+): Promise<AssetVersion[]> {
+  const { data, error } = await supabase
+    .from('asset_versions')
+    .select('*')
+    .eq('founder_id', founderId)
+    .eq('execution_id', executionId)
+
+  if (error) throw new AssetPersistenceError('read_failed', `Failed to read run assets: ${error.message}`)
+  return (data ?? []).map(r => toVersion(r as AssetVersionRow))
+}
+
 /** Full version history for one Asset, newest first. Nothing is ever deleted. */
 export async function getAssetHistory(
   supabase: SupabaseClient,

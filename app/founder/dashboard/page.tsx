@@ -35,6 +35,7 @@ import { UpgradeModal } from "@/components/ui/UpgradeModal";
 import { getUpcomingWorkshops } from "@/features/academy/data/workshops";
 import { bg, surf, bdr, ink, muted, blue, green, amber, red, purple, cyan, alpha } from '@/lib/constants/colors'
 import { PageSpinner } from '@/features/shared/components/Spinner'
+import { DashboardBriefingCard } from '@/features/executive/components/DashboardBriefingCard'
 
 // ─── demo data ────────────────────────────────────────────────────────────────
 const DEMO_QSCORE = {
@@ -664,6 +665,9 @@ export default function FounderDashboard() {
       )}
 
       <div style={{ maxWidth: 1120, margin: "0 auto" }}>
+
+        {/* ── latest Executive Briefing (F12) — self-gating: hidden unless the new model is on ── */}
+        <DashboardBriefingCard />
 
         {/* ── page header ───────────────────────────────────────────── */}
         <motion.div
