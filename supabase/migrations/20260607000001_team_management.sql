@@ -84,7 +84,12 @@ CREATE TABLE IF NOT EXISTS team_invites (
   startup_id  UUID NOT NULL REFERENCES startups(id) ON DELETE CASCADE,
   email       TEXT NOT NULL,
   role        TEXT NOT NULL CHECK (role IN ('admin', 'member', 'viewer')),
-  token       TEXT UNIQUE NOT NULL DEFAULT encode(gen_random_bytes(32), 'hex'),
+  token       TEXT UNIQUE NOT NULL
+                          -- pgcrypto's gen_random_bytes is not enabled on this DB and no
+                          -- migration installs it; use the built-in gen_random_uuid (already
+                          -- the PK default above). Two dash-stripped UUIDs = a 64-char hex
+                          -- token, equivalent to encode(gen_random_bytes(32),'hex'). (db push blocker #6)
+                          DEFAULT replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''),
   invited_by  UUID REFERENCES auth.users(id),
   expires_at  TIMESTAMPTZ DEFAULT NOW() + INTERVAL '7 days',
   accepted_at TIMESTAMPTZ,
@@ -111,7 +116,9 @@ CREATE TABLE IF NOT EXISTS investor_team_invites (
   investor_user_id  UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   email             TEXT NOT NULL,
   role              TEXT NOT NULL CHECK (role IN ('admin', 'analyst')),
-  token             TEXT UNIQUE NOT NULL DEFAULT encode(gen_random_bytes(32), 'hex'),
+  token             TEXT UNIQUE NOT NULL
+                          -- see the team_invites token note above (pgcrypto not available).
+                          DEFAULT replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''),
   invited_by        UUID REFERENCES auth.users(id),
   expires_at        TIMESTAMPTZ DEFAULT NOW() + INTERVAL '7 days',
   accepted_at       TIMESTAMPTZ,
