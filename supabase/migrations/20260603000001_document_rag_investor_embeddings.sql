@@ -32,6 +32,7 @@ create index if not exists document_embeddings_vector_idx
 -- RLS: founders can only access their own document embeddings
 alter table document_embeddings enable row level security;
 
+drop policy if exists "founders_own_document_embeddings" on document_embeddings;
 create policy "founders_own_document_embeddings"
   on document_embeddings for all
   using (auth.uid() = user_id)

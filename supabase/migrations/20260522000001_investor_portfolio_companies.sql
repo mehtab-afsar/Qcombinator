@@ -44,6 +44,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+drop trigger if exists ipc_updated_at on investor_portfolio_companies;
 CREATE TRIGGER ipc_updated_at
   BEFORE UPDATE ON investor_portfolio_companies
   FOR EACH ROW EXECUTE FUNCTION update_ipc_updated_at();
@@ -51,6 +52,7 @@ CREATE TRIGGER ipc_updated_at
 -- RLS
 ALTER TABLE investor_portfolio_companies ENABLE ROW LEVEL SECURITY;
 
+drop policy if exists "Investor manages own portfolio companies" on investor_portfolio_companies;
 CREATE POLICY "Investor manages own portfolio companies"
   ON investor_portfolio_companies
   FOR ALL
@@ -58,6 +60,7 @@ CREATE POLICY "Investor manages own portfolio companies"
   WITH CHECK (auth.uid() = investor_user_id);
 
 -- Service role can write (for auto-link on signup)
+drop policy if exists "Service role full access" on investor_portfolio_companies;
 CREATE POLICY "Service role full access"
   ON investor_portfolio_companies
   FOR ALL

@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS agent_goals (
 );
 
 ALTER TABLE agent_goals ENABLE ROW LEVEL SECURITY;
+drop policy if exists "agent_goals_owner" on agent_goals;
 CREATE POLICY "agent_goals_owner" ON agent_goals
   USING (auth.uid() = user_id);
 
@@ -36,6 +37,7 @@ CREATE TABLE IF NOT EXISTS artifact_embeddings (
 );
 
 ALTER TABLE artifact_embeddings ENABLE ROW LEVEL SECURITY;
+drop policy if exists "artifact_embeddings_owner" on artifact_embeddings;
 CREATE POLICY "artifact_embeddings_owner" ON artifact_embeddings
   USING (auth.uid() = user_id);
 
@@ -55,6 +57,7 @@ CREATE TABLE IF NOT EXISTS content_calendar (
 );
 
 ALTER TABLE content_calendar ENABLE ROW LEVEL SECURITY;
+drop policy if exists "content_calendar_owner" on content_calendar;
 CREATE POLICY "content_calendar_owner" ON content_calendar
   USING (auth.uid() = user_id);
 
@@ -73,6 +76,7 @@ CREATE TABLE IF NOT EXISTS customer_accounts (
 );
 
 ALTER TABLE customer_accounts ENABLE ROW LEVEL SECURITY;
+drop policy if exists "customer_accounts_owner" on customer_accounts;
 CREATE POLICY "customer_accounts_owner" ON customer_accounts
   USING (auth.uid() = user_id);
 
@@ -89,6 +93,7 @@ CREATE TABLE IF NOT EXISTS growth_experiments (
 );
 
 ALTER TABLE growth_experiments ENABLE ROW LEVEL SECURITY;
+drop policy if exists "growth_experiments_owner" on growth_experiments;
 CREATE POLICY "growth_experiments_owner" ON growth_experiments
   USING (auth.uid() = user_id);
 
@@ -106,6 +111,7 @@ CREATE TABLE IF NOT EXISTS hiring_candidates (
 );
 
 ALTER TABLE hiring_candidates ENABLE ROW LEVEL SECURITY;
+drop policy if exists "hiring_candidates_owner" on hiring_candidates;
 CREATE POLICY "hiring_candidates_owner" ON hiring_candidates
   USING (auth.uid() = user_id);
 
@@ -131,6 +137,7 @@ CREATE TABLE IF NOT EXISTS knowledge_library (
 
 ALTER TABLE knowledge_library ENABLE ROW LEVEL SECURITY;
 -- All authenticated users can read; only service role can write.
+drop policy if exists "knowledge_library_read" on knowledge_library;
 CREATE POLICY "knowledge_library_read" ON knowledge_library
   FOR SELECT USING (auth.role() = 'authenticated');
 
@@ -147,6 +154,7 @@ CREATE TABLE IF NOT EXISTS legal_risks (
 );
 
 ALTER TABLE legal_risks ENABLE ROW LEVEL SECURITY;
+drop policy if exists "legal_risks_owner" on legal_risks;
 CREATE POLICY "legal_risks_owner" ON legal_risks
   USING (auth.uid() = user_id);
 
@@ -168,6 +176,7 @@ CREATE TABLE IF NOT EXISTS qscore_knowledge_chunks (
 );
 
 ALTER TABLE qscore_knowledge_chunks ENABLE ROW LEVEL SECURITY;
+drop policy if exists "qscore_knowledge_chunks_read" on qscore_knowledge_chunks;
 CREATE POLICY "qscore_knowledge_chunks_read" ON qscore_knowledge_chunks
   FOR SELECT USING (auth.role() = 'authenticated');
 

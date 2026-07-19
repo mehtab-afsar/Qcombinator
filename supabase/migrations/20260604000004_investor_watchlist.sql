@@ -19,6 +19,7 @@ CREATE INDEX IF NOT EXISTS idx_investor_watchlist_threshold
 -- RLS: investors can only see/manage their own watchlist
 ALTER TABLE investor_watchlist ENABLE ROW LEVEL SECURITY;
 
+drop policy if exists "investor_watchlist_own" on investor_watchlist;
 CREATE POLICY "investor_watchlist_own"
   ON investor_watchlist FOR ALL
   USING (auth.uid() = investor_id)
