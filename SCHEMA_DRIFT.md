@@ -1,22 +1,23 @@
-# Schema Drift Report — Stage C
+# Schema Drift Report
 
 *Read-only. Nothing here changes code or the database. It compares what the SQL migrations
 actually build against what the PRD / Architecture / Feature inventory say the new Executive
 model needs, and tags every gap **old-model (frozen, leave — Phase 7)** or **new-model
-(actionable)**. Generated 19 Jul 2026, after `db-push-ready` merged to `master`.*
+(actionable)**. First generated 19 Jul 2026 (Story 1 Stage C); updated after Story 2 / F11
+added `asset_versions`.*
 
 ---
 
 ## 0. One-paragraph summary
 
-The database matches the migration source, and every **new-model** table Story 1 requires is
-present, correctly secured, and enforced — not just enabled. The drift that exists is almost
-all **absence**: tables for later stories (Assets, the Operating Rhythm, Briefings, the
-Connector boundary) simply aren't built yet, which is expected — those stories haven't
-started. The one genuinely notable gap is the **Connector layer** (`connector_connections`,
-`action_log`): the PRD's central safety mechanism — approval on irreversible external actions
-— has no schema yet. That is future work (flagged, pending Roman), not a defect in what's
-shipped. No old-model table needs touching; the strangler freeze holds.
+The database matches the migration source, and every **new-model** table Story 1 (the Mandate)
+and Story 2 / F11 (Asset persistence) require is present, correctly secured, and enforced — not
+just enabled. The drift that exists is almost all **absence**: tables for later features (the
+Operating Rhythm F10, Briefings F12, the Connector boundary) simply aren't built yet, which is
+expected — those aren't started. The one genuinely notable gap is the **Connector layer**
+(`connector_connections`, `action_log`): the PRD's central safety mechanism — approval on
+irreversible external actions — has no schema yet. That is future work (flagged, pending Roman),
+not a defect in what's shipped. No old-model table needs touching; the strangler freeze holds.
 
 ---
 
@@ -43,8 +44,8 @@ startup_members, startup_state, startups, strategy_sessions, subscription_usage,
 tool_execution_logs, tracked_competitors, waitlist_signups`
 
 The overwhelming majority are **old-model** (Q-Score, investor matching, the frozen agents,
-profile builder, feed, academy). Three are the **new Executive model**; one is a
-migration-integrity artifact.
+profile builder, feed, academy). Four are the **new Executive model** (`strategy_sessions`,
+`executive_contracts`, `programs`, `asset_versions`); one is a migration-integrity artifact.
 
 ---
 
@@ -57,7 +58,7 @@ migration-integrity artifact.
 | `programs` (Program instances a confirmed contract activates) | ✅ **PRESENT** | `20260715000002` — `template_id` → code Registry (ADR-010), not an FK |
 | `executive_contracts.contract_document` (F08b — human-readable mandate) | ✅ **PRESENT** | `20260715000003` — nullable column; trigger extended to protect it |
 | `qscore_history_dedup_audit` (integrity, not a product table) | ✅ **PRESENT** | `20260715000005` — audit trail for the dedup |
-| **`asset_versions` / `assets`** (versioned, founder-editable Assets) | ⛔ **ABSENT** | **New-model, future story.** PRD §"Assets are founder-visible and editable / new immutable current version". Not started — no Assets story yet. |
+| **`asset_versions`** (versioned, founder-editable Assets) | ✅ **PRESENT** | `20260715000006` (Story 2 / F11) — versioned, one-current partial index, immutability trigger, execution-ref CHECK, atomic `persist_asset_version`; read-only for authenticated, writes server-side only. |
 | **`operating_rhythm_runs`** (or any rhythm/cycle table with `cycle_key`) | ⛔ **ABSENT** | **New-model, future story.** ADR-008 Operating Rhythm + CLAUDE.md §4 idempotency (`cycle_key`) describe it; nothing builds it yet. |
 | **`executive_briefings`** (Command View briefings) | ⛔ **ABSENT** | **New-model, future story.** F09 Command View currently reads live state; no persisted briefing table. |
 | **`action_log`** (every irreversible-action attempt) | ⛔ **ABSENT** | **New-model, future story.** CLAUDE.md §3 requires it at the Connector boundary. Closest existing tables (`agent_trigger_log`, `tool_execution_logs`) are old-model and not this. |
@@ -65,9 +66,10 @@ migration-integrity artifact.
 | `agent_artifacts` (reused by the engine per CLAUDE.md §3) | ✅ PRESENT (old-model) | `20260222000001` — reuse target, not new work. |
 | `scheduled_actions` (reused by the engine) | ✅ PRESENT (old-model) | `20260417000003` — reuse target. Its RLS hole was closed — §3. |
 
-**Reading:** every table Story 1 (the Mandate) needs exists and is correct. Every ABSENT row
-is a **later** story's table — Assets, Rhythm, Briefings, Connector. None of these is overdue;
-those stories haven't been built. This is expected forward drift, not a defect.
+**Reading:** every table Story 1 (the Mandate) and Story 2 / F11 (Asset persistence) needs
+exists and is correct. Every ABSENT row is a **later** feature's table — the Rhythm (F10),
+Briefings (F12), Connector (Story 3). None is overdue; those aren't built yet. Expected forward
+drift, not a defect.
 
 ---
 
@@ -75,8 +77,15 @@ those stories haven't been built. This is expected forward drift, not a defect.
 
 The Phase 0 finding was that "RLS enabled" ≠ "RLS enforced": a permissive `for all
 using(true)` policy with no `TO` clause applies to PUBLIC and, because permissive policies are
-OR'd, overrides every founder-scoped rule. All three new-model tables were written to
+OR'd, overrides every founder-scoped rule. All four new-model tables were written to
 **deliberately avoid** that pattern (the migrations say so in comments).
+
+**`asset_versions`** (`20260715000006`, F11) goes one step further: it is **read-only for
+authenticated** (a single `SELECT`-own policy, no insert/update/delete policy), because its
+persistence must pass a TypeScript validation gate that the database cannot express (ADR-010).
+All writes go through a service-role server route; the `persist_asset_version` function is
+revoked from `authenticated`. This closes both the direct-table-write and the RPC bypass. See
+the F11 migration header.
 
 **`strategy_sessions`** (`20260715000001`):
 ```sql
@@ -168,9 +177,9 @@ No orphaned migration needs removing. The history is intact and now re-runnable.
 |---|---|---|---|
 | Strategy / Contract / Programs (Story 1) | none — present, secured, enforced | new-model | ✅ done |
 | Permissive RLS hole (4 tables) | closed | new-model fix / old-model tables | ✅ done |
-| Assets (`asset_versions`) | absent | new-model | future story |
-| Operating Rhythm (`operating_rhythm_runs`, `cycle_key`) | absent | new-model | future story |
-| Briefings (`executive_briefings`) | absent | new-model | future story |
+| Assets (`asset_versions`, Story 2 / F11) | none — present, secured, server-side writes | new-model | ✅ done |
+| Operating Rhythm (`operating_rhythm_runs`, `cycle_key`) | absent | new-model | future — F10 (adds the `execution_id` FK) |
+| Briefings (`executive_briefings`) | absent | new-model | future — F12 |
 | Connector (`connector_connections`, `action_log`) | absent | new-model | future story — flagged (Roman) |
 | Old-model tables (Q-Score, investors, agents, feed, academy) | present, frozen | old-model | leave (Phase 7) |
 
