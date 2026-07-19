@@ -104,6 +104,25 @@ is minutes, so 2h is generous). Test the race: a live run must never be cleared.
 
 ---
 
+## FU-007 — Per-asset output structures: the program prompt overpowers asset instructions
+
+**Found:** the first real-AI trial (20 Jul 2026). All five P001 assets came back as the SAME
+letter-shaped executive briefing (Dear Founder / Verdict / Highlights / 90-day plan) instead of
+five distinct artefacts (an ICP document, a pains-gains matrix, …). The model obeyed the
+declared hierarchy exactly: the P001 Program Prompt (layer 2 — written in the workbook as a
+"run the whole program, reply as a letter" design, with its own Output Structure) outranks the
+per-asset instructions (layer 3), so every asset inherited the letter format. The engine's own
+briefing then flagged it unprompted ("five deliverables … each containing similar 90-day
+execution plans — false progress"). **Substance was strong; the FORM is wrong.**
+
+**Do (content/Registry work, before any pilot):** give each Asset's layer-3 instruction an
+explicit output structure and make asset-mode composition state that layer 3 defines the
+ARTEFACT FORMAT (the program prompt governs judgement, not document shape) — or compose
+asset-mode packages with a trimmed program prompt. Workbook + `lib/prompts/registry` content
+task, not engine code. Re-run the trial after.
+
+---
+
 ## FU-006 — Confirm the Upstash rate-limit env vars in Vercel prod (owner: Mo)
 
 The middleware rate limiter **fails open** when `UPSTASH_REDIS_REST_URL` / `_TOKEN` are unset

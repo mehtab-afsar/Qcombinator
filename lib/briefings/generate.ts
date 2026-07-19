@@ -17,7 +17,9 @@ import { getCurrentAsset, getAssetVersionsForExecution } from '@/lib/assets/vers
 import { persistBriefing, type Briefing } from './briefings'
 import { log } from '@/lib/logger'
 
-const TIMEOUT_MS = 60_000
+// Briefing generation reads all current assets in-context; 60s proved too tight in the first
+// real-AI trial (same finding as the asset judge). Sized for the workload.
+const TIMEOUT_MS = 120_000
 
 export class BriefingGenerationError extends Error {
   constructor(message: string) {
@@ -137,7 +139,10 @@ export async function generateBriefing(
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
     raw = await Promise.race([
-      routedText('reasoning', [{ role: 'user', content: pkg.text }], { maxTokens: 2_000, temperature: 0.3 }),
+      // 4k, not 2k: the model writes the prose briefing BEFORE the fenced JSON tail, and the
+      // first real-AI trial showed 2k gets exhausted mid-prose — the tail never arrives and
+      // parsing fails. The cap must cover prose + tail.
+      routedText('reasoning', [{ role: 'user', content: pkg.text }], { maxTokens: 4_000, temperature: 0.3 }),
       new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('timeout')), TIMEOUT_MS) }),
     ])
   } catch (err) {

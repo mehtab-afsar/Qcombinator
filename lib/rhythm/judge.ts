@@ -19,7 +19,10 @@ import { persistAssetVersion, type AssetVersion } from '@/lib/assets/versioning'
 import { log } from '@/lib/logger'
 import type { ProgramInstance } from '@/lib/mandate/contract'
 
-const TIMEOUT_MS = 60_000
+// Asset generation sends a large package (the program prompt alone is ~1,000 lines) and asks
+// for up to 3,000 tokens back — legitimately 60-120s. The first real-AI trial proved 60s
+// times out every call. Sized for the workload, not for optimism.
+const TIMEOUT_MS = 180_000
 
 export class JudgementError extends Error {
   constructor(message: string) {
