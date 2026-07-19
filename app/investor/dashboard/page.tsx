@@ -4,11 +4,11 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import {
   Users, Bell, Briefcase, TrendingUp, ArrowRight,
-  MessageSquare, ChevronRight, Zap, Star, Clock, Plus,
+  MessageSquare, ChevronRight, Star, Clock,
 } from "lucide-react"
 import { motion } from "framer-motion"
 
-import { bg, surf, bdr, ink, muted, blue, green, amber, alpha } from "@/lib/constants/colors"
+import { bg, surf, bdr, ink, muted, blue, alpha } from "@/lib/constants/colors"
 import { PIPELINE_STAGE_COLORS } from "@/features/investor/constants/pipeline"
 import { Avatar } from "@/features/shared/components/Avatar"
 import { ScoreBadge } from "@/features/shared/components/Badge"
@@ -17,6 +17,7 @@ import { SectionCard } from "@/features/shared/components/SectionCard"
 import { StatCardSkeleton, RowSkeleton } from "@/features/shared/components/Skeleton"
 import { WelcomeModal, INVESTOR_WELCOME_SLIDES } from "@/components/ui/WelcomeModal"
 import { TopPersonalizedMatches } from "@/components/investor/TopPersonalizedMatches"
+import { ScoutDoodle } from "@/features/onboarding/components/doodles/ScoutDoodle"
 import type { FounderProfile } from "@/lib/services/deal-matching.service"
 
 // ─── types ────────────────────────────────────────────────────────────────────
@@ -264,6 +265,15 @@ export default function InvestorDashboard() {
   const activeInPipeline = d.pipelineTotal - (d.pipeline.find(r => r.stage === "passed")?.count ?? 0)
   const maxStageCount = Math.max(...d.pipeline.map(r => r.count), 1)
 
+  // Uniform KPI row — one neutral treatment, the number is the hero. No rainbow.
+  const kpis = [
+    { icon: Briefcase, label: "Active pipeline", value: activeInPipeline, sub: activeInPipeline === 0 ? "Nothing tracked yet" : `${d.portfolioCount} portfolio · ${d.inDDCount} in DD · ${d.meetingCount} meeting`, href: "/investor/pipeline" },
+    { icon: Star, label: "High-signal", value: d.highSignalCount, sub: "Q-Score ≥ 60 in deal flow", href: "/investor/deal-flow" },
+    { icon: Users, label: "Connection requests", value: d.pendingRequests, sub: d.pendingRequests === 0 ? "None awaiting review" : "awaiting your review", href: "/investor/connections" },
+    { icon: MessageSquare, label: "Unread messages", value: d.unreadMessages, sub: d.unreadMessages === 0 ? "Inbox clear" : "from founders", href: "/investor/messages" },
+    { icon: TrendingUp, label: "In deal flow", value: d.dealFlowTotal, sub: "founders available", href: "/investor/deal-flow" },
+  ]
+
   return (
     <div style={{ minHeight: "100vh", background: bg, padding: "32px 28px 80px" }}>
       <div style={{ maxWidth: 1120, margin: "0 auto" }}>
@@ -274,11 +284,11 @@ export default function InvestorDashboard() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
           style={{ marginBottom: 28 }}>
-          <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.2em", color: muted, fontWeight: 600, marginBottom: 4, fontFamily: "inherit" }}>
+          <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.2em", color: muted, fontWeight: 600, marginBottom: 6, fontFamily: "inherit" }}>
             {timeLabel()}
           </p>
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-            <h1 style={{ fontSize: "clamp(1.4rem,3vw,2rem)", fontWeight: 400, fontFamily: "var(--font-display)", letterSpacing: "-0.02em", color: ink, margin: 0 }}>
+            <h1 style={{ fontSize: "clamp(1.5rem,3vw,2.1rem)", fontWeight: 400, fontFamily: "var(--font-display)", letterSpacing: "-0.02em", color: ink, margin: 0 }}>
               {getGreeting(d.investorName)}
             </h1>
             {d.firmName && (
@@ -287,119 +297,35 @@ export default function InvestorDashboard() {
           </div>
         </motion.div>
 
-        {/* ── Stat row ─────────────────────────────────────────────────── */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 12, marginBottom: 28 }}>
-          {[
-            { icon: Briefcase, label: "Active pipeline", color: blue, value: activeInPipeline, sub: activeInPipeline === 0 ? "Browse deal flow →" : `${d.portfolioCount} portfolio · ${d.inDDCount} in DD · ${d.meetingCount} meetings`, href: "/investor/pipeline" },
-            { icon: Star, label: "High-signal founders", color: green, value: d.highSignalCount, sub: d.highSignalCount === 0 ? "Adjust your criteria →" : "Q-Score ≥ 60 in deal flow", href: "/investor/deal-flow" },
-            { icon: Users, label: "Pending connections", color: PIPELINE_STAGE_COLORS.in_dd.color, value: d.pendingRequests, sub: d.pendingRequests === 0 ? "Explore founders →" : "awaiting your review", href: "/investor/connections" },
-            { icon: MessageSquare, label: "Unread messages", color: amber, value: d.unreadMessages, sub: d.unreadMessages === 0 ? "No messages yet" : "from founders", href: "/investor/messages" },
-            { icon: TrendingUp, label: "Deal flow", color: ink, value: d.dealFlowTotal, sub: "founders available", href: "/investor/deal-flow" },
-          ].map((card, i) => (
+        {/* ── Stat row (uniform, calm) ─────────────────────────────────── */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 12, marginBottom: 24 }}>
+          {kpis.map((card, i) => (
             <motion.div
               key={card.label}
               initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35, delay: 0.08 + i * 0.07 }}
+              transition={{ duration: 0.35, delay: 0.06 + i * 0.06 }}
             >
-              <StatCard icon={card.icon} label={card.label} color={card.color} value={card.value} sub={card.sub} href={card.href} />
+              <StatCard icon={card.icon} label={card.label} color={ink} value={card.value} sub={card.sub} href={card.href} />
             </motion.div>
           ))}
         </div>
 
-        {/* ── Q-Score distribution chart ───────────────────────────────── */}
-        {d.topFounders.length > 0 && (() => {
-          const bands = [
-            { range: "0–30",  color: "#EF4444", bg: "#FEF2F2", count: d.topFounders.filter(f => f.qScore < 30).length },
-            { range: "30–50", color: "#F59E0B", bg: "#FFFBEB", count: d.topFounders.filter(f => f.qScore >= 30 && f.qScore < 50).length },
-            { range: "50–70", color: "#3B82F6", bg: "#EFF6FF", count: d.topFounders.filter(f => f.qScore >= 50 && f.qScore < 70).length },
-            { range: "70–85", color: "#10B981", bg: "#F0FDF4", count: d.topFounders.filter(f => f.qScore >= 70 && f.qScore < 85).length },
-            { range: "85+",   color: "#065F46", bg: "#ECFDF5", count: d.topFounders.filter(f => f.qScore >= 85).length },
-          ]
-          const maxCount = Math.max(...bands.map(b => b.count), 1)
-          return (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.55 }}
-              style={{ background: "#fff", border: `1px solid ${bdr}`, borderRadius: 14, padding: "20px 24px 20px", marginBottom: 20 }}
-            >
-              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
-                <div>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: ink, margin: 0 }}>Q-Score Distribution</p>
-                  <p style={{ fontSize: 11, color: muted, marginTop: 3, margin: 0 }}>
-                    Top {d.topFounders.length} founders in your deal flow
-                  </p>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <span style={{ fontSize: 22, fontWeight: 700, color: green, display: "block", lineHeight: 1 }}>
-                    {d.highSignalCount}
-                  </span>
-                  <span style={{ fontSize: 10, color: muted }}>high-signal (≥60)</span>
-                </div>
-              </div>
-
-              {/* bars */}
-              <div style={{ display: "flex", gap: 10, alignItems: "flex-end", height: 100 }}>
-                {bands.map(band => {
-                  const pct = maxCount > 0 ? (band.count / maxCount) * 100 : 0
-                  return (
-                    <div key={band.range} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6, height: "100%" }}>
-                      <span style={{
-                        fontSize: 13, fontWeight: 700, color: band.count > 0 ? band.color : "#D1D5DB",
-                        minHeight: 20, display: "flex", alignItems: "flex-end",
-                      }}>
-                        {band.count > 0 ? band.count : "—"}
-                      </span>
-                      <div style={{ width: "100%", flex: 1, display: "flex", alignItems: "flex-end", minHeight: 40 }}>
-                        <div style={{
-                          width: "100%",
-                          height: `${Math.max(pct, band.count > 0 ? 8 : 0)}%`,
-                          background: band.count > 0 ? band.color : "#F3F4F6",
-                          borderRadius: "6px 6px 3px 3px",
-                          minHeight: band.count > 0 ? 6 : 0,
-                          transition: "height 0.4s ease",
-                        }} />
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-
-              {/* x-axis labels */}
-              <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-                {bands.map(band => (
-                  <div key={band.range} style={{ flex: 1, textAlign: "center" }}>
-                    <span style={{
-                      fontSize: 10, fontWeight: 500,
-                      color: band.count > 0 ? band.color : muted,
-                      background: band.count > 0 ? band.bg : "transparent",
-                      padding: "2px 4px", borderRadius: 4,
-                    }}>
-                      {band.range}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-          )
-        })()}
-
-        {/* ── Upgrade banner (free tier only) ─────────────────────────── */}
+        {/* ── Upgrade banner (free tier) — restrained, dark CTA ─────────── */}
         {d.subscriptionTier === 'free' && (
-          <div style={{ padding: '12px 18px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 12, marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <Zap style={{ height: 14, width: 14, color: blue, flexShrink: 0 }} />
-              <span style={{ fontSize: 13, color: blue, fontWeight: 500 }}>Upgrade to Pro to unlock deal flow, AI analysis, and founder deep-dives — $99/month</span>
+          <div style={{ padding: '14px 18px', background: surf, border: `1px solid ${bdr}`, borderRadius: 12, marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+            <div style={{ minWidth: 0 }}>
+              <p style={{ fontSize: 13, fontWeight: 600, color: ink, margin: 0 }}>Unlock the full platform</p>
+              <p style={{ fontSize: 12, color: muted, margin: '3px 0 0' }}>Deal flow, AI analysis, and founder deep-dives — $99/month</p>
             </div>
-            <a href="/investor/billing" style={{ padding: '7px 16px', borderRadius: 8, background: blue, color: '#fff', fontSize: 12, fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0 }}>Upgrade</a>
+            <a href="/investor/billing" style={{ padding: '9px 18px', borderRadius: 8, background: ink, color: bg, fontSize: 12.5, fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0 }}>Upgrade</a>
           </div>
         )}
 
         {/* ── Main grid ────────────────────────────────────────────────── */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 300px", gap: 18, alignItems: "start" }}>
 
-          {/* ── Top founder matches (with personalized ranking) ──────────── */}
+          {/* ── Top founder matches ──────────────────────────────────────── */}
           <SectionCard
             style={{ gridColumn: "1 / 3" }}
             title=""
@@ -407,16 +333,17 @@ export default function InvestorDashboard() {
             noPadding
           >
             {founderProfiles.length === 0 ? (
-              <div style={{ padding: "40px 20px", textAlign: "center" }}>
-                <p style={{ fontSize: 13, color: muted, marginBottom: 16, fontFamily: "inherit" }}>
-                  No founders yet — they appear here as founders complete onboarding.
+              <div style={{ padding: "36px 20px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
+                <div style={{ width: 84, height: 84, opacity: 0.9 }}><ScoutDoodle color={blue} /></div>
+                <p style={{ fontSize: 13, color: muted, margin: 0, maxWidth: 340, lineHeight: 1.55, fontFamily: "inherit" }}>
+                  Your matches appear here as founders complete onboarding. Browse everyone available right now.
                 </p>
                 <Link href="/investor/deal-flow" style={{
-                  display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 20px",
+                  display: "inline-flex", alignItems: "center", gap: 6, padding: "10px 22px",
                   background: ink, color: bg, borderRadius: 999, textDecoration: "none",
-                  fontSize: 12, fontWeight: 600, fontFamily: "inherit",
+                  fontSize: 12.5, fontWeight: 600, fontFamily: "inherit",
                 }}>
-                  <Plus style={{ width: 12, height: 12 }} /> Browse Deal Flow
+                  Browse deal flow <ArrowRight style={{ width: 13, height: 13 }} />
                 </Link>
               </div>
             ) : (
@@ -432,7 +359,7 @@ export default function InvestorDashboard() {
           {/* ── Right column ──────────────────────────────────────────── */}
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
-            {/* Pipeline breakdown */}
+            {/* Pipeline breakdown — neutral dots, single-tone bars */}
             <SectionCard
               title=""
               action={<SectionHeader title="Pipeline stages" href="/investor/pipeline" linkLabel="Manage" />}
@@ -451,14 +378,13 @@ export default function InvestorDashboard() {
                   const row = d.pipeline.find(r => r.stage === stage)
                   if (!row || row.count === 0) return null
                   const sc = PIPELINE_STAGE_COLORS[stage as keyof typeof PIPELINE_STAGE_COLORS]
-                  const stageColor = sc?.color ?? muted
                   const stageLabel = sc?.label ?? stage
                   return (
                     <div key={stage} style={{ padding: "8px 18px", display: "flex", alignItems: "center", gap: 10 }}>
-                      <span style={{ width: 7, height: 7, borderRadius: "50%", background: stageColor, flexShrink: 0 }} />
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: muted, flexShrink: 0 }} />
                       <span style={{ fontSize: 12, color: ink, flex: 1 }}>{stageLabel}</span>
                       <div style={{ width: 52, height: 4, borderRadius: 99, background: bdr, overflow: "hidden" }}>
-                        <div style={{ width: `${(row.count / maxStageCount) * 100}%`, height: "100%", background: stageColor, borderRadius: 99 }} />
+                        <div style={{ width: `${(row.count / maxStageCount) * 100}%`, height: "100%", background: ink, borderRadius: 99, opacity: 0.55 }} />
                       </div>
                       <span style={{ fontSize: 12, fontWeight: 700, color: ink, minWidth: 14, textAlign: "right" }}>{row.count}</span>
                     </div>
@@ -467,28 +393,27 @@ export default function InvestorDashboard() {
               )}
             </SectionCard>
 
-            {/* Quick actions */}
+            {/* Quick actions — uniform, restrained */}
             <SectionCard title="Quick actions">
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 {[
-                  { href: "/investor/deal-flow",   icon: TrendingUp,    label: "Browse deal flow",        color: blue   },
-                  { href: "/investor/pipeline",    icon: Briefcase,     label: "Manage pipeline",          color: green  },
-                  { href: "/investor/connections", icon: Users,         label: "Review connections",       color: PIPELINE_STAGE_COLORS.in_dd.color },
-                  { href: "/investor/messages",    icon: MessageSquare, label: "Open messages",            color: amber  },
-                  { href: "/investor/settings",    icon: Zap,           label: "Investment preferences",   color: muted  },
+                  { href: "/investor/deal-flow",   icon: TrendingUp,    label: "Browse deal flow" },
+                  { href: "/investor/pipeline",    icon: Briefcase,     label: "Manage pipeline" },
+                  { href: "/investor/connections", icon: Users,         label: "Review connections" },
+                  { href: "/investor/messages",    icon: MessageSquare, label: "Open messages" },
                 ].map(item => (
                   <Link key={item.href} href={item.href} style={{ textDecoration: "none" }}>
                     <div style={{
-                      display: "flex", alignItems: "center", gap: 9,
-                      padding: "8px 10px", borderRadius: 8,
+                      display: "flex", alignItems: "center", gap: 10,
+                      padding: "9px 10px", borderRadius: 8,
                       transition: "background 0.12s", cursor: "pointer",
                     }}
                       onMouseEnter={e => ((e.currentTarget as HTMLElement).style.background = surf)}
                       onMouseLeave={e => ((e.currentTarget as HTMLElement).style.background = "transparent")}
                     >
-                      <item.icon style={{ width: 14, height: 14, color: item.color, flexShrink: 0 }} />
-                      <span style={{ fontSize: 12, color: ink, fontFamily: "inherit" }}>{item.label}</span>
-                      <ChevronRight style={{ width: 11, height: 11, color: muted, marginLeft: "auto" }} />
+                      <item.icon style={{ width: 15, height: 15, color: muted, flexShrink: 0 }} />
+                      <span style={{ fontSize: 12.5, color: ink, fontFamily: "inherit" }}>{item.label}</span>
+                      <ChevronRight style={{ width: 12, height: 12, color: muted, marginLeft: "auto" }} />
                     </div>
                   </Link>
                 ))}
@@ -508,7 +433,6 @@ export default function InvestorDashboard() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 0 }}>
               {d.recentPipeline.map((entry, i) => {
                 const sc2 = PIPELINE_STAGE_COLORS[entry.stage as keyof typeof PIPELINE_STAGE_COLORS]
-                const stageDot = sc2?.color ?? muted
                 const stageLabel = sc2?.label ?? entry.stage
                 const p = entry.profile
                 return (
@@ -520,7 +444,7 @@ export default function InvestorDashboard() {
                       display: "flex", alignItems: "center", gap: 10,
                       transition: "background 0.12s",
                     }}
-                      onMouseEnter={e => ((e.currentTarget as HTMLElement).style.background = `${blue}04`)}
+                      onMouseEnter={e => ((e.currentTarget as HTMLElement).style.background = surf)}
                       onMouseLeave={e => ((e.currentTarget as HTMLElement).style.background = "transparent")}
                     >
                       <Avatar url={p?.companyLogoUrl ?? p?.avatarUrl ?? null} name={p?.startup_name ?? "?"} size={32} radius={8} />
@@ -529,7 +453,6 @@ export default function InvestorDashboard() {
                           {p?.startup_name ?? "Unknown"}
                         </p>
                         <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 3 }}>
-                          <span style={{ width: 5, height: 5, borderRadius: "50%", background: stageDot, flexShrink: 0 }} />
                           <span style={{ fontSize: 10, color: muted, fontFamily: "inherit" }}>{stageLabel}</span>
                           <span style={{ fontSize: 10, color: muted, fontFamily: "inherit" }}>·</span>
                           <Clock style={{ width: 9, height: 9, color: muted }} />
@@ -577,23 +500,23 @@ export default function InvestorDashboard() {
           </div>
         )}
 
-        {/* ── Notifications banner (pending requests) ───────────────────── */}
+        {/* ── Pending requests banner — restrained ──────────────────────── */}
         {d.pendingRequests > 0 && (
           <Link href="/investor/connections" style={{ textDecoration: "none" }}>
             <div style={{
               marginTop: 18, padding: "14px 20px",
-              background: alpha(blue, 0.06), border: `1px solid ${alpha(blue, 0.25)}`, borderRadius: 12,
+              background: surf, border: `1px solid ${bdr}`, borderRadius: 12,
               display: "flex", alignItems: "center", gap: 12,
-              transition: "box-shadow 0.15s",
+              transition: "border-color 0.15s",
             }}
-              onMouseEnter={e => ((e.currentTarget as HTMLElement).style.boxShadow = `0 4px 12px ${alpha(blue, 0.12)}`)}
-              onMouseLeave={e => ((e.currentTarget as HTMLElement).style.boxShadow = "none")}
+              onMouseEnter={e => ((e.currentTarget as HTMLElement).style.borderColor = alpha(blue, 0.4))}
+              onMouseLeave={e => ((e.currentTarget as HTMLElement).style.borderColor = bdr)}
             >
               <Bell style={{ width: 16, height: 16, color: blue, flexShrink: 0 }} />
-              <p style={{ flex: 1, fontSize: 13, color: blue, margin: 0 }}>
-                <strong>{d.pendingRequests} founder{d.pendingRequests !== 1 ? "s" : ""}</strong> have requested a connection — view and respond to their profiles.
+              <p style={{ flex: 1, fontSize: 13, color: ink, margin: 0 }}>
+                <strong>{d.pendingRequests} founder{d.pendingRequests !== 1 ? "s" : ""}</strong> requested a connection — review and respond.
               </p>
-              <ChevronRight style={{ width: 14, height: 14, color: blue, flexShrink: 0 }} />
+              <ChevronRight style={{ width: 14, height: 14, color: muted, flexShrink: 0 }} />
             </div>
           </Link>
         )}

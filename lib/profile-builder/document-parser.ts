@@ -28,6 +28,9 @@ export interface ParseResult {
   text: string
   structuredData?: Record<string, unknown>
   confidence: number
+  /** Set when parsing genuinely failed (corrupt/unreadable file) so the caller can
+   *  surface a real error instead of treating empty text as a successful upload. */
+  error?: string
 }
 
 // ── PDF ───────────────────────────────────────────────────────────────────────
@@ -127,7 +130,7 @@ export function parsePPTX(buffer: Buffer): ParseResult {
     return { text, confidence: text.length > 100 ? 0.80 : 0.4 }
   } catch (e) {
     log.warn('[parsePPTX] adm-zip failed:', e)
-    return { text: '', confidence: 0.2 }
+    return { text: '', confidence: 0.2, error: 'Could not read this PowerPoint file — it may be corrupted, password-protected, or an unsupported variant.' }
   }
 }
 
@@ -184,7 +187,7 @@ export function parseXLSX(buffer: Buffer): ParseResult {
     return { text, structuredData, confidence: text.length > 100 ? 0.85 : 0.4 }
   } catch (e) {
     log.warn('[parseXLSX] adm-zip failed:', e)
-    return { text: '', confidence: 0.2 }
+    return { text: '', confidence: 0.2, error: 'Could not read this spreadsheet — it may be corrupted, password-protected, or an unsupported variant.' }
   }
 }
 
@@ -227,7 +230,7 @@ export async function parseODT(buffer: Buffer): Promise<ParseResult> {
   try {
     const zip = new AdmZip(buffer)
     const entry = zip.getEntry('content.xml')
-    if (!entry) return { text: '', confidence: 0.2 }
+    if (!entry) return { text: '', confidence: 0.2, error: 'Could not read this document — the file appears to be malformed (no content.xml).' }
     const xml = zip.readAsText(entry)
     const text = xml
       .replace(/<[^>]+>/g, ' ')
@@ -237,7 +240,7 @@ export async function parseODT(buffer: Buffer): Promise<ParseResult> {
     return { text: smartSample(text, 8000), confidence: text.length > 200 ? 0.78 : 0.40 }
   } catch (e) {
     log.warn('[parseODT] adm-zip failed:', e)
-    return { text: '', confidence: 0.2 }
+    return { text: '', confidence: 0.2, error: 'Could not read this document — it may be corrupted or an unsupported variant.' }
   }
 }
 

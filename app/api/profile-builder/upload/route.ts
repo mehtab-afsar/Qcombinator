@@ -11,6 +11,23 @@ import { rankMissingIndicators } from '@/lib/profile-builder/gap-ranker'
 import { semanticVerify } from '@/lib/profile-builder/semantic-verifier'
 import type { SemanticIssue } from '@/lib/profile-builder/semantic-verifier'
 
+// Parsing + up to 5 parallel LLM extraction calls + a verification pass can take a
+// while for large decks. Without this, the platform kills the function at its short
+// default limit mid-flight, so the upload "silently fails". Give it real headroom.
+export const runtime = 'nodejs'
+export const maxDuration = 60
+
+// Bound any single async step so one slow dependency can't consume the whole budget.
+async function withTimeout<T>(promise: Promise<T>, ms: number, onTimeout: () => T): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<T>(resolve => { timer = setTimeout(() => resolve(onTimeout()), ms) })
+  try {
+    return await Promise.race([promise, timeout])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
 // ── Vision extraction for image-based / scanned PDFs ─────────────────────────
 // When pdf-parse yields < 50 chars (scanned doc, password protected, image-only),
 // send raw PDF bytes to Anthropic Claude vision (PDF beta).
@@ -307,7 +324,7 @@ export async function POST(req: NextRequest) {
     const section = parseInt(formData.get('section') as string ?? '0', 10)
 
     if (!file) return NextResponse.json({ error: 'No file provided' }, { status: 400 })
-    if (file.size > MAX_FILE_SIZE) return NextResponse.json({ error: 'File exceeds 10 MB limit' }, { status: 400 })
+    if (file.size > MAX_FILE_SIZE) return NextResponse.json({ error: 'File exceeds 20 MB limit' }, { status: 400 })
 
     const mimeType = file.type
     const filename = file.name
@@ -356,6 +373,11 @@ export async function POST(req: NextRequest) {
     let extractedFields: Record<string, unknown> = {}
     let confidenceMap: Record<string, number> = {}
     let extractionError: string | null = null
+    // Degraded = we returned *some* data but AI extraction did not run properly
+    // (e.g. an outage rescued only by the regex fallback). We still show results,
+    // but we must NOT pretend it was a clean extraction — the founder should review.
+    let degraded = false
+    let degradedReason: string | null = null
 
     function mergeDeepFields(target: Record<string, unknown>, source: Record<string, unknown>) {
       for (const [k, v] of Object.entries(source)) {
@@ -547,7 +569,13 @@ export async function POST(req: NextRequest) {
         mergeDeepFields(extractedFields, regexFields)
         // Low confidence since this is pattern-matched, not LLM-verified
         for (const k of Object.keys(regexFields)) confidenceMap[k] = 0.5
-        extractionError = null  // fields found — don't surface as error
+        // Don't block the user (we recovered a few fields), but don't hide the failure
+        // either: flag it as degraded so the UI can tell the founder to review.
+        degraded = true
+        degradedReason = extractionError
+          ? 'AI extraction was unavailable, so only basic details were recovered by pattern-matching. Please review the extracted data carefully — some information may be missing.'
+          : degradedReason
+        extractionError = null  // we have some fields — surface as a warning, not a hard error
       }
     }
 
@@ -556,14 +584,31 @@ export async function POST(req: NextRequest) {
       Object.assign(extractedFields, { financial: { ...(extractedFields.financial as object ?? {}), ...parsed.structuredData } })
     }
 
+    // ── Truthful empty-result guard ──────────────────────────────────────────
+    // If we reach here with no fields and no error already set, the file uploaded
+    // but nothing was extracted. Never let this return as a silent success —
+    // surface the real reason (parse failure, empty/scanned doc) to the founder.
+    if (Object.keys(extractedFields).length === 0 && !extractionError) {
+      extractionError = parsed.error
+        ?? (parsed.text.trim().length <= 50
+          ? `We couldn't read any text from "${filename}". If it's a scanned or image-only file, try a text-based PDF/DOCX, or answer the questions manually.`
+          : `We couldn't extract structured data from "${filename}". You can still answer the questions below and we'll use the file as context.`)
+      log.warn('[upload] no fields extracted — surfacing extractionError', { filename, userId, parseError: parsed.error ?? null })
+    }
+
     // ── Semantic verification pass ───────────────────────────────────────────
     // Runs after full extraction for section-0 uploads only.
     // Catches type errors (year-as-MRR, projected-as-current) that the haiku
-    // extraction pass misses. Non-blocking — original fields used on failure.
+    // extraction pass misses. Non-blocking — original fields used on failure,
+    // and time-boxed so a slow verification can't push the request past its budget.
     let semanticIssues: SemanticIssue[] = []
     if (section === 0 && !isRealImage && Object.keys(extractedFields).length > 0) {
       try {
-        const verification = await semanticVerify(extractedFields, parsed.text)
+        const verification = await withTimeout(
+          semanticVerify(extractedFields, parsed.text),
+          12_000,
+          () => ({ corrected: extractedFields, issues: [] as SemanticIssue[] }),
+        )
         if (verification.issues.length > 0) {
           extractedFields = verification.corrected
           semanticIssues = verification.issues
@@ -731,6 +776,8 @@ export async function POST(req: NextRequest) {
       summary: `Extracted ${preview.length} fields from ${filename}`,
       sectionSummaries,  // populated only for step-0 uploads
       extractionError,   // non-null when extraction failed — surfaces the reason to the UI
+      degraded,          // true when we returned partial data via fallback (AI extraction didn't run cleanly)
+      degradedReason,    // human-readable note for the degraded case — shown as a warning, not an error
       gapQuestions,      // top 3 missing indicators ranked by scoring impact
       fileUrl,           // signed URL for client-side file preview (1h validity)
       semanticIssues,    // fields corrected or flagged by the semantic verification pass

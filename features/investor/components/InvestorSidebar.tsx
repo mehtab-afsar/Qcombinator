@@ -9,7 +9,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/features/auth/hooks/useAuth";
-import { bg, surf, bdr, ink, muted, blue } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted, blue, alpha } from '@/lib/constants/colors'
 import { APP_NAME } from '@/lib/constants/app'
 import { Avatar } from '@/features/shared/components/Avatar'
 import { useInvestorNotifications } from '@/features/investor/hooks/useInvestorNotifications'
@@ -28,13 +28,13 @@ const BASE_NAV = [
 ];
 
 const BADGE: Record<string, { bg: string; color: string }> = {
-  "Live": { bg: "#F0FDF4", color: "#166534" },
+  "Live": { bg: alpha(blue, 0.10), color: blue },
 };
 
 function badgeStyle(badge: string): { bg: string; color: string } {
   if (BADGE[badge]) return BADGE[badge];
-  // numeric unread count — red
-  return { bg: "#FEF2F2", color: "#DC2626" };
+  // numeric unread count — neutral dark pill (no alarm-red)
+  return { bg: ink, color: "#fff" };
 }
 
 
@@ -223,10 +223,7 @@ export default function InvestorSidebar() {
       </div>
 
       {/* ── middle: nav links ────────────────────────────────────────── */}
-      <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "8px 6px" }}>
-
-        {/* Divider */}
-        <div style={{ height: 1, background: bdr, margin: "6px 4px 8px" }} />
+      <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "12px 6px" }}>
 
         {nav.map(item => {
           const active = pathname === item.href || pathname.startsWith(item.href + "/");
@@ -246,7 +243,7 @@ export default function InvestorSidebar() {
                 padding: "0 10px",
                 marginBottom: 2,
                 textDecoration: "none",
-                background: active ? "#EEF2FF" : "transparent",
+                background: active ? alpha(blue, 0.10) : "transparent",
                 transition: "background .12s",
               }}
               onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = surf; }}
@@ -301,7 +298,7 @@ export default function InvestorSidebar() {
               <circle cx="16" cy="16" r="13" fill="none" stroke={bdr} strokeWidth="3" />
               <circle
                 cx="16" cy="16" r="13" fill="none"
-                stroke={gsPct >= 80 ? "#059669" : blue}
+                stroke={blue}
                 strokeWidth="3"
                 strokeLinecap="round"
                 strokeDasharray={`${2 * Math.PI * 13}`}
@@ -370,7 +367,7 @@ export default function InvestorSidebar() {
             </div>
           </div>
           <div style={{ padding: "2px 14px 10px" }}>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 999, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", background: "#EFF6FF", color: "#1D4ED8", border: "1px solid #BFDBFE" }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 9px", borderRadius: 999, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", background: alpha(blue, 0.08), color: blue }}>
               ● INVESTOR
             </span>
           </div>

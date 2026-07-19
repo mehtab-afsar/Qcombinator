@@ -2,10 +2,10 @@
 
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, ArrowRight, Eye, EyeOff, Rocket, Briefcase } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { bg, surf, bdr, ink, muted } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted, blue, green } from '@/lib/constants/colors'
 
 function LoginForm() {
   const router = useRouter();
@@ -177,19 +177,56 @@ function LoginForm() {
           </button>
         </form>
 
-        <div style={{ height: 1, background: bdr, margin: "32px 0" }} />
+        {/* "No account yet?" divider with centered label */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "30px 0 18px" }}>
+          <div style={{ flex: 1, height: 1, background: bdr }} />
+          <span style={{ fontSize: 11, color: muted, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.09em", whiteSpace: "nowrap" }}>
+            No account yet?
+          </span>
+          <div style={{ flex: 1, height: 1, background: bdr }} />
+        </div>
 
-        <p style={{ fontSize: 13, color: muted, textAlign: "center" }}>
-          No account yet?{" "}
-          <Link href="/founder/onboarding"
-            style={{ color: ink, fontWeight: 600, textDecoration: "none" }}>
-            Get started as a founder
-          </Link>{" "}·{" "}
-          <Link href="/investor/onboarding"
-            style={{ color: ink, fontWeight: 600, textDecoration: "none" }}>
-            Join as an investor
-          </Link>
-        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          {[
+            { href: "/founder/onboarding", role: "I'm a founder",  cta: "Get started", accent: blue,  Icon: Rocket },
+            { href: "/investor/onboarding", role: "I'm an investor", cta: "Join in",     accent: green, Icon: Briefcase },
+          ].map(({ href, role, cta, accent, Icon }) => (
+            <Link
+              key={href}
+              href={href}
+              style={{
+                display: "flex", flexDirection: "column", gap: 8,
+                padding: "14px 14px", borderRadius: 12, textDecoration: "none",
+                border: `1.5px solid ${bdr}`, background: bg,
+                transition: "border-color 0.15s, background 0.15s, transform 0.15s, box-shadow 0.15s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = accent;
+                e.currentTarget.style.background = `${accent}0a`;
+                e.currentTarget.style.transform = "translateY(-2px)";
+                e.currentTarget.style.boxShadow = `0 6px 20px -10px ${accent}80`;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = bdr;
+                e.currentTarget.style.background = bg;
+                e.currentTarget.style.transform = "translateY(0)";
+                e.currentTarget.style.boxShadow = "none";
+              }}
+            >
+              <span style={{
+                width: 30, height: 30, borderRadius: 9, flexShrink: 0,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                background: `${accent}14`, color: accent,
+              }}>
+                <Icon size={16} strokeWidth={2} />
+              </span>
+              <span style={{ fontSize: 11.5, color: muted, fontWeight: 500 }}>{role}</span>
+              <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 14.5, color: ink, fontWeight: 700, letterSpacing: "-0.01em" }}>
+                {cta} <ArrowRight size={14} strokeWidth={2.5} color={accent} />
+              </span>
+            </Link>
+          ))}
+        </div>
       </div>
     </div>
   );

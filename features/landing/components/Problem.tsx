@@ -6,8 +6,15 @@ import { PROBLEMS } from "../copy";
 import { Reveal, Eyebrow } from "./Section";
 import { CountUp } from "./CountUp";
 import { useMotionPrefs } from "../hooks/useMotionPrefs";
+import { TargetDoodle } from "@/features/onboarding/components/doodles/TargetDoodle";
+import { CompassDoodle } from "@/features/onboarding/components/doodles/CompassDoodle";
+import { ScoutDoodle } from "@/features/onboarding/components/doodles/ScoutDoodle";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
+
+// One hand-drawn doodle per problem stat (by index) — matches the app's doodle style.
+// Target = pitching blind, Compass = wasted/lost time, Scout = searching for signal.
+const PROBLEM_DOODLES = [TargetDoodle, CompassDoodle, ScoutDoodle];
 
 export function Problem() {
   const reduced = useMotionPrefs();
@@ -30,6 +37,7 @@ export function Problem() {
           const m = p.stat.match(/^(\d+)(.*)$/);
           const to = m ? Number(m[1]) : 0;
           const suffix = m ? m[2] : p.stat;
+          const Doodle = PROBLEM_DOODLES[i] ?? TargetDoodle;
           return (
             <motion.div
               key={p.stat}
@@ -40,19 +48,17 @@ export function Problem() {
               whileHover={reduced ? undefined : { y: -4 }}
               style={{ background: L.card, border: `1px solid ${L.bdr}`, borderRadius: 16, padding: "30px 28px", height: "100%", position: "relative", overflow: "hidden" }}
             >
-              {/* fading "signal bars" motif — the missing feedback */}
-              <div aria-hidden="true" style={{ position: "absolute", top: 22, right: 24, display: "flex", gap: 3, alignItems: "flex-end", height: 22, opacity: 0.5 }}>
-                {[10, 15, 8, 20].map((h, j) => (
-                  <motion.span
-                    key={j}
-                    initial={reduced ? undefined : { scaleY: 0 }}
-                    whileInView={reduced ? undefined : { scaleY: 1 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 0.5, delay: i * 0.12 + 0.3 + j * 0.08, ease: EASE }}
-                    style={{ width: 3, height: h, borderRadius: 2, transformOrigin: "bottom", background: j === 3 ? L.bdr : L.alpha(L.red, 0.35) }}
-                  />
-                ))}
-              </div>
+              {/* large hand-drawn doodle — bleeds off the top-right corner (card clips overflow) */}
+              <motion.div
+                aria-hidden="true"
+                initial={reduced ? undefined : { opacity: 0, scale: 0.9, rotate: -6 }}
+                whileInView={reduced ? undefined : { opacity: 0.9, scale: 1, rotate: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.7, ease: EASE, delay: i * 0.12 + 0.15 }}
+                style={{ position: "absolute", top: -14, right: -10, width: 132, height: 132, pointerEvents: "none" }}
+              >
+                <Doodle color={L.alpha(L.red, 0.5)} />
+              </motion.div>
               <p style={{ fontFamily: FONT_MONO, fontSize: 42, fontWeight: 700, color: L.red, margin: "0 0 10px", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
                 <CountUp to={to} suffix={suffix} />
               </p>

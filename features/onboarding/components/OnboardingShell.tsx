@@ -68,7 +68,7 @@ export function OnboardingShell({
       minHeight: wide ? undefined : undefined,
     }}>
       <StepProgress step={step} total={stepNames.length} names={stepNames} accent={accent} />
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: wide ? "20px 0" : "16px 0 4px", minHeight: wide ? 220 : 120 }}>
+      <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: wide ? "20px 0" : "16px 0 4px", minHeight: wide ? 220 : 120 }}>
         <div style={{ width: wide ? 168 : 92, height: wide ? 168 : 92, marginBottom: wide ? 22 : 12 }}>
           {doodle}
         </div>

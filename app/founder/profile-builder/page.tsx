@@ -17,6 +17,12 @@ import {
 import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
 import { UpgradeModal } from '@/components/ui/UpgradeModal'
 import type { LucideIcon } from 'lucide-react'
+import { ScrollDoodle } from '@/features/onboarding/components/doodles/ScrollDoodle'
+import { ChartDoodle } from '@/features/onboarding/components/doodles/ChartDoodle'
+import { TargetDoodle } from '@/features/onboarding/components/doodles/TargetDoodle'
+import { CompassDoodle } from '@/features/onboarding/components/doodles/CompassDoodle'
+import { IdCardDoodle } from '@/features/onboarding/components/doodles/IdCardDoodle'
+import { SunDoodle } from '@/features/onboarding/components/doodles/SunDoodle'
 
 const surf2 = '#EAE7E0'   // deeper sand — agent bubbles, hover
 
@@ -204,7 +210,8 @@ export default function ProfileBuilderPage() {
   const [uploadLoading, setUploadLoading] = useState(false)
   const [uploadMsgIdx, setUploadMsgIdx] = useState(0)
   const [uploadError, setUploadError] = useState<string | null>(null)
-  const [uploadedFiles, setUploadedFiles] = useState<Array<{ name: string; fields: number; fileUrl?: string }>>([])
+  const [uploadWarning, setUploadWarning] = useState<string | null>(null)
+  const [uploadedFiles, setUploadedFiles] = useState<Array<{ name: string; fields: number; fileUrl?: string; failed?: boolean }>>([])
   const [docTruncationInfo, setDocTruncationInfo] = useState<{ truncatedAt: number; totalLength: number } | null>(null)
   const [fieldSourceMap, setFieldSourceMap] = useState<Record<string, 'document' | 'conversation' | 'inferred'>>({})
   const [recalcLoading, setRecalcLoading] = useState(false)
@@ -247,6 +254,19 @@ export default function ProfileBuilderPage() {
     'Scoring your indicators…',
     'Almost done…',
   ]
+  // One hand-drawn doodle per phase — swaps with the message so the loader
+  // shows what's happening rather than a generic spinner.
+  const UPLOAD_DOODLES = [
+    ScrollDoodle,   // Reading your documents
+    ChartDoodle,    // Extracting market signals
+    TargetDoodle,   // Identifying customer traction
+    CompassDoodle,  // Mapping IP & defensibility
+    IdCardDoodle,   // Analysing your team
+    ChartDoodle,    // Building financial picture
+    TargetDoodle,   // Scoring your indicators
+    SunDoodle,      // Almost done
+  ]
+  const UploadDoodle = UPLOAD_DOODLES[uploadMsgIdx] ?? ScrollDoodle
   useEffect(() => {
     if (!uploadLoading) { setUploadMsgIdx(0); return }
     const timer = setInterval(() => setUploadMsgIdx(i => (i + 1) % UPLOAD_MESSAGES.length), 2200)
@@ -742,6 +762,14 @@ export default function ProfileBuilderPage() {
     const fieldsFound: number = data.extractedPreview?.length ?? 0
     const docText: string = data.parsedText ?? ''
 
+    // Duplicate within 60s — the server already processed this exact file.
+    // Return quietly instead of falling through to a false "no data" error.
+    if (data.message === 'Already processed') {
+      setIsTyping(false)
+      setUploadTrigger(null)
+      return
+    }
+
     // ── Step 0: distribute doc text + trigger smart flow ──
     if (currentStep === 0) {
       if (docText) setGlobalDocText(prev => prev + '\n\n' + docText)
@@ -890,6 +918,12 @@ export default function ProfileBuilderPage() {
           return next
         })
         setUploadTrigger(null)
+        // Degraded = data came back via fallback, not a clean AI extraction. Warn (amber), don't block.
+        if (data.degraded) {
+          setUploadWarning(data.degradedReason ?? 'Some data was recovered, but AI extraction was limited — please review the extracted fields carefully.')
+        } else {
+          setUploadWarning(null)
+        }
         // Auto-advance to extraction summary so the user can see what was found
         setCurrentStep('extract-results')
         return
@@ -909,7 +943,7 @@ export default function ProfileBuilderPage() {
       setSmartQaIndex(0)
       setFlowMode('fast')
       setUploadedFiles(prev => {
-        const next = [...prev, newFile]
+        const next = [...prev, { ...newFile, failed: true }]
         saveFlowState({
           flowMode: 'fast',
           smartQuestions: qs,
@@ -925,6 +959,14 @@ export default function ProfileBuilderPage() {
 
     // ── Sections 1-5: merge into current section + add agent message ──
     const secKey = String(currentStep)
+    // A file that extracted nothing AND came back with an error is a real failure,
+    // not "context" — surface it instead of pretending it worked.
+    const extractionFailed = fieldsFound === 0 && Boolean(data.extractionError)
+    if (extractionFailed) {
+      setUploadError(`Couldn't read "${file.name}": ${data.extractionError}`)
+    } else if (data.degraded) {
+      setUploadWarning(data.degradedReason ?? 'Some data was recovered, but AI extraction was limited — please review your answers.')
+    }
     setSections(prev => {
       const sec = prev[secKey] ?? initSection()
       const merged = { ...sec.extractedFields }
@@ -944,6 +986,8 @@ export default function ProfileBuilderPage() {
         role: 'agent',
         text: fieldsFound > 0
           ? `I've reviewed "${file.name}" and extracted ${fieldsFound} data points. ${data.summary ?? ''} You can continue the conversation or move on.`
+          : extractionFailed
+          ? `I couldn't read "${file.name}" — ${data.extractionError} You can still answer the questions below and I'll use them instead.`
           : `I've received "${file.name}" — I couldn't automatically extract structured data from it, but I'll use it as context for your answers. Continue the conversation below.`,
       }
 
@@ -964,7 +1008,7 @@ export default function ProfileBuilderPage() {
     setIsTyping(false)
 
     setUploadedFiles(prev => {
-      const next = [...prev, { name: file.name, fields: fieldsFound }]
+      const next = [...prev, { name: file.name, fields: fieldsFound, failed: extractionFailed }]
       saveFlowState({ flowMode, smartQuestions, smartQaIndex, extractionSummary, uploadedFiles: next })
       return next
     })
@@ -975,7 +1019,10 @@ export default function ProfileBuilderPage() {
 
   // ── handle one or many files sequentially (up to MAX_UPLOAD_FILES total) ──
   async function handleFileUpload(files: FileList | File[]) {
-    if (!token) return
+    if (!token) {
+      setUploadError('Still signing you in — please wait a moment and try the upload again.')
+      return
+    }
     const fileArr = Array.from(files)
     if (fileArr.length === 0) return
 
@@ -999,6 +1046,7 @@ export default function ProfileBuilderPage() {
     const validFiles = toProcess.filter(f => f.size <= 20 * 1024 * 1024)
 
     setUploadLoading(true)
+    setUploadWarning(null)
     if (slotsLeft === fileArr.length && oversized.length === 0) setUploadError(null)
     const errors: string[] = []
     for (let i = 0; i < validFiles.length; i++) {
@@ -1450,24 +1498,9 @@ export default function ProfileBuilderPage() {
                 border: `1px solid ${bdr}`, textAlign: 'center',
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20,
               }}>
-                {/* Spinning ring */}
-                <div style={{ position: 'relative', width: 64, height: 64 }}>
-                  <div style={{
-                    position: 'absolute', inset: 0, borderRadius: '50%',
-                    border: `3px solid ${bdr}`,
-                  }} />
-                  <div style={{
-                    position: 'absolute', inset: 0, borderRadius: '50%',
-                    border: `3px solid transparent`,
-                    borderTopColor: blue,
-                    animation: 'spin 0.9s linear infinite',
-                  }} />
-                  <div style={{
-                    position: 'absolute', inset: 8, borderRadius: '50%',
-                    border: `2px solid transparent`,
-                    borderTopColor: `${blue}60`,
-                    animation: 'spin 1.6s linear infinite reverse',
-                  }} />
+                {/* Hand-drawn doodle — re-draws on each phase (keyed by message index) */}
+                <div style={{ width: 96, height: 96 }}>
+                  <UploadDoodle key={uploadMsgIdx} color={blue} />
                 </div>
                 {/* Rotating message */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'center' }}>
@@ -1518,6 +1551,13 @@ export default function ProfileBuilderPage() {
               </div>
             )}
 
+            {uploadWarning && !uploadError && (
+              <div style={{ display: 'flex', gap: 8, padding: '10px 14px', borderRadius: 8, background: '#FFF7ED', border: `1px solid #FED7AA`, fontSize: 13, color: amber }}>
+                <AlertTriangle size={15} strokeWidth={2} style={{ flexShrink: 0, marginTop: 1 }} />
+                <span>{uploadWarning}</span>
+              </div>
+            )}
+
             {uploadedFiles.length > 0 && (
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
@@ -1551,12 +1591,14 @@ export default function ProfileBuilderPage() {
                       onClick={() => f.fileUrl && window.open(f.fileUrl, '_blank', 'noopener')}
                     >
                       <div style={{ fontSize: 13, fontWeight: 600, color: f.fileUrl ? blue : ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</div>
-                      <div style={{ fontSize: 11, color: f.fields > 0 ? green : muted, marginTop: 2 }}>
-                        {f.fields > 0 ? `${f.fields} fields extracted` : 'Stored as context'}
+                      <div style={{ fontSize: 11, color: f.failed ? amber : f.fields > 0 ? green : muted, marginTop: 2 }}>
+                        {f.failed ? "Couldn't read this file" : f.fields > 0 ? `${f.fields} fields extracted` : 'Stored as context'}
                         {f.fileUrl && <span style={{ color: muted }}> · click to preview</span>}
                       </div>
                     </div>
-                    <Check size={14} color={green} strokeWidth={2.5} style={{ flexShrink: 0 }} />
+                    {f.failed
+                      ? <AlertTriangle size={14} color={amber} strokeWidth={2.5} style={{ flexShrink: 0 }} />
+                      : <Check size={14} color={green} strokeWidth={2.5} style={{ flexShrink: 0 }} />}
                     <button
                       onClick={() => handleRemoveFile(i)}
                       title="Remove file"

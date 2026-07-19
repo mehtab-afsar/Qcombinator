@@ -50,7 +50,7 @@ export function FounderBackgroundSelector({
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
       {BACKGROUND_OPTIONS.map(option => {
         const isChecked = value.includes(option.id)
         return (
@@ -58,90 +58,64 @@ export function FounderBackgroundSelector({
             key={option.id}
             onClick={() => handleToggle(option.id)}
             style={{
-              padding: '14px 16px',
-              borderRadius: 10,
+              position: 'relative',
+              padding: '11px 12px',
+              borderRadius: 12,
               border: `1.5px solid ${isChecked ? green : bdr}`,
               background: isChecked ? `${green}08` : '#fff',
+              boxShadow: isChecked ? `0 0 0 3px ${green}1a` : 'none',
               cursor: 'pointer',
               textAlign: 'left',
               transition: 'all 0.15s',
               display: 'flex',
-              alignItems: 'flex-start',
-              gap: 12,
+              flexDirection: 'column',
+              gap: 3,
+              height: '100%',
             }}
             onMouseEnter={e => {
-              ;(e.currentTarget as HTMLElement).style.borderColor = isChecked
-                ? green
-                : bdr
               ;(e.currentTarget as HTMLElement).style.background = isChecked
                 ? `${green}12`
                 : `${ink}05`
             }}
             onMouseLeave={e => {
-              ;(e.currentTarget as HTMLElement).style.borderColor = isChecked
-                ? green
-                : bdr
               ;(e.currentTarget as HTMLElement).style.background = isChecked
                 ? `${green}08`
                 : '#fff'
             }}
           >
-            {/* Checkbox */}
-            <div
-              style={{
-                width: 18,
-                height: 18,
-                borderRadius: 4,
-                border: `1.5px solid ${isChecked ? green : bdr}`,
-                background: isChecked ? green : 'transparent',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-                marginTop: 2,
-                transition: 'all 0.15s',
-              }}
-            >
-              {isChecked && (
-                <svg
-                  width="12"
-                  height="10"
-                  viewBox="0 0 12 10"
-                  fill="none"
-                  style={{ marginBottom: 1 }}
-                >
+            {/* Check badge (top-right) when selected — signals multi-select */}
+            {isChecked && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 8,
+                  right: 8,
+                  width: 16,
+                  height: 16,
+                  borderRadius: '50%',
+                  background: green,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <svg width="10" height="8" viewBox="0 0 12 10" fill="none">
                   <path
                     d="M1 5.5L4.5 9L11 1"
                     stroke="#fff"
-                    strokeWidth="1.5"
+                    strokeWidth="1.8"
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   />
                 </svg>
-              )}
-            </div>
+              </div>
+            )}
 
-            {/* Label + description */}
-            <div style={{ flex: 1 }}>
-              <div
-                style={{
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: ink,
-                  marginBottom: 2,
-                }}
-              >
-                {option.label}
-              </div>
-              <div
-                style={{
-                  fontSize: 12,
-                  color: muted,
-                  lineHeight: 1.4,
-                }}
-              >
-                {option.description}
-              </div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: ink, lineHeight: 1.2, paddingRight: isChecked ? 18 : 0 }}>
+              {option.label}
+            </div>
+            <div style={{ fontSize: 11.5, color: muted, lineHeight: 1.35 }}>
+              {option.description}
             </div>
           </button>
         )

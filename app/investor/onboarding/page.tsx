@@ -14,6 +14,12 @@ import { IdCardDoodle } from '@/features/onboarding/components/doodles/IdCardDoo
 import { TargetDoodle } from '@/features/onboarding/components/doodles/TargetDoodle'
 import { ScrollDoodle } from '@/features/onboarding/components/doodles/ScrollDoodle'
 import { CameraDoodle } from '@/features/onboarding/components/doodles/CameraDoodle'
+import { ImageCropUpload } from '@/components/ui/ImageCropUpload'
+import {
+  INVESTOR_STAGES as STAGES_OPTIONS,
+  INVESTOR_SECTORS as SECTORS_OPTIONS,
+  INVESTOR_CHECK_SIZES as CHECK_SIZES,
+} from '@/features/investor/constants/criteria'
 
 const ACCENT = ACCENTS.investor
 
@@ -27,25 +33,8 @@ const STEP_PANE = [
   { eyebrow: 'Almost there', title: 'Put a face to your profile.', body: 'Optional — founders connect better with a photo.', Doodle: CameraDoodle },
 ]
 
-// ── Option data ───────────────────────────────────────────────────────────────
-const STAGES_OPTIONS = [
-  { value: 'pre-seed', label: 'Pre-seed' }, { value: 'seed', label: 'Seed' },
-  { value: 'series-a', label: 'Series A' }, { value: 'series-b', label: 'Series B' },
-  { value: 'growth', label: 'Growth' },
-]
-const SECTORS_OPTIONS = [
-  { value: 'ai-ml', label: 'AI & ML' }, { value: 'saas', label: 'SaaS' },
-  { value: 'fintech', label: 'FinTech' }, { value: 'healthtech', label: 'HealthTech' },
-  { value: 'cleantech', label: 'CleanTech' }, { value: 'deeptech', label: 'DeepTech' },
-  { value: 'biotech', label: 'BioTech' }, { value: 'agritech', label: 'AgriTech' },
-  { value: 'edtech', label: 'EdTech' }, { value: 'hardtech', label: 'HardTech' },
-  { value: 'web3', label: 'Web3' }, { value: 'other', label: 'Other' },
-]
-const CHECK_SIZES = [
-  { value: '25k-100k', label: '$25K–$100K' }, { value: '100k-500k', label: '$100K–$500K' },
-  { value: '500k-2m', label: '$500K–$2M' }, { value: '2m-10m', label: '$2M–$10M' },
-  { value: '10m+', label: '$10M+' },
-]
+// ── Option data — sectors/stages/check-sizes are shared with investor settings
+// (single source of truth) via the imports at the top of this file.
 const TITLES = ['Managing Partner', 'General Partner', 'Principal', 'Associate', 'Venture Partner', 'Angel Investor', 'Other']
 
 function estimateMatches(sectors: string[], stages: string[], checkSizes: string[]): number {
@@ -107,11 +96,9 @@ export default function InvestorOnboardingPage() {
   const [thesisFileName, setThesisFileName] = useState<string | null>(null)
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
-  const [logoFile, setLogoFile] = useState<File | null>(null)
-  const [logoPreview, setLogoPreview] = useState<string | null>(null)
+  const [cropFile, setCropFile] = useState<File | null>(null)
   const thesisRef = useRef<HTMLInputElement>(null)
   const avatarRef = useRef<HTMLInputElement>(null)
-  const logoRef = useRef<HTMLInputElement>(null)
 
   const set = <K extends keyof FormData>(k: K, v: FormData[K]) => setForm(f => ({ ...f, [k]: v }))
   const toggle = (field: 'stages' | 'sectors' | 'checkSize', val: string) =>
@@ -151,12 +138,18 @@ export default function InvestorOnboardingPage() {
   }
 
   async function handleThesisUpload(file: File) {
-    setThesisUploading(true); setThesisFileName(null)
+    setThesisUploading(true); setThesisFileName(null); setError('')
     try {
       const fd = new FormData(); fd.append('file', file)
       const res = await fetch('/api/upload/thesis', { method: 'POST', body: fd })
-      const data = await res.json()
-      if (res.ok && data.text) { set('thesis', data.text); setThesisFileName(file.name) }
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.text) {
+        set('thesis', data.text); setThesisFileName(file.name)
+      } else {
+        setError(data.error || "Couldn't read that file. Try a PDF or Word doc, or paste your thesis below.")
+      }
+    } catch {
+      setError("Upload failed. Check your connection, or paste your thesis below.")
     } finally { setThesisUploading(false) }
   }
 
@@ -164,7 +157,6 @@ export default function InvestorOnboardingPage() {
     setLoading(true)
     await Promise.allSettled([
       avatarFile && (async () => { const fd = new FormData(); fd.append('file', avatarFile); fd.append('imageType', 'investor-avatar'); await fetch('/api/upload/image', { method: 'POST', body: fd }) })(),
-      logoFile && (async () => { const fd = new FormData(); fd.append('file', logoFile); fd.append('imageType', 'investor-logo'); await fetch('/api/upload/image', { method: 'POST', body: fd }) })(),
     ])
     let savedOk = false
     try {
@@ -190,10 +182,20 @@ export default function InvestorOnboardingPage() {
     router.push('/investor/getting-started')
   }
 
-  function pickFile(file: File, setF: (f: File | null) => void, setPrev: (s: string | null) => void, prev: string | null) {
-    if (!file.type.startsWith('image/')) return
+  // Open the circular cropper for a freshly-picked image (validate first).
+  function pickForCrop(file: File) {
+    setError('')
+    if (!file.type.startsWith('image/')) { setError('Please choose an image file.'); return }
     if (file.size > 5 * 1024 * 1024) { setError('File must be under 5MB'); return }
-    setF(file); if (prev) URL.revokeObjectURL(prev); setPrev(URL.createObjectURL(file))
+    setCropFile(file)
+  }
+
+  // Cropper "Save" → store the cropped circular PNG as the avatar.
+  function onCropSave(blob: Blob, previewUrl: string) {
+    if (avatarPreview) URL.revokeObjectURL(avatarPreview)
+    setAvatarFile(new File([blob], 'avatar.png', { type: 'image/png' }))
+    setAvatarPreview(previewUrl)
+    setCropFile(null)
   }
 
   if (processing) return (
@@ -382,8 +384,26 @@ export default function InvestorOnboardingPage() {
         </div>
         <div>
           <SectionTitle>Sectors *</SectionTitle>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {SECTORS_OPTIONS.map(o => <Chip key={o.value} label={o.label} selected={form.sectors.includes(o.value)} onClick={() => toggle('sectors', o.value)} accent={ACCENT} />)}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+            {SECTORS_OPTIONS.map(o => {
+              const on = form.sectors.includes(o.value)
+              return (
+                <button
+                  key={o.value}
+                  onClick={() => toggle('sectors', o.value)}
+                  style={{
+                    padding: '11px 8px', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit',
+                    border: `1.5px solid ${on ? ACCENT : O.bdr}`,
+                    background: on ? O.alpha(ACCENT, 0.07) : O.card,
+                    boxShadow: on ? `0 0 0 3px ${O.alpha(ACCENT, 0.1)}` : 'none',
+                    fontSize: 12.5, fontWeight: on ? 600 : 500, color: O.ink,
+                    textAlign: 'center', transition: 'all 0.14s',
+                  }}
+                >
+                  {o.label}
+                </button>
+              )
+            })}
           </div>
         </div>
         <div>
@@ -466,42 +486,23 @@ export default function InvestorOnboardingPage() {
                 <X size={10} color="#fff" strokeWidth={3} />
               </button>
             )}
-            <input id="inv-avatar" ref={avatarRef} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }} onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; if (file) pickFile(file, setAvatarFile, setAvatarPreview, avatarPreview) }} />
+            <input id="inv-avatar" ref={avatarRef} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }} onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; if (file) pickForCrop(file) }} />
           </div>
           <p style={{ fontSize: 12, color: avatarPreview ? O.green : O.muted, fontWeight: avatarPreview ? 600 : 400 }}>{avatarPreview ? '✓ Photo selected' : 'Click to upload · JPG or PNG, max 5MB'}</p>
-        </div>
-        <div style={{ height: 1, background: O.bdr }} />
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <Label>Fund / Firm logo</Label>
-            <span style={{ fontSize: 11, color: O.muted }}>optional</span>
-          </div>
-          {logoPreview ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 15px', borderRadius: 10, border: `1.5px solid ${ACCENT}`, background: O.alpha(ACCENT, 0.06) }}>
-              <div style={{ width: 36, height: 36, borderRadius: 8, overflow: 'hidden', flexShrink: 0, border: `1px solid ${O.bdr}`, position: 'relative' }}>
-                <Image src={logoPreview} alt="Logo" fill style={{ objectFit: 'cover' }} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: O.green }}>✓ Logo uploaded</p>
-                <p style={{ margin: '2px 0 0', fontSize: 11, color: O.muted }}>{logoFile?.name}</p>
-              </div>
-              <button onClick={() => { setLogoFile(null); setLogoPreview(null) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: O.muted, padding: 4 }}><X size={15} /></button>
-            </div>
-          ) : (
-            <label htmlFor="inv-logo" style={{ display: 'block', cursor: 'pointer' }}>
-              <div style={{ padding: '20px 15px', borderRadius: 10, border: `1.5px dashed ${O.bdr}`, background: O.surf, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-                <Upload size={18} color={O.muted} />
-                <p style={{ margin: 0, fontSize: 13, color: O.muted }}>Drag &amp; drop or <span style={{ color: O.ink, fontWeight: 600 }}>click to browse</span></p>
-                <p style={{ margin: 0, fontSize: 11, color: O.muted }}>JPG, PNG · max 5MB</p>
-              </div>
-            </label>
-          )}
-          <input id="inv-logo" ref={logoRef} type="file" accept="image/jpeg,image/png" style={{ display: 'none' }} onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; if (file) pickFile(file, setLogoFile, setLogoPreview, logoPreview) }} />
         </div>
         {error && (
           <div style={{ padding: '11px 15px', borderRadius: 10, background: O.alpha(O.red, 0.06), border: `1px solid ${O.alpha(O.red, 0.25)}`, color: O.red, fontSize: 13 }}>{error}</div>
         )}
       </>)}
+
+      {cropFile && (
+        <ImageCropUpload
+          file={cropFile}
+          accent={ACCENT}
+          onCancel={() => setCropFile(null)}
+          onSave={onCropSave}
+        />
+      )}
     </OnboardingShell>
   )
 }

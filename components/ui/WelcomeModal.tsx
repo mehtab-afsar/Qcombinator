@@ -59,20 +59,27 @@ export function WelcomeModal({ storageKey, slides, onDone }: Props) {
             onClick={dismiss}
           />
 
+          {/* Fixed flex wrapper centers the card. We must NOT center the card itself
+              with `transform: translate(-50%,-50%)` because framer-motion animates
+              `scale`/`y` via transform and would overwrite it (card drifts bottom-right). */}
+          <div style={{
+            position: 'fixed', inset: 0, zIndex: 9999,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 20, pointerEvents: 'none',
+          }}>
           <motion.div
             initial={{ opacity: 0, scale: 0.96, y: 16 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 16 }}
             transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
             style={{
-              position: 'fixed', top: '50%', left: '50%',
-              transform: 'translate(-50%, -50%)',
-              zIndex: 9999, width: '100%', maxWidth: 420,
+              position: 'relative', width: '100%', maxWidth: 420,
               background: bg, borderRadius: 20,
               border: `1px solid ${bdr}`,
               boxShadow: '0 24px 64px rgba(0,0,0,0.16)',
               padding: '36px 32px 28px',
               fontFamily: 'system-ui, -apple-system, sans-serif',
+              pointerEvents: 'auto',
             }}
           >
             {/* Close */}
@@ -151,6 +158,7 @@ export function WelcomeModal({ storageKey, slides, onDone }: Props) {
               </button>
             </div>
           </motion.div>
+          </div>
         </>
       )}
     </AnimatePresence>

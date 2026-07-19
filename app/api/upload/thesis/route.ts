@@ -31,11 +31,12 @@ export async function POST(req: NextRequest) {
     let text = ''
 
     if (file.type === 'application/pdf') {
+      // pdf-parse v2 exports a named class PDFParse (not a callable default).
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const pdfMod = await import('pdf-parse') as any
-      const pdfParse = pdfMod.default ?? pdfMod
-      const parsed = await pdfParse(buffer)
-      text = parsed.text
+      const { PDFParse } = await import('pdf-parse' as any)
+      const parser = new PDFParse({ data: buffer })
+      const parsed = await parser.getText()
+      text = parsed.text ?? ''
     } else if (
       file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
       file.type === 'application/msword'

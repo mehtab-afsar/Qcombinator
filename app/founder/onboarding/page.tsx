@@ -264,7 +264,7 @@ export default function FounderOnboardingPage() {
             <span style={{ fontSize: 11, color: form.tagline.length > 112 ? O.amber : O.muted }}>{form.tagline.length}/140</span>
           </div>
           <Input value={form.tagline} onChange={set('tagline')} placeholder="We help [who] do [what] using [how]" maxLength={140} accent={ACCENT} />
-          <Hint text='"We help hospital labs eliminate manual reporting using AI-powered result capture."' />
+          <Hint text='"We help hospital labs skip manual reporting — AI captures every result the moment it happens."' />
         </div>
         <div>
           <Label>Industry</Label>
@@ -272,8 +272,8 @@ export default function FounderOnboardingPage() {
         </div>
         <div>
           <SectionTitle>Stage</SectionTitle>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {STAGES.map(o => <SelectCard key={o.value} label={o.label} sub={o.sub} active={form.stage === o.value} onClick={() => set('stage')(o.value)} accent={ACCENT} />)}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+            {STAGES.map(o => <SelectCard key={o.value} compact label={o.label} sub={o.sub} active={form.stage === o.value} onClick={() => set('stage')(o.value)} accent={ACCENT} />)}
           </div>
         </div>
       </>)}
@@ -282,20 +282,20 @@ export default function FounderOnboardingPage() {
       {page === 3 && (<>
         <div>
           <SectionTitle>Revenue</SectionTitle>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {REVENUE.map(o => <SelectCard key={o.value} label={o.label} sub={o.sub} active={form.revenueStatus === o.value} onClick={() => set('revenueStatus')(o.value)} accent={ACCENT} />)}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+            {REVENUE.map(o => <SelectCard key={o.value} compact label={o.label} sub={o.sub} active={form.revenueStatus === o.value} onClick={() => set('revenueStatus')(o.value)} accent={ACCENT} />)}
           </div>
         </div>
         <div>
           <SectionTitle>Team size</SectionTitle>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {TEAM.map(o => <SelectCard key={o.value} label={o.label} sub={o.sub} active={form.teamSize === o.value} onClick={() => set('teamSize')(o.value)} accent={ACCENT} />)}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+            {TEAM.map(o => <SelectCard key={o.value} compact label={o.label} sub={o.sub} active={form.teamSize === o.value} onClick={() => set('teamSize')(o.value)} accent={ACCENT} />)}
           </div>
         </div>
         <div>
           <SectionTitle>Funding status</SectionTitle>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {FUNDING.map(o => <SelectCard key={o.value} label={o.label} sub={o.sub} active={form.fundingStatus === o.value} onClick={() => set('fundingStatus')(o.value)} accent={ACCENT} />)}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+            {FUNDING.map(o => <SelectCard key={o.value} compact label={o.label} sub={o.sub} active={form.fundingStatus === o.value} onClick={() => set('fundingStatus')(o.value)} accent={ACCENT} />)}
           </div>
         </div>
       </>)}

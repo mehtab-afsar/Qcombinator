@@ -6,6 +6,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { EmailConfirmBanner } from "@/features/shared/components/EmailConfirmBanner";
 import { ToastStack } from "@/features/shared/components/Toast";
 import { useToast } from "@/features/shared/hooks/useToast";
+import { bg } from "@/lib/constants/colors";
 
 export default function InvestorLayout({
   children,
@@ -24,7 +25,7 @@ export default function InvestorLayout({
 
   return (
     <ErrorBoundary>
-      <div style={{ display: "flex", height: "100vh", background: "#F9F7F2" }}>
+      <div style={{ display: "flex", height: "100vh", background: bg }}>
         <InvestorSidebar />
         {/* 52px left margin matches the collapsed sidebar width */}
         <EmailConfirmBanner

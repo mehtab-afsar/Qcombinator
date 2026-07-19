@@ -9,29 +9,27 @@ import {
   saveInvestorAccount,
   saveInvestorPreferences,
   saveInvestorNotifications,
-  signOutInvestor,
 } from '@/features/investor/services/investor-settings.service'
-import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted, blue, green, amber, red, alpha } from '@/lib/constants/colors'
 import { Avatar } from '@/features/shared/components/Avatar'
 import { TabNav } from '@/features/shared/components/TabNav'
+import { INVESTOR_SECTORS, INVESTOR_STAGES, INVESTOR_CHECK_SIZES } from '@/features/investor/constants/criteria'
 import { PageSpinner } from '@/features/shared/components/Spinner'
 import type { LucideIcon } from 'lucide-react'
 
 // ─── types ────────────────────────────────────────────────────────────────────
-type TabId = 'profile' | 'notifications' | 'team'
+type TabId = 'profile' | 'preferences' | 'notifications' | 'team' | 'security'
 
 const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
   { id: 'profile',       label: 'Profile',        icon: User   },
+  { id: 'preferences',   label: 'Preferences',    icon: Target },
   { id: 'notifications', label: 'Notifications',  icon: Bell   },
   { id: 'team',          label: 'Team',           icon: Users  },
+  { id: 'security',      label: 'Security',       icon: Shield },
 ]
 
-const SECTOR_OPTIONS = [
-  'SaaS', 'AI/ML', 'FinTech', 'HealthTech', 'CleanTech', 'EdTech',
-  'E-Commerce', 'Marketplace', 'Developer Tools', 'Consumer', 'Deep Tech', 'Other',
-]
-const STAGE_OPTIONS = ['Pre-Seed', 'Seed', 'Series A', 'Series B+']
-const CHECK_OPTIONS = ['$25K–$100K', '$100K–$500K', '$500K–$2M', '$2M+']
+// Sectors / stages / check-sizes come from the shared criteria constants
+// (same slugs onboarding saves) so an investor's onboarding picks reflect here.
 
 // ─── input style ──────────────────────────────────────────────────────────────
 const inputStyle: React.CSSProperties = {
@@ -280,11 +278,6 @@ export default function InvestorSettingsPage() {
     } finally { setSaving(false) }
   }
 
-  const handleSignOut = async () => {
-    await signOutInvestor()
-    router.push('/login')
-  }
-
   if (loading) return <PageSpinner label="Loading settings…" />
 
   return (
@@ -394,42 +387,6 @@ export default function InvestorSettingsPage() {
               </div>
             </div>
 
-            {/* ── Security section (inline in Profile tab) ── */}
-            <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden' }}>
-              <div style={{ padding: '16px 20px', borderBottom: `1px solid ${bdr}`, background: surf, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Shield style={{ height: 14, width: 14, color: muted }} />
-                <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>Password & Security</p>
-              </div>
-              <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <div>
-                  <p style={{ fontSize: 13, fontWeight: 500, color: ink, marginBottom: 4 }}>Change Password</p>
-                  <p style={{ fontSize: 12, color: muted, marginBottom: 12 }}>We&apos;ll send a reset link to your email address.</p>
-                  <button
-                    onClick={async () => {
-                      const { data: { user: u } } = await (await import('@/lib/supabase/client')).createClient().auth.getUser()
-                      if (!u?.email) return
-                      const sb = (await import('@/lib/supabase/client')).createClient()
-                      await sb.auth.resetPasswordForEmail(u.email, { redirectTo: `${window.location.origin}/update-password` })
-                      alert('Password reset email sent')
-                    }}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: `1px solid ${bdr}`, background: 'white', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}
-                  >
-                    <RefreshCw style={{ height: 13, width: 13 }} /> Send password reset email
-                  </button>
-                </div>
-                <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 16 }}>
-                  <p style={{ fontSize: 13, fontWeight: 500, color: ink, marginBottom: 4 }}>Sign Out Everywhere</p>
-                  <p style={{ fontSize: 12, color: muted, marginBottom: 12 }}>Revoke all active sessions on other devices.</p>
-                  <button
-                    onClick={handleSignOut}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: `1px solid ${bdr}`, background: 'white', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}
-                  >
-                    <Lock style={{ height: 13, width: 13 }} /> Sign out other sessions
-                  </button>
-                </div>
-              </div>
-            </div>
-
             {/* danger zone */}
             <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 14, padding: '20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -462,7 +419,7 @@ export default function InvestorSettingsPage() {
         )}
 
         {/* ── preferences tab ── */}
-        {(
+        {activeTab === 'preferences' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
             {/* Investment Thesis PDF upload — extract sectors/stages/check sizes automatically */}
             <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden' }}>
@@ -569,21 +526,21 @@ export default function InvestorSettingsPage() {
                 <p style={{ fontSize: 11, color: muted, marginTop: 2 }}>Select all that apply</p>
               </div>
               <div style={{ padding: '16px 20px', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {SECTOR_OPTIONS.map(s => {
-                  const selected = sectors.includes(s)
+                {INVESTOR_SECTORS.map(o => {
+                  const selected = sectors.includes(o.value)
                   return (
                     <button
-                      key={s}
-                      onClick={() => toggleMulti(sectors, setSectors, s)}
+                      key={o.value}
+                      onClick={() => toggleMulti(sectors, setSectors, o.value)}
                       style={{
                         padding: '6px 14px', borderRadius: 999, fontSize: 12, fontWeight: 500,
                         cursor: 'pointer', transition: 'all .12s',
                         border: `1px solid ${selected ? blue : bdr}`,
-                        background: selected ? '#EFF6FF' : bg,
+                        background: selected ? alpha(blue, 0.08) : bg,
                         color: selected ? blue : muted,
                       }}
                     >
-                      {s}
+                      {o.label}
                     </button>
                   )
                 })}
@@ -596,21 +553,21 @@ export default function InvestorSettingsPage() {
                 <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>Stage Preference</p>
               </div>
               <div style={{ padding: '16px 20px', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {STAGE_OPTIONS.map(s => {
-                  const selected = stages.includes(s)
+                {INVESTOR_STAGES.map(o => {
+                  const selected = stages.includes(o.value)
                   return (
                     <button
-                      key={s}
-                      onClick={() => toggleMulti(stages, setStages, s)}
+                      key={o.value}
+                      onClick={() => toggleMulti(stages, setStages, o.value)}
                       style={{
                         padding: '6px 14px', borderRadius: 999, fontSize: 12, fontWeight: 500,
                         cursor: 'pointer', transition: 'all .12s',
                         border: `1px solid ${selected ? blue : bdr}`,
-                        background: selected ? '#EFF6FF' : bg,
+                        background: selected ? alpha(blue, 0.08) : bg,
                         color: selected ? blue : muted,
                       }}
                     >
-                      {s}
+                      {o.label}
                     </button>
                   )
                 })}
@@ -623,21 +580,21 @@ export default function InvestorSettingsPage() {
                 <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>Check Size</p>
               </div>
               <div style={{ padding: '16px 20px', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {CHECK_OPTIONS.map(c => {
-                  const selected = checkSizes.includes(c)
+                {INVESTOR_CHECK_SIZES.map(o => {
+                  const selected = checkSizes.includes(o.value)
                   return (
                     <button
-                      key={c}
-                      onClick={() => toggleMulti(checkSizes, setCheckSizes, c)}
+                      key={o.value}
+                      onClick={() => toggleMulti(checkSizes, setCheckSizes, o.value)}
                       style={{
                         padding: '6px 14px', borderRadius: 999, fontSize: 12, fontWeight: 500,
                         cursor: 'pointer', transition: 'all .12s',
                         border: `1px solid ${selected ? blue : bdr}`,
-                        background: selected ? '#EFF6FF' : bg,
+                        background: selected ? alpha(blue, 0.08) : bg,
                         color: selected ? blue : muted,
                       }}
                     >
-                      {c}
+                      {o.label}
                     </button>
                   )
                 })}
@@ -898,8 +855,8 @@ export default function InvestorSettingsPage() {
           </div>
         )}
 
-        {/* Security */}
-        {(
+        {/* ── security tab ── */}
+        {activeTab === 'security' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             {/* Password reset */}
