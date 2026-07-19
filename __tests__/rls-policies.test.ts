@@ -130,7 +130,7 @@ describe('no policy grants everything to everyone', () => {
 })
 
 describe('the new-model tables are scoped to their owner', () => {
-  const NEW_TABLES = ['strategy_sessions', 'executive_contracts', 'programs', 'asset_versions', 'executive_briefings']
+  const NEW_TABLES = ['strategy_sessions', 'executive_contracts', 'programs', 'asset_versions', 'executive_briefings', 'operating_rhythm_runs']
 
   it.each(NEW_TABLES)('%s has founder-scoped policies and no escape hatch', table => {
     const policies = livePolicies().filter(p => p.table === table)

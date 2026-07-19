@@ -11,10 +11,10 @@ added `asset_versions`.*
 ## 0. One-paragraph summary
 
 The database matches the migration source, and every **new-model** table Story 1 (the Mandate)
-and Story 2 / F11+F12 (Asset persistence + Briefings) require is present, correctly secured, and
-enforced — not just enabled. The drift that exists is almost all **absence**: tables for later
-features (the Operating Rhythm F10, the Connector boundary) simply aren't built yet, which is
-expected — those aren't started. The one genuinely notable gap is the **Connector layer**
+and **all of Story 2** (F11 Assets + F12 Briefings + F10 the Operating Rhythm) require is
+present, correctly secured, and enforced — not just enabled. The drift that exists is almost all
+**absence**: tables for **Story 3** (the Connector boundary) simply aren't built yet, which is
+expected — that isn't started. The one genuinely notable gap is the **Connector layer**
 (`connector_connections`, `action_log`): the PRD's central safety mechanism — approval on
 irreversible external actions — has no schema yet. That is future work (flagged, pending Roman),
 not a defect in what's shipped. No old-model table needs touching; the strangler freeze holds.
@@ -44,9 +44,9 @@ startup_members, startup_state, startups, strategy_sessions, subscription_usage,
 tool_execution_logs, tracked_competitors, waitlist_signups`
 
 The overwhelming majority are **old-model** (Q-Score, investor matching, the frozen agents,
-profile builder, feed, academy). Five are the **new Executive model** (`strategy_sessions`,
-`executive_contracts`, `programs`, `asset_versions`, `executive_briefings`); one is a
-migration-integrity artifact.
+profile builder, feed, academy). Six are the **new Executive model** (`strategy_sessions`,
+`executive_contracts`, `programs`, `asset_versions`, `executive_briefings`,
+`operating_rhythm_runs`); one is a migration-integrity artifact.
 
 ---
 
@@ -60,16 +60,16 @@ migration-integrity artifact.
 | `executive_contracts.contract_document` (F08b — human-readable mandate) | ✅ **PRESENT** | `20260715000003` — nullable column; trigger extended to protect it |
 | `qscore_history_dedup_audit` (integrity, not a product table) | ✅ **PRESENT** | `20260715000005` — audit trail for the dedup |
 | **`asset_versions`** (versioned, founder-editable Assets) | ✅ **PRESENT** | `20260715000006` (Story 2 / F11) — versioned, one-current partial index, immutability trigger, execution-ref CHECK, atomic `persist_asset_version`; read-only for authenticated, writes server-side only. |
-| **`operating_rhythm_runs`** (or any rhythm/cycle table with `cycle_key`) | ⛔ **ABSENT** | **New-model, future story.** ADR-008 Operating Rhythm + CLAUDE.md §4 idempotency (`cycle_key`) describe it; nothing builds it yet. |
+| **`operating_rhythm_runs`** (`cycle_key`) | ✅ **PRESENT** | `20260715000009` (Story 2 / F10) — one run per `(founder_id, cycle_key)`, idempotent; read-only for authenticated; **and lands the deferred `execution_id` FKs** on `asset_versions` + `executive_briefings`. |
 | **`executive_briefings`** (Command View briefings) | ✅ **PRESENT** | `20260715000007` (Story 2 / F12) — append-only (one per Program per run), dedupe index, contract-stamped for the epoch (ADR-022), read-only for authenticated, append-only trigger. Written by the rhythm (F10). |
 | **`action_log`** (every irreversible-action attempt) | ⛔ **ABSENT** | **New-model, future story.** CLAUDE.md §3 requires it at the Connector boundary. Closest existing tables (`agent_trigger_log`, `tool_execution_logs`) are old-model and not this. |
 | **`connector_connections`** (Connector interface) | ⛔ **ABSENT** | **New-model, future story — see §4.** |
 | `agent_artifacts` (reused by the engine per CLAUDE.md §3) | ✅ PRESENT (old-model) | `20260222000001` — reuse target, not new work. |
 | `scheduled_actions` (reused by the engine) | ✅ PRESENT (old-model) | `20260417000003` — reuse target. Its RLS hole was closed — §3. |
 
-**Reading:** every table Story 1 (the Mandate) and Story 2 / F11+F12 (Assets + Briefings) needs
-exists and is correct. Every ABSENT row is a **later** feature's table — the Rhythm (F10),
-Connector (Story 3). None is overdue; those aren't built yet. Expected forward drift, not a defect.
+**Reading:** every table Story 1 (the Mandate) and **all of Story 2** (F11 Assets, F12 Briefings,
+F10 the Rhythm) needs exists and is correct. The only ABSENT rows are **Story 3**'s (Connector).
+None is overdue; that isn't built yet. Expected forward drift, not a defect.
 
 ---
 
@@ -184,7 +184,7 @@ No orphaned migration needs removing. The history is intact and now re-runnable.
 | Permissive RLS hole (4 tables) | closed | new-model fix / old-model tables | ✅ done |
 | Assets (`asset_versions`, Story 2 / F11) | none — present, secured, server-side writes | new-model | ✅ done |
 | Briefings (`executive_briefings`, Story 2 / F12) | none — present, append-only, epoch-stamped | new-model | ✅ done |
-| Operating Rhythm (`operating_rhythm_runs`, `cycle_key`) | absent | new-model | future — F10 (adds the `execution_id` FK for both assets + briefings) |
+| Operating Rhythm (`operating_rhythm_runs`, Story 2 / F10) | none — present, idempotent; `execution_id` FKs now real | new-model | ✅ done |
 | Connector (`connector_connections`, `action_log`) | absent | new-model | future story — flagged (Roman) |
 | Old-model tables (Q-Score, investors, agents, feed, academy) | present, frozen | old-model | leave (Phase 7) |
 
