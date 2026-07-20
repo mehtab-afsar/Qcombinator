@@ -175,6 +175,7 @@ function renderCompanyContext(
   }
 
   field('Company', context.companyName)
+  field('Current Date', context.currentDate)
   field('Strategy Session (S001)', context.strategy)
   field('Executive Contract (S002)', context.contract)
 
@@ -248,6 +249,16 @@ const ASSET_FORMAT_RULE = [
   'sections, cover EVERY section concisely rather than elaborating early ones at length:',
   'completeness across all sections beats depth in a few. Budget your length so the final',
   'section is as finished as the first.',
+  '',
+  // Trial run 4: AS004 invented a "£47k saving" pilot customer, complete with a fabricated
+  // testimonial quote formatted for a website hero. A founder could have published it.
+  'Evidence rule: use ONLY facts present in Company Context. NEVER invent customers,',
+  'testimonials, quotes, savings figures, metrics, case studies or dates. Where the',
+  'artefact\'s structure calls for evidence you do not have, write a visible placeholder —',
+  '[TO VALIDATE: what evidence is needed] — never a plausible-sounding number. Industry',
+  'reasoning is welcome when labelled as an estimate; fabricated proof is the worst possible',
+  'failure, because the founder may publish it. Date the document with the Current Date from',
+  'Company Context; if absent, omit dates entirely.',
 ].join('\n')
 
 /** The last thing the model reads before writing an asset — see the note at the call site. */
@@ -259,6 +270,9 @@ const ASSET_CLOSING_REMINDER = [
   '1,500-2,000 words total, and never end mid-sentence or mid-table. If you are running',
   'long, compress the remaining sections — a short finished section always beats a long',
   'truncated one. Plan the whole document\'s budget before you start writing.',
+  '',
+  'And evidence: only facts from Company Context. No invented customers, quotes, savings',
+  'figures or dates — use [TO VALIDATE: …] placeholders where proof does not exist yet.',
 ].join('\n')
 
 const SEPARATOR = '\n\n---\n\n'
@@ -476,6 +490,12 @@ export interface ComposeBriefingInput {
   programId: ProgramId
   context: CompanyContext
   executionId?: string
+  /**
+   * The Assets this run ACTUALLY persisted (from the database, not the model's memory).
+   * Rendered as the authoritative deliverables list — the briefing may claim nothing
+   * beyond it as completed work.
+   */
+  persistedAssets?: ReadonlyArray<{ id: string; name: string }>
 }
 
 /**
@@ -489,32 +509,59 @@ export interface ComposeBriefingInput {
  * The model writes the narrative; the DATABASE supplies the authoritative Asset links (the
  * generator adds them from asset_versions), so the model is not asked to cite version ids.
  */
-const BRIEFING_STRUCTURE = [
-  '# Executive Briefing (required output)',
-  '',
-  'Produce this cycle\'s briefing for the founder, in your voice as this program\'s',
-  'executive. Base it ONLY on the Current Management Assets and what changed this cycle',
-  '(Company Context above). Do not invent progress; if little changed, say so plainly.',
-  '',
-  // JSON ONLY — deliberately no prose-then-transcribe. The store keeps verdict + body;
-  // any prose before the block was being DISCARDED by the parser, and writing it first
-  // exhausted the token budget before the JSON arrived (both real-AI trials failed here).
-  // The briefing's substance lives in the sections.
-  'Output exactly ONE fenced JSON block and NOTHING else — no prose before or after it:',
-  '',
-  '```json',
-  '{',
-  '  "verdict":  "one line — where this program stands after this cycle",',
-  '  "summary":  "2-3 sentences a busy founder can act on",',
-  '  "sections": [{ "heading": "...", "detail": "a substantial paragraph — this is the briefing\'s body" }]',
-  '}',
-  '```',
-  '',
-  'Rules:',
-  '- `verdict` is required and must be a single line.',
-  '- 3-6 sections; the founder reads ONLY this JSON, so the sections carry the whole briefing.',
-  '- Ground every claim in the Assets above; cite no metric you were not given.',
-].join('\n')
+/**
+ * The briefing's output contract. A function, not a constant, because the deliverables list
+ * is per-run data: run 4's briefing CLAIMED eight documents ("GTM Dashboard", "KPI Tracker",
+ * "Action Briefs"…) that were never created — the model reported the program prompt's
+ * aspirations as completed work. The authoritative persisted-assets list now goes INTO the
+ * prompt, with a rule that nothing outside it may be claimed as delivered.
+ */
+function briefingStructure(persistedAssets?: ReadonlyArray<{ id: string; name: string }>): string {
+  const produced = persistedAssets && persistedAssets.length > 0
+    ? [
+        'What this cycle ACTUALLY produced (the complete, authoritative list):',
+        ...persistedAssets.map(a => `- ${a.id} — ${a.name}`),
+        '',
+      ]
+    : [
+        'This cycle produced NO new or updated documents.',
+        '',
+      ]
+
+  return [
+    '# Executive Briefing (required output)',
+    '',
+    'Produce this cycle\'s briefing for the founder, in your voice as this program\'s',
+    'executive. Base it ONLY on the Current Management Assets and what changed this cycle',
+    '(Company Context above). Do not invent progress; if little changed, say so plainly.',
+    '',
+    ...produced,
+    // JSON ONLY — deliberately no prose-then-transcribe. The store keeps verdict + body;
+    // any prose before the block was being DISCARDED by the parser, and writing it first
+    // exhausted the token budget before the JSON arrived (both real-AI trials failed here).
+    // The briefing's substance lives in the sections.
+    'Output exactly ONE fenced JSON block and NOTHING else — no prose before or after it:',
+    '',
+    '```json',
+    '{',
+    '  "verdict":  "one line — where this program stands after this cycle",',
+    '  "summary":  "2-3 sentences a busy founder can act on",',
+    '  "sections": [{ "heading": "...", "detail": "a substantial paragraph — this is the briefing\'s body" }]',
+    '}',
+    '```',
+    '',
+    'Rules:',
+    '- `verdict` is required and must be a single line.',
+    '- 3-6 sections; the founder reads ONLY this JSON, so the sections carry the whole briefing.',
+    '- Ground every claim in the Assets above; cite no metric you were not given.',
+    '- Deliverables: the "actually produced" list above is COMPLETE. Never present any other',
+    '  document, dashboard, tracker, plan or artefact as completed, delivered or existing.',
+    '  Work you believe is needed must be framed as a RECOMMENDATION for a future cycle —',
+    '  the founder will go looking for anything you claim exists, and finding nothing',
+    '  destroys their trust in every other claim.',
+    '- Never invent customers, testimonials, quotes, savings figures or metrics.',
+  ].join('\n')
+}
 
 const BRIEFING_PREAMBLE = [
   '# Briefing Package',
@@ -567,7 +614,7 @@ export function composeBriefingPrompt(input: ComposeBriefingInput): ExecutionPac
     },
   ]
 
-  const text = [BRIEFING_PREAMBLE, ...layers.map(l => l.text), BRIEFING_STRUCTURE].join(SEPARATOR)
+  const text = [BRIEFING_PREAMBLE, ...layers.map(l => l.text), briefingStructure(input.persistedAssets)].join(SEPARATOR)
 
   return {
     executionId,

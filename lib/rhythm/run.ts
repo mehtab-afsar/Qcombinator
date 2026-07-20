@@ -60,7 +60,12 @@ async function buildContext(
     contract.successMetrics.length ? `Success metrics: ${contract.successMetrics.join('; ')}` : '',
     `Active programs: ${contract.activePrograms.join(', ')}`,
   ].filter(Boolean).join('\n')
-  return { strategy: strategyText, contract: contractText }
+  return {
+    strategy: strategyText,
+    contract: contractText,
+    // The real date — without it, run 4's documents invented "May 2024/2025".
+    currentDate: new Date().toISOString().slice(0, 10),
+  }
 }
 
 /** The program's current Asset versions, as strings, for the compose context. */
@@ -129,7 +134,7 @@ export async function runCycle(admin: SupabaseClient, args: RunCycleArgs): Promi
         // what makes the "no material change" briefing reachable rather than decorative.
         if (currentAssets[assetId] !== undefined && !delta.hasNewInput) continue
 
-        await generateAssetContent(admin, {
+        const version = await generateAssetContent(admin, {
           founderId: args.founderId,
           program,
           assetId,
@@ -138,6 +143,12 @@ export async function runCycle(admin: SupabaseClient, args: RunCycleArgs): Promi
           activePrograms: contract.activePrograms,
           context: { ...baseContext, currentAssets },
         })
+        // Later assets in this cycle must SEE the ones just written — P001 orders its
+        // assets (AS004 builds on AS001) and instructs "complete consistency across all
+        // deliverables". A frozen pre-loop snapshot made that impossible: run 4's AS004
+        // contradicted AS001 by 10x on the ICP's procurement spend.
+        currentAssets[assetId] =
+          typeof version.content === 'string' ? version.content : JSON.stringify(version.content)
         generated++
       }
       // 'skipped' is honest: nothing needed doing. 'completed' would imply work happened.

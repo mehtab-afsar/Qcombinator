@@ -133,6 +133,9 @@ export async function generateBriefing(
     programId: args.templateId, // the Composer takes the Registry id
     executionId: args.executionId,
     context: { ...args.context, currentAssets },
+    // The DATABASE's list of what this run persisted — the briefing may claim nothing
+    // beyond it as delivered (run 4 claimed eight documents that never existed).
+    persistedAssets: changed.map(v => ({ id: v.assetId, name: safeAssetName(v.assetId) })),
   })
 
   let raw: string

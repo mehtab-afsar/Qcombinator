@@ -135,6 +135,27 @@ describe('F10 runCycle', () => {
     expect(m(generateAssetContent)).toHaveBeenCalledTimes(P001_ASSETS)
   })
 
+  it('later assets in a cycle SEE the ones just written (sequential snapshot)', async () => {
+    // Run 4: AS004 contradicted AS001 by 10x on the ICP's procurement spend, because every
+    // asset got the same frozen pre-loop snapshot. The snapshot now updates as each persists.
+    m(getCurrentAsset).mockResolvedValue(null) // first cycle — nothing exists yet
+    m(collectCycleDelta).mockResolvedValue({ digest: undefined, hasNewInput: false })
+    m(generateAssetContent).mockImplementation(async (_a, callArgs) => ({
+      id: `v-${callArgs.assetId}`, content: `GENERATED ${callArgs.assetId}`,
+    }))
+    await runCycle(admin, { founderId: 'f1' })
+
+    const calls = m(generateAssetContent).mock.calls
+    expect(calls.length).toBe(P001_ASSETS)
+    const firstAssetId = calls[0][1].assetId
+    // Every LATER call's context must include the first asset's freshly-generated content.
+    // (The map is shared by reference — that sharing IS the visibility mechanism, which also
+    // means call 0's retained args show the final state; only the later-call check is valid.)
+    for (let i = 1; i < calls.length; i++) {
+      expect(calls[i][1].context.currentAssets[firstAssetId]).toBe(`GENERATED ${firstAssetId}`)
+    }
+  })
+
   it('ADR-028: the delta digest is fed to judgement as New Information, windowed on the last completed run', async () => {
     m(getLastCompletedRun).mockResolvedValue({ id: 'prev', startedAt: '2026-07-13T09:00:00Z' })
     await runCycle(admin, { founderId: 'f1' })

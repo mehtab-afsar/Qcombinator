@@ -49,6 +49,11 @@ export interface PromptLayer {
  */
 export interface CompanyContext {
   companyName?: string
+  /**
+   * Today's date, supplied by the CALLER (the Composer stays pure). Rendered so the model
+   * dates documents truthfully — trial run 4 invented "May 2024/2025" across assets.
+   */
+  currentDate?: string
   /** S001 — the founder's direction. */
   strategy?: string
   /** S002 — the mandate. */

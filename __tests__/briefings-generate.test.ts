@@ -70,6 +70,12 @@ describe('F12 generateBriefing', () => {
     await generateBriefing(admin, baseArgs)
 
     expect(mockRouted).toHaveBeenCalledTimes(1)
+    // The prompt itself must carry the DB's authoritative deliverables list (run-4 lesson:
+    // without it, the briefing claimed eight documents that never existed).
+    const prompt = String(mockRouted.mock.calls[0][1][0].content)
+    expect(prompt).toContain('What this cycle ACTUALLY produced')
+    expect(prompt).toContain('- AS001 — ICP Profiles')
+    expect(prompt).toContain('- AS002 — Pains & Gains Matrix')
     const written = mockPersist.mock.calls[0][1]
     expect(written.verdict).toBe('3 partners engaged')
     expect(written.executiveId).toBe('growth') // P001 is owned by the growth executive

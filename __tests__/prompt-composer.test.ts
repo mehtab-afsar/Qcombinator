@@ -180,6 +180,43 @@ describe('layer 4 is data, never instructions', () => {
     expect(reminderAt).toBeGreaterThan(pkg.text.indexOf('# Company Context'))
   })
 
+  it('an ASSET package forbids invented evidence and demands visible placeholders', () => {
+    // Run 4: AS004 invented a "£47k saving" customer with a fabricated testimonial quote
+    // formatted for a website hero — publishable fiction. The rule + the closing reminder
+    // both carry the ban (recency binds, run 3's lesson).
+    const pkg = composePrompt(valid)
+    expect(pkg.text).toContain('NEVER invent customers')
+    expect(pkg.text).toContain('[TO VALIDATE:')
+    const last = pkg.text.slice(pkg.text.indexOf('Final reminder before you write'))
+    expect(last).toContain('No invented customers')
+  })
+
+  it('renders the caller-supplied Current Date as data', () => {
+    // Run 4 invented "May 2024/2025" across documents; the date now comes from the caller.
+    const pkg = composePrompt({ ...valid, context: { ...context, currentDate: '2026-07-20' } })
+    expect(pkg.layers[3].text).toContain('Current Date')
+    expect(pkg.layers[3].text).toContain('2026-07-20')
+  })
+
+  it('a briefing package lists ONLY the actually-persisted deliverables and bans claiming more', () => {
+    // Run 4's briefing claimed eight documents ("GTM Dashboard", "KPI Tracker"…) that were
+    // never created. The DB's persisted list now goes into the prompt as the complete set.
+    const pkg = composeBriefingPrompt({
+      programId: 'P001', context,
+      persistedAssets: [{ id: 'AS001', name: 'ICP Profiles' }, { id: 'AS002', name: 'Pains & Gains Matrix' }],
+    })
+    expect(pkg.text).toContain('What this cycle ACTUALLY produced')
+    expect(pkg.text).toContain('- AS001 — ICP Profiles')
+    expect(pkg.text).toContain('- AS002 — Pains & Gains Matrix')
+    expect(pkg.text).toContain('Never present any other')
+    expect(pkg.text).toContain('framed as a RECOMMENDATION')
+  })
+
+  it('a briefing package with nothing persisted says so plainly', () => {
+    const pkg = composeBriefingPrompt({ programId: 'P001', context, persistedAssets: [] })
+    expect(pkg.text).toContain('This cycle produced NO new or updated documents.')
+  })
+
   it('mandate and briefing packages do not carry the asset format rule', () => {
     // The rule is asset-scoped. (An action-package negative isn't possible yet — no
     // action instruction prompts exist, a known workbook gap until Story 3.)
