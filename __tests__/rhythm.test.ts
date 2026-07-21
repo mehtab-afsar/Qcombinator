@@ -18,12 +18,19 @@ jest.mock('@/lib/rhythm/judge', () => ({ generateAssetContent: jest.fn() }))
 jest.mock('@/lib/rhythm/delta', () => ({ collectCycleDelta: jest.fn() }))
 jest.mock('@/lib/rhythm/runs', () => {
   const actual = jest.requireActual('@/lib/rhythm/runs')
-  return { ...actual, createRun: jest.fn(), finishRun: jest.fn(), getLastCompletedRun: jest.fn() }
+  return {
+    ...actual,
+    createOrResumeRun: jest.fn(),
+    getRun: jest.fn(),
+    recordStep: jest.fn(),
+    finishRun: jest.fn(),
+    getLastCompletedRun: jest.fn(),
+  }
 })
 
 import { weekCycleKey } from '@/lib/rhythm/cycle-key'
-import { runCycle, RhythmError } from '@/lib/rhythm/run'
-import { createRun, finishRun, getLastCompletedRun, CycleAlreadyRanError } from '@/lib/rhythm/runs'
+import { runCycle, runNextStep, RhythmError } from '@/lib/rhythm/run'
+import { createOrResumeRun, getRun, recordStep, finishRun, getLastCompletedRun, CycleAlreadyRanError } from '@/lib/rhythm/runs'
 import { generateAssetContent } from '@/lib/rhythm/judge'
 import { collectCycleDelta } from '@/lib/rhythm/delta'
 import { generateBriefing } from '@/lib/briefings/generate'
@@ -31,6 +38,8 @@ import { getCurrentContract, getProgramsForContract } from '@/lib/mandate/contra
 import { getCurrentStrategy } from '@/lib/mandate/strategy'
 import { getCurrentAsset } from '@/lib/assets/versioning'
 import { getProgram } from '@/lib/registry'
+import { AssetPersistenceError } from '@/lib/assets/validation'
+import { BriefingError } from '@/lib/briefings/briefings'
 
 const admin = {} as unknown as SupabaseClient
 const P001_ASSETS = getProgram('P001').assets.length // the real count the rhythm regenerates
@@ -45,19 +54,38 @@ const activeP001 = { id: 'prog1', contractId: 'c1', templateId: 'P001', owner: '
 
 const m = (fn: unknown) => fn as jest.Mock
 
+// A tiny in-memory fake of the run row. runNextStep's pattern — fetch fresh state, mutate,
+// persist — is the whole point of chunking (real invocations share nothing but the DB row), so
+// the mocks for createOrResumeRun/getRun/recordStep/finishRun all read and write this ONE store
+// rather than each being an independent static mock — otherwise runCycle's synchronous loop
+// (which calls runNextStep repeatedly) would lose progress between iterations here in a way it
+// never would against the real database.
+let runStore: { id: string; founderId: string; cycleKey: string; status: string; stages: Record<string, unknown> }
+
 beforeEach(() => {
   jest.clearAllMocks()
   m(getCurrentContract).mockResolvedValue(contract())
   m(getCurrentStrategy).mockResolvedValue({ mission: 'M', priorities: ['p'], goals: [] })
   m(getProgramsForContract).mockResolvedValue([activeP001])
   m(getCurrentAsset).mockResolvedValue({ content: 'prior version' })
-  m(createRun).mockResolvedValue({ id: 'run1', cycleKey: '2026-W29' })
   m(getLastCompletedRun).mockResolvedValue(null)
   // Default: the founder DID something this week, so regeneration proceeds (ADR-028).
   m(collectCycleDelta).mockResolvedValue({ digest: '- founder edited AS001', hasNewInput: true })
   m(generateAssetContent).mockResolvedValue({ id: 'v1' })
   m(generateBriefing).mockResolvedValue({ id: 'b1' })
-  m(finishRun).mockResolvedValue(undefined)
+
+  runStore = { id: 'run1', founderId: 'f1', cycleKey: '2026-W29', status: 'running', stages: {} }
+  m(createOrResumeRun).mockResolvedValue(runStore)
+  m(getRun).mockImplementation(async () => ({ ...runStore }))
+  m(recordStep).mockImplementation(async (_admin: unknown, _id: string, stages: Record<string, unknown>) => {
+    runStore.stages = stages
+  })
+  m(finishRun).mockImplementation(
+    async (_admin: unknown, _id: string, outcome: { status: string; stages: Record<string, unknown> }) => {
+      runStore.status = outcome.status
+      runStore.stages = outcome.stages
+    },
+  )
 })
 
 describe('F10 weekCycleKey', () => {
@@ -83,7 +111,7 @@ describe('F10 runCycle', () => {
   })
 
   it('is idempotent — a duplicate week is rejected before any work', async () => {
-    m(createRun).mockRejectedValue(new CycleAlreadyRanError('2026-W29'))
+    m(createOrResumeRun).mockRejectedValue(new CycleAlreadyRanError('2026-W29'))
     await expect(runCycle(admin, { founderId: 'f1' })).rejects.toBeInstanceOf(CycleAlreadyRanError)
     expect(m(generateAssetContent)).not.toHaveBeenCalled()
   })
@@ -91,7 +119,7 @@ describe('F10 runCycle', () => {
   it('refuses to run without a confirmed mandate (never creates a run)', async () => {
     m(getCurrentContract).mockResolvedValue(contract({ status: 'draft' }))
     await expect(runCycle(admin, { founderId: 'f1' })).rejects.toBeInstanceOf(RhythmError)
-    expect(m(createRun)).not.toHaveBeenCalled()
+    expect(m(createOrResumeRun)).not.toHaveBeenCalled()
   })
 
   it('runs only contract-active Programs (a paused Program is skipped)', async () => {
@@ -135,14 +163,21 @@ describe('F10 runCycle', () => {
     expect(m(generateAssetContent)).toHaveBeenCalledTimes(P001_ASSETS)
   })
 
-  it('later assets in a cycle SEE the ones just written (sequential snapshot)', async () => {
+  it('later assets in a cycle SEE the ones just written (each step re-reads the DB)', async () => {
     // Run 4: AS004 contradicted AS001 by 10x on the ICP's procurement spend, because every
-    // asset got the same frozen pre-loop snapshot. The snapshot now updates as each persists.
-    m(getCurrentAsset).mockResolvedValue(null) // first cycle — nothing exists yet
+    // asset got the same frozen pre-loop snapshot. Chunking replaced the in-memory snapshot
+    // with a fresh DB read every step — this fake simulates that persistence (a real
+    // getCurrentAsset call would see it too, since generateAssetContent really does persist).
     m(collectCycleDelta).mockResolvedValue({ digest: undefined, hasNewInput: false })
-    m(generateAssetContent).mockImplementation(async (_a, callArgs) => ({
-      id: `v-${callArgs.assetId}`, content: `GENERATED ${callArgs.assetId}`,
-    }))
+    const persisted = new Map<string, string>()
+    m(getCurrentAsset).mockImplementation(async (_a: unknown, _f: unknown, assetId: string) =>
+      persisted.has(assetId) ? { content: persisted.get(assetId) } : null,
+    )
+    m(generateAssetContent).mockImplementation(async (_a, callArgs) => {
+      const content = `GENERATED ${callArgs.assetId}`
+      persisted.set(callArgs.assetId, content)
+      return { id: `v-${callArgs.assetId}`, content }
+    })
     await runCycle(admin, { founderId: 'f1' })
 
     const calls = m(generateAssetContent).mock.calls
@@ -172,6 +207,55 @@ describe('F10 runCycle', () => {
     expect(result.stages.P001.assets).toBe('completed')
     expect(result.stages.P001.briefing).toBe('failed') // not 'pending', not 'blocked'
     expect(result.stages.P001.error).toMatch(/briefing exploded/)
+  })
+})
+
+describe('F10 runNextStep — chunking granularity (each call is ~one Claude call)', () => {
+  it('advances by exactly ONE asset per call, done:false until the run is finished', async () => {
+    for (let i = 0; i < P001_ASSETS; i++) {
+      const step = await runNextStep(admin, runStore.id)
+      expect(step.done).toBe(false)
+      expect(m(generateAssetContent)).toHaveBeenCalledTimes(i + 1)
+      expect(m(generateBriefing)).not.toHaveBeenCalled() // the briefing waits for every asset
+    }
+
+    const briefingStep = await runNextStep(admin, runStore.id)
+    expect(briefingStep.done).toBe(false)
+    expect(m(generateBriefing)).toHaveBeenCalledTimes(1)
+    expect(runStore.status).toBe('running') // not finished yet — finishRun hasn't run
+
+    const finalStep = await runNextStep(admin, runStore.id)
+    expect(finalStep.done).toBe(true)
+    expect(runStore.status).toBe('completed')
+  })
+
+  it('calling it again on an already-terminal run is a safe no-op', async () => {
+    runStore.status = 'completed'
+    const step = await runNextStep(admin, runStore.id)
+    expect(step.done).toBe(true)
+    expect(m(generateAssetContent)).not.toHaveBeenCalled()
+  })
+})
+
+describe('F10 runNextStep — a duplicate step losing the DB write race is progress, not a failure', () => {
+  it('an asset persistence conflict (23505) is treated as decided, not failed', async () => {
+    // The unique index on asset_versions(asset_id, execution_id) is what actually prevents a
+    // double-write; this asserts the ENGINE reacts to it correctly rather than poisoning the
+    // program's stage the way a real generation failure would.
+    m(generateAssetContent).mockRejectedValue(new AssetPersistenceError('conflict', 'already persisted'))
+    const step = await runNextStep(admin, runStore.id)
+    expect(step.done).toBe(false)
+    const stage = runStore.stages.P001 as { assets: string; assetsDone: string[] }
+    expect(stage.assets).toBe('pending') // more assets may remain — not flipped to 'failed'
+    expect(stage.assetsDone.length).toBe(1) // the conflicting one still counts as decided
+  })
+
+  it('a briefing publish conflict (23505) is treated as completed, not failed', async () => {
+    for (let i = 0; i < P001_ASSETS; i++) await runNextStep(admin, runStore.id) // walk to the briefing step
+    m(generateBriefing).mockRejectedValue(new BriefingError('duplicate', 'already published'))
+    const step = await runNextStep(admin, runStore.id)
+    expect(step.done).toBe(false)
+    expect((runStore.stages.P001 as { briefing: string }).briefing).toBe('completed')
   })
 })
 

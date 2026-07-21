@@ -90,6 +90,16 @@ deliberately, because auto-clearing a 'running' row risks racing a genuinely liv
 the same delete-and-recreate path B5 uses for `failed`. Needs a careful timeout choice (a cycle
 is minutes, so 2h is generous). Test the race: a live run must never be cleared.
 
+**✅ RESOLVED (21 Jul 2026, the F10 chunking work).** Chunking the Operating Rhythm into short
+steps (see `lib/rhythm/run.ts`'s `runNextStep`) made `running` the NORMAL state for a run
+spanning many self-triggered HTTP steps, not just "one invocation mid-flight" — so this needed
+solving anyway, not just as a nicety. Added `operating_rhythm_runs.last_step_at`
+(`20260721000001_rhythm_last_step_at.sql`), touched on every step. `createOrResumeRun` (renamed
+from `createRun`) now checks it: a `running` row with a step in the last 10 minutes is resumed;
+older than that, it's treated exactly like `failed` — cleared and restarted. Verified via unit
+tests (`__tests__/rhythm-units.test.ts`, "B5 + FU-004") covering resume, staleness, and the
+existing failed-week path untouched.
+
 ---
 
 ## FU-005 — Audit quality items deferred from the Story 2 remediation (Mo's scope call)
@@ -139,3 +149,38 @@ The middleware rate limiter **fails open** when `UPSTASH_REDIS_REST_URL` / `_TOK
 (`middleware.ts` returns null and skips the check). S-1/S-2 added auth so nothing is *public*
 any more, and B2's server-side `cycleKey` holds regardless — but every rate limit in the app is
 advisory until these vars are confirmed present. Minutes to check in Vercel → Settings → Env.
+
+---
+
+## FU-008 — `service_role` may be missing base table grants (confirm prod, owner: Mo)
+
+**Found:** 21 Jul 2026, verifying the F10 chunking work against a freshly-reset local database.
+
+**What:** after `supabase db reset`, every table in `public` — old and new alike, not just
+anything from this session — denied the app's service-role client both SELECT and INSERT with
+`permission denied for table X`, even though `service_role` has `rolbypassrls = true`. Postgres
+enforces base GRANTs *before* RLS/bypass is even considered, and `pg_default_acl` shows the
+local `public` schema's default privileges give `service_role` only `Dxtm` (truncate,
+references, trigger, maintain) — no `select`/`insert`/`update`/`delete`. No migration in this
+repo sets `ALTER DEFAULT PRIVILEGES`; this restriction isn't something we wrote, and every old
+table (`founder_profiles` included) shows the identical pattern.
+
+**Severity: unknown until checked — could be nothing, could be real.** Two possibilities:
+1. Hosted/production Supabase configures this correctly outside of any migration (typical for
+   Supabase-managed projects) — in which case this is a **local-CLI-only** artifact and the
+   live app was never at risk.
+2. Production has the same gap — in which case service-role calls could already be failing
+   there, or narrowly avoiding it by luck of table-creation order.
+
+**Do (Mo):** confirm which — either check the live app actually reads/writes founder data today
+(if yes, you're in scenario 1), or check Supabase dashboard → Database → Roles for
+`service_role`'s grants directly. If scenario 2, the fix is a small additive migration:
+```sql
+grant select, insert, update, delete on all tables in schema public to service_role;
+alter default privileges in schema public grant select, insert, update, delete on tables to service_role;
+```
+**Do NOT apply this speculatively** — it's a database-security-relevant change and deserves its
+own review once the actual scenario is known, not a guess bundled into an unrelated commit.
+
+**Workaround used:** a local-only `GRANT` was run directly against the local Postgres instance
+to unblock this session's verification (not saved to any file, not applied anywhere else).

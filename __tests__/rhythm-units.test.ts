@@ -5,13 +5,13 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { parseAssetContent, generateAssetContent, JudgementError } from '@/lib/rhythm/judge'
-import { createRun, CycleAlreadyRanError, RunError } from '@/lib/rhythm/runs'
+import { createOrResumeRun, CycleAlreadyRanError, RunError } from '@/lib/rhythm/runs'
 import { buildDigest, type CycleSignals } from '@/lib/rhythm/delta'
 import { routedCall } from '@/lib/llm/router'
 import { persistAssetVersion } from '@/lib/assets/versioning'
 
-// Mocked ONLY for the truncation-guard tests below; parseAssetContent/buildDigest/createRun
-// tests don't touch these modules.
+// Mocked ONLY for the truncation-guard tests below; parseAssetContent/buildDigest/
+// createOrResumeRun tests don't touch these modules.
 jest.mock('@/lib/llm/router', () => ({ routedCall: jest.fn() }))
 jest.mock('@/lib/assets/versioning', () => ({ persistAssetVersion: jest.fn() }))
 
@@ -133,17 +133,22 @@ describe('ADR-028 buildDigest', () => {
   })
 })
 
-// ─── B5 — a failed week is retryable; a successful one stays blocked ──────────
+// ─── B5 + FU-004 — a failed OR stalled week is retryable; a live one is resumed ────
 
-/** Minimal fake of the supabase query chains createRun uses, recording the ops performed. */
+/** Minimal fake of the supabase query chains createOrResumeRun uses, recording the ops performed. */
 function fakeAdmin(opts: {
-  existing?: { id: string; status: string } | null
+  existing?: { id: string; status: string; last_step_at?: string } | null
   insertError?: { code?: string; message: string }
 }): { admin: SupabaseClient; ops: string[] } {
   const ops: string[] = []
   const row = {
     id: 'run-new', founder_id: 'f1', contract_id: null, cycle_key: '2026-W30',
-    status: 'running', stages: {}, started_at: 'now', completed_at: null,
+    status: 'running', stages: {}, started_at: 'now', completed_at: null, last_step_at: 'now',
+  }
+  const existingRow = opts.existing && {
+    founder_id: 'f1', contract_id: null, cycle_key: '2026-W30',
+    started_at: 'now', completed_at: null, stages: {}, last_step_at: 'now',
+    ...opts.existing,
   }
   const client = {
     from: () => ({
@@ -152,7 +157,7 @@ function fakeAdmin(opts: {
           eq: () => ({
             maybeSingle: async () => {
               ops.push('select')
-              return { data: opts.existing ?? null, error: null }
+              return { data: existingRow ?? null, error: null }
             },
           }),
         }),
@@ -181,36 +186,46 @@ function fakeAdmin(opts: {
 }
 
 const ARGS = { founderId: 'f1', contractId: null, cycleKey: '2026-W30' }
+const FRESH = new Date().toISOString()
+const STALE = new Date(Date.now() - 15 * 60 * 1000).toISOString() // past the 10-minute threshold
 
-describe('B5 createRun — retry semantics', () => {
+describe('B5 + FU-004 createOrResumeRun — retry and resume semantics', () => {
   it('a COMPLETED week stays blocked (idempotency unchanged)', async () => {
-    const { admin, ops } = fakeAdmin({ existing: { id: 'r1', status: 'completed' } })
-    await expect(createRun(admin, ARGS)).rejects.toBeInstanceOf(CycleAlreadyRanError)
+    const { admin, ops } = fakeAdmin({ existing: { id: 'r1', status: 'completed', last_step_at: FRESH } })
+    await expect(createOrResumeRun(admin, ARGS)).rejects.toBeInstanceOf(CycleAlreadyRanError)
     expect(ops).toEqual(['select']) // nothing deleted, nothing inserted
   })
 
-  it('a RUNNING week stays blocked (never race a live run)', async () => {
-    const { admin, ops } = fakeAdmin({ existing: { id: 'r1', status: 'running' } })
-    await expect(createRun(admin, ARGS)).rejects.toBeInstanceOf(CycleAlreadyRanError)
-    expect(ops).toEqual(['select'])
+  it('a RUNNING week with a fresh last_step_at is RESUMED, not blocked (chunking)', async () => {
+    const { admin, ops } = fakeAdmin({ existing: { id: 'r1', status: 'running', last_step_at: FRESH } })
+    const run = await createOrResumeRun(admin, ARGS)
+    expect(run.id).toBe('r1')
+    expect(ops).toEqual(['select']) // nothing deleted, nothing (re)inserted — same row continues
+  })
+
+  it('a RUNNING week with a STALE last_step_at is treated as abandoned and cleared (FU-004)', async () => {
+    const { admin, ops } = fakeAdmin({ existing: { id: 'r1', status: 'running', last_step_at: STALE } })
+    const run = await createOrResumeRun(admin, ARGS)
+    expect(ops).toEqual(['select', 'delete', 'insert']) // stale row removed, fresh run created
+    expect(run.id).toBe('run-new')
   })
 
   it('a FAILED week is cleared and re-run', async () => {
-    const { admin, ops } = fakeAdmin({ existing: { id: 'r1', status: 'failed' } })
-    const run = await createRun(admin, ARGS)
+    const { admin, ops } = fakeAdmin({ existing: { id: 'r1', status: 'failed', last_step_at: FRESH } })
+    const run = await createOrResumeRun(admin, ARGS)
     expect(ops).toEqual(['select', 'delete', 'insert']) // stale row removed, fresh run created
     expect(run.id).toBe('run-new')
   })
 
   it('no existing run → plain create', async () => {
     const { admin, ops } = fakeAdmin({ existing: null })
-    await createRun(admin, ARGS)
+    await createOrResumeRun(admin, ARGS)
     expect(ops).toEqual(['select', 'insert'])
   })
 
   it('two concurrent retries: the loser of the insert race is still rejected (23505)', async () => {
     const { admin } = fakeAdmin({ existing: null, insertError: { code: '23505', message: 'dup' } })
-    await expect(createRun(admin, ARGS)).rejects.toBeInstanceOf(CycleAlreadyRanError)
+    await expect(createOrResumeRun(admin, ARGS)).rejects.toBeInstanceOf(CycleAlreadyRanError)
   })
 
   it('a read failure is surfaced, never swallowed', async () => {
@@ -223,6 +238,6 @@ describe('B5 createRun — retry semantics', () => {
         }),
       }),
     } as unknown as SupabaseClient
-    await expect(createRun(broken, ARGS)).rejects.toBeInstanceOf(RunError)
+    await expect(createOrResumeRun(broken, ARGS)).rejects.toBeInstanceOf(RunError)
   })
 })

@@ -20,6 +20,9 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { getProgram } from '@/lib/registry'
 
 // Stub ONLY the LLM. Every other module is the real thing.
+// Briefings call routedText; assets call routedCall (since the truncation-guard fix needs
+// stopReason, which only the structured call surfaces) — both must be stubbed or whichever
+// path isn't gets a real "not a function" crash instead of a real behavioral test.
 jest.mock('@/lib/llm/router', () => ({
   routedText: jest.fn(async (_tier: string, msgs: Array<{ content: string }>) => {
     const prompt = String(msgs?.[0]?.content ?? '')
@@ -28,6 +31,11 @@ jest.mock('@/lib/llm/router', () => ({
     }
     return '# Asset (e2e)\n\nDeterministic content from the stubbed model.'
   }),
+  routedCall: jest.fn(async () => ({
+    text: '# Asset (e2e)\n\nDeterministic content from the stubbed model.',
+    toolCall: null,
+    stopReason: 'end_turn',
+  })),
 }))
 
 const URL = process.env.LOCAL_TEST_DB_URL
