@@ -1,7 +1,7 @@
-# How to test what's built — Phase 0 + Story 1 + F11
+# How to test what's built — Phase 0 + Story 1 + Story 2 (F11, F12, F10)
 
 *Follow in order. Level 1 needs nothing. Level 2 needs the flag on. Level 3 is the security
-check. ~20 minutes total. Snapshot: 19 Jul 2026.*
+check. ~25 minutes total. Snapshot: 27 Jul 2026.*
 
 ---
 
@@ -12,7 +12,7 @@ cd ~/Desktop/Qcombinator
 npm test
 ```
 
-**Expect:** ~411 passing, 0 failing.
+**Expect:** ~530 passing, 0 failing. (2 skip unless a local database is running — see Level 2b.)
 
 This is the highest-value check and the one to re-run after every change. If something here
 goes red, stop and read it — it means a rule you locked in has been broken.
@@ -71,8 +71,7 @@ appears later, the gate the PRD deliberately removed has been rebuilt.
 
 **4 · Assets — http://localhost:3000/founder/assets/AS001**
 
-Empty at first ("This asset has no versions yet") — correct. No Program has run, because the
-weekly engine is F10 and isn't built.
+Empty at first ("This asset has no versions yet") — correct, until a cycle has run (Level 2b).
 
 Type some content and save. This is the interesting part: **you're exercising the exact write
 path a Program will use**, just with `authored_by='founder'`.
@@ -112,13 +111,56 @@ argument list.)*
 
 ---
 
+## Level 2b — the Operating Rhythm (F10 + F12), the part that actually costs money
+
+*Needs the flag on, a local database, and `INTERNAL_RUN_SECRET` set — without that last one the
+chain does step 1 and then stalls (which is itself worth seeing once; see the last check).*
+
+**5 · The cycle — http://localhost:3000/founder/executive**
+
+With a confirmed mandate you'll see **"This week's cycle"** with a **Run now** button.
+
+⚠️ **This spends real money** (~$2 for P001's five documents plus a briefing) and takes ~8
+minutes. Each step is one Claude call of ~90 seconds.
+
+*Check, in order:*
+
+- **It returns immediately**, not after 8 minutes. The cycle runs as chained background steps.
+- **The step list ticks over** — one document at a time, "2 of 6", earlier ones showing a tick.
+  If it sits on step 1 forever, the chain isn't self-triggering: check `INTERNAL_RUN_SECRET`.
+- **Run now again mid-cycle** → the button is hidden while running. Calling the API directly
+  returns **409**, not a second run. *One cycle per week per founder is the idempotency
+  guarantee — if you ever get two runs for one week, that's a serious bug, tell me.*
+- When it finishes, **Assets have new versions** and a **briefing appears below** naming only
+  documents that genuinely exist. A briefing claiming a document you can't open is a
+  provenance bug (this has happened before — it's why the briefing reads from the database
+  rather than from the model's memory).
+- **Run now again after it completes** → 409 again. The week is spent.
+
+**6 · The honest no-change week (ADR-028)**
+
+Run a cycle, change nothing, then force a second cycle with a different `cycleKey`
+(dev only: `POST /api/rhythm/run {"cycleKey":"test-2"}`).
+
+*Expect:* assets read **"no change needed"** rather than a tick, **no Claude spend on assets**,
+and a short briefing saying nothing material changed. *If it regenerates all five documents,
+ADR-028's skip has regressed and every cycle is billing you for model variance.*
+
+**7 · The safety limit (ADR-030) — no spend needed**
+
+In the database, set a run's `step_count` above its ceiling (12 for a P001-only contract) and
+trigger a step. *Expect:* the run goes `failed` with `failure_reason = 'step_limit_exceeded'`,
+the panel says **"Stopped by the safety limit"**, and **Run now does not restart it** (409). A
+fuse that resets itself is not a fuse — if it restarts, the protection is gone.
+
+---
+
 ## What you can't test yet, and why
 
 | Thing | Why not |
 |---|---|
-| Programs writing Assets on their own | Needs **F10**, the weekly engine — not built |
-| A weekly briefing | Needs **F12** — not built |
 | Sending a real email | Needs **Story 3** connectors — not built |
+| The weekly cron firing on its own | Needs `CRON_SECRET` in production — deliberately unset |
 | Cross-tenant isolation, automatically | CI has no database (**FU-003**) — see below |
 
 That last one is the real gap. The live test that proves founder B can't read founder A's data

@@ -91,33 +91,10 @@ Identify where commercial momentum is lost.
 
 ---
 
-### See – Think – Do – Care
-
-Evaluate the journey using Google's customer intent model.
-
-Identify:
-
-* See
-* Think
-* Do
-* Care
-
-and align marketing and sales activities accordingly.
-
----
-
 ### Decision-Making Unit (DMU)
 
-For each stage identify:
-
-* Economic Buyer
-* Technical Buyer
-* Champion
-* Procurement
-* Executive Sponsor
-* End User
-
-Explain how influence changes throughout the buying process.
+Reference AS001's DMU (§6) for who the roles are. Here, only note when each role enters the
+journey — see Required Section 5.
 
 ---
 
@@ -139,111 +116,46 @@ The Founder should understand the customer journey within two minutes.
 
 ---
 
-## 2. Buyer Journey Overview
+## 2–3. Buyer Journey, Stage by Stage
 
-Present the complete customer journey.
+List the journey stages (suggested: Awareness → Problem Recognition → Research → Evaluation →
+Internal Alignment → Vendor Selection → Procurement → Purchase → Onboarding → Expansion) as ONE
+table: | Stage | Purpose | Customer Objective | Typical Concern |.
 
-Suggested stages:
+Then identify the **one or two stages that are the real conversion bottleneck** (named in your
+Executive Summary) and give **those only** the full treatment: Customer Actions, Information
+Required, Decision Criteria, Emotional State, Company Touchpoints, Success Indicators.
 
-1. Awareness
-2. Problem Recognition
-3. Research
-4. Evaluation
-5. Internal Alignment
-6. Vendor Selection
-7. Procurement
-8. Purchase
-9. Onboarding
-10. Expansion
-
-Explain the purpose of each stage.
-
----
-
-## 3. Stage-by-Stage Journey Analysis
-
-For every stage document:
-
-* Customer Objective
-* Customer Questions
-* Customer Actions
-* Information Required
-* Decision Criteria
-* Typical Concerns
-* Emotional State
-* Company Touchpoints
-* Success Indicators
-
-Present findings in a structured table.
+Depth on the bottleneck, not depth everywhere — a founder needs to know where deals are actually
+won or lost, not read nine attributes for a stage that behaves exactly as expected.
 
 ---
 
 ## 4. Customer Journey Map
 
-Create a visual journey showing:
-
-* journey stages
-* customer actions
-* customer emotions
-* company interactions
-* decision points
-* friction points
-
-Highlight where customers typically stall or exit.
+One compact visual (an arrow diagram or condensed table), not a separate written section — it
+restates §2–3. Just the stage sequence with friction points marked.
 
 ---
 
-## 5. Decision-Making Unit (DMU)
+## 5. Decision-Making Unit (DMU) — reference AS001, do not redefine
 
-For each journey stage identify:
+The DMU itself is defined in **AS001 §6** — do not redevelop who the roles are. Here, add only
+what AS001 doesn't cover: **when** each role enters the journey.
 
-| Journey Stage | Decision Maker | Influence | Responsibility |
-
-Explain:
-
-* who enters the buying process
-* who approves progression
-* who creates objections
-* who signs contracts
-
-Highlight changes in influence throughout the journey.
+One table: | Journey Stage | DMU Role (from AS001) | Enters here because... |
 
 ---
 
 ## 6. AIDA Assessment
 
-Assess the customer journey using:
-
-* Awareness
-* Interest
-* Desire
-* Action
-
-For each stage identify:
-
-* current effectiveness
-* weaknesses
-* opportunities
-* commercial implications
+One table: | Stage (Awareness/Interest/Desire/Action) | Current Effectiveness | Biggest Weakness |.
+This is the funnel lens for the whole asset — do not also produce a See-Think-Do-Care pass; it's
+the same funnel through a second, redundant framework. AIDA is the one to keep.
 
 ---
 
-## 7. See – Think – Do – Care Analysis
-
-Classify customer behaviour.
-
-For every phase identify:
-
-* customer intent
-* information needs
-* preferred channels
-* recommended company activities
-
-Highlight where current marketing assets are missing.
-
----
-
-## 8. Journey Friction Analysis
+## 7. Journey Friction Analysis
 
 Identify barriers that reduce conversion.
 
@@ -261,7 +173,7 @@ Rank each by commercial impact.
 
 ---
 
-## 9. Journey Opportunity Matrix
+## 8. Journey Opportunity Matrix
 
 Identify opportunities to improve conversion.
 
@@ -279,7 +191,7 @@ Estimate expected commercial impact.
 
 ---
 
-## 10. Executive Conclusions
+## 9. Executive Conclusions
 
 Summarise:
 
@@ -312,20 +224,18 @@ Generate one complete **Buyer Journey Map**.
 
 Expected length:
 
-**8–12 pages**
+**~1,000–1,200 words.** Full stage-by-stage depth goes ONLY on the 1–2 bottleneck stages named
+in your Executive Summary — every other stage is one table row. That reallocation is what makes
+this asset sharp instead of long.
 
 Use executive-quality formatting including:
 
-* executive summary cards
-* visual customer journey maps
-* AIDA diagrams
-* See–Think–Do–Care matrices
-* decision-making unit maps
-* funnel diagrams
-* conversion heat maps
-* touchpoint matrices
-* journey timelines
-* opportunity scorecards
+* executive summary card
+* stage table with the bottleneck stage(s) expanded
+* one compact journey visual
+* AIDA table
+* DMU-timing table (referencing AS001)
+* journey friction + opportunity tables
 * icons
 * call-out boxes
 
@@ -351,15 +261,10 @@ The Founder should finish reading the Asset with a clear understanding of **how 
 
 ---
 
-## One refinement
-
-I would actually **remove the DMU framework from AS003** as a primary framework. You've already developed the DMU in **AS001 (ICP Profiles)**. In AS003, the DMU should simply be **referenced** to show **when** each stakeholder enters the buying journey—not redefine who they are.
-
-That gives you a cleaner architecture:
+**Division of responsibility across the GTM assets** (applied, not proposed):
 
 * **AS001:** Who buys? (ICPs, Personas, DMU)
 * **AS002:** Why do they buy? (Jobs, Pains, Gains, Triggers)
-* **AS003:** How do they buy? (Journey, Touchpoints, Decision Process)
-
-This creates a much tighter knowledge graph across Patel's GTM assets with minimal overlap.
+* **AS003 (this asset):** How do they buy? (Journey, Touchpoints, Decision Process — DMU
+  referenced from AS001, never redefined)
 `

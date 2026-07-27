@@ -87,34 +87,6 @@ Reference AS002 rather than recreating it.
 
 ---
 
-### StoryBrand (SB7)
-
-Structure the commercial narrative around:
-
-* Character (Customer)
-* Problem
-* Guide (Company)
-* Plan
-* Call to Action
-* Success
-* Failure
-
-Ensure the customer—not the company—is the hero.
-
----
-
-### Simon Sinek's Golden Circle
-
-Define:
-
-* Why
-* How
-* What
-
-Ensure messaging begins with purpose before capability.
-
----
-
 ### Message House
 
 Develop a structured messaging architecture comprising:
@@ -211,18 +183,11 @@ Recommended structure:
 
 ---
 
-## 4. Value Proposition
+## 4. Value Proposition — folded into §2/§3
 
-Develop the company's value proposition.
-
-Include:
-
-* Functional Value
-* Economic Value
-* Strategic Value
-* Emotional Value
-
-Explain why customers should choose the company.
+Do not include as a standalone section. It restates Dunford's "Value Created" (§2) — if
+functional/economic/strategic/emotional value needs stating, add one line each inside §2's
+"Value Created" or §3's positioning statement, not a fourth restatement.
 
 ---
 
@@ -265,78 +230,35 @@ Recommended commercial CTAs.
 
 ---
 
-## 6. Golden Circle
+## 6. Golden Circle — cut, owned by §2/§3
 
-Define:
-
-### WHY
-
-Purpose.
+Do not include this section. Why/How/What restates §2's positioning and unique attributes under
+a different template — it is not new analysis.
 
 ---
 
-### HOW
+## 7. StoryBrand Narrative — cut, owned by §3/§5
 
-Unique approach.
-
----
-
-### WHAT
-
-Products and services.
-
-Ensure WHY drives the narrative.
-
----
-
-## 7. StoryBrand Narrative
-
-Develop the company story.
-
-Include:
-
-* Customer
-* Problem
-* Guide
-* Plan
-* Success
-* Call to Action
-
-Avoid making the company the hero.
+Do not include this section. Character/Problem/Guide/Plan restates the positioning statement
+(§3) and the Message House (§5) under a different template.
 
 ---
 
 ## 8. Elevator Pitch
 
-Develop multiple versions.
-
-Examples:
-
-* 15-second
-* 30-second
-* 60-second
-
-Adapt for:
-
-* customers
-* investors
-* partners
+**One** 30-second version only — customer-facing. Do not produce 15s/60s/investor/partner
+variants; they are length edits of the same content, not new thinking.
 
 ---
 
-## 9. Website Messaging
+## 9. Website Messaging — cut, out of scope for this Asset
 
-Develop messaging recommendations for:
-
-* Homepage Hero
-* Value Proposition
-* Problem Section
-* Solution Section
-* Benefits
-* Proof
-* Call to Action
-
-Focus on clarity rather than design.
+**Do not include this section.** This asset's own Purpose states *"the objective is not to
+create marketing copy"* — homepage hero copy, "Proof" sections and CTAs are copywriting output,
+not positioning strategy. It is also this asset's highest-risk section: a "Proof" section with
+no real evidence yet invites inventing a customer, a quote, or a figure to fill it — never do
+that. §2, §3 and §5 already give implementation teams everything they need to write website copy
+elsewhere, later, with real evidence in hand.
 
 ---
 
@@ -356,15 +278,7 @@ Identify:
 
 ## 11. Communication Guidelines
 
-Define:
-
-* preferred terminology
-* words to use
-* words to avoid
-* tone of voice
-* message consistency
-
-Ensure consistency across all channels.
+Two short lists: words to use, words to avoid. One line on tone. No prose.
 
 ---
 
@@ -407,20 +321,17 @@ Generate one complete **Positioning & Messaging Framework**.
 
 Expected length:
 
-**10–15 pages**
+**~1,200–1,400 words.** This asset still carries the two artefacts people actually reuse
+verbatim — the Positioning Statement (§3) and the Message House (§5) — so it runs slightly
+longer than AS001/AS003/AS005. It does NOT carry four restatements of the same narrative in
+different templates; §6, §7 and §9 are cut outright (see above), not compressed.
 
 Use executive-quality formatting including:
 
-* executive summary cards
-* positioning canvases
-* Message House diagrams
-* StoryBrand visual flow
-* Golden Circle diagram
-* value proposition matrices
-* messaging hierarchy tables
-* elevator pitch comparison cards
-* homepage wireframe messaging
-* proof-point matrices
+* executive summary card
+* positioning statement (verbatim, quotable)
+* Message House (core narrative + key messages + proof points)
+* messaging hierarchy table
 * icons
 * call-out boxes
 
@@ -446,16 +357,11 @@ The Founder should finish reading the Asset with complete confidence that **ever
 
 ---
 
-## One refinement
-
-I would make **AS004 the "Commercial Bible"** of the entire GTM system. Every asset that contains customer-facing language should reference it rather than inventing its own messaging.
-
-The dependency chain becomes elegant:
+**AS004 is the "Commercial Bible"** for the GTM system (applied, not proposed). Every asset that
+contains customer-facing language references it rather than inventing its own messaging.
 
 * **AS001** → Who should we sell to?
 * **AS002** → Why do they buy?
 * **AS003** → How do they buy?
-* **AS004** → How do we explain why they should buy from us?
-
-Everything else—channels, campaigns, sales enablement, proposals, website, pricing, and customer success—should inherit from AS004 rather than creating new narratives. This gives Patel a single, coherent messaging DNA across the entire Edge Alpha Operating System.
+* **AS004 (this asset)** → How do we explain why they should buy from us?
 `

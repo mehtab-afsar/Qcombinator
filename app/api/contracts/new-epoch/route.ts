@@ -16,14 +16,14 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
-import { FF_NEW_EXECUTIVE_MODEL } from '@/lib/feature-flags'
 import { ContractError, newEpoch } from '@/lib/mandate/contract'
 import { log } from '@/lib/logger'
+import { newModelOff } from '@/lib/api/response'
 
 export async function POST(): Promise<NextResponse> {
-  if (!FF_NEW_EXECUTIVE_MODEL) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  }
+  // Inert until the new model is on — a stray call can't spend anything.
+  const off = newModelOff()
+  if (off) return off
 
   try {
     const auth = await verifyAuth()

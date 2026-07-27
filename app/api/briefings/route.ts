@@ -8,18 +8,13 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
-import { FF_NEW_EXECUTIVE_MODEL } from '@/lib/feature-flags'
 import { getBriefings, pickLatestPerProgram } from '@/lib/briefings/briefings'
 import { log } from '@/lib/logger'
+import { newModelOff } from '@/lib/api/response'
 
-/** New model off by default (ADR-014): the route does not exist — 404, not 403. */
-function flagOff(): NextResponse | null {
-  if (FF_NEW_EXECUTIVE_MODEL) return null
-  return NextResponse.json({ error: 'Not found' }, { status: 404 })
-}
 
 export async function GET(): Promise<NextResponse> {
-  const off = flagOff()
+  const off = newModelOff()
   if (off) return off
 
   try {

@@ -11,11 +11,16 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { STEP_LIMIT_EXCEEDED } from './limits'
 
 export type RunStatus = 'running' | 'completed' | 'failed'
 
-/** No step in `last_step_at` for this long → the chain is presumed broken, not just slow. */
-const STALE_AFTER_MS = 10 * 60 * 1000
+/**
+ * No step in `last_step_at` for this long → the chain is presumed broken, not just slow.
+ * Single-sourced: the resume decision here and the founder-facing 'stalled' badge
+ * (lib/rhythm/progress.ts) must agree on what counts as stalled.
+ */
+export const STALE_AFTER_MS = 10 * 60 * 1000
 
 export interface RhythmRun {
   id: string
@@ -27,6 +32,10 @@ export interface RhythmRun {
   startedAt: string
   completedAt: string | null
   lastStepAt: string
+  /** Steps ATTEMPTED — the circuit breaker's counter (see lib/rhythm/limits.ts). */
+  stepCount: number
+  /** Machine-readable cause, e.g. 'step_limit_exceeded'. Null for an ordinary failure. */
+  failureReason: string | null
 }
 
 interface RunRow {
@@ -39,6 +48,8 @@ interface RunRow {
   started_at: string
   completed_at: string | null
   last_step_at: string
+  step_count: number | null
+  failure_reason: string | null
 }
 
 function toRun(row: RunRow): RhythmRun {
@@ -52,6 +63,10 @@ function toRun(row: RunRow): RhythmRun {
     startedAt: row.started_at,
     completedAt: row.completed_at,
     lastStepAt: row.last_step_at,
+    // Coerced, not trusted: if code somehow ships before the migration the column is absent,
+    // and `undefined >= limit` is false — a silently disabled breaker. 0 fails safe instead.
+    stepCount: typeof row.step_count === 'number' ? row.step_count : 0,
+    failureReason: row.failure_reason ?? null,
   }
 }
 
@@ -73,6 +88,22 @@ export class RunError extends Error {
   constructor(message: string) {
     super(message)
     this.name = 'RunError'
+  }
+}
+
+/**
+ * This week's run tripped the circuit breaker and will NOT be retried automatically.
+ *
+ * Deliberately not a subclass of CycleAlreadyRanError: "the fuse blew" is not "this week already
+ * ran", and a founder should be told the difference. Recovery is a human decision — clearing the
+ * row hands the same logic a fresh budget, which is only correct once the bug is fixed.
+ */
+export class StepLimitOpenError extends Error {
+  readonly cycleKey: string
+  constructor(cycleKey: string) {
+    super(`This week's cycle (${cycleKey}) was stopped by the safety limit and needs looking at.`)
+    this.name = 'StepLimitOpenError'
+    this.cycleKey = cycleKey
   }
 }
 
@@ -113,6 +144,14 @@ export async function createOrResumeRun(
     const existingRun = toRun(existing as RunRow)
     if (existingRun.status === 'completed') throw new CycleAlreadyRanError(args.cycleKey)
     if (existingRun.status === 'running' && !isStale(existingRun)) return existingRun
+
+    // The circuit breaker blew for this week. Falling through to the delete-and-retry path
+    // below would hand the same runaway a brand new budget on every cron tick and every manual
+    // click — a fuse that resets itself is not a fuse. Recovery is deliberate: fix the bug,
+    // then clear the row (or wait for the next cycle_key).
+    if (existingRun.status === 'failed' && existingRun.failureReason === STEP_LIMIT_EXCEEDED) {
+      throw new StepLimitOpenError(args.cycleKey)
+    }
 
     // 'failed', or 'running'-but-stale: clear and start fresh. The status filter guards a
     // race where the row changed between read and delete — it deletes only if the row is
@@ -180,15 +219,81 @@ export async function getLastCompletedRun(
   return data ? toRun(data as RunRow) : null
 }
 
-/** Close the run with its terminal status and per-stage detail. */
+/**
+ * Reserve the next step number before any paid work — the circuit breaker's counter.
+ *
+ * Compare-and-set on purpose. A plain `step_count = read + 1` loses updates when the chain forks
+ * (two live invocations both read 5, both write 6), which under-counts in exactly the situation
+ * where the count matters most. With the CAS the counter stays correct under concurrency, so the
+ * ceiling still bounds total spend for a forked chain, and the invocation that loses the race
+ * drops out instead of double-billing.
+ *
+ * Honest scope: this does NOT serialise a whole step — one chain can claim step 5 and start a
+ * 90-second call while another claims step 6. What it guarantees is that both consume budget.
+ *
+ * @returns the reserved step number, or null when another invocation claimed it first (or the
+ *          run is no longer 'running') — the caller must then stop, not retry.
+ * @throws RunError on a database failure. Fails CLOSED: an unusable counter aborts the step
+ *         rather than letting it proceed uncounted.
+ */
+export async function claimStep(
+  admin: SupabaseClient,
+  runId: string,
+  expectedCount: number,
+): Promise<number | null> {
+  const { data, error } = await admin
+    .from('operating_rhythm_runs')
+    .update({ step_count: expectedCount + 1 })
+    .eq('id', runId)
+    .eq('step_count', expectedCount)
+    .eq('status', 'running')
+    .select('step_count')
+    .maybeSingle()
+
+  if (error) throw new RunError(`Failed to claim a step for run ${runId}: ${error.message}`)
+  return data ? (data as { step_count: number }).step_count : null
+}
+
+/**
+ * The founder's most recent run, whatever its status — what the Command View shows.
+ * Safe with a USER-scoped client: `operating_rhythm_runs` is SELECT-own under RLS, so the
+ * tenancy boundary is the database's, not a filter we could forget.
+ */
+export async function getLatestRun(
+  client: SupabaseClient,
+  founderId: string,
+): Promise<RhythmRun | null> {
+  const { data, error } = await client
+    .from('operating_rhythm_runs')
+    .select('*')
+    .eq('founder_id', founderId)
+    .order('started_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) throw new RunError(`Failed to read the latest run: ${error.message}`)
+  return data ? toRun(data as RunRow) : null
+}
+
+/**
+ * Close the run with its terminal status and per-stage detail.
+ *
+ * `failureReason` is machine-readable and only set for a non-ordinary failure (today: the
+ * circuit breaker). It is what stops createOrResumeRun auto-retrying a blown fuse.
+ */
 export async function finishRun(
   admin: SupabaseClient,
   runId: string,
-  outcome: { status: RunStatus; stages: Record<string, unknown> },
+  outcome: { status: RunStatus; stages: Record<string, unknown>; failureReason?: string },
 ): Promise<void> {
   const { error } = await admin
     .from('operating_rhythm_runs')
-    .update({ status: outcome.status, stages: outcome.stages, completed_at: new Date().toISOString() })
+    .update({
+      status: outcome.status,
+      stages: outcome.stages,
+      completed_at: new Date().toISOString(),
+      failure_reason: outcome.failureReason ?? null,
+    })
     .eq('id', runId)
 
   if (error) throw new RunError(`Failed to finish run ${runId}: ${error.message}`)

@@ -19,12 +19,13 @@ export const maxDuration = 200
 
 import { NextRequest, NextResponse, after } from 'next/server'
 import { z } from 'zod'
-import { createAdminClient } from '@/lib/supabase/server'
+import { createAdminClient, createClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { parseBody } from '@/lib/api/validate'
-import { FF_NEW_EXECUTIVE_MODEL } from '@/lib/feature-flags'
+import { newModelOff } from '@/lib/api/response'
 import { RhythmError, runNextStep } from '@/lib/rhythm/run'
-import { createOrResumeRun, CycleAlreadyRanError } from '@/lib/rhythm/runs'
+import { createOrResumeRun, getLatestRun, CycleAlreadyRanError, StepLimitOpenError } from '@/lib/rhythm/runs'
+import { buildProgress } from '@/lib/rhythm/progress'
 import { getCurrentContract } from '@/lib/mandate/contract'
 import { weekCycleKey } from '@/lib/rhythm/cycle-key'
 import { env } from '@/lib/env'
@@ -33,11 +34,6 @@ import { log } from '@/lib/logger'
 // cycleKey override is for dev testing only; it defaults to the current ISO week.
 const bodySchema = z.object({ cycleKey: z.string().trim().max(40).optional() })
 
-/** New model off by default (ADR-014): the route does not exist — 404, not 403. */
-function flagOff(): NextResponse | null {
-  if (FF_NEW_EXECUTIVE_MODEL) return null
-  return NextResponse.json({ error: 'Not found' }, { status: 404 })
-}
 
 /** Same after()-based hand-off the step route uses to chain itself — see its docstring. */
 function triggerStep(runId: string): void {
@@ -51,8 +47,36 @@ function triggerStep(runId: string): void {
   })
 }
 
+/**
+ * GET — the founder's latest cycle as readable progress ("Generating ICP Profiles… 2 of 6").
+ * Read-only and cheap: the Command View polls this while a cycle is in flight.
+ */
+export async function GET(): Promise<NextResponse> {
+  const off = newModelOff()
+  if (off) return off
+
+  try {
+    const auth = await verifyAuth()
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+    // User-scoped on purpose — RLS (SELECT-own) is the tenancy boundary, as in /api/briefings.
+    const supabase = await createClient()
+    const run = await getLatestRun(supabase, auth.user.id)
+    if (!run) return NextResponse.json({ progress: null }) // nothing has ever run — not an error
+
+    // The active Programs give the projection its total; a just-created run's stages are empty.
+    const contract = await getCurrentContract(supabase, auth.user.id)
+    const activePrograms = contract?.status === 'confirmed' ? contract.activePrograms : []
+
+    return NextResponse.json({ progress: buildProgress(run, activePrograms) })
+  } catch (err) {
+    log.error('GET /api/rhythm/run', { err })
+    return NextResponse.json({ error: 'Failed to load the cycle' }, { status: 500 })
+  }
+}
+
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  const off = flagOff()
+  const off = newModelOff()
   if (off) return off
 
   try {
@@ -83,6 +107,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   } catch (err) {
     // Already ran this week → 409 (idempotent, the founder should know it was a no-op).
     if (err instanceof CycleAlreadyRanError) {
+      return NextResponse.json({ error: err.message }, { status: 409 })
+    }
+    // The circuit breaker blew for this week. Also a 409 (the week is spent), but a distinct
+    // message: retrying would hand the same runaway a fresh budget, so it needs a human.
+    if (err instanceof StepLimitOpenError) {
       return NextResponse.json({ error: err.message }, { status: 409 })
     }
     // No confirmed mandate → 400 (nothing to run yet).

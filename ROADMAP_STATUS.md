@@ -1,9 +1,9 @@
 # Edge Alpha — Roadmap Status
 
-*Every phase and feature, ticked or not. Snapshot: **19 July 2026**. Companion diagram:
+*Every phase and feature, ticked or not. Snapshot: **27 July 2026**. Companion diagram:
 `edge_alpha_flow.png`. Canonical order: `Roadmap.md` · Specs: `Featureinventory.md`.*
 
-**Legend:** ✅ done · ▶ in progress / next · ⬜ not started · ⛔ deferred, do not build
+**Legend:** ✅ done · ✅* built but not yet proven against the real model · ▶ next · ⬜ not started · ⛔ deferred
 
 ---
 
@@ -11,11 +11,31 @@
 
 | | |
 |---|---|
-| **Phases complete** | 2 of 8 (Phase 0, Phase 1) |
-| **Buildable product** (Phases 0–3) | **~55%** |
-| **Full arc to PRD achieved** (Phases 0–7) | **~30%** |
-| **Tests** | 411 passing |
+| **Phases complete** | 3 of 8 (Phase 0, Story 1, Story 2 — see caveat) |
+| **Buildable product** (Phases 0–3) | **~78%** |
+| **Full arc to PRD achieved** (Phases 0–7) | **~42%** |
+| **Proven against the real AI** | Yes — full loop, 5 documents + briefing, **6 live trials** (the 6th proved the chunked chain) |
 | **Live users affected** | **None** — everything is behind `FF_NEW_EXECUTIVE_MODEL` (off) |
+
+**One caveat holding back "Story 2 fully done":** the chunking fix is now **measured** (27 Jul
+trial — see below), but still has **no circuit breaker**. A self-triggering chain with no hard
+step ceiling would bill forever if its "what's next" logic ever broke. That must land before the
+secrets that let it run in production are added.
+
+### 📏 The chunking trial — measured 27 Jul (this closes a long-open question)
+
+Ran the real chained path end to end (cron entry point → `/step` self-chain → real Claude calls):
+
+| | |
+|---|---|
+| **Per-step wall time** | **80–100s** per asset · 46s for the briefing |
+| **Longest single invocation** | **~100s** ← the number that decides the hosting tier |
+| **Total end-to-end** | ~8.4 min (unchanged — chunking splits the work, it doesn't shorten it) |
+| **Correctness** | Identical to the old single-call run: 5 assets + 1 briefing, exactly-one-current intact |
+
+**The answer to the tier question: this does NOT fit a 60s cap. It fits 300s (Vercel Pro) with
+~3× headroom.** If the account is on Hobby, every step would time out and lean on retries — so
+the plan check below is no longer just tidy-up, it's load-bearing.
 
 ---
 
@@ -59,10 +79,9 @@ Programs. A change creates a new epoch; history intact.
 
 ---
 
-## Phase 2 · Story 2 — Rhythm + Assets ▶ (Jul → mid Sep)
+## Phase 2 · Story 2 — Rhythm + Assets ✅* (built; runtime fix awaiting proof)
 
-*Build order **F11 → F12 → F10**. The order matters: the engine has nothing to write into
-without the store, and nothing to report without briefings.*
+*Built order **F11 → F12 → F10**. All three shipped and proven against the real AI across 5 trials.*
 
 ### ✅ F11 — Asset Persistence & Versioning
 
@@ -77,28 +96,47 @@ without the store, and nothing to report without briefings.*
 - [x] RLS founder-scoped, no permissive policy, no DELETE policy
 - [x] **8/8 runtime behaviours verified against a real database**
 
-### ▶ F12 — Executive Briefings — NEXT
+### ✅ F12 — Executive Briefings
 
-- [ ] `executive_briefings` table + RLS
-- [ ] One Briefing per Program run, carrying a verdict
-- [ ] Generated through the F06 Composer (no inline prompts)
-- [ ] Idempotent — a re-run cannot duplicate a Briefing
-- [ ] "No material change" → a short briefing, **never silence**
-- [ ] Generation failure → stage `failed`, **Asset versions stay persisted**
-- [ ] Surfaced on F09 + F04, linking through to the underlying Assets
-- [ ] **No approve / acknowledge / dismiss control anywhere**
+- [x] `executive_briefings` table + RLS; one Briefing per Program run, carrying a verdict
+- [x] Generated through the F06 Composer (no inline prompts)
+- [x] Idempotent — a re-run cannot duplicate a Briefing
+- [x] "No material change" → a short honest briefing, **never silence** (verified live)
+- [x] Generation failure → stage `failed`, **Asset versions stay persisted**
+- [x] Surfaced on F09 + F04, **no approve/dismiss control**
+- [x] JSON-only output; **honest deliverable claims** — reports only what actually persisted
 
-### ⬜ F10 — Operating Rhythm Engine
+### ✅* F10 — Operating Rhythm Engine
 
-- [ ] `operating_rhythm_runs` + `cycle_key`
-- [ ] **Idempotent** — the same cycle can never run twice
-- [ ] Runs **all contract-active Programs** (no `runsWhen` in v1 — ADR-008)
-- [ ] **No Asset Review stage** (ADR-006)
-- [ ] Vercel Cron trigger + manual `POST /api/rhythm/run` for testing
-- [ ] The deferred execution FK from F11 finally lands here
+- [x] `operating_rhythm_runs` + `cycle_key`; **idempotent** — the same cycle can't run twice
+- [x] Runs **all contract-active Programs** (no `runsWhen` in v1 — ADR-008); **no Asset Review** (ADR-006)
+- [x] Cron **fails closed** — nothing without the secret and the flag
+- [x] Fed by a founder-activity delta (ADR-028) — unchanged assets not regenerated; quiet week = £0 (verified)
+- [x] **Chunked into self-resuming steps** to survive the serverless timeout (commit `a1a9c5d`)
+- [x] **Chunking trial run against the real AI** (27 Jul) — measured ~100s/step; see the headline
+- [x] **`last_step_at`** distinguishes an actively-stepping run from a dead chain — **closes FU-004**
+- [ ] ⚠️ **Circuit breaker** (max step ceiling) — NOT yet added; a runaway chain would bill forever.
+      *(Retry caps already exist: assets retry once, briefings not at all.)*
 
-**Story 2 exit:** AS001–AS005 measurably improve across ≥2 cycles · the same cycle can't run
-twice · a founder edit is used next cycle. **No external sends.**
+### ✅* F10b — Cycle visibility (the Command View panel) · built 27 Jul, **not yet seen rendering**
+
+- [x] `GET /api/rhythm/run` → named, ordered progress ("ICP Profiles ✓ · Pains & Gains ⟳ · 2 of 6")
+- [x] `RhythmPanel` on `/founder/executive` — **"Run now"** + live step list, polls only while running
+- [x] Honest states: `skipped` reads "no change needed" (ADR-028) · a *blocked* briefing reads
+      pending, never failed · a dead chain reads "stopped partway, nothing was lost"
+- [x] Unknown Program degrades instead of 500-ing the page (fixed, not merely documented)
+- [ ] ⚠️ **Never visually verified** — typecheck + 13 unit tests pass, but no one has watched it
+      render. Needs Docker up and a local run before it counts as done.
+
+**Why this exists:** before today *nothing in the app could start a cycle* — the only triggers
+were the (unplugged) weekly cron and a raw API call. Chunking also made runs asynchronous, so a
+founder would have got "started!" and then silence for 8 minutes.
+
+**Story 2 remediation done:** B1–B5 fixed · S-1/S-2 endpoints secured · provenance fixed (no invented
+evidence, no invented dates, assets agree) · asset truncation guarded · FU-007 (layer jurisdiction) verified.
+
+**Story 2 exit:** met on substance — cycles run, react to founder activity, report honestly, and are
+now visible. **One runtime item (the circuit breaker) plus one visual check close it fully.**
 
 ---
 
@@ -140,28 +178,68 @@ twice · a founder edit is used next cycle. **No external sends.**
 
 ---
 
+## Right now — the immediate queue (in order)
+
+1. **See the new panel actually render** — Docker up, load `/founder/executive`, run a cycle,
+   watch it tick. Small, but it's the difference between "built" and "works". *(needs Mo: Docker)*
+2. **Circuit breaker** — a max-step ceiling on the chain, so a bug can't bill forever.
+   **Must land before `INTERNAL_RUN_SECRET`/`CRON_SECRET` go into production.** *(Stage A of
+   `prompts/CHUNKING_VERIFY.md` — its Stage B trial is now done.)*
+3. **Check the Vercel plan** — the 27 Jul trial makes this load-bearing, not housekeeping:
+   ~100s/step needs Pro's 300s. 30 seconds of Mo's time. *(needs Mo)*
+4. **FU-003's second half** — give CI a real database and make the cross-tenant test *blocking*
+   instead of `continue-on-error`. The migrations already replay from empty and FU-008 (which
+   silently blocked this) is fixed, so this is now unblocked. **2–4 days.** The last technical
+   gate before Story 3.
+5. **Story 3 — Connectors + Actions** — the last build phase; the pilot now depends on it.
+   *(prompt: `prompts/STORY_3_CONNECTORS.md`)* **Blocked on two things outside engineering:**
+   the connector table name (Roman) and sending credentials (Mo).
+
+## Decided since last update
+
+- ✅ **The pilot includes Story 3** (Roman) — so the pilot waits until Story 3 ships (~Sept).
+- ✅ **Executives may not commission documents outside the Registry** (Roman) — a briefing reports
+  only what genuinely exists; a need outside the catalogue is a *recommendation*, never a claim.
+- ❓ **Open — connector table name.** `connector_grants` recommended (Roman suggested "mandate",
+  which collides with the Executive Contract). **Blocks Story 3 Stage A.**
+- 🔬 **Model-cost tuning** (Roman) — assign cheaper/premium models per step. It's tuning, not a
+  phase: a ~$6 comparison experiment, scheduled after the chunking is proven.
+
 ## Open items
 
 ### Engineering follow-ups (`FOLLOWUPS.md`)
 
-- [ ] **FU-001** — lock down `confirm_executive_contract` as F11's function was. *Low.*
-- [ ] **FU-002** — optionally move Story 1's strategy save to F11's crash-proof pattern. *Low.*
-- [ ] **FU-003** — **migrations can't rebuild the database from empty.** *Medium — and it is the
-      root blocker for the item below. Schedule between F12 and F10.*
-- [ ] **CI security phase is advisory** — the live cross-tenant test runs with
-      `continue-on-error: true`, so it can fail without failing CI. Blocked by FU-003 (CI has no
-      database). Until then, **verify cross-tenant isolation by hand** with two accounts.
+- [~] **FU-003** — **half done (27 Jul).** ✅ Migrations DO now replay from empty — a full
+      `supabase db reset` applies all 73 cleanly, verified repeatedly. ⬜ The second half (give
+      CI that database, make the cross-tenant test blocking) is **still open** — but its blocker
+      was FU-008, now fixed, so this is unblocked work rather than a research problem.
+- [x] ~~**FU-008** — `service_role` base-table grants.~~ **CLOSED 27 Jul** by
+      `20260727000002_base_role_grants.sql`. Was wider than written (`authenticated` too — a
+      migration-built database served *no* founder request) and was the real blocker under
+      FU-003's CI half. Production was never affected (verified read-only). Fixing it also closed
+      a latent hole: `qscore_history_dedup_audit` had RLS off and holds per-founder scores.
+- [x] ~~**FU-004** — a crashed cycle stuck in `running` blocks its week.~~ **CLOSED 27 Jul** by the
+      chunking's `last_step_at` + staleness resume (tested).
+- [ ] **FU-001** — lock down `confirm_executive_contract` RPC. *Low.*
+- [ ] **FU-002** — retrofit `strategy_sessions` to the atomic-write pattern. *Low.*
+- [ ] **FU-005** — `flagOff()` duplicated 5×; `compose.ts` 532 / `contract.ts` 386 over the size rule. *Low.*
+- [ ] **CI security phase advisory** — cross-tenant test runs `continue-on-error`. Blocked by FU-003;
+      until then **verify cross-tenant isolation by hand** with two accounts.
 
 ### Only Mo can do these (`missingwork.md`)
 
-- [ ] **Configure PostHog** ← highest value, smallest effort, hard deadline of October
-- [ ] Resend API key (blocks Story 3 sends)
-- [ ] Stripe keys (blocks charging)
-- [ ] Check Vercel plan — Story 2 adds a sixth cron job; Hobby limits how many run
+- [ ] 🔴 **Check the Vercel plan** (Settings → Plan) — **now load-bearing.** The 27 Jul trial measured
+      ~100s per step: fine on Pro (300s), fails on Hobby (60s). Also settles a live contradiction
+      (4 routes already declare 120–300s `maxDuration`, impossible on Hobby).
+- [ ] **Configure PostHog** — retention can't be measured retroactively; hard deadline of October.
+- [ ] **Confirm Upstash rate-limit vars in Vercel prod** — the limiter fails open without them.
+- [ ] Resend keys (Story 3 sends) · Stripe keys (charging). **Check the "Shared" env tab first** — may already be set.
+- [ ] **Read the latest trial documents** and judge whether a founder would use them.
 
 ---
 
 ## One line
 
-Foundations safe and tested · the Mandate live · the Asset memory live · next the Briefings,
-then the weekly engine that ties them together — and the old product untouched throughout.
+Foundations safe · the Mandate live · the weekly engine built, measured against the real AI, and
+now visible in the app · one safety guard (the circuit breaker) left, then Story 3 — the part that
+makes it more than documents.

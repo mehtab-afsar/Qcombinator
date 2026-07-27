@@ -24,6 +24,7 @@ import Link from 'next/link'
 import { ArrowRight, Loader2 } from 'lucide-react'
 import { bg, surf, bdr, ink, muted, blue, red } from '@/lib/constants/colors'
 import { MandateCard } from '@/features/executive/components/MandateCard'
+import { RhythmPanel } from '@/features/executive/components/RhythmPanel'
 import { BriefingsPanel } from '@/features/executive/components/BriefingsPanel'
 import {
   resolveMandateState,
@@ -200,6 +201,8 @@ export default function ExecutivePage() {
         </div>
       )}
 
+      {/* The cycle, then what it produced — the order a founder reads them in. */}
+      {state === 'confirmed' && <RhythmPanel />}
       {state === 'confirmed' && <BriefingsPanel />}
     </Shell>
   )

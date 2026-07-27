@@ -219,10 +219,12 @@ describe('the contract routes', () => {
   })
 
   it('both routes are gated by the flag, on every verb', () => {
-    expect(main.slice(main.indexOf('export async function GET'), main.indexOf('export async function POST'))).toContain('flagOff()')
-    expect(main.slice(main.indexOf('export async function POST'))).toContain('flagOff()')
-    expect(epoch).toContain('FF_NEW_EXECUTIVE_MODEL')
-    expect(epoch).toMatch(/status: 404/)
+    // One shared guard (lib/api/response.ts), not a local copy per route — CODEBASE_AUDIT Q-1.
+    expect(main.slice(main.indexOf('export async function GET'), main.indexOf('export async function POST'))).toContain('newModelOff()')
+    expect(main.slice(main.indexOf('export async function POST'))).toContain('newModelOff()')
+    expect(epoch).toContain('newModelOff()')
+    expect(main).not.toContain('function flagOff')
+    expect(epoch).not.toContain('function flagOff')
   })
 
   it('authenticates, validates with Zod, and lets RLS enforce tenancy', () => {

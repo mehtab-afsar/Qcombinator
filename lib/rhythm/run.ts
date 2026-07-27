@@ -11,17 +11,17 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getCurrentContract, getProgramsForContract, type ExecutiveContract, type ProgramInstance } from '@/lib/mandate/contract'
-import { getCurrentStrategy } from '@/lib/mandate/strategy'
-import { getProgram, type AssetId } from '@/lib/registry'
-import { getCurrentAsset } from '@/lib/assets/versioning'
+import { getProgram } from '@/lib/registry'
 import { AssetPersistenceError } from '@/lib/assets/validation'
 import { generateBriefing } from '@/lib/briefings/generate'
 import { BriefingError } from '@/lib/briefings/briefings'
 import type { CompanyContext } from '@/lib/prompts/compose'
 import { log } from '@/lib/logger'
-import { createOrResumeRun, finishRun, getLastCompletedRun, getRun, recordStep, type RhythmRun } from './runs'
+import { buildContext, currentAssetsFor } from './context'
+import { claimStep, createOrResumeRun, finishRun, getLastCompletedRun, getRun, recordStep, type RhythmRun } from './runs'
 import { generateAssetContent } from './judge'
 import { collectCycleDelta } from './delta'
+import { maxStepsForRun, STEP_LIMIT_EXCEEDED } from './limits'
 import { weekCycleKey } from './cycle-key'
 
 export class RhythmError extends Error {
@@ -56,47 +56,6 @@ export interface StepResult {
   done: boolean
 }
 
-/** Compact Company Context from Strategy + Contract. (Q-Score is a v1 omission — see F10_DESIGN.) */
-async function buildContext(
-  admin: SupabaseClient,
-  founderId: string,
-  contract: ExecutiveContract,
-): Promise<CompanyContext> {
-  const strategy = await getCurrentStrategy(admin, founderId)
-  const strategyText = strategy
-    ? [
-        strategy.mission ?? '',
-        strategy.priorities.length ? `Priorities: ${strategy.priorities.join('; ')}` : '',
-        strategy.goals.length ? `Goals: ${strategy.goals.join('; ')}` : '',
-      ].filter(Boolean).join('\n')
-    : undefined
-  const contractText = [
-    contract.priorities.length ? `Priorities: ${contract.priorities.join('; ')}` : '',
-    contract.successMetrics.length ? `Success metrics: ${contract.successMetrics.join('; ')}` : '',
-    `Active programs: ${contract.activePrograms.join(', ')}`,
-  ].filter(Boolean).join('\n')
-  return {
-    strategy: strategyText,
-    contract: contractText,
-    // The real date — without it, run 4's documents invented "May 2024/2025".
-    currentDate: new Date().toISOString().slice(0, 10),
-  }
-}
-
-/** The program's current Asset versions, as strings, for the compose context. */
-async function currentAssetsFor(
-  admin: SupabaseClient,
-  founderId: string,
-  assetIds: readonly AssetId[],
-): Promise<Partial<Record<AssetId, string>>> {
-  const map: Partial<Record<AssetId, string>> = {}
-  for (const assetId of assetIds) {
-    const version = await getCurrentAsset(admin, founderId, assetId)
-    if (version) map[assetId] = typeof version.content === 'string' ? version.content : JSON.stringify(version.content)
-  }
-  return map
-}
-
 /** Everything one step needs, computed the same way whichever program/asset it lands on. */
 interface StepContext {
   contract: ExecutiveContract
@@ -128,6 +87,45 @@ function newStage(): StageStatus {
 }
 
 /**
+ * The circuit breaker. Every step is a paid Claude call that schedules the next one, so a bug in
+ * the "what's next" logic below would bill forever. This is the hard stop.
+ *
+ * The counter it reads lives in its own column and is claimed BEFORE any generation —
+ * deliberately independent of `stages`, because the failure mode being guarded against is one
+ * where `stages` stops advancing. A counter that lived in `stages` would stop advancing with it.
+ *
+ * @returns a StepResult when the caller must stop (done:true — the chain must not self-schedule
+ *          again), or null to proceed with one step.
+ */
+async function claimStepBudget(
+  admin: SupabaseClient,
+  run: RhythmRun,
+  programs: readonly ProgramInstance[],
+  stages: Record<string, StageStatus>,
+): Promise<StepResult | null> {
+  const limit = maxStepsForRun(programs.map(p => p.templateId), Object.keys(stages))
+
+  if (run.stepCount >= limit) {
+    // A stable string worth alerting on: a breaker that trips unnoticed is a founder who
+    // silently stops receiving briefings.
+    log.error('rhythm circuit breaker tripped — run exceeded its step ceiling', {
+      runId: run.id, founderId: run.founderId, cycleKey: run.cycleKey,
+      stepCount: run.stepCount, limit, reason: STEP_LIMIT_EXCEEDED,
+    })
+    await finishRun(admin, run.id, { status: 'failed', stages, failureReason: STEP_LIMIT_EXCEEDED })
+    return { done: true }
+  }
+
+  if ((await claimStep(admin, run.id, run.stepCount)) === null) {
+    log.warn('rhythm step claim lost — another invocation is already stepping this run', {
+      runId: run.id, stepCount: run.stepCount,
+    })
+    return { done: true }
+  }
+  return null
+}
+
+/**
  * Advance a run by exactly ONE unit of work — one asset generation or one briefing generation —
  * then persist and return. Safe to call repeatedly from separate invocations (an HTTP step
  * route, a retried trigger): "what's next" is a pure function of the run's persisted `stages`,
@@ -144,6 +142,11 @@ export async function runNextStep(admin: SupabaseClient, runId: string): Promise
 
   const { contract, baseContext, hasNewInput, programs } = await buildStepContext(admin, run)
   const stages = { ...(run.stages as Record<string, StageStatus>) }
+
+  // The one place every entry point (step route, manual run, cron) must pass through before
+  // reaching the model — structural coverage rather than the same guard repeated three times.
+  const stopped = await claimStepBudget(admin, run, programs, stages)
+  if (stopped) return stopped
 
   for (const program of programs) {
     const stage = stages[program.templateId] ?? newStage()

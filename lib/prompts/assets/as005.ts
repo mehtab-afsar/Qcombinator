@@ -128,136 +128,36 @@ Do not recommend campaigns.
 
 ---
 
-## 2. Commercial Channel Universe
+## 2–3. Channel Universe + Catalogue (merged, one table)
 
-Before evaluating channels, identify the complete universe of commercially relevant acquisition channels.
+Do not list the channel universe and then catalogue it separately — that's the same channel
+names twice. One table, covering both offline (conferences, founder networking, partnerships,
+referrals, etc.) and online (SEO, cold email, LinkedIn, content, etc.) channels relevant to this
+company's ICPs:
 
-The purpose is to expose the Founder to the breadth of available commercial routes to market.
+| Channel | Online/Offline | Typical Purpose | Typical Buyer Stage | Typical Cost | Scalability |
 
-Unless clearly irrelevant, include both offline and online channels.
-
----
-
-### Offline Channels
-
-Examples include:
-
-* Industry Conferences
-* Trade Shows
-* Founder Networking
-* Industry Associations
-* Chamber of Commerce
-* Strategic Partnerships
-* Channel Partners
-* Resellers
-* Government Programmes
-* Procurement Portals
-* Tender Platforms
-* Accelerator Programmes
-* Incubators
-* Investor Introductions
-* Customer Referrals
-* Advisory Boards
-* Executive Roundtables
-* Workshops
-* Customer Events
-* Enterprise Direct Sales
+Skip channels with no plausible fit rather than listing all ~35 generic options — relevance to
+*this* company's ICPs, not exhaustiveness, is the bar.
 
 ---
 
-### Online Channels
+## 4. Channel Relevance Assessment — this is the asset's core table; protect it
 
-Examples include:
+This table carries the whole asset's evidence discipline — do not thin it out. For each channel
+assess ICP Fit, Buyer Journey Fit, Commercial Credibility, Ease of Access, Sales Cycle, Cost
+Efficiency, Scalability, and (the two columns that matter most) **Available Evidence** and
+**Confidence Level** — every row must clearly read as observed evidence, inferred fit,
+assumption, or unknown. Never round an assumption up to evidence.
 
-* SEO
-* Google Search Ads
-* LinkedIn Organic
-* LinkedIn Advertising
-* X (Twitter)
-* YouTube
-* Reddit
-* GitHub
-* Product Hunt
-* Cold Email
-* Cold Calling
-* Newsletters
-* Content Marketing
-* Webinars
-* Podcasts
-* Influencer Marketing
-* Public Relations
-* Slack Communities
-* Discord Communities
-* Affiliate Marketing
-* Partner Websites
-* Review Platforms
-* AI Search (ChatGPT, Perplexity, Gemini)
-* Referral Programmes
+Add **two more columns to this same table** rather than building §5 and §7 as separate
+sections:
 
----
+* **Bullseye Ring** — Inner (strongest current evidence + fit) / Middle (promising, unvalidated)
+  / Outer (weak fit or unsupported), scored from the columns already in this table.
+* **Funnel Role** — which of Reach / Activate / Convert / Engage this channel primarily serves.
 
-## 3. Channel Catalogue
-
-Document every relevant acquisition channel.
-
-For each channel include:
-
-| Channel | Online / Offline | Typical Purpose | Typical Buyer Stage | Typical Cost | Scalability |
-
-This section serves as a commercial reference library.
-
-Do not prioritise channels yet.
-
----
-
-## 4. Channel Relevance Assessment
-
-Evaluate every channel against the company's ICPs.
-
-For each channel assess:
-
-* ICP Fit
-* Buyer Journey Fit
-* Commercial Credibility
-* Ease of Access
-* Typical Sales Cycle
-* Cost Efficiency
-* Scalability
-* Available Evidence
-* Confidence Level
-
-Present findings in a structured comparison table.
-
-Clearly distinguish between:
-
-* observed evidence
-* inferred fit
-* assumptions
-* unknowns
-
----
-
-## 5. Bullseye Channel Map
-
-Classify channels into:
-
-### Inner Ring
-
-Strongest current evidence and commercial fit.
-
----
-
-### Middle Ring
-
-Promising but requiring further validation.
-
----
-
-### Outer Ring
-
-Limited evidence or currently weak commercial fit.
-
-Explain the rationale for each classification.
+One table, ten-ish columns, not three separate tables re-sorting the same channel list.
 
 ---
 
@@ -295,25 +195,7 @@ These recommendations should be based on available evidence rather than opinion.
 
 ---
 
-## 7. Funnel Role by Channel
-
-Map each channel to its primary commercial purpose.
-
-| Channel | Reach | Activate | Convert | Engage |
-
-Clarify whether each channel primarily supports:
-
-* awareness
-* education
-* lead generation
-* conversion
-* relationship building
-* retention
-* referrals
-
----
-
-## 8. Channel Constraints
+## 7. Channel Constraints
 
 Document factors that influence channel performance.
 
@@ -333,7 +215,7 @@ Present constraints without proposing solutions.
 
 ---
 
-## 9. Channel Dependencies
+## 8. Channel Dependencies
 
 Identify dependencies required for successful channel execution.
 
@@ -354,7 +236,7 @@ This section should illustrate how channels rely on other commercial assets.
 
 ---
 
-## 10. Assumptions & Unknowns
+## 9. Assumptions & Unknowns — pairs with §4, protect explicitly
 
 Document assumptions requiring future validation.
 
@@ -366,7 +248,7 @@ Clearly distinguish assumptions from validated knowledge.
 
 ---
 
-## 11. Key Findings
+## 10. Key Findings
 
 Summarise the most important observations supported by available evidence.
 
@@ -394,20 +276,17 @@ Generate one complete **Channel Strategy** Management Asset.
 
 Expected length:
 
-**8–12 pages**
+**~1,000–1,200 words.** The evidence-graded channel table (§4, with its Ring and Funnel Role
+columns) is one table doing the job five separate sections used to do — do not rebuild the
+Bullseye map or funnel-role matrix as their own sections.
 
 Use executive-quality formatting including:
 
-* executive summary cards
-* Bullseye diagram
-* channel catalogue
-* PESO matrix
-* channel comparison tables
-* funnel-role matrix
-* channel fit scorecards
-* dependency maps
-* confidence indicators
-* heat maps
+* executive summary card
+* one channel table (relevance + evidence + ring + funnel role, all columns)
+* top-recommended-channels shortlist
+* dependency list
+* assumptions/unknowns table
 * icons
 * call-out boxes
 

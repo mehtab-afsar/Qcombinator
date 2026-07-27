@@ -172,15 +172,31 @@ table (`founder_profiles` included) shows the identical pattern.
 2. Production has the same gap — in which case service-role calls could already be failing
    there, or narrowly avoiding it by luck of table-creation order.
 
-**Do (Mo):** confirm which — either check the live app actually reads/writes founder data today
-(if yes, you're in scenario 1), or check Supabase dashboard → Database → Roles for
-`service_role`'s grants directly. If scenario 2, the fix is a small additive migration:
-```sql
-grant select, insert, update, delete on all tables in schema public to service_role;
-alter default privileges in schema public grant select, insert, update, delete on tables to service_role;
-```
-**Do NOT apply this speculatively** — it's a database-security-relevant change and deserves its
-own review once the actual scenario is known, not a guess bundled into an unrelated commit.
+**✅ RESOLVED (27 Jul 2026) — `20260727000002_base_role_grants.sql`.**
 
-**Workaround used:** a local-only `GRANT` was run directly against the local Postgres instance
-to unblock this session's verification (not saved to any file, not applied anywhere else).
+**Scenario confirmed: 1 (local/CI only).** A read-only probe of the hosted project showed
+`service_role` reads every table fine, and the live app serves logged-in founders daily, so
+`authenticated` has its grants there too. **Production was never at risk.**
+
+**But it was worse than first written, and it mattered more.** The gap covers `authenticated`
+too, not just `service_role` — so a database built from these migrations couldn't serve *any*
+founder request, old model or new. Root cause pinned: hosted Supabase creates tables owned by
+`supabase_admin`, whose default ACL grants the app roles read/write; our migrations run as
+`postgres`, whose default ACL grants only `Dxtm` (truncate/references/trigger/maintain). Nothing
+ever granted the rest. It stayed invisible because `.env.local` points local development at the
+hosted project — the gap only appears on a database actually built from these files, which is
+precisely what CI needs.
+
+**So this was blocking FU-003's second half** (give CI a database), which blocks Story 3.
+
+**A latent security hole found while fixing it.** A blanket `grant … to authenticated` is only
+safe while every table has RLS. `qscore_history_dedup_audit` had RLS **disabled** and holds
+per-founder `user_id` + `overall_score` — the naive fix would have made every founder's score
+history readable by any logged-in user. The migration enables RLS on it (no policies:
+service_role bypasses, nothing else may read), and `__tests__/rls-policies.test.ts` now fails if
+any migration creates a table without enabling RLS — so the grant can't quietly become a hole.
+
+**Verified from empty, with no manual intervention:** full `supabase db reset` → all 73
+migrations → **535/535 tests pass**, `anon` can read the academy tables its policies target but
+cannot write anywhere, and a seeded audit row is visible to the owner while `authenticated`
+sees zero (grant present, RLS denying — the layered defence proven at runtime, not asserted).

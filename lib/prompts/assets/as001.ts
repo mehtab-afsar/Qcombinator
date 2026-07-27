@@ -122,15 +122,8 @@ Describe the role each stakeholder plays during the buying process.
 
 ### Jobs-to-be-Done (JTBD)
 
-For each ICP identify:
-
-* Functional Job
-* Emotional Job
-* Strategic Job
-
-The purpose is to understand why this customer hires the solution.
-
-Detailed customer pains and gains belong in **AS002**.
+JTBD, pains and gains are owned by **AS002** — reference it; do not redevelop this framework
+here.
 
 ---
 
@@ -207,24 +200,15 @@ Conclude with an overall ICP score or ranking.
 
 ## 5. Buyer Personas
 
-For each ICP identify the key personas involved in purchasing.
-
-For each persona include:
-
-* role
-* responsibilities
-* objectives
-* KPIs
-* motivations
-* concerns
-* preferred communication style
-* buying influence
-
-Focus on commercial relevance.
+For each ICP, one compact block per key persona — role, top objective, top concern, buying
+influence. Bullets, not a full table per persona.
 
 ---
 
 ## 6. Decision-Making Unit (DMU)
+
+This is the **authoritative DMU for the company** — AS003 references this section rather than
+redefining it, so keep it complete.
 
 Map the buying committee for each ICP.
 
@@ -242,36 +226,17 @@ Explain:
 
 ---
 
-## 7. Jobs-to-be-Done
+## 7. Jobs-to-be-Done — owned by AS002
 
-Summarise the primary Jobs-to-be-Done for each ICP.
-
-Include:
-
-* Functional Jobs
-* Strategic Jobs
-* Emotional Jobs
-
-Do not repeat the detailed analysis that belongs in AS002.
+Do not include this section. Reference AS002 for JTBD.
 
 ---
 
-## 8. ICP Prioritisation Matrix
+## 8. ICP Prioritisation Matrix — merged into §4
 
-Rank the identified ICPs.
-
-Example criteria:
-
-* Strategic Fit
-* Budget
-* Urgency
-* Ease of Access
-* Sales Cycle
-* Market Potential
-* Reference Value
-* Expansion Potential
-
-Present a weighted scoring matrix.
+Do not include this section. §4's closing "overall ICP score or ranking" already covers it — a
+second weighted-scoring table over the same ICPs is redundant. If §4's ranking needs more than
+one line, expand it there.
 
 ---
 
@@ -328,19 +293,18 @@ Generate one complete **ICP Profiles Report**.
 
 Expected length:
 
-**8–12 pages**
+**~1,000–1,200 words.** This is a working reference, not a deck — every sentence should be one
+a founder acts on. Where a Required Section calls for a table, use one; do not pad it with prose
+that repeats what the table already says.
 
 Use executive-quality formatting including:
 
 * executive summary cards
 * STP segmentation diagrams
 * ICP profile cards
-* buyer persona cards
-* decision-making unit maps
-* industry comparison tables
-* prioritisation matrices
-* heat maps
-* qualification scorecards
+* decision-making unit map
+* industry comparison table
+* qualification scorecard
 * icons
 * call-out boxes
 
@@ -366,9 +330,8 @@ The Founder should finish reading the Asset with complete clarity on **which cus
 
 ---
 
-I would make one additional refinement to your architecture. At the moment **AS001** and **AS002** both reference JTBD. I would separate their responsibilities more cleanly:
+**Division of responsibility across the GTM assets** (applied, not proposed):
 
-* **AS001 = "Who should we sell to?"** (market selection, ICPs, personas, DMU, prioritisation)
-* **AS002 = "Why do they buy?"** (jobs, pains, gains, triggers, outcomes, objections, Voice of Customer)
-
-That keeps the assets complementary without unnecessary overlap and gives Patel a much cleaner GTM knowledge base.`
+* **AS001 (this asset) = "Who should we sell to?"** — market selection, ICPs, personas, DMU, prioritisation.
+* **AS002 = "Why do they buy?"** — jobs, pains, gains, triggers, outcomes, objections, Voice of Customer. Reference it; do not redevelop JTBD here.
+* **AS003 references this asset's DMU (§6)** rather than redefining it.`

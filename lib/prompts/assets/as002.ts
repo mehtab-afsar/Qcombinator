@@ -148,16 +148,8 @@ The Founder should understand the customer in less than two minutes.
 
 ## 2. Customer Segments
 
-For each ICP identified in AS001 include:
-
-* customer description
-* business context
-* primary objectives
-* success metrics
-
-Do not redefine ICPs.
-
-Reference AS001 where appropriate.
+For each ICP identified in AS001, one line each: primary objective + success metric. Do not
+redefine ICPs or repeat AS001's profiles — reference AS001 by name.
 
 ---
 
@@ -234,74 +226,32 @@ Rank each Gain.
 
 ## 6. Buying Triggers
 
-Identify events that initiate purchasing behaviour.
-
-Examples:
-
-* new regulation
-* funding received
-* operational failure
-* growth
-* competitive pressure
-* board mandate
-* digital transformation
-* procurement cycle
-
-For each Trigger explain:
-
-* why it matters
-* typical buying behaviour
-* urgency created
+One table: | Trigger | Why it matters | Urgency created |. No prose per trigger.
 
 ---
 
 ## 7. Buying Barriers
 
-Identify recurring obstacles.
-
-Examples:
-
-* procurement complexity
-* budget
-* internal politics
-* technical risk
-* implementation concerns
-* switching costs
-* lack of references
-
-Estimate commercial impact.
+One table: | Barrier | Commercial impact |. No prose per barrier.
 
 ---
 
-## 8. Value Proposition Canvas
+## 8. Value Proposition Canvas — compressed, not a full section
 
-Summarise the complete Canvas.
+Do not develop this as a standalone section. It restates §3 (Jobs) + §4 (Pains) + §5 (Gains) in
+canvas form — append a single 2-row table instead:
 
-Include:
-
-### Customer Profile
-
-| Customer Jobs | Pains | Gains |
-
-### Value Map
-
-| Products & Services | Pain Relievers | Gain Creators |
-
-Show explicit relationships between customer needs and company value.
+| | Customer side (from §3–5) | Company side |
+|---|---|---|
+| Jobs / Pains / Gains | *(one line each, cross-referencing §3–5)* | Pain relievers / gain creators |
 
 ---
 
 ## 9. Opportunity Matrix (ODI)
 
-Rank customer opportunities.
-
-| Desired Outcome | Importance | Current Satisfaction | Opportunity Score |
-
-Highlight:
-
-* underserved needs
-* over-served areas
-* highest commercial opportunities
+One table: | Desired Outcome | Importance | Current Satisfaction | Opportunity Score |. Then one
+line naming the single highest-opportunity outcome. No separate prose per outcome — the
+priority/severity ranks already live in §4 and §5.
 
 ---
 
@@ -354,18 +304,18 @@ Generate one complete **Pains & Gains Matrix**.
 
 Expected length:
 
-**8–12 pages**
+**~1,400–1,600 words.** This asset runs longer than its siblings on purpose: it is the
+company's single source of truth for customer understanding — AS001, AS003, AS004 and AS005 all
+reference it instead of re-deriving pains, gains or JTBD. A thin AS002 gives them nothing to
+reference. Spend the length on §4 (Pain Analysis) and §5 (Gain Analysis) — those are this
+asset's core; everything else should be tables.
 
 Use executive-quality formatting including:
 
 * summary cards
-* prioritisation tables
-* Value Proposition Canvas
-* Jobs-to-be-Done matrix
+* Jobs-to-be-Done table
+* pain/gain tables with evidence + severity columns
 * Opportunity matrix
-* customer journey visuals
-* heat maps
-* comparison tables
 * icons
 * call-out boxes
 
@@ -391,5 +341,7 @@ The Founder should finish reading the Asset with a clear understanding of **what
 
 ---
 
-I would also make one architectural refinement to your registry: **AS002 should explicitly become the "source of truth" for all customer understanding.** Every downstream asset—positioning, messaging, campaigns, sales enablement, pricing, and customer success—should reference AS002 rather than re-creating customer pains, gains, or JTBD from scratch. That gives the entire Edge Alpha OS a single, consistent customer intelligence layer.
+**AS002 is the "source of truth" for all customer understanding** (applied, not proposed). Every
+downstream asset — AS001's JTBD, AS004's positioning and messaging, AS005's channel evidence —
+references this asset rather than re-creating customer pains, gains, or JTBD from scratch.
 `

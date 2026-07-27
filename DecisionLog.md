@@ -276,6 +276,46 @@ Generic routes (never per-agent) · immutable Asset versioning with provenance �
 
 ---
 
+## ADR-029 — The ~300-line file limit applies to code; prompt-content modules are exempt 🔒
+**Decision (CODEBASE_AUDIT Q-3, actioned 27 Jul 2026):** CLAUDE.md §0.5's *"~300 lines max per
+file"* governs **modules containing logic**. A **prompt-content module** — one that exports
+prompt prose and **contains no functions, no branching and no logic of any kind** — is exempt and
+should be kept whole. Today that means `lib/prompts/programs/p001.ts` (1,010 lines),
+`lib/prompts/knowledge/*.ts` and `lib/prompts/assets/as00N.ts`.
+**Why:** these files are one continuous document written for a model to read. Splitting them at
+an arbitrary line count would scatter a single argument across files and make the prompt harder
+to review, which is the opposite of what the rule protects. The rule exists to stop *logic*
+becoming untraceable; prose has no control flow to lose.
+**The condition is load-bearing, not decorative:** the moment such a file gains a function, a
+conditional, or any exported behaviour, it is code again and the limit applies in full. "It's
+mostly a prompt" is not a defence.
+**Why it's written down:** the exemption was already being applied in practice but existed
+nowhere. Undocumented, the next person either splits `p001.ts` pointlessly or cites it to justify
+a 1,000-line file that genuinely *is* logic. Story 3's Connector prompts are the first new thing
+to test this rule.
+**Rejected:** raising the global limit (it would license large logic files); mechanically
+splitting the prompt files (harms the artefact the limit is meant to protect).
+
+---
+
+## ADR-030 — The Operating Rhythm's self-triggering chain carries a hard step ceiling 🔒
+**Decision (27 Jul 2026):** the chunked rhythm chain fails its run once `step_count` reaches a
+ceiling derived from the run's own Programs (`lib/rhythm/limits.ts`), recording
+`failure_reason = 'step_limit_exceeded'`. **A run stopped this way is NOT auto-retried** —
+`createOrResumeRun` refuses it instead of clearing and restarting.
+**Why:** every step is a paid Claude call that schedules the next one. A bug in "what's next"
+would bill forever, and the in-process `runCycle` loop would do it faster and more quietly than
+the HTTP chain. The counter therefore lives in **its own column, claimed before any generation**
+— never in the `stages` jsonb, because the failure being guarded against is precisely one where
+`stages` stops advancing, which would freeze a counter stored there too.
+**Cost, accepted deliberately (Mo, 27 Jul):** a tripped week is lost until a human clears it.
+Allowing one automatic retry would halve the protection and, in a genuine runaway, double the
+bill. A fuse that resets itself is not a fuse.
+**Scope, stated honestly:** it bounds *steps*, not tokens — `judge.ts` retries once internally,
+so the true ceiling in model calls is up to ~2×.
+
+---
+
 ## Open (non-blocking)
 
 - Rhythm cadence configuration (weekly default — per-company override?). *Decide during Story 2.*

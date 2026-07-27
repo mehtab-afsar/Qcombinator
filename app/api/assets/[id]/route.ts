@@ -13,7 +13,7 @@ import { z } from 'zod'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { parseBody } from '@/lib/api/validate'
-import { FF_NEW_EXECUTIVE_MODEL } from '@/lib/feature-flags'
+import { newModelOff } from '@/lib/api/response'
 import { getCurrentAsset, getAssetHistory, persistAssetVersion } from '@/lib/assets/versioning'
 import { AssetPersistenceError } from '@/lib/assets/validation'
 import { getAsset } from '@/lib/registry'
@@ -33,11 +33,6 @@ const editSchema = z.object({
   updateReason: z.string().trim().max(500).optional(),
 })
 
-/** New model off by default (ADR-014): the route does not exist — 404, not 403. */
-function flagOff(): NextResponse | null {
-  if (FF_NEW_EXECUTIVE_MODEL) return null
-  return NextResponse.json({ error: 'Not found' }, { status: 404 })
-}
 
 /** Map a blocked persistence to an HTTP status. */
 function statusFor(code: string): number {
@@ -50,7 +45,7 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
-  const off = flagOff()
+  const off = newModelOff()
   if (off) return off
 
   try {
@@ -87,7 +82,7 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
-  const off = flagOff()
+  const off = newModelOff()
   if (off) return off
 
   try {

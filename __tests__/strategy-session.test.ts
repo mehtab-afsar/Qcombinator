@@ -256,21 +256,19 @@ describe('the migration carries the guarantees application code cannot', () => {
 describe('the route is gated by NEW_EXECUTIVE_MODEL', () => {
   const routeSrc = readFileSync('app/api/strategy/route.ts', 'utf8')
 
-  it('reads the flag', () => {
-    // The first consumer since Phase 0 added it. Until now it was inert.
-    expect(routeSrc).toContain('FF_NEW_EXECUTIVE_MODEL')
-  })
-
-  it('404s when off — invisible, not merely forbidden', () => {
-    expect(routeSrc).toMatch(/if \(FF_NEW_EXECUTIVE_MODEL\) return null/)
-    expect(routeSrc).toMatch(/status: 404/)
+  it('uses the single shared guard, not its own copy', () => {
+    // The guard used to be copy-pasted into every new-model route; by the time CODEBASE_AUDIT
+    // Q-1 was actioned there were eight copies. One security-relevant guard, one definition.
+    expect(routeSrc).toContain("from '@/lib/api/response'")
+    expect(routeSrc).toContain('newModelOff()')
+    expect(routeSrc).not.toContain('function flagOff') // no local re-implementation
   })
 
   it('gates BOTH verbs — a flag on one method is not a flag', () => {
     const get = routeSrc.slice(routeSrc.indexOf('export async function GET'), routeSrc.indexOf('export async function POST'))
     const post = routeSrc.slice(routeSrc.indexOf('export async function POST'))
-    expect(get).toContain('flagOff()')
-    expect(post).toContain('flagOff()')
+    expect(get).toContain('newModelOff()')
+    expect(post).toContain('newModelOff()')
   })
 
   it('validates input with Zod and authenticates before touching data', () => {

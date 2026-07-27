@@ -13,7 +13,7 @@ import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { parseBody } from '@/lib/api/validate'
-import { FF_NEW_EXECUTIVE_MODEL } from '@/lib/feature-flags'
+import { newModelOff } from '@/lib/api/response'
 import {
   confirmContract,
   ContractError,
@@ -29,13 +29,8 @@ const bodySchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('confirm'), contractId: z.string().uuid() }),
 ])
 
-function flagOff(): NextResponse | null {
-  if (FF_NEW_EXECUTIVE_MODEL) return null
-  return NextResponse.json({ error: 'Not found' }, { status: 404 })
-}
-
 export async function GET(): Promise<NextResponse> {
-  const off = flagOff()
+  const off = newModelOff()
   if (off) return off
 
   try {
@@ -59,7 +54,7 @@ export async function GET(): Promise<NextResponse> {
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  const off = flagOff()
+  const off = newModelOff()
   if (off) return off
 
   try {

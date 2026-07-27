@@ -5,7 +5,8 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { parseAssetContent, generateAssetContent, JudgementError } from '@/lib/rhythm/judge'
-import { createOrResumeRun, CycleAlreadyRanError, RunError } from '@/lib/rhythm/runs'
+import { createOrResumeRun, CycleAlreadyRanError, RunError, StepLimitOpenError } from '@/lib/rhythm/runs'
+import { STEP_LIMIT_EXCEEDED } from '@/lib/rhythm/limits'
 import { buildDigest, type CycleSignals } from '@/lib/rhythm/delta'
 import { routedCall } from '@/lib/llm/router'
 import { persistAssetVersion } from '@/lib/assets/versioning'
@@ -137,17 +138,19 @@ describe('ADR-028 buildDigest', () => {
 
 /** Minimal fake of the supabase query chains createOrResumeRun uses, recording the ops performed. */
 function fakeAdmin(opts: {
-  existing?: { id: string; status: string; last_step_at?: string } | null
+  existing?: { id: string; status: string; last_step_at?: string; failure_reason?: string; step_count?: number } | null
   insertError?: { code?: string; message: string }
 }): { admin: SupabaseClient; ops: string[] } {
   const ops: string[] = []
   const row = {
     id: 'run-new', founder_id: 'f1', contract_id: null, cycle_key: '2026-W30',
     status: 'running', stages: {}, started_at: 'now', completed_at: null, last_step_at: 'now',
+    step_count: 0, failure_reason: null,
   }
   const existingRow = opts.existing && {
     founder_id: 'f1', contract_id: null, cycle_key: '2026-W30',
     started_at: 'now', completed_at: null, stages: {}, last_step_at: 'now',
+    step_count: 0, failure_reason: null,
     ...opts.existing,
   }
   const client = {
@@ -226,6 +229,30 @@ describe('B5 + FU-004 createOrResumeRun — retry and resume semantics', () => {
   it('two concurrent retries: the loser of the insert race is still rejected (23505)', async () => {
     const { admin } = fakeAdmin({ existing: null, insertError: { code: '23505', message: 'dup' } })
     await expect(createOrResumeRun(admin, ARGS)).rejects.toBeInstanceOf(CycleAlreadyRanError)
+  })
+
+  it('a tripped circuit breaker is NOT auto-retried — the fuse does not reset itself', async () => {
+    // Without this branch, the delete-and-retry path below would hand the same runaway a brand
+    // new step budget on every cron tick and every manual click, forever.
+    const { admin, ops } = fakeAdmin({
+      existing: { id: 'r1', status: 'failed', last_step_at: FRESH, failure_reason: STEP_LIMIT_EXCEEDED },
+    })
+    await expect(createOrResumeRun(admin, ARGS)).rejects.toBeInstanceOf(StepLimitOpenError)
+    expect(ops).toEqual(['select']) // nothing deleted, nothing inserted, no fresh budget
+  })
+
+  it('a resumed running run keeps its step count — bouncing the chain cannot defeat the fuse', async () => {
+    const { admin } = fakeAdmin({ existing: { id: 'r1', status: 'running', last_step_at: FRESH, step_count: 9 } })
+    const run = await createOrResumeRun(admin, ARGS)
+    expect(run.id).toBe('r1')
+    expect(run.stepCount).toBe(9)
+  })
+
+  it('a run row missing step_count coerces to 0, never NaN (deploy-order safety)', async () => {
+    const { admin } = fakeAdmin({ existing: null })
+    const run = await createOrResumeRun(admin, ARGS)
+    expect(run.stepCount).toBe(0)
+    expect(run.failureReason).toBeNull()
   })
 
   it('a read failure is surfaced, never swallowed', async () => {

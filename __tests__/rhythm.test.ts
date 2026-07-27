@@ -25,12 +25,13 @@ jest.mock('@/lib/rhythm/runs', () => {
     recordStep: jest.fn(),
     finishRun: jest.fn(),
     getLastCompletedRun: jest.fn(),
+    claimStep: jest.fn(),
   }
 })
 
 import { weekCycleKey } from '@/lib/rhythm/cycle-key'
 import { runCycle, runNextStep, RhythmError } from '@/lib/rhythm/run'
-import { createOrResumeRun, getRun, recordStep, finishRun, getLastCompletedRun, CycleAlreadyRanError } from '@/lib/rhythm/runs'
+import { createOrResumeRun, getRun, recordStep, finishRun, getLastCompletedRun, claimStep, CycleAlreadyRanError } from '@/lib/rhythm/runs'
 import { generateAssetContent } from '@/lib/rhythm/judge'
 import { collectCycleDelta } from '@/lib/rhythm/delta'
 import { generateBriefing } from '@/lib/briefings/generate'
@@ -60,7 +61,10 @@ const m = (fn: unknown) => fn as jest.Mock
 // rather than each being an independent static mock — otherwise runCycle's synchronous loop
 // (which calls runNextStep repeatedly) would lose progress between iterations here in a way it
 // never would against the real database.
-let runStore: { id: string; founderId: string; cycleKey: string; status: string; stages: Record<string, unknown> }
+let runStore: {
+  id: string; founderId: string; cycleKey: string; status: string
+  stages: Record<string, unknown>; stepCount: number; failureReason: string | null
+}
 
 beforeEach(() => {
   jest.clearAllMocks()
@@ -74,16 +78,31 @@ beforeEach(() => {
   m(generateAssetContent).mockResolvedValue({ id: 'v1' })
   m(generateBriefing).mockResolvedValue({ id: 'b1' })
 
-  runStore = { id: 'run1', founderId: 'f1', cycleKey: '2026-W29', status: 'running', stages: {} }
+  runStore = {
+    id: 'run1', founderId: 'f1', cycleKey: '2026-W29', status: 'running',
+    stages: {}, stepCount: 0, failureReason: null,
+  }
   m(createOrResumeRun).mockResolvedValue(runStore)
   m(getRun).mockImplementation(async () => ({ ...runStore }))
   m(recordStep).mockImplementation(async (_admin: unknown, _id: string, stages: Record<string, unknown>) => {
     runStore.stages = stages
   })
+  // Faithful to the real compare-and-set: a stale expectation returns null (the caller must
+  // stop), a matching one reserves the next number. Without this the breaker is untested here.
+  m(claimStep).mockImplementation(async (_admin: unknown, _id: string, expected: number) => {
+    if (runStore.stepCount !== expected) return null
+    runStore.stepCount += 1
+    return runStore.stepCount
+  })
   m(finishRun).mockImplementation(
-    async (_admin: unknown, _id: string, outcome: { status: string; stages: Record<string, unknown> }) => {
+    async (
+      _admin: unknown,
+      _id: string,
+      outcome: { status: string; stages: Record<string, unknown>; failureReason?: string },
+    ) => {
       runStore.status = outcome.status
       runStore.stages = outcome.stages
+      runStore.failureReason = outcome.failureReason ?? null
     },
   )
 })

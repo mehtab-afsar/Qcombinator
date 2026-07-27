@@ -146,3 +146,42 @@ describe('the new-model tables are scoped to their owner', () => {
     expect(policies.filter(p => /for\s+delete/i.test(p.statement))).toEqual([])
   })
 })
+
+// ─── FU-008 — every table created here must enable RLS ────────────────────────
+
+describe('no table is created without RLS (the base-grant safety condition)', () => {
+  /**
+   * 20260727000002 grants `authenticated` read/write on ALL tables in public, because Postgres
+   * checks grants BEFORE row policies and nothing else was granting them — a database built from
+   * these migrations was unusable without it.
+   *
+   * That grant is safe ONLY while every table has RLS enabled. It is not a belt-and-braces
+   * nicety: `qscore_history_dedup_audit` shipped without RLS, and the blanket grant would have
+   * exposed every founder's user_id and score history to any logged-in user. This test is the
+   * condition that keeps the grant honest — the next table that forgets RLS fails here rather
+   * than quietly becoming readable by every tenant.
+   */
+  const tablesCreated = (): Array<{ table: string; file: string }> => {
+    const found: Array<{ table: string; file: string }> = []
+    for (const file of migrationFiles()) {
+      const sql = executable(readFileSync(join(MIGRATIONS, file), 'utf8'))
+      for (const m of sql.matchAll(/create table (?:if not exists )?([a-z_][a-z0-9_]*)/gi)) {
+        found.push({ table: m[1].toLowerCase(), file })
+      }
+    }
+    return found
+  }
+
+  it('every table created by a migration also enables row level security somewhere', () => {
+    const allSql = migrationFiles()
+      .map(f => executable(readFileSync(join(MIGRATIONS, f), 'utf8')))
+      .join('\n')
+
+    const missing = [...new Set(tablesCreated().map(t => t.table))].filter(table => {
+      const enabled = new RegExp(`alter table (?:if exists )?(?:public\\.)?${table}\\s+enable row level security`, 'i')
+      return !enabled.test(allSql)
+    })
+
+    expect(missing).toEqual([])
+  })
+})

@@ -20,7 +20,7 @@ import { NextRequest, NextResponse, after } from 'next/server'
 import { z } from 'zod'
 import { createAdminClient } from '@/lib/supabase/server'
 import { parseBody, uuidSchema } from '@/lib/api/validate'
-import { FF_NEW_EXECUTIVE_MODEL } from '@/lib/feature-flags'
+import { newModelOff } from '@/lib/api/response'
 import { runNextStep, RhythmError } from '@/lib/rhythm/run'
 import { env } from '@/lib/env'
 import { log } from '@/lib/logger'
@@ -51,7 +51,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (forbidden) return forbidden
 
   // Inert until the new model is on — a stray call can't spend anything.
-  if (!FF_NEW_EXECUTIVE_MODEL) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  const off = newModelOff()
+  if (off) return off
 
   const parsed = await parseBody(req, bodySchema)
   if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
