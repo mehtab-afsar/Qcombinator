@@ -22,6 +22,13 @@ export interface ProgressStep {
   /** What the founder reads, e.g. 'ICP Profiles' — resolved from the Registry. */
   label: string
   state: StepState
+  /** The Registry Program id this step belongs to — e.g. 'P001'. Was smuggled inside `key` as an
+   *  unstructured prefix; a consumer had to string-split it. Surfaced as its own field so the
+   *  Command View can group/filter steps by Program without parsing a React key. */
+  templateId: string
+  /** The Program's owning Executive — e.g. 'growth' — or null if the Registry no longer knows
+   *  this Program (mirrors programOrNull's fail-open: an unresolvable id must not 500 the view). */
+  executiveId: string | null
 }
 
 export interface RunProgress {
@@ -71,22 +78,22 @@ function assetLabel(assetId: string): string {
  * (stored on a confirmed contract), so a Registry change can leave a founder holding an id
  * that no longer resolves — that must not take their whole Command View down with a 500.
  */
-function programOrNull(templateId: string): { assets: readonly string[]; actions: readonly string[] } | null {
+function programOrNull(templateId: string): { assets: readonly string[]; actions: readonly string[]; owner: string } | null {
   try {
     const program = getProgram(templateId)
-    return { assets: program.assets, actions: program.actions }
+    return { assets: program.assets, actions: program.actions, owner: program.owner }
   } catch {
     return null
   }
 }
 
 /** The asset steps for one program, in the order the engine generates them. */
-function assetSteps(assetIds: readonly string[], templateId: string, stage: StageShape, running: boolean): ProgressStep[] {
+function assetSteps(assetIds: readonly string[], templateId: string, executiveId: string | null, stage: StageShape, running: boolean): ProgressStep[] {
   const doneIds = stage.assetsDone ?? []
   let activeTaken = false
 
   return assetIds.map(assetId => {
-    const step = { key: `${templateId}:${assetId}`, label: assetLabel(assetId) }
+    const step = { key: `${templateId}:${assetId}`, label: assetLabel(assetId), templateId, executiveId }
 
     if (doneIds.includes(assetId)) {
       // ADR-028: an existing asset with no new founder input isn't regenerated. 'skipped' is
@@ -106,8 +113,8 @@ function assetSteps(assetIds: readonly string[], templateId: string, stage: Stag
 }
 
 /** The briefing step — always last for its program, and gated on its assets. */
-function briefingStep(templateId: string, stage: StageShape, running: boolean, assetsSettled: boolean): ProgressStep {
-  const step = { key: `${templateId}:briefing`, label: 'Executive briefing' }
+function briefingStep(templateId: string, executiveId: string | null, stage: StageShape, running: boolean, assetsSettled: boolean): ProgressStep {
+  const step = { key: `${templateId}:briefing`, label: 'Executive briefing', templateId, executiveId }
 
   if (stage.briefing === 'completed') return { ...step, state: 'done' }
   if (stage.briefing === 'failed') return { ...step, state: 'failed' }
@@ -135,6 +142,7 @@ function actionLabel(actionId: string): string {
 function actionSteps(
   actionIds: readonly string[],
   templateId: string,
+  executiveId: string | null,
   stage: StageShape,
   running: boolean,
   briefingSettled: boolean,
@@ -146,7 +154,7 @@ function actionSteps(
   let activeTaken = false
 
   return actionIds.map(actionId => {
-    const step = { key: `${templateId}:${actionId}`, label: actionLabel(actionId) }
+    const step = { key: `${templateId}:${actionId}`, label: actionLabel(actionId), templateId, executiveId }
 
     if (doneIds.includes(actionId)) return { ...step, state: 'done' as const }
     if (status === 'failed' && !activeTaken) {
@@ -181,14 +189,15 @@ export function buildProgress(
     const program = programOrNull(templateId)
     if (!program) continue // unknown Program — skip it rather than break the whole view
     const stage = (run.stages[templateId] ?? {}) as StageShape
+    const executiveId = program.owner
 
-    const assets = assetSteps(program.assets, templateId, stage, running)
+    const assets = assetSteps(program.assets, templateId, executiveId, stage, running)
     // The briefing only starts once every asset for its program has settled.
     const assetsSettled = assets.every(s => s.state === 'done' || s.state === 'skipped')
-    const briefing = briefingStep(templateId, stage, running, assetsSettled)
+    const briefing = briefingStep(templateId, executiveId, stage, running, assetsSettled)
     // …and Actions only start once the briefing has (the engine's phase order, mirrored).
     const briefingSettled = briefing.state === 'done'
-    steps.push(...assets, briefing, ...actionSteps(program.actions, templateId, stage, running, briefingSettled))
+    steps.push(...assets, briefing, ...actionSteps(program.actions, templateId, executiveId, stage, running, briefingSettled))
   }
 
   const done = steps.filter(s => s.state === 'done' || s.state === 'skipped').length

@@ -202,3 +202,28 @@ describe('buildProgress — degrades rather than throws', () => {
     expect(p.steps[0].state).toBe('active')
   })
 })
+
+describe('buildProgress — every step names its Program and Executive', () => {
+  // Added for the Command View redesign: the program id used to be smuggled inside the React
+  // `key` string ('P001:AS001') with no structured field, and there was no executive id at all
+  // — a consumer had to string-split a key to know which Program a step belonged to, and had no
+  // way to know who owned it. That made a per-executive view impossible to build without parsing
+  // React keys, which is exactly backwards.
+  it('every step carries its Program id and resolved Executive id', () => {
+    const p = buildProgress(run(), ['P001'], NOW)
+    expect(p.steps.length).toBeGreaterThan(0)
+    for (const step of p.steps) {
+      expect(step.templateId).toBe('P001')
+      expect(step.executiveId).toBe(getProgram('P001').owner)
+    }
+  })
+
+  it('an unresolvable Program yields no steps at all — never a step with a null templateId', () => {
+    // programOrNull skips the whole program on an unknown id (see the "degrades rather than
+    // throws" tests above) — so there is no code path that emits a step with executiveId set
+    // but templateId missing, or vice versa. Asserting it explicitly here since it's the
+    // property the redesign's per-executive filtering depends on.
+    const p = buildProgress(run(), ['P999'], NOW)
+    expect(p.steps).toHaveLength(0)
+  })
+})

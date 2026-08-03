@@ -11,6 +11,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { log } from '@/lib/logger'
+import type { ProgramInstance } from '@/lib/mandate/contract'
 import type { ActionPayload } from './payload'
 import { hashPayload, payloadMetadata } from './payload'
 
@@ -40,6 +41,14 @@ export interface ActionLogEntry {
   approvedBy: string | null
   approvedAt: string | null
   createdAt: string
+}
+
+/** An entry with its owning Program/Executive resolved — see attachOwners. */
+export interface OwnedActionLogEntry extends ActionLogEntry {
+  /** The Registry Program id, e.g. 'P001' — null if programId is null or unresolvable. */
+  programTemplateId: string | null
+  /** The Program's owning Executive, e.g. 'growth' — null under the same conditions. */
+  executiveId: string | null
 }
 
 interface ActionLogRow {
@@ -226,4 +235,30 @@ export async function pendingApprovals(
       latestSeen.add(key)
       return e.status === 'pending_approval'
     })
+}
+
+/**
+ * Resolve each entry's owning Program/Executive, for the Command View's per-executive grouping.
+ *
+ * `action_log` has no executive column at all — the only fact it stores is `programId`, the DB
+ * row UUID of `programs`. Resolving to a human Registry id ('P001') and an Executive ('growth')
+ * means joining against the contract's own `programs[]`, which `/api/contracts` already fetches —
+ * this function does the join, not a second database round trip.
+ *
+ * Pure and unit-testable without Supabase, matching pickLatestPerProgram
+ * (lib/briefings/briefings.ts) and buildProgress (lib/rhythm/progress.ts).
+ */
+export function attachOwners(
+  entries: readonly ActionLogEntry[],
+  programs: readonly Pick<ProgramInstance, 'id' | 'templateId' | 'owner'>[],
+): OwnedActionLogEntry[] {
+  const byId = new Map(programs.map(p => [p.id, p]))
+  return entries.map(e => {
+    const program = e.programId ? byId.get(e.programId) : undefined
+    return {
+      ...e,
+      programTemplateId: program?.templateId ?? null,
+      executiveId: program?.owner ?? null,
+    }
+  })
 }

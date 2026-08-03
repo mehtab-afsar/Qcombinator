@@ -20,8 +20,9 @@ import { createAdminClient, createClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { parseBody, uuidSchema } from '@/lib/api/validate'
 import { newModelOff } from '@/lib/api/response'
-import { pendingApprovals } from '@/lib/actions/log'
+import { pendingApprovals, attachOwners } from '@/lib/actions/log'
 import { approveAction, declineAction, ApprovalError } from '@/lib/actions/approve'
+import { getCurrentContract, getProgramsForContract } from '@/lib/mandate/contract'
 import { log } from '@/lib/logger'
 
 const bodySchema = z.object({
@@ -41,7 +42,16 @@ export async function GET(): Promise<NextResponse> {
 
     // User-scoped: RLS (SELECT-own) is the tenancy boundary, as in /api/briefings.
     const supabase = await createClient()
-    return NextResponse.json({ pending: await pendingApprovals(supabase, auth.user.id) })
+    const [pending, contract] = await Promise.all([
+      pendingApprovals(supabase, auth.user.id),
+      getCurrentContract(supabase, auth.user.id),
+    ])
+    // action_log has no executive column — resolve each entry's owner against the contract's
+    // own programs, the same join /founder/executive's roster needs to group actions by
+    // executive. No contract yet (shouldn't happen once anything is pending, but degrade
+    // honestly) just means every entry resolves to null owners rather than throwing.
+    const programs = contract ? await getProgramsForContract(supabase, contract.id) : []
+    return NextResponse.json({ pending: attachOwners(pending, programs) })
   } catch (err) {
     log.error('GET /api/actions', { err })
     return NextResponse.json({ error: 'Failed to load actions' }, { status: 500 })

@@ -27,12 +27,21 @@ interface PendingAction {
   payloadHash: string | null
   request: { recipientCount?: number; recipientDomains?: string[]; subjectLength?: number }
   createdAt: string
+  /** Resolved server-side via attachOwners (lib/actions/log.ts) — action_log itself has no
+   *  executive column, only programId. Used to filter this panel to one executive's items on
+   *  the detail page; absent (undefined) filtering shows everyone's, as on the roster page. */
+  executiveId?: string | null
 }
 
 /** Mirrors APPROVAL_TTL_MS in lib/actions/approve.ts — an approval is about a moment too. */
 const APPROVAL_TTL_MS = 24 * 60 * 60 * 1000
 
-export function ActionsPanel() {
+/**
+ * @param executiveId scope to one executive's pending actions (the detail page). Omitted on the
+ *   roster page, where this is the cross-team "waiting for you" checkpoint — the one place
+ *   showing everyone's at once is correct, not an oversight.
+ */
+export function ActionsPanel({ executiveId }: { executiveId?: string } = {}) {
   const [pending, setPending] = useState<PendingAction[]>([])
   const [loaded, setLoaded] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -43,13 +52,14 @@ export function ActionsPanel() {
       const res = await fetch('/api/actions')
       if (!res.ok) return // 404 = flag off; leave the last good state rather than flash an error
       const data = await res.json()
-      setPending(data.pending ?? [])
+      const all: PendingAction[] = data.pending ?? []
+      setPending(executiveId ? all.filter(a => a.executiveId === executiveId) : all)
     } catch {
       /* transient — the next load retries */
     } finally {
       setLoaded(true)
     }
-  }, [])
+  }, [executiveId])
 
   useEffect(() => { void load() }, [load])
 

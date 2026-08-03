@@ -24,6 +24,7 @@ import Link from 'next/link'
 import { ArrowRight, Loader2 } from 'lucide-react'
 import { bg, surf, bdr, ink, muted, blue, red } from '@/lib/constants/colors'
 import { MandateCard } from '@/features/executive/components/MandateCard'
+import { ExecutiveRoster } from '@/features/executive/components/ExecutiveRoster'
 import { ActionsPanel } from '@/features/executive/components/ActionsPanel'
 import { ConnectorsPanel } from '@/features/executive/components/ConnectorsPanel'
 import { RhythmPanel } from '@/features/executive/components/RhythmPanel'
@@ -153,7 +154,7 @@ export default function ExecutivePage() {
 
       {contract && (state === 'draft' || state === 'confirmed') && (
         <div style={{ marginTop: 24 }}>
-          <MandateCard contract={contract} programs={programs} />
+          <MandateCard contract={contract} />
 
           {state === 'draft' && (
             <div style={{ marginTop: 20 }}>
@@ -202,6 +203,10 @@ export default function ExecutivePage() {
           )}
         </div>
       )}
+
+      {/* Who is running your mandate — the roster reflects the OPERATING team, so it only
+          renders once there is one (state === 'confirmed'); a draft has nothing running yet. */}
+      {state === 'confirmed' && <ExecutiveRoster programs={programs} />}
 
       {/* What needs YOU first (F14 — the one checkpoint), then the cycle, then its output. */}
       {state === 'confirmed' && <ActionsPanel />}

@@ -29,6 +29,16 @@ export interface ProgramInstance {
   status: 'active' | 'paused' | 'complete'
 }
 
+/** Mirrors GET /api/executives — the fixed 5-executive roster. */
+export interface ExecutiveSummary {
+  id: string
+  name: string
+  motto: string
+  domains: string[]
+  /** Registry ProgramIds this executive owns — e.g. ['P001'], or [] if idle. */
+  programs: string[]
+}
+
 export interface Strategy {
   id: string
   version: number

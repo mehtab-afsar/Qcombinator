@@ -22,7 +22,15 @@ import { surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/
 
 type StepState = 'done' | 'active' | 'pending' | 'failed' | 'skipped'
 
-interface ProgressStep { key: string; label: string; state: StepState }
+interface ProgressStep {
+  key: string
+  label: string
+  state: StepState
+  /** Registry Program id, e.g. 'P001' — was smuggled inside `key` as an unstructured prefix
+   *  until the Command View redesign needed a real field to filter on. */
+  templateId: string
+  executiveId: string | null
+}
 
 interface RunProgress {
   runId: string
@@ -44,7 +52,13 @@ const STEP_LIMIT_EXCEEDED = 'step_limit_exceeded'
 /** How often to re-read an in-flight cycle. A step is ~90s, so this is responsive but cheap. */
 const POLL_MS = 5_000
 
-export function RhythmPanel() {
+/**
+ * @param executiveId scope the step list (and its done/total counts) to one executive's steps —
+ *   the detail page. "Run now" still starts the WHOLE weekly cycle regardless (there is no way to
+ *   run one Program in isolation — CLAUDE.md §1: no runsWhen/event-skipping in v1); only the
+ *   display narrows, not the actual trigger.
+ */
+export function RhythmPanel({ executiveId }: { executiveId?: string } = {}) {
   const [progress, setProgress] = useState<RunProgress | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -100,6 +114,19 @@ export function RhythmPanel() {
 
   if (!loaded) return null // nothing to say yet; avoids a flash of the empty state
 
+  // Narrow to one executive's steps for the detail page — recompute done/total/currentLabel
+  // from the filtered set so the numbers on screen describe what's actually shown, not the
+  // whole cycle's progress next to a partial step list.
+  const scoped = progress && executiveId
+    ? {
+        ...progress,
+        steps: progress.steps.filter(s => s.executiveId === executiveId),
+        done: progress.steps.filter(s => s.executiveId === executiveId && (s.state === 'done' || s.state === 'skipped')).length,
+        total: progress.steps.filter(s => s.executiveId === executiveId).length,
+        currentLabel: progress.steps.find(s => s.executiveId === executiveId && s.state === 'active')?.label ?? null,
+      }
+    : progress
+
   return (
     <div style={card}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
@@ -113,11 +140,11 @@ export function RhythmPanel() {
 
       {error && <p style={{ color: red, fontSize: 13, marginTop: 10 }}>{error}</p>}
 
-      {!progress && <Empty />}
-      {progress && <StatusLine progress={progress} />}
-      {progress && (
+      {!scoped && <Empty />}
+      {scoped && <StatusLine progress={scoped} />}
+      {scoped && (
         <div style={{ marginTop: 14, display: 'grid', gap: 8 }}>
-          {progress.steps.map(step => <StepRow key={step.key} step={step} />)}
+          {scoped.steps.map(step => <StepRow key={step.key} step={step} />)}
         </div>
       )}
     </div>

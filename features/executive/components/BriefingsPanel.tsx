@@ -17,6 +17,9 @@ import { surf, bdr, ink, muted, blue } from '@/lib/constants/colors'
 interface Briefing {
   id: string
   programId: string | null
+  /** Already returned by GET /api/briefings (lib/briefings/briefings.ts) but silently dropped
+   *  here until the Command View redesign needed it to group briefings by Executive. */
+  executiveId: string | null
   verdict: string
   body: unknown
   createdAt: string
@@ -45,7 +48,9 @@ function changedAssets(body: unknown): ChangedAsset[] {
   return []
 }
 
-export function BriefingsPanel() {
+/** @param executiveId scope to one executive's briefings — the detail page. Omitted on the
+ *    roster page, which shows the whole team's history. */
+export function BriefingsPanel({ executiveId }: { executiveId?: string } = {}) {
   const [briefings, setBriefings] = useState<Briefing[] | null>(null)
   const [failed, setFailed] = useState(false)
 
@@ -54,11 +59,12 @@ export function BriefingsPanel() {
       const res = await fetch('/api/briefings')
       if (!res.ok) { setFailed(true); return }
       const data = await res.json()
-      setBriefings(data.briefings ?? [])
+      const all: Briefing[] = data.briefings ?? []
+      setBriefings(executiveId ? all.filter(b => b.executiveId === executiveId) : all)
     } catch {
       setFailed(true)
     }
-  }, [])
+  }, [executiveId])
 
   useEffect(() => { void load() }, [load])
 
