@@ -185,3 +185,81 @@ describe('no table is created without RLS (the base-grant safety condition)', ()
     expect(missing).toEqual([])
   })
 })
+
+/**
+ * A view must not read around the RLS of the tables beneath it.
+ *
+ * FOUND IN PRODUCTION, 4 Aug 2026. `qscore_with_delta` selects from `qscore_history`, whose RLS
+ * and policies were correct and intact — and it returned every founder's user_id and score to
+ * `anon`, which needs no account at all because the anon key ships in the browser bundle.
+ *
+ * A Postgres view executes as its OWNER unless `security_invoker` is set. The owner here also
+ * owns the underlying table, and **a table's owner bypasses that table's RLS by default**. So the
+ * policies were never wrong; they were never consulted.
+ *
+ * This is the same shape as the four "RLS enabled but not enforced" tables from July: every
+ * reassuring fact was true and the data was readable anyway. Hence a guard rather than a fix —
+ * the point is that the next view cannot do this quietly.
+ */
+describe('no view reads around RLS', () => {
+  interface ViewDef { file: string; name: string }
+
+  /**
+   * Executable SQL with string literals blanked out.
+   *
+   * A `comment on view` explaining this very rule contains the words "CREATE OR REPLACE VIEW",
+   * and the scanner read its own documentation as a declaration. Prose inside quotes is not SQL.
+   */
+  function code(file: string): string {
+    return executable(readFileSync(join(MIGRATIONS, file), 'utf8')).replace(/'(?:''|[^'])*'/g, "''")
+  }
+
+  /** Every view created in a migration, in order, so a later definition wins. */
+  function declaredViews(): ViewDef[] {
+    const found: ViewDef[] = []
+    for (const file of migrationFiles()) {
+      const sql = code(file)
+      const re = /create\s+(?:or\s+replace\s+)?(?:materialized\s+)?view\s+(?:if\s+not\s+exists\s+)?([\w."]+)/gi
+      let m: RegExpExecArray | null
+      while ((m = re.exec(sql))) {
+        found.push({ file, name: m[1].replace(/^public\./i, '').replace(/"/g, '') })
+      }
+    }
+    return found
+  }
+
+  /** Views that have had security_invoker turned ON somewhere in the migration history. */
+  function invokerViews(): Set<string> {
+    const on = new Set<string>()
+    for (const file of migrationFiles()) {
+      const sql = code(file)
+      const re = /alter\s+view\s+(?:if\s+exists\s+)?([\w."]+)\s+set\s*\(\s*security_invoker\s*=\s*(on|true)/gi
+      let m: RegExpExecArray | null
+      while ((m = re.exec(sql))) {
+        on.add(m[1].replace(/^public\./i, '').replace(/"/g, ''))
+      }
+    }
+    return on
+  }
+
+  it('every view in public runs as the caller, not as its owner', () => {
+    const invoker = invokerViews()
+    const unguarded = [...new Set(declaredViews().map(v => v.name))].filter(n => !invoker.has(n))
+
+    expect(unguarded).toEqual([])
+  })
+
+  it('the view that leaked is explicitly pinned', () => {
+    // Named rather than left to the sweep above: a DROP + CREATE loses reloptions silently
+    // (CREATE OR REPLACE preserves them), so this exact view has a way to regress that the
+    // generic rule would still pass.
+    expect(invokerViews().has('qscore_with_delta')).toBe(true)
+  })
+
+  it('signed-out visitors cannot read score history through it', () => {
+    const revoked = migrationFiles().some(f =>
+      /revoke\s+select\s+on\s+(public\.)?qscore_with_delta\s+from\s+anon/i.test(code(f)),
+    )
+    expect(revoked).toBe(true)
+  })
+})
