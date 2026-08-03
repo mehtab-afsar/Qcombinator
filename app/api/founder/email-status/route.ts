@@ -29,6 +29,7 @@ export async function GET() {
     return NextResponse.json({
       emailConfirmed: !!data.email_confirmed_at,
       canResend:      !!data.email_confirm_token,
+      email:          auth.user.email ?? null,
     })
   } catch (err) {
     log.error('GET /api/founder/email-status unexpected:', err)

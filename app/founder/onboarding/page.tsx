@@ -183,7 +183,10 @@ export default function FounderOnboardingPage() {
         logoFile && (async () => { const fd = new FormData(); fd.append('file', logoFile); fd.append('imageType', 'company-logo'); await fetch('/api/upload/image', { method: 'POST', body: fd }) })(),
       ])
       sessionStorage.removeItem('ea_signup_pending')
-      router.push('/founder/getting-started')
+      // Google already verified the address — an OAuth founder goes straight in. An
+      // email/password founder is blocked (middleware.ts) until they click the link
+      // /api/auth/signup just sent.
+      router.push(isOAuthUser ? '/founder/getting-started' : '/founder/verify-email')
     } catch { setError('Something went wrong. Please try again.'); setLoading(false) }
   }
 

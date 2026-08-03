@@ -61,7 +61,7 @@ function matchRateLimit(pathname: string): { rule: { requests: number; window: s
  * Next.js Middleware — Server-side route protection.
  *
  * Runs before every request (except static assets). Protects:
- *  - /founder/*  → requires auth (except /founder/onboarding)
+ *  - /founder/*  → requires auth (except /founder/onboarding, /founder/profile-builder)
  *  - /investor/* → requires auth (except /investor/onboarding)
  *
  * Public routes (no auth required):
@@ -71,6 +71,12 @@ function matchRateLimit(pathname: string): { rule: { requests: number; window: s
  *  - /api/*  (API routes handle their own auth)
  *  - /s/*    (public PMF survey pages)
  *  - /apply/* (public job application pages)
+ *
+ * ⚠️ An authenticated founder is ALSO blocked from every /founder/** page (redirected to
+ * /founder/verify-email) until founder_profiles.email_confirmed_at is set. This is real for
+ * email/password sign-ups — /api/auth/signup leaves it null until the link in the confirmation
+ * email is clicked. A Google sign-up never sees this: Google already verified the address, so
+ * /auth/callback sets it immediately.
  */
 
 // Routes that don't require authentication
@@ -82,6 +88,10 @@ const PUBLIC_PATHS = [
   '/founder/profile-builder',
   '/investor/onboarding',
 ]
+
+// Requires auth, but exempt from the email-confirmation gate below — an unconfirmed founder
+// must be able to REACH this page, or the gate has no way out.
+const CONFIRMATION_GATE_EXEMPT = ['/founder/verify-email']
 
 // Prefixes that are always public (no session refresh needed)
 const PUBLIC_PREFIXES = ['/s/', '/apply/', '/pitch/', '/q/', '/investor/join', '/_next/', '/favicon.ico']
@@ -213,15 +223,20 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
-  // Role-based redirect — only on root dashboard pages to keep middleware fast.
-  // Uses a short-lived cookie (5 min) to skip the DB lookup on repeat navigations.
+  // Role + email-confirmation check. Uses a short-lived cookie (5 min) to skip the DB lookup on
+  // repeat navigations — same trade-off the role check already made.
+  //
+  // ⚠️ This runs on every /founder/** page, not just the dashboard root. It has to: the whole
+  // point of the confirmation gate is that an unconfirmed founder gets NO founder page, not just
+  // a blocked dashboard. (The role check alone was narrowed to the root "to keep middleware
+  // fast" — broadening it was the deliberate cost of making the gate real instead of cosmetic.)
   if (user) {
-    if (pathname === '/founder/dashboard' || pathname === '/founder') {
+    if (pathname === '/founder' || pathname.startsWith('/founder/')) {
       const cachedRole = request.cookies.get('role_verified')?.value
-      if (cachedRole !== 'founder') {
+      if (cachedRole !== 'founder' && !CONFIRMATION_GATE_EXEMPT.includes(pathname)) {
         const { data: fp } = await supabase
           .from('founder_profiles')
-          .select('role')
+          .select('role, email_confirmed_at')
           .eq('user_id', user.id)
           .maybeSingle()
         if (!fp) {
@@ -231,6 +246,12 @@ export async function middleware(request: NextRequest) {
         }
         if (fp.role !== 'founder') {
           return NextResponse.redirect(new URL('/investor/dashboard', request.url))
+        }
+        if (!fp.email_confirmed_at) {
+          // A Google sign-up never lands here — /auth/callback sets this immediately, since
+          // Google already verified the address. Only an unconfirmed email/password sign-up
+          // is blocked.
+          return NextResponse.redirect(new URL('/founder/verify-email', request.url))
         }
         response.cookies.set('role_verified', 'founder', {
           maxAge: 300, httpOnly: true, sameSite: 'strict', path: '/',
