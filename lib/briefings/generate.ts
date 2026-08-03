@@ -16,6 +16,7 @@ import { getAsset, getProgram, type AssetId, type ProgramId } from '@/lib/regist
 import { getCurrentAsset, getAssetVersionsForExecution } from '@/lib/assets/versioning'
 import { persistBriefing, type Briefing } from './briefings'
 import { log } from '@/lib/logger'
+import { trackBriefingGenerated } from '@/lib/analytics'
 
 // Briefing generation reads all current assets in-context; 60s proved too tight in the first
 // real-AI trial (same finding as the asset judge). Sized for the workload.
@@ -159,6 +160,13 @@ export async function generateBriefing(
 
   // Asset links come from the DATABASE, not the model — provenance you can trust.
   const changedAssets = changed.map(v => ({ assetId: v.assetId, versionId: v.id, name: safeAssetName(v.assetId) }))
+
+  // The verdict is never sent — it is the model's narrative about the founder's company.
+  // How MANY assets changed is the useful signal and carries nothing private.
+  trackBriefingGenerated(args.founderId, {
+    programId: args.templateId,
+    changedAssets: changedAssets.length,
+  })
 
   return persistBriefing(admin, {
     founderId: args.founderId,

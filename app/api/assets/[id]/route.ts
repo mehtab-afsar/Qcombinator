@@ -18,6 +18,7 @@ import { getCurrentAsset, getAssetHistory, persistAssetVersion } from '@/lib/ass
 import { AssetPersistenceError } from '@/lib/assets/validation'
 import { getAsset } from '@/lib/registry'
 import { log } from '@/lib/logger'
+import { trackAssetEditedByFounder } from '@/lib/analytics'
 
 /**
  * Content is founder-supplied and lands in layer 3 of an LLM prompt — so it is capped
@@ -104,6 +105,8 @@ export async function PUT(
       content: parsed.data.content,
       updateReason: parsed.data.updateReason ?? null,
     })
+
+    trackAssetEditedByFounder(auth.user.id, { assetId: version.assetId, version: version.version })
 
     return NextResponse.json({ asset: version }, { status: 201 })
   } catch (err) {

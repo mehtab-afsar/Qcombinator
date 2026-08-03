@@ -17,6 +17,7 @@ import { generateBriefing } from '@/lib/briefings/generate'
 import { BriefingError } from '@/lib/briefings/briefings'
 import type { CompanyContext } from '@/lib/prompts/compose'
 import { log } from '@/lib/logger'
+import { trackCycleCompleted, trackCycleFailed } from '@/lib/analytics'
 import { buildContext, currentAssetsFor } from './context'
 import { claimStepBudget } from './budget'
 import { buildStepContext } from './context'
@@ -242,6 +243,21 @@ export async function runNextStep(admin: SupabaseClient, runId: string): Promise
     s => s.assets === 'failed' || s.briefing === 'failed' || s.actions === 'failed',
   )
   await finishRun(admin, run.id, { status: anyFailed ? 'failed' : 'completed', stages })
+
+  // Counted from the run record rather than from local variables: this function returns after ONE
+  // step, so a per-call tally would only ever describe the last step of a chained cycle.
+  const done = Object.values(stages)
+  if (anyFailed) {
+    trackCycleFailed(run.founderId, { reason: 'stage_failed', steps: run.stepCount ?? 0 })
+  } else {
+    trackCycleCompleted(run.founderId, {
+      programs: done.length,
+      steps: run.stepCount ?? 0,
+      durationMs: Date.parse(new Date().toISOString()) - Date.parse(run.startedAt),
+      assets: done.reduce((n, st) => n + (st.assetsDone?.length ?? 0), 0),
+      actions: done.reduce((n, st) => n + (st.actionsDone?.length ?? 0), 0),
+    })
+  }
   return { done: true }
 }
 

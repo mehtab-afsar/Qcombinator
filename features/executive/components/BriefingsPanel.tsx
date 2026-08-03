@@ -10,7 +10,8 @@
  * Client boundary: this fetches via the API and never imports lib/mandate|registry|prompts.
  */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { trackBriefingOpened } from '@/lib/analytics-client'
 import { surf, bdr, ink, muted, blue } from '@/lib/constants/colors'
 
 interface Briefing {
@@ -60,6 +61,17 @@ export function BriefingsPanel() {
   }, [])
 
   useEffect(() => { void load() }, [load])
+
+  // The founder navigated here and a briefing was waiting — the retention signal (ADR-016).
+  // Keyed by id in a ref so a re-render (the panel re-renders while the rhythm polls) cannot
+  // report the same briefing as a second visit.
+  const reported = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    const newest = briefings?.[0]
+    if (!newest || reported.current.has(newest.id)) return
+    reported.current.add(newest.id)
+    trackBriefingOpened(newest.id, newest.createdAt)
+  }, [briefings])
 
   const card = {
     background: surf, border: `1px dashed ${bdr}`, borderRadius: 12,

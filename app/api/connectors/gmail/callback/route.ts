@@ -22,6 +22,7 @@ import { recordGrant } from '@/lib/connectors/grants'
 import { ConnectorError } from '@/lib/connectors/types'
 import { env } from '@/lib/env'
 import { log } from '@/lib/logger'
+import { trackConnectorConnected } from '@/lib/analytics'
 
 const BACK_TO = `${env.appUrl}/founder/executive`
 
@@ -56,6 +57,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       expiresAt: tokens.expiresAt,
     })
 
+    trackConnectorConnected(founderId, { provider: 'gmail' })
     log.info('gmail connected', { founderId }) // never the tokens, never the code
     return back('connected')
   } catch (err) {

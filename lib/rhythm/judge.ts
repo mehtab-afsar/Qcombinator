@@ -17,6 +17,7 @@ import { composePrompt, type CompanyContext } from '@/lib/prompts/compose'
 import { getAsset, type AssetId, type ExecutiveId, type ProgramId } from '@/lib/registry'
 import { persistAssetVersion, type AssetVersion } from '@/lib/assets/versioning'
 import { log } from '@/lib/logger'
+import { trackAssetVersionCreated } from '@/lib/analytics'
 import type { ProgramInstance } from '@/lib/mandate/contract'
 
 // Asset generation sends a large package (the program prompt alone is ~1,000 lines) and asks
@@ -153,7 +154,7 @@ export async function generateAssetContent(
 
   const content = parseAssetContent(raw, asset.outputSchema)
 
-  return persistAssetVersion(admin, {
+  const version = await persistAssetVersion(admin, {
     founderId: args.founderId,
     assetId: args.assetId,
     authoredBy: 'program',
@@ -163,6 +164,13 @@ export async function generateAssetContent(
     executionId: args.executionId,
     updateReason: 'Operating Rhythm cycle',
   })
+
+  trackAssetVersionCreated(args.founderId, {
+    assetId: version.assetId,
+    version: version.version,
+    authoredBy: 'program',
+  })
+  return version
 }
 
 export { parseAssetContent }

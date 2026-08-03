@@ -15,6 +15,7 @@ import { newModelOff } from '@/lib/api/response'
 import { revokeGrant } from '@/lib/connectors/grants'
 import { ConnectorError } from '@/lib/connectors/types'
 import { log } from '@/lib/logger'
+import { trackConnectorRevoked } from '@/lib/analytics'
 
 export async function DELETE(
   _req: NextRequest,
@@ -31,6 +32,8 @@ export async function DELETE(
     // Service-role: the grant table is read-only for authenticated. revokeGrant scopes every
     // query to founderId explicitly, because this client bypasses RLS.
     await revokeGrant(createAdminClient(), auth.user.id, provider)
+
+    trackConnectorRevoked(auth.user.id, { provider })
 
     return NextResponse.json({ revoked: provider })
   } catch (err) {

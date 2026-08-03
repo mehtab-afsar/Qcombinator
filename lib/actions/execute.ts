@@ -16,6 +16,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { getAction } from '@/lib/registry'
 import { getCurrentContract } from '@/lib/mandate/contract'
 import { log } from '@/lib/logger'
+import { trackActionExecuted } from '@/lib/analytics'
 import { getConnector } from '@/lib/connectors/registry'
 import { resolveGrant } from '@/lib/connectors/grants'
 import { RecipientBlockedError } from '@/lib/connectors/allowlist'
@@ -148,6 +149,12 @@ export async function executeApprovedAction(
       actionId: args.actionId, reason: outcome.reason,
     })
   }
+
+  trackActionExecuted(args.founderId, {
+    actionId: args.actionId,
+    provider: action.connector,
+    outcome: status,
+  })
 
   return recordAttempt(admin, {
     founderId: args.founderId,

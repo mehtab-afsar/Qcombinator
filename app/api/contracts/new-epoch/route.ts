@@ -18,6 +18,7 @@ import { createClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { ContractError, newEpoch } from '@/lib/mandate/contract'
 import { log } from '@/lib/logger'
+import { trackEpochIssued } from '@/lib/analytics'
 import { newModelOff } from '@/lib/api/response'
 
 export async function POST(): Promise<NextResponse> {
@@ -31,6 +32,8 @@ export async function POST(): Promise<NextResponse> {
 
     const supabase = await createClient()
     const contract = await newEpoch(supabase, auth.user.id)
+
+    trackEpochIssued(auth.user.id, { fromEpoch: contract.epoch - 1, toEpoch: contract.epoch })
 
     return NextResponse.json({ contract }, { status: 201 })
   } catch (err) {

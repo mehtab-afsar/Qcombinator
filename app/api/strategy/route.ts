@@ -23,6 +23,7 @@ import {
   StrategyWriteError,
 } from '@/lib/mandate/strategy'
 import { log } from '@/lib/logger'
+import { trackStrategySet } from '@/lib/analytics'
 
 /**
  * Every field optional: a half-finished session must be saveable and resumable
@@ -80,6 +81,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     const supabase = await createClient()
     const strategy = await saveStrategy(supabase, auth.user.id, parsed.data)
+    trackStrategySet(auth.user.id, {
+      priorities: strategy.priorities?.length ?? 0,
+      goals: strategy.goals?.length ?? 0,
+    })
 
     return NextResponse.json(
       { strategy, isComplete: isStrategyComplete(strategy) },

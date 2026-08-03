@@ -23,6 +23,22 @@ import {
   getProgramsForContract,
 } from '@/lib/mandate/contract'
 import { log } from '@/lib/logger'
+import { trackMandateDrafted, trackMandateConfirmed } from '@/lib/analytics'
+
+/**
+ * Whole days between signup and now, for activation latency.
+ *
+ * Computed here rather than joined in PostHog later: the founder's signup date lives in
+ * auth.users, and "we'll correlate it at analysis time" is the kind of step nobody performs
+ * under deadline. Null when the timestamp is missing or unparseable — never a guessed 0, which
+ * would read as "activated the same day".
+ */
+function daysSince(iso: string | undefined): number | null {
+  if (!iso) return null
+  const then = Date.parse(iso)
+  if (Number.isNaN(then)) return null
+  return Math.max(0, Math.floor((Date.now() - then) / 86_400_000))
+}
 
 const bodySchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('draft') }),
@@ -68,12 +84,24 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     if (parsed.data.action === 'draft') {
       const contract = await createDraft(supabase, auth.user.id)
+      trackMandateDrafted(auth.user.id, {
+        epoch: contract.epoch,
+        programs: contract.activePrograms?.length ?? 0,
+      })
       return NextResponse.json({ contract }, { status: 201 })
     }
 
     // Confirming is the moment the mandate becomes real and Programs start
     // running. Atomic in Postgres — see confirm_executive_contract.
     const result = await confirmContract(supabase, auth.user.id, parsed.data.contractId)
+
+    // ACTIVATION. The one confirmation in the product, and the denominator of every retention
+    // question that follows — a founder who never reaches here never entered the loop at all.
+    trackMandateConfirmed(auth.user.id, {
+      epoch: result.contract.epoch,
+      programs: result.contract.activePrograms?.length ?? 0,
+      daysSinceSignup: daysSince(auth.user.created_at),
+    })
     return NextResponse.json(result, { status: 200 })
   } catch (err) {
     // ContractError is expected disagreement — an incomplete strategy, a lost

@@ -13,6 +13,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { getAction } from '@/lib/registry'
 import { getCurrentContract } from '@/lib/mandate/contract'
 import { log } from '@/lib/logger'
+import { trackActionApproved, trackActionDeclined } from '@/lib/analytics'
 import { recordAttempt, type ActionLogEntry } from './log'
 
 /**
@@ -133,6 +134,7 @@ export async function approveAction(
   }
 
   log.info('action approved', { actionId: entry.action_id, entryId: entry.id, approvedBy: args.approvedBy })
+  trackActionApproved(args.founderId, { actionId: entry.action_id, irreversible: true })
 
   // Append — the table is append-only, so consent is a NEW row sharing the payload hash.
   return recordAttempt(admin, {
@@ -168,6 +170,9 @@ export async function declineAction(
   }
 
   log.info('action declined', { actionId: entry.action_id, entryId: entry.id })
+  // A decline is engagement too — a founder who reads and refuses came back just as surely as
+  // one who approves. Counting only approvals would understate retention and flatter the model.
+  trackActionDeclined(args.founderId, { actionId: entry.action_id })
 
   return recordAttempt(admin, {
     founderId: args.founderId,
