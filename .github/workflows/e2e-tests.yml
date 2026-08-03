@@ -55,6 +55,65 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+  # BLOCKING. The database-backed Jest tests, against a REAL Postgres built from our own
+  # migrations — no hosted project, no secrets, nothing to configure.
+  #
+  # This is what FU-003 was for. It became possible only once two things were true:
+  #   1. the migrations replay from empty (so `supabase db reset` builds the schema), and
+  #   2. the base role grants live in a migration (20260727000002) — before that, a freshly
+  #      built database returned "permission denied" for every request and no test could run.
+  #
+  # It carries the cross-tenant test, which is the single most important security property in
+  # the product and until now could not fail a build: the Playwright version needs a built app,
+  # a server and a browser, so it runs advisory below. This one asks Postgres directly, so it
+  # takes seconds and is a real gate.
+  #
+  # REQUIRE_DB_TESTS=1 is load-bearing: without it the suite SKIPS when the database is
+  # unreachable, and a skipped security test looks exactly like a passing one on a dashboard.
+  # With it, a broken database fails the build instead of quietly retiring the guard.
+  database-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: unit-and-types
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # Builds the entire schema from supabase/migrations. If a migration cannot replay from
+      # empty, this step fails — so FU-003's guarantee is now enforced on every push rather
+      # than being a thing someone remembers to check.
+      - name: Start Supabase (applies all migrations from empty)
+        run: supabase start
+
+      # `supabase status -o env` emits KEY="value" — the quotes must be stripped, or every
+      # value lands in $GITHUB_ENV with literal quote characters in it and every URL is wrong.
+      # Safe to strip globally: these values are URLs and JWTs, none contain a quote.
+      - name: Export local Supabase credentials
+        run: |
+          supabase status -o env | sed 's/^/SUPABASE_/; s/"//g' >> "$GITHUB_ENV"
+
+      - name: Database-backed tests (incl. cross-tenant isolation)
+        env:
+          REQUIRE_DB_TESTS: '1'
+          LOCAL_TEST_DB_URL: ${{ env.SUPABASE_API_URL }}
+          LOCAL_TEST_DB_ANON_KEY: ${{ env.SUPABASE_ANON_KEY }}
+          LOCAL_TEST_DB_KEY: ${{ env.SUPABASE_SERVICE_ROLE_KEY }}
+          LOCAL_TEST_DB_PG: ${{ env.SUPABASE_DB_URL }}
+        run: npx jest __tests__/cross-tenant-rls.test.ts __tests__/rhythm-e2e.test.ts
+
   e2e-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -201,17 +260,22 @@ jobs:
   # unit-and-types (Jest + typecheck) and e2e-tests (Phase 1 + Baseline).
   quality-gates:
     runs-on: ubuntu-latest
-    needs: [unit-and-types, e2e-tests]
+    # database-tests MUST be listed. Branch protection may reference this job by name, and a
+    # blocking job that nothing depends on does not gate a merge — it just goes red alone.
+    needs: [unit-and-types, database-tests, e2e-tests]
 
     steps:
       - name: Check test suite status
         run: |
-          echo "BLOCKING gate passed: Jest (unit) + typecheck. These need no backend."
+          echo "BLOCKING gates passed:"
+          echo "  · unit-and-types  — Jest + typecheck, no backend needed"
+          echo "  · database-tests  — real Postgres built from our migrations, including the"
+          echo "                      cross-tenant isolation test (founder B cannot read A)"
           echo ""
-          echo "ADVISORY: the e2e-tests job. It boots the real app, which needs a"
-          echo "Supabase + Anthropic backend CI does not have, so it is non-blocking"
-          echo "and skips itself when no secret is configured. To make it a real gate,"
-          echo "add a test backend — see the comment on the e2e-tests job."
+          echo "ADVISORY: the e2e-tests job. It boots the real app through a browser, which"
+          echo "needs a full server + Anthropic key, so it stays non-blocking. The security"
+          echo "PROPERTY it covers is now gated by database-tests instead — that job asks"
+          echo "Postgres directly rather than driving the UI, so it is fast and deterministic."
 
   deploy-check:
     runs-on: ubuntu-latest

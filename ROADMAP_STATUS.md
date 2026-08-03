@@ -187,13 +187,13 @@ now visible. **One runtime item (the circuit breaker) plus one visual check clos
    `prompts/CHUNKING_VERIFY.md` — its Stage B trial is now done.)*
 3. **Check the Vercel plan** — the 27 Jul trial makes this load-bearing, not housekeeping:
    ~100s/step needs Pro's 300s. 30 seconds of Mo's time. *(needs Mo)*
-4. **FU-003's second half** — give CI a real database and make the cross-tenant test *blocking*
-   instead of `continue-on-error`. The migrations already replay from empty and FU-008 (which
-   silently blocked this) is fixed, so this is now unblocked. **2–4 days.** The last technical
-   gate before Story 3.
+4. ✅ ~~**FU-003's second half**~~ — **done 3 Aug.** CI builds its own database from the
+   migrations on every push, and the cross-tenant test is blocking. **The last technical gate
+   before Story 3 is cleared.**
 5. **Story 3 — Connectors + Actions** — the last build phase; the pilot now depends on it.
-   *(prompt: `prompts/STORY_3_CONNECTORS.md`)* **Blocked on two things outside engineering:**
-   the connector table name (Roman) and sending credentials (Mo).
+   *(prompt: `prompts/STORY_3_CONNECTORS.md`)* Its stated preconditions are now met on the
+   engineering side. **Remaining blockers are both outside engineering:** the connector table
+   name (Roman) and sending credentials (Mo).
 
 ## Decided since last update
 
@@ -209,10 +209,10 @@ now visible. **One runtime item (the circuit breaker) plus one visual check clos
 
 ### Engineering follow-ups (`FOLLOWUPS.md`)
 
-- [~] **FU-003** — **half done (27 Jul).** ✅ Migrations DO now replay from empty — a full
-      `supabase db reset` applies all 73 cleanly, verified repeatedly. ⬜ The second half (give
-      CI that database, make the cross-tenant test blocking) is **still open** — but its blocker
-      was FU-008, now fixed, so this is unblocked work rather than a research problem.
+- [x] ~~**FU-003** — migrations can't rebuild from empty → CI can't have a database.~~
+      **CLOSED.** ✅ Migrations replay from empty (`supabase db reset`, all 73). ✅ CI now builds
+      that database itself on every push via a new **blocking** `database-tests` job — no hosted
+      test project, no secrets. The cross-tenant test finally **can fail a build**.
 - [x] ~~**FU-008** — `service_role` base-table grants.~~ **CLOSED 27 Jul** by
       `20260727000002_base_role_grants.sql`. Was wider than written (`authenticated` too — a
       migration-built database served *no* founder request) and was the real blocker under
@@ -223,8 +223,12 @@ now visible. **One runtime item (the circuit breaker) plus one visual check clos
 - [ ] **FU-001** — lock down `confirm_executive_contract` RPC. *Low.*
 - [ ] **FU-002** — retrofit `strategy_sessions` to the atomic-write pattern. *Low.*
 - [ ] **FU-005** — `flagOff()` duplicated 5×; `compose.ts` 532 / `contract.ts` 386 over the size rule. *Low.*
-- [ ] **CI security phase advisory** — cross-tenant test runs `continue-on-error`. Blocked by FU-003;
-      until then **verify cross-tenant isolation by hand** with two accounts.
+- [x] ~~**CI security phase advisory** — cross-tenant test runs `continue-on-error`.~~ **CLOSED.**
+      The security *property* is now gated by `__tests__/cross-tenant-rls.test.ts` (blocking):
+      two real founders, anon-key clients carrying their own JWTs, asking Postgres directly.
+      Proven to actually catch a breach — disabling RLS on `asset_versions` turns 3 of its 7
+      tests red. The Playwright suite stays advisory (it needs a browser + built app); it is no
+      longer the only thing covering this. Manual two-account checks are no longer required.
 
 ### Only Mo can do these (`missingwork.md`)
 
