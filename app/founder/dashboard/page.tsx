@@ -35,7 +35,7 @@ import { UpgradeModal } from "@/components/ui/UpgradeModal";
 import { getUpcomingWorkshops } from "@/features/academy/data/workshops";
 import { bg, surf, bdr, ink, muted, blue, green, amber, red, purple, cyan, alpha } from '@/lib/constants/colors'
 import { PageSpinner } from '@/features/shared/components/Spinner'
-import { DashboardBriefingCard } from '@/features/executive/components/DashboardBriefingCard'
+import { ExecutiveEntryCard } from '@/features/executive/components/ExecutiveEntryCard'
 
 // ─── demo data ────────────────────────────────────────────────────────────────
 const DEMO_QSCORE = {
@@ -666,8 +666,10 @@ export default function FounderDashboard() {
 
       <div style={{ maxWidth: 1120, margin: "0 auto" }}>
 
-        {/* ── latest Executive Briefing (F12) — self-gating: hidden unless the new model is on ── */}
-        <DashboardBriefingCard />
+        {/* ── THE DOOR into the Executive model. Self-gating on the flag (the APIs 404 when it
+             is off, so this renders nothing), but NOT on progress: it is visible from the very
+             first visit, because the new model was otherwise unreachable — see the component. ── */}
+        <ExecutiveEntryCard />
 
         {/* ── page header ───────────────────────────────────────────── */}
         <motion.div
