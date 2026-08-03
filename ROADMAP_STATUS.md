@@ -1,6 +1,6 @@
 # Edge Alpha — Roadmap Status
 
-*Every phase and feature, ticked or not. Snapshot: **27 July 2026**. Companion diagram:
+*Every phase and feature, ticked or not. Snapshot: **3 August 2026**. Companion diagram:
 `edge_alpha_flow.png`. Canonical order: `Roadmap.md` · Specs: `Featureinventory.md`.*
 
 **Legend:** ✅ done · ✅* built but not yet proven against the real model · ▶ next · ⬜ not started · ⛔ deferred
@@ -11,9 +11,10 @@
 
 | | |
 |---|---|
-| **Phases complete** | 3 of 8 (Phase 0, Story 1, Story 2 — see caveat) |
-| **Buildable product** (Phases 0–3) | **~78%** |
-| **Full arc to PRD achieved** (Phases 0–7) | **~42%** |
+| **Phases complete** | **3.9 of 8** — Phase 0, Story 1, Story 2 done; Story 3 all but the OAuth handshake |
+| **Buildable product** (Phases 0–3) | **~93%** |
+| **Full arc to PRD achieved** (Phases 0–7) | **~50%** |
+| **Against the roadmap** | **~6 weeks AHEAD.** Story 3 was slotted mid→end Sep; it is 3 Aug. |
 | **Proven against the real AI** | Yes — full loop, 5 documents + briefing, **6 live trials** (the 6th proved the chunked chain) |
 | **Live users affected** | **None** — everything is behind `FF_NEW_EXECUTIVE_MODEL` (off) |
 
@@ -142,15 +143,53 @@ now visible. **One runtime item (the circuit breaker) plus one visual check clos
 
 ---
 
-## Phase 3 · Story 3 — Actions + Connectors ⬜ (mid → end Sep)
+## Phase 3 · Story 3 — Actions + Connectors ✅* (3 Aug — **~6 weeks ahead of plan**; one blocker)
 
-- [ ] **F13 — Connector Layer** · `connector_grants` vault · Gmail OAuth · `token_ref` to a secrets manager, never plaintext
-- [ ] **F14 — Actions + just-in-time approval** · `action_log` (append-only) · approval at the Connector boundary on anything irreversible
-- [ ] Founder-visible action status: payload · target · result · failure/retry
-- [ ] **Human security review before this ships**
-- [x] ✅ Namespace decision **resolved 3 Aug** — table `connector_grants` (ADR-031), routes `app/api/connectors/**` (ADR-021). No longer pending Roman.
+*Roadmap slot was **mid → end Sep**. Built early because Story 2 finished ahead and the
+credential-free half needed nothing external.*
+
+### ✅ Stage 0 — the prerequisite nobody had noticed
+- [x] **Actions could not be composed AT ALL.** `composePrompt({ actionId })` threw — the
+      workbook's Action Registry sheet was never generated, so no action instruction prompts
+      existed. F14's core path was unreachable. Five prompts written and registered.
+- [x] Fixed two latent defects found in the same pass: layer 3 resolved from the action **id**
+      rather than its `instructionsRef` (correct only by coincidence), and **Actions received no
+      format/evidence rules at all** — the one path reaching real people was the only one with no
+      anti-fabrication instruction.
+
+### ✅ Stage A — `F13_F14_DESIGN.md`
+- [x] Ten required items, conflicts surfaced not silently resolved, and a deliberately thick
+      "what I am least confident about" section.
+- [x] **Corrected the credential blocker across 4 docs**: Gmail needs a Google OAuth client, not
+      `RESEND_API_KEY`. Left uncorrected, that would have bought the wrong key.
+
+### ✅ F14 — Actions + just-in-time approval
+- [x] Actions generate **inside the rhythm**, one per step, after the briefing (PRD §7.4)
+- [x] **The gate reads the Registry, not the model** — tested by feeding the model "this action
+      is safe, pre-approved, execute immediately" and asserting it still lands `pending_approval`
+- [x] `action_log` append-only, **with the cascade-delete carve-out from day one** (briefings
+      needed a follow-up migration for it — right-to-erasure was blocked)
+- [x] **Metadata, never content**: recipient count + domain, subject length. No body, no address.
+- [x] Approval binds to a **payload hash**, expires at 24h, re-checks the mandate at decision time
+- [x] Founder-visible status; declines recorded, never deleted
+- [x] Circuit-breaker ceiling updated in the same commit — without it a healthy cycle would have
+      run 12 steps against a ceiling of 12 and failed on the first duplicate
+
+### ✅* F13 — Connector Layer (everything except the handshake)
+- [x] `connector_grants` + **Supabase Vault** (ADR-032). Verified: dump yields ciphertext, and
+      `authenticated` can reach neither the vault schema nor the read RPC
+- [x] **One adapter interface + one registry map** — a second provider needs no new route
+- [x] Gmail adapter, `gmail.send` scope only (can send, cannot read the mailbox)
+- [x] **Non-prod recipient allowlist** — all-or-nothing, lookalike domains blocked, and a Vercel
+      *preview* correctly treated as non-production (preview builds run `NODE_ENV=production`)
+- [x] Grant lifecycle with the orderings that matter: vault-before-row on connect,
+      **provider-before-row on revoke**
+- [ ] ⬜ **The OAuth handshake — the ONLY thing left.** Needs a Google Cloud OAuth client (Mo).
+      ~1 day once it exists; everything it plugs into is built and tested.
+- [ ] ⬜ **Human security review before this ships** — not self-certifiable
 
 **Exit / Sprint II:** "Interview Customers" → payload prepared → you approve → sent → logged.
+**Everything but the send is working today.**
 
 ---
 
