@@ -25,6 +25,7 @@ import { ArrowRight, Loader2 } from 'lucide-react'
 import { bg, surf, bdr, ink, muted, blue, red } from '@/lib/constants/colors'
 import { MandateCard } from '@/features/executive/components/MandateCard'
 import { ActionsPanel } from '@/features/executive/components/ActionsPanel'
+import { ConnectorsPanel } from '@/features/executive/components/ConnectorsPanel'
 import { RhythmPanel } from '@/features/executive/components/RhythmPanel'
 import { BriefingsPanel } from '@/features/executive/components/BriefingsPanel'
 import {
@@ -206,6 +207,8 @@ export default function ExecutivePage() {
       {state === 'confirmed' && <ActionsPanel />}
       {state === 'confirmed' && <RhythmPanel />}
       {state === 'confirmed' && <BriefingsPanel />}
+      {/* Last: the tools the team may act in. Read after the work, changed rarely. */}
+      {state === 'confirmed' && <ConnectorsPanel />}
     </Shell>
   )
 }
