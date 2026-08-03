@@ -12,13 +12,19 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
   const searchParams = useSearchParams();
   const { toasts, dismiss } = useToast();
 
-  // Hide sidebar when embedded in iframe, onboarding flows, or agent/CXO pages (those have their own sidebar)
+  // Hide sidebar when embedded in iframe, during onboarding flows, or on the email-verification
+  // block screen — each of those is a deliberate standalone screen with its own layout.
+  //
+  // ⚠️ verify-email MUST be here. It's a full-screen BLOCK ("this is the destination, not a
+  // decoration" — see its own docstring) for a founder whose email isn't confirmed yet. Without
+  // this line the full sidebar/nav renders around it, and a blocked founder can simply click
+  // Dashboard/Matching/Academy in the nav to route around the block entirely.
   const hideSidebar =
     searchParams.get("_embed") === "1" ||
     pathname.includes("/onboarding") ||
     pathname.includes("/assessment") ||
     pathname.includes("/profile-builder") ||
-    /\/founder\/cxo\/.+/.test(pathname);
+    pathname.includes("/verify-email");
 
   if (hideSidebar) {
     return <>{children}</>;
