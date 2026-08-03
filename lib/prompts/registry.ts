@@ -17,6 +17,11 @@ import { AS002_PAINS_GAINS_PROMPT } from './assets/as002'
 import { AS003_BUYER_JOURNEY_PROMPT } from './assets/as003'
 import { AS004_POSITIONING_PROMPT } from './assets/as004'
 import { AS005_CHANNEL_STRATEGY_PROMPT } from './assets/as005'
+import { VALIDATE_ICPS_PROMPT } from './actions/validate-icps'
+import { INTERVIEW_CUSTOMERS_PROMPT } from './actions/interview-customers'
+import { PRIORITIZE_CHANNELS_PROMPT } from './actions/prioritize-channels'
+import { REVIEW_MESSAGING_PROMPT } from './actions/review-messaging'
+import { APPROVE_GTM_PLAN_PROMPT } from './actions/approve-gtm-plan'
 
 /**
  * Executive System Prompts, by `Executive.systemPromptRef` — and, for the CEO, by
@@ -44,13 +49,30 @@ const PROGRAM_PROMPTS: Readonly<Record<string, string>> = {
   P001: P001_GTM_PROMPT,
 }
 
-/** Asset & Action Instructions, by `AssetDef.instructionsRef` / `ActionDef.instructionsRef`. */
+/**
+ * Asset & Action Instructions, by `AssetDef.instructionsRef` / `ActionDef.instructionsRef`.
+ *
+ * Assets use uppercase refs (`AS001`); Actions use lowercase snake_case matching their id
+ * (`interview_customers`). That asymmetry comes from the Registry's own definitions — the keys
+ * here must match `instructionsRef` EXACTLY, and a case mismatch is the likeliest way to break
+ * this map, since it fails only at composition time.
+ *
+ * The Action prompts were written in this repo rather than lifted from the design workbook: the
+ * workbook's Action Registry sheet is empty (see `missingwork.md`), which is why composing any
+ * Action threw `PromptNotFoundError` until they existed. This file is the runtime source
+ * regardless (ADR-010).
+ */
 const INSTRUCTION_PROMPTS: Readonly<Record<string, string>> = {
   AS001: AS001_ICP_PROFILES_PROMPT,
   AS002: AS002_PAINS_GAINS_PROMPT,
   AS003: AS003_BUYER_JOURNEY_PROMPT,
   AS004: AS004_POSITIONING_PROMPT,
   AS005: AS005_CHANNEL_STRATEGY_PROMPT,
+  validate_icps: VALIDATE_ICPS_PROMPT,
+  interview_customers: INTERVIEW_CUSTOMERS_PROMPT,
+  prioritize_channels: PRIORITIZE_CHANNELS_PROMPT,
+  review_messaging: REVIEW_MESSAGING_PROMPT,
+  approve_gtm_plan: APPROVE_GTM_PLAN_PROMPT,
 }
 
 /**

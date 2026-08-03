@@ -15,7 +15,8 @@ import {
   type CompanyContext,
   type ComposeInput,
 } from '@/lib/prompts/compose'
-import { getExecutive, getProgram } from '@/lib/registry'
+import { getAction, getExecutive, getProgram } from '@/lib/registry'
+import { getInstructionPrompt } from '@/lib/prompts/registry'
 
 const context: CompanyContext = {
   companyName: 'Acme Procurement',
@@ -311,42 +312,73 @@ describe('validation rules', () => {
     expect(() => composePrompt({ ...valid, activePrograms: ['P001', 'P003'] })).not.toThrow()
   })
 
-  it('accepts an Action structurally — it validates before it needs text', () => {
-    // The Action passes every Registry rule; it fails later, at text resolution,
-    // because no Action instruction prompt exists to fetch (see below).
+  it('accepts an Action structurally AND composes it', () => {
+    // Until Stage 0 (3 Aug 2026) this threw PromptNotFoundError: the Action passed every
+    // Registry rule and then failed at text resolution, because the workbook's Action Registry
+    // sheet was never generated so no Action instruction prompts existed. They do now.
     expect(() =>
       composePrompt({ ...valid, assetId: undefined, actionId: 'interview_customers' }),
-    ).toThrow(PromptNotFoundError)
+    ).not.toThrow()
   })
 })
 
 // ─── Never a silent empty layer ───────────────────────────────────────────────
 
-describe('an unregistered prompt ref throws', () => {
-  it.each(['validate_icps', 'interview_customers', 'approve_gtm_plan'])(
-    'action %s throws rather than composing an empty layer',
-    (actionId) => {
-      // ⚠️ NO ACTION INSTRUCTION PROMPTS EXIST — and that is a workbook gap, not
-      // a code gap. The "Action Prompt" sheet holds exactly one row: ACT001,
-      // "Action Registry Generator" — a meta-prompt whose job is to GENERATE the
-      // Action Registry. It was never run, which is why the Action Registry sheet
-      // is empty and no per-action instructions exist. Tracked in missingwork.md.
-      //
-      // Asset composition is complete and unaffected. Actions only matter from
-      // Story 3 (F14).
-      //
-      // Failing loudly is the whole point: a missing layer does not error at the
-      // model. The model answers, fluently, with a quarter of its instructions
-      // gone — and nothing looks broken.
-      expect(() => composePrompt({ ...valid, assetId: undefined, actionId })).toThrow(
-        PromptNotFoundError,
-      )
-    },
-  )
+describe('every P001 Action composes — the Story 3 prerequisite', () => {
+  const ACTIONS = getProgram('P001').actions
 
-  it('names the missing ref so the gap is diagnosable', () => {
-    expect(() =>
-      composePrompt({ ...valid, assetId: undefined, actionId: 'validate_icps' }),
-    ).toThrow(/No asset\/action instruction prompt registered for ref 'validate_icps'/)
+  it.each(ACTIONS)('action %s composes all four layers with real instruction text', (actionId) => {
+    const pkg = composePrompt({ ...valid, assetId: undefined, actionId })
+
+    expect(pkg.layers).toHaveLength(4)
+    const layer3 = pkg.layers.find(l => l.name === 'asset_action_instructions')!
+    // Resolved via getAction().instructionsRef — not via the action id, which only coincided.
+    expect(layer3.sourceRef).toBe(getAction(actionId).instructionsRef)
+    expect(layer3.text.length).toBeGreaterThan(200)
+    expect(layer3.text).toContain(actionId) // the prompt declares which Action it is
+  })
+
+  it('an Action package carries the ACTION rules, never the ASSET ones', () => {
+    const pkg = composePrompt({ ...valid, assetId: undefined, actionId: 'interview_customers' })
+
+    // The evidence + recipient rules. An Action package used to ship with NO rules at all,
+    // because both asset rules are gated on assetId — leaving the one path that reaches real
+    // people as the only one with no anti-fabrication instruction.
+    expect(pkg.text).toContain('Recipient rule')
+    expect(pkg.text).toMatch(/never guess an address/i)
+    expect(pkg.text).toContain('[TO VALIDATE:')
+    // Asset-only rules must NOT leak in: an Action is not a 1,500-word document.
+    expect(pkg.text).not.toContain('Final reminder before you write')
+  })
+
+  it('the irreversible Action tells the model never to invent a recipient', () => {
+    // interview_customers is the ONLY irreversible Action in P001 and the Story 3 proof case.
+    // A fabricated address is not caught by the approval step — the founder is checking that
+    // the message reads well, and a plausible address looks correct.
+    const pkg = composePrompt({ ...valid, assetId: undefined, actionId: 'interview_customers' })
+    expect(pkg.text).toMatch(/only address people who appear explicitly in Company Context/i)
+    expect(pkg.text).toMatch(/empty recipient list/i)
+  })
+})
+
+// ─── Never a silent empty layer ───────────────────────────────────────────────
+
+describe('an unregistered prompt ref still throws', () => {
+  // The Action gap is closed, but the GUARANTEE it was protecting is permanent: a ref with no
+  // text must fail loudly. A missing layer does not error at the model — the model answers,
+  // fluently, with a quarter of its instructions gone, and nothing looks broken.
+  it('resolving an unknown instruction ref throws, naming the ref', () => {
+    expect(() => getInstructionPrompt('no_such_action')).toThrow(PromptNotFoundError)
+    expect(() => getInstructionPrompt('no_such_action')).toThrow(
+      /No asset\/action instruction prompt registered for ref 'no_such_action'/,
+    )
+  })
+
+  it('never returns an empty string for a missing ref', () => {
+    // The failure mode this guards: returning '' instead of throwing would compose a package
+    // that looks structurally perfect and is missing a whole layer.
+    let returned: string | undefined
+    try { returned = getInstructionPrompt('no_such_action') } catch { /* expected */ }
+    expect(returned).toBeUndefined()
   })
 })

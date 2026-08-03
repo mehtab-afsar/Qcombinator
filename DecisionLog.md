@@ -348,6 +348,38 @@ either — see `SCHEMA_DRIFT.md` §5.
 
 ---
 
+## ADR-032 — Connector secrets live in Supabase Vault; the database stores only a `token_ref` 🔒
+**Decision (Mo, 3 Aug 2026):** third-party credentials (Gmail OAuth refresh tokens first) are
+stored via **`vault.create_secret()`**, which returns a uuid. **That uuid is the `token_ref`**
+held in `connector_grants`. Resolution happens **server-side only**, through
+`vault.decrypted_secrets`, from a service-role path. CLAUDE.md §3's "secrets by reference only"
+finally has an implementation.
+**Verified before deciding, not assumed** (local Supabase, 3 Aug):
+- `supabase_vault` 0.3.1 is **installed**, with `create_secret` / `update_secret` / decrypt.
+- A raw dump of `vault.secrets` yields **ciphertext only** — the token is not recoverable from a
+  database dump, which is the F13 acceptance criterion.
+- **`authenticated` has neither `USAGE` on the `vault` schema nor `SELECT` on
+  `vault.decrypted_secrets`** (both false). This is the load-bearing part: even if RLS on
+  `connector_grants` were misconfigured tomorrow, a founder who obtained a `token_ref` still
+  could not resolve it. Two independent failures would be required, not one.
+**Why Vault over the alternatives:**
+- **App-level envelope encryption — rejected.** It moves the problem rather than solving it: the
+  master key lives in an env var, and we would own rotation, versioning and re-encryption. More
+  code, more to get wrong, no vendor removed (Postgres is already trusted with the data).
+- **External KMS (AWS/GCP) — rejected for now.** Stronger isolation and a better audit trail, but
+  a new vendor, new credentials and a new failure mode, for a pilot that has not yet proven
+  retention (ADR-016). Revisit if the pilot succeeds and the connector surface widens.
+**Explicitly rejects the existing precedent.** `linear_tokens.api_key` (`20260225000007`) and
+`founder_profiles.{calendly,posthog,fireflies}_api_key` (`20260700000001`) store credentials
+**plaintext**, and `linear_tokens`' RLS (`for all using (user_id = auth.uid())`) lets the browser
+read the raw key. Those are old-model and frozen (ADR-014); the new model must not copy them.
+**Cost, stated honestly:** Vault ties the secret store to Postgres, so a database compromise with
+key access is not defended against — that is what a separate KMS would buy. Recorded so the
+human security review (a Story 3 ship gate) evaluates a known trade-off rather than rediscovering
+it.
+
+---
+
 ## Open (non-blocking)
 
 - Rhythm cadence configuration (weekly default — per-company override?). *Decide during Story 2.*

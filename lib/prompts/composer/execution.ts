@@ -5,7 +5,7 @@
  * validated first, and the same input always produces a byte-identical package.
  */
 
-import { getAsset, getExecutive, getProgram } from '@/lib/registry'
+import { getAction, getAsset, getExecutive, getProgram } from '@/lib/registry'
 import { getExecutivePrompt, getInstructionPrompt, getProgramPrompt } from '../registry'
 import type { ComposeInput, ExecutionPackage, PromptLayer } from '../types'
 import { renderCompanyContext } from './company-context'
@@ -66,6 +66,41 @@ const ASSET_FORMAT_RULE = [
   'Company Context; if absent, omit dates entirely.',
 ].join('\n')
 
+/**
+ * Appended to ACTION packages only — the analogue of ASSET_FORMAT_RULE.
+ *
+ * Actions previously received NO format, length or evidence rules at all: both asset rules are
+ * gated on `input.assetId`, so an action package shipped with the bare hierarchy preamble. That
+ * left the highest-consequence path in the product — the one that reaches real people through a
+ * Connector — as the only one with no anti-fabrication rule.
+ *
+ * The fabrication risk is also different in kind. For an Asset, an invented figure misleads the
+ * founder. For an irreversible Action, an invented RECIPIENT emails a stranger, and no approval
+ * step catches it: the founder is checking that the message is right, and a plausible address
+ * looks right. So the rule below leads with recipients rather than with format.
+ */
+const ACTION_FORMAT_RULE = [
+  '',
+  'Format rule for this package: you are performing the ACTION defined in layer 3, and layer 3',
+  'alone specifies what to produce. Layers 1-2 govern your judgement, priorities and quality bar',
+  '— not the output\'s shape. If a higher layer contains a report template (for example an',
+  'executive letter), it is for program-level reporting and does not apply here. An Action',
+  'produces its own result: an analysis, a decision record, or a payload — never a covering note.',
+  '',
+  'Evidence rule: use ONLY facts present in Company Context. Never invent customers, contacts,',
+  'email addresses, testimonials, quotes, metrics, results or dates. Where layer 3 asks for',
+  'evidence you do not have, write a visible placeholder — [TO VALIDATE: what is needed] — never',
+  'a plausible-sounding substitute.',
+  '',
+  // The rule that separates an Action from an Asset. Layer 3 restates it for connector actions;
+  // it is here as well because a single missed instruction here reaches a real person.
+  'Recipient rule (binding on any Action that reaches outside this company): you may address',
+  'ONLY people named, with an address, in Company Context. Never guess an address, never derive',
+  'one from a name-and-company pattern, never substitute a role or a company for a person. If',
+  'there are no such contacts, return an EMPTY recipient list and say what is missing — that is',
+  'a correct answer. An email to an invented address cannot be recalled.',
+].join('\n')
+
 /** The last thing the model reads before writing an asset — see the note at the call site. */
 const ASSET_CLOSING_REMINDER = [
   '# Final reminder before you write (binding)',
@@ -98,9 +133,13 @@ export function composePrompt(input: ComposeInput): ExecutionPackage {
   const executive = getExecutive(input.executiveId)
   const program = getProgram(input.programId)
 
+  // Both branches dereference the Registry entry. The action branch previously returned the
+  // action ID from the program's array, which only worked because every Action's id happens to
+  // equal its instructionsRef — the first Action whose ref differed (e.g. 'ACT001') would have
+  // silently resolved the wrong layer 3, or thrown far from the cause.
   const instructionRef = input.assetId
     ? getAsset(input.assetId).instructionsRef
-    : program.actions.find(a => a === input.actionId)!
+    : getAction(input.actionId!).instructionsRef
 
   const layers: PromptLayer[] = [
     {
@@ -129,7 +168,10 @@ export function composePrompt(input: ComposeInput): ExecutionPackage {
     },
   ]
 
-  const preamble = input.assetId ? HIERARCHY_PREAMBLE + ASSET_FORMAT_RULE : HIERARCHY_PREAMBLE
+  // Every package gets a jurisdiction + evidence rule; which one depends on what is being
+  // produced. Neither branch may be dropped: an Action package with no rule is how a fabricated
+  // recipient reaches a Connector.
+  const preamble = HIERARCHY_PREAMBLE + (input.assetId ? ASSET_FORMAT_RULE : ACTION_FORMAT_RULE)
   const parts = [preamble, ...layers.map(l => l.text)]
   // Recency bites: the preamble's length rule sits tens of thousands of tokens before the
   // model starts writing, and run 3 showed it alone does not hold against a large layer-3
