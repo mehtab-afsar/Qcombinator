@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto'
-import { type SupabaseClient } from '@supabase/supabase-js';
 import { getAdminClient } from '@/lib/supabase/server';
 import { parseBody, signupSchema } from '@/lib/api/validate';
 import { log } from '@/lib/logger'
-import { routedText } from '@/lib/llm/router'
 import { sendWelcomeAndConfirmEmail } from '@/lib/email/send'
-import { trackFounderSignedUp } from '@/lib/analytics'
 import { FOUNDER_PLAN_LIMITS } from '@/lib/billing/plans'
+import { mapStage, mapIndustry, mapRevenue } from '@/lib/founder/signup-mappings'
+import { enrichOnboardingText, autoLinkPortfolioByEmail, notifyAndTrackSignup } from '@/lib/founder/complete-onboarding'
 
 export async function POST(request: NextRequest) {
   try {
@@ -30,39 +29,9 @@ export async function POST(request: NextRequest) {
 
     const supabaseAdmin = getAdminClient();
 
-    // DB CHECK constraint (20260420000003): stage IN ('idea','mvp','pre-seed','seed','series-a','bootstrapped')
-    const STAGE_MAP: Record<string, string> = {
-      'pre-product':         'idea',
-      'idea':                'idea',
-      'product-development': 'mvp',
-      'mvp':                 'mvp',
-      'beta':                'mvp',
-      'pre-seed':            'pre-seed',
-      'commercial':          'seed',
-      'launched':            'seed',
-      'seed':                'seed',
-      'series-a':            'series-a',
-      'growth-scaling':      'series-a',
-      'growing':             'series-a',
-      'scaling':             'series-a',
-      'bootstrapped':        'bootstrapped',
-    };
-    const dbStage = STAGE_MAP[stage ?? ''] ?? 'idea';
-
-    const INDUSTRY_MAP: Record<string, string> = {
-      'medtech-biotech':     'biotech',
-      'ai-software':         'ai_ml',
-      'robotics-hardware':   'hardware',
-      'agri-foodtech':       'default',
-      'clean-tech':          'climate',
-    };
-    const dbIndustry = INDUSTRY_MAP[industry ?? ''] ?? industry ?? null;
-
-    const REVENUE_MAP: Record<string, string> = {
-      'early-revenue': 'first-revenue',
-      'recurring':     'mrr-10k-100k',
-    };
-    const dbRevenue = revenueStatus ? (REVENUE_MAP[revenueStatus] ?? revenueStatus) : null;
+    const dbStage    = mapStage(stage);
+    const dbIndustry = mapIndustry(industry);
+    const dbRevenue  = mapRevenue(revenueStatus);
 
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
@@ -171,9 +140,6 @@ export async function POST(request: NextRequest) {
       log.error('subscription_usage insert failed (non-fatal — user created successfully):', usageErr);
     }
 
-    // Track signup — fire-and-forget, never block the response
-    void Promise.resolve().then(() => trackFounderSignedUp(authData.user.id, { method: 'email' }))
-
     // Auto-join a team workspace if a teamToken was provided (invite link signup)
     if (teamToken) {
       void (async () => {
@@ -209,15 +175,9 @@ export async function POST(request: NextRequest) {
     // Fire-and-forget: auto-link to an investor who pre-added this email to their portfolio
     void autoLinkPortfolioByEmail(authData.user.id, email, profile.id, supabaseAdmin)
 
-    // Create welcome notification in DB for the founder (non-blocking but awaited for reliability)
-    void supabaseAdmin.from('notifications').insert({
-      user_id:  authData.user.id,
-      type:     'qscore_update',
-      title:    `Welcome to Edge Alpha, ${fullName.split(' ')[0]}! 🎉`,
-      body:     'Your profile is set up. Complete your Q-Score profile to appear in investor deal flow.',
-      metadata: { action: 'profile-builder', href: '/founder/profile-builder' },
-      read:     false,
-    })
+    // Welcome notification + signup analytics event — awaited so a slow insert can't race the
+    // response, but non-fatal if either fails (see notifyAndTrackSignup).
+    void notifyAndTrackSignup(authData.user.id, fullName, 'email', supabaseAdmin)
 
     // Fire-and-forget: send welcome + email confirmation email
     void sendWelcomeAndConfirmEmail({
@@ -244,120 +204,4 @@ export async function POST(request: NextRequest) {
 function getNextMonthDate(): string {
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth() + 1, now.getDate()).toISOString();
-}
-
-async function enrichOnboardingText(
-  userId: string,
-  problemStatement: string | undefined,
-  targetCustomer: string | undefined,
-  supabase: SupabaseClient,
-): Promise<void> {
-  if (!problemStatement && !targetCustomer) return
-
-  const prompt = `You are cleaning startup onboarding responses. Fix typos and grammar only — preserve the founder's meaning exactly. Do not add, remove, or reinterpret ideas.
-
-Problem statement (raw): "${problemStatement ?? ''}"
-Ideal customer (raw): "${targetCustomer ?? ''}"
-
-Return ONLY valid JSON, no markdown fences:
-{
-  "problemStatementCleaned": "...",
-  "targetCustomerCleaned": "...",
-  "problemSummary": "One clear sentence: what they build and who it's for."
-}`
-
-  const timeout = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error('LLM enrichment timeout')), 8_000)
-  )
-  try {
-    const raw = await Promise.race([
-      routedText('extraction', [
-        { role: 'system', content: prompt },
-        { role: 'user', content: 'Clean and summarise.' },
-      ]),
-      timeout,
-    ])
-    const cleaned = JSON.parse(
-      raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
-    ) as { problemStatementCleaned?: string; targetCustomerCleaned?: string; problemSummary?: string }
-    await supabase.rpc('merge_startup_profile_data', {
-      p_user_id: userId,
-      p_patch: {
-        problemStatementCleaned: cleaned.problemStatementCleaned ?? undefined,
-        targetCustomerCleaned:   cleaned.targetCustomerCleaned   ?? undefined,
-        problemSummary:          cleaned.problemSummary          ?? undefined,
-      },
-    })
-  } catch (err) {
-    log.warn('Onboarding text enrichment failed — raw text retained', {
-      userId,
-      err: err instanceof Error ? err.message : String(err),
-    })
-  }
-}
-
-// Auto-link a newly registered founder to an investor who pre-added their email.
-// Runs fire-and-forget — does not block signup.
-async function autoLinkPortfolioByEmail(
-  userId: string,
-  email: string,
-  founderProfileId: string,
-  supabase: SupabaseClient,
-): Promise<void> {
-  try {
-    const { data: match } = await supabase
-      .from('investor_portfolio_companies')
-      .select('id, investor_user_id, company_name')
-      .eq('founder_email', email.toLowerCase())
-      .eq('invite_status', 'not_sent')
-      .limit(1)
-      .single()
-
-    if (!match) return
-
-    const { data: investorProfile } = await supabase
-      .from('investor_profiles')
-      .select('id')
-      .eq('user_id', match.investor_user_id)
-      .single()
-
-    await Promise.all([
-      // Link portfolio company record
-      supabase
-        .from('investor_portfolio_companies')
-        .update({ founder_user_id: userId, invite_status: 'accepted', joined_at: new Date().toISOString() })
-        .eq('id', match.id),
-
-      // Set portfolio_investor_id on founder_profiles
-      supabase
-        .from('founder_profiles')
-        .update({ portfolio_investor_id: investorProfile?.id ?? null })
-        .eq('id', founderProfileId),
-
-      // Add to investor CRM pipeline
-      supabase
-        .from('investor_pipeline')
-        .upsert({ investor_user_id: match.investor_user_id, founder_user_id: userId, stage: 'portfolio' },
-                 { onConflict: 'investor_user_id,founder_user_id' }),
-
-      // Create a pending connection request — founder must accept explicitly
-      supabase
-        .from('connection_requests')
-        .upsert(
-          { founder_id: userId, investor_id: match.investor_user_id, status: 'pending', personal_message: 'Auto-linked via portfolio email match', founder_qscore: 0 },
-          { onConflict: 'founder_id,investor_id', ignoreDuplicates: true }
-        ),
-
-      // Notify investor
-      supabase.from('notifications').insert({
-        user_id:  match.investor_user_id,
-        type:     'message',
-        title:    `${match.company_name} just joined Edge Alpha`,
-        body:     'They signed up organically and were auto-linked to your portfolio.',
-        metadata: { founder_user_id: userId },
-      }),
-    ])
-  } catch (err) {
-    log.warn('[signup] autoLinkPortfolioByEmail failed (non-fatal)', { userId, err })
-  }
 }

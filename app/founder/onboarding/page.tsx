@@ -105,6 +105,10 @@ export default function FounderOnboardingPage() {
   const [logoFile] = useState<File | null>(null)
   const _avatarRef = useRef<HTMLInputElement>(null)
   const _logoRef = useRef<HTMLInputElement>(null)
+  // Google already gave us a verified email and name (/auth/callback stubs the profile with
+  // them). true once we've confirmed that stub exists — Step 1 (name/email/password) is for
+  // creating an account, and this founder already has one.
+  const [isOAuthUser, setIsOAuthUser] = useState(false)
 
   const set = (k: keyof FormData) => (v: string) => setForm(f => ({ ...f, [k]: v }))
 
@@ -114,11 +118,14 @@ export default function FounderOnboardingPage() {
       if (!data.session || sessionStorage.getItem('ea_signup_pending')) return
       // A row existing is NOT "already onboarded" — /auth/callback stubs a founder_profiles row
       // for every fresh Google sign-up (onboarding_completed: false) so the founder isn't
-      // orphaned if they navigate away mid-form. Checking row existence alone skipped onboarding
-      // for every single Google sign-up. onboarding_completed is the field the rest of the app
-      // treats as the real "done" signal (getting-started, admin metrics, investor filters).
+      // orphaned if they navigate away mid-form. onboarding_completed is the field the rest of
+      // the app treats as the real "done" signal (getting-started, admin metrics, investor
+      // filters), so a stub (false) means "skip Step 1, jump to company details" — not dashboard.
       const { data: fp } = await sb.from('founder_profiles').select('onboarding_completed').eq('user_id', data.session.user.id).maybeSingle()
-      if (fp?.onboarding_completed) router.replace('/founder/dashboard')
+      if (!fp) return // no session-holder without a profile row exists on this page today
+      if (fp.onboarding_completed) { router.replace('/founder/dashboard'); return }
+      setIsOAuthUser(true)
+      setPage(2)
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -134,24 +141,43 @@ export default function FounderOnboardingPage() {
   async function handleSubmit() {
     setLoading(true); setError('')
     try {
-      const res = await fetch('/api/auth/signup', {
+      // An OAuth founder already has an account and a session — /api/auth/signup would try to
+      // register their Google email a second time and collide. complete-profile just fills in
+      // the company fields on the stub /auth/callback already created.
+      const endpoint = isOAuthUser ? '/api/auth/complete-profile' : '/api/auth/signup'
+      const body = isOAuthUser
+        ? {
+            companyName: form.companyName, industry: form.industry, stage: form.stage,
+            revenueStatus: form.revenueStatus, fundingStatus: form.fundingStatus, teamSize: form.teamSize,
+            problemStatement: form.problemStatement, targetCustomer: form.targetCustomer,
+            location: form.location, tagline: form.tagline,
+            marketSizeEstimate: form.marketSizeEstimate, gtmStrategy: form.gtmStrategy, founderBackground: form.founderBackground,
+          }
+        : {
+            email: form.email.trim(), password: form.password, fullName: form.founderName.trim(),
+            companyName: form.companyName, industry: form.industry, stage: form.stage,
+            revenueStatus: form.revenueStatus, fundingStatus: form.fundingStatus,
+            teamSize: form.teamSize, founderName: form.founderName,
+            problemStatement: form.problemStatement, targetCustomer: form.targetCustomer,
+            location: form.location, tagline: form.tagline,
+            marketSizeEstimate: form.marketSizeEstimate, gtmStrategy: form.gtmStrategy, founderBackground: form.founderBackground,
+          }
+      const res = await fetch(endpoint, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: form.email.trim(), password: form.password, fullName: form.founderName.trim(),
-          companyName: form.companyName, industry: form.industry, stage: form.stage,
-          revenueStatus: form.revenueStatus, fundingStatus: form.fundingStatus,
-          teamSize: form.teamSize, founderName: form.founderName,
-          problemStatement: form.problemStatement, targetCustomer: form.targetCustomer,
-          location: form.location, tagline: form.tagline,
-          marketSizeEstimate: form.marketSizeEstimate, gtmStrategy: form.gtmStrategy, founderBackground: form.founderBackground,
-        }),
+        body: JSON.stringify(body),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Sign up failed.'); setLoading(false); return }
-      sessionStorage.setItem('ea_signup_pending', '1')
-      const sb = createClient()
-      const { error: signInErr } = await sb.auth.signInWithPassword({ email: form.email.trim(), password: form.password })
-      if (signInErr) { setError('Account created but sign-in failed. Please log in.'); setLoading(false); return }
+
+      if (!isOAuthUser) {
+        // A fresh email/password account needs signing in — an OAuth founder is already signed
+        // in and skips straight to the upload step.
+        sessionStorage.setItem('ea_signup_pending', '1')
+        const sb = createClient()
+        const { error: signInErr } = await sb.auth.signInWithPassword({ email: form.email.trim(), password: form.password })
+        if (signInErr) { setError('Account created but sign-in failed. Please log in.'); setLoading(false); return }
+      }
+
       await Promise.allSettled([
         avatarFile && (async () => { const fd = new FormData(); fd.append('file', avatarFile); fd.append('imageType', 'founder-avatar'); await fetch('/api/upload/image', { method: 'POST', body: fd }) })(),
         logoFile && (async () => { const fd = new FormData(); fd.append('file', logoFile); fd.append('imageType', 'company-logo'); await fetch('/api/upload/image', { method: 'POST', body: fd }) })(),
@@ -190,7 +216,9 @@ export default function FounderOnboardingPage() {
       stepKey={page}
       footer={
         <>
-          {page > 1 && (
+          {/* An OAuth founder's first visible step is 2 — there's no Step 1 (Account) to go back
+              to, and it would re-show the Google button while already signed in. */}
+          {page > 1 && !(isOAuthUser && page === 2) && (
             <button onClick={() => go(page - 1)} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: O.muted, background: 'none', border: 'none', cursor: 'pointer', marginBottom: 14, padding: 0 }}>
               <ArrowLeft size={13} /> Back to {STEP_NAMES[page - 2]}
             </button>
@@ -199,7 +227,7 @@ export default function FounderOnboardingPage() {
           {page === 2 && <PrimaryButton onClick={() => canNext2 && go(3)} disabled={!canNext2}>Continue <ChevronRight size={15} /></PrimaryButton>}
           {page === 3 && <PrimaryButton onClick={() => canNext3 && go(4)} disabled={!canNext3}>Continue <ChevronRight size={15} /></PrimaryButton>}
           {page === 4 && <PrimaryButton onClick={() => canNext4 && go(5)} disabled={!canNext4}>Continue <ChevronRight size={15} /></PrimaryButton>}
-          {page === 5 && <PrimaryButton onClick={handleSubmit} disabled={!canSubmit}>Create account <ChevronRight size={15} /></PrimaryButton>}
+          {page === 5 && <PrimaryButton onClick={handleSubmit} disabled={!canSubmit}>{isOAuthUser ? 'Finish setup' : 'Create account'} <ChevronRight size={15} /></PrimaryButton>}
         </>
       }
     >
