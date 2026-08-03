@@ -8,11 +8,19 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { ExecutiveContract } from '@/lib/mandate/contract'
+import {
+  getCurrentContract,
+  getProgramsForContract,
+  type ExecutiveContract,
+  type ProgramInstance,
+} from '@/lib/mandate/contract'
 import { getCurrentStrategy } from '@/lib/mandate/strategy'
 import type { AssetId } from '@/lib/registry'
 import { getCurrentAsset } from '@/lib/assets/versioning'
 import type { CompanyContext } from '@/lib/prompts/compose'
+import { collectCycleDelta } from './delta'
+import { getLastCompletedRun, type RhythmRun } from './runs'
+import { RhythmError } from './errors'
 
 /** Compact Company Context from Strategy + Contract. (Q-Score is a v1 omission — see F10_DESIGN.) */
 export async function buildContext(
@@ -60,3 +68,32 @@ export async function currentAssetsFor(
   }
   return map
 }
+
+// ─── The per-step context ────────────────────────────────────────────────────
+
+/** Everything one step needs, computed the same way whichever program/asset it lands on. */
+export interface StepContext {
+  contract: ExecutiveContract
+  baseContext: CompanyContext & { newInformation?: string }
+  /** The regeneration gate (ADR-028) — an existing asset is skipped unless this is true. */
+  hasNewInput: boolean
+  programs: ProgramInstance[]
+}
+
+export async function buildStepContext(admin: SupabaseClient, run: RhythmRun): Promise<StepContext> {
+  const contract = await getCurrentContract(admin, run.founderId)
+  if (!contract || contract.status !== 'confirmed') {
+    // The mandate could in principle be un-confirmed mid-run (rare); a step must fail loudly
+    // rather than silently generate against a contract that's no longer authoritative.
+    throw new RhythmError('No confirmed mandate — there is nothing to run.')
+  }
+  // ADR-028 — the delta digest: what the founder actually did since the last COMPLETED cycle.
+  // This run isn't completed yet, so recomputing it on every step of the SAME run is stable —
+  // it can't see itself.
+  const lastCompleted = await getLastCompletedRun(admin, run.founderId)
+  const delta = await collectCycleDelta(admin, run.founderId, lastCompleted?.startedAt ?? null)
+  const baseContext = { ...(await buildContext(admin, run.founderId, contract)), newInformation: delta.digest }
+  const programs = (await getProgramsForContract(admin, contract.id)).filter(p => p.status === 'active')
+  return { contract, baseContext, hasNewInput: delta.hasNewInput, programs }
+}
+

@@ -25,14 +25,26 @@ export const STEP_LIMIT_EXCEEDED = 'step_limit_exceeded'
  */
 export const STEP_MARGIN = 5
 
-/** Budget for a Program the Registry can no longer resolve. Generous on purpose — see below. */
-const STEPS_PER_UNKNOWN_PROGRAM = 8
+/**
+ * Budget for a Program the Registry can no longer resolve. Generous on purpose — see below.
+ *
+ * Raised from 8 to 16 when Actions became a rhythm phase: P001's real cost went from 6 steps
+ * (5 assets + briefing) to 11 (+5 actions). A fallback that is STINGIER than reality inverts its
+ * own purpose — it would false-trip the very run it exists to protect.
+ */
+const STEPS_PER_UNKNOWN_PROGRAM = 16
 
 /** Every run takes one final pass that finds all stages terminal and calls finishRun. */
 const TERMINAL_PASS = 1
 
 /**
- * Steps a correct run needs for one Program: one per Asset, plus its Briefing.
+ * Steps a correct run needs for one Program: one per Asset, its Briefing, and one per Action.
+ *
+ * ⚠️ The Actions term is not optional bookkeeping. Without it, P001's happy path (12 claimed
+ * steps) would sit exactly at a ceiling of 12 — a perfect run would scrape through with ZERO
+ * margin, and the first duplicate delivery or resumed invocation would fail a legitimate cycle
+ * with `step_limit_exceeded`, losing that week's briefing. Every phase that costs a step must be
+ * counted here, or the breaker stops protecting and starts breaking.
  *
  * Degrades rather than throws. `activePrograms` is DATA stored on a confirmed contract while
  * the Registry is code, so a Registry change can leave a founder holding an id that no longer
@@ -41,7 +53,8 @@ const TERMINAL_PASS = 1
  */
 function stepsForProgram(templateId: string): number {
   try {
-    return getProgram(templateId).assets.length + 1
+    const program = getProgram(templateId)
+    return program.assets.length + 1 + program.actions.length
   } catch {
     return STEPS_PER_UNKNOWN_PROGRAM
   }

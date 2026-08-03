@@ -16,6 +16,7 @@ jest.mock('@/lib/assets/versioning', () => ({ getCurrentAsset: jest.fn() }))
 jest.mock('@/lib/briefings/generate', () => ({ generateBriefing: jest.fn() }))
 jest.mock('@/lib/rhythm/judge', () => ({ generateAssetContent: jest.fn() }))
 jest.mock('@/lib/rhythm/delta', () => ({ collectCycleDelta: jest.fn() }))
+jest.mock('@/lib/actions/generate', () => ({ generateAction: jest.fn() }))
 jest.mock('@/lib/rhythm/runs', () => {
   const actual = jest.requireActual('@/lib/rhythm/runs')
   return {
@@ -33,6 +34,7 @@ import { weekCycleKey } from '@/lib/rhythm/cycle-key'
 import { runCycle, runNextStep, RhythmError } from '@/lib/rhythm/run'
 import { createOrResumeRun, getRun, recordStep, finishRun, getLastCompletedRun, claimStep, CycleAlreadyRanError } from '@/lib/rhythm/runs'
 import { generateAssetContent } from '@/lib/rhythm/judge'
+import { generateAction } from '@/lib/actions/generate'
 import { collectCycleDelta } from '@/lib/rhythm/delta'
 import { generateBriefing } from '@/lib/briefings/generate'
 import { getCurrentContract, getProgramsForContract } from '@/lib/mandate/contract'
@@ -44,6 +46,7 @@ import { BriefingError } from '@/lib/briefings/briefings'
 
 const admin = {} as unknown as SupabaseClient
 const P001_ASSETS = getProgram('P001').assets.length // the real count the rhythm regenerates
+const P001_ACTIONS = getProgram('P001').actions.length
 
 const contract = (over = {}) => ({
   id: 'c1', founderId: 'f1', status: 'confirmed', activePrograms: ['P001'],
@@ -76,6 +79,7 @@ beforeEach(() => {
   // Default: the founder DID something this week, so regeneration proceeds (ADR-028).
   m(collectCycleDelta).mockResolvedValue({ digest: '- founder edited AS001', hasNewInput: true })
   m(generateAssetContent).mockResolvedValue({ id: 'v1' })
+  m(generateAction).mockResolvedValue({ id: 'a1', status: 'executed' })
   m(generateBriefing).mockResolvedValue({ id: 'b1' })
 
   runStore = {
@@ -230,22 +234,52 @@ describe('F10 runCycle', () => {
 })
 
 describe('F10 runNextStep — chunking granularity (each call is ~one Claude call)', () => {
-  it('advances by exactly ONE asset per call, done:false until the run is finished', async () => {
+  it('advances by exactly ONE unit per call, in phase order, until the run is finished', async () => {
+    // Phase 1 — one asset per call. Nothing downstream may start early.
     for (let i = 0; i < P001_ASSETS; i++) {
       const step = await runNextStep(admin, runStore.id)
       expect(step.done).toBe(false)
       expect(m(generateAssetContent)).toHaveBeenCalledTimes(i + 1)
       expect(m(generateBriefing)).not.toHaveBeenCalled() // the briefing waits for every asset
+      expect(m(generateAction)).not.toHaveBeenCalled()   // and so do the actions
     }
 
+    // Phase 2 — the briefing, alone.
     const briefingStep = await runNextStep(admin, runStore.id)
     expect(briefingStep.done).toBe(false)
     expect(m(generateBriefing)).toHaveBeenCalledTimes(1)
-    expect(runStore.status).toBe('running') // not finished yet — finishRun hasn't run
+    expect(m(generateAction)).not.toHaveBeenCalled() // actions come AFTER the briefing (PRD §7.4)
+    expect(runStore.status).toBe('running')
+
+    // Phase 3 — one action per call. Same granularity as assets: one paid call per invocation.
+    for (let i = 0; i < P001_ACTIONS; i++) {
+      const step = await runNextStep(admin, runStore.id)
+      expect(step.done).toBe(false)
+      expect(m(generateAction)).toHaveBeenCalledTimes(i + 1)
+      expect(runStore.status).toBe('running') // not finished until every phase has settled
+    }
 
     const finalStep = await runNextStep(admin, runStore.id)
     expect(finalStep.done).toBe(true)
     expect(runStore.status).toBe('completed')
+  })
+
+  it('a run created BEFORE Actions shipped still generates them (resume hazard)', async () => {
+    // `stages[templateId] ?? newStage()` only defaults a MISSING program. A run already in
+    // flight when this deployed has a stage object with NO `actions` key — so a bare
+    // `stage.actions === 'pending'` would be false and every Action would be silently skipped
+    // for that founder's week. Reading through actionsPhase() is what makes the deploy safe.
+    runStore.stages = {
+      P001: {
+        assets: 'completed', briefing: 'completed',
+        assetsDone: [...getProgram('P001').assets], assetsGenerated: P001_ASSETS,
+        // no `actions`, no `actionsDone` — exactly as an in-flight pre-deploy run looks
+      },
+    }
+
+    const step = await runNextStep(admin, runStore.id)
+    expect(step.done).toBe(false)
+    expect(m(generateAction)).toHaveBeenCalledTimes(1) // NOT skipped
   })
 
   it('calling it again on an already-terminal run is a safe no-op', async () => {

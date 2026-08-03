@@ -18,18 +18,19 @@ import { BriefingError } from '@/lib/briefings/briefings'
 import type { CompanyContext } from '@/lib/prompts/compose'
 import { log } from '@/lib/logger'
 import { buildContext, currentAssetsFor } from './context'
+import { claimStepBudget } from './budget'
+import { buildStepContext } from './context'
+import { RhythmError } from './errors'
+
+// Re-exported: `@/lib/rhythm/run` is the established public path for this type.
+export { RhythmError }
+import { generateAction } from '@/lib/actions/generate'
+import { AlreadyExecutedError } from '@/lib/actions/log'
 import { claimStep, createOrResumeRun, finishRun, getLastCompletedRun, getRun, recordStep, type RhythmRun } from './runs'
 import { generateAssetContent } from './judge'
 import { collectCycleDelta } from './delta'
 import { maxStepsForRun, STEP_LIMIT_EXCEEDED } from './limits'
 import { weekCycleKey } from './cycle-key'
-
-export class RhythmError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'RhythmError'
-  }
-}
 
 export interface RunCycleArgs {
   founderId: string
@@ -45,6 +46,13 @@ interface StageStatus {
   assetsDone: string[]
   /** How many of assetsDone were actually generated (vs skipped) — decides 'completed' vs 'skipped'. */
   assetsGenerated: number
+  /**
+   * F14. OPTIONAL on purpose: a run already in flight when Actions shipped has a stage object
+   * with no `actions` key, and a required field would make every read of it `undefined` —
+   * silently skipping every Action for that run. Always read through `actionsPhase()`.
+   */
+  actions?: string
+  actionsDone?: string[]
 }
 export interface CycleResult {
   runId: string
@@ -56,73 +64,23 @@ export interface StepResult {
   done: boolean
 }
 
-/** Everything one step needs, computed the same way whichever program/asset it lands on. */
-interface StepContext {
-  contract: ExecutiveContract
-  baseContext: CompanyContext & { newInformation?: string }
-  /** The regeneration gate (ADR-028) — an existing asset is skipped unless this is true. */
-  hasNewInput: boolean
-  programs: ProgramInstance[]
-}
-
-async function buildStepContext(admin: SupabaseClient, run: RhythmRun): Promise<StepContext> {
-  const contract = await getCurrentContract(admin, run.founderId)
-  if (!contract || contract.status !== 'confirmed') {
-    // The mandate could in principle be un-confirmed mid-run (rare); a step must fail loudly
-    // rather than silently generate against a contract that's no longer authoritative.
-    throw new RhythmError('No confirmed mandate — there is nothing to run.')
-  }
-  // ADR-028 — the delta digest: what the founder actually did since the last COMPLETED cycle.
-  // This run isn't completed yet, so recomputing it on every step of the SAME run is stable —
-  // it can't see itself.
-  const lastCompleted = await getLastCompletedRun(admin, run.founderId)
-  const delta = await collectCycleDelta(admin, run.founderId, lastCompleted?.startedAt ?? null)
-  const baseContext = { ...(await buildContext(admin, run.founderId, contract)), newInformation: delta.digest }
-  const programs = (await getProgramsForContract(admin, contract.id)).filter(p => p.status === 'active')
-  return { contract, baseContext, hasNewInput: delta.hasNewInput, programs }
-}
-
 function newStage(): StageStatus {
-  return { assets: 'pending', briefing: 'pending', assetsDone: [], assetsGenerated: 0 }
+  return {
+    assets: 'pending', briefing: 'pending', assetsDone: [], assetsGenerated: 0,
+    actions: 'pending', actionsDone: [],
+  }
 }
 
 /**
- * The circuit breaker. Every step is a paid Claude call that schedules the next one, so a bug in
- * the "what's next" logic below would bill forever. This is the hard stop.
+ * The Actions phase's state, defaulted for runs that predate it.
  *
- * The counter it reads lives in its own column and is claimed BEFORE any generation —
- * deliberately independent of `stages`, because the failure mode being guarded against is one
- * where `stages` stops advancing. A counter that lived in `stages` would stop advancing with it.
- *
- * @returns a StepResult when the caller must stop (done:true — the chain must not self-schedule
- *          again), or null to proceed with one step.
+ * `stages[templateId] ?? newStage()` only defaults a MISSING PROGRAM. A run created before
+ * Actions shipped has a stage object that exists but has no `actions` key — so a bare
+ * `stage.actions === 'pending'` would be false and every Action would be silently skipped for
+ * that run. Reading through here is what makes a mid-flight deploy safe.
  */
-async function claimStepBudget(
-  admin: SupabaseClient,
-  run: RhythmRun,
-  programs: readonly ProgramInstance[],
-  stages: Record<string, StageStatus>,
-): Promise<StepResult | null> {
-  const limit = maxStepsForRun(programs.map(p => p.templateId), Object.keys(stages))
-
-  if (run.stepCount >= limit) {
-    // A stable string worth alerting on: a breaker that trips unnoticed is a founder who
-    // silently stops receiving briefings.
-    log.error('rhythm circuit breaker tripped — run exceeded its step ceiling', {
-      runId: run.id, founderId: run.founderId, cycleKey: run.cycleKey,
-      stepCount: run.stepCount, limit, reason: STEP_LIMIT_EXCEEDED,
-    })
-    await finishRun(admin, run.id, { status: 'failed', stages, failureReason: STEP_LIMIT_EXCEEDED })
-    return { done: true }
-  }
-
-  if ((await claimStep(admin, run.id, run.stepCount)) === null) {
-    log.warn('rhythm step claim lost — another invocation is already stepping this run', {
-      runId: run.id, stepCount: run.stepCount,
-    })
-    return { done: true }
-  }
-  return null
+function actionsPhase(stage: StageStatus): { status: string; done: string[] } {
+  return { status: stage.actions ?? 'pending', done: stage.actionsDone ?? [] }
 }
 
 /**
@@ -232,10 +190,57 @@ export async function runNextStep(admin: SupabaseClient, runId: string): Promise
       await recordStep(admin, run.id, stages)
       return { done: false }
     }
+
+    // ── F14 — Actions, one per step, after the Briefing ────────────────────────────
+    // Placed here because the docs put Action creation inside the per-Program loop after the
+    // Briefing (PRD §7.4; Featureinventory UC-10 step 4 tags this exact point "(Story 3)").
+    //
+    // GENERATION happens here; APPROVAL and external execution do not. An irreversible Action is
+    // recorded `pending_approval` and the cycle moves on — a cycle must never block waiting for
+    // a human, or "runs unattended" stops being true.
+    const actions = actionsPhase(stage)
+    if (actions.status === 'pending') {
+      const actionIds = getProgram(program.templateId).actions
+      const nextActionId = actionIds.find(id => !actions.done.includes(id))
+
+      if (nextActionId) {
+        try {
+          await generateAction(admin, {
+            founderId: run.founderId,
+            program,
+            actionId: nextActionId,
+            executionId: run.id,
+            activePrograms: contract.activePrograms,
+            context: baseContext,
+          })
+        } catch (err) {
+          if (err instanceof AlreadyExecutedError) {
+            // The unique index caught a duplicate/retried step — this Action already ran for
+            // this execution. Progress, not failure; same reasoning as the asset conflict above.
+            log.warn('action already executed for this run', { actionId: nextActionId, runId })
+          } else {
+            stage.actions = 'failed'
+            stage.error = (err as Error)?.message ?? 'unknown error'
+            log.warn('rhythm action step failed', { programId: program.templateId, runId, err: stage.error })
+            await recordStep(admin, run.id, stages)
+            continue // next program; this one's remaining Actions do not run
+          }
+        }
+        stage.actionsDone = [...actions.done, nextActionId]
+        await recordStep(admin, run.id, stages)
+        return { done: false }
+      }
+
+      // Every Action decided. No LLM call happened on this pass, so falling through to the
+      // terminal check below in the same step costs nothing.
+      stage.actions = 'completed'
+    }
   }
 
-  // Every program's assets and briefing are in a terminal state — the run is done.
-  const anyFailed = Object.values(stages).some(s => s.assets === 'failed' || s.briefing === 'failed')
+  // Every program's assets, briefing and actions are in a terminal state — the run is done.
+  const anyFailed = Object.values(stages).some(
+    s => s.assets === 'failed' || s.briefing === 'failed' || s.actions === 'failed',
+  )
   await finishRun(admin, run.id, { status: anyFailed ? 'failed' : 'completed', stages })
   return { done: true }
 }

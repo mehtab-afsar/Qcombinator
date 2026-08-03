@@ -16,6 +16,7 @@ jest.mock('@/lib/assets/versioning', () => ({ getCurrentAsset: jest.fn() }))
 jest.mock('@/lib/briefings/generate', () => ({ generateBriefing: jest.fn() }))
 jest.mock('@/lib/rhythm/judge', () => ({ generateAssetContent: jest.fn() }))
 jest.mock('@/lib/rhythm/delta', () => ({ collectCycleDelta: jest.fn() }))
+jest.mock('@/lib/actions/generate', () => ({ generateAction: jest.fn() }))
 jest.mock('@/lib/rhythm/runs', () => {
   const actual = jest.requireActual('@/lib/rhythm/runs')
   return {
@@ -33,6 +34,7 @@ import { runCycle, runNextStep } from '@/lib/rhythm/run'
 import { createOrResumeRun, getRun, recordStep, finishRun, getLastCompletedRun, claimStep } from '@/lib/rhythm/runs'
 import { maxStepsForRun, STEP_LIMIT_EXCEEDED, STEP_MARGIN } from '@/lib/rhythm/limits'
 import { generateAssetContent } from '@/lib/rhythm/judge'
+import { generateAction } from '@/lib/actions/generate'
 import { collectCycleDelta } from '@/lib/rhythm/delta'
 import { generateBriefing } from '@/lib/briefings/generate'
 import { getCurrentContract, getProgramsForContract } from '@/lib/mandate/contract'
@@ -42,8 +44,13 @@ import { getProgram } from '@/lib/registry'
 
 const admin = {} as unknown as SupabaseClient
 const P001_ASSETS = getProgram('P001').assets.length
-/** 5 assets + 1 briefing + the terminal pass that calls finishRun. Verified against run.ts. */
-const HAPPY_PATH_STEPS = P001_ASSETS + 2
+const P001_ACTIONS = getProgram('P001').actions.length
+/**
+ * 5 assets + 1 briefing + 5 actions + the terminal pass that calls finishRun.
+ * Verified against run.ts — every phase that costs a step is counted here, because the whole
+ * point of the breaker test is that the ceiling stays above the REAL cost.
+ */
+const HAPPY_PATH_STEPS = P001_ASSETS + 1 + P001_ACTIONS + 1
 
 const m = (fn: unknown) => fn as jest.Mock
 
@@ -72,6 +79,7 @@ beforeEach(() => {
   m(getLastCompletedRun).mockResolvedValue(null)
   m(collectCycleDelta).mockResolvedValue({ digest: '- edited AS001', hasNewInput: true })
   m(generateAssetContent).mockResolvedValue({ id: 'v1', content: 'doc' })
+  m(generateAction).mockResolvedValue({ id: 'a1', status: 'executed' })
   m(generateBriefing).mockResolvedValue({ id: 'b1' })
 
   runStore = {
@@ -101,8 +109,8 @@ beforeEach(() => {
 
 describe('maxStepsForRun', () => {
   it('is derived from the Registry, never a hardcoded number', () => {
-    // If P001 gains an asset, the ceiling must move with it — no magic 12.
-    expect(maxStepsForRun(['P001'])).toBe(P001_ASSETS + 1 + 1 + STEP_MARGIN)
+    // If P001 gains an asset OR an action, the ceiling must move with it — no magic number.
+    expect(maxStepsForRun(['P001'])).toBe(P001_ASSETS + 1 + P001_ACTIONS + 1 + STEP_MARGIN)
   })
 
   it('leaves comfortable headroom above the real happy path', () => {

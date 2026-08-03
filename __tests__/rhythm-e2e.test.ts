@@ -31,11 +31,31 @@ jest.mock('@/lib/llm/router', () => ({
     }
     return '# Asset (e2e)\n\nDeterministic content from the stubbed model.'
   }),
-  routedCall: jest.fn(async () => ({
-    text: '# Asset (e2e)\n\nDeterministic content from the stubbed model.',
-    toolCall: null,
-    stopReason: 'end_turn',
-  })),
+  // routedCall serves BOTH assets and actions (F14). An Action package is recognisable by its
+  // layer-3 heading. A connector Action must emit a fenced JSON payload — the engine refuses one
+  // that doesn't, deliberately — so returning asset prose here would fail the run for the right
+  // reason and make this test look broken.
+  //
+  // `recipients: []` is the honest stub: the seeded founder has no contacts in Company Context,
+  // and an empty list is the correct answer there. A stub that invented an address would be
+  // rehearsing exactly the behaviour the recipient rule exists to prevent.
+  routedCall: jest.fn(async (params: { messages?: Array<{ content: string }> }) => {
+    const prompt = String(params?.messages?.[0]?.content ?? '')
+    if (prompt.includes('# Action Instructions')) {
+      return {
+        text: 'Action prepared (e2e).\n\n```json\n' +
+          '{"goal":"stub","recipients":[],"subject":"E2E","body":"stub body","missing":["contacts"]}' +
+          '\n```',
+        toolCall: null,
+        stopReason: 'end_turn',
+      }
+    }
+    return {
+      text: '# Asset (e2e)\n\nDeterministic content from the stubbed model.',
+      toolCall: null,
+      stopReason: 'end_turn',
+    }
+  }),
 }))
 
 const URL = process.env.LOCAL_TEST_DB_URL
