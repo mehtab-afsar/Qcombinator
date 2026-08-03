@@ -380,6 +380,51 @@ it.
 
 ---
 
+## ADR-033 — A reservation is not a send, and a held slot is never released 🔒
+
+**Date:** 4 Aug 2026 · **Status:** Locked · **Trigger:** the first real emails, Story 3 Stage D
+
+`executeApprovedAction` claims an idempotency slot before calling the provider. It originally
+claimed it as `status='executed'`, which produced three live defects that 621 passing tests could
+not see — every test mocked the provider boundary that was wrong:
+
+1. the audit log recorded sends that never happened;
+2. a failed send blocked its own `(action_id, execution_id)` slot permanently, so a legitimate
+   retry became impossible;
+3. worst — the attempt that genuinely *sent* then collided with its own reservation on the unique
+   index, failed to record the outcome, and reported a refusal. **The email went out and the log
+   denied it.** Latent until an `execution_id` was present, because the index is partial on
+   `execution_id IS NOT NULL` and the first send had none.
+
+**Decision, two parts:**
+
+**(a) Reserve as `sending`, and let the index guard `sending` only.** The reservation states "I
+hold this slot", not "this was delivered". The outcome row — `executed`, `failed` or `unknown` —
+lands beside it. Idempotency is unchanged: the reservation row is never removed (the table is
+append-only), so it holds the slot permanently and a second click still loses at the database.
+
+**(b) A held slot is NEVER released, even after an apparent failure.** We cannot reliably
+distinguish "the provider never accepted it" from "the provider accepted it and the connection
+dropped". Releasing on a wrong guess sends the email **twice**; holding on a wrong guess sends it
+**zero** times. Zero is the recoverable one — the rhythm regenerates the Action next cycle against
+a fresh `execution_id`, which is a fresh slot and a fresh approval.
+
+**Accepted cost:** a founder whose send genuinely failed waits one cycle. Named explicitly in
+`SECURITY_REVIEW_PACK.md` §7 so the human reviewer evaluates a known trade-off rather than
+discovering it.
+
+**Corollary — our faults and Google's refusals are different facts.** A `not_configured` error
+raised on our side must not mark a founder's grant `expired`; only a refusal *from Google* means
+the grant is dead. A script run without the client env once killed a working connection, which
+means a deployment typo would have told every founder to reconnect.
+
+**The wider lesson, recorded because it outlives this ADR:** the mocked boundary *was* the
+security boundary. Three of Story 3's four defects were found by sending an actual email, not by
+the test suite. Assurance about the Connector layer that rests only on mocks should be treated as
+weaker than assurance elsewhere in this codebase.
+
+---
+
 ## Open (non-blocking)
 
 - Rhythm cadence configuration (weekly default — per-company override?). *Decide during Story 2.*
