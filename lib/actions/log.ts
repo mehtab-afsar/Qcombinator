@@ -109,6 +109,13 @@ export interface RecordAttemptArgs {
   provider?: string | null
   /** Hashed and reduced to metadata here — the caller never decides what is safe to store. */
   payload?: ActionPayload
+  /**
+   * An ALREADY-computed hash, for rows that record a DECISION about a payload rather than the
+   * payload itself (approve/decline). Without it those rows carry a null hash and the "sequence
+   * of rows sharing a payload_hash" design silently breaks — you could no longer prove which
+   * payload an approval was for, which is the whole point of the binding.
+   */
+  payloadHash?: string | null
   result?: Record<string, unknown> | null
   approvedBy?: string | null
 }
@@ -137,7 +144,7 @@ export async function recordAttempt(
       provider: args.provider ?? null,
       irreversible: args.irreversible,
       status: args.status,
-      payload_hash: args.payload ? hashPayload(args.payload) : null,
+      payload_hash: args.payload ? hashPayload(args.payload) : (args.payloadHash ?? null),
       request: args.payload ? payloadMetadata(args.payload) : {},
       result: args.result ?? null,
       approved_by: args.approvedBy ?? null,
@@ -185,7 +192,17 @@ export async function latestPerAction(
   })
 }
 
-/** Everything waiting on the founder right now, newest first. */
+/**
+ * Everything genuinely waiting on the founder right now, newest first.
+ *
+ * ⚠️ It is NOT enough to filter `status = 'pending_approval'`. The table is append-only, so
+ * approving does not change the original row — it adds an `approved` row beside it. Filtering on
+ * status alone therefore returns the item forever: the founder approves, watches it stay in the
+ * queue, and can approve it again. (Found by clicking the button, not by reading the code.)
+ *
+ * An action is pending only if its LATEST row says so. Identity across the sequence is
+ * (action_id, execution_id) — the same key the execution unique index uses.
+ */
 export async function pendingApprovals(
   client: SupabaseClient,
   founderId: string,
@@ -194,9 +211,17 @@ export async function pendingApprovals(
     .from('action_log')
     .select('*')
     .eq('founder_id', founderId)
-    .eq('status', 'pending_approval')
     .order('created_at', { ascending: false })
 
   if (error) throw new ActionLogError('read_failed', `Failed to read pending approvals: ${error.message}`)
-  return (data ?? []).map(r => toEntry(r as ActionLogRow))
+
+  const latestSeen = new Set<string>()
+  return (data ?? [])
+    .map(r => toEntry(r as ActionLogRow))
+    .filter(e => {
+      const key = `${e.actionId}:${e.executionId ?? ''}`
+      if (latestSeen.has(key)) return false // an older row for an action already resolved
+      latestSeen.add(key)
+      return e.status === 'pending_approval'
+    })
 }

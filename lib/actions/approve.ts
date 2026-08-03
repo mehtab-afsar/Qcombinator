@@ -144,7 +144,10 @@ export async function approveAction(
     executionId: entry.execution_id,
     provider: entry.provider,
     approvedBy: args.approvedBy,
-    result: { approvedEntryId: entry.id, payloadHash: args.payloadHash },
+    // The SAME hash as the row being approved — this is what links the sequence and lets a
+    // later execution prove which payload consent was given for.
+    payloadHash: args.payloadHash,
+    result: { approvedEntryId: entry.id },
   })
 }
 
@@ -174,6 +177,7 @@ export async function declineAction(
     programId: entry.program_id,
     executionId: entry.execution_id,
     provider: entry.provider,
+    payloadHash: entry.payload_hash,
     result: { declinedEntryId: entry.id, declinedBy: args.declinedBy },
   })
 }

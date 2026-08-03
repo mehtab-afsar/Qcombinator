@@ -149,3 +149,53 @@ describe('declining is recorded, never deleted', () => {
     ).rejects.toMatchObject({ code: 'not_pending' })
   })
 })
+
+// ─── The append-only queue trap ───────────────────────────────────────────────
+
+describe('pendingApprovals reflects the LATEST row, not any pending row', () => {
+  /**
+   * The bug this pins was found by clicking the button, not by reading the code: approving
+   * appends an `approved` row and leaves the original `pending_approval` row untouched (the
+   * table is append-only). A naive `where status = 'pending_approval'` therefore returned the
+   * item forever — the founder approved, watched it stay in the queue, and could approve it
+   * again. Every unit test passed while that was true.
+   */
+  const rows = (list: Array<Record<string, unknown>>) => ({
+    from: () => ({
+      select: () => ({
+        eq: () => ({ order: async () => ({ data: list, error: null }) }),
+      }),
+    }),
+  }) as unknown as SupabaseClient
+
+  const row = (over: Record<string, unknown>) => ({
+    id: 'x', founder_id: 'f1', program_id: null, execution_id: 'run-1',
+    action_id: 'interview_customers', provider: 'gmail', irreversible: true,
+    payload_hash: HASH, request: {}, result: null, approved_by: null, approved_at: null,
+    created_at: '2026-08-03T10:00:00Z', ...over,
+  })
+
+  it('an approved action LEAVES the queue even though its pending row still exists', async () => {
+    const { pendingApprovals } = jest.requireActual('@/lib/actions/log')
+    const list = [
+      row({ id: 'b', status: 'approved', created_at: '2026-08-03T11:00:00Z' }), // newest first
+      row({ id: 'a', status: 'pending_approval' }),
+    ]
+    expect(await pendingApprovals(rows(list), 'f1')).toEqual([])
+  })
+
+  it('a still-pending action stays in the queue', async () => {
+    const { pendingApprovals } = jest.requireActual('@/lib/actions/log')
+    const result = await pendingApprovals(rows([row({ id: 'a', status: 'pending_approval' })]), 'f1')
+    expect(result).toHaveLength(1)
+  })
+
+  it('a declined action also leaves the queue', async () => {
+    const { pendingApprovals } = jest.requireActual('@/lib/actions/log')
+    const list = [
+      row({ id: 'b', status: 'declined', created_at: '2026-08-03T11:00:00Z' }),
+      row({ id: 'a', status: 'pending_approval' }),
+    ]
+    expect(await pendingApprovals(rows(list), 'f1')).toEqual([])
+  })
+})
