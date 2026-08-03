@@ -3,6 +3,7 @@
  * Imports the canonical palette and adds a few landing-only surfaces.
  */
 import { bg, surf, bdr, ink, muted, blue, green, amber, red, purple, cyan, pink, alpha } from "@/lib/constants/colors";
+import { font, ease } from "@/features/shared/tokens";
 
 export const L = {
   bg,          // #F9F7F2 warm cream
@@ -48,6 +49,8 @@ export const DUSK = {
   textFaint: "rgba(245,239,228,0.42)",
 } as const;
 
-export const FONT_SERIF = "var(--font-fraunces), Georgia, serif";
-export const FONT_MONO = "var(--font-mono), 'SF Mono', monospace";
-export const EASE = [0.22, 1, 0.36, 1] as const;
+// Was declared identically here and in features/onboarding/theme.ts — now both re-export the one
+// definition in features/shared/tokens.ts instead of maintaining two copies.
+export const FONT_SERIF = font.family.serif;
+export const FONT_MONO = font.family.mono;
+export const EASE = ease;

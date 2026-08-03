@@ -6,10 +6,14 @@
 export { bg, surf, bdr, ink, muted, blue, green, amber, red, purple, cyan, pink, indigo, alpha } from '@/lib/constants/colors'
 
 // ── Radius ────────────────────────────────────────────────────────────────────
+// lg corrected 14 → 12: two independent, unrelated hand-rolled cards
+// (app/founder/dashboard's highlight card, app/founder/executive's quote card) both landed on 12
+// on their own — the one value that recurs across files that never saw each other's code. 14 had
+// no corroborating usage anywhere outside SectionCard itself.
 export const radius = {
   sm:   6,
   md:   10,
-  lg:   14,
+  lg:   12,
   xl:   20,
   full: 9999,
 } as const
@@ -29,7 +33,14 @@ export const space = {
 
 // ── Typography ────────────────────────────────────────────────────────────────
 export const font = {
-  family: "system-ui, -apple-system, sans-serif",
+  family: {
+    sans:  "system-ui, -apple-system, sans-serif",
+    // Previously declared identically in TWO places (features/landing/theme.ts,
+    // features/onboarding/theme.ts) instead of once — both now re-export this rather than
+    // redeclaring it. Needs the Fraunces variable to actually be loaded (app/layout.tsx).
+    serif: "var(--font-fraunces), Georgia, serif",
+    mono:  "var(--font-mono), 'SF Mono', monospace",
+  },
   size: {
     xs:   10,
     sm:   11,
@@ -67,12 +78,22 @@ export const duration = {
   slow:   '0.35s',
 } as const
 
+/** The one easing curve this app deliberately sets — was duplicated in landing/onboarding theme
+ *  files identically; most of the app leaves easing at the framer-motion default instead, so this
+ *  isn't applied everywhere, just no longer redeclared where it already was. */
+export const ease = [0.22, 1, 0.36, 1] as const
+
 // ── Button size scale ─────────────────────────────────────────────────────────
+// radius corrected to full (pill) across every size, not the previous 6/8/10 split.
+// Pill is already the dominant shape for every OTHER interactive control in this app today —
+// status chips, tags, filter pills all use 999 — so a pill Button unifies with what's already
+// dominant, rather than adding a fourth shape next to Card's radius.lg (12). The rectangular
+// 8px buttons found in ActionsPanel/ConnectorsPanel/RhythmPanel were the outliers, not the norm.
 export const btn = {
-  xs: { padding: '3px 9px',   fontSize: 11, borderRadius: 6  },
-  sm: { padding: '6px 12px',  fontSize: 12, borderRadius: 8  },
-  md: { padding: '10px 16px', fontSize: 13, borderRadius: 10 },
-  lg: { padding: '12px 24px', fontSize: 13, borderRadius: 10 },
+  xs: { padding: '3px 9px',   fontSize: 11, borderRadius: radius.full },
+  sm: { padding: '6px 12px',  fontSize: 12, borderRadius: radius.full },
+  md: { padding: '10px 16px', fontSize: 13, borderRadius: radius.full },
+  lg: { padding: '12px 24px', fontSize: 13, borderRadius: radius.full },
 } as const
 
 // ── Page layout ───────────────────────────────────────────────────────────────
