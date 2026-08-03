@@ -327,7 +327,7 @@ export default function PortfolioPage() {
         ) : (
           <div style={{ background: surf, borderRadius: 14, padding: "20px 24px", marginBottom: 24, border: `1px solid ${bdr}` }}>
             <p style={{ fontSize: 13, color: muted }}>Q-Score not yet calculated. Complete the assessment to display your score.</p>
-            <Link href="/founder/assessment" style={{ fontSize: 12, color: blue, textDecoration: "none", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4, marginTop: 8 }}>
+            <Link href="/founder/profile-builder" style={{ fontSize: 12, color: blue, textDecoration: "none", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4, marginTop: 8 }}>
               Take assessment <ExternalLink size={11} />
             </Link>
           </div>

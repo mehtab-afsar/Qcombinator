@@ -287,7 +287,7 @@ export default function MetricsTracker() {
             >
               <Edit3 style={{ width: 15, height: 15 }} /> Enter metrics manually
             </button>
-            <Link href="/founder/assessment" style={{ textDecoration: "none", width: "100%" }}>
+            <Link href="/founder/profile-builder" style={{ textDecoration: "none", width: "100%" }}>
               <button
                 onMouseEnter={e => (e.currentTarget.style.opacity = "0.85")}
                 onMouseLeave={e => (e.currentTarget.style.opacity = "1")}

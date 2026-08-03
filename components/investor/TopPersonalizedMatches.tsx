@@ -130,7 +130,7 @@ export function TopPersonalizedMatches({
           qScore={founder.qscore.overall}
           matchScore={matchScore}
           breakdown={{ ...founder.qscore, qscore: founder.qscore.overall }}
-          href={`/investor/deal-flow/${founder.id}`}
+          href={`/investor/startup/${founder.id}`}
         />
       ))}
 

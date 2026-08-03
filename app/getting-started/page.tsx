@@ -259,7 +259,7 @@ export default function GettingStartedPage() {
             ))}
           </div>
 
-          <Link href="/founder/marketplace" className="no-print" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 20, fontSize: 12, color: blue, textDecoration: 'none', fontWeight: 500 }}>
+          <Link href="/founder/matching" className="no-print" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 20, fontSize: 12, color: blue, textDecoration: 'none', fontWeight: 500 }}>
             Open Marketplace →
           </Link>
         </div>

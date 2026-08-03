@@ -372,7 +372,7 @@ export default function InvestorMatching() {
               <p style={{ fontSize: 14, fontWeight: 600, color: ink, marginBottom: 4 }}>Improve your score to unlock more matches</p>
               <p style={{ fontSize: 12, color: muted }}>Higher Q-Scores get shown to more investors and receive more unsolicited interest.</p>
             </div>
-            <Link href="/founder/assessment"
+            <Link href="/founder/profile-builder"
               style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "10px 20px", border: `1px solid ${bdr}`, borderRadius: 999, fontSize: 13, color: ink, textDecoration: "none", fontWeight: 500, flexShrink: 0, marginLeft: 16, transition: "border-color .15s" }}
               onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.borderColor = ink)}
               onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.borderColor = bdr)}

@@ -280,7 +280,7 @@ export default function ActivityPage() {
   }
 
   useEffect(() => {
-    if (redirectToLogin) router.replace("/auth/login");
+    if (redirectToLogin) router.replace("/login");
   }, [redirectToLogin, router]);
 
   function buildGroups(rows: ActivityRow[]): Group[] {
