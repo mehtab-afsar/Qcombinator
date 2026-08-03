@@ -21,6 +21,24 @@ import { join } from 'path'
 
 const ROOT = join(__dirname, '..')
 
+/**
+ * Strip comments so a source scan reads CODE, not prose. Without this, a comment that mentions
+ * the very pattern it's warning against (e.g. this file's own "used a raw #fff here") matches
+ * itself and fails — the same trap __tests__/executive-command-view.test.ts documents and guards
+ * against for the same reason.
+ */
+function stripComments(src: string): string {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n')
+    .filter(l => !l.trim().startsWith('//'))
+    .join('\n')
+}
+
+function readCode(path: string): string {
+  return stripComments(readFileSync(join(ROOT, path), 'utf8'))
+}
+
 function allTsxFiles(dirs: string[]): string[] {
   const out: string[] = []
   const walk = (dir: string) => {
@@ -120,8 +138,7 @@ describe('no NEW file hardcodes a raw hex color outside the token files', () => 
   it('has no hex literal outside the allowlist', () => {
     const violators = files.filter(f => {
       if (HEX_ALLOWLIST.has(f)) return false
-      const src = readFileSync(join(ROOT, f), 'utf8')
-      return hexPattern.test(src)
+      return hexPattern.test(readCode(f))
     })
     if (violators.length > 0) {
       throw new Error(
@@ -151,8 +168,7 @@ describe('no NEW file redeclares a local color palette instead of importing one'
   it('has no local palette redeclaration outside the allowlist', () => {
     const violators = files.filter(f => {
       if (PALETTE_REDECLARATION_ALLOWLIST.has(f)) return false
-      const src = readFileSync(join(ROOT, f), 'utf8')
-      return pattern.test(src)
+      return pattern.test(readCode(f))
     })
     if (violators.length > 0) {
       throw new Error(
@@ -170,7 +186,7 @@ describe('no NEW file redeclares @keyframes spin — app/globals.css already def
   const KNOWN_COUNT = 17 // seeded 4 Aug 2026 — see the file docstring
 
   it('does not exceed the known count of local @keyframes spin declarations', () => {
-    const violators = files.filter(f => readFileSync(join(ROOT, f), 'utf8').includes('@keyframes spin'))
+    const violators = files.filter(f => readCode(f).includes('@keyframes spin'))
     if (violators.length > KNOWN_COUNT) {
       throw new Error(
         `${violators.length} files redeclare @keyframes spin, expected at most ${KNOWN_COUNT}. ` +
@@ -187,7 +203,7 @@ describe('the email-verification block screen stays exempt from the sidebar shel
   it('app/founder/layout.tsx still excludes /verify-email from the sidebar wrapper', () => {
     // Regression guard for the bug found 4 Aug 2026: a founder blocked by email verification
     // could see the full sidebar/nav around the block screen and click their way around it.
-    const src = readFileSync(join(ROOT, 'app/founder/layout.tsx'), 'utf8')
+    const src = readCode('app/founder/layout.tsx')
     expect(src).toMatch(/hideSidebar[\s\S]{0,400}verify-email/)
   })
 })

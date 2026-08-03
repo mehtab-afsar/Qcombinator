@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { ExternalLink, X, ChevronDown } from "lucide-react";
+import { ExternalLink, X, ChevronDown, ClipboardList } from "lucide-react";
 import { bg, surf, bdr, ink, muted, blue, green, amber, red, purple } from '@/lib/constants/colors'
 import { PIPELINE_STAGE_COLORS, PIPELINE_STAGES as _PIPELINE_STAGES } from '@/features/investor/constants/pipeline'
 import { Avatar } from '@/features/shared/components/Avatar'
@@ -348,7 +348,7 @@ export default function InvestorPipelinePage() {
           </div>
         ) : entries.length === 0 ? (
           <EmptyState
-            icon="📋"
+            icon={ClipboardList}
             title="Your pipeline is empty"
             body="Browse the deal flow, view a founder's profile, and add them to your pipeline when you're ready."
             action={{ label: "Browse Deal Flow", href: "/investor/deal-flow" }}
