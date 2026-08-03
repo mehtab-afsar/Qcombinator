@@ -112,8 +112,13 @@ export default function FounderOnboardingPage() {
     const sb = createClient()
     sb.auth.getSession().then(async ({ data }) => {
       if (!data.session || sessionStorage.getItem('ea_signup_pending')) return
-      const { data: fp } = await sb.from('founder_profiles').select('user_id').eq('user_id', data.session.user.id).maybeSingle()
-      if (fp) router.replace('/founder/dashboard')
+      // A row existing is NOT "already onboarded" — /auth/callback stubs a founder_profiles row
+      // for every fresh Google sign-up (onboarding_completed: false) so the founder isn't
+      // orphaned if they navigate away mid-form. Checking row existence alone skipped onboarding
+      // for every single Google sign-up. onboarding_completed is the field the rest of the app
+      // treats as the real "done" signal (getting-started, admin metrics, investor filters).
+      const { data: fp } = await sb.from('founder_profiles').select('onboarding_completed').eq('user_id', data.session.user.id).maybeSingle()
+      if (fp?.onboarding_completed) router.replace('/founder/dashboard')
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
