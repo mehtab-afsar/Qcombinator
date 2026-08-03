@@ -24,7 +24,7 @@
 - **Assets are founder-visible and editable.** A founder edit creates a new immutable current version (`authored_by='founder'`), used immediately. No approval, no gate.
 - **No approval gates on Programs, Assets or internal work.** The *only* checkpoint: **irreversible external Actions** (send/publish/spend/change-price) require **just-in-time approval at the Connector boundary**.
 - **The Q-Score is a separate diagnostic.** Asset creation never raises it. Outcomes are evidence for later reassessment — never call `applyAgentScoreSignal()` automatically from execution.
-- **Deferred — do not build:** the Outcome Loop, Evidence Pack, investor-side features. They are out of the current core.
+- **Deferred — do not build:** the Outcome Loop, Evidence Pack. They are out of the current core. *(Investor-side features were also listed here until 4 Aug 2026 — ADR-035 narrowed this: investor-side design and Phase 0-I remediation are unblocked and done; only building features that read real founder operating data still waits on the retention gate. See `docs/INVESTOR_ROADMAP.md`.)*
 
 ## 2. Architecture rules (anti-sprawl)
 

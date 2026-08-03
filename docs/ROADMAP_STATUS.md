@@ -231,7 +231,10 @@ mid-to-late September.
 
 - ⛔ `runsWhen` event-aware rhythm (cost optimisation, ADR-008)
 - ⛔ Outcome Loop · ⛔ Evidence Pack (ADR-009)
-- ⛔ Investor-side features · ⛔ external MCP hub / Program marketplace
+- ⛔ External MCP hub / Program marketplace
+- 🔶 Investor-side features (ADR-035, 4 Aug 2026): design + Phase 0-I remediation done and
+  unblocked; building anything that reads real founder operating data still waits on the
+  retention gate. Not a blanket "do not build" anymore — see `docs/INVESTOR_ROADMAP.md`.
 
 ---
 

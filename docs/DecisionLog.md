@@ -55,6 +55,10 @@
 **Amended by ADR-028 (20 Jul 2026):** this decision governs *Program-level scheduling*, which stays unconditional. *Asset-level regeneration* within a cycle is now conditional on the founder-activity delta — an unchanged asset is not rewritten. See ADR-028.
 
 ## ADR-009 — Investor features, Outcome Loop and Evidence Pack are deferred 🕒
+**Partially superseded by ADR-035** (4 Aug 2026) — the investor-side deferral is narrowed:
+design/audit work and Phase 0-I remediation are unblocked and complete; only the *build* of
+features reading real founder operating data still waits on the retention gate, as below. The
+Outcome Loop and Evidence Pack deferrals are untouched and remain fully in force.
 **Decision:** the investor marketplace, the investor-trusted-score thesis, the dedicated Outcome Loop (`lib/outcomes/`, `POST /api/outcomes`, score mapping) and the Evidence Pack are **out of the current core**.
 **Why:** none of them are needed to prove the Founder OS, and building them early is the named scope-creep risk.
 **Revisit trigger:** after the retention gate passes and the founder loop is proven.
@@ -473,6 +477,84 @@ approval gate exists to prevent, and it does not get to survive as a ghost of th
 - The sidebar's "CXO Suite" (badge: 9 advisers) is now **"Executive team"** — the primary door.
 - There is no adviser chat surface, and there must not be one again. The Executive model works to
   a mandate; it does not wait to be messaged.
+
+---
+
+## ADR-035 — Investor side retained, rebuilt around first-party operating intelligence only (Option C); design is unblocked now, the build still waits on the founder pilot 🔒
+
+**Date:** 4 Aug 2026 · **Status:** Locked · **Supersedes:** ADR-009, in part (see below — the
+Outcome Loop and Evidence Pack deferrals in ADR-009 are untouched by this ADR)
+
+**Decision (Mo):** the investor side is retained and will be rebuilt onto the new founder engine,
+scoped narrowly to **first-party operating intelligence** — diligence, screening, and portfolio
+monitoring that reads what founders actually do on the platform. Explicitly **not**: a general
+market-sourcing crawler, deep CRM/relationship-graph depth, or external enrichment as a first
+move. This is "Option C" — retain and rebuild focused, not delete, not leave frozen indefinitely.
+
+**Why:** covered in full in `docs/INVESTOR_PRD.md` §0 — the two-sided-data thesis (founders operate
+on the platform; that operating exhaust is uncopyable) is the actual edge. Screening, CRM, and
+general sourcing are commodity, available to any competitor with a database. Confirmed by the
+Stage A audit (`docs/INVESTOR_AUDIT.md`): the diligence memo and chat are already real and wired;
+the 4-agent readiness synthesis is backend-complete and only needs a UI — cheaper starting points
+than a from-scratch build.
+
+**What's unblocked now vs. what still waits — this is the actual decision, not the framing:**
+- **Unblocked, effective immediately:** design and audit work (Stages A–D, complete) and Phase 0-I
+  security/quality remediation (complete, `docs/INVESTOR_PHASE0_REMEDIATION.md`). None of this
+  reads founder operating data, so none of it is gated by the founder pilot.
+- **Still gated on the founder pilot** (`docs/Roadmap.md` Phase 4, not yet run): any feature that
+  reads real first-party operating signal — asset-version trajectory, portfolio-health Rhythm,
+  evidence-backed diligence (`docs/INVESTOR_FEATURE_INVENTORY.md` build-order steps 8–9). There is
+  no first-party signal to build on until founders actually operate on the new model. This is not
+  a new constraint — it restates ADR-009's substance for this narrower slice. ADR-016 (retention
+  gate) still governs when the founder side is proven.
+
+**Consequences:**
+- `CLAUDE.md` §1's "Deferred — do not build: … investor-side features" is corrected alongside this
+  ADR to stop citing a blanket prohibition that no longer holds.
+- `docs/ROADMAP_STATUS.md`'s "⛔ Investor-side features · do not build early" bullet is corrected
+  the same way.
+- `docs/Roadmap.md`'s Phase 7/9 sequencing contradiction — investor side listed after old-model
+  retirement, despite the current investor side depending on the exact tables Phase 7 would delete
+  (`docs/INVESTOR_AUDIT.md` §3 Part B) — is **not** resolved by this ADR. Still open; needs its own
+  decision on when Phase 7 runs relative to the investor rebuild.
+
+**Rejected:** leaving the investor side frozen and untouched until strictly after the retention
+gate — the literal reading of ADR-009. The design/audit work carries none of the risk ADR-009 was
+guarding against (it reads no founder data, ships nothing) and is more useful done now, in
+parallel, than deferred along with everything else.
+
+---
+
+## ADR-036 — The adviser-layer deletion (ADR-034) was scoped to founder personas only; it does not extend to investor-side code 🔒
+
+**Date:** 4 Aug 2026 · **Status:** Locked · **Supersedes:** none directly — clarifies ADR-034's
+scope, which was ambiguous on this point
+
+**Decision (Mo):** ADR-034's deletion ("delete the old adviser layer outright") applied to
+`features/agents/**`, `app/api/agents/**`, `app/founder/cxo/**`, `components/cxo/**`,
+`lib/cxo/**`, `app/founder/workspace`, `app/apply/**` — the founder-facing persona/adviser system.
+It did **not**, and does **not**, apply to the investor side (`app/investor/**`,
+`app/api/investor*/**`, `investor_*` tables). The investor side's retained old-model code is a
+separate concern — tracked as quality debt (`docs/INVESTOR_PHASE0_REMEDIATION.md`, now
+substantially paid down) — not scheduled for deletion.
+
+**Why this needs saying explicitly:** CLAUDE.md's "Deferred — do not build" language and ADR-034's
+"delete outright" framing, read together with no disambiguation, could plausibly be misread as
+calling for investor-side deletion too. This was not hypothetical: `docs/INVESTOR_AUDIT.md`'s
+research had to explicitly flag this ambiguity as an open conflict (`docs/INVESTOR_PRD.md` §8.3)
+before it could be resolved here.
+
+**Consequences:**
+- The investor side is explicitly **not** frozen and **not** scheduled for deletion. It is
+  scheduled for remediation-then-rebuild, per ADR-035 and `docs/INVESTOR_ROADMAP.md`.
+- Any future old-model cleanup pass (`docs/Roadmap.md` Phase 7) must explicitly scope itself to
+  the founder adviser layer's remnants (the `agent_*` tables ADR-034 kept alive) and must **not**
+  sweep up investor-side tables/routes without a separate, explicit decision.
+
+**Rejected:** extending ADR-034's deletion scope retroactively to investor code — never formally
+proposed, but worth recording as explicitly rejected given how easily the two rules could be
+conflated by a future reader.
 
 ---
 
