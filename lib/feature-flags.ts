@@ -42,10 +42,18 @@ export const FF_AGENT_CONTEXT_COMPRESSION = flag('AGENT_CONTEXT_COMPRESSION', tr
 export const FF_COORDINATOR_WORKFLOW = flag('COORDINATOR_WORKFLOW', true)
 
 /**
- * Strangler migration — the new Executive model (ADR-014). Default OFF.
+ * The Executive model — Registry / Composer / Mandate / Rhythm / Asset-versioning / Connectors.
  *
- * Gates the Registry / Composer / Mandate / Rhythm / Asset-versioning /
- * Connector layers. The old agent model runs unaffected while this is off,
- * and is deleted only once the new model reaches parity.
+ * Default ON. This flag's original job (ADR-014: keep the old agent model running unaffected
+ * while the new one was built alongside it, off by default) ended the moment the old model was
+ * actually deleted (ADR-034, 4 Aug 2026) — there is no longer an alternative to protect, and this
+ * is now the only founder-facing product in the repo. Requiring an env var to turn on the only
+ * thing that exists was leftover migration caution, not a real safety property.
+ *
+ * The one place this still matters: app/api/cron/rhythm checks it as a second, redundant gate
+ * before the autonomous weekly cycle runs — but that route's REAL safety gate is CRON_SECRET
+ * failing closed (ADR-017) when unset, which happens first and independently. Setting
+ * NEXT_PUBLIC_FF_NEW_EXECUTIVE_MODEL=false remains available as an emergency kill switch if
+ * ever needed; it just isn't required for the product to work.
  */
-export const FF_NEW_EXECUTIVE_MODEL = flag('NEW_EXECUTIVE_MODEL', false)
+export const FF_NEW_EXECUTIVE_MODEL = flag('NEW_EXECUTIVE_MODEL', true)
