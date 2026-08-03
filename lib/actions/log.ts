@@ -17,6 +17,8 @@ import { hashPayload, payloadMetadata } from './payload'
 export type ActionStatus =
   | 'pending_approval'
   | 'approved'
+  /** The idempotency slot is held and the provider call is in flight. Not a completed send. */
+  | 'sending'
   | 'executed'
   | 'failed'
   | 'declined'

@@ -131,3 +131,61 @@ describe('the connector registry — one map, no switch statements', () => {
     expect(() => getConnector('slack')).toThrow(ConnectorError)
   })
 })
+
+/**
+ * F14 — the reservation must claim the slot WITHOUT claiming the send.
+ *
+ * Both halves of this were live defects, found by the first real sends and invisible to 621
+ * passing tests:
+ *
+ *   1. The reservation was written as `executed`, so the log recorded sends that never happened —
+ *      and a failed send permanently blocked its own (action, run) slot forever.
+ *   2. Worse: the winner's own outcome row then collided with its own reservation. It sent the
+ *      email, failed to record it, and reported a refusal. The send was real and the log denied
+ *      it — the one combination an audit trail must never produce.
+ *
+ * These are source/schema guards rather than behavioural ones on purpose: the behaviour needs a
+ * live provider, and the property worth pinning is structural — reserve as `sending`, and let the
+ * outcome land beside it.
+ */
+describe('F14 — the idempotency reservation', () => {
+  const read = (p: string) =>
+    require('fs').readFileSync(require('path').join(__dirname, '..', p), 'utf8') as string
+
+  const migrations = (): string =>
+    require('fs')
+      .readdirSync(require('path').join(__dirname, '..', 'supabase', 'migrations'))
+      .filter((f: string) => f.includes('action_log'))
+      .map((f: string) => read(`supabase/migrations/${f}`))
+      .join('\n')
+      .split('\n')
+      .filter((l: string) => !l.trim().startsWith('--')) // the fix migration quotes the bug
+      .join('\n')
+
+  it('reserves as `sending`, never as `executed`', () => {
+    const src = read('lib/actions/execute.ts')
+    const reservation = src.slice(src.indexOf('reserved = await recordAttempt'), src.indexOf('const connector'))
+    expect(reservation).toContain("status: 'sending'")
+    expect(reservation).not.toContain("status: 'executed'")
+  })
+
+  it('guards the reservation only — an outcome row must be free to land beside it', () => {
+    const index = migrations()
+      .split(/;\s*/)
+      .filter(s => s.includes('action_log_one_execution') && s.includes('create'))
+      .pop() as string
+
+    expect(index).toContain('unique index')
+    expect(index).toContain("status = 'sending'")
+    // The collision that sent an email and then denied it.
+    expect(index).not.toContain("'executed'")
+  })
+
+  it('still holds the slot for a retry — the reservation row is never removed', () => {
+    // Append-only is what makes a 'sending' row a permanent claim rather than a lease. If the
+    // table ever gained a DELETE path for it, a second click could win the slot twice.
+    const sql = migrations()
+    expect(sql).toMatch(/delete/i)      // the trigger that forbids it
+    expect(sql).not.toMatch(/delete\s+from\s+action_log/i)
+  })
+})
