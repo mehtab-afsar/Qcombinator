@@ -1,6 +1,6 @@
 # Edge Alpha — Roadmap Status
 
-*Every phase and feature, ticked or not. Snapshot: **3 August 2026**. Companion diagram:
+*Every phase and feature, ticked or not. Snapshot: **4 August 2026**. Companion diagram:
 `edge_alpha_flow.png`. Canonical order: `Roadmap.md` · Specs: `Featureinventory.md`.*
 
 **Legend:** ✅ done · ✅* built but not yet proven against the real model · ▶ next · ⬜ not started · ⛔ deferred
@@ -11,14 +11,18 @@
 
 | | |
 |---|---|
-| **Phases complete** | **3.9 of 8** — Phase 0, Story 1, Story 2 done; Story 3 all but the OAuth handshake |
+| **Phases complete** | **4 of 8** — Phase 0, Story 1, Story 2 **and Story 3** done |
 | **Buildable product** (Phases 0–3) | **~93%** |
 | **Full arc to PRD achieved** (Phases 0–7) | **~50%** |
-| **Against the roadmap** | **~6 weeks AHEAD.** Story 3 was slotted mid→end Sep; it is 3 Aug. |
+| **Against the roadmap** | **~7 weeks AHEAD.** Sprint II (Stories 1–3) was due end-Sep; it is 4 Aug. |
 | **Proven against the real AI** | Yes — full loop, 5 documents + briefing, **6 live trials** (the 6th proved the chunked chain) |
 | **Live users affected** | **None** — everything is behind `FF_NEW_EXECUTIVE_MODEL` (off) |
 
-**Story 2 is now fully done.** The chunking fix is measured (27 Jul trial — below), the circuit
+**Story 3 is now fully done — the build arc to the pilot is complete.** Nothing stands between
+here and October's pilot except *readiness*: analytics that can read the gate, a hosting tier that
+can run the engine, and a security review. **The next work is not a feature.**
+
+**Story 2 is fully done.** The chunking fix is measured (27 Jul trial — below), the circuit
 breaker shipped (ADR-030), the cycle is visible in the app, and the cross-tenant security gate
 is blocking in CI. `CRON_SECRET` / `INTERNAL_RUN_SECRET` are now **safe to add** — the breaker
 was the precondition.
@@ -175,7 +179,7 @@ credential-free half needed nothing external.*
 - [x] Circuit-breaker ceiling updated in the same commit — without it a healthy cycle would have
       run 12 steps against a ceiling of 12 and failed on the first duplicate
 
-### ✅* F13 — Connector Layer (everything except the handshake)
+### ✅ F13/F14 — Connector Layer + Actions **— COMPLETE, proven with real email (4 Aug)**
 - [x] `connector_grants` + **Supabase Vault** (ADR-032). Verified: dump yields ciphertext, and
       `authenticated` can reach neither the vault schema nor the read RPC
 - [x] **One adapter interface + one registry map** — a second provider needs no new route
@@ -184,12 +188,24 @@ credential-free half needed nothing external.*
       *preview* correctly treated as non-production (preview builds run `NODE_ENV=production`)
 - [x] Grant lifecycle with the orderings that matter: vault-before-row on connect,
       **provider-before-row on revoke**
-- [ ] ⬜ **The OAuth handshake — the ONLY thing left.** Needs a Google Cloud OAuth client (Mo).
-      ~1 day once it exists; everything it plugs into is built and tested.
-- [ ] ⬜ **Human security review before this ships** — not self-certifiable
+- [x] **The OAuth handshake** — real round-trip against a dedicated Google client; forged,
+      tampered, expired and malformed `state` all refused
+- [x] **The first real sends.** Three bugs found by sending actual email that 621 passing tests
+      could not see — every one hid behind a mock of the boundary that was wrong (ADR-033)
+- [x] **All four DoD hard cases proven against reality:** two approve clicks fired at the same
+      instant → **exactly one email** (Gmail's own record, `19fc90252361626e`) · a third attempt
+      refused · a payload changed after approval refused on the hash · approve-then-revoke refused
+      at the connector, with Google confirming the revocation upstream
+- [x] `SECURITY_REVIEW_PACK.md` written, §9 included and not thinned
+- [ ] ⬜ **Human security review before this ships** — not self-certifiable (Mo to book)
+- [ ] ⬜ **Rotate the Google client secret** — pasted in chat, treat as compromised (Mo)
+- [ ] ⬜ **Decide §9.4** — the model composes the recipient list and that constraint is a prompt,
+      not an enforced check. The largest unmitigated risk in Story 3. Build the structural check
+      (~1 day) or accept it explicitly.
 
-**Exit / Sprint II:** "Interview Customers" → payload prepared → you approve → sent → logged.
-**Everything but the send is working today.**
+**Exit / Sprint II — MET.** "Interview Customers" → payload prepared → you approve → sent →
+logged. Done end to end, with real email, on **4 Aug** — against a roadmap that slotted it for
+mid-to-late September.
 
 ---
 
