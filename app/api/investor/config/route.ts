@@ -4,18 +4,19 @@
  * POST: Save investor's config preferences
  */
 
+import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { verifyAuth } from '@/lib/auth/verify'
 import { INVESTOR_DEFAULTS } from '@/lib/constants/investor-config/defaults'
-import type { InvestorConfig } from '@/lib/constants/investor-config/types'
+import { parseBody, investorConfigSchema } from '@/lib/api/validate'
+import { log } from '@/lib/logger'
 
 export async function GET() {
   try {
+    const auth = await verifyAuth()
+    if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status })
+    const { user } = auth
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 })
-    }
 
     // Fetch existing config
     const { data: config, error } = await supabase
@@ -41,7 +42,7 @@ export async function GET() {
 
     return Response.json(config.preferences_data || INVESTOR_DEFAULTS['seed-vc'])
   } catch (error) {
-    console.error('Failed to fetch investor config:', error)
+    log.error('GET /api/investor/config', { error })
     return Response.json(
       { error: 'Failed to fetch configuration' },
       { status: 500 }
@@ -49,25 +50,16 @@ export async function GET() {
   }
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
+    const auth = await verifyAuth()
+    if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status })
+    const { user } = auth
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
 
-    if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const body = await req.json()
-    const { investorType, preferences } = body as InvestorConfig
-
-    // Validate input
-    if (!investorType || !preferences) {
-      return Response.json(
-        { error: 'Missing required fields: investorType, preferences' },
-        { status: 400 }
-      )
-    }
+    const parsed = await parseBody(req, investorConfigSchema)
+    if (!parsed.ok) return Response.json({ error: parsed.error }, { status: 400 })
+    const { investorType, preferences } = parsed.data
 
     // Upsert config
     const { error } = await supabase
@@ -86,7 +78,7 @@ export async function POST(req: Request) {
 
     return Response.json({ success: true, data: { investorType, preferences } })
   } catch (error) {
-    console.error('Failed to save investor config:', error)
+    log.error('POST /api/investor/config', { error })
     return Response.json(
       { error: 'Failed to save configuration' },
       { status: 500 }

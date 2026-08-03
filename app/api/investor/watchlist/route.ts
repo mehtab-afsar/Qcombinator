@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
+import { parseBody, watchlistPostSchema, watchlistDeleteSchema } from '@/lib/api/validate'
 import { log } from '@/lib/logger'
 
 export async function GET() {
@@ -65,8 +66,9 @@ export async function POST(request: NextRequest) {
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
     const admin = createAdminClient()
 
-    const { founderId, thresholdQscore } = await request.json() as { founderId: string; thresholdQscore?: number }
-    if (!founderId) return NextResponse.json({ error: 'founderId required' }, { status: 400 })
+    const parsed = await parseBody(request, watchlistPostSchema)
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
+    const { founderId, thresholdQscore } = parsed.data
 
     const { data, error } = await admin
       .from('investor_watchlist')
@@ -93,8 +95,9 @@ export async function DELETE(request: NextRequest) {
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
     const admin = createAdminClient()
 
-    const { founderId } = await request.json() as { founderId: string }
-    if (!founderId) return NextResponse.json({ error: 'founderId required' }, { status: 400 })
+    const parsed = await parseBody(request, watchlistDeleteSchema)
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
+    const { founderId } = parsed.data
 
     await admin
       .from('investor_watchlist')

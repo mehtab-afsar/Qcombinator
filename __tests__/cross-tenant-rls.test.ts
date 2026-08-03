@@ -18,6 +18,7 @@
 
 import { execSync } from 'child_process'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { isFounderVisible } from '@/lib/investor/visibility'
 
 const URL = process.env.LOCAL_TEST_DB_URL
 const ANON = process.env.LOCAL_TEST_DB_ANON_KEY
@@ -149,5 +150,162 @@ gate('cross-tenant isolation — founder B cannot read founder A', () => {
     const admin = createClient(URL!, SERVICE!, { auth: { persistSession: false } })
     const { data } = await admin.from('asset_versions').select('founder_id').eq('founder_id', A)
     expect(data!.length).toBeGreaterThan(0)
+  })
+})
+
+/**
+ * Extension 1 (docs/INVESTOR_PHASE0_REMEDIATION.md) — same shape as the founder-side suite
+ * above, applied to investor-owned tables. Mechanical: copy the pattern, new fixture data,
+ * same assertions. Zero investor tables were covered before this — see docs/INVESTOR_AUDIT.md.
+ */
+
+const IA = 'ccccc000-0000-4000-8000-00000000000c'
+const IB = 'ddddd000-0000-4000-8000-00000000000d'
+// A single shared "founder" row that both test investors' rows point at. Isolation here is
+// scoped by investor ownership, not by which founder is referenced — one dummy founder is
+// enough for every investor table's (investor_id, founder_id) pair.
+const SHARED_FOUNDER = 'eeeee000-0000-4000-8000-00000000000e'
+
+function seedSharedFounder(): void {
+  psql(`DELETE FROM auth.users WHERE id = '${SHARED_FOUNDER}'`)
+  psql(`INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password,
+          email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+          confirmation_token, email_change, email_change_token_new, recovery_token)
+        VALUES ('00000000-0000-0000-0000-000000000000', '${SHARED_FOUNDER}', 'authenticated',
+          'authenticated', 'shared-founder@tenancy.test', crypt('TenancyTest123!', gen_salt('bf')),
+          now(), '{"provider":"email","providers":["email"]}', '{}', now(), now(), '', '', '', '')`)
+}
+
+/** Seed an investor with one row in every investor-owned table this extension covers. */
+function seedInvestor(id: string, tag: string): void {
+  psql(`DELETE FROM auth.users WHERE id = '${id}'`)
+  psql(`INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password,
+          email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+          confirmation_token, email_change, email_change_token_new, recovery_token)
+        VALUES ('00000000-0000-0000-0000-000000000000', '${id}', 'authenticated', 'authenticated',
+          '${tag}@tenancy.test', crypt('TenancyTest123!', gen_salt('bf')), now(),
+          '{"provider":"email","providers":["email"]}', '{}', now(), now(), '', '', '', '')`)
+  psql(`INSERT INTO investor_profiles (user_id, full_name, email)
+        VALUES ('${id}', '${tag} Investor', '${tag}@tenancy.test')`)
+  psql(`INSERT INTO investor_pipeline (investor_user_id, founder_user_id, stage, notes)
+        VALUES ('${id}', '${SHARED_FOUNDER}', 'watching', '${tag} SECRET NOTE')`)
+  psql(`INSERT INTO investor_watchlist (investor_id, founder_id, threshold_qscore)
+        VALUES ('${id}', '${SHARED_FOUNDER}', 70)`)
+  psql(`INSERT INTO investor_portfolio_companies (investor_user_id, founder_user_id, company_name)
+        VALUES ('${id}', '${SHARED_FOUNDER}', '${tag} CONFIDENTIAL CO')`)
+  psql(`INSERT INTO investor_parameter_weights (investor_user_id)
+        VALUES ('${id}')`)
+}
+
+gate('investor-vs-investor isolation — investor B cannot read investor A', () => {
+  let asB: SupabaseClient
+
+  beforeAll(async () => {
+    seedSharedFounder()
+    seedInvestor(IA, 'alpha-inv')
+    seedInvestor(IB, 'bravo-inv')
+    asB = await clientFor('bravo-inv@tenancy.test')
+  }, 60_000)
+
+  afterAll(() => {
+    psql(`DELETE FROM auth.users WHERE id IN ('${IA}', '${IB}', '${SHARED_FOUNDER}')`) // cascades everything
+  })
+
+  // Table-driven so a NEW investor table added without ownership scoping shows up here as a
+  // missing case rather than a silent gap — same rationale as the founder TABLES list above.
+  const OWNER_COLUMN: Record<string, string> = {
+    investor_pipeline:            'investor_user_id',
+    investor_watchlist:           'investor_id',
+    investor_portfolio_companies: 'investor_user_id',
+    investor_parameter_weights:   'investor_user_id',
+  }
+
+  it.each(Object.keys(OWNER_COLUMN))('B reads ZERO of A\'s rows from %s', async table => {
+    const { data, error } = await asB.from(table).select('*').eq(OWNER_COLUMN[table], IA)
+    expect(error).toBeNull()
+    expect(data).toEqual([])
+  })
+
+  it('B sees only its OWN rows when reading investor_pipeline unfiltered', async () => {
+    const { data, error } = await asB.from('investor_pipeline').select('investor_user_id')
+    expect(error).toBeNull()
+    expect(data!.length).toBeGreaterThan(0)
+    expect([...new Set(data!.map(r => r.investor_user_id))]).toEqual([IB])
+  })
+
+  it('A\'s confidential portfolio note never appears in anything B can read', async () => {
+    const { data } = await asB.from('investor_portfolio_companies').select('company_name')
+    const visible = JSON.stringify(data)
+    expect(visible).not.toContain('alpha-inv CONFIDENTIAL')
+    expect(visible).toContain('bravo-inv CONFIDENTIAL') // B's own row IS readable — not vacuous
+  })
+
+  it('B cannot WRITE a row owned by A', async () => {
+    const { error } = await asB.from('investor_watchlist').insert({
+      investor_id: IA, founder_id: SHARED_FOUNDER, threshold_qscore: 99,
+    })
+    expect(error).not.toBeNull() // the INSERT policy's WITH CHECK must reject this
+  })
+
+  it('the seed is real — a service-role client CAN see A (proving the test is not vacuous)', async () => {
+    const admin = createClient(URL!, SERVICE!, { auth: { persistSession: false } })
+    const { data } = await admin.from('investor_pipeline').select('investor_user_id').eq('investor_user_id', IA)
+    expect(data!.length).toBeGreaterThan(0)
+  })
+})
+
+/**
+ * Extension 2 (docs/INVESTOR_PHASE0_REMEDIATION.md) — the H-1 regression guard.
+ *
+ * This is NOT the same shape as the tests above. H-1 (docs/INVESTOR_AUDIT.md §2) was an
+ * APPLICATION-layer gap, not an RLS gap: founder_profiles.visibility_gated has no RLS policy
+ * of its own — it's a moderation flag that investor routes must check explicitly via
+ * isFounderVisible(). A raw-table RLS assertion here would be vacuous (there is no policy to
+ * test). This exercises the actual shared function all 5+ fixed routes call, against a real
+ * seeded row — so a future revert of the H-1 fix (or a silent rename of the column) fails CI.
+ *
+ * This directly replaces the false-confidence mock in __tests__/rls.test.ts, whose comment
+ * claimed this route was "fixed" while testing a stand-in function, never the real gate.
+ */
+const GATED_FOUNDER = 'fffff000-0000-4000-8000-00000000000f'
+const VISIBLE_FOUNDER = 'aaaaa111-0000-4000-8000-000000000011'
+
+gate('H-1 regression guard — visibility_gated founders are hidden from direct-access routes', () => {
+  beforeAll(() => {
+    for (const id of [GATED_FOUNDER, VISIBLE_FOUNDER]) {
+      psql(`DELETE FROM auth.users WHERE id = '${id}'`)
+      psql(`INSERT INTO auth.users (instance_id, id, aud, role, email, encrypted_password,
+              email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+              confirmation_token, email_change, email_change_token_new, recovery_token)
+            VALUES ('00000000-0000-0000-0000-000000000000', '${id}', 'authenticated',
+              'authenticated', '${id}@tenancy.test', crypt('TenancyTest123!', gen_salt('bf')),
+              now(), '{"provider":"email","providers":["email"]}', '{}', now(), now(), '', '', '', '')`)
+    }
+    psql(`INSERT INTO founder_profiles (user_id, full_name, company_name, role, visibility_gated)
+          VALUES ('${GATED_FOUNDER}', 'Gated Founder', 'Gated Co', 'founder', true)`)
+    psql(`INSERT INTO founder_profiles (user_id, full_name, company_name, role, visibility_gated)
+          VALUES ('${VISIBLE_FOUNDER}', 'Visible Founder', 'Visible Co', 'founder', false)`)
+  }, 60_000)
+
+  afterAll(() => {
+    psql(`DELETE FROM auth.users WHERE id IN ('${GATED_FOUNDER}', '${VISIBLE_FOUNDER}')`)
+  })
+
+  it('isFounderVisible returns false for a gated founder', async () => {
+    const admin = createClient(URL!, SERVICE!, { auth: { persistSession: false } })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect(await isFounderVisible(admin as any, GATED_FOUNDER)).toBe(false)
+  })
+
+  it('isFounderVisible returns true for a visible founder (not vacuous)', async () => {
+    const admin = createClient(URL!, SERVICE!, { auth: { persistSession: false } })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect(await isFounderVisible(admin as any, VISIBLE_FOUNDER)).toBe(true)
+  })
+
+  it('isFounderVisible returns false for a founder that does not exist', async () => {
+    const admin = createClient(URL!, SERVICE!, { auth: { persistSession: false } })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect(await isFounderVisible(admin as any, '00000000-0000-4000-8000-000000000000')).toBe(false)
   })
 })

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
-import { createClient } from '@supabase/supabase-js'
+import { createAdminClient } from '@/lib/supabase/server'
 import { encodeToken } from '@/lib/email/unsubscribe-token'
+import { parseBody, investorAlertsSchema } from '@/lib/api/validate'
 import { log } from '@/lib/logger'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://edgealpha.ai'
@@ -34,28 +35,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ sent: 0, reason: 'Resend not configured' })
     }
 
+    const parsed = await parseBody(request, investorAlertsSchema)
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
     const {
       founderId, founderName, startupName, industry, stage,
       qScore, tagline, publicUrl,
-    } = await request.json() as {
-      founderId:   string
-      founderName: string
-      startupName: string
-      industry:    string
-      stage:       string
-      qScore:      number
-      tagline?:    string
-      publicUrl:   string
-    }
+    } = parsed.data
 
-    if (!founderId || !founderName || qScore < 50) {
+    if (qScore < 50) {
       return NextResponse.json({ sent: 0, reason: 'Below threshold or missing data' })
     }
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
-      process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
-    )
+    const supabase = createAdminClient()
 
     // Sanitize industry/stage before interpolating into the PostgREST contains filter
     // to prevent query injection via curly-brace characters in field values

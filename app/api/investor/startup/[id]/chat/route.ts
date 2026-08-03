@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
+import { isFounderVisible } from '@/lib/investor/visibility'
+import { parseBody, startupChatSchema } from '@/lib/api/validate'
 import { log } from '@/lib/logger'
 import { routedText } from '@/lib/llm/router'
 
@@ -16,12 +18,15 @@ export async function POST(
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
     const { id: founderId } = await params
-    const body = await req.json()
-    const question: string = (body.question ?? '').trim()
-
-    if (!question) return NextResponse.json({ error: 'question is required' }, { status: 400 })
+    const parsed = await parseBody(req, startupChatSchema)
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
+    const question = parsed.data.question.trim()
 
     const admin = createAdminClient()
+
+    if (!(await isFounderVisible(admin, founderId))) {
+      return NextResponse.json({ error: 'Founder not found' }, { status: 404 })
+    }
 
     // Fetch all startup data in parallel
     const [

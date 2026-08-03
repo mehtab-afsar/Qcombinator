@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
+import { isFounderVisible } from '@/lib/investor/visibility'
+import { parseBody, outreachPostSchema } from '@/lib/api/validate'
 import { log } from '@/lib/logger'
 
 // POST /api/investor/outreach
@@ -16,9 +18,16 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient()
     const admin = createAdminClient()
 
-    const { founderId, message } = await request.json()
-    if (!founderId) return NextResponse.json({ error: 'founderId required' }, { status: 400 })
-    if (!message?.trim()) return NextResponse.json({ error: 'message required' }, { status: 400 })
+    const parsed = await parseBody(request, outreachPostSchema)
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
+    const { founderId, message } = parsed.data
+
+    // Same class of bug as H-1 (docs/INVESTOR_AUDIT.md §2) — not in the original 5-route
+    // list, found while fixing the adjacent outreach validation gap. A founder hidden from
+    // marketplace listing must not be contactable via a guessed/enumerated id either.
+    if (!(await isFounderVisible(admin, founderId))) {
+      return NextResponse.json({ error: 'Founder not found' }, { status: 404 })
+    }
 
     // Look up this investor's demo_investor_id so we can check both FK columns.
     // A founder may have previously connected to the demo version of this investor.

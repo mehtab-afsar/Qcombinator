@@ -77,11 +77,16 @@ describe('User-scoped query patterns', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('IDOR prevention', () => {
-  // The pattern fixed for /api/investor/startup/[id]:
-  //   - BEFORE: route accepted any id without checking requester's identity
-  //   - AFTER: route verifies auth first; only authenticated investors see data
+  // This block tests the GENERIC auth-gate pattern only — a mock function, not the real
+  // route. It does NOT cover /api/investor/startup/[id]'s actual IDOR gap (docs/INVESTOR_AUDIT.md
+  // §2, finding H-1): an authenticated investor could still read ANY founder's data regardless
+  // of the founder_profiles.visibility_gated moderation flag, because that check didn't exist
+  // yet. Auth alone (what this block tests) was never the missing piece — visibility gating was.
   //
-  // We test the guard logic, not the HTTP layer.
+  // The real regression guard for H-1 is __tests__/cross-tenant-rls.test.ts's
+  // "H-1 regression guard" block, which seeds a real gated founder and asserts against the
+  // actual isFounderVisible() function all 5 fixed routes now call. Keep this block only for
+  // the generic auth-gate pattern it documents; do not read it as coverage of H-1 itself.
 
   function mockVerifyAuth(isAuthenticated: boolean): { ok: boolean; userId?: string; status?: number } {
     if (isAuthenticated) return { ok: true, userId: 'investor-user-xyz' }

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
+import { isFounderVisible } from '@/lib/investor/visibility'
+import { parseBody, startupShareSchema } from '@/lib/api/validate'
 import { log } from '@/lib/logger'
 
 // GET /api/investor/startup/[id]/share — list real investors to share with
@@ -42,12 +44,24 @@ export async function POST(
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
     const { id: founderId } = await params
-    const body = await req.json()
-    const { targetInvestorId, note } = body as { targetInvestorId: string; note?: string }
-
-    if (!targetInvestorId) return NextResponse.json({ error: 'targetInvestorId is required' }, { status: 400 })
+    const parsed = await parseBody(req, startupShareSchema)
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
+    const { targetInvestorId, note } = parsed.data
 
     const admin = createAdminClient()
+
+    if (!(await isFounderVisible(admin, founderId))) {
+      return NextResponse.json({ error: 'Startup not found' }, { status: 404 })
+    }
+
+    // H-2: targetInvestorId must resolve to a real investor — otherwise this write lets any
+    // authenticated investor inject a spoofed notification into any user's inbox by UUID guess.
+    const { data: target } = await admin
+      .from('investor_profiles')
+      .select('user_id')
+      .eq('user_id', targetInvestorId)
+      .maybeSingle()
+    if (!target) return NextResponse.json({ error: 'Invalid recipient' }, { status: 400 })
 
     // Fetch sharer's name + startup info in parallel
     const [

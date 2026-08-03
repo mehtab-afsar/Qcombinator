@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
+import { isFounderVisible } from '@/lib/investor/visibility'
+import { parseBody, startupMemoSchema } from '@/lib/api/validate'
 import { log } from '@/lib/logger'
 import { callClaude } from '@/lib/claude'
 
@@ -20,10 +22,27 @@ export async function POST(
     const supabase = await createClient()
 
     const { id: founderId } = await params
-    const body = await request.json()
-    const { startup, regenerate } = body
-    if (!startup) {
-      return NextResponse.json({ error: 'startup data required' }, { status: 400 })
+    const parsed = await parseBody(request, startupMemoSchema)
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
+    // Validated as "present and an object" — the exact StartupData shape built by the
+    // deep-dive page isn't re-declared here (out of Phase 0-I scope); the fields accessed
+    // below are typed loosely on top of the Zod-validated record.
+    const startup = parsed.data.startup as Record<string, unknown> & {
+      name?: string; founderName?: string; stage?: string; sector?: string
+      location?: string; founded?: string; teamSize?: number
+      qScore?: number; qScoreGrade?: string; qScorePercentile?: number
+      tagline?: string; description?: string
+      qScoreBreakdown?: Array<{ category: string; score: number; weight: string }>
+      financials?: Record<string, unknown>
+      aiAnalysis?: { strengths?: string[]; risks?: string[]; recommendations?: string[] }
+      artifactCoverage?: Record<string, boolean>
+    }
+    const regenerate = parsed.data.regenerate
+
+    // visibility_gated lives behind founder_profiles RLS (auth.uid() = user_id), so this
+    // check needs the admin client even though the rest of the route uses the RLS-scoped one.
+    if (!(await isFounderVisible(createAdminClient(), founderId))) {
+      return NextResponse.json({ error: 'Startup not found' }, { status: 404 })
     }
 
     // Check for a cached memo (unless regenerate=true)
@@ -138,11 +157,11 @@ Be analytical. Avoid superlatives. Cite specific Q-Score dimensions where releva
     // Build self-contained HTML
     const memoHtml = buildMemoHtml({
       memoMd,
-      companyName:  startup.name,
-      founderName:  startup.founderName,
-      qScore:       startup.qScore,
-      stage:        startup.stage,
-      sector:       startup.sector,
+      companyName:  startup.name ?? 'Unknown Company',
+      founderName:  startup.founderName ?? 'Unknown Founder',
+      qScore:       startup.qScore ?? 0,
+      stage:        startup.stage ?? 'Unknown',
+      sector:       startup.sector ?? 'Unknown',
       investorName,
       firmName,
       today,

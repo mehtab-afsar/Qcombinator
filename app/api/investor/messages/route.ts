@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
+import { parseBody, investorMessagePostSchema } from '@/lib/api/validate'
 import { log } from '@/lib/logger'
 
 // GET /api/investor/messages
@@ -141,14 +142,9 @@ export async function POST(request: NextRequest) {
     const { user } = auth
     const supabase = createAdminClient()
 
-    const { connectionId, body } = await request.json()
-
-    if (!connectionId || !body?.trim()) {
-      return NextResponse.json({ error: 'connectionId and body are required' }, { status: 400 })
-    }
-    if (body.trim().length > 4000) {
-      return NextResponse.json({ error: 'Message too long (max 4,000 characters)' }, { status: 400 })
-    }
+    const parsed = await parseBody(request, investorMessagePostSchema)
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
+    const { connectionId, body } = parsed.data
 
     // Verify this investor is party to the connection and it's accepted
     const { data: investorProfile } = await supabase

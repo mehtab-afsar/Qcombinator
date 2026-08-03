@@ -16,6 +16,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
+import { isFounderVisible } from '@/lib/investor/visibility'
 import { llmChat } from '@/lib/llm/provider'
 import { log } from '@/lib/logger'
 
@@ -200,6 +201,10 @@ export async function POST(request: NextRequest) {
 
     if (!investorProfile || investorProfile.subscription_tier === 'free') {
       return NextResponse.json({ error: 'Pro subscription required' }, { status: 403 })
+    }
+
+    if (!(await isFounderVisible(admin, founderId))) {
+      return NextResponse.json({ error: 'Founder not found' }, { status: 404 })
     }
 
     // ── Fan-out: load all data in parallel ───────────────────────────────────

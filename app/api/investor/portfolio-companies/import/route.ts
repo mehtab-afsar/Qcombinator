@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
+import { parseBody, portfolioCompanyImportSchema } from '@/lib/api/validate'
 import { log } from '@/lib/logger'
 
 // POST /api/investor/portfolio-companies/import
@@ -12,18 +13,12 @@ export async function POST(req: NextRequest) {
     const auth = await verifyAuth()
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
-    const { rows } = await req.json()
-
-    if (!Array.isArray(rows) || rows.length === 0) {
-      return NextResponse.json({ error: 'rows must be a non-empty array' }, { status: 400 })
-    }
-
-    if (rows.length > 200) {
-      return NextResponse.json({ error: 'Maximum 200 companies per import' }, { status: 400 })
-    }
+    const parsed = await parseBody(req, portfolioCompanyImportSchema)
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
+    const { rows } = parsed.data
 
     const inserts = rows
-      .filter((r) => r.company_name?.trim())
+      .filter((r): r is typeof r & { company_name: string } => Boolean(r.company_name?.trim()))
       .map((r) => ({
         investor_user_id: auth.user.id,
         company_name:     r.company_name.trim(),

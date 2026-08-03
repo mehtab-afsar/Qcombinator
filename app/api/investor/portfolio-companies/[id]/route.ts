@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
+import { parseBody, portfolioCompanyPatchSchema } from '@/lib/api/validate'
 import { log } from '@/lib/logger'
 
 // PATCH  /api/investor/portfolio-companies/[id]  → update company details
@@ -12,8 +13,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
     const { id } = await params
-    const body = await req.json()
-    const { company_name, founder_name, founder_email, sector, stage, invested_at, investment_note } = body
+    const parsed = await parseBody(req, portfolioCompanyPatchSchema)
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
+    const { company_name, founder_name, founder_email, sector, stage, invested_at, investment_note } = parsed.data
 
     const updates: Record<string, string | null> = {}
     if (company_name !== undefined) updates.company_name = company_name?.trim() || null

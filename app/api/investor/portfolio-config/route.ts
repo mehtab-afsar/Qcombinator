@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
+import { parseBody, portfolioConfigPatchSchema } from '@/lib/api/validate'
 import { log } from '@/lib/logger'
 
 const DEFAULT_CONFIG = {
@@ -40,15 +41,9 @@ export async function PATCH(request: NextRequest) {
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
     const { user } = auth
 
-    const body = await request.json()
-    const config = {
-      showMRR:    typeof body.showMRR    === 'boolean' ? body.showMRR    : true,
-      showRunway: typeof body.showRunway === 'boolean' ? body.showRunway : true,
-      showBurn:   typeof body.showBurn   === 'boolean' ? body.showBurn   : true,
-      showGrowth: typeof body.showGrowth === 'boolean' ? body.showGrowth : true,
-      showQScore: typeof body.showQScore === 'boolean' ? body.showQScore : true,
-      showHealth: typeof body.showHealth === 'boolean' ? body.showHealth : true,
-    }
+    const parsed = await parseBody(request, portfolioConfigPatchSchema)
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
+    const config = { ...DEFAULT_CONFIG, ...parsed.data }
 
     const supabase = await createClient()
     const { error } = await supabase

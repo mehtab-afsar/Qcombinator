@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
+import { parseBody, connectionsPatchSchema } from '@/lib/api/validate'
 import { log } from '@/lib/logger'
 import { sendConnectionAcceptedEmails } from '@/lib/email/send'
 
@@ -127,10 +128,9 @@ export async function PATCH(request: NextRequest) {
     const { user } = auth
     const supabase = createAdminClient()
 
-    const { requestId, action, feedback } = await request.json()
-    if (!requestId || !action) {
-      return NextResponse.json({ error: 'requestId and action are required' }, { status: 400 })
-    }
+    const parsed = await parseBody(request, connectionsPatchSchema)
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
+    const { requestId, action, feedback } = parsed.data
 
     // Connection status state machine (DB CHECK enforces these values):
     //   pending          → investor has not yet responded to founder's request
@@ -239,10 +239,8 @@ export async function PATCH(request: NextRequest) {
 
           const founderEmail = founderUser?.email
           const investorEmail = investorUser?.email
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const fp = founderProfile as any
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const ip = investorProfile as any
+          const fp = founderProfile as { full_name?: string; startup_name?: string } | null
+          const ip = investorProfile as { full_name?: string; firm_name?: string } | null
 
           if (founderEmail && investorEmail) {
             await sendConnectionAcceptedEmails({

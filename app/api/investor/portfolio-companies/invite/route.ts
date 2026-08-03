@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
+import { parseBody, portfolioCompanyInviteSchema } from '@/lib/api/validate'
 import { sendPortfolioInviteEmail } from '@/lib/email/send'
 import { log } from '@/lib/logger'
 
@@ -13,8 +14,9 @@ export async function POST(req: NextRequest) {
     const auth = await verifyAuth()
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
-    const { companyId } = await req.json()
-    if (!companyId) return NextResponse.json({ error: 'companyId is required' }, { status: 400 })
+    const parsed = await parseBody(req, portfolioCompanyInviteSchema)
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
+    const { companyId } = parsed.data
 
     const supabase = await createClient()
 

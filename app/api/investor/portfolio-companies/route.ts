@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
+import { parseBody, portfolioCompanyPostSchema } from '@/lib/api/validate'
 import { log } from '@/lib/logger'
 
 // GET  /api/investor/portfolio-companies  → list all portfolio companies for investor
@@ -35,12 +36,9 @@ export async function POST(req: NextRequest) {
     const auth = await verifyAuth()
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
-    const body = await req.json()
-    const { company_name, founder_name, founder_email, sector, stage, invested_at, investment_note } = body
-
-    if (!company_name?.trim()) {
-      return NextResponse.json({ error: 'company_name is required' }, { status: 400 })
-    }
+    const parsed = await parseBody(req, portfolioCompanyPostSchema)
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
+    const { company_name, founder_name, founder_email, sector, stage, invested_at, investment_note } = parsed.data
 
     const supabase = await createClient()
     const { data, error } = await supabase

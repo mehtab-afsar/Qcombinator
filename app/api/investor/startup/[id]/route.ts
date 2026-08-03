@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
+import { isFounderVisible } from '@/lib/investor/visibility'
 import { log } from '@/lib/logger'
 
 // GET /api/investor/startup/:id
@@ -33,6 +34,10 @@ export async function GET(
 
     if (investorProfile.subscription_tier === 'free') {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    }
+
+    if (!(await isFounderVisible(admin, founderId))) {
+      return NextResponse.json({ error: 'Founder not found' }, { status: 404 })
     }
 
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()

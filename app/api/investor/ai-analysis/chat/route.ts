@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
+import { parseBody, aiAnalysisChatSchema } from '@/lib/api/validate'
 import { log } from '@/lib/logger'
 import Anthropic from '@anthropic-ai/sdk'
 
@@ -16,11 +17,9 @@ export async function POST(req: NextRequest) {
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
     const { user } = auth
 
-    const { message, history = [] } = await req.json() as {
-      message: string
-      history: Array<{ role: 'user' | 'assistant'; content: string }>
-    }
-    if (!message?.trim()) return NextResponse.json({ error: 'message required' }, { status: 400 })
+    const parsed = await parseBody(req, aiAnalysisChatSchema)
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
+    const { message, history = [] } = parsed.data
 
     const admin = createAdminClient()
 
