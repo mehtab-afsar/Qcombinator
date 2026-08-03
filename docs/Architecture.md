@@ -203,8 +203,7 @@ Single Vercel project, Vercel-native end to end (no Docker/K8s). **Edge runtime*
 **Reused untouched:** Q-Score engine, LLM router, task-graph / delegation / orchestrator, action & tool executors, scheduler, document store, memory, RLS, Stripe/Resend/Sentry/PostHog.
 **Rewritten:** `lib/edgealpha.config.ts` → the code Registry (`lib/registry/**`).
 **New:** Prompt Composer · Mandate (Strategy + Contract) · Operating-Rhythm engine · Asset Versioning · Connector layer.
-**Frozen (never edited, deleted only after parity):** the 11 personas (`features/agents/**`) and ~170 per-agent routes (`app/api/agents/**`). *Exception: `*Renderer.tsx` components are reusable.* Note `lib/agents/compose-system-prompt.ts` is the old 3-part assembler — frozen; it dies with the old model.
-
+**Deleted (ADR-034, 4 Aug 2026):** the 11 personas (`features/agents/**`), ~170 per-agent routes (`app/api/agents/**`), the CXO pages and most of `lib/agents/**` — 288 files, ~67k lines. The strangler freeze protected live users; there were none, so it bought no safety. The `agent_*` tables remain: `lib/rhythm/delta.ts` still reads `agent_artifacts`.
 **Net:** the same Next.js/Supabase/Vercel foundation and the same execution engine, re-shaped from persona/route sprawl into a config-driven autonomous operating system — mostly refactor, targeted new build.
 
 ---

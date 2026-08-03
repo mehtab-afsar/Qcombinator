@@ -2,7 +2,7 @@
 
 *Things only you can do. Everything here is **outside the code** — keys, accounts, plan settings and sign-offs.*
 
-*Compiled 15 Jul 2026 from the Phase 0 audit; **the blocking list below is current as of 3 Aug 2026**. Detail: `PHASE0_AUDIT.md`.*
+*Compiled 15 Jul 2026 from the Phase 0 audit; **the blocking list below is current as of 3 Aug 2026**. Detail: the Phase 0 audit (removed 4 Aug 2026 — in git history).*
 
 ---
 
@@ -104,7 +104,7 @@ Nobody can subscribe today. **This is why the new billing test matters: it guard
 
 Two consequences to be aware of, neither of which is a task for you:
 
-- **The Groq failover is dead code.** `lib/llm/providers/index.ts:15-21,43-53` reaches for Groq whenever Anthropic errors or its circuit breaker trips. With no key it returns null and rethrows — so the branch never fires and never will. It should be removed when the LLM layer is next touched (**an engineering task, tracked in `PHASE0_AUDIT.md`, not here**).
+- **The Groq failover is dead code.** `lib/llm/providers/index.ts:15-21,43-53` reaches for Groq whenever Anthropic errors or its circuit breaker trips. With no key it returns null and rethrows — so the branch never fires and never will. It should be removed when the LLM layer is next touched (**an engineering task, tracked in the Phase 0 audit (removed 4 Aug 2026 — in git history), not here**).
 - **No LLM failover is now an accepted risk, not a gap.** An Anthropic outage stops chat, artifacts and Q-Score reconciliation. That's a deliberate trade (one vendor, less complexity), not an oversight.
 
 ⚠️ **The docs disagree with this and need correcting.** `Architecture.md:72` still lists the LLM layer as *"`lib/llm/router.ts` → **Groq** (llama-3.3-70b, llama-3.1-8b) + **Anthropic**"* and claims *"vendor independence"* as an architectural property. With Anthropic-only that line is false, and "vendor independence" is not a property this system has. **Same class of drift Step 0 was meant to clear.**
@@ -163,7 +163,7 @@ Each of these makes an advertised feature a no-op. No error, no warning; it just
 
 ## 8c. 🔴 A real security bug — 4 tables have RLS enabled but not enforced
 
-*Engineering work, not keys — but it needs your decision on when, so it lives here too. Full detail: `PHASE0_AUDIT.md` §8d.*
+*Engineering work, not keys — but it needs your decision on when, so it lives here too. Full detail: the Phase 0 audit (removed 4 Aug 2026 — in git history) §8d.*
 
 - [ ] **Drop 4 broken RLS policies.** `founder_metric_snapshots`, `scheduled_actions`, `agent_goals`, `delegation_tasks` each carry a `for all using (true)` policy with **no `TO` clause**. That applies to *everyone*, and Postgres OR's policies together — so it **overrides** the founder-scoped rule next to it.
 
@@ -192,7 +192,7 @@ Each of these makes an advertised feature a no-op. No error, no warning; it just
 ## 10. Sign-offs needed
 
 - [x] ✅ **Roman — the `connectors` namespace. RESOLVED 3 Aug 2026.** Routes: `app/api/connectors/**` (ADR-021). Table: **`connector_grants`** (ADR-031) — chosen over both `connector_connections` and Roman's "mandate", the latter because it already means the Executive Contract, whose immutability rules are load-bearing. Settled before Story 3 Stage A, so no rename cost. Nothing pending.
-- [ ] **`docs/edge-alpha-cto-review.md`** — you said leave it. Flagging once more only because it isn't in `DOC_RECONCILIATION.md`, so nobody knows if it's live.
+- [ ] **`docs/the June CTO review (removed 4 Aug 2026 — it described the deleted adviser layer)** — you said leave it. Flagging once more only because it isn't in the doc-reconciliation pass (removed 4 Aug 2026 — in git history), so nobody knows if it's live.
 
 ## 11. Operational (from PRD §14 — carried over, still open)
 

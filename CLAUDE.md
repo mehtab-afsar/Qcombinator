@@ -1,6 +1,6 @@
 # Edge Alpha — Engineering Rules (read every session)
 
-*These are the project's rules. Claude Code loads this file automatically. If a change violates any rule here, stop and fix it before continuing. Canonical spec: `EDGE_ALPHA_PRD.md`. Layout: `Starthere.md`. Features: `Featureinventory.md`.*
+*These are the project's rules. Claude Code loads this file automatically. If a change violates any rule here, stop and fix it before continuing. Canonical spec: `docs/EDGE_ALPHA_PRD.md`. Layout: `docs/Starthere.md`. Features: `docs/Featureinventory.md`. Every other living doc is in `docs/` too — this file is the only `.md` at the root, because Claude Code loads it from there.*
 
 ---
 
@@ -76,7 +76,7 @@
 
 - **Reject duplication** — a near-copy of an existing route/file? Delete it, generalize instead.
 - **Reject over-engineering** — no speculative abstraction. Smallest thing that meets the story.
-- **Reject invented structure** — new folders/patterns that don't match `Starthere.md`? Move it.
+- **Reject invented structure** — new folders/patterns that don't match `docs/Starthere.md`? Move it.
 - **Reject unvalidated wiring** — skipping Zod/auth/RLS/error-handling means not done.
 - **Reject hardcoding** — models, prompts, secrets, limits, magic strings → config/registry/env.
 - **Demand tests.** Code without tests is a draft.

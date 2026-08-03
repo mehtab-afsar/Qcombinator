@@ -47,7 +47,7 @@ the plan check below is no longer just tidy-up, it's load-bearing.
 ## Phase 0 — Ground Clearing ✅ (Jul)
 
 - [x] Feature flag `FF_NEW_EXECUTIVE_MODEL` in place, default **off**
-- [x] Full audit of every artifact/action creation path → `PHASE0_AUDIT.md`
+- [x] Full audit of every artifact/action creation path → the Phase 0 audit (removed 4 Aug 2026 — in git history)
 - [x] Q-Score decoupled — the new model provably cannot move it (invariant test)
 - [x] 6 stale Q-Score tests fixed (the engine was right, the tests were old)
 - [x] Action-vs-cadence naming settled (ADR-020)
@@ -241,14 +241,14 @@ mid-to-late September.
    watch it tick. Small, but it's the difference between "built" and "works". *(needs Mo: Docker)*
 2. **Circuit breaker** — a max-step ceiling on the chain, so a bug can't bill forever.
    **Must land before `INTERNAL_RUN_SECRET`/`CRON_SECRET` go into production.** *(Stage A of
-   `prompts/CHUNKING_VERIFY.md` — its Stage B trial is now done.)*
+   the CHUNKING_VERIFY build prompt (removed 4 Aug 2026 — in git history) — its Stage B trial is now done.)*
 3. **Check the Vercel plan** — the 27 Jul trial makes this load-bearing, not housekeeping:
    ~100s/step needs Pro's 300s. 30 seconds of Mo's time. *(needs Mo)*
 4. ✅ ~~**FU-003's second half**~~ — **done 3 Aug.** CI builds its own database from the
    migrations on every push, and the cross-tenant test is blocking. **The last technical gate
    before Story 3 is cleared.**
 5. **Story 3 — Connectors + Actions** — the last build phase; the pilot now depends on it.
-   *(prompt: `prompts/STORY_3_CONNECTORS.md`)* Its stated preconditions are now met on the
+   *(its build prompt was removed 4 Aug 2026 — in git history)* Its stated preconditions are now met on the
    engineering side. **Remaining blockers are both outside engineering:** the connector table
    name (Roman) and sending credentials (Mo).
 
