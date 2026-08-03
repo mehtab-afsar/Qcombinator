@@ -1,8 +1,57 @@
 # Missing Work — Mo's list
 
-*Things only you can do. Everything here is **outside the code** — keys, accounts, plan settings and sign-offs. Nothing in this file blocks Story 1; several items block Story 3 or block charging anyone.*
+*Things only you can do. Everything here is **outside the code** — keys, accounts, plan settings and sign-offs.*
 
-*Compiled 15 Jul 2026 from the Phase 0 audit. Detail: `PHASE0_AUDIT.md`.*
+*Compiled 15 Jul 2026 from the Phase 0 audit; **the blocking list below is current as of 3 Aug 2026**. Detail: `PHASE0_AUDIT.md`.*
+
+---
+
+# 🎯 THE ONLY FOUR THINGS BLOCKING ME RIGHT NOW
+
+*Everything further down this file is real but not currently stopping work. These four are.
+Ordered by how much damage waiting causes — not by effort.*
+
+### 1. 🔴 PostHog — the only one you cannot recover from
+**Why it can't wait:** October's pilot is decided by **week-4 retention** (ADR-016), and retention
+**cannot be measured backwards**. If analytics isn't capturing before the pilot starts, you arrive
+at the single decision that governs everything unable to read the answer. Every other item on this
+page can be done late. This one cannot.
+**What to do:** create a PostHog project, add `NEXT_PUBLIC_POSTHOG_KEY` and
+`NEXT_PUBLIC_POSTHOG_HOST` to Vercel.
+
+### 2. 🔴 A Google Cloud OAuth client — blocks Story 3 Stage B
+**Scope: `https://www.googleapis.com/auth/gmail.send` ONLY.** Not `gmail.modify`, not
+`gmail.readonly`. That scope can send and cannot read the founder's mailbox — least privilege that
+still does the job.
+**⚠️ It must be a SEPARATE client from your existing login-with-Google.** Otherwise revoking "may
+send email as me" would mean touching "may sign in as me" (see `F13_F14_DESIGN.md` §9).
+**Give me:** `GOOGLE_CONNECTOR_CLIENT_ID`, `GOOGLE_CONNECTOR_CLIENT_SECRET`, and the redirect URI
+registered as `{APP_URL}/api/connectors/gmail/callback`.
+> **Correction to older notes in this file:** several sections below say Story 3 needs
+> `RESEND_API_KEY`. **That is wrong for the OAuth path.** Resend is the *fallback* and what the
+> old-model email uses. Gmail needs the client above.
+
+### 3. 🟠 Your Vercel plan — 30 seconds, and it decides whether the engine runs at all
+Settings → Billing/Plan. The 27 Jul trial **measured ~100 seconds per step**. That fits Vercel
+**Pro** (300s) with 3× headroom; on **Hobby** (60s) every step times out and leans on retries.
+Four routes already declare `maxDuration` of 120–300s, which is impossible on Hobby — so either
+you're already on Pro, or those routes have been silently failing. Both answers matter.
+
+### 4. 🟠 `CRON_SECRET` + `INTERNAL_RUN_SECRET` — now safe to add
+The circuit breaker (ADR-030) was the precondition and it shipped. Without these, the weekly
+engine cannot run in production at all.
+**⚠️ Read §4 below before adding `CRON_SECRET`** — it also wakes three dormant email jobs that
+will mail up to 500 founders at 09:00 Monday. They have been no-opping for months.
+
+---
+
+## Not blocking me, but yours alone
+
+- **A human security review of the Connector layer before Story 3 ships** (PRD §525/§541). Not
+  something I can self-certify. I'll hand you `SECURITY_REVIEW_PACK.md` at Stage E, including an
+  honest list of what I could not verify.
+- **Read the generated documents and judge whether a founder would act on them.** I can verify
+  they're complete, consistent and unfabricated. I cannot tell you they're *good*.
 
 ---
 
