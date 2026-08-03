@@ -10,7 +10,9 @@ import { STALE_AFTER_MS, type RhythmRun } from '@/lib/rhythm/runs'
 import { getProgram } from '@/lib/registry'
 
 const P001_ASSETS = getProgram('P001').assets
-const TOTAL = P001_ASSETS.length + 1 // every asset, then the briefing
+const P001_ACTIONS = getProgram('P001').actions
+/** Every asset, the briefing, then every Action — the engine's phase order. */
+const TOTAL = P001_ASSETS.length + 1 + P001_ACTIONS.length
 const NOW = Date.parse('2026-07-21T12:00:00Z')
 
 const run = (over: Partial<RhythmRun> = {}): RhythmRun => ({
@@ -60,16 +62,54 @@ describe('buildProgress — a cycle in flight', () => {
     const p = buildProgress(run(), ['P001'], NOW)
     expect(p.steps[0].label).not.toBe(P001_ASSETS[0]) // 'ICP Profiles', not 'AS001'
     expect(p.steps[0].label.length).toBeGreaterThan(4)
-    expect(p.steps[p.steps.length - 1].label).toBe('Executive briefing')
+    expect(p.steps.find(st => st.key.endsWith(':briefing'))!.label).toBe('Executive briefing')
   })
 
   it('the briefing only goes active once every asset has settled', () => {
+    const briefingOf = (p: ReturnType<typeof buildProgress>) =>
+      p.steps.find(st => st.key.endsWith(':briefing'))!
+
     const mid = buildProgress(run({ stages: stage({ assetsDone: [P001_ASSETS[0]] }) }), ['P001'], NOW)
-    expect(mid.steps[mid.steps.length - 1].state).toBe('pending')
+    expect(briefingOf(mid).state).toBe('pending')
 
     const all = buildProgress(
       run({ stages: stage({ assetsDone: [...P001_ASSETS], assetsGenerated: 5 }) }), ['P001'], NOW)
-    expect(all.steps[all.steps.length - 1].state).toBe('active')
+    expect(briefingOf(all).state).toBe('active')
+  })
+
+  it('Actions appear AFTER the briefing and wait for it', () => {
+    // Without this phase the panel counted only assets + briefing, so it read "6 of 6 —
+    // Finished" while the engine was still generating Actions. A progress bar that lies about
+    // being done is worse than none.
+    const midCycle = buildProgress(
+      run({ stages: stage({ assetsDone: [...P001_ASSETS], assetsGenerated: 5 }) }), ['P001'], NOW)
+    expect(midCycle.total).toBe(TOTAL)
+    expect(midCycle.steps.filter(st => st.state === 'active')).toHaveLength(1) // the briefing
+    // Every Action still pending — none may start before the briefing settles.
+    const actionSteps = midCycle.steps.slice(P001_ASSETS.length + 1)
+    expect(actionSteps.every(st => st.state === 'pending')).toBe(true)
+  })
+
+  it('once the briefing is done, the first Action goes active', () => {
+    const p = buildProgress(run({
+      stages: stage({
+        assets: 'completed', briefing: 'completed',
+        assetsDone: [...P001_ASSETS], assetsGenerated: 5,
+      }),
+    }), ['P001'], NOW)
+
+    const firstAction = p.steps[P001_ASSETS.length + 1]
+    expect(firstAction.state).toBe('active')
+    expect(firstAction.label).not.toBe(P001_ACTIONS[0]) // the Registry name, not the raw id
+  })
+
+  it('a run created BEFORE Actions shipped still shows the phase (no `actions` key)', () => {
+    // The panel must default exactly as the engine does, or an in-flight pre-deploy run would
+    // report a smaller total than the work actually being done.
+    const p = buildProgress(run({
+      stages: { P001: { assets: 'completed', briefing: 'completed', assetsDone: [...P001_ASSETS] } },
+    }), ['P001'], NOW)
+    expect(p.total).toBe(TOTAL)
   })
 })
 
@@ -78,7 +118,10 @@ describe('buildProgress — honest end states', () => {
     const p = buildProgress(run({
       status: 'completed',
       completedAt: '2026-07-21T11:59:00Z',
-      stages: stage({ assets: 'skipped', briefing: 'completed', assetsDone: [...P001_ASSETS], assetsGenerated: 0 }),
+      stages: stage({
+        assets: 'skipped', briefing: 'completed', assetsDone: [...P001_ASSETS], assetsGenerated: 0,
+        actions: 'completed', actionsDone: [...P001_ACTIONS],
+      }),
     }), ['P001'], NOW)
 
     expect(p.steps.filter(s => s.state === 'skipped')).toHaveLength(P001_ASSETS.length)
@@ -104,7 +147,10 @@ describe('buildProgress — honest end states', () => {
     const p = buildProgress(run({
       status: 'completed',
       completedAt: '2026-07-21T11:59:00Z',
-      stages: stage({ assets: 'completed', briefing: 'completed', assetsDone: [...P001_ASSETS], assetsGenerated: 5 }),
+      stages: stage({
+        assets: 'completed', briefing: 'completed', assetsDone: [...P001_ASSETS], assetsGenerated: 5,
+        actions: 'completed', actionsDone: [...P001_ACTIONS],
+      }),
     }), ['P001'], NOW)
 
     expect(p.done).toBe(TOTAL)

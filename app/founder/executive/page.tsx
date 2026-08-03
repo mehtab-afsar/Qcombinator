@@ -24,6 +24,7 @@ import Link from 'next/link'
 import { ArrowRight, Loader2 } from 'lucide-react'
 import { bg, surf, bdr, ink, muted, blue, red } from '@/lib/constants/colors'
 import { MandateCard } from '@/features/executive/components/MandateCard'
+import { ActionsPanel } from '@/features/executive/components/ActionsPanel'
 import { RhythmPanel } from '@/features/executive/components/RhythmPanel'
 import { BriefingsPanel } from '@/features/executive/components/BriefingsPanel'
 import {
@@ -201,7 +202,8 @@ export default function ExecutivePage() {
         </div>
       )}
 
-      {/* The cycle, then what it produced — the order a founder reads them in. */}
+      {/* What needs YOU first (F14 — the one checkpoint), then the cycle, then its output. */}
+      {state === 'confirmed' && <ActionsPanel />}
       {state === 'confirmed' && <RhythmPanel />}
       {state === 'confirmed' && <BriefingsPanel />}
     </Shell>

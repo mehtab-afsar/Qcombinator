@@ -11,7 +11,7 @@
  * than spinning forever.
  */
 
-import { getProgram, getAsset } from '@/lib/registry'
+import { getProgram, getAsset, getAction } from '@/lib/registry'
 import { STALE_AFTER_MS, type RhythmRun, type RunStatus } from './runs'
 
 export type StepState = 'done' | 'active' | 'pending' | 'failed' | 'skipped'
@@ -52,6 +52,9 @@ interface StageShape {
   briefing?: string
   error?: string
   assetsDone?: string[]
+  /** F14. Absent on runs that predate Actions — every read defaults, as the engine does. */
+  actions?: string
+  actionsDone?: string[]
 }
 
 /** Registry name, degrading to the raw id rather than throwing on an unknown asset. */
@@ -68,9 +71,10 @@ function assetLabel(assetId: string): string {
  * (stored on a confirmed contract), so a Registry change can leave a founder holding an id
  * that no longer resolves — that must not take their whole Command View down with a 500.
  */
-function programAssets(templateId: string): readonly string[] | null {
+function programOrNull(templateId: string): { assets: readonly string[]; actions: readonly string[] } | null {
   try {
-    return getProgram(templateId).assets
+    const program = getProgram(templateId)
+    return { assets: program.assets, actions: program.actions }
   } catch {
     return null
   }
@@ -112,6 +116,52 @@ function briefingStep(templateId: string, stage: StageShape, running: boolean, a
   return { ...step, state: 'pending' }
 }
 
+/** Registry name for an Action, degrading to the raw id rather than throwing. */
+function actionLabel(actionId: string): string {
+  try {
+    return getAction(actionId).name
+  } catch {
+    return actionId
+  }
+}
+
+/**
+ * The Action steps for one program — the phase that runs after the briefing.
+ *
+ * Without these the panel would count only assets + briefing, so it would read "6 of 6 —
+ * Finished" while the engine was still generating Actions, and `currentLabel` would go null
+ * mid-run. A progress bar that lies about being done is worse than none.
+ */
+function actionSteps(
+  actionIds: readonly string[],
+  templateId: string,
+  stage: StageShape,
+  running: boolean,
+  briefingSettled: boolean,
+): ProgressStep[] {
+  // Defaulted exactly as the engine defaults them: a run created before Actions shipped has no
+  // `actions` key, and treating that as "not pending" would hide the phase entirely.
+  const status = stage.actions ?? 'pending'
+  const doneIds = stage.actionsDone ?? []
+  let activeTaken = false
+
+  return actionIds.map(actionId => {
+    const step = { key: `${templateId}:${actionId}`, label: actionLabel(actionId) }
+
+    if (doneIds.includes(actionId)) return { ...step, state: 'done' as const }
+    if (status === 'failed' && !activeTaken) {
+      activeTaken = true
+      return { ...step, state: 'failed' as const }
+    }
+    // Actions only begin once the briefing has settled — the engine's own phase order.
+    if (running && briefingSettled && status !== 'failed' && !activeTaken) {
+      activeTaken = true
+      return { ...step, state: 'active' as const }
+    }
+    return { ...step, state: 'pending' as const }
+  })
+}
+
 /**
  * Project a run into founder-readable progress.
  *
@@ -128,13 +178,17 @@ export function buildProgress(
   const steps: ProgressStep[] = []
 
   for (const templateId of activeTemplateIds) {
-    const assetIds = programAssets(templateId)
-    if (!assetIds) continue // unknown Program — skip it rather than break the whole view
+    const program = programOrNull(templateId)
+    if (!program) continue // unknown Program — skip it rather than break the whole view
     const stage = (run.stages[templateId] ?? {}) as StageShape
-    const assets = assetSteps(assetIds, templateId, stage, running)
+
+    const assets = assetSteps(program.assets, templateId, stage, running)
     // The briefing only starts once every asset for its program has settled.
     const assetsSettled = assets.every(s => s.state === 'done' || s.state === 'skipped')
-    steps.push(...assets, briefingStep(templateId, stage, running, assetsSettled))
+    const briefing = briefingStep(templateId, stage, running, assetsSettled)
+    // …and Actions only start once the briefing has (the engine's phase order, mirrored).
+    const briefingSettled = briefing.state === 'done'
+    steps.push(...assets, briefing, ...actionSteps(program.actions, templateId, stage, running, briefingSettled))
   }
 
   const done = steps.filter(s => s.state === 'done' || s.state === 'skipped').length
