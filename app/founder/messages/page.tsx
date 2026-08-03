@@ -496,7 +496,7 @@ function MessagesInner() {
             {agentActivity.slice(0, 5).map(a => (
               <Link
                 key={a.id}
-                href={`/founder/cxo/${a.agent_id}`}
+                href={`/founder/executive`}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 10,
                   padding: '10px 14px', borderBottom: `1px solid ${bdr}`,

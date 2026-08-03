@@ -279,7 +279,7 @@ export async function sendDay7NudgeEmail(params: DripEmailParams): Promise<void>
       </div>
     </div>
 
-    ${ctaBtn(`${APP_URL}/founder/cxo`, 'Meet your advisors →')}
+    ${ctaBtn(`${APP_URL}/founder/executive`, 'Meet your advisors →')}
   `)
 
   const { error } = await resend.emails.send({

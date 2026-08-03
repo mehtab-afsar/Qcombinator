@@ -448,8 +448,11 @@ export default function ImproveQScorePage() {
                           </span>
                           <span style={{ fontSize: 11, color: muted }}>{action.timeframe}</span>
                         </div>
+                        {/* Was /founder/cxo/<agentId>?prompt=… — a starter prompt for an adviser
+                            chat. There is no chat to seed any more: the Executive model works to
+                            the mandate rather than to a message the founder types. */}
                         <Link
-                          href={`/founder/cxo/${action.agentId}${action.starterPrompt ? `?prompt=${encodeURIComponent(action.starterPrompt)}` : ''}`}
+                          href="/founder/executive"
                           style={{ fontSize: 11, fontWeight: 600, color: blue, textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}
                         >
                           <MessageCircle size={11} /> {action.agentName} →
@@ -503,7 +506,7 @@ export default function ImproveQScorePage() {
 
                     {/* agent link or done tick */}
                     <Link
-                      href={`/founder/cxo/${dim.agentId}`}
+                      href={`/founder/executive`}
                       onClick={e => e.stopPropagation()}
                       style={{ fontSize: 11, fontWeight: 600, color: isWeak ? blue : muted, textDecoration: "none", display: "flex", alignItems: "center", gap: 3, flexShrink: 0, width: 76, justifyContent: "flex-end" }}
                     >
@@ -554,7 +557,7 @@ export default function ImproveQScorePage() {
                         </div>
                       ))}
                       <Link
-                        href={`/founder/cxo/${dim.agentId}`}
+                        href={`/founder/executive`}
                         style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 10, fontSize: 12, fontWeight: 600, color: blue, textDecoration: "none" }}
                       >
                         <MessageCircle size={11} /> Talk to {dim.agentName} →
@@ -600,7 +603,7 @@ export default function ImproveQScorePage() {
                           +{ch.points} pts
                         </span>
                         <div style={{ marginTop: 8 }}>
-                          <Link href={`/founder/cxo/${ch.agentId}`} style={{ textDecoration: "none" }}>
+                          <Link href={`/founder/executive`} style={{ textDecoration: "none" }}>
                             <div style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 10px", borderRadius: 999, fontSize: 10, fontWeight: 600, background: done ? surf : ink, color: done ? muted : bg, border: `1px solid ${done ? bdr : ink}`, cursor: "pointer" }}>
                               {done ? <><ArrowRight size={9} /> View</> : <><Zap size={9} /> Build</>}
                             </div>

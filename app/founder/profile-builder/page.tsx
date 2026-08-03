@@ -1846,7 +1846,7 @@ export default function ProfileBuilderPage() {
                     <div style={{ fontSize: 13, fontWeight: 600, color: ink }}>Connect Stripe for verified MRR</div>
                     <div style={{ fontSize: 12, color: muted, marginTop: 2 }}>Highest data credibility — +18 pts vs self-reported</div>
                   </div>
-                  <button onClick={() => router.push('/founder/cxo?agent=felix')} style={{
+                  <button onClick={() => router.push('/founder/executive')} style={{
                     padding: '7px 12px', borderRadius: 6, border: `1px solid ${bdr}`,
                     background: 'transparent', fontSize: 12, color: blue,
                     cursor: 'pointer', fontWeight: 500, fontFamily: 'inherit', whiteSpace: 'nowrap',

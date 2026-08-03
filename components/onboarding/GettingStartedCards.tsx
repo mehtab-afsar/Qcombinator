@@ -146,7 +146,7 @@ export function GettingStartedCards({
               {/* Agent CTA */}
               {active && gate.agentId && (
                 <Link
-                  href={`/founder/cxo/${gate.agentId}`}
+                  href={`/founder/executive`}
                   style={{
                     flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4,
                     fontSize: 11, fontWeight: 600, color: blue,

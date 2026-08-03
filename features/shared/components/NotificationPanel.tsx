@@ -52,7 +52,7 @@ function NotifRow({ n, onViewStartup }: { n: NotifItem; onViewStartup?: (id: str
   const artifactType = n.metadata?.artifactType as string | undefined
   const fromAgent   = n.metadata?.fromAgent   as string | undefined
   // For agent_action notifications, link to the agent's CXO workspace
-  const agentActionHref = toAgent ? `/founder/cxo/${toAgent}` : '/founder/workspace'
+  const agentActionHref = toAgent ? `/founder/executive` : '/founder/executive'
 
   return (
     <div style={{

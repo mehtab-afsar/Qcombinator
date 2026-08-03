@@ -398,7 +398,6 @@ export default function FounderDashboard() {
   const { qScore: realQScore, loading: qScoreLoading } = useQScore();
   const { metrics: dashMetrics } = useMetrics();
   const { data: dashData, loading: dashLoading, removePendingAction } = useDashboardData();
-  const [approvingId, setApprovingId] = useState<string | null>(null);
   const [profileBuilderCompleted, setProfileBuilderCompleted] = useState<boolean | null>(null);
   const [_gsDismissed, _setGsDismissed] = useState(() => {
     if (typeof window === 'undefined') return false
@@ -410,16 +409,6 @@ export default function FounderDashboard() {
   const [shareModalOpen, setShareModalOpen] = useState(false);
 
   // ── Agent goal watch state ───────────────────────────────────────────────
-  type AgentGoalRow = { agent_id: string; goal: string; status: string; reason: string; suggested_action: string | null }
-  const [agentGoals, setAgentGoals] = useState<AgentGoalRow[]>([])
-
-  useEffect(() => {
-    fetch('/api/agents/agent-goals')
-      .then(r => r.ok ? r.json() : { goals: [] })
-      .then(d => setAgentGoals(d.goals ?? []))
-      .catch(() => {})
-  }, [])
-
   // ── Weekly check-in + stage gate state ──────────────────────────────────────
   const [weeklyGoal,        setWeeklyGoal]        = useState<string | null>(null);
   const [weeklyMetric,      setWeeklyMetric]       = useState<string | null>(null);
@@ -547,19 +536,6 @@ export default function FounderDashboard() {
   const priorities     = dashData?.priorities      ?? [];
   const conflictDims   = dashData?.conflictDims    ?? new Set<string>();
 
-  async function handleDecision(actionId: string, decision: "approved" | "rejected") {
-    setApprovingId(actionId);
-    try {
-      await fetch("/api/agents/pending", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ actionId, decision }),
-      });
-      removePendingAction(actionId);
-    } finally {
-      setApprovingId(null);
-    }
-  }
 
   if (authLoading || qScoreLoading) return <PageSpinner label="Loading your dashboard…" />;
 
@@ -1199,48 +1175,6 @@ export default function FounderDashboard() {
           </motion.div>
         </div>
 
-        {/* ── agent watch ───────────────────────────────────────────── */}
-        {agentGoals.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.18 }}
-            style={{ marginBottom: 20 }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-              <div style={{ height: 28, width: 28, borderRadius: 7, background: "#F5F3FF", border: "1px solid #DDD6FE", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <span style={{ fontSize: 13 }}>🤖</span>
-              </div>
-              <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", color: muted, fontWeight: 600 }}>
-                Agents watching
-              </p>
-            </div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {agentGoals.map((g) => {
-                const isAtRisk = g.status === 'at_risk';
-                const isBlocked = g.status === 'blocked';
-                const dotColor = isAtRisk ? amber : isBlocked ? red : green;
-                const bgColor = isAtRisk ? "#FFFBEB" : isBlocked ? "#FEF2F2" : "#F0FDF4";
-                const borderColor = isAtRisk ? "#FDE68A" : isBlocked ? "#FECACA" : "#BBF7D0";
-                return (
-                  <div key={g.agent_id} style={{
-                    display: "flex", alignItems: "center", gap: 6,
-                    padding: "6px 12px", borderRadius: 999,
-                    background: bgColor, border: `1px solid ${borderColor}`,
-                    fontSize: 12,
-                  }}>
-                    <div style={{ width: 6, height: 6, borderRadius: "50%", background: dotColor, flexShrink: 0 }} />
-                    <span style={{ fontWeight: 600, color: ink, textTransform: "capitalize" }}>{g.agent_id}</span>
-                    {(isAtRisk || isBlocked) && g.reason && (
-                      <span style={{ color: muted, fontSize: 11 }}>— {g.reason.slice(0, 40)}{g.reason.length > 40 ? '…' : ''}</span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </motion.div>
-        )}
-
         {/* ── today's focus ─────────────────────────────────────────── */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
@@ -1637,72 +1571,6 @@ export default function FounderDashboard() {
                 })}
               </div>
             </Link>
-          </motion.div>
-        )}
-
-        {/* ── approval inbox (conditional row above bottom row) ─── */}
-        {pendingActions.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.42 }}
-            style={{ padding: "18px 24px", background: "#FFFBEB", border: `1px solid #FDE68A`, borderRadius: 18, marginBottom: 0 }}
-          >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div style={{ height: 6, width: 6, borderRadius: "50%", background: amber, flexShrink: 0 }} />
-                <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", color: "#92400E", fontWeight: 700 }}>
-                  Pending approvals
-                </p>
-              </div>
-              <span style={{ fontSize: 11, fontWeight: 700, color: amber }}>{pendingActions.length} action{pendingActions.length !== 1 ? "s" : ""}</span>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {pendingActions.map(action => (
-                <div
-                  key={action.id}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 12,
-                    padding: "10px 14px", background: "#fff",
-                    border: `1px solid #FDE68A`, borderRadius: 10,
-                  }}
-                >
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      <span style={{ color: muted, fontWeight: 500, textTransform: "capitalize" }}>{action.agent_id} · </span>
-                      {action.title}
-                    </p>
-                    {action.summary && (
-                      <p style={{ fontSize: 11, color: muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{action.summary}</p>
-                    )}
-                  </div>
-                  <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                    <button
-                      disabled={approvingId === action.id}
-                      onClick={() => handleDecision(action.id, "approved")}
-                      style={{
-                        padding: "5px 12px", background: green, color: "#fff",
-                        border: "none", borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: "pointer",
-                        opacity: approvingId === action.id ? 0.6 : 1,
-                      }}
-                    >
-                      Approve
-                    </button>
-                    <button
-                      disabled={approvingId === action.id}
-                      onClick={() => handleDecision(action.id, "rejected")}
-                      style={{
-                        padding: "5px 12px", background: "transparent", color: muted,
-                        border: `1px solid ${bdr}`, borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: "pointer",
-                        opacity: approvingId === action.id ? 0.6 : 1,
-                      }}
-                    >
-                      Dismiss
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
           </motion.div>
         )}
 

@@ -25,7 +25,7 @@ import type { LucideIcon } from 'lucide-react'
 const BASE_NAV = [
   { name: "Dashboard",         href: "/founder/dashboard",       icon: Home,          badge: null    },
   { name: "Profile Builder",   href: "/founder/profile-builder", icon: ClipboardList, badge: null    },
-  { name: "CXO Suite",         href: "/founder/cxo",             icon: Brain,         badge: "9"     },
+  { name: "Executive team",    href: "/founder/executive",       icon: Brain,         badge: null    },
   { name: "Investor Matching", href: "/founder/matching",        icon: Target,        badge: "Smart" },
   { name: "Academy",           href: "/founder/academy",         icon: GraduationCap, badge: "NEW"   },
   { name: "Messages",          href: "/founder/messages",        icon: MessageSquare, badge: null    },
@@ -160,10 +160,10 @@ export default function FounderSidebar() {
       : item
   );
 
-  // Active path helpers for CXO Suite (matches /founder/cxo, /founder/cxo/*)
+  // Active path helpers for the Executive model (matches /founder/executive and its children)
   function isNavActive(href: string, pathname: string): boolean {
-    if (href === "/founder/cxo") {
-      return pathname === "/founder/cxo" || pathname.startsWith("/founder/cxo?") || pathname.startsWith("/founder/cxo/");
+    if (href === "/founder/executive") {
+      return pathname === "/founder/executive" || pathname.startsWith("/founder/executive/");
     }
     return pathname === href || pathname.startsWith(href + "/");
   }

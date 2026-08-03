@@ -159,7 +159,7 @@ function AcademyInner() {
                     {r.summary}
                   </p>
                   <Link
-                    href={`/founder/cxo/${r.agent}`}
+                    href={`/founder/executive`}
                     style={{
                       display: "inline-flex", alignItems: "center", gap: 6,
                       fontSize: 12, fontWeight: 600, color: "#2563EB", textDecoration: "none",

@@ -159,7 +159,7 @@ function ActivityItem({ row }: { row: ActivityRow }) {
             )}
             {typeof row.metadata?.artifactType === 'string' && typeof row.metadata?.toAgent === 'string' && (
               <Link
-                href={`/founder/cxo/${row.metadata.toAgent}`}
+                href={`/founder/executive`}
                 style={{
                   fontSize: 11, fontWeight: 600, color: "#7C3AED",
                   background: "#F5F3FF", border: "1px solid #DDD6FE",

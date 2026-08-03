@@ -8,8 +8,8 @@
 
 1. **Config over code.** New capability = a **Registry entry** (`lib/registry/**`), never a new route or a file per agent/program. About to copy-paste a route? Stop — that's the 170-route mess.
 2. **One of each.** One Prompt Composer, one Execution Engine, one Connector interface, one score-signal writer. Never a second parallel way to do the same thing.
-3. **Reuse the engine, don't fork it.** Build on `task-graph`, `delegation`, `orchestrator`, `lib/actions/executor.ts`, `lib/tools/executor.ts`, `scheduled_actions`, `agent_artifacts`, `lib/llm/router.ts`, `qscore`. Do not reimplement them.
-4. **Never touch the old agents.** No edits inside `features/agents/**` or `app/api/agents/**` (frozen). New work goes in new folders behind `NEW_EXECUTIVE_MODEL`. *(Exception: the `*Renderer.tsx` components are reusable — reuse, don't edit.)*
+3. **Reuse the engine, don't fork it.** Build on `lib/rhythm/**`, `lib/actions/**`, `lib/connectors/**`, `lib/prompts/composer/**`, `lib/registry/**`, `lib/llm/router.ts`, `qscore`. Do not reimplement them. *(This rule used to name `task-graph`/`delegation`/`orchestrator`. Stories 1–3 never reused them — ADR-019 recorded zero callers — and they were deleted with the adviser layer on 4 Aug 2026, ADR-034.)*
+4. **The old adviser layer is GONE** (ADR-034, 4 Aug 2026). `features/agents/**`, `app/api/agents/**`, `app/founder/cxo/**`, `lib/cxo/**` and most of `lib/agents/**` were deleted — 288 files, ~67k lines. Do not recreate them, and do not resurrect an adviser-chat surface: the Executive model works to a mandate, it does not wait to be messaged. The `agent_*` TABLES remain (data is kept; `lib/rhythm/delta.ts` still reads `agent_artifacts`).
 5. **Small, single-purpose files.** ~300 lines max per file, ~50 per function. Split when it grows. (The 1,039-line chat route is the anti-pattern.)
 6. **Types at every boundary.** No `any`. Zod-validate every API input/output. The untyped Supabase admin client caused a production incident — don't repeat it.
 
@@ -86,7 +86,7 @@
 
 - Adding a route that resembles another route → **use the Registry.**
 - Writing a prompt inline → **use the Composer.**
-- Editing `features/agents/**` → **frozen, wrong folder.**
+- Recreating an adviser/chat surface → **deleted on purpose (ADR-034), not missing.**
 - File > 300 lines / function > 50 → **split it.**
 - Storing a token in a table → **use the vault.**
 - An action sends/spends without asking → **add the approval.**

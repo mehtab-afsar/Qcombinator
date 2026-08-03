@@ -425,6 +425,57 @@ weaker than assurance elsewhere in this codebase.
 
 ---
 
+## ADR-034 — The adviser layer is deleted, not frozen 🔒
+
+**Date:** 4 Aug 2026 · **Status:** Locked · **Supersedes:** ADR-014 (the strangler freeze)
+
+**Decision (Mo):** delete the old adviser layer outright — `features/agents/**` (99 files),
+`app/api/agents/**` (173 routes), `app/founder/cxo/**`, `components/cxo/**`, `lib/cxo/**`,
+`app/founder/workspace`, `app/apply/**`, and the orphaned half of `lib/agents/**`. **288 files,
+roughly 67,000 lines.** The repo went from 903 TypeScript files to 615.
+
+**Why now, when ADR-014 said "delete only after parity":** ADR-014 protected *live users*. There
+are none — the Executive model has never been switched on in production, and the old product has
+no cohort to break. The condition the freeze existed to satisfy is vacuous, so the freeze was
+costing organisation without buying safety. Mo took the call explicitly.
+
+**Sequencing, which was the real decision:** the door first, then the deletion. The Executive
+model had no entry point (see the ExecutiveEntryCard commit), so deleting the old product first
+would have left a window with **no reachable product at all** — the old one gone, the new one
+invisible. Building the door first meant a working product at every point.
+
+**What was kept, and why:**
+
+- **The `agent_*` tables.** Deleting code is reversible in git; deleting founder data is not.
+  `lib/rhythm/delta.ts` also still reads `agent_artifacts` to compute what changed since the last
+  cycle. Dropping the tables is a separate decision, deliberately not taken here.
+- **`features/qscore/**`.** The PRD keeps the Q-Score as a separate diagnostic. Its one tie to
+  the advisers, `generateAgentRecommendations`, was **dead code with zero consumers** — the whole
+  dependency was holding a door open for nothing.
+- **`lib/agents/{deal-flow-alerts,orchestrator,context,context-compressor}.ts`** — still imported
+  by the live profile-builder route and the surviving test suite.
+
+**What the deletion actually cost in rewiring**, recorded because it is the part that would be
+underestimated next time: 288 files deleted broke only **6** files at the type level. The real
+tail was **28 string references across 16 files** — nav items, CTA links, four buttons inside the
+Monday founder email — none of which the type checker or 636 tests could see. A dead `href` is a
+404 a founder finds, not a build error. **"It compiles" is not "it works" when the coupling is a
+URL.**
+
+Two were worse than dead links: `/api/agents/agent-goals` was still fetched on every dashboard
+load, and the old approval inbox PATCHed a deleted route — the founder would have clicked
+Approve, watched the item disappear, and had nothing recorded. That is precisely the failure F14's
+approval gate exists to prevent, and it does not get to survive as a ghost of the old model.
+
+**Consequences:**
+- `CLAUDE.md` rules 0.3, 0.4 and §8 rewritten — they described frozen folders that no longer exist.
+- Q-Score recommendations and five dashboard surfaces now point at `/founder/executive`.
+- The sidebar's "CXO Suite" (badge: 9 advisers) is now **"Executive team"** — the primary door.
+- There is no adviser chat surface, and there must not be one again. The Executive model works to
+  a mandate; it does not wait to be messaged.
+
+---
+
 ## Open (non-blocking)
 
 - Rhythm cadence configuration (weekly default — per-company override?). *Decide during Story 2.*

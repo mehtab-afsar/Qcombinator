@@ -189,7 +189,7 @@ export default function GettingStartedPage() {
             ))}
           </div>
 
-          <Link href="/founder/cxo" className="no-print" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 20, fontSize: 12, color: blue, textDecoration: 'none', fontWeight: 500 }}>
+          <Link href="/founder/executive" className="no-print" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 20, fontSize: 12, color: blue, textDecoration: 'none', fontWeight: 500 }}>
             Open CXO Hub →
           </Link>
         </div>
@@ -306,7 +306,7 @@ export default function GettingStartedPage() {
             ))}
           </div>
 
-          <Link href="/founder/cxo" className="no-print" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 20, fontSize: 12, color: blue, textDecoration: 'none', fontWeight: 500 }}>
+          <Link href="/founder/executive" className="no-print" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 20, fontSize: 12, color: blue, textDecoration: 'none', fontWeight: 500 }}>
             Open your Library →
           </Link>
         </div>
@@ -343,7 +343,7 @@ export default function GettingStartedPage() {
               <Link href="/founder/profile-builder" style={{ fontSize: 13, fontWeight: 600, color: '#fff', background: ink, padding: '10px 22px', borderRadius: 10, textDecoration: 'none' }}>
                 Complete my profile
               </Link>
-              <Link href="/founder/cxo/patel" style={{ fontSize: 13, fontWeight: 600, color: ink, background: 'transparent', padding: '10px 22px', borderRadius: 10, border: `1px solid ${bdr}`, textDecoration: 'none' }}>
+              <Link href="/founder/executive" style={{ fontSize: 13, fontWeight: 600, color: ink, background: 'transparent', padding: '10px 22px', borderRadius: 10, border: `1px solid ${bdr}`, textDecoration: 'none' }}>
                 Open Patel
               </Link>
             </div>
