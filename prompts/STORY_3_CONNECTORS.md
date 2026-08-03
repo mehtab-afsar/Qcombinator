@@ -6,8 +6,13 @@
 >   push, with the cross-tenant test now **blocking** (`database-tests` job). Story 3 is the
 >   security story; it now has a base where a tenancy regression fails the build.
 > - ✅ Namespace settled — `connector_grants` (ADR-031).
-> - ⬜ **Sending credentials still absent** (`RESEND_API_KEY`). Stages A–C (design, schema, OAuth)
->   do not need them; the first real send does. Do not fake a send to get past it.
+> - ✅ **Stage A design complete** — `F13_F14_DESIGN.md` (3 Aug 2026).
+> - ⬜ **A Google Cloud OAuth client is the real blocker, NOT `RESEND_API_KEY`.** This document
+>   previously named Resend; that is the *contingency* path, not the OAuth one. Gmail needs its
+>   own OAuth client (`gmail.send` scope only — deliberately separate from the existing
+>   Supabase login-with-Google provider, so revoking send authority never touches sign-in).
+>   **Stage B needs it. Stage C does not** — which is why the order is A → C → B → D.
+>   Do not fake a send to get past it.
 >
 > **Staged**: A → stop → B → stop → C → stop → D → stop → E. Never run ahead.
 

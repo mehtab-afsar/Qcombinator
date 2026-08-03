@@ -37,7 +37,15 @@ Nobody can subscribe today. **This is why the new billing test matters: it guard
 - [ ] `RESEND_FROM_EMAIL` — the sender address
 - [ ] `RESEND_WEBHOOK_SECRET` — delivery/open/reply callbacks that keep `outreach_sends` accurate
 
-**Do this before:** Story 3 (the whole story is "send a real email with approval").
+**Do this before:** Story 3's *contingency* path, and all the old-model email above.
+
+> ⚠️ **Correction (3 Aug 2026): Resend is NOT what Story 3's Gmail connector needs.** Story 3
+> sends through **Gmail OAuth**, which needs a **Google Cloud OAuth client** with the
+> `gmail.send` scope — a *separate* client from the existing `[auth.external.google]` login
+> provider, so revoking "may send email as me" never touches "may sign in as me". Resend is the
+> documented fallback if OAuth slips (`Featureinventory.md:320`), and it is what the old-model
+> email paths use. Several docs conflated the two; see `F13_F14_DESIGN.md` §9.
+> **Stage B needs the Google client. Stage C does not** — hence the A → C → B → D order.
 
 > Worth knowing: `weekly-automation` returns `{skipped: true}` without this key. It has been quietly no-opping every Monday, not failing loudly.
 

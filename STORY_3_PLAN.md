@@ -201,7 +201,11 @@ Runtime verification; update SCHEMA_DRIFT / DecisionLog / FOLLOWUPS; write
 
 ## 5. Gates that are not mine to clear
 
-- **`RESEND_API_KEY`** — needed only at Stage D. Stages 0–C do not need it. *Do not fake a send.*
+- **A Google Cloud OAuth client** (`gmail.send` scope only) — **the real blocker, corrected
+  3 Aug.** Every doc named `RESEND_API_KEY`; that is the contingency path, not the OAuth one.
+  **Stage B needs this; Stage C does not**, which is why the build order is A → C → B → D.
+  It must be a *separate* client from the existing `[auth.external.google]` login provider, so
+  revoking send authority never touches sign-in. *Do not fake a send to get past it.*
 - **A human security review of the Connector layer before this ships** — required by the PRD
   (`:525`, `:541`), ADR, and `missingwork.md:143`. Not optional, not something I can self-certify.
 - **PostHog** — unrelated to Story 3's code, but the October retention gate cannot be measured
