@@ -301,18 +301,18 @@ Executive System Prompt       = executive knowledge and operating principles
 
 **Purpose.** Act in the founder's real tools. A shared adapter built once — never per-executive integrations.
 
-> **Namespace:** use **`app/api/connectors/**`** and the table **`connector_connections`**. `app/api/connections` is already taken by founder→investor intro requests in the live product.
+> **Namespace:** use **`app/api/connectors/**`** and the table **`connector_grants`**. `app/api/connections` is already taken by founder→investor intro requests in the live product.
 
 **User stories.** US-13.1 (P0) connect my email once. US-13.2 (P0) disconnect/revoke anytime.
 
 **UC-13 — build flow.**
-1. `connector_connections` (provider, status, scopes, `token_ref` → secrets manager, **never plaintext**) + RLS.
+1. `connector_grants` (provider, status, scopes, `token_ref` → secrets manager, **never plaintext**) + RLS.
 2. Gmail OAuth: `POST /api/connectors/gmail/oauth` → provider login → store scoped token by reference.
 3. A connector adapter interface (`send`, `read`); Gmail first (prefer an MCP client).
 4. Revoke → `status='revoked'`; dependent Actions blocked with a reconnect prompt.
 
 **Acceptance.**
-- [ ] Given OAuth completes, Then one `connector_connections` row is `active`; no plaintext token is stored.
+- [ ] Given OAuth completes, Then one `connector_grants` row is `active`; no plaintext token is stored.
 - [ ] Given a revoked connection, Then a dependent Action fails safe with a reconnect prompt (no partial send).
 
 **Edge cases.** OAuth denied → no row, clear state; token expired mid-action → mark `expired`, fail safe, log `failed`.

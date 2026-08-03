@@ -1,8 +1,13 @@
 # Claude Code prompt — Story 3: Connectors + Actions (F13, F14)
 
-> **Do not start this until:** the asset-truncation fix is verified, **FU-003 is done** (migrations
-> replay from empty, so CI can have a database), and the sending credentials exist.
-> Story 3 is the security story — building it on an untestable base is the wrong order.
+> **Preconditions — status as of 3 Aug 2026:**
+> - ✅ Asset-truncation fix verified (stop_reason guard + closing reminder; live trials).
+> - ✅ **FU-003 done** — migrations replay from empty AND CI builds its own database on every
+>   push, with the cross-tenant test now **blocking** (`database-tests` job). Story 3 is the
+>   security story; it now has a base where a tenancy regression fails the build.
+> - ✅ Namespace settled — `connector_grants` (ADR-031).
+> - ⬜ **Sending credentials still absent** (`RESEND_API_KEY`). Stages A–C (design, schema, OAuth)
+>   do not need them; the first real send does. Do not fake a send to get past it.
 >
 > **Staged**: A → stop → B → stop → C → stop → D → stop → E. Never run ahead.
 
@@ -50,11 +55,13 @@
 
 ## Stage A — DESIGN, NO CODE (`F13_F14_DESIGN.md`, then stop)
 
-1. **Namespace.** Use `connector_connections`, **not** `connections` — `connection_requests`
-   already exists for founder↔investor intros and the names would sit confusingly together.
-   *This is pending Roman's confirmation: flag it at the top of your design and proceed on the
-   assumption, but mark clearly what changes if he decides otherwise.*
-2. **`connector_connections` schema** — provider, founder, scopes, `token_ref`, status, expiry,
+1. **Namespace — SETTLED, do not re-open.** Table **`connector_grants`**, routes
+   **`app/api/connectors/**`** (ADR-031 / ADR-021, decided 3 Aug 2026). Not `connections`
+   (`connection_requests` already owns that word for founder↔investor intros) and not "mandate"
+   (that means the Executive Contract, whose immutability rules are load-bearing). "Grant" is
+   right on its merits too: it is given and revocable, which is exactly the lifecycle of
+   connector authority.
+2. **`connector_grants` schema** — provider, founder, scopes, `token_ref`, status, expiry,
    revocation. Founder-scoped RLS, no permissive policy, no DELETE. State what is enforced by the
    database vs by application code, as you did for F11.
 3. **The secrets manager.** Which one (Supabase Vault or provider KMS), how a `token_ref`

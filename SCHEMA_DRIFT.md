@@ -15,8 +15,8 @@ and **all of Story 2** (F11 Assets + F12 Briefings + F10 the Operating Rhythm) r
 present, correctly secured, and enforced — not just enabled. The drift that exists is almost all
 **absence**: tables for **Story 3** (the Connector boundary) simply aren't built yet, which is
 expected — that isn't started. The one genuinely notable gap is the **Connector layer**
-(`connector_connections`, `action_log`): the PRD's central safety mechanism — approval on
-irreversible external actions — has no schema yet. That is future work (flagged, pending Roman),
+(`connector_grants`, `action_log`): the PRD's central safety mechanism — approval on
+irreversible external actions — has no schema yet. That is future work (naming settled — ADR-031),
 not a defect in what's shipped. No old-model table needs touching; the strangler freeze holds.
 
 ---
@@ -63,7 +63,7 @@ profile builder, feed, academy). Six are the **new Executive model** (`strategy_
 | **`operating_rhythm_runs`** (`cycle_key`) | ✅ **PRESENT** | `20260715000009` (Story 2 / F10) — one run per `(founder_id, cycle_key)`, idempotent; read-only for authenticated; **and lands the deferred `execution_id` FKs** on `asset_versions` + `executive_briefings`. |
 | **`executive_briefings`** (Command View briefings) | ✅ **PRESENT** | `20260715000007` (Story 2 / F12) — append-only (one per Program per run), dedupe index, contract-stamped for the epoch (ADR-022), read-only for authenticated, append-only trigger. Written by the rhythm (F10). |
 | **`action_log`** (every irreversible-action attempt) | ⛔ **ABSENT** | **New-model, future story.** CLAUDE.md §3 requires it at the Connector boundary. Closest existing tables (`agent_trigger_log`, `tool_execution_logs`) are old-model and not this. |
-| **`connector_connections`** (Connector interface) | ⛔ **ABSENT** | **New-model, future story — see §4.** |
+| **`connector_grants`** (Connector interface) | ⛔ **ABSENT** | **New-model, future story — see §4.** |
 | `agent_artifacts` (reused by the engine per CLAUDE.md §3) | ✅ PRESENT (old-model) | `20260222000001` — reuse target, not new work. |
 | `scheduled_actions` (reused by the engine) | ✅ PRESENT (old-model) | `20260417000003` — reuse target. Its RLS hole was closed — §3. |
 
@@ -148,13 +148,17 @@ What exists today is **old-model investor matching**, not a connector layer:
 - `investor_contacts`, `messages`, `investor_pipeline` — the matching/messaging surface.
 
 The PRD's **Connector interface** (one Connector interface; secrets by `token_ref`; approval
-at the Connector boundary on send/publish/spend) has **no schema yet**. When it is built it
-should not collide with the old `connection_requests` name — the intended name is
-`connector_connections`, which is why this was flagged as pending (Roman's area).
+at the Connector boundary on send/publish/spend) has **no schema yet**.
 
-**Action: flag, do not change.** This is future new-model work; there is nothing to fix in the
-current schema. Recorded here so the naming decision is made deliberately when the Connector
-story starts, not by accident.
+**✅ RESOLVED (Mo, 3 Aug 2026) — the table is `connector_grants`** (ADR-031). This supersedes
+the `connector_connections` working name used earlier in this document. Both `connections` and
+`mandate` were rejected: the first collides with the old-model `connection_requests` above, the
+second with the Executive Contract, whose immutability rules are load-bearing. `grants` also
+carries the right lifecycle — given, and revocable.
+
+**Action: still nothing to change in the current schema.** The name is settled so Story 3's
+first migration writes it correctly the first time, rather than being renamed across types,
+routes, policies and tests afterwards.
 
 ---
 
@@ -185,7 +189,7 @@ No orphaned migration needs removing. The history is intact and now re-runnable.
 | Assets (`asset_versions`, Story 2 / F11) | none — present, secured, server-side writes | new-model | ✅ done |
 | Briefings (`executive_briefings`, Story 2 / F12) | none — present, append-only, epoch-stamped | new-model | ✅ done |
 | Operating Rhythm (`operating_rhythm_runs`, Story 2 / F10) | none — present, idempotent; `execution_id` FKs now real | new-model | ✅ done |
-| Connector (`connector_connections`, `action_log`) | absent | new-model | future story — flagged (Roman) |
+| Connector (`connector_grants`, `action_log`) | absent | new-model | future story — flagged (Roman) |
 | Old-model tables (Q-Score, investors, agents, feed, academy) | present, frozen | old-model | leave (Phase 7) |
 
 **Bottom line:** no schema change is required to close any gap that belongs to work already

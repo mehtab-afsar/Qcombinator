@@ -400,9 +400,9 @@ create table operating_rhythm_runs (
 );
 
 -- Authorized connector connections (credential vault).
--- NOTE: named connector_connections, not `connections` — `app/api/connections` and the
+-- NOTE: named connector_grants, not `connections` — `app/api/connections` and the
 -- founder->investor intro flow already own that namespace in the live product.
-create table connector_connections (
+create table connector_grants (
   id uuid primary key default gen_random_uuid(),
   founder_id uuid not null references founder_profiles(user_id) on delete cascade,
   provider text not null,
@@ -444,7 +444,7 @@ All new tables: RLS mirroring existing tables (founder reads own rows; service r
 | `GET /api/assets/:id` | Current Asset + version history | Reads `asset_versions` |
 | `PUT /api/assets/:id` | **Founder edits an Asset** | Creates a new immutable current version (`authored_by='founder'`); no approval |
 | `POST /api/programs/:id/actions/:actionId` | Prepare/run an Action | Just-in-time approval if `irreversible` |
-| `POST /api/connectors/:provider/oauth` | Start OAuth for a tool | Writes `connector_connections`. **Not** `/api/connections` — that route is taken by founder→investor intros |
+| `POST /api/connectors/:provider/oauth` | Start OAuth for a tool | Writes `connector_grants`. **Not** `/api/connections` — that route is taken by founder→investor intros |
 
 Shared invariants: no Program runs outside the current Contract; irreversible Actions require approval at the Connector boundary; Zod validation at every boundary; every mutation preserves audit history.
 
@@ -498,7 +498,7 @@ The Q-Score, store, scheduler and executor never fork — both models share them
 **Story 2 — Rhythm + Assets (Products: Asset Versioning + Operating Rhythm).** `asset_versions` (+ validation, provenance, exactly-one-current) · `lib/assets/versioning.ts` · founder Asset pages + `PUT /api/assets/:id` (edit → new version) · `executive_briefings` · `lib/rhythm/run.ts` + `operating_rhythm_runs` (idempotent; runs **all contract-active Programs**; **no Asset Review**) · Cron trigger.
 *Exit:* cycles run; AS001–AS005 improve across ≥2 cycles; Briefings published; founder can edit an Asset and the next cycle uses it. **No external execution yet.**
 
-**Story 3 — Actions + Connectors.** `connector_connections` vault + Gmail OAuth (`app/api/connectors/**`) · connector adapter interface · Action generation from Programs · **just-in-time approval on irreversible** · `action_log` · status/result/retry visible to the founder.
+**Story 3 — Actions + Connectors.** `connector_grants` vault + Gmail OAuth (`app/api/connectors/**`) · connector adapter interface · Action generation from Programs · **just-in-time approval on irreversible** · `action_log` · status/result/retry visible to the founder.
 *Exit:* "Interview Customers" prepared → approved → sent via Gmail → logged. Pilot behind the flag; watch **week-4 retention**.
 
 **After Sprint II (deferred, in order).** More Programs/Executives (the runtime already supports them) → more Connectors → **event-aware rhythm (`runsWhen`)** as a cost optimisation → **Outcome Loop** (outcomes as evidence for Q-Score reassessment) → **Evidence Pack** (reporting derived from Assets/Briefings/Actions) → investor-side features. **None of these are in the current core.**

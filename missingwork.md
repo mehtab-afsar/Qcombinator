@@ -134,7 +134,7 @@ Each of these makes an advertised feature a no-op. No error, no warning; it just
 
 ## 10. Sign-offs needed
 
-- [ ] **Roman — the `connectors` namespace (ADR-021).** The documented path (`/api/connections`, table `connections`) collided with a live founder→investor feature. Adopted `app/api/connectors/**` + `connector_connections` and built the docs to it. No code depends on it yet, so a reversal is a cheap rename — but confirm before Story 3.
+- [x] ✅ **Roman — the `connectors` namespace. RESOLVED 3 Aug 2026.** Routes: `app/api/connectors/**` (ADR-021). Table: **`connector_grants`** (ADR-031) — chosen over both `connector_connections` and Roman's "mandate", the latter because it already means the Executive Contract, whose immutability rules are load-bearing. Settled before Story 3 Stage A, so no rename cost. Nothing pending.
 - [ ] **`docs/edge-alpha-cto-review.md`** — you said leave it. Flagging once more only because it isn't in `DOC_RECONCILIATION.md`, so nobody knows if it's live.
 
 ## 11. Operational (from PRD §14 — carried over, still open)

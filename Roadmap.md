@@ -114,7 +114,7 @@ Deferred layers (see below)                              ███████�
 
 | Task | Effort |
 |---|---|
-| `connector_connections` vault + Gmail OAuth (`POST /api/connectors/gmail/oauth`) — **not** `/api/connections`, that route is taken by founder→investor intros | L |
+| `connector_grants` vault + Gmail OAuth (`POST /api/connectors/gmail/oauth`) — **not** `/api/connections`, that route is taken by founder→investor intros | L |
 | Connector adapter interface (prefer MCP client) | M |
 | Action generation from Programs; `action_log` (immutable) | M |
 | **Just-in-time approval on irreversible** at the Connector boundary + approval UI | M |

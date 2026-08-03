@@ -215,11 +215,17 @@ ADR-026/027.
 **Cost:** one Roadmap line is now non-normative. Recorded here rather than silently overridden.
 **Rejected:** action/cadence as siblings (above); dropping "cadence" entirely (clearer, but churns the data model and discards a word already in three docs for no safety gain).
 
-## ADR-021 — The connector namespace is `connectors`, not `connections` 🕒
-**Decision:** the connector vault table is **`connector_connections`** and its routes live at **`app/api/connectors/**`** — e.g. `POST /api/connectors/:provider/oauth`.
+## ADR-021 — The connector namespace is `connectors`, not `connections` 🔒
+### ⚠️ The TABLE NAME half is **superseded by ADR-031** (`connector_grants`). The ROUTE half stands.
+**Decision (route half — still binding):** connector routes live at **`app/api/connectors/**`** —
+e.g. `POST /api/connectors/:provider/oauth`.
+~~**Table:** `connector_connections`.~~ → **`connector_grants`** (ADR-031, 3 Aug 2026).
 **Why:** the documented path (`/api/connections/:provider/oauth`, table `connections`) **collides with a live feature**. `app/api/connections/route.ts` already exists and serves founder→investor intro requests against the `connection_requests` table. Two different meanings of "connection" on one path is how outages get made. `connectors` also matches the `/connectors/gmail/send` nomenclature already used in the PRD's own connector section.
-**Status:** 🕒 **adopted, pending Roman's confirmation** (`DOC_RECONCILIATION.md`). Applied across the PRD, Architecture, Featureinventory and Starthere on 15 Jul 2026. **Build to it**; if Roman rejects it, the change is a rename before Story 3 — no code depends on it yet.
-**Cost:** the docs diverge from Roman's original naming until confirmed.
+**Status:** 🔒 **resolved 3 Aug 2026.** The route namespace was confirmed as adopted; the table
+name was settled by ADR-031, which chose `connector_grants` over BOTH `connector_connections`
+and Roman's "mandate". No longer pending anyone. No code depended on either name, so the rename
+cost nothing — which was the whole point of deciding it before Story 3 Stage A rather than after.
+**Cost:** none realised — the divergence this ADR flagged was closed before any code was written.
 **Rejected:** reusing `/api/connections` (collides with live routes); renaming the existing founder→investor flow (churns working product to free up a word).
 
 ## ADR-017 — One freeze exception: security guards may be fixed in place 🔒
@@ -313,6 +319,32 @@ Allowing one automatic retry would halve the protection and, in a genuine runawa
 bill. A fuse that resets itself is not a fuse.
 **Scope, stated honestly:** it bounds *steps*, not tokens — `judge.ts` retries once internally,
 so the true ceiling in model calls is up to ~2×.
+
+---
+
+## ADR-031 — The Connector layer's table is `connector_grants` 🔒
+**Decision (Mo, 3 Aug 2026):** Story 3's Connector table is named **`connector_grants`**. It
+stores, per founder, that they have granted the system permission to act through a connector —
+the provider, the scopes, and a `token_ref` pointing at the secrets manager. **Never the token
+itself** (CLAUDE.md §3).
+**Why this name, over the two alternatives that were live:**
+- **`connections` / `connector_connections` — rejected.** `connection_requests` already exists
+  for founder↔investor intros, alongside `investor_contacts` and `investor_pipeline`. A future
+  engineer reading "connections" would reasonably assume investor matching. Near-synonyms across
+  two subsystems is precisely the confusion the rewrite exists to remove.
+- **`mandate` (Roman's suggestion) — rejected, with the reasoning recorded because the instinct
+  was sound.** It does describe the thing: the founder authorises action on their behalf. But
+  "mandate" already means the **Executive Contract** (ADR-002/ADR-003), and that meaning is
+  load-bearing — mandates are immutable and changing one opens a new epoch. Two meanings for one
+  word, where one of them carries strict rules, is how a correct reading of the docs produces a
+  bug.
+**Why `grants` is right rather than merely free:** a grant is *given* and can be *revoked*, which
+is exactly the lifecycle of connector authority — and it matches the base-privilege sense already
+used in `20260727000002`. The name carries the semantics instead of just avoiding a clash.
+**Consequence:** unblocks Story 3 Stage A. `action_log` (the append-only record of every
+irreversible attempt) is unaffected and keeps its name. The old-model tables
+(`pending_actions`, `agent_actions`, `tool_execution_logs`) are **not** to be repurposed for
+either — see `SCHEMA_DRIFT.md` §5.
 
 ---
 

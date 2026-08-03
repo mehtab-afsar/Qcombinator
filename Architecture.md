@@ -74,7 +74,7 @@ Three properties define the shape:
 | Execution engine | `task-graph.ts`, `delegation.ts`, `orchestrator.ts`, `lib/actions/executor.ts`, `lib/tools/executor.ts` | Multi-step program/action execution | 🟢 |
 | Scheduler / async | Vercel Cron (5 jobs) + DB-row jobs (`scheduled_actions`, `artifact_jobs`) | Recurring cadences, long jobs | 🟢 *(extend)* |
 | Asset memory | `asset_versions` (immutable, provenance, founder-editable) | Versioned company knowledge | 🔵 |
-| Connectors | Adapters (prefer MCP client) + `connector_connections` vault + `token_ref` → secrets manager | Act in the founder's real tools | 🔵 |
+| Connectors | Adapters (prefer MCP client) + `connector_grants` vault + `token_ref` → secrets manager | Act in the founder's real tools | 🔵 |
 | Secrets | Secrets manager (Supabase Vault or provider KMS) | Encrypted tokens by reference | 🔵 |
 | Rate limiting | **Upstash Redis** (sliding window, middleware) | Abuse protection *(currently fails open — fix)* | 🟢 |
 | Payments | **Stripe** (checkout + webhooks) | Subscriptions, usage metering | 🟢 *(harden)* |
@@ -97,13 +97,13 @@ Three properties define the shape:
 - **Idempotent cycles.** `operating_rhythm_runs` is unique per `(founder_id, cycle_key)` — a weekly cycle can never run twice and duplicate work.
 - **Registry in code, instances in the DB.** Definitions live in TypeScript (versioned, auditable); the database holds only per-founder instances.
 
-**New tables:** `strategy_sessions`, `executive_contracts`, `programs`, `asset_versions`, `executive_briefings`, `operating_rhythm_runs`, `connector_connections`, `action_log`.
+**New tables:** `strategy_sessions`, `executive_contracts`, `programs`, `asset_versions`, `executive_briefings`, `operating_rhythm_runs`, `connector_grants`, `action_log`.
 **Extended:** `agent_artifacts` (+`program_id`), `scheduled_actions` (+`cadence`, `next_run_at`).
 **Deferred:** an `outcomes` table (ADR-009).
 
 **Secrets** never live in application tables — only a `token_ref`; the material sits in a secrets manager.
 
-> **Namespace note:** the connector vault is `connector_connections` and its routes live at `app/api/connectors/**`. `app/api/connections` is already taken by founder→investor intro requests.
+> **Namespace note:** the connector vault is `connector_grants` and its routes live at `app/api/connectors/**`. `app/api/connections` is already taken by founder→investor intro requests.
 
 ---
 

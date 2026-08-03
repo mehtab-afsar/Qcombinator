@@ -240,8 +240,8 @@ EDGE_ALPHA_PRD.md §7.5. Follow CLAUDE.md.
 This is the highest-risk surface in the system — credentials and irreversible actions.
 Be conservative. Flag anything you're unsure about rather than guessing.
 
-Scope: lib/connectors/ + connector_connections table + OAuth route.
-  - Table: connector_connections (provider, status, scopes, token_ref). RLS.
+Scope: lib/connectors/ + connector_grants table + OAuth route.
+  - Table: connector_grants (provider, status, scopes, token_ref). RLS.
   - Route: POST /api/connectors/gmail/oauth
     NOT /api/connections — that namespace is TAKEN by founder→investor intro requests.
   - Adapter interface (send / read); Gmail first. Prefer an MCP client over hand-built.

@@ -17,10 +17,10 @@
 | **Proven against the real AI** | Yes — full loop, 5 documents + briefing, **6 live trials** (the 6th proved the chunked chain) |
 | **Live users affected** | **None** — everything is behind `FF_NEW_EXECUTIVE_MODEL` (off) |
 
-**One caveat holding back "Story 2 fully done":** the chunking fix is now **measured** (27 Jul
-trial — see below), but still has **no circuit breaker**. A self-triggering chain with no hard
-step ceiling would bill forever if its "what's next" logic ever broke. That must land before the
-secrets that let it run in production are added.
+**Story 2 is now fully done.** The chunking fix is measured (27 Jul trial — below), the circuit
+breaker shipped (ADR-030), the cycle is visible in the app, and the cross-tenant security gate
+is blocking in CI. `CRON_SECRET` / `INTERNAL_RUN_SECRET` are now **safe to add** — the breaker
+was the precondition.
 
 ### 📏 The chunking trial — measured 27 Jul (this closes a long-open question)
 
@@ -115,18 +115,20 @@ Programs. A change creates a new epoch; history intact.
 - [x] **Chunked into self-resuming steps** to survive the serverless timeout (commit `a1a9c5d`)
 - [x] **Chunking trial run against the real AI** (27 Jul) — measured ~100s/step; see the headline
 - [x] **`last_step_at`** distinguishes an actively-stepping run from a dead chain — **closes FU-004**
-- [ ] ⚠️ **Circuit breaker** (max step ceiling) — NOT yet added; a runaway chain would bill forever.
-      *(Retry caps already exist: assets retry once, briefings not at all.)*
+- [x] **Circuit breaker** (ADR-030) — a hard step ceiling in its own column, claimed before any
+      generation. A tripped run is **never auto-retried**. Proven to bound a real runaway: with
+      progress-recording disabled, the cycle terminates instead of billing forever.
 
-### ✅* F10b — Cycle visibility (the Command View panel) · built 27 Jul, **not yet seen rendering**
+### ✅ F10b — Cycle visibility (the Command View panel)
 
 - [x] `GET /api/rhythm/run` → named, ordered progress ("ICP Profiles ✓ · Pains & Gains ⟳ · 2 of 6")
 - [x] `RhythmPanel` on `/founder/executive` — **"Run now"** + live step list, polls only while running
 - [x] Honest states: `skipped` reads "no change needed" (ADR-028) · a *blocked* briefing reads
       pending, never failed · a dead chain reads "stopped partway, nothing was lost"
 - [x] Unknown Program degrades instead of 500-ing the page (fixed, not merely documented)
-- [ ] ⚠️ **Never visually verified** — typecheck + 13 unit tests pass, but no one has watched it
-      render. Needs Docker up and a local run before it counts as done.
+- [x] **Visually verified in a real browser** (Playwright, logged in as a seeded founder) — which
+      caught a dead "Run now" button that typecheck and every unit test had missed: it sent an
+      empty POST body and the route rejected it. It could never have started a cycle.
 
 **Why this exists:** before today *nothing in the app could start a cycle* — the only triggers
 were the (unplugged) weekly cron and a raw API call. Chunking also made runs asynchronous, so a
@@ -142,11 +144,11 @@ now visible. **One runtime item (the circuit breaker) plus one visual check clos
 
 ## Phase 3 · Story 3 — Actions + Connectors ⬜ (mid → end Sep)
 
-- [ ] **F13 — Connector Layer** · `connector_connections` vault · Gmail OAuth · `token_ref` to a secrets manager, never plaintext
+- [ ] **F13 — Connector Layer** · `connector_grants` vault · Gmail OAuth · `token_ref` to a secrets manager, never plaintext
 - [ ] **F14 — Actions + just-in-time approval** · `action_log` (append-only) · approval at the Connector boundary on anything irreversible
 - [ ] Founder-visible action status: payload · target · result · failure/retry
 - [ ] **Human security review before this ships**
-- [ ] Namespace decision confirmed (`connector_connections`, not `connections`) — *pending Roman*
+- [x] ✅ Namespace decision **resolved 3 Aug** — table `connector_grants` (ADR-031), routes `app/api/connectors/**` (ADR-021). No longer pending Roman.
 
 **Exit / Sprint II:** "Interview Customers" → payload prepared → you approve → sent → logged.
 
@@ -200,8 +202,9 @@ now visible. **One runtime item (the circuit breaker) plus one visual check clos
 - ✅ **The pilot includes Story 3** (Roman) — so the pilot waits until Story 3 ships (~Sept).
 - ✅ **Executives may not commission documents outside the Registry** (Roman) — a briefing reports
   only what genuinely exists; a need outside the catalogue is a *recommendation*, never a claim.
-- ❓ **Open — connector table name.** `connector_grants` recommended (Roman suggested "mandate",
-  which collides with the Executive Contract). **Blocks Story 3 Stage A.**
+- ✅ **Connector table name — DECIDED (Mo, 3 Aug): `connector_grants`** (ADR-031). "mandate"
+  was rejected: it already means the Executive Contract, whose immutability rules are
+  load-bearing. **Story 3 Stage A is no longer blocked on this.**
 - 🔬 **Model-cost tuning** (Roman) — assign cheaper/premium models per step. It's tuning, not a
   phase: a ~$6 comparison experiment, scheduled after the chunking is proven.
 
