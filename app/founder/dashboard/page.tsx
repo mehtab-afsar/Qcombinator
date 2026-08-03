@@ -27,7 +27,6 @@ import { useQScore } from "@/features/qscore/hooks/useQScore";
 import { QScoreDial } from "@/features/qscore/components/QScoreDial";
 import { useMetrics } from "@/features/founder/hooks/useFounderData";
 import { useDashboardData } from "@/features/founder/hooks/useDashboardData";
-import { agents } from "@/features/agents/data/agents";
 import { WelcomeModal, FOUNDER_WELCOME_SLIDES } from "@/components/ui/WelcomeModal";
 import { ShareQScoreModal } from "@/components/ui/ShareQScoreModal";
 import { WeeklyCheckin } from "@/components/onboarding/WeeklyCheckin";
@@ -810,12 +809,12 @@ export default function FounderDashboard() {
               </p>
               <p style={{ fontSize: 12, color: runwayCritical ? red : amber }}>
                 {runwayCritical
-                  ? "Immediate action required. Open Felix to analyze burn and generate investor update."
-                  : "Under 6 months runway. Open Felix to see cost-cutting options and send an investor update."}
+                  ? "Immediate action required. Your executive team can analyse burn and prepare an investor update."
+                  : "Under 6 months runway. Your executive team can find cost-cutting options and prepare an investor update."}
               </p>
             </div>
             <Link
-              href="/founder/cxo/felix"
+              href="/founder/executive"
               style={{
                 flexShrink: 0, padding: "7px 16px",
                 background: runwayCritical ? red : amber,
@@ -1180,7 +1179,7 @@ export default function FounderDashboard() {
                               ))}
                             </div>
                             <Link
-                              href={`/founder/cxo/${agentInfo.agentId}?challenge=${key}`}
+                              href="/founder/executive"
                               style={{
                                 display: "inline-flex", alignItems: "center", gap: 4,
                                 marginTop: 10, fontSize: 11, fontWeight: 600,
@@ -1298,7 +1297,7 @@ export default function FounderDashboard() {
               {priorities.map((p, i) => {
                 const urgencyColor = p.urgency === "high" ? red : p.urgency === "medium" ? amber : muted;
                 const urgencyBg    = p.urgency === "high" ? "#FEF2F2" : p.urgency === "medium" ? "#FFFBEB" : surf;
-                const agentHref    = p.agentId ? `/founder/cxo/${p.agentId}` : "/founder/cxo";
+                const agentHref    = "/founder/executive";
                 return (
                   <motion.div
                     key={i}
@@ -1358,7 +1357,7 @@ export default function FounderDashboard() {
               const col      = scoreColor(dim.score);
               const TrendIcon = dim.trend === "up" ? TrendingUp : dim.trend === "down" ? TrendingDown : Minus;
               return (
-                <Link key={key} href={`/founder/cxo/${aInfo.agentId}?challenge=${key}`} style={{ textDecoration: "none" }}>
+                <Link key={key} href="/founder/executive" style={{ textDecoration: "none" }}>
                   <motion.div
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -1475,12 +1474,6 @@ export default function FounderDashboard() {
             <div>
               {topActions.map(([key, dim], i) => {
                 const meta = DIMENSION_META[key];
-                const dimAgents = agents.filter((a) => {
-                  // Map P1–P6 IQ parameter keys → agent improvesScore dimension
-                  const IQ_TO_DIM: Record<string, string> = { p1: 'gtm', p2: 'market', p3: 'product', p4: 'team', p5: 'traction', p6: 'financial' };
-                  return a.improvesScore === IQ_TO_DIM[key];
-                });
-                const agent = dimAgents[0];
                 const potentialGain = Math.round((80 - dim.score) * (meta.weight / 100) * 2.5);
                 const col = scoreColor(dim.score);
                 return (
@@ -1490,7 +1483,9 @@ export default function FounderDashboard() {
                     transition={{ delay: 0.45 + i * 0.07 }}
                     style={{ borderBottom: i < 2 ? `1px solid ${bdr}` : "none" }}
                   >
-                    <Link href={agent ? `/founder/cxo/${agent.id}` : "/founder/improve-qscore"} style={{ textDecoration: "none" }}>
+                    {/* Was a per-adviser chat link. The Executive model works this dimension to
+                        the mandate without being asked, so the score points at the team. */}
+                    <Link href="/founder/executive" style={{ textDecoration: "none" }}>
                       <div
                         style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 22px", cursor: "pointer", transition: "background 0.15s" }}
                         onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = surf)}
@@ -1503,7 +1498,6 @@ export default function FounderDashboard() {
                         <div style={{ flex: 1 }}>
                           <p style={{ fontSize: 13, fontWeight: 500, color: ink }}>
                             {meta.label}
-                            {agent && <span style={{ fontWeight: 400, color: muted }}> — {agent.name}</span>}
                           </p>
                           <p style={{ fontSize: 11, color: muted, marginTop: 2 }}>
                             {meta.weight}% weight · up to +{potentialGain} pts
@@ -1535,45 +1529,6 @@ export default function FounderDashboard() {
           </p>
           <ScoreChart points={scoreHistory} />
         </motion.div>
-
-        {/* ── workspace quick-access ────────────────────────────── */}
-        {usedAgentIds.size > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.44 }}
-            style={{
-              display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20,
-              padding: "18px 24px", background: bg, border: `1px solid ${bdr}`, borderRadius: 18,
-              marginBottom: 24,
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <div style={{ height: 40, width: 40, borderRadius: 10, background: surf, border: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <GraduationCap style={{ height: 18, width: 18, color: muted }} />
-              </div>
-              <div>
-                <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.16em", color: muted, fontWeight: 600, marginBottom: 3 }}>Deliverables Workspace</p>
-                <p style={{ fontSize: 14, fontWeight: 500, color: ink }}>
-                  {usedAgentIds.size} of {agents.length} advisers have produced deliverables
-                </p>
-              </div>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ width: 180, height: 6, background: bdr, borderRadius: 999, overflow: "hidden" }}>
-                <div style={{ width: `${(usedAgentIds.size / agents.length) * 100}%`, height: "100%", borderRadius: 999, background: usedAgentIds.size === agents.length ? green : blue }} />
-              </div>
-              <Link href="/founder/workspace" style={{
-                display: "inline-flex", alignItems: "center", gap: 6,
-                padding: "7px 16px", background: surf, border: `1px solid ${bdr}`,
-                borderRadius: 999, fontSize: 12, fontWeight: 500, color: ink, textDecoration: "none",
-                whiteSpace: "nowrap",
-              }}>
-                View workspace <ArrowRight style={{ height: 11, width: 11 }} />
-              </Link>
-            </div>
-          </motion.div>
-        )}
 
         {/* ── investor portfolio CTA ────────────────────────────── */}
         {!isDemo && (

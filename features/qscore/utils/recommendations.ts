@@ -1,5 +1,4 @@
 import { QScore, QScoreDimension, Recommendation } from '@/features/qscore/types/qscore.types';
-import { getAgentsByDimension } from '@/features/agents/data/agents';
 
 /**
  * Recommendation Engine
@@ -52,12 +51,15 @@ const getActionForDimension = (dimension: QScoreDimension, score: number): strin
  * Get CTA text for dimension
  */
 const getCTAForDimension = (dimension: QScoreDimension): string => {
+  // No longer "Talk to <adviser>". The advisers were a chat surface the founder had to drive;
+  // the Executive model works to a mandate without being asked, so the CTA points at the team
+  // already acting on this rather than at a conversation the founder has to start.
   const ctas: Record<QScoreDimension, string> = {
-    market: 'Analyze Market',
-    product: 'Improve Product',
-    goToMarket: 'Talk to Jocelyn',
-    financial: 'Talk to Sam',
-    team: 'Talk to Lauren',
+    market: 'See what your team is doing',
+    product: 'See what your team is doing',
+    goToMarket: 'See what your team is doing',
+    financial: 'See what your team is doing',
+    team: 'See what your team is doing',
     traction: 'Boost Traction'
   };
   return ctas[dimension];
@@ -67,12 +69,16 @@ const getCTAForDimension = (dimension: QScoreDimension): string => {
  * Get link for dimension action
  */
 const getLinkForDimension = (dimension: QScoreDimension): string => {
+  // These pointed at /founder/cxo/<adviser>, which no longer exists. The Q-Score stays a
+  // DIAGNOSTIC (PRD: asset creation never raises it, outcomes are evidence for later
+  // reassessment) — but a diagnosis that links nowhere is a dead end, so a weak dimension now
+  // points at the team already working on it.
   const links: Record<QScoreDimension, string> = {
-    market: '/founder/cxo/atlas',
-    product: '/founder/cxo/nova',
-    goToMarket: '/founder/cxo/patel',
-    financial: '/founder/cxo/felix',
-    team: '/founder/cxo/harper',
+    market: '/founder/executive',
+    product: '/founder/executive',
+    goToMarket: '/founder/executive',
+    financial: '/founder/executive',
+    team: '/founder/executive',
     traction: '/founder/metrics'
   };
   return links[dimension];
@@ -120,34 +126,6 @@ export const generateRecommendations = (qScore: QScore): Recommendation[] => {
       completed: false
     };
   });
-};
-
-/**
- * Generate agent recommendations (which agents to talk to)
- */
-export const generateAgentRecommendations = (qScore: QScore) => {
-  // Get lowest dimension
-  const lowestDimension = Object.entries(qScore.breakdown)
-    .sort(([, a], [, b]) => a.score - b.score)[0];
-
-  if (!lowestDimension) return [];
-
-  const [dimKey, dimData] = lowestDimension;
-  const agents = getAgentsByDimension(dimKey as QScoreDimension);
-
-  if (agents.length === 0) return [];
-
-  // Return recommendation for first agent (primary expert for this dimension)
-  const agent = agents[0];
-  const potentialGain = Math.round((100 - dimData.score) * 0.15);
-
-  return [{
-    agent,
-    message: `Talk to ${agent.name} to improve your ${formatDimension(dimKey)} Score by ~${potentialGain} points`,
-    score: dimData.score,
-    dimension: dimKey as QScoreDimension,
-    potentialGain
-  }];
 };
 
 /**
