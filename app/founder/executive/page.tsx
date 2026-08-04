@@ -173,7 +173,7 @@ export default function ExecutivePage() {
               again — you change direction by setting a new mandate, not by approving
               each week.
             </p>
-            <div style={{ display: 'flex', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
               <button
                 onClick={() => void post('/api/contracts', { action: 'confirm', contractId: contract.id })}
                 disabled={busy}
@@ -186,8 +186,11 @@ export default function ExecutivePage() {
                 disabled={busy}
                 style={secondaryBtn}
               >
-                Redraft
+                Refine
               </button>
+              <Link href="/founder/strategy" style={{ color: muted, fontSize: 13, textDecoration: 'underline' }}>
+                Change your answers first
+              </Link>
             </div>
           </div>
         </div>

@@ -215,3 +215,26 @@ describe('journey state has exactly one source of truth', () => {
     expect(door).not.toMatch(/contract\?\.status === 'confirmed'/)
   })
 })
+
+// ─── The mandate reads plainly, before it's even confirmed (F08 stage 4) ──────
+
+describe('the mandate card shows who takes it on, by real name', () => {
+  const card = stripComments(readFileSync('features/executive/components/MandateCard.tsx', 'utf8'))
+
+  it('reads names from the Registry via the API, not a second hardcoded list', () => {
+    // 'growth' the Registry id vs 'Patel' the founder-facing name — a hardcoded
+    // {growth: 'Growth'} map would be readable but wrong. One Registry, read the
+    // same way every other panel on this page already does.
+    expect(card).toContain("fetch('/api/executives')")
+    expect(card).not.toMatch(/growth:\s*['"]/i) // no id->label map living here
+  })
+
+  it('falls back to the raw id rather than hiding a responsibility if the fetch fails', () => {
+    expect(card).toContain('nameById.get(r.executive) ?? r.executive')
+  })
+
+  it('renders responsibilities, not just priorities and metrics', () => {
+    expect(card).toContain('contract.responsibilities')
+    expect(card).toMatch(/who takes this on/i)
+  })
+})

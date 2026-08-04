@@ -1,22 +1,48 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { surf, bdr, ink, muted } from '@/lib/constants/colors'
 import { FONT_SERIF } from '@/features/onboarding/theme'
-import type { Contract } from '../types/executive.types'
+import type { Contract, ExecutiveSummary } from '../types/executive.types'
 
 /**
  * The mandate itself — what the founder committed to.
  *
- * "Who is working to it" used to be listed here as raw `templateId · owner` text
- * ("P001 · growth") — that's now <ExecutiveRoster/>, rendered separately on the page, so the
- * 5 executives get real identity (name, motto) instead of being a line inside this card.
+ * ⚠️ NOT A WALL OF JSON. This is the plain-language read of the contract a founder
+ * sees before confirming (F08) — priorities, success metrics, and now who actually
+ * takes each piece on, by name, not by the raw Registry id `generateMandate`'s JSON
+ * tail stores ('growth', not 'Patel'). Self-fetches /api/executives for that name
+ * lookup, the same established pattern as ExecutiveRoster/ActionsPanel/BriefingsPanel
+ * — one Registry, read the same way everywhere, not a second hardcoded name list.
  *
- * Sharp corners + serif headline to match ExecutiveCard/the detail page — one visual language
- * for the whole Command View, not the mandate looking like an older, different product.
+ * "Who is OPERATING it" is still <ExecutiveRoster/>, rendered separately once a
+ * mandate is confirmed. This shows who it's ASSIGNED to, before that's even true —
+ * the founder should be able to read that off the draft, not just trust it happened.
+ *
+ * Sharp corners + serif headline to match ExecutiveCard/the detail page — one visual
+ * language for the whole Command View, not the mandate looking like an older,
+ * different product.
  *
  * Renders state. No executive reasoning lives here (CLAUDE.md §2).
  */
 export function MandateCard({ contract }: { contract: Contract }) {
+  const [executives, setExecutives] = useState<ExecutiveSummary[]>([])
+
+  useEffect(() => {
+    let live = true
+    void (async () => {
+      try {
+        const res = await fetch('/api/executives')
+        if (res.ok && live) setExecutives((await res.json()).executives ?? [])
+      } catch {
+        /* Falls back to the raw Registry id below — still true, just less readable. */
+      }
+    })()
+    return () => { live = false }
+  }, [])
+
+  const nameById = new Map(executives.map(e => [e.id, e.name]))
+
   return (
     <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 4, padding: 24 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
@@ -34,6 +60,21 @@ export function MandateCard({ contract }: { contract: Contract }) {
 
       <Block label="Priorities" items={contract.priorities} />
       <Block label="Success metrics" items={contract.successMetrics} />
+
+      {contract.responsibilities.length > 0 && (
+        <div style={{ marginTop: 20 }}>
+          <h3 style={{ color: muted, fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4, margin: 0 }}>
+            Who takes this on
+          </h3>
+          <ul style={{ margin: '8px 0 0', paddingLeft: 18, color: ink, fontSize: 14, lineHeight: 1.7 }}>
+            {contract.responsibilities.map((r, i) => (
+              <li key={i}>
+                <strong>{nameById.get(r.executive) ?? r.executive}</strong> — {r.mandate}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   )
 }
