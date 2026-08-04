@@ -33,6 +33,7 @@ import { WeeklyCheckin } from "@/components/onboarding/WeeklyCheckin";
 import { UpgradeModal } from "@/components/ui/UpgradeModal";
 import { getUpcomingWorkshops } from "@/features/academy/data/workshops";
 import { bg, surf, bdr, ink, muted, blue, green, amber, red, purple, cyan, alpha } from '@/lib/constants/colors'
+import { DIM_COLORS, DIM_LABELS } from '@/features/qscore/constants/dimensions'
 import { PageSpinner } from '@/features/shared/components/Spinner'
 import { ExecutiveEntryCard } from '@/features/executive/components/ExecutiveEntryCard'
 
@@ -135,18 +136,8 @@ interface ScorePoint {
 }
 
 // ─── score chart ──────────────────────────────────────────────────────────────
-const DIM_COLORS: Record<string, string> = {
-  p1: blue,
-  p2: purple,
-  p3: green,
-  p4: amber,
-  p5: red,
-  p6: cyan,
-};
-const DIM_LABELS: Record<string, string> = {
-  p1: "Market Readiness", p2: "Market Potential", p3: "IP / Defensibility",
-  p4: "Founder / Team",  p5: "Impact",            p6: "Financials",
-};
+// DIM_COLORS/DIM_LABELS live in features/qscore/constants/dimensions.ts — shared with
+// the Command View's score anchor, not redeclared here.
 
 function ScoreChart({ points }: { points: ScorePoint[] }) {
   const [showDims, setShowDims] = useState(false);

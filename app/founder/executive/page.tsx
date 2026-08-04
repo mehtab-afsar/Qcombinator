@@ -25,11 +25,7 @@ import { ArrowRight, Loader2 } from 'lucide-react'
 import { bg, surf, bdr, ink, muted, blue, red } from '@/lib/constants/colors'
 import { useQScore } from '@/features/qscore/hooks/useQScore'
 import { MandateCard } from '@/features/executive/components/MandateCard'
-import { ExecutiveRoster } from '@/features/executive/components/ExecutiveRoster'
-import { ActionsPanel } from '@/features/executive/components/ActionsPanel'
-import { ConnectorsPanel } from '@/features/executive/components/ConnectorsPanel'
-import { RhythmPanel } from '@/features/executive/components/RhythmPanel'
-import { BriefingsPanel } from '@/features/executive/components/BriefingsPanel'
+import { CommandView } from '@/features/executive/components/CommandView'
 import {
   resolveJourneyState,
   type Contract,
@@ -165,68 +161,51 @@ export default function ExecutivePage() {
         />
       )}
 
-      {contract && (state === 'draft' || state === 'confirmed') && (
+      {contract && state === 'draft' && (
         <div style={{ marginTop: 24 }}>
           <MandateCard contract={contract} />
 
-          {state === 'draft' && (
-            <div style={{ marginTop: 20 }}>
-              <p style={{ color: muted, fontSize: 14, lineHeight: 1.6, maxWidth: 620, margin: '0 0 12px' }}>
-                {/* THE one confirmation in this product (ADR-002). Said plainly, because
-                    the founder is handing over autonomy and should know it. */}
-                Confirming this puts your team to work. They’ll run to it without asking
-                again — you change direction by setting a new mandate, not by approving
-                each week.
-              </p>
-              <div style={{ display: 'flex', gap: 12 }}>
-                <button
-                  onClick={() => void post('/api/contracts', { action: 'confirm', contractId: contract.id })}
-                  disabled={busy}
-                  style={primaryBtn(busy)}
-                >
-                  {busy ? 'Confirming…' : 'Confirm this mandate'}
-                </button>
-                <button
-                  onClick={() => void post('/api/contracts', { action: 'draft' })}
-                  disabled={busy}
-                  style={secondaryBtn}
-                >
-                  Redraft
-                </button>
-              </div>
-            </div>
-          )}
-
-          {state === 'confirmed' && (
-            <div style={{ marginTop: 20 }}>
+          <div style={{ marginTop: 20 }}>
+            <p style={{ color: muted, fontSize: 14, lineHeight: 1.6, maxWidth: 620, margin: '0 0 12px' }}>
+              {/* THE one confirmation in this product (ADR-002). Said plainly, because
+                  the founder is handing over autonomy and should know it. */}
+              Confirming this puts your team to work. They’ll run to it without asking
+              again — you change direction by setting a new mandate, not by approving
+              each week.
+            </p>
+            <div style={{ display: 'flex', gap: 12 }}>
               <button
-                onClick={() => void post('/api/contracts/new-epoch')}
+                onClick={() => void post('/api/contracts', { action: 'confirm', contractId: contract.id })}
+                disabled={busy}
+                style={primaryBtn(busy)}
+              >
+                {busy ? 'Confirming…' : 'Confirm this mandate'}
+              </button>
+              <button
+                onClick={() => void post('/api/contracts', { action: 'draft' })}
                 disabled={busy}
                 style={secondaryBtn}
               >
-                {busy ? 'Working…' : 'Issue a new mandate'}
+                Redraft
               </button>
-              <p style={{ color: muted, fontSize: 13, marginTop: 8, maxWidth: 620, lineHeight: 1.6 }}>
-                {/* ADR-003, in the founder's language. */}
-                This starts a new epoch. Your current mandate is kept exactly as it is —
-                nothing is overwritten, and you can always see what you were operating
-                under, and when.
-              </p>
             </div>
-          )}
+          </div>
         </div>
       )}
 
-      {/* Who is running your mandate — the roster reflects the OPERATING team, so it only
-          renders once there is one (state === 'confirmed'); a draft has nothing running yet. */}
-      {state === 'confirmed' && <ExecutiveRoster programs={programs} />}
-
-      {/* What needs YOU first (F14 — the one checkpoint), then the cycle, then its output. */}
-      {state === 'confirmed' && <ActionsPanel />}
-      {state === 'confirmed' && <RhythmPanel />}
-      {state === 'confirmed' && <BriefingsPanel />}
-      {/* Last: the tools the team may act in. Read after the work, changed rarely. */}
-      {state === 'confirmed' && <ConnectorsPanel />}
+      {/* The payoff screen — Q-Score at the centre, the team around it. Everything below the
+          mandate here (roster, actions, rhythm, briefings, connectors) is composed inside
+          CommandView, not rebuilt (CLAUDE.md §2). */}
+      {contract && state === 'confirmed' && (
+        <div style={{ marginTop: 24 }}>
+          <CommandView
+            contract={contract}
+            programs={programs}
+            busy={busy}
+            onChangeDirection={() => void post('/api/contracts/new-epoch')}
+          />
+        </div>
+      )}
     </Shell>
   )
 }

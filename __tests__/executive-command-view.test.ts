@@ -88,35 +88,43 @@ function stripComments(src: string): string {
 }
 
 describe('the page is command, not approval', () => {
+  // The Command View redesign moved the confirmed-state UI (mandate summary, "change
+  // direction", roster, actions, rhythm, briefings) out of page.tsx into CommandView.tsx —
+  // these checks now span both files so a rebuilt gate can't hide by moving files.
   const page = stripComments(readFileSync('app/founder/executive/page.tsx', 'utf8'))
+  const commandView = stripComments(readFileSync('features/executive/components/CommandView.tsx', 'utf8'))
+  const both = `${page}\n${commandView}`
 
   it('has exactly ONE confirm action, and it is the mandate', () => {
     // ADR-002 removed the per-plan sign-off: the founder confirms once, then
-    // redirects by issuing a new mandate. More than one confirm on this page means
-    // the gate has been rebuilt.
-    const confirms = page.match(/action: 'confirm'/g) ?? []
+    // redirects by issuing a new mandate. More than one confirm anywhere in this flow
+    // means the gate has been rebuilt.
+    const confirms = both.match(/action: 'confirm'/g) ?? []
     expect(confirms).toHaveLength(1)
   })
 
   it('offers a NEW MANDATE, and has no approval ACTION beyond the one confirm', () => {
+    // The literal endpoint call lives on the page (it owns all API calls); CommandView stays
+    // presentational and just receives onChangeDirection as a prop.
     expect(page).toContain('/api/contracts/new-epoch')
 
     // Assert on actions, not on the word "approve". The page legitimately SAYS
     // "you don't approve their work each week" — that sentence is the whole point
     // of ADR-002, and an earlier version of this test failed on it. What matters
     // is that no approve endpoint is called and no approve control is rendered.
-    expect(page).not.toMatch(/fetch\([^)]*approve/i)
-    expect(page).not.toMatch(/action:\s*'approve'/i)
-    expect(page).not.toMatch(/>\s*Approve\b/i)   // no button labelled "Approve …"
+    expect(both).not.toMatch(/fetch\([^)]*approve/i)
+    expect(both).not.toMatch(/action:\s*'approve'/i)
+    expect(both).not.toMatch(/>\s*Approve\b/i)   // no button labelled "Approve …"
   })
 
   it('tells the founder plainly what confirming means', () => {
-    // They are handing over autonomy. That should be stated, not buried.
+    // They are handing over autonomy. That should be stated, not buried. Still lives on
+    // the page itself — it's said at draft time, before CommandView ever renders.
     expect(page).toMatch(/run to it without asking\s*\n?\s*\*?\s*again/i)
   })
 
   it('explains that a new epoch keeps history (ADR-003)', () => {
-    expect(page).toMatch(/nothing is overwritten/i)
+    expect(commandView).toMatch(/nothing is overwritten/i)
   })
 })
 
@@ -140,6 +148,18 @@ describe('the briefings panel tells the truth', () => {
   })
 })
 
+describe('the score anchor does not fabricate a trend', () => {
+  // The UX spec's own copy rule: "never fabricate confidence." ScoreAnchor shows the real
+  // overall number only — no invented "up N this month," since that would need the same
+  // version-resolution logic dashboard/page.tsx owns, not a guessed shortcut here.
+  const anchor = stripComments(readFileSync('features/executive/components/ScoreAnchor.tsx', 'utf8'))
+
+  it('renders the real overall score, not an invented delta', () => {
+    expect(anchor).toContain('qScore.overall')
+    expect(anchor).not.toMatch(/\bup \d|\bdown \d|change|trend/i)
+  })
+})
+
 // ─── The client must not pull in server code ──────────────────────────────────
 
 describe('client boundary', () => {
@@ -157,6 +177,13 @@ describe('client boundary', () => {
     const page = stripComments(readFileSync('app/founder/executive/page.tsx', 'utf8'))
     expect(page).not.toMatch(/from '@\/lib\/(mandate|registry|prompts)/)
     expect(page).toContain("fetch('/api/contracts')")
+  })
+
+  it('CommandView and ScoreAnchor stay presentational too', () => {
+    const commandView = stripComments(readFileSync('features/executive/components/CommandView.tsx', 'utf8'))
+    const scoreAnchor = stripComments(readFileSync('features/executive/components/ScoreAnchor.tsx', 'utf8'))
+    expect(commandView).not.toMatch(/from '@\/lib\/(mandate|registry|prompts)/)
+    expect(scoreAnchor).not.toMatch(/from '@\/lib\/(mandate|registry|prompts)/)
   })
 })
 
