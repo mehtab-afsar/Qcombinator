@@ -66,17 +66,29 @@ describe('the narrative summary is generated per section, through the router', (
 
 describe('the frontend renders the narrative ahead of the field list, not instead of it', () => {
   const page = readFileSync('app/founder/profile-builder/page.tsx', 'utf8')
+  // extract-results and pre-score used to be two separately-rendered screens; they're
+  // now a single step ('extract-results') whose CTA and header copy adapt to whether
+  // smart-qa has been answered yet, rendering through one shared card component —
+  // see ProfileSnapshot.tsx — instead of each having its own duplicate card JSX.
+  const snapshot = readFileSync('features/founder/components/profile-builder/ProfileSnapshot.tsx', 'utf8')
 
   it('SectionSummary carries narrativeSummary through from the API', () => {
     expect(page).toContain('narrativeSummary?: string | null')
   })
 
-  it('both snapshot screens render it when present', () => {
-    const matches = page.match(/\{s\.narrativeSummary|\{card\.narrative/g) ?? []
-    expect(matches.length).toBeGreaterThanOrEqual(2)
+  it('the snapshot screen wires narrativeSummary into the shared card renderer', () => {
+    expect(page).toContain('narrative: s.narrativeSummary ?? null')
+  })
+
+  it('the shared renderer shows the narrative ahead of the field list', () => {
+    const narrativeIdx = snapshot.indexOf('card.narrative &&')
+    const snippetsIdx = snapshot.indexOf('visibleSnippets.length > 0 &&')
+    expect(narrativeIdx).toBeGreaterThan(-1)
+    expect(snippetsIdx).toBeGreaterThan(-1)
+    expect(narrativeIdx).toBeLessThan(snippetsIdx)
   })
 
   it('the field snippets still render underneath — thin sections are not left blank', () => {
-    expect(page).toContain('card.snippets.length > 0')
+    expect(snapshot).toContain('visibleSnippets.length > 0')
   })
 })

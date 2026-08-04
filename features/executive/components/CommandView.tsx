@@ -21,7 +21,9 @@ import { ActionsPanel } from './ActionsPanel'
 import { ConnectorsPanel } from './ConnectorsPanel'
 import { RhythmPanel } from './RhythmPanel'
 import { BriefingsPanel } from './BriefingsPanel'
-import { ink, muted, bdr } from '@/lib/constants/colors'
+import { muted } from '@/lib/constants/colors'
+import { space } from '@/features/shared/tokens'
+import { Button } from '@/features/shared/components/Button'
 import type { Contract, ProgramInstance } from '../types/executive.types'
 
 /**
@@ -56,37 +58,35 @@ export function CommandView({
   // reflects the real answer instead of flipping after an effect and missing the animation.
   const [reveal] = useState(() => firstLandingOnThisContract(contract.id))
 
+  const changeDirection = (
+    <div style={{ marginTop: 20 }}>
+      <Button variant="secondary" loading={busy} onClick={onChangeDirection}>
+        Change direction
+      </Button>
+      <p style={{ color: muted, fontSize: 13, marginTop: 8, maxWidth: 620, lineHeight: 1.6 }}>
+        {/* ADR-003, in the founder's language. */}
+        This starts a new epoch. Your current mandate is kept exactly as it is —
+        nothing is overwritten, and you can always see what you were operating
+        under, and when.
+      </p>
+    </div>
+  )
+
   return (
     <div>
       <ScoreAnchor />
 
-      <div style={{ marginTop: 8 }}>
-        <MandateCard contract={contract} />
-        <div style={{ marginTop: 16 }}>
-          <button onClick={onChangeDirection} disabled={busy} style={changeDirectionBtn(busy)}>
-            {busy ? 'Working…' : 'Change direction'}
-          </button>
-          <p style={{ color: muted, fontSize: 13, marginTop: 8, maxWidth: 620, lineHeight: 1.6 }}>
-            {/* ADR-003, in the founder's language. */}
-            This starts a new epoch. Your current mandate is kept exactly as it is —
-            nothing is overwritten, and you can always see what you were operating
-            under, and when.
-          </p>
-        </div>
-      </div>
+      <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: space[5] }}>
+        <MandateCard contract={contract} footer={changeDirection} />
 
-      {/* Who is running the mandate, then what needs YOU first (F14 — the one checkpoint),
-          then the cycle, then its output, then the tools the team may act in. */}
-      <ExecutiveRoster programs={programs} reveal={reveal} />
-      <ActionsPanel />
-      <RhythmPanel />
-      <BriefingsPanel />
-      <ConnectorsPanel />
+        {/* Who is running the mandate, then what needs YOU first (F14 — the one checkpoint),
+            then the cycle, then its output, then the tools the team may act in. */}
+        <ExecutiveRoster programs={programs} reveal={reveal} />
+        <ActionsPanel />
+        <RhythmPanel />
+        <BriefingsPanel />
+        <ConnectorsPanel />
+      </div>
     </div>
   )
 }
-
-const changeDirectionBtn = (busy: boolean): React.CSSProperties => ({
-  background: 'none', color: ink, border: `1px solid ${bdr}`, borderRadius: 8,
-  padding: '11px 22px', fontSize: 15, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.6 : 1,
-})

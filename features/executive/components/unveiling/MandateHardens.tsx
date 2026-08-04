@@ -11,8 +11,8 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import { Loader2 } from 'lucide-react'
 import { muted } from '@/lib/constants/colors'
+import { Spinner } from '@/features/shared/components/Spinner'
 import { MandateCard } from '../MandateCard'
 import type { Contract } from '../../types/executive.types'
 
@@ -56,7 +56,7 @@ export function MandateHardens({
   if (drafting || !contract) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0' }}>
-        <Loader2 size={16} color={muted} style={{ animation: 'spin 1s linear infinite' }} />
+        <Spinner size="sm" color={muted} />
         <span style={{ color: muted, fontSize: 14 }}>Hardening into your mandate…</span>
       </div>
     )

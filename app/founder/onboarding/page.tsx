@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Eye, EyeOff, ChevronRight, ArrowLeft } from 'lucide-react'
-import { IndustrySelector } from '@/components/onboarding/IndustrySelector'
-import { FounderBackgroundSelector } from '@/components/onboarding/FounderBackgroundSelector'
-import type { FounderBackground } from '@/components/onboarding/FounderBackgroundSelector'
+import { IndustrySelector } from '@/features/onboarding/components/IndustrySelector'
+import { FounderBackgroundSelector } from '@/features/onboarding/components/FounderBackgroundSelector'
+import type { FounderBackground } from '@/features/onboarding/components/FounderBackgroundSelector'
 import { O, FONT_SERIF, ACCENTS } from '@/features/onboarding/theme'
 import { OnboardingShell } from '@/features/onboarding/components/OnboardingShell'
 import { Label, SectionTitle, Input, TextArea, Hint } from '@/features/onboarding/components/ui/Input'
@@ -101,10 +101,6 @@ export default function FounderOnboardingPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [showPwd, setShowPwd] = useState(false)
-  const [avatarFile] = useState<File | null>(null)
-  const [logoFile] = useState<File | null>(null)
-  const _avatarRef = useRef<HTMLInputElement>(null)
-  const _logoRef = useRef<HTMLInputElement>(null)
   // Google already gave us a verified email and name (/auth/callback stubs the profile with
   // them). true once we've confirmed that stub exists — Step 1 (name/email/password) is for
   // creating an account, and this founder already has one.
@@ -178,10 +174,6 @@ export default function FounderOnboardingPage() {
         if (signInErr) { setError('Account created but sign-in failed. Please log in.'); setLoading(false); return }
       }
 
-      await Promise.allSettled([
-        avatarFile && (async () => { const fd = new FormData(); fd.append('file', avatarFile); fd.append('imageType', 'founder-avatar'); await fetch('/api/upload/image', { method: 'POST', body: fd }) })(),
-        logoFile && (async () => { const fd = new FormData(); fd.append('file', logoFile); fd.append('imageType', 'company-logo'); await fetch('/api/upload/image', { method: 'POST', body: fd }) })(),
-      ])
       sessionStorage.removeItem('ea_signup_pending')
       // Google already verified the address — an OAuth founder goes straight in. An
       // email/password founder is blocked (middleware.ts) until they click the link

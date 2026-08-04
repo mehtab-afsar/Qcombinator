@@ -18,7 +18,9 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Check, Loader2, AlertCircle, Minus, Circle } from 'lucide-react'
-import { surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
+import { bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
+import { SectionCard } from '@/features/shared/components/SectionCard'
+import { Button } from '@/features/shared/components/Button'
 
 type StepState = 'done' | 'active' | 'pending' | 'failed' | 'skipped'
 
@@ -128,16 +130,14 @@ export function RhythmPanel({ executiveId }: { executiveId?: string } = {}) {
     : progress
 
   return (
-    <div style={card}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-        <h2 style={{ color: ink, fontSize: 17, fontWeight: 600, margin: 0 }}>This week’s cycle</h2>
-        {progress?.status !== 'running' && (
-          <button onClick={() => void startCycle()} disabled={busy} style={runBtn(busy)}>
-            {busy ? 'Starting…' : 'Run now'}
-          </button>
-        )}
-      </div>
-
+    <SectionCard
+      title="This week's cycle"
+      action={progress?.status !== 'running' && (
+        <Button variant="secondary" size="sm" loading={busy} onClick={() => void startCycle()}>
+          Run now
+        </Button>
+      )}
+    >
       {error && <p style={{ color: red, fontSize: 13, marginTop: 10 }}>{error}</p>}
 
       {!scoped && <Empty />}
@@ -147,7 +147,7 @@ export function RhythmPanel({ executiveId }: { executiveId?: string } = {}) {
           {scoped.steps.map(step => <StepRow key={step.key} step={step} />)}
         </div>
       )}
-    </div>
+    </SectionCard>
   )
 }
 
@@ -240,12 +240,3 @@ function stepLook(state: StepState): { icon: React.ReactNode; color: string; not
       return { icon: <Circle size={9} color={bdr} />, color: muted, note: null }
   }
 }
-
-const card: React.CSSProperties = {
-  background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: 24, marginTop: 20,
-}
-
-const runBtn = (busy: boolean): React.CSSProperties => ({
-  background: 'none', color: ink, border: `1px solid ${bdr}`, borderRadius: 8,
-  padding: '8px 16px', fontSize: 14, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.6 : 1,
-})

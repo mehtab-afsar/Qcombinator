@@ -13,8 +13,11 @@
  */
 
 import { useCallback, useEffect, useState } from 'react'
-import { Link2, Loader2, ShieldCheck } from 'lucide-react'
-import { surf, bdr, ink, muted, blue, green, red } from '@/lib/constants/colors'
+import { ShieldCheck } from 'lucide-react'
+import { bdr, ink, muted, bg, green, red } from '@/lib/constants/colors'
+import { radius } from '@/features/shared/tokens'
+import { SectionCard } from '@/features/shared/components/SectionCard'
+import { Button } from '@/features/shared/components/Button'
 
 interface Grant {
   id: string
@@ -101,17 +104,11 @@ export function ConnectorsPanel() {
     grants.find(g => g.provider === provider && g.status === 'active')
 
   return (
-    <div style={card}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <Link2 size={17} color={muted} />
-        <h2 style={{ color: ink, fontSize: 17, fontWeight: 600, margin: 0 }}>Connected accounts</h2>
-      </div>
-      <p style={{ color: muted, fontSize: 14, marginTop: 8, lineHeight: 1.6, maxWidth: 560 }}>
-        Your team can only act in tools you connect here — and even then, nothing irreversible
-        happens without your approval each time.
-      </p>
-
-      {error && <p style={{ color: red, fontSize: 13, marginTop: 10 }}>{error}</p>}
+    <SectionCard
+      title="Connected accounts"
+      subtitle="Your team can only act in tools you connect here — and even then, nothing irreversible happens without your approval each time."
+    >
+      {error && <p style={{ color: red, fontSize: 13, marginTop: 0 }}>{error}</p>}
 
       <div style={{ marginTop: 16, display: 'grid', gap: 10 }}>
         {available.map(({ provider, scopes }) => {
@@ -137,20 +134,19 @@ export function ConnectorsPanel() {
               </div>
 
               {grant ? (
-                <button onClick={() => void disconnect(provider)} disabled={busy === provider} style={secondaryBtn}>
-                  {busy === provider ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : null}
+                <Button variant="secondary" size="sm" loading={busy === provider} onClick={() => void disconnect(provider)}>
                   Disconnect
-                </button>
+                </Button>
               ) : (
-                <button onClick={() => void connect(provider)} disabled={busy === provider} style={connectBtn}>
-                  {busy === provider ? 'Opening…' : 'Connect'}
-                </button>
+                <Button variant="primary" size="sm" loading={busy === provider} onClick={() => void connect(provider)}>
+                  Connect
+                </Button>
               )}
             </div>
           )
         })}
       </div>
-    </div>
+    </SectionCard>
   )
 }
 
@@ -165,19 +161,7 @@ const CONNECT_MESSAGES: Record<string, string> = {
   not_configured: 'This connector is not configured yet.',
 }
 
-const card: React.CSSProperties = {
-  background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: 24, marginTop: 20,
-}
 const row: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 12,
-  background: '#fff', border: `1px solid ${bdr}`, borderRadius: 10, padding: 14,
-}
-const connectBtn: React.CSSProperties = {
-  background: blue, color: '#fff', border: 'none', borderRadius: 8,
-  padding: '8px 16px', fontSize: 14, fontWeight: 500, cursor: 'pointer',
-}
-const secondaryBtn: React.CSSProperties = {
-  display: 'inline-flex', alignItems: 'center', gap: 6,
-  background: 'none', color: ink, border: `1px solid ${bdr}`,
-  borderRadius: 8, padding: '8px 16px', fontSize: 14, cursor: 'pointer',
+  background: bg, border: `1px solid ${bdr}`, borderRadius: radius.md, padding: 14,
 }

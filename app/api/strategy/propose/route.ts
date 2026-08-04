@@ -36,6 +36,11 @@ function sseEncode(event: Record<string, unknown>): Uint8Array {
   return new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`)
 }
 
+// Generous ceiling above the ~90s a real six-step generation takes — this only exists to
+// catch a genuinely stalled connection (no error, no more chunks, ever) rather than let the
+// SSE stream hang open forever with the client stuck showing a blinking cursor.
+const STREAM_TIMEOUT_MS = 150_000
+
 export async function POST(req: NextRequest): Promise<Response> {
   const off = newModelOff()
   if (off) return off
@@ -67,29 +72,49 @@ export async function POST(req: NextRequest): Promise<Response> {
   const readable = new ReadableStream({
     async start(controller) {
       let full = ''
-      try {
+      // Set once this callback has sent `done`+closed — guards against the timeout race
+      // losing and a late chunk from the still-running generation trying to enqueue on an
+      // already-closed controller (Promise.race doesn't cancel the loser).
+      let settled = false
+
+      async function generate(): Promise<void> {
         for await (const event of routedStream('reasoning', [{ role: 'user', content: pkg.text }], {
           maxTokens: 6_000,
           temperature: 0.2,
         })) {
           if (event.type === 'delta') {
             full += event.text
-            controller.enqueue(sseEncode({ type: 'delta', text: event.text }))
+            if (!settled) controller.enqueue(sseEncode({ type: 'delta', text: event.text }))
           }
         }
         const { document, json } = splitDocumentAndJson(full)
         const fields = validateGeneratedStrategy(json)
-        controller.enqueue(sseEncode({ type: 'done', proposal: { ...fields, document } }))
+        if (!settled) controller.enqueue(sseEncode({ type: 'done', proposal: { ...fields, document } }))
+      }
+
+      let timer: ReturnType<typeof setTimeout> | undefined
+      try {
+        await Promise.race([
+          generate(),
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(new Error('timeout')), STREAM_TIMEOUT_MS)
+          }),
+        ])
       } catch (err) {
         // A soft error over the stream, never a bare 500 mid-connection — the client
         // reads `error` on the done event and falls back to the blank form, exactly
         // the same fallback the old blocking route offered on a MandateGenerationError.
         const message = err instanceof MandateGenerationError
           ? err.message
+          : err instanceof Error && err.message === 'timeout'
+          ? 'This is taking longer than expected — try again.'
           : 'Could not draft a proposal right now.'
         log.warn('[strategy/propose] stream generation failed', message)
-        controller.enqueue(sseEncode({ type: 'done', error: message }))
+        if (!settled) controller.enqueue(sseEncode({ type: 'done', error: message }))
+      } finally {
+        clearTimeout(timer)
       }
+      settled = true
       controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'))
       controller.close()
     },

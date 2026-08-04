@@ -1,14 +1,18 @@
 'use client'
 
 import { motion, AnimatePresence } from 'framer-motion'
-import { Bell, X, Check } from 'lucide-react'
+import {
+  Bell, X, Check, Tag, AlertTriangle, Scissors, Handshake, Mail, Megaphone,
+  Globe, PenLine, FileText, FileSignature, Scale, FolderOpen, BarChart3, Send,
+  ClipboardList, DoorOpen, Eye, TrendingUp, MessageCircle, UserPlus,
+  CheckCircle2, Link2, CreditCard, Zap, CalendarCheck, type LucideIcon,
+} from 'lucide-react'
 import { useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { bg, surf, bdr, ink, muted, blue, green } from '@/lib/constants/colors'
 
 export interface NotifItem {
   id: string
-  icon: string
   type: string
   title: string
   body?: string
@@ -29,10 +33,50 @@ const TYPE_COLOR: Record<string, string> = {
   agent_complete:      '#6B7280',
   agent_action:        '#7C3AED',  // autonomous agent work — purple to distinguish
   investor_view:       '#D97706',
+  stripe_verify:       '#635BFF', // Stripe brand purple
+}
+
+// ─── type → icon — the single place a notification type is given an icon.
+// (Previously duplicated as emoji across three files: the API route, the founder
+// notifications hook, and the investor notifications hook — all deleted in favor
+// of this one map, keyed the same as TYPE_COLOR.) ──────────────────────────────
+const TYPE_ICON: Record<string, LucideIcon> = {
+  price_change_alert:   Tag,
+  runway_alert:         AlertTriangle,
+  runway_cuts_analysis: Scissors,
+  deal_reminder:        Handshake,
+  investor_update_sent: Mail,
+  outreach_sent:        Megaphone,
+  site_deployed:        Globe,
+  blog_published:       PenLine,
+  nda_generated:        FileText,
+  safe_generated:       FileSignature,
+  term_sheet_analysis:  Scale,
+  data_room_generated:  FolderOpen,
+  weekly_standup:       BarChart3,
+  offer_letter_sent:    Send,
+  survey_created:       ClipboardList,
+  fake_door_deployed:   DoorOpen,
+  investor_view:        Eye,
+  qscore_update:        TrendingUp,
+  message:              MessageCircle,
+  connection_request:   UserPlus,
+  connection_accepted:  CheckCircle2,
+  investor_outreach:    Megaphone,
+  startup_share:        Link2,
+  deal_flow:            Bell,
+  stripe_verify:        CreditCard,
+  agent_complete:       CheckCircle2,
+  agent_action:         Zap,
+  workshop_registered:  CalendarCheck,
 }
 
 function getAccent(type: string) {
   return TYPE_COLOR[type] ?? muted
+}
+
+function getIcon(type: string): LucideIcon {
+  return TYPE_ICON[type] ?? Bell
 }
 
 function timeAgo(iso: string) {
@@ -47,6 +91,7 @@ function timeAgo(iso: string) {
 
 function NotifRow({ n, onViewStartup }: { n: NotifItem; onViewStartup?: (id: string) => void }) {
   const accent = getAccent(n.type)
+  const Icon = getIcon(n.type)
   const founderId   = n.metadata?.founderId   as string | undefined
   const toAgent     = n.metadata?.toAgent     as string | undefined
   const artifactType = n.metadata?.artifactType as string | undefined
@@ -80,9 +125,8 @@ function NotifRow({ n, onViewStartup }: { n: NotifItem; onViewStartup?: (id: str
         width: 36, height: 36, borderRadius: 10, flexShrink: 0,
         background: `${accent}12`, border: `1px solid ${accent}25`,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 16, lineHeight: 1,
       }}>
-        {n.icon}
+        <Icon size={16} color={accent} />
       </div>
 
       {/* text */}
@@ -252,8 +296,9 @@ export function NotificationDropdown({
               width: 48, height: 48, borderRadius: 14, margin: '0 auto 14px',
               background: surf, border: `1px solid ${bdr}`,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 22,
-            }}>🔔</div>
+            }}>
+              <Bell size={20} color={muted} />
+            </div>
             <p style={{ fontSize: 14, fontWeight: 600, color: ink, margin: '0 0 6px' }}>
               You&apos;re all caught up
             </p>

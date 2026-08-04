@@ -126,6 +126,47 @@ Three things are broken. **(1) The system reasons from accumulated chat history*
    └───────────────────────────────► next cycle
 ```
 
+### The founder experience — the spine (this was the missing requirement)
+
+*The loop above specifies the machine. This specifies what the founder **sees, watches, and feels** —
+which the earlier spec left almost entirely unstated, and which is why the built experience felt like
+"input boxes and loaders." The autonomous thesis (ADR-001/002, no adviser chat) stays intact; the
+correction is that **autonomous was misread as invisible.** Autonomous work must be made visible at
+the one moment that matters — activation — and the artefacts it produces must be central and tangible
+afterward. Nothing here resurrects the deleted adviser-chat surface (ADR-034).*
+
+**The spine, in order — each step must have a head and a tail:**
+
+1. **Score** — clear task, clear payoff. Build the profile → get the Q-Score. (This part already reads well.)
+2. **The unveiling** — the CEO *reads* the score and *proposes* a direction; the founder shapes it, never
+   authors from a blank box; it hardens into a mandate; the team steps forward; one confirmation.
+3. **Activation — THE MISSING MOMENT.** Confirming the mandate **triggers the first cycle immediately and
+   visibly.** The founder does **not** land in an empty room with a "Run now" button and an 8-minute silent
+   wait. They watch their team go to work: *"Patel is building your ICP profiles… your pains-and-gains
+   matrix… your positioning…"* — **real content appearing, one artefact after another, streamed.** This is
+   where the AI stops feeling handicapped and the artefacts become visible. It is the payoff for setting a
+   mandate — the "you just hired a team, and they started" beat. Required, not optional.
+4. **Land in the work — the artefacts are the centre.** After the first cycle the founder lands not on a
+   mandate summary but **among their living strategy: five real, openable, tangible documents their team
+   made.** The documents are the product surface, not a status card. Read them, edit them (→ new version,
+   used next cycle), see the briefing that explains what changed.
+5. **Direct an executive about a specific artefact** — a *scoped* command, not open-ended chat: "ask Patel
+   about this ICP," "Patel, sharpen the pricing section" → the executive reworks it in place → a new version.
+   Directed and about a real artefact, never a blank conversation. (This is chat-as-command, minimal form,
+   pulled forward from the canvas concept because the experience is dead without *any* interactivity.)
+6. **Then it goes quiet.** The weekly rhythm runs in the background (the loop above). The team doesn't wait
+   to be messaged — but the founder has *seen* it work, *holds* the artefacts, and can *direct* it.
+
+**Requirement, stated plainly:** the transition from *confirm* to *value seen* must be a single visible
+moment (Activation, step 3), and the ongoing surface must be **artefact-centric** (step 4), not a mandate
+card and a loader. A founder confirming a mandate and then seeing nothing happen is a defect against this
+section, not acceptable behaviour.
+
+**Reconciliation with the thesis:** none of this reintroduces the gameable "document production raises the
+score" flaw (ADR-005 holds — artefacts never move the Q-Score) or the deleted adviser chat (ADR-034 holds
+— no open messaging surface). It makes *already-autonomous* work *visible and tangible*. Visibility is not
+interactivity-for-its-own-sake; it is the difference between a product and a background job.
+
 ### The operating model (settled)
 
 | Layer | Rule |

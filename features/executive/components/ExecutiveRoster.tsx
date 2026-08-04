@@ -18,6 +18,7 @@ import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { ExecutiveCard, type ExecutiveCardData } from './ExecutiveCard'
 import { ease } from '@/features/shared/tokens'
+import { SectionCard } from '@/features/shared/components/SectionCard'
 import type { ExecutiveSummary, ProgramInstance } from '../types/executive.types'
 
 interface Briefing { id: string; programId: string | null; executiveId: string | null; verdict: string; createdAt: string }
@@ -81,13 +82,7 @@ export function ExecutiveRoster({ programs, reveal = false }: { programs: Progra
   })
 
   return (
-    <div style={{ marginTop: 24 }}>
-      <h2 style={{
-        fontSize: 12, fontWeight: 600, color: '#8A867C',
-        textTransform: 'uppercase', letterSpacing: 0.6, margin: '0 0 12px',
-      }}>
-        Your executive team
-      </h2>
+    <SectionCard title="Your team">
       <motion.div
         variants={containerVariants}
         initial={reveal ? 'hidden' : false}
@@ -100,6 +95,6 @@ export function ExecutiveRoster({ programs, reveal = false }: { programs: Progra
           </motion.div>
         ))}
       </motion.div>
-    </div>
+    </SectionCard>
   )
 }

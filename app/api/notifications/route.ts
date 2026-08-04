@@ -3,33 +3,6 @@ import { createClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { parseBody, markReadSchema } from '@/lib/api/validate'
 
-const ACTION_ICONS: Record<string, string> = {
-  price_change_alert:   '🔔',
-  runway_alert:         '⚠️',
-  runway_cuts_analysis: '✂️',
-  deal_reminder:        '🤝',
-  investor_update_sent: '📧',
-  outreach_sent:        '📣',
-  site_deployed:        '🌐',
-  blog_published:       '✍️',
-  nda_generated:        '📄',
-  safe_generated:       '📋',
-  term_sheet_analysis:  '⚖️',
-  data_room_generated:  '🗂️',
-  weekly_standup:       '📊',
-  offer_letter_sent:    '📩',
-  survey_created:       '📝',
-  fake_door_deployed:   '🚪',
-  investor_view:        '👁️',
-  qscore_update:        '📈',
-  message:              '💬',
-  connection_request:   '🤝',
-  connection_accepted:  '✅',
-  investor_outreach:    '📣',
-  startup_share:        '🔗',
-  deal_flow:            '🔔',
-}
-
 const NOTABLE_ACTIVITY = [
   'price_change_alert', 'runway_alert', 'runway_cuts_analysis', 'deal_reminder',
   'investor_update_sent', 'outreach_sent', 'site_deployed', 'blog_published',
@@ -56,7 +29,6 @@ export async function GET() {
     if (notifRows && notifRows.length > 0) {
       const notifications = notifRows.map(row => ({
         id:          row.id as string,
-        icon:        ACTION_ICONS[row.type as string] ?? '🤖',
         agentId:     (row.metadata as Record<string, unknown>)?.agent_id as string ?? '',
         action_type: row.type as string,
         title:       row.title as string,
@@ -80,7 +52,6 @@ export async function GET() {
 
     const notifications = (activityRows ?? []).map(row => ({
       id:          row.id as string,
-      icon:        ACTION_ICONS[row.action_type as string] ?? '🤖',
       agentId:     row.agent_id as string,
       action_type: row.action_type as string,
       title:       row.description as string,

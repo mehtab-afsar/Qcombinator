@@ -1,6 +1,6 @@
 'use client'
 
-import { ink, muted, bdr, green } from '@/lib/constants/colors'
+import { ink, muted, bdr, green, white } from '@/lib/constants/colors'
 
 export type FounderBackground = 'technical' | 'domain-expert' | 'serial-entrepreneur' | 'prior-customers'
 
@@ -62,7 +62,7 @@ export function FounderBackgroundSelector({
               padding: '11px 12px',
               borderRadius: 12,
               border: `1.5px solid ${isChecked ? green : bdr}`,
-              background: isChecked ? `${green}08` : '#fff',
+              background: isChecked ? `${green}08` : white,
               boxShadow: isChecked ? `0 0 0 3px ${green}1a` : 'none',
               cursor: 'pointer',
               textAlign: 'left',
@@ -80,7 +80,7 @@ export function FounderBackgroundSelector({
             onMouseLeave={e => {
               ;(e.currentTarget as HTMLElement).style.background = isChecked
                 ? `${green}08`
-                : '#fff'
+                : white
             }}
           >
             {/* Check badge (top-right) when selected — signals multi-select */}
@@ -102,7 +102,7 @@ export function FounderBackgroundSelector({
                 <svg width="10" height="8" viewBox="0 0 12 10" fill="none">
                   <path
                     d="M1 5.5L4.5 9L11 1"
-                    stroke="#fff"
+                    stroke={white}
                     strokeWidth="1.8"
                     strokeLinecap="round"
                     strokeLinejoin="round"

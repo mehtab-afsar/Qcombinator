@@ -407,7 +407,6 @@ export function FounderNotificationBell() {
 
   const notifItems: NotifItem[] = (notifications as Array<SidebarNotification & { read?: boolean }>).map(n => ({
     id:    n.id,
-    icon:  n.icon,
     type:  n.action_type,
     title: n.title,
     time:  n.time,

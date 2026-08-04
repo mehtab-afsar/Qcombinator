@@ -7,8 +7,9 @@
  * unveiling.
  */
 
-import { ink, blue, bdr, muted, white } from '@/lib/constants/colors'
+import { ink } from '@/lib/constants/colors'
 import { FONT_SERIF } from '@/features/onboarding/theme'
+import { Button } from '@/features/shared/components/Button'
 
 export function ProposedDirection({
   mission, onAccept, onNudgeClick, busy,
@@ -27,27 +28,12 @@ export function ProposedDirection({
         “{mission}”
       </p>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-        <button
-          onClick={onAccept}
-          disabled={busy}
-          style={{
-            background: blue, color: white, border: 'none', borderRadius: 8,
-            padding: '10px 20px', fontSize: 14, fontWeight: 500,
-            cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.6 : 1,
-          }}
-        >
-          {busy ? 'Working…' : 'Sounds right'}
-        </button>
-        <button
-          onClick={onNudgeClick}
-          disabled={busy}
-          style={{
-            background: 'none', border: `1px solid ${bdr}`, color: muted, borderRadius: 8,
-            padding: '10px 20px', fontSize: 14, cursor: busy ? 'default' : 'pointer',
-          }}
-        >
+        <Button variant="primary" loading={busy} onClick={onAccept}>
+          Sounds right
+        </Button>
+        <Button variant="secondary" disabled={busy} onClick={onNudgeClick}>
           Nudge this
-        </button>
+        </Button>
       </div>
     </div>
   )

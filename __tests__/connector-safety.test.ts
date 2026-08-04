@@ -10,6 +10,8 @@
  * human skimming it. These checks do not care how plausible an address looks.
  */
 
+import { readFileSync, readdirSync } from 'fs'
+import { join } from 'path'
 import { assertRecipientsAllowed, RecipientBlockedError, devAllowlist } from '@/lib/connectors/allowlist'
 import { __messageIdFor } from '@/lib/connectors/gmail'
 import { getConnector } from '@/lib/connectors/registry'
@@ -149,12 +151,10 @@ describe('the connector registry — one map, no switch statements', () => {
  * outcome land beside it.
  */
 describe('F14 — the idempotency reservation', () => {
-  const read = (p: string) =>
-    require('fs').readFileSync(require('path').join(__dirname, '..', p), 'utf8') as string
+  const read = (p: string) => readFileSync(join(__dirname, '..', p), 'utf8')
 
   const migrations = (): string =>
-    require('fs')
-      .readdirSync(require('path').join(__dirname, '..', 'supabase', 'migrations'))
+    readdirSync(join(__dirname, '..', 'supabase', 'migrations'))
       .filter((f: string) => f.includes('action_log'))
       .map((f: string) => read(`supabase/migrations/${f}`))
       .join('\n')

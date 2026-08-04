@@ -10,7 +10,6 @@ const API_BASE = '/api'
 
 test.describe('Investor API Routes', () => {
   let authToken: string
-  let investorId: string
 
   test.beforeAll(async ({ browser }) => {
     const context = await browser.newContext()

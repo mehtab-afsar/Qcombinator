@@ -21,7 +21,7 @@
  */
 
 import { useEffect, useState } from 'react'
-import { ArrowRight, Sparkles } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 import { surf, bdr, ink, muted, blue, amber, alpha } from '@/lib/constants/colors'
 import { useQScore } from '@/features/qscore/hooks/useQScore'
 import {
@@ -179,23 +179,14 @@ export function ExecutiveEntryCard() {
         marginBottom: 16,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-          <div style={{
-            width: 32, height: 32, borderRadius: 8, flexShrink: 0,
-            background: alpha(urgent ? amber : blue, 0.12),
-            display: 'grid', placeItems: 'center',
+        <div style={{ minWidth: 0 }}>
+          <span style={{ color: urgent ? amber : muted, fontSize: 12, fontWeight: 500 }}>{eyebrow}</span>
+          <p style={{
+            color: ink, fontSize: 14, fontWeight: 500, margin: '2px 0 0', lineHeight: 1.45,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>
-            <Sparkles size={16} color={urgent ? amber : blue} />
-          </div>
-          <div style={{ minWidth: 0 }}>
-            <span style={{ color: urgent ? amber : muted, fontSize: 12, fontWeight: 500 }}>{eyebrow}</span>
-            <p style={{
-              color: ink, fontSize: 14, fontWeight: 500, margin: '2px 0 0', lineHeight: 1.45,
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            }}>
-              {headline}
-            </p>
-          </div>
+            {headline}
+          </p>
         </div>
         <span style={{
           color: urgent ? amber : blue, fontSize: 13, fontWeight: 500,

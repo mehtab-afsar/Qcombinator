@@ -147,7 +147,7 @@ test.describe('Investor Full Journey', () => {
 
     // Should show startup cards or deal flow content
     const dealFlowContent = page.locator('[class*="card"], [class*="founder"], [class*="startup"]')
-    const contentVisible = await dealFlowContent.isVisible({ timeout: 5000 }).catch(() => false)
+    await dealFlowContent.isVisible({ timeout: 5000 }).catch(() => false)
 
     // Even if no startups shown, page should load
     const url = page.url()
@@ -167,7 +167,7 @@ test.describe('Investor Full Journey', () => {
 
       // Verify filter applied
       const activeFilter = page.locator('[class*="active"], [class*="selected"]')
-      const isActive = await activeFilter.isVisible({ timeout: 3000 }).catch(() => false)
+      await activeFilter.isVisible({ timeout: 3000 }).catch(() => false)
 
       // Filter action succeeded if page still on deal-flow
       expect(page.url()).toContain('deal-flow')
@@ -191,7 +191,7 @@ test.describe('Investor Full Journey', () => {
 
         // Should show founder profile with Q-Score
         const qScoreDisplay = page.locator('text=/Q-Score|Score|Rating/i')
-        const hasQScore = await qScoreDisplay.isVisible({ timeout: 5000 }).catch(() => false)
+        await qScoreDisplay.isVisible({ timeout: 5000 }).catch(() => false)
 
         // At minimum, should be on a profile page
         expect(page.url()).not.toContain('/deal-flow')

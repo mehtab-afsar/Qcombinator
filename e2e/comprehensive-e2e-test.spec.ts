@@ -17,7 +17,7 @@
  * Database: Supabase local (supabase start)
  */
 
-import { test, expect, Page, Browser, BrowserContext } from '@playwright/test'
+import { test, expect, Page } from '@playwright/test'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SETUP & UTILITIES
@@ -92,7 +92,6 @@ async function completeFounderOnboarding(page: Page, data: typeof testData.found
   await page.locator('input[placeholder="Min. 8 characters"]').fill(data.password)
 
   // Click Next button (find by text, using direction detection)
-  const buttons = await page.locator('button').allTextContents()
   const nextBtn = await page.locator('button').filter({ hasNot: page.locator('svg') }).last()
   await nextBtn.click()
   await page.waitForTimeout(800)
@@ -278,7 +277,7 @@ test.describe('Authentication Flows', () => {
     expect(hasAuthToken).toBeFalsy()
   })
 
-  test('1.7 Protected routes redirect to login when not authenticated', async ({ page, context }) => {
+  test('1.7 Protected routes redirect to login when not authenticated', async ({ page: _page, context }) => {
     // Create new context without cookies
     const newPage = await context.newPage()
 
@@ -424,7 +423,7 @@ test.describe('Founder Complete Journey', () => {
     await expect(page.locator('text=/saved|updated/i')).toBeVisible({ timeout: 2000 })
   })
 
-  test('2.7 Team invitation and member management', async ({ page, context }) => {
+  test('2.7 Team invitation and member management', async ({ page, context: _context }) => {
     const founderEmail = `founder-team-${Date.now()}@test.local`
     const teamMemberEmail = `teammate-${Date.now()}@test.local`
     const data = { ...testData.founder, email: founderEmail }
@@ -799,7 +798,7 @@ test.describe('Two-Sided Marketplace', () => {
     }
   })
 
-  test('4.6 Matching algorithm respects investor criteria', async ({ page, context }) => {
+  test('4.6 Matching algorithm respects investor criteria', async ({ page, context: _context }) => {
     const investorEmail = `investor-match-${Date.now()}@test.local`
     const investorData = {
       ...testData.investor,
@@ -881,7 +880,7 @@ test.describe('Data Integrity & Security', () => {
     // Get Q-Score
     await page.goto(`${BASE_URL}/founder/dashboard`)
     const initialScore = await page.locator('text=/\\d+/').first()
-    const scoreText = await initialScore.textContent()
+    await initialScore.textContent()
 
     // In a real test, founder would send connection with this score
     // Then improve score
@@ -949,7 +948,7 @@ test.describe('Data Integrity & Security', () => {
     // Simulate team member login (in real test, they'd accept invite)
 
     // Try to access founder's private conversation via API
-    const response = await page2.request.get(`${BASE_URL}/api/agents/conversations`)
+    await page2.request.get(`${BASE_URL}/api/agents/conversations`)
 
     // Should not return other team member's conversations
     // (this is a logical check - actual implementation depends on RLS)

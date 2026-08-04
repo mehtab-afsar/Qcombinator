@@ -209,11 +209,41 @@ mid-to-late September.
 
 ---
 
+## Phase 3.5 — The Frame ▶ **NEXT — a precondition for the pilot, not polish**
+
+*The machine is done. The frame — the founder-facing experience — was never built. F07 (the
+Strategy Session) is still the placeholder form the code itself calls temporary ("the real thing
+arrives later" — it never did). Every pilot founder walks through this first. A dead intake form
+in front of the pilot doesn't test the product; it tests their patience. So the frame moves
+**before** the pilot. Spec: `UX_SPEC_the_frame.md` + the two mockups (the unveiling, the command
+view). Days, not weeks — it's screens on top of a finished machine.*
+
+- [ ] **Entry state-router** — no score → score first; scored, no mandate → the Strategy Session;
+      mandate → the Command View. Never show a cold mission box.
+- [ ] **F07 rebuilt as "the unveiling"** — one continuous descent (the CEO reads → proposes a
+      direction → it hardens into the mandate → the team claims it → one confirm). **Kill the form.**
+      Wire to the existing S001 prompt + F08 generation. No new machinery.
+- [ ] **Mandate confirmation** — one weighty page, one signature; a change starts a new epoch.
+- [ ] **Command View (F09) as home** — score at centre, all five executives (idle ones present),
+      the mandate, the weekly briefing in serif voice, the single pending action. No per-cycle approval.
+- [ ] **The Q-Score onboarding fixes** (`prompts/FIX_QSCORE_ONBOARDING.md`) — the entry to the entry:
+      streamed real conversation, a human snapshot, per-founder quick-replies, honest extraction. The
+      calculate error fixed. *This is the same disease one screen earlier.*
+
+**Exit:** a founder goes score → unveiling → confirm → command view as one clean, profound arc,
+with no forms and no dead-ends. The thing a pilot founder actually experiences is the product, not
+the placeholder.
+
+---
+
 ## Phase 4 — Pilot + Retention Gate ★ ⬜ (Oct)
 
 - [ ] Pilot cohort runs the loop behind the flag
 - [ ] **Week-4 retention measured** ← the decision metric (ADR-016)
 - [ ] Healthy → Phase 5. Weak → **stop and fix the loop; widen nothing.**
+
+> ⚠️ **The frame (Phase 3.5) comes first.** You cannot read retention off a cohort that bounced on
+> a Google form. The pilot measures the product; the frame *is* the product a founder sees.
 
 > ⚠️ **PostHog is not configured.** Retention cannot be measured retroactively. If analytics
 > isn't capturing before the rhythm runs, you arrive at this gate unable to read the answer.

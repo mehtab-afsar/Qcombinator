@@ -219,7 +219,7 @@ test.describe('Founder Full Journey', () => {
     }
   })
 
-  test('10. Founder session persists across navigation', async ({ page, context }) => {
+  test('10. Founder session persists across navigation', async ({ page, context: _context }) => {
     // Navigate to multiple pages and verify session
     await page.goto(`${BASE_URL}/founder/dashboard`)
 

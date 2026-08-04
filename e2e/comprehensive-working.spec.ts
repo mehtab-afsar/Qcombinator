@@ -43,7 +43,7 @@ test.describe('Qcombinator Core Tests', () => {
     await expect(passwordInput).toBeVisible()
   })
 
-  test('5. Protected routes redirect to login', async ({ page, context }) => {
+  test('5. Protected routes redirect to login', async ({ page: _page, context }) => {
     const newPage = await context.newPage()
 
     // Try to access founder dashboard without auth
@@ -53,7 +53,7 @@ test.describe('Qcombinator Core Tests', () => {
     await expect(newPage).toHaveURL(/\/login/, { timeout: 10000 })
   })
 
-  test('6. Founder dashboard requires authentication', async ({ page, context }) => {
+  test('6. Founder dashboard requires authentication', async ({ page: _page, context }) => {
     const newPage = await context.newPage()
 
     // Try without auth
@@ -64,7 +64,7 @@ test.describe('Qcombinator Core Tests', () => {
     expect(url).toContain('/login')
   })
 
-  test('7. Investor dashboard requires authentication', async ({ page, context }) => {
+  test('7. Investor dashboard requires authentication', async ({ page: _page, context }) => {
     const newPage = await context.newPage()
 
     // Try without auth
@@ -198,7 +198,7 @@ test.describe('Qcombinator Core Tests', () => {
     expect(status).toBeTruthy()
   })
 
-  test('18. Founder dashboard page structure', async ({ page, context }) => {
+  test('18. Founder dashboard page structure', async ({ page: _page, context }) => {
     // Create new page without auth
     const newPage = await context.newPage()
 
@@ -206,14 +206,13 @@ test.describe('Qcombinator Core Tests', () => {
 
     // Should redirect since not authenticated
     const url = newPage.url()
-    const isLoggedIn = !url.includes('login')
 
     // If logged in, should have dashboard content
     // If not, should be on login
     expect(url).toBeTruthy()
   })
 
-  test('19. Investor dashboard page structure', async ({ page, context }) => {
+  test('19. Investor dashboard page structure', async ({ page: _page, context }) => {
     const newPage = await context.newPage()
 
     await newPage.goto(`${BASE_URL}/investor/dashboard`)

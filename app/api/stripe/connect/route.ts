@@ -220,6 +220,36 @@ export async function GET() {
       .eq('user_id', user.id)
       .single()
 
+    // Surface the "verify with Stripe" prompt as a notification instead of a dashboard
+    // card. Deduped on an existing unread row of the same type — this route is hit on
+    // every dashboard load while unverified, and notifications' only INSERT policy is
+    // service_role-only (RLS), so this goes through the admin client.
+    if (profile && !profile.stripe_verified) {
+      const adminClient = createAdminClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
+        process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
+      )
+      const { data: existing } = await adminClient
+        .from('notifications')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('type', 'stripe_verify')
+        .eq('read', false)
+        .limit(1)
+        .maybeSingle()
+
+      if (!existing) {
+        await adminClient.from('notifications').insert({
+          user_id:  user.id,
+          type:     'stripe_verify',
+          title:    'Verify your revenue with Stripe',
+          body:     'Unlock Signal Strength 1.0× and investor trust badges.',
+          metadata: { href: '/founder/settings?tab=integrations' },
+          read:     false,
+        })
+      }
+    }
+
     return NextResponse.json({ profile: profile ?? null })
   } catch (err) {
     log.error('[Stripe Connect GET] Error:', err)

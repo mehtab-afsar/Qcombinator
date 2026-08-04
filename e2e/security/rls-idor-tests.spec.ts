@@ -11,7 +11,6 @@ const API_BASE = '/api'
 test.describe('Security & IDOR Tests', () => {
   let user1Token: string
   let user2Token: string
-  let user1Id: string
 
   test.beforeAll(async ({ browser }) => {
     // Create user 1
@@ -21,12 +20,9 @@ test.describe('Security & IDOR Tests', () => {
     const email1 = `sec-user1-${Date.now()}@example.com`
     const password = 'TestPass123!'
 
-    const signupResp = await page1.request.post(`${BASE_URL}${API_BASE}/auth/signup`, {
+    await page1.request.post(`${BASE_URL}${API_BASE}/auth/signup`, {
       data: { email: email1, password, fullName: 'User1' },
     })
-
-    const signupData = await signupResp.json()
-    user1Id = signupData.user?.id || signupData.profile?.user_id
 
     await page1.goto(`${BASE_URL}/login`)
     await page1.locator('input[type="email"]').fill(email1)

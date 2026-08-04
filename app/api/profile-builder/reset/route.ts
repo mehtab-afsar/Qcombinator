@@ -9,27 +9,29 @@ export async function PATCH() {
 
   const supabase = createAdminClient()
 
-  // Enforce 24-hour cooldown — same window as the submit rate limit
-  const { data: recentScore } = await supabase
-    .from('qscore_history')
-    .select('calculated_at')
-    .eq('user_id', userId)
-    .order('calculated_at', { ascending: false })
-    .limit(1)
-    .single()
-
-  if (recentScore) {
-    const hoursSince = (Date.now() - new Date(recentScore.calculated_at).getTime()) / 3_600_000
-    if (hoursSince < 24) {
-      const retakeAvailableAt = new Date(
-        new Date(recentScore.calculated_at).getTime() + 24 * 60 * 60 * 1000,
-      ).toISOString()
-      return NextResponse.json(
-        { error: 'You can retake the assessment once per 24 hours.', retakeAvailableAt },
-        { status: 429 },
-      )
-    }
-  }
+  // 24-hour cooldown — DISABLED FOR TESTING (same as the submit rate limit in
+  // app/api/profile-builder/submit/route.ts — keep both in sync).
+  // TODO: Enable rate limiting in production
+  // const { data: recentScore } = await supabase
+  //   .from('qscore_history')
+  //   .select('calculated_at')
+  //   .eq('user_id', userId)
+  //   .order('calculated_at', { ascending: false })
+  //   .limit(1)
+  //   .single()
+  //
+  // if (recentScore) {
+  //   const hoursSince = (Date.now() - new Date(recentScore.calculated_at).getTime()) / 3_600_000
+  //   if (hoursSince < 24) {
+  //     const retakeAvailableAt = new Date(
+  //       new Date(recentScore.calculated_at).getTime() + 24 * 60 * 60 * 1000,
+  //     ).toISOString()
+  //     return NextResponse.json(
+  //       { error: 'You can retake the assessment once per 24 hours.', retakeAvailableAt },
+  //       { status: 429 },
+  //     )
+  //   }
+  // }
 
   await supabase
     .from('founder_profiles')

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { log } from '@/lib/logger'
 
@@ -120,15 +120,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to send message' }, { status: 500 })
     }
 
-    // Notify the recipient with correct sender role label
-    void Promise.resolve(supabase.from('notifications').insert({
+    // Notify the recipient with correct sender role label.
+    // notifications' only INSERT policy is service_role-only (RLS), so this must go
+    // through the admin client — the per-request client silently no-ops here.
+    const admin = createAdminClient()
+    const { error: notifyError } = await admin.from('notifications').insert({
       user_id:  recipientId,
       type:     'message',
       title:    isFounder ? 'New message from a founder' : 'New message from an investor',
       body:     body.trim().slice(0, 120),
       metadata: { connection_id: connectionId, sender_id: user.id, href: '/founder/messages' },
       read:     false,
-    })).catch(() => {})
+    })
+    if (notifyError) log.error('POST /api/messages notify', { notifyError })
 
     return NextResponse.json({ message: msg }, { status: 201 })
   } catch (err) {

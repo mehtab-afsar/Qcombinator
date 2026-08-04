@@ -1,7 +1,5 @@
 import { test, expect } from '@playwright/test'
 import { createFounderAccount, makeAuthenticatedRequest } from '../helpers/auth'
-import * as fs from 'fs'
-import * as path from 'path'
 
 test.describe.configure({ mode: 'serial' })
 

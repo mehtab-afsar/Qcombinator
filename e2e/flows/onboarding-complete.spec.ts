@@ -109,7 +109,7 @@ test('Step 4: Problem → submit', async ({ page }) => {
   await page.waitForURL(/\/founder\/(getting-started|dashboard)/, { timeout: 30_000 })
 })
 
-test('DB: founder_profiles row created', async ({ page, context }) => {
+test('DB: founder_profiles row created', async ({ page }) => {
   // Ensure we're on founder page
   await page.goto('/founder/dashboard')
   await page.waitForLoadState('networkidle')

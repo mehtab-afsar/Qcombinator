@@ -25,6 +25,11 @@ const READ_DELIMITER = '<<<END_READ>>>'
 export function useStreamedProposal() {
   const [streaming, setStreaming] = useState(false)
   const [readText, setReadText] = useState('')
+  // True once the delimiter has arrived — "the read" itself is fully typed, but the
+  // connection is still open, silently generating the six-step document behind it
+  // (~60-90s). Without this, the UI has nothing to distinguish "still typing" from
+  // "read is done, working on the rest" — both just look like a frozen cursor.
+  const [readDone, setReadDone] = useState(false)
   const [proposal, setProposal] = useState<StreamedProposal | null>(null)
   const [error, setError] = useState<string | null>(null)
   const full = useRef('')
@@ -34,6 +39,7 @@ export function useStreamedProposal() {
     setError(null)
     setProposal(null)
     setReadText('')
+    setReadDone(false)
     full.current = ''
     try {
       const res = await fetch(endpoint, {
@@ -64,6 +70,7 @@ export function useStreamedProposal() {
             // not Morgan talking to the founder (UX_SPEC_the_frame.md §3).
             const idx = full.current.indexOf(READ_DELIMITER)
             setReadText(idx === -1 ? full.current : full.current.slice(0, idx))
+            if (idx !== -1) setReadDone(true)
           } else if (evt.type === 'done') {
             if (evt.error) setError(evt.error as string)
             else if (evt.proposal) setProposal(evt.proposal as StreamedProposal)
@@ -77,5 +84,5 @@ export function useStreamedProposal() {
     }
   }, [])
 
-  return { streaming, readText, proposal, error, run }
+  return { streaming, readText, readDone, proposal, error, run }
 }

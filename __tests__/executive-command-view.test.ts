@@ -181,7 +181,9 @@ describe('client boundary', () => {
     // reasoning.
     const page = stripComments(readFileSync('app/founder/executive/page.tsx', 'utf8'))
     expect(page).not.toMatch(/from '@\/lib\/(mandate|registry|prompts)/)
-    expect(page).toContain("fetch('/api/contracts')")
+    // Prefix-tolerant: fetchWithTimeout('/api/contracts') is still a fetch of that
+    // endpoint, just wrapped so a hung request can't spin the page forever.
+    expect(page).toMatch(/fetch(WithTimeout)?\(['"]\/api\/contracts['"]/)
   })
 
   it('CommandView and ScoreAnchor stay presentational too', () => {

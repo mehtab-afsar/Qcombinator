@@ -5,25 +5,12 @@ import { createClient } from '@/lib/supabase/client'
 
 export interface InvestorNotification {
   id: string
-  icon: string
   type: string
   title: string
   body?: string
   time: string
   read: boolean
   metadata: Record<string, unknown>
-}
-
-const TYPE_ICONS: Record<string, string> = {
-  investor_view:       '👁️',
-  qscore_update:       '📈',
-  message:             '💬',
-  agent_complete:      '🤖',
-  deal_flow:           '🔔',
-  startup_share:       '🔗',
-  connection_request:  '🤝',
-  connection_accepted: '✅',
-  investor_outreach:   '📣',
 }
 
 export function useInvestorNotifications() {
@@ -34,10 +21,17 @@ export function useInvestorNotifications() {
   async function load() {
     try {
       const res = await fetch('/api/notifications')
-      const { notifications: rows } = await res.json() as { notifications: (InvestorNotification & { read?: boolean })[] }
-      const notifs = (rows ?? []).map((r: InvestorNotification & { read?: boolean }) => ({
-        ...r,
-        metadata: (r.metadata as Record<string, unknown>) ?? {},
+      const { notifications: rows } = await res.json() as {
+        notifications: Array<{ id: string; action_type: string; title: string; body?: string; time: string; read?: boolean; metadata?: Record<string, unknown> }>
+      }
+      const notifs = (rows ?? []).map(r => ({
+        id:       r.id,
+        type:     r.action_type,
+        title:    r.title,
+        body:     r.body,
+        time:     r.time,
+        read:     r.read ?? false,
+        metadata: r.metadata ?? {},
       }))
       setNotifications(notifs)
       setUnreadCount(notifs.filter(n => !n.read).length)
@@ -61,8 +55,7 @@ export function useInvestorNotifications() {
             const row = payload.new as { id: string; type: string; title: string; body?: string; metadata?: Record<string, unknown>; created_at: string }
             setNotifications(prev => [{
               id: row.id, type: row.type, title: row.title, body: row.body,
-              time: row.created_at, icon: TYPE_ICONS[row.type] ?? '🔔',
-              read: false, metadata: row.metadata ?? {},
+              time: row.created_at, read: false, metadata: row.metadata ?? {},
             }, ...prev])
             setUnreadCount(c => c + 1)
           }

@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { surf, bdr, ink, muted } from '@/lib/constants/colors'
-import { FONT_SERIF } from '@/features/onboarding/theme'
+import { ink, muted } from '@/lib/constants/colors'
+import { SectionCard } from '@/features/shared/components/SectionCard'
 import type { Contract, ExecutiveSummary } from '../types/executive.types'
 
 /**
@@ -26,12 +26,16 @@ import type { Contract, ExecutiveSummary } from '../types/executive.types'
  * Renders state. No executive reasoning lives here (CLAUDE.md §2).
  */
 export function MandateCard({
-  contract, showResponsibilities = true,
+  contract, showResponsibilities = true, footer,
 }: {
   contract: Contract
   /** false inside the unveiling's "mandate hardens" layer — Layer 4 shows who takes
    *  it on a beat later, with more ceremony; showing it twice in a row is redundant. */
   showResponsibilities?: boolean
+  /** Rendered after the mandate content, inside the same card — e.g. CommandView's
+   *  "Change direction" control. Kept as a prop rather than owned here so the copy
+   *  explaining it stays physically in the file that calls for it. */
+  footer?: React.ReactNode
 }) {
   const [executives, setExecutives] = useState<ExecutiveSummary[]>([])
 
@@ -51,9 +55,9 @@ export function MandateCard({
   const nameById = new Map(executives.map(e => [e.id, e.name]))
 
   return (
-    <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 4, padding: 24 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
-        <h2 style={{ fontFamily: FONT_SERIF, color: ink, fontSize: 19, fontWeight: 500, letterSpacing: '-0.01em', margin: 0 }}>Your mandate</h2>
+    <SectionCard
+      title="Your mandate"
+      action={
         <span style={{ color: muted, fontSize: 12 }}>
           {/* The epoch is the operating period — "what were we operating under, when"
               (ADR-003). It is the number that means something to a founder; the
@@ -63,8 +67,8 @@ export function MandateCard({
             <> · confirmed {new Date(contract.confirmedAt).toLocaleDateString()}</>
           )}
         </span>
-      </div>
-
+      }
+    >
       <Block label="Priorities" items={contract.priorities} />
       <Block label="Success metrics" items={contract.successMetrics} />
 
@@ -82,7 +86,9 @@ export function MandateCard({
           </ul>
         </div>
       )}
-    </div>
+
+      {footer}
+    </SectionCard>
   )
 }
 

@@ -10,15 +10,14 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { getCurrentContract, getProgramsForContract, type ExecutiveContract, type ProgramInstance } from '@/lib/mandate/contract'
+import { getCurrentContract } from '@/lib/mandate/contract'
 import { getProgram } from '@/lib/registry'
 import { AssetPersistenceError } from '@/lib/assets/validation'
 import { generateBriefing } from '@/lib/briefings/generate'
 import { BriefingError } from '@/lib/briefings/briefings'
-import type { CompanyContext } from '@/lib/prompts/compose'
 import { log } from '@/lib/logger'
 import { trackCycleCompleted, trackCycleFailed } from '@/lib/analytics'
-import { buildContext, currentAssetsFor } from './context'
+import { currentAssetsFor } from './context'
 import { claimStepBudget } from './budget'
 import { buildStepContext } from './context'
 import { RhythmError } from './errors'
@@ -27,10 +26,8 @@ import { RhythmError } from './errors'
 export { RhythmError }
 import { generateAction } from '@/lib/actions/generate'
 import { AlreadyExecutedError } from '@/lib/actions/log'
-import { claimStep, createOrResumeRun, finishRun, getLastCompletedRun, getRun, recordStep, type RhythmRun } from './runs'
+import { createOrResumeRun, finishRun, getRun, recordStep } from './runs'
 import { generateAssetContent } from './judge'
-import { collectCycleDelta } from './delta'
-import { maxStepsForRun, STEP_LIMIT_EXCEEDED } from './limits'
 import { weekCycleKey } from './cycle-key'
 
 export interface RunCycleArgs {

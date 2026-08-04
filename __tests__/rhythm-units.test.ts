@@ -4,7 +4,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { parseAssetContent, generateAssetContent, JudgementError } from '@/lib/rhythm/judge'
+import { parseAssetContent, generateAssetContent } from '@/lib/rhythm/judge'
 import { createOrResumeRun, CycleAlreadyRanError, RunError, StepLimitOpenError } from '@/lib/rhythm/runs'
 import { STEP_LIMIT_EXCEEDED } from '@/lib/rhythm/limits'
 import { buildDigest, type CycleSignals } from '@/lib/rhythm/delta'

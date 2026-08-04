@@ -18,7 +18,9 @@
  */
 
 import { ArrowRight } from 'lucide-react'
-import { ink, muted, bdr, alpha, amber } from '@/lib/constants/colors'
+import { ink, muted, bdr, bg, alpha, amber } from '@/lib/constants/colors'
+import { radius } from '@/features/shared/tokens'
+import { Badge } from '@/features/shared/components/Badge'
 import { FONT_SERIF } from '@/features/onboarding/theme'
 import type { ExecutiveSummary } from '../types/executive.types'
 
@@ -40,9 +42,9 @@ export function ExecutiveCard({ data }: { data: ExecutiveCardData }) {
       href={`/founder/executive/${executive.id}`}
       style={{
         display: 'block', textDecoration: 'none',
-        background: '#fff',
+        background: bg,
         border: `1px solid ${needsFounder ? amber : active ? ink : bdr}`,
-        borderRadius: 4, // sharp corners — an executive suite, not a wizard
+        borderRadius: radius.lg,
         padding: '20px 22px',
         opacity: active ? 1 : 0.72, // idle: quieter, never hidden
       }}
@@ -55,12 +57,9 @@ export function ExecutiveCard({ data }: { data: ExecutiveCardData }) {
           {executive.name}
         </h3>
         {needsFounder && (
-          <span style={{
-            fontSize: 11, fontWeight: 600, color: amber, whiteSpace: 'nowrap',
-            border: `1px solid ${amber}`, borderRadius: 999, padding: '2px 8px',
-          }}>
+          <Badge variant="amber">
             {pendingActionCount === 1 ? 'Needs you' : `Needs you · ${pendingActionCount}`}
-          </span>
+          </Badge>
         )}
       </div>
 

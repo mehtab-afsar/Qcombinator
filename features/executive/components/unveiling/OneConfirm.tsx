@@ -10,7 +10,8 @@
  * steps back to the nudge exchange rather than a separate page (no screen-jumps).
  */
 
-import { ink, muted, bdr, blue, white } from '@/lib/constants/colors'
+import { muted } from '@/lib/constants/colors'
+import { Button } from '@/features/shared/components/Button'
 
 export function OneConfirm({
   busy, onConfirm, onRefine, onRevise,
@@ -29,27 +30,12 @@ export function OneConfirm({
         never an edit.
       </p>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-        <button
-          onClick={onConfirm}
-          disabled={busy}
-          style={{
-            background: blue, color: white, border: 'none', borderRadius: 8,
-            padding: '11px 22px', fontSize: 15, fontWeight: 500,
-            cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.6 : 1,
-          }}
-        >
-          {busy ? 'Confirming…' : 'Confirm mandate'}
-        </button>
-        <button
-          onClick={onRefine}
-          disabled={busy}
-          style={{
-            background: 'none', color: ink, border: `1px solid ${bdr}`, borderRadius: 8,
-            padding: '11px 22px', fontSize: 15, cursor: busy ? 'default' : 'pointer',
-          }}
-        >
+        <Button variant="primary" size="lg" loading={busy} onClick={onConfirm}>
+          Confirm mandate
+        </Button>
+        <Button variant="secondary" size="lg" disabled={busy} onClick={onRefine}>
           Refine
-        </button>
+        </Button>
         <button
           onClick={onRevise}
           disabled={busy}

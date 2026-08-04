@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import { Search, X } from 'lucide-react'
 import { INDUSTRY_CATEGORIES } from '@/lib/constants/industries'
-import { ink, muted, bdr, blue } from '@/lib/constants/colors'
+import { ink, muted, bdr, blue, white } from '@/lib/constants/colors'
 
 interface IndustrySelectorProps {
   value: string | string[]          // single industry ID or array for multi-select
@@ -151,7 +151,7 @@ export function IndustrySelector({
                   padding: '12px 14px',
                   borderRadius: 8,
                   border: `1.5px solid ${isSelected ? ink : bdr}`,
-                  background: isSelected ? `${ink}08` : '#fff',
+                  background: isSelected ? `${ink}08` : white,
                   fontSize: 13,
                   fontWeight: 500,
                   color: ink,
@@ -168,7 +168,7 @@ export function IndustrySelector({
                   ;(e.currentTarget as HTMLElement).style.borderColor =
                     isSelected ? ink : bdr
                   ;(e.currentTarget as HTMLElement).style.background =
-                    isSelected ? `${ink}08` : '#fff'
+                    isSelected ? `${ink}08` : white
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -192,7 +192,7 @@ export function IndustrySelector({
                         style={{
                           width: 2,
                           height: 6,
-                          background: '#fff',
+                          background: white,
                           borderRadius: 1,
                         }}
                       />

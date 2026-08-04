@@ -10,7 +10,6 @@ const API_BASE = '/api'
 
 test.describe('Founder API Routes', () => {
   let authToken: string
-  let founderId: string
 
   test.beforeAll(async ({ browser }) => {
     // Create founder and get auth token
@@ -21,7 +20,7 @@ test.describe('Founder API Routes', () => {
     const password = 'TestPass123!'
 
     // Signup
-    const response = await page.request.post(`${BASE_URL}${API_BASE}/auth/signup`, {
+    await page.request.post(`${BASE_URL}${API_BASE}/auth/signup`, {
       data: {
         email,
         password,
@@ -31,9 +30,6 @@ test.describe('Founder API Routes', () => {
         stage: 'mvp',
       },
     })
-
-    const userData = await response.json()
-    founderId = userData.user?.id || userData.profile?.user_id
 
     // Get session token from page
     await page.goto(`${BASE_URL}/login`)

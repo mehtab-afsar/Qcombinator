@@ -33,6 +33,10 @@ function sseEncode(event: Record<string, unknown>): Uint8Array {
   return new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`)
 }
 
+// A nudge is capped at 1_200 tokens and normally finishes in ~15s — generous ceiling for a
+// genuinely stalled connection, same reasoning as STREAM_TIMEOUT_MS in ../propose/route.ts.
+const STREAM_TIMEOUT_MS = 45_000
+
 export async function POST(req: NextRequest): Promise<Response> {
   const off = newModelOff()
   if (off) return off
@@ -56,28 +60,45 @@ export async function POST(req: NextRequest): Promise<Response> {
   const readable = new ReadableStream({
     async start(controller) {
       let full = ''
-      try {
+      let settled = false
+
+      async function generate(): Promise<void> {
         for await (const event of routedStream('reasoning', [{ role: 'user', content: pkg.text }], {
           maxTokens: 1_200,
           temperature: 0.2,
         })) {
           if (event.type === 'delta') {
             full += event.text
-            controller.enqueue(sseEncode({ type: 'delta', text: event.text }))
+            if (!settled) controller.enqueue(sseEncode({ type: 'delta', text: event.text }))
           }
         }
         const { json } = splitDocumentAndJson(full)
         const fields = validateGeneratedStrategy(json)
         // No `document` — the six-step document itself wasn't regenerated; the
         // caller keeps showing the original one alongside this revised read/mission.
-        controller.enqueue(sseEncode({ type: 'done', proposal: fields }))
+        if (!settled) controller.enqueue(sseEncode({ type: 'done', proposal: fields }))
+      }
+
+      let timer: ReturnType<typeof setTimeout> | undefined
+      try {
+        await Promise.race([
+          generate(),
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(new Error('timeout')), STREAM_TIMEOUT_MS)
+          }),
+        ])
       } catch (err) {
         const message = err instanceof MandateGenerationError
           ? err.message
+          : err instanceof Error && err.message === 'timeout'
+          ? 'This is taking longer than expected — try again.'
           : 'Could not revise your direction right now.'
         log.warn('[strategy/nudge] stream generation failed', message)
-        controller.enqueue(sseEncode({ type: 'done', error: message }))
+        if (!settled) controller.enqueue(sseEncode({ type: 'done', error: message }))
+      } finally {
+        clearTimeout(timer)
       }
+      settled = true
       controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'))
       controller.close()
     },

@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
       founderProfile,
       existingExtracted,
       existingConfidenceMap,
+      skipFollowUp,
     }: {
       section: number | 'pitch'
       conversationText: string
@@ -48,6 +49,7 @@ export async function POST(req: NextRequest) {
       founderProfile?: FounderProfile
       existingExtracted?: Record<string, unknown>
       existingConfidenceMap?: Record<string, number>
+      skipFollowUp?: boolean
     } = body
 
     if ((section === undefined || section === null) || !conversationText) {
@@ -200,6 +202,12 @@ Rules:
     flatTag(extractedFields)
 
     const meta = { extractedFields, mergedFields: merged, confidenceMap, completionScore, missingFields, fieldSource }
+
+    // Smart-qa answers a fixed pre-computed question list — it never reads the
+    // generated follow-up reply, so skip the extra LLM call that produces it.
+    if (skipFollowUp) {
+      return streamReply({ meta, source: null, fallback: null })
+    }
 
     // ── Decide which prompt (if any) generates the next thing the founder reads ──
     // Same three-way choice the route always made — follow-up / minimal / "what else"

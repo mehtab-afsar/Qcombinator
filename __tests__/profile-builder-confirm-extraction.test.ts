@@ -11,8 +11,12 @@ import { readFileSync } from 'fs'
 const page = readFileSync('app/founder/profile-builder/page.tsx', 'utf8')
 
 describe('a founder can reject a bad extraction before it counts', () => {
-  it('every extracted chip with a fieldKey gets a dismiss control', () => {
-    expect(page).toContain('dismissExtractedField(s.sectionKey, snip.fieldKey!, snip.label)')
+  it('every extracted field with a fieldKey gets a dismiss control, wired to dismissExtractedField', () => {
+    // The snapshot screen renders through the shared ProfileSnapshot component —
+    // page.tsx wires dismissExtractedField in as a prop, the component calls it per field.
+    expect(page).toContain('onDismissField={dismissExtractedField}')
+    const snapshot = readFileSync('features/founder/components/profile-builder/ProfileSnapshot.tsx', 'utf8')
+    expect(snapshot).toContain('onDismissField(card.sectionKey, s.fieldKey!, s.label)')
   })
 
   it('dismissing removes the field from the ACTUAL scored data, not just the display', () => {

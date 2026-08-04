@@ -11,8 +11,11 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Inbox } from 'lucide-react'
 import { trackBriefingOpened } from '@/lib/analytics-client'
-import { surf, bdr, ink, muted, blue } from '@/lib/constants/colors'
+import { bdr, ink, muted, blue } from '@/lib/constants/colors'
+import { SectionCard } from '@/features/shared/components/SectionCard'
+import { EmptyState } from '@/features/shared/components/EmptyState'
 
 interface Briefing {
   id: string
@@ -79,34 +82,22 @@ export function BriefingsPanel({ executiveId }: { executiveId?: string } = {}) {
     trackBriefingOpened(newest.id, newest.createdAt)
   }, [briefings])
 
-  const card = {
-    background: surf, border: `1px dashed ${bdr}`, borderRadius: 12,
-    padding: 24, marginTop: 20,
-  } as const
-
   // Empty state (no rhythm has run yet) — and the loading/failed states share its honest copy.
   if (failed || briefings === null || briefings.length === 0) {
     return (
-      <div style={card}>
-        <h2 style={{ color: ink, fontSize: 17, fontWeight: 600, margin: 0 }}>Briefings</h2>
-        <p style={{ color: muted, fontSize: 14, marginTop: 8, lineHeight: 1.6, maxWidth: 560 }}>
-          Once your executive team starts running, each cycle produces a short briefing here —
-          what changed, what it concluded, and where your attention is needed.
-          Nothing has run yet.
-        </p>
-      </div>
+      <EmptyState
+        icon={Inbox}
+        title="No briefings yet"
+        body="Once your executive team starts running, each cycle produces a short briefing here — what changed, what it concluded, and where your attention is needed. Nothing has run yet."
+      />
     )
   }
 
   const [latest, ...older] = briefings
 
   return (
-    <div style={{
-      background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: 24, marginTop: 20,
-    }}>
-      <h2 style={{ color: ink, fontSize: 17, fontWeight: 600, margin: 0 }}>Briefings</h2>
-
-      <div style={{ marginTop: 16 }}>
+    <SectionCard title="Recent briefings">
+      <div style={{ marginTop: 0 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
           <span style={{ color: ink, fontSize: 15, fontWeight: 600 }}>{latest.verdict}</span>
           <span style={{ color: muted, fontSize: 13, whiteSpace: 'nowrap' }}>
@@ -158,6 +149,6 @@ export function BriefingsPanel({ executiveId }: { executiveId?: string } = {}) {
       <p style={{ color: blue, fontSize: 13, marginTop: 16 }}>
         Briefings point to what changed — the full detail always lives in your Assets.
       </p>
-    </div>
+    </SectionCard>
   )
 }

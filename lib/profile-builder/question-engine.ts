@@ -314,27 +314,44 @@ function snippetStr(v: unknown): string {
   return String(v).slice(0, 55)
 }
 
+// Which fields each section's snippet/summary views pull from — shared by
+// buildFoundSnippets (chat "I found: ..." text) and buildStructuredSnippets
+// (extraction-summary cards), so both read the same source instead of two
+// parallel field lists drifting apart.
+const SECTION_PICKS: Record<number, string[]> = {
+  1: ['conversationCount','hasPayingCustomers','customerCommitment','salesCycleLength','largestContractUsd'],
+  2: ['p2.tamDescription','p2.marketUrgency','p2.valuePool','p2.competitorCount','p2.competitorDensityContext'],
+  3: ['p3.hasPatent','p3.buildComplexity','p3.technicalDepth','p3.knowHowDensity','p3.replicationCostUsd','p3.replicationTimeMonths'],
+  4: ['p4.domainYears','p4.founderMarketFit','p4.teamCoverage','p4.priorExits','p4.teamCohesionMonths'],
+  5: ['financial.mrr','financial.arr','financial.monthlyBurn','financial.runway','financial.grossMargin','p5.businessModelAlignment'],
+}
+
+/**
+ * Structured version of buildFoundSnippets — one entry per extracted field, for
+ * UI that needs label/value/fieldKey separately (e.g. extraction-summary cards)
+ * rather than pre-joined "label: value" strings.
+ */
+export function buildStructuredSnippets(
+  extractedFields: Record<string, unknown>,
+  section: number
+): Array<{ label: string; value: string; fieldKey: string }> {
+  const picks = SECTION_PICKS[section] ?? []
+  const snippets: Array<{ label: string; value: string; fieldKey: string }> = []
+  for (const fieldPath of picks) {
+    const val = getNestedValue(extractedFields, fieldPath)
+    if (val === null || val === undefined) continue
+    const label = FIELD_DISPLAY_LABELS[fieldPath] ?? fieldPath.split('.').pop()!
+    snippets.push({ label, value: snippetStr(val), fieldKey: fieldPath })
+  }
+  return snippets
+}
+
 /**
  * Builds human-readable "I found: X, Y, Z" snippets from extracted fields for a given section.
  * Returns strings like "MRR: $12K" or "market size: $2B healthcare AI market".
  */
 export function buildFoundSnippets(extractedFields: Record<string, unknown>, section: number): string[] {
-  const SECTION_PICKS: Record<number, string[]> = {
-    1: ['conversationCount','hasPayingCustomers','customerCommitment','salesCycleLength','largestContractUsd'],
-    2: ['p2.tamDescription','p2.marketUrgency','p2.valuePool','p2.competitorCount','p2.competitorDensityContext'],
-    3: ['p3.hasPatent','p3.buildComplexity','p3.technicalDepth','p3.knowHowDensity','p3.replicationCostUsd','p3.replicationTimeMonths'],
-    4: ['p4.domainYears','p4.founderMarketFit','p4.teamCoverage','p4.priorExits','p4.teamCohesionMonths'],
-    5: ['financial.mrr','financial.arr','financial.monthlyBurn','financial.runway','financial.grossMargin','p5.businessModelAlignment'],
-  }
-  const picks = SECTION_PICKS[section] ?? []
-  const snippets: string[] = []
-  for (const fieldPath of picks) {
-    const val = getNestedValue(extractedFields, fieldPath)
-    if (val === null || val === undefined) continue
-    const label = FIELD_DISPLAY_LABELS[fieldPath] ?? fieldPath.split('.').pop()!
-    snippets.push(`${label}: ${snippetStr(val)}`)
-  }
-  return snippets
+  return buildStructuredSnippets(extractedFields, section).map(s => `${s.label}: ${s.value}`)
 }
 
 // ── Upload trigger detection ──────────────────────────────────────────────────

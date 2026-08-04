@@ -20,18 +20,37 @@
  */
 
 import { useCallback, useEffect, useState } from 'react'
-import Link from 'next/link'
-import { ArrowRight, Loader2 } from 'lucide-react'
-import { bg, surf, bdr, ink, muted, blue, red } from '@/lib/constants/colors'
+import { AlertCircle, TrendingUp } from 'lucide-react'
+import { bg, red, alpha } from '@/lib/constants/colors'
 import { useQScore } from '@/features/qscore/hooks/useQScore'
+import { PageHeader } from '@/features/shared/components/PageHeader'
+import { EmptyState } from '@/features/shared/components/EmptyState'
+import { PageSpinner } from '@/features/shared/components/Spinner'
+import { fetchWithTimeout, isTimeoutError } from '@/features/shared/lib/fetchWithTimeout'
 import { CommandView } from '@/features/executive/components/CommandView'
 import { Unveiling } from '@/features/executive/components/unveiling/Unveiling'
 import {
   resolveJourneyState,
   type Contract,
+  type JourneyState,
   type ProgramInstance,
   type Strategy,
 } from '@/features/executive/types/executive.types'
+
+function subtitleFor(state: JourneyState): string {
+  switch (state) {
+    case 'no_score':
+      return 'Before your team can work, they need to know where you stand.'
+    case 'no_strategy':
+    case 'no_contract':
+    case 'draft':
+      return 'Set the direction your team will operate to.'
+    case 'confirmed':
+      return 'Your team is operating to this mandate. You don’t approve their work each week — you redirect them by setting a new mandate.'
+    default:
+      return ''
+  }
+}
 
 export default function ExecutivePage() {
   const { qScore, loading: qScoreLoading } = useQScore()
@@ -39,13 +58,16 @@ export default function ExecutivePage() {
   const [contract, setContract] = useState<Contract | null>(null)
   const [programs, setPrograms] = useState<ProgramInstance[]>([])
   const [loading, setLoading] = useState(true)
+  const [timedOut, setTimedOut] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [disabled, setDisabled] = useState(false)
 
   const load = useCallback(async () => {
+    setLoading(true)
+    setTimedOut(false)
     try {
-      const [sRes, cRes] = await Promise.all([fetch('/api/strategy'), fetch('/api/contracts')])
+      const [sRes, cRes] = await Promise.all([fetchWithTimeout('/api/strategy'), fetchWithTimeout('/api/contracts')])
 
       if (sRes.status === 404 || cRes.status === 404) {
         // The flag is off — the new model is not switched on here.
@@ -58,8 +80,9 @@ export default function ExecutivePage() {
         setContract(data.contract)
         setPrograms(data.programs ?? [])
       }
-    } catch {
-      setError('Could not load your mandate.')
+    } catch (err) {
+      if (isTimeoutError(err)) setTimedOut(true)
+      else setError('Could not load your mandate.')
     } finally {
       setLoading(false)
     }
@@ -92,20 +115,26 @@ export default function ExecutivePage() {
   }
 
   if (loading || qScoreLoading) {
+    return <PageSpinner label="Loading…" />
+  }
+
+  if (timedOut) {
     return (
-      <div style={{ background: bg, minHeight: '100vh', display: 'grid', placeItems: 'center' }}>
-        <Loader2 size={20} color={muted} style={{ animation: 'spin 1s linear infinite' }} />
-      </div>
+      <Shell>
+        <EmptyState
+          icon={AlertCircle}
+          title="This is taking longer than expected"
+          body="We couldn't load your executive team in time."
+          action={{ label: 'Try again', onClick: () => void load() }}
+        />
+      </Shell>
     )
   }
 
   if (disabled) {
     return (
       <Shell>
-        <h1 style={{ color: ink, fontSize: 28, fontWeight: 600, margin: 0 }}>Executive team</h1>
-        <p style={{ color: muted, fontSize: 15, marginTop: 10 }}>
-          This isn’t switched on yet.
-        </p>
+        <EmptyState title="This isn’t switched on yet." />
       </Shell>
     )
   }
@@ -115,31 +144,23 @@ export default function ExecutivePage() {
 
   return (
     <Shell>
-      {(state === 'no_score' || state === 'confirmed') && (
-        <>
-          <h1 style={{ color: ink, fontSize: 28, fontWeight: 600, margin: 0 }}>Executive team</h1>
-          <p style={{ color: muted, fontSize: 15, marginTop: 8, lineHeight: 1.6, maxWidth: 620 }}>
-            {state === 'confirmed'
-              ? 'Your team is operating to this mandate. You don’t approve their work each week — you redirect them by setting a new mandate.'
-              : 'Before your team can work, they need to know where you stand.'}
-          </p>
-        </>
-      )}
+      <PageHeader title="Executive team" subtitle={subtitleFor(state)} />
 
       {error && (
         <div style={{
-          background: '#FEF2F2', border: `1px solid ${red}`, color: red,
-          borderRadius: 8, padding: '12px 14px', marginTop: 20, fontSize: 14,
+          background: alpha(red, 0.08), border: `1px solid ${red}`, color: red,
+          borderRadius: 8, padding: '12px 14px', marginBottom: 20, fontSize: 14,
         }}>
           {error}
         </div>
       )}
 
       {state === 'no_score' && (
-        <Step
+        <EmptyState
+          icon={TrendingUp}
           title="Get your Q-Score"
           body="Your CEO reads your Q-Score to draft the direction they'd propose — without it, there's nothing for your team to work from."
-          action={<Link href="/founder/profile-builder" style={primaryLink}>Get your Q-Score <ArrowRight size={15} /></Link>}
+          action={{ label: 'Get your Q-Score', href: '/founder/profile-builder' }}
         />
       )}
 
@@ -178,26 +199,3 @@ function Shell({ children }: { children: React.ReactNode }) {
   )
 }
 
-function Step({ title, body, action }: { title: string; body: string; action: React.ReactNode }) {
-  return (
-    <div style={{
-      background: surf, border: `1px solid ${bdr}`, borderRadius: 12,
-      padding: 24, marginTop: 24,
-    }}>
-      <h2 style={{ color: ink, fontSize: 17, fontWeight: 600, margin: 0 }}>{title}</h2>
-      <p style={{ color: muted, fontSize: 14, margin: '8px 0 16px', lineHeight: 1.6, maxWidth: 560 }}>{body}</p>
-      {action}
-    </div>
-  )
-}
-
-const primaryBtn = (busy: boolean): React.CSSProperties => ({
-  background: blue, color: '#fff', border: 'none', borderRadius: 8,
-  padding: '11px 22px', fontSize: 15, fontWeight: 500,
-  cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.6 : 1,
-})
-
-const primaryLink: React.CSSProperties = {
-  ...primaryBtn(false),
-  display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none',
-}

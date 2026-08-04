@@ -54,7 +54,7 @@ export function Unveiling({
   // instead of reusing a stale contract from a direction that's no longer current.
   const [attempt, setAttempt] = useState(0)
 
-  const { streaming, readText, proposal, error: proposeError, run } = useStreamedProposal()
+  const { streaming, readText, readDone, proposal, error: proposeError, run } = useStreamedProposal()
   const startedProposing = useRef(false)
 
   // Step 1: the read starts the moment we land here with nothing saved yet — no
@@ -152,7 +152,7 @@ export function Unveiling({
 
         {step === 1 && (
           <>
-            <TheRead text={readText} streaming={streaming} />
+            <TheRead text={readText} streaming={streaming} readDone={readDone} />
             {proposeError && <p style={{ color: red, fontSize: 14, margin: 0 }}>{proposeError}</p>}
           </>
         )}

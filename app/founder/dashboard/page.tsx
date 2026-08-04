@@ -387,7 +387,7 @@ export default function FounderDashboard() {
   const { loading: authLoading, user } = useAuth();
   const { qScore: realQScore, loading: qScoreLoading } = useQScore();
   const { metrics: dashMetrics } = useMetrics();
-  const { data: dashData, loading: dashLoading, removePendingAction } = useDashboardData();
+  const { data: dashData, loading: dashLoading } = useDashboardData();
   const [profileBuilderCompleted, setProfileBuilderCompleted] = useState<boolean | null>(null);
   const [_gsDismissed, _setGsDismissed] = useState(() => {
     if (typeof window === 'undefined') return false
@@ -400,8 +400,8 @@ export default function FounderDashboard() {
 
   // ── Agent goal watch state ───────────────────────────────────────────────
   // ── Stage gate state ──────────────────────────────────────────────────────
-  const [gateProgress,      setGateProgress]       = useState<Record<string, unknown>>({});
-  const [customerCallsCount, setCustomerCallsCount] = useState<number>(0);
+  const [, setGateProgress]       = useState<Record<string, unknown>>({});
+  const [, setCustomerCallsCount] = useState<number>(0);
 
   // ── Stripe verification state (read-only — connect via Settings → Integrations) ──
   const [stripeStatus, setStripeStatus] = useState<{
@@ -500,8 +500,6 @@ export default function FounderDashboard() {
 
 
   const scoreHistory   = dashData?.scoreHistory   ?? [];
-  const usedAgentIds   = dashData?.usedAgentIds   ?? new Set<string>();
-  const pendingActions = dashData?.pendingActions  ?? [];
   const weeklyActivity = dashData?.weeklyActivity  ?? null;
   const _investorMatches = dashData?.investorMatches ?? null;
   const portfolioViews = dashData?.portfolioViews  ?? null;
@@ -689,32 +687,6 @@ export default function FounderDashboard() {
           </div>
         )}
 
-        {/* ── profile builder gate banner ───────────────────────────── */}
-        {profileBuilderCompleted === false && (
-          <div style={{
-            display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap",
-            padding: "16px 20px", borderRadius: 12, marginBottom: 20,
-            background: alpha(blue, 0.06), border: `1.5px solid ${blue}`,
-          }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: blue }}>Complete your Profile Builder to get your Q-Score</div>
-              <div style={{ fontSize: 13, color: blue, marginTop: 2 }}>
-                Answer 5 sections of questions — takes about 10–15 minutes. Your score is currently 0 until you complete it.
-              </div>
-            </div>
-            <a
-              href="/founder/profile-builder"
-              style={{
-                padding: "10px 22px", borderRadius: 8, background: blue,
-                color: "#fff", fontSize: 13, fontWeight: 600,
-                textDecoration: "none", flexShrink: 0,
-              }}
-            >
-              Start Profile Builder →
-            </a>
-          </div>
-        )}
-
         {/* ── runway warning banner ─────────────────────────────────── */}
         {runwayLow && (
           <motion.div
@@ -808,22 +780,6 @@ export default function FounderDashboard() {
           </motion.div>
         )}
 
-        {/* ── Stripe status bar (connect via Settings → Integrations) ──── */}
-        {stripeStatus !== null && !stripeStatus.verified && (
-          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-            style={{ display: "flex", alignItems: "center", gap: 14, padding: "13px 18px", borderRadius: 12, marginBottom: 16, background: bg, border: `1px solid ${bdr}` }}
-          >
-            <div style={{ height: 32, width: 32, borderRadius: 8, flexShrink: 0, background: "#F0EDFF", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15 }}>💳</div>
-            <div style={{ flex: 1 }}>
-              <p style={{ fontSize: 13, fontWeight: 600, color: ink, marginBottom: 2 }}>Verify your revenue with Stripe</p>
-              <p style={{ fontSize: 11, color: muted }}>Unlock Signal Strength 1.0× and investor trust badges.</p>
-            </div>
-            <Link href="/founder/settings?tab=integrations"
-              style={{ fontSize: 12, fontWeight: 600, padding: "7px 14px", borderRadius: 8, background: "#635BFF", color: "#fff", textDecoration: "none", whiteSpace: "nowrap" }}>
-              Connect →
-            </Link>
-          </motion.div>
-        )}
         {stripeStatus?.verified && (
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
             style={{ display: "flex", alignItems: "center", gap: 14, padding: "13px 18px", borderRadius: 12, marginBottom: 16, background: alpha(blue, 0.06), border: `1px solid ${alpha(blue, 0.25)}` }}

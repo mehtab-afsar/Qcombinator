@@ -5,7 +5,6 @@
 
 export interface SidebarNotification {
   id: string
-  icon: string
   agentId: string
   action_type: string
   title: string

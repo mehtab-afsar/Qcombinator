@@ -4,6 +4,16 @@
  * Never invent data — return null for missing fields.
  */
 
+// A founder's own words often contain a quote mark — naming a customer, quoting feedback,
+// a company name in quotes. Without this rule the model sometimes emits a bare " inside a
+// string value, which breaks JSON.parse on the extraction route (app/api/profile-builder/
+// upload/route.ts) and silently drops the whole section's data. Same failure mode, same fix,
+// as STRATEGY_JSON_TAIL in lib/prompts/composer/mandate.ts.
+const JSON_VALIDITY_RULE = `
+Output must be valid, parseable JSON and nothing else — no markdown fence, no prose before or
+after. If a value needs a quote mark (e.g. quoting the founder's own words or a company name),
+escape it as \\" — never a bare ". No trailing commas.`
+
 // Pitch section prompt (keyed as string 'pitch')
 export const PITCH_EXTRACTION_PROMPT = `You are evaluating the clarity of a startup founder's pitch for a VC.
 
@@ -24,7 +34,8 @@ Scoring rules:
 - completion_score: 70+ if clarity_score >= 70 AND timing_thesis is not null. Otherwise proportional.
 - problem_urgency: "high" if founder describes a burning pain with real consequences; "medium" if pain is real but not urgent; "low" if vague.
 
-Return JSON only — no preamble.`
+Return JSON only — no preamble.
+${JSON_VALIDITY_RULE}`
 
 export const EXTRACTION_PROMPTS: Record<number, string> = {
 
@@ -90,7 +101,8 @@ Confidence rules (include in a separate "confidence" object with same keys):
 - Evidence named specific company + signed document mentioned: 0.85
 - Evidence named specific company but no document: 0.65
 - Vague or generic statements: 0.45
-- No information: 0 (set field to null)`,
+- No information: 0 (set field to null)
+${JSON_VALIDITY_RULE}`,
 
   // ── Section 2 — Market & Competition (P2: Market Potential) ───────────────
   2: `You are a structured data extractor for a startup assessment platform.
@@ -126,7 +138,8 @@ Confidence rules (include "confidence" object with same nested keys):
 - Bottom-up calculation with specific numbers: 0.85
 - Named competitors with specific positioning: 0.80
 - General statements without numbers: 0.50
-- No information: 0`,
+- No information: 0
+${JSON_VALIDITY_RULE}`,
 
   // ── Section 3 — IP & Technology (P3: IP/Defensibility) ────────────────────
   3: `You are a structured data extractor for a startup assessment platform.
@@ -177,7 +190,8 @@ Number parsing rules:
 Confidence rules (include "confidence" object):
 - Patent number or filing reference given: 0.90
 - Specific technical detail without documents: 0.65
-- Vague statements: 0.45`,
+- Vague statements: 0.45
+${JSON_VALIDITY_RULE}`,
 
   // ── Section 4 — Team (P4: Founder/Team) ───────────────────────────────────
   4: `You are a structured data extractor for a startup assessment platform.
@@ -214,7 +228,8 @@ Fields to extract:
 Confidence rules (include "confidence" object):
 - Specific company names / years / titles given: 0.80
 - Named prior exits or companies: 0.85
-- General capability claims: 0.50`,
+- General capability claims: 0.50
+${JSON_VALIDITY_RULE}`,
 
   // ── Section 5 — Financials & Impact (P6 revenue + P5 structural impact) ───
   5: `You are a structured data extractor for a startup assessment platform.
@@ -288,7 +303,8 @@ Confidence rules (include "confidence" object):
 - Specific numbers stated by founder: 0.55
 - Stripe-connected (flag "stripeConnected": true if mentioned): 1.0
 - Ranges or approximations: 0.45
-- No information: 0`,
+- No information: 0
+${JSON_VALIDITY_RULE}`,
 }
 
 export const FOLLOW_UP_PROMPT = `You are a sharp, warm startup advisor helping a founder fill out their profile. You think like Claude or ChatGPT — smart, human, context-aware.

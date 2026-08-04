@@ -12,6 +12,7 @@
 process.env.GOOGLE_CONNECTOR_CLIENT_ID = 'test-client-id.apps.googleusercontent.com'
 process.env.GOOGLE_CONNECTOR_CLIENT_SECRET = 'test-secret'
 
+import { createHmac } from 'crypto'
 import { createState, verifyState, authorizeUrl, redirectUri } from '@/lib/connectors/oauth'
 import { getConnector } from '@/lib/connectors/registry'
 import { ConnectorError } from '@/lib/connectors/types'
@@ -54,7 +55,6 @@ describe('state — the CSRF gate', () => {
     const [founderId, , nonce] = decoded.split('.')
     // Re-sign honestly at the old timestamp — proving expiry is checked independently of the
     // signature, not merely implied by it.
-    const { createHmac } = require('crypto') as typeof import('crypto')
     const payload = `${founderId}.${stale}.${nonce}`
     const sig = createHmac('sha256', 'test-secret').update(payload).digest('hex')
     expect(() => verifyState(Buffer.from(`${payload}.${sig}`).toString('base64url')))

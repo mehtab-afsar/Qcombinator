@@ -17,8 +17,12 @@
  */
 
 import { useCallback, useEffect, useState } from 'react'
-import { AlertCircle, Check, Loader2, X } from 'lucide-react'
-import { surf, bdr, ink, muted, green, amber, red } from '@/lib/constants/colors'
+import { Check, X } from 'lucide-react'
+import { bdr, ink, muted, bg, amber, red } from '@/lib/constants/colors'
+import { radius } from '@/features/shared/tokens'
+import { SectionCard } from '@/features/shared/components/SectionCard'
+import { Button } from '@/features/shared/components/Button'
+import { Badge } from '@/features/shared/components/Badge'
 
 interface PendingAction {
   id: string
@@ -89,14 +93,8 @@ export function ActionsPanel({ executiveId }: { executiveId?: string } = {}) {
   if (!loaded || pending.length === 0) return null
 
   return (
-    <div style={card}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <AlertCircle size={17} color={amber} />
-        <h2 style={{ color: ink, fontSize: 17, fontWeight: 600, margin: 0 }}>
-          Waiting for you {pending.length > 1 && `(${pending.length})`}
-        </h2>
-      </div>
-      <p style={{ color: muted, fontSize: 14, marginTop: 8, lineHeight: 1.6, maxWidth: 560 }}>
+    <SectionCard title="Needs your approval" action={<Badge variant="amber">{pending.length}</Badge>}>
+      <p style={{ color: muted, fontSize: 14, lineHeight: 1.6, maxWidth: 560 }}>
         Your team prepared these but will not send anything until you say so. This is the only
         thing in the product that waits for you.
       </p>
@@ -113,7 +111,7 @@ export function ActionsPanel({ executiveId }: { executiveId?: string } = {}) {
           />
         ))}
       </div>
-    </div>
+    </SectionCard>
   )
 }
 
@@ -127,7 +125,7 @@ function ActionCard(
   const hours = Math.max(0, Math.floor(expiresIn / 3_600_000))
 
   return (
-    <div style={{ background: '#fff', border: `1px solid ${bdr}`, borderRadius: 10, padding: 16 }}>
+    <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: radius.md, padding: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'baseline' }}>
         <span style={{ color: ink, fontSize: 15, fontWeight: 600 }}>{humanLabel(entry.actionId)}</span>
         {entry.provider && (
@@ -151,13 +149,18 @@ function ActionCard(
       </p>
 
       <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-        <button onClick={() => onDecide('approve')} disabled={busy || count === 0} style={approveBtn(busy || count === 0)}>
-          {busy ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={14} />}
+        <Button
+          variant="primary" size="sm" loading={busy} disabled={count === 0}
+          icon={<Check size={14} />} onClick={() => onDecide('approve')}
+        >
           {count === 0 ? 'Nothing to send' : 'Approve and send'}
-        </button>
-        <button onClick={() => onDecide('decline')} disabled={busy} style={declineBtn}>
-          <X size={14} /> Decline
-        </button>
+        </Button>
+        <Button
+          variant="secondary" size="sm" disabled={busy}
+          icon={<X size={14} />} onClick={() => onDecide('decline')}
+        >
+          Decline
+        </Button>
       </div>
     </div>
   )
@@ -169,19 +172,3 @@ function humanLabel(actionId: string): string {
   return words.charAt(0).toUpperCase() + words.slice(1)
 }
 
-const card: React.CSSProperties = {
-  background: surf, border: `1px solid ${amber}`, borderRadius: 12, padding: 24, marginTop: 20,
-}
-
-const approveBtn = (disabled: boolean): React.CSSProperties => ({
-  display: 'inline-flex', alignItems: 'center', gap: 6,
-  background: disabled ? bdr : green, color: disabled ? muted : '#fff',
-  border: 'none', borderRadius: 8, padding: '9px 16px', fontSize: 14, fontWeight: 500,
-  cursor: disabled ? 'default' : 'pointer',
-})
-
-const declineBtn: React.CSSProperties = {
-  display: 'inline-flex', alignItems: 'center', gap: 6,
-  background: 'none', color: ink, border: `1px solid ${bdr}`,
-  borderRadius: 8, padding: '9px 16px', fontSize: 14, cursor: 'pointer',
-}

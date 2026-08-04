@@ -1,4 +1,5 @@
 export * from './tokens'
+export * from './lib/fetchWithTimeout'
 export * from './components/Avatar'
 export * from './components/Badge'
 export * from './components/Button'
