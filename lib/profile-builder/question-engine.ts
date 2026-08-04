@@ -337,23 +337,6 @@ export function buildFoundSnippets(extractedFields: Record<string, unknown>, sec
   return snippets
 }
 
-/**
- * Flattens extracted fields into "label: value" display strings for the after-answer message.
- * Only top-level known fields and one level of nesting are included.
- */
-export function flattenForDisplay(key: string, value: unknown): string[] {
-  if (value === null || value === undefined) return []
-  if (typeof value === 'object' && !Array.isArray(value)) {
-    const nested = value as Record<string, unknown>
-    return Object.entries(nested).flatMap(([k, v]) => flattenForDisplay(`${key}.${k}`, v))
-  }
-  const label = FIELD_DISPLAY_LABELS[key] ?? FIELD_DISPLAY_LABELS[key.split('.').pop() ?? '']
-  if (!label) return []
-  const str = snippetStr(value)
-  if (!str) return []
-  return [`${label}: ${str}`]
-}
-
 // ── Upload trigger detection ──────────────────────────────────────────────────
 
 export function shouldTriggerUpload(answer: string, section: number): string | null {

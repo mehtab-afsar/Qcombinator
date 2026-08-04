@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
-import { shouldTriggerUpload, getInitialQuestion, getMissingFields, buildFoundSnippets, getTargetedQuestion, flattenForDisplay } from '@/lib/profile-builder/question-engine'
+import { shouldTriggerUpload, getInitialQuestion, getMissingFields, buildFoundSnippets, getTargetedQuestion } from '@/lib/profile-builder/question-engine'
 import type { FounderProfile } from '@/lib/profile-builder/question-engine'
 import { generateSmartQuestions } from '@/lib/profile-builder/smart-questions'
 import type { SmartQuestion } from '@/lib/profile-builder/smart-questions'
@@ -592,6 +592,52 @@ export default function ProfileBuilderPage() {
     })
   }, [])
 
+  // ── stream a reply from /api/profile-builder/extract (SSE) ───────────────
+  // One consumer for both the pitch flow and the main section flow — same parsing
+  // loop app/investor/ai-analysis/page.tsx uses for its own SSE stream, the one
+  // established convention for streaming chat in this codebase.
+  interface ExtractMeta {
+    extractedFields?: Record<string, unknown>
+    mergedFields?: Record<string, unknown>
+    confidenceMap?: Record<string, number>
+    completionScore?: number
+    missingFields?: string[]
+  }
+  async function streamExtract(
+    body: Record<string, unknown>,
+    onDelta: (fullTextSoFar: string) => void,
+  ): Promise<{ meta: ExtractMeta; followUpQuestion: string | null }> {
+    const res = await fetch('/api/profile-builder/extract', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok || !res.body) {
+      const errBody = await res.json().catch(() => ({}))
+      throw new Error(`Extract failed: ${res.status} — ${errBody.detail ?? errBody.error ?? ''}`)
+    }
+    const reader = res.body.getReader()
+    const dec = new TextDecoder()
+    let full = ''
+    let meta: ExtractMeta = {}
+    let followUpQuestion: string | null = null
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      for (const line of dec.decode(value).split('\n')) {
+        if (!line.startsWith('data: ')) continue
+        const payload = line.slice(6).trim()
+        if (!payload || payload === '[DONE]') continue
+        let evt: Record<string, unknown>
+        try { evt = JSON.parse(payload) } catch { continue }
+        if (evt.type === 'meta') meta = evt as ExtractMeta
+        else if (evt.type === 'delta') { full += evt.text as string; onDelta(full) }
+        else if (evt.type === 'done') followUpQuestion = (evt.followUpQuestion as string | null) ?? null
+      }
+    }
+    return { meta, followUpQuestion }
+  }
+
   // ── handle user message ───────────────────────────────────────────────────
   async function handleSend() {
     if (!input.trim() || !token || isTyping) return
@@ -610,35 +656,50 @@ export default function ProfileBuilderPage() {
       },
     }))
 
-    // Pitch: LLM-driven adaptive follow-up
+    // Pitch: LLM-driven adaptive follow-up, streamed in as it's written
     if (currentStep === 'pitch') {
       setIsTyping(true)
+      const pitchSec = sections['pitch'] ?? initSection()
+      const pitchConversation = pitchSec.conversation + `\nFounder: ${userText}`
+      let started = false
       try {
-        const pitchSec = sections['pitch'] ?? initSection()
-        const pitchConversation = pitchSec.conversation + `\nFounder: ${userText}`
-        const res = await fetch('/api/profile-builder/extract', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ section: 'pitch', conversationText: pitchConversation }),
-        })
-        const extracted = await res.json()
-        const reply: string = extracted.followUpQuestion
+        const { meta, followUpQuestion } = await streamExtract(
+          { section: 'pitch', conversationText: pitchConversation },
+          full => {
+            setIsTyping(false)
+            setSections(prev => {
+              const msgs = prev['pitch']?.messages ?? []
+              const next = started
+                ? msgs.map((m, i) => i === msgs.length - 1 ? { ...m, text: full } : m)
+                : [...msgs, { role: 'agent' as const, text: full }]
+              started = true
+              return { ...prev, pitch: { ...prev['pitch'], messages: next } }
+            })
+          },
+        )
+        const reply: string = followUpQuestion
           ?? (ycPitchIdx < YC_QUESTIONS.length - 1
             ? YC_QUESTIONS[ycPitchIdx + 1]
             : "Pitch practice complete — strong answers across all dimensions.")
-        const isComplete = extracted.completionScore >= 80
+        const isComplete = (meta.completionScore ?? 0) >= 80
 
-        setSections(prev => ({
-          ...prev,
-          pitch: {
-            ...prev['pitch'],
-            messages: [...(prev['pitch']?.messages ?? []), { role: 'agent' as const, text: reply }],
-            conversation: pitchConversation + '\nAgent: ' + reply,
-            completionScore: extracted.completionScore ?? 0,
-            isComplete,
-            extractedFields: { ...(prev['pitch']?.extractedFields ?? {}), ...(extracted.mergedFields ?? {}) },
-          },
-        }))
+        setSections(prev => {
+          const msgs = prev['pitch']?.messages ?? []
+          const finalMsgs = started
+            ? msgs.map((m, i) => i === msgs.length - 1 ? { ...m, text: reply } : m)
+            : [...msgs, { role: 'agent' as const, text: reply }]
+          return {
+            ...prev,
+            pitch: {
+              ...prev['pitch'],
+              messages: finalMsgs,
+              conversation: pitchConversation + '\nAgent: ' + reply,
+              completionScore: meta.completionScore ?? 0,
+              isComplete,
+              extractedFields: { ...(prev['pitch']?.extractedFields ?? {}), ...(meta.mergedFields ?? {}) },
+            },
+          }
+        })
         if (!isComplete && ycPitchIdx < YC_QUESTIONS.length - 1) setYcPitchIdx(ycPitchIdx + 1)
       } catch {
         const fallbackReply = ycPitchIdx < YC_QUESTIONS.length - 1 ? YC_QUESTIONS[ycPitchIdx + 1] : "Pitch practice complete."
@@ -662,51 +723,53 @@ export default function ProfileBuilderPage() {
       // Build conversation from current state (includes the message we just added)
       const currentSec = sections[key] ?? initSection()
       const conversation = currentSec.conversation + `\nFounder: ${userText}`
+      let started = false
 
-      const res = await fetch('/api/profile-builder/extract', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
+      const { meta, followUpQuestion } = await streamExtract(
+        {
           section: parseInt(key, 10),
           conversationText: conversation,
           uploadedDocumentText: globalDocText || undefined,
           founderProfile,
           existingExtracted: currentSec.extractedFields,
           existingConfidenceMap: currentSec.confidenceMap,
-        }),
-      })
+        },
+        full => {
+          setIsTyping(false)
+          setSections(prev => {
+            const sec = prev[key] ?? initSection()
+            const next = started
+              ? sec.messages.map((m, i) => i === sec.messages.length - 1 ? { ...m, text: full } : m)
+              : [...sec.messages, { role: 'agent' as const, text: full }]
+            started = true
+            return { ...prev, [key]: { ...sec, messages: next } }
+          })
+        },
+      )
 
-      if (!res.ok) {
-        const errBody = await res.json().catch(() => ({}))
-        console.error('[extract 500 detail]', errBody)
-        throw new Error(`Extract failed: ${res.status} — ${errBody.detail ?? errBody.error ?? ''}`)
-      }
-      const extracted = await res.json()
-
-      const pct: number = extracted.completionScore ?? 0
-      // Show what was just extracted before asking the next question
-      const newlyExtracted: string[] = Object.entries(extracted.extractedFields ?? {})
-        .flatMap(([k, v]) => flattenForDisplay(k, v))
-        .slice(0, 3)
-      const extractPrefix = newlyExtracted.length > 0
-        ? `Got it — noted: ${newlyExtracted.join(', ')}. `
-        : ''
-      const agentReply: string =
-        extractPrefix + (extracted.followUpQuestion ??
-        (pct >= 70
+      const pct: number = meta.completionScore ?? 0
+      // The model's own reply already opens with a natural acknowledgement of what
+      // the founder just said (FOLLOW_UP_PROMPT rule 1) — no client-side "Got it —
+      // noted: X, Y, Z" template stacked in front of it. That doubled acknowledgement
+      // was the whole "feels like a form wearing a chat skin" complaint.
+      const agentReply: string = followUpQuestion
+        ?? (pct >= 70
           ? `This section is at ${pct}% — solid. Is there anything else you'd like to add? Specific customer names, exact numbers, or key context you haven't mentioned?`
-          : "Keep going — the more specific you are, the higher your score."))
+          : "Keep going — the more specific you are, the higher your score.")
 
       setSections(prev => {
         const sec = prev[key] ?? initSection()
+        const finalMsgs = started
+          ? sec.messages.map((m, i) => i === sec.messages.length - 1 ? { ...m, text: agentReply } : m)
+          : [...sec.messages, { role: 'agent' as const, text: agentReply }]
         const updated: SectionState = {
           ...sec,
-          extractedFields: extracted.mergedFields ?? sec.extractedFields,
-          confidenceMap: { ...sec.confidenceMap, ...(extracted.confidenceMap ?? {}) },
+          extractedFields: meta.mergedFields ?? sec.extractedFields,
+          confidenceMap: { ...sec.confidenceMap, ...(meta.confidenceMap ?? {}) },
           completionScore: pct,
           conversation: conversation + '\nAgent: ' + agentReply,
           isComplete: pct >= 70,
-          messages: [...sec.messages, { role: 'agent' as const, text: agentReply }],
+          messages: finalMsgs,
         }
         saveSection(key, updated, token)
         return { ...prev, [key]: updated }

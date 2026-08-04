@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { EXTRACTION_PROMPTS, PITCH_EXTRACTION_PROMPT, FOLLOW_UP_PROMPT, WHAT_ELSE_PROMPT } from '@/lib/profile-builder/extraction-prompts'
 import { getSectionCompletionPct, getMissingFields, FounderProfile } from '@/lib/profile-builder/question-engine'
-import { routedText } from '@/lib/llm/router'
+import { routedText, routedStream } from '@/lib/llm/router'
 import { flattenConfidence } from '@/lib/profile-builder/utils'
 import { log } from '@/lib/logger'
 
@@ -15,6 +15,17 @@ async function getUserId(req: NextRequest): Promise<string | null> {
   )
   const { data } = await supabase.auth.getUser(token)
   return data.user?.id ?? null
+}
+
+/**
+ * SSE framing shared with app/api/investor/ai-analysis/chat/route.ts — the one
+ * established streaming convention in this codebase (CLAUDE.md §0.2), not a second
+ * one invented here. `data: {"type":"meta",...}` arrives once, before any text, so
+ * the client has completionScore/missingFields/etc. before the reply starts typing;
+ * `delta` events carry the reply as it's written; the stream ends with `[DONE]`.
+ */
+function sseEncode(event: Record<string, unknown>): Uint8Array {
+  return new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`)
 }
 
 export async function POST(req: NextRequest) {
@@ -43,16 +54,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'section and conversationText required' }, { status: 400 })
     }
 
-    // Pitch section: extract pitch quality + generate adaptive follow-up
+    // ── Pitch section: extract pitch quality, then stream an adaptive follow-up ──
     if (section === 'pitch') {
-      const pitchConversation = conversationText
-      let followUpQuestion: string | null = null
       let extractedFields: Record<string, unknown> = {}
-
       try {
         const raw = await routedText('extraction', [
           { role: 'system', content: PITCH_EXTRACTION_PROMPT },
-          { role: 'user', content: `Conversation:\n${pitchConversation}` },
+          { role: 'user', content: `Conversation:\n${conversationText}` },
         ])
         const jsonMatch = raw.match(/\{[\s\S]*\}/)
         if (jsonMatch) {
@@ -60,12 +68,10 @@ export async function POST(req: NextRequest) {
         }
       } catch { /* non-blocking */ }
 
-      // Always generate an adaptive follow-up for pitch
-      try {
-        const followUpRaw = await routedText('generation', [
-          {
-            role: 'system',
-            content: `You are a sharp VC analyst running a YC-style pitch interview. The founder is answering five pitch dimensions: what they do, who has the problem, why now, team advantage, and business model.
+      const pitchStream = routedStream('generation', [
+        {
+          role: 'system',
+          content: `You are a sharp VC analyst running a YC-style pitch interview. The founder is answering five pitch dimensions: what they do, who has the problem, why now, team advantage, and business model.
 
 Read the conversation so far and identify the WEAKEST or most incomplete answer. Ask ONE sharp probing question about that specific point.
 
@@ -76,24 +82,21 @@ Rules:
 - Do not explain what you're doing — just ask the question
 - 1–2 sentences max
 - Do NOT use phrases like "Great answer" or "I'd be happy to"`,
-          },
-          { role: 'user', content: `Pitch conversation:\n${pitchConversation}\n\nWrite your follow-up question:` },
-        ], { maxTokens: 120 })
-        followUpQuestion = followUpRaw.trim() || null
-      } catch { /* non-blocking */ }
+        },
+        { role: 'user', content: `Pitch conversation:\n${conversationText}\n\nWrite your follow-up question:` },
+      ], { maxTokens: 120 })
 
-      // Hard fallback — only if LLM entirely failed
-      if (!followUpQuestion) {
-        followUpQuestion = "Walk me through what your company does — one sentence, as if you're explaining it to a smart friend who's never heard of it."
-      }
-
-      return NextResponse.json({
-        extractedFields,
-        mergedFields: { ...(existingExtracted ?? {}), ...extractedFields },
-        confidenceMap: existingConfidenceMap ?? {},
-        completionScore: Object.keys(extractedFields).length >= 4 ? 80 : 40,
-        missingFields: [],
-        followUpQuestion,
+      const fallback = "Walk me through what your company does — one sentence, as if you're explaining it to a smart friend who's never heard of it."
+      return streamReply({
+        meta: {
+          extractedFields,
+          mergedFields: { ...(existingExtracted ?? {}), ...extractedFields },
+          confidenceMap: existingConfidenceMap ?? {},
+          completionScore: Object.keys(extractedFields).length >= 4 ? 80 : 40,
+          missingFields: [],
+        },
+        source: pitchStream,
+        fallback,
       })
     }
 
@@ -101,8 +104,6 @@ Rules:
     if (!sectionPrompt) return NextResponse.json({ error: 'Invalid section' }, { status: 400 })
 
     // Section compaction: long conversations are summarised before extraction.
-    // Keeps the extraction model focused on signal, not transcript noise.
-    // Threshold: 4000 chars (~1000 tokens) → compact to ~200-token summary.
     let effectiveConversation = conversationText
     if (conversationText.length > 4000) {
       try {
@@ -114,12 +115,10 @@ Rules:
           { role: 'user', content: conversationText },
         ])
       } catch {
-        // On error keep the original — extraction still works, just costs more tokens
         effectiveConversation = conversationText
       }
     }
 
-    // Build the user message: combine conversation + any document text
     let userMessage = `Founder's answer:\n\n${effectiveConversation}`
     if (uploadedDocumentText) {
       userMessage += `\n\n---\nUploaded document text:\n\n${uploadedDocumentText.slice(0, 4000)}`
@@ -133,13 +132,11 @@ Rules:
       ])
     } catch (llmErr) {
       log.warn('[extract] LLM call failed — returning empty extraction', llmErr instanceof Error ? llmErr.message : llmErr)
-      // Return graceful empty rather than 500 so the UI can still advance
       return NextResponse.json({ mergedFields: existingExtracted ?? {}, confidenceMap: existingConfidenceMap ?? {}, completionScore: 0, followUpQuestion: null })
     }
 
     let extractedFields: Record<string, unknown> = {}
     let newConfidenceMap: Record<string, number> = {}
-
     const jsonMatch = raw.match(/\{[\s\S]*\}/)
     if (jsonMatch) {
       try {
@@ -147,14 +144,11 @@ Rules:
         const { confidence: rawConf, ...rest } = parsed
         extractedFields = rest
         newConfidenceMap = rawConf ? flattenConfidence(rawConf as Record<string, unknown>) : {}
-      } catch {
-        // Return empty if parse fails
-      }
+      } catch { /* Return empty if parse fails */ }
     }
 
-    // Merge with existing extracted fields (do not overwrite non-null with null)
-    // Arrays are UNIONED (deduplicated) rather than replaced — prevents e.g.
-    // teamCoverage: ["tech","product"] being wiped by a later ["sales"] extraction.
+    // Merge with existing extracted fields (do not overwrite non-null with null).
+    // Arrays are UNIONED (deduplicated) rather than replaced.
     const ARRAY_MERGE_FIELDS = new Set([
       'teamCoverage', 'advantages', 'customerList', 'channelsTried',
       'competitorNames', 'certifications', 'integrations',
@@ -163,7 +157,6 @@ Rules:
     const mergeDeep = (target: Record<string, unknown>, source: Record<string, unknown>) => {
       for (const [k, v] of Object.entries(source)) {
         if (v === null || v === undefined) continue
-        // Array union: merge + deduplicate string arrays instead of overwriting
         if (Array.isArray(v) && ARRAY_MERGE_FIELDS.has(k)) {
           const existing = Array.isArray(target[k]) ? (target[k] as unknown[]) : []
           target[k] = [...new Set([...existing, ...v])]
@@ -189,140 +182,184 @@ Rules:
       }
     }
 
-    // Merge confidence: existing PDF confidence is baseline; new conversation confidence overwrites
     const confidenceMap: Record<string, number> = { ...(existingConfidenceMap ?? {}), ...newConfidenceMap }
-
     const stage = founderProfile?.stage ?? 'pre-product'
     const completionScore = getSectionCompletionPct(merged, section, stage, confidenceMap)
     const missingFields = getMissingFields(merged, section, stage, confidenceMap)
 
-    // Generate follow-up question for missing fields
-    // Use effectiveConversation (already summarised if >4000 chars) so the model
-    // sees the full context without the 1500-char truncation that caused re-asks.
-    let followUpQuestion: string | null = null
+    const fieldSource: Record<string, 'conversation' | 'inferred'> = {}
+    const flatTag = (obj: Record<string, unknown>, prefix = '') => {
+      for (const [k, v] of Object.entries(obj)) {
+        const key = prefix ? `${prefix}.${k}` : k
+        if (v !== null && v !== undefined) {
+          if (typeof v === 'object' && !Array.isArray(v)) flatTag(v as Record<string, unknown>, key)
+          else fieldSource[key] = k === 'buildComplexity' ? 'inferred' : 'conversation'
+        }
+      }
+    }
+    flatTag(extractedFields)
+
+    const meta = { extractedFields, mergedFields: merged, confidenceMap, completionScore, missingFields, fieldSource }
+
+    // ── Decide which prompt (if any) generates the next thing the founder reads ──
+    // Same three-way choice the route always made — follow-up / minimal / "what else"
+    // — just now driving a stream instead of a single blocking call each.
     const sectionNum = section as number
+
     if (missingFields.length > 0 && founderProfile) {
       const followUpPrompt = FOLLOW_UP_PROMPT
         .replace('{section}', String(section))
         .replace('{stage}', founderProfile.stage ?? 'unknown')
         .replace('{industry}', founderProfile.industry ?? 'general')
         .replace('{revenueStatus}', founderProfile.revenueStatus ?? 'unknown')
-        .replace('{conversationSoFar}', effectiveConversation)   // full summarised history
-        .replace('{extractedSoFar}', (() => {
-          // Build a flat key→value summary instead of raw JSON truncation.
-          // Raw JSON sliced mid-object sends invalid JSON to the LLM.
-          const flat: Record<string, unknown> = {}
-          const flatten = (obj: Record<string, unknown>, prefix = '') => {
-            for (const [k, v] of Object.entries(obj)) {
-              const key = prefix ? `${prefix}.${k}` : k
-              if (v !== null && v !== undefined && typeof v === 'object' && !Array.isArray(v)) {
-                flatten(v as Record<string, unknown>, key)
-              } else if (v !== null && v !== undefined) {
-                flat[key] = v
-              }
-            }
-          }
-          flatten(merged)
-          return JSON.stringify(flat).slice(0, 1200)
-        })())
+        .replace('{conversationSoFar}', effectiveConversation)
+        .replace('{extractedSoFar}', flatSummaryOf(merged))
         .replace('{missingFields}', missingFields.join(', '))
 
-      try {
-        // Use generation (70B) instead of classification (8B) — needs real conversational reasoning
-        const followUpRaw = await routedText('generation', [
-          { role: 'system', content: followUpPrompt },
-          { role: 'user', content: 'Write your reply.' },
-        ], { maxTokens: 300 })
-        followUpQuestion = followUpRaw.trim().toUpperCase() === 'SECTION_COMPLETE' ? null : followUpRaw.trim()
-      } catch {
-        // non-blocking
-      }
-
-      // Section 3 safety net: if replicationTimeMonths is missing and LLM returned null,
-      // force-ask the replication time question — "no patents" does NOT answer this.
-      if (section === 3 && followUpQuestion === null && missingFields.includes('p3.replicationTimeMonths')) {
+      // Section 3 safety net: if the model comes back with SECTION_COMPLETE (or empty)
+      // while replicationTimeMonths is still genuinely unaddressed, force the question —
+      // "no patents" does not answer "how long to replicate."
+      const section3Fallback = (() => {
+        if (sectionNum !== 3 || !missingFields.includes('p3.replicationTimeMonths')) return null
         const conv = effectiveConversation.toLowerCase()
         const hasTimeEstimate = /\b(\d+\s*month|\d+\s*year|\d+\s*week|how long|replicat|timeline|time.*build|build.*time)\b/.test(conv)
-        if (!hasTimeEstimate) {
-          followUpQuestion = "Got it — and roughly how many months would it take a well-funded competitor to replicate what you've built technically?"
-        }
-      }
-    } else if (!founderProfile && missingFields.length > 0) {
-      // founderProfile not provided — still generate an adaptive follow-up
-      try {
-        const minimalFollowUp = await routedText('generation', [
+        return hasTimeEstimate ? null
+          : "Got it — and roughly how many months would it take a well-funded competitor to replicate what you've built technically?"
+      })()
+
+      return streamReply({
+        meta,
+        source: routedStream('generation', [
+          { role: 'system', content: followUpPrompt },
+          { role: 'user', content: 'Write your reply.' },
+        ], { maxTokens: 300 }),
+        fallback: section3Fallback,
+        // SECTION_COMPLETE means "nothing more to ask" — the client reads a null
+        // followUpQuestion as "section done," never as a dropped connection.
+        completeSentinel: 'SECTION_COMPLETE',
+        sentinelFallback: section3Fallback,
+      })
+    }
+
+    if (!founderProfile && missingFields.length > 0) {
+      return streamReply({
+        meta,
+        source: routedStream('generation', [
           {
             role: 'system',
             content: `You are a sharp startup advisor. Based on this conversation, write ONE short follow-up question (1-2 sentences) that asks about the most important detail still missing. Acknowledge what was just said. Be specific, not generic.`,
           },
           { role: 'user', content: `Section: ${sectionNum}\nConversation:\n${effectiveConversation}\nWrite your follow-up:` },
-        ], { maxTokens: 120 })
-        followUpQuestion = minimalFollowUp.trim() || null
-      } catch { /* non-blocking */ }
-    } else if (founderProfile && completionScore >= 60) {
-      // Section is complete — ask for more specific depth rather than returning null
-      const flatSummary = (() => {
-        const flat: Record<string, unknown> = {}
-        const flatten = (obj: Record<string, unknown>, prefix = '') => {
-          for (const [k, v] of Object.entries(obj)) {
-            const key = prefix ? `${prefix}.${k}` : k
-            if (v !== null && v !== undefined && typeof v === 'object' && !Array.isArray(v)) {
-              flatten(v as Record<string, unknown>, key)
-            } else if (v !== null && v !== undefined) {
-              flat[key] = v
-            }
-          }
-        }
-        flatten(merged)
-        return JSON.stringify(flat).slice(0, 1200)
-      })()
+        ], { maxTokens: 120 }),
+        fallback: null,
+      })
+    }
 
+    if (founderProfile && completionScore >= 60) {
       const whatElsePrompt = WHAT_ELSE_PROMPT
         .replace('{section}', String(section))
         .replace('{stage}', founderProfile.stage ?? 'unknown')
         .replace('{industry}', founderProfile.industry ?? 'general')
-        .replace('{extractedSoFar}', flatSummary)
+        .replace('{extractedSoFar}', flatSummaryOf(merged))
 
-      try {
-        const whatElseRaw = await routedText('generation', [
+      return streamReply({
+        meta,
+        source: routedStream('generation', [
           { role: 'system', content: whatElsePrompt },
           { role: 'user', content: 'Write your reply.' },
-        ], { maxTokens: 200 })
-        followUpQuestion = whatElseRaw.trim() || null
-      } catch {
-        // non-blocking — null is fine
-      }
+        ], { maxTokens: 200 }),
+        fallback: null,
+      })
     }
 
-    // Build per-field source attribution for this extraction pass
-    // All fields newly extracted from conversation are 'conversation'; inferred ones are 'inferred'
-    const fieldSource: Record<string, 'conversation' | 'inferred'> = {}
-    const flatTag = (obj: Record<string, unknown>, prefix = '') => {
-      for (const [k, v] of Object.entries(obj)) {
-        const key = prefix ? `${prefix}.${k}` : k
-        if (v !== null && v !== undefined) {
-          if (typeof v === 'object' && !Array.isArray(v)) {
-            flatTag(v as Record<string, unknown>, key)
-          } else {
-            fieldSource[key] = k === 'buildComplexity' ? 'inferred' : 'conversation'
-          }
-        }
-      }
-    }
-    flatTag(extractedFields)
-
-    return NextResponse.json({
-      extractedFields,
-      mergedFields: merged,
-      confidenceMap,        // merged (existing PDF + new conversation confidence)
-      completionScore,
-      missingFields,
-      followUpQuestion,
-      fieldSource,          // 'conversation' | 'inferred' per newly extracted field
-    })
+    // Nothing to ask and nothing to say — send meta only, no reply stream.
+    return streamReply({ meta, source: null, fallback: null })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     log.error('[profile-builder/extract]', msg)
     return NextResponse.json({ error: 'Extraction failed', detail: msg }, { status: 500 })
   }
+}
+
+/** Flat key→value summary instead of raw JSON — avoids sending truncated/invalid JSON to the model. */
+function flatSummaryOf(merged: Record<string, unknown>): string {
+  const flat: Record<string, unknown> = {}
+  const flatten = (obj: Record<string, unknown>, prefix = '') => {
+    for (const [k, v] of Object.entries(obj)) {
+      const key = prefix ? `${prefix}.${k}` : k
+      if (v !== null && v !== undefined && typeof v === 'object' && !Array.isArray(v)) flatten(v as Record<string, unknown>, key)
+      else if (v !== null && v !== undefined) flat[key] = v
+    }
+  }
+  flatten(merged)
+  return JSON.stringify(flat).slice(0, 1200)
+}
+
+/**
+ * Stream `meta` first, then the reply as it's generated, then [DONE].
+ *
+ * @param source an in-flight routedStream() generator, or null to send meta only.
+ * @param fallback shown if the model produced nothing (empty stream, or every chunk failed).
+ * @param completeSentinel if the model's full reply equals this exactly, the client gets
+ *   followUpQuestion: null (section complete) instead of the sentinel text itself.
+ * @param sentinelFallback overrides completeSentinel when a safety net (e.g. Section 3's
+ *   replication-time check) means "complete" isn't actually true yet.
+ */
+function streamReply(opts: {
+  meta: Record<string, unknown>
+  source: AsyncGenerator<{ type: 'delta'; text: string } | { type: 'done'; toolCall: unknown }> | null
+  fallback: string | null
+  completeSentinel?: string
+  sentinelFallback?: string | null
+}): Response {
+  const { meta, source, fallback, completeSentinel, sentinelFallback } = opts
+
+  const readable = new ReadableStream({
+    async start(controller) {
+      controller.enqueue(sseEncode({ type: 'meta', ...meta }))
+
+      if (!source) {
+        controller.enqueue(sseEncode({ type: 'done', followUpQuestion: null }))
+        controller.close()
+        return
+      }
+
+      let full = ''
+      try {
+        for await (const event of source) {
+          if (event.type === 'delta') {
+            full += event.text
+            controller.enqueue(sseEncode({ type: 'delta', text: event.text }))
+          }
+        }
+      } catch (e) {
+        log.warn('[extract] stream generation failed', e instanceof Error ? e.message : e)
+      }
+
+      full = full.trim()
+
+      if (completeSentinel && full.toUpperCase() === completeSentinel) {
+        // The model said this section is done. A safety-net fallback (e.g. Section 3's
+        // replication-time check) can still override that — deliberately checked AFTER
+        // the model's own answer, not instead of it.
+        if (sentinelFallback) {
+          controller.enqueue(sseEncode({ type: 'delta', text: sentinelFallback }))
+          controller.enqueue(sseEncode({ type: 'done', followUpQuestion: sentinelFallback }))
+        } else {
+          controller.enqueue(sseEncode({ type: 'done', followUpQuestion: null }))
+        }
+      } else if (!full && fallback) {
+        controller.enqueue(sseEncode({ type: 'delta', text: fallback }))
+        controller.enqueue(sseEncode({ type: 'done', followUpQuestion: fallback }))
+      } else {
+        controller.enqueue(sseEncode({ type: 'done', followUpQuestion: full || null }))
+      }
+
+      controller.close()
+    },
+  })
+
+  return new Response(readable, {
+    headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' },
+  })
 }
