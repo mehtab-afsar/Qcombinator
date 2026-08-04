@@ -37,6 +37,7 @@ const strategySchema = z.object({
   mission: z.string().trim().max(2_000).optional(),
   priorities: z.array(z.string().trim().min(1).max(500)).max(10).optional(),
   goals: z.array(z.string().trim().min(1).max(500)).max(10).optional(),
+  currentTraction: z.string().trim().max(1_000).optional(),
 })
 
 

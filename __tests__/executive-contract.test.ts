@@ -27,6 +27,7 @@ const strategy = (over: Partial<StrategySession> = {}): StrategySession => ({
   mission: 'Cut procurement overhead for mid-market teams.',
   priorities: ['Win 10 design partners', 'Prove the ICP'],
   goals: ['£40k MRR by Q4'],
+  currentTraction: null,
   previousVersionId: null, createdAt: '',
   ...over,
 })

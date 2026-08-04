@@ -175,7 +175,7 @@ describe('completeness gate (F07 edge case)', () => {
   const complete = (over: Partial<StrategySession> = {}): StrategySession => ({
     id: 's1', founderId: FOUNDER, version: 1, isCurrent: true,
     mission: 'Cut procurement overhead.', priorities: ['Win design partners'],
-    goals: [], previousVersionId: null, createdAt: '', ...over,
+    goals: [], currentTraction: null, previousVersionId: null, createdAt: '', ...over,
   })
 
   it.each([

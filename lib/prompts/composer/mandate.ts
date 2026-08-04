@@ -45,7 +45,7 @@ export interface ComposeMandateInput {
   context: CompanyContext
   executionId?: string
   /**
-   * Append a machine-readable tail (F08b).
+   * Append a machine-readable tail (F08b, and its F07b counterpart).
    *
    * The prompt keeps producing its document exactly as written; this asks it to
    * ALSO end with a fenced JSON block carrying the fields the database needs.
@@ -56,7 +56,7 @@ export interface ComposeMandateInput {
    * schema), not part of the executive's design. ADR-010: the workbook is the
    * design source and stays clean.
    */
-  structuredTail?: MandateKind extends never ? never : 'contract'
+  structuredTail?: 'contract' | 'strategy'
 }
 
 /**
@@ -85,6 +85,35 @@ const CONTRACT_JSON_TAIL = [
   '  above. Do not invent one. An unknown ID is rejected and the draft fails.',
   '- `executive` must be one of: ceo, growth, product, operations, finance.',
   '- 3–5 priorities. At least one success metric. At least one program.',
+].join('\n')
+
+/**
+ * Asks S001 to distil its six-step session into the three fields F07 already
+ * stores (`strategy_sessions.mission/priorities/goals` — see lib/mandate/strategy.ts).
+ * Mirrors CONTRACT_JSON_TAIL: named sections point at S001's own headings so the
+ * model transcribes its own Executive Recommendation rather than answering twice.
+ */
+const STRATEGY_JSON_TAIL = [
+  '# Machine-readable summary (required)',
+  '',
+  'After the document above, output ONE fenced JSON block — nothing after it.',
+  'It must transcribe what you have just written; do not introduce anything new.',
+  '',
+  '```json',
+  '{',
+  '  "mission":    "one sentence, from your Executive Recommendation — what this company is building and for whom",',
+  '  "priorities": ["from your Top Strategic Priorities section — 3 to 5 items"],',
+  '  "goals":      ["concrete, measurable — from your Executive Recommendation and chosen Scenario"]',
+  '}',
+  '```',
+  '',
+  'Rules:',
+  '- `mission` is ONE sentence a founder would recognise as their own direction, not a',
+  '  paragraph and not generic ("grow the business" is not acceptable).',
+  '- 3-5 `priorities`. At least 1 `goal`.',
+  '- If the company situation or Q-Score gives too little to say something specific and',
+  '  honest, say less rather than invent confidence — a shorter, truthful mission beats a',
+  '  padded, generic one.',
 ].join('\n')
 
 const MANDATE_PREAMBLE = [
@@ -128,6 +157,7 @@ export function composeMandatePrompt(input: ComposeMandateInput): ExecutionPacka
 
   const parts = [MANDATE_PREAMBLE, ...layers.map(l => l.text)]
   if (input.structuredTail === 'contract') parts.push(CONTRACT_JSON_TAIL)
+  if (input.structuredTail === 'strategy') parts.push(STRATEGY_JSON_TAIL)
   const text = parts.join(SEPARATOR)
 
   return {

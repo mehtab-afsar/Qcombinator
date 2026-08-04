@@ -194,3 +194,83 @@ export async function generateMandate(context: CompanyContext): Promise<Generate
 
   return { ...draft, document }
 }
+
+// ─── F07b — generate a Strategy proposal by actually running S001 ────────────
+//
+// The founder's own complaint, verbatim: a blank mission/priorities/goals form asks
+// them to do the executive team's job before the team exists. S001's prompt is
+// already written (lib/prompts/knowledge/ceo-s001.ts) and the Composer already has
+// an entry point for it (MANDATE_PROMPT_REF.strategy = 'S001') — nothing called it
+// with kind: 'strategy' until this function. Same shape as generateMandate: one
+// call, validated before it reaches the founder, a document plus the structured
+// fields the founder can then edit and save via the EXISTING /api/strategy POST.
+//
+// Unlike a Contract, there is no deterministic fallback here — a "deterministic
+// strategy" isn't a coherent idea the way a deterministic Contract (built from the
+// founder's own already-submitted Strategy) is. If this fails, the caller falls
+// back to the plain editable form that always existed — no founder is ever fully
+// blocked from setting their direction.
+
+export interface GeneratedStrategy {
+  mission: string
+  priorities: string[]
+  goals: string[]
+  /** S001's full document — the founder-facing read (F07). */
+  document: string
+}
+
+function validateGeneratedStrategy(json: unknown): Omit<GeneratedStrategy, 'document'> {
+  if (typeof json !== 'object' || json === null) {
+    throw new MandateGenerationError('The session summary was not an object.')
+  }
+  const raw = json as Record<string, unknown>
+
+  const mission = typeof raw.mission === 'string' ? raw.mission.trim() : ''
+  const priorities = asStrings(raw.priorities)
+  const goals = asStrings(raw.goals)
+
+  if (!mission) {
+    throw new MandateGenerationError('The session did not produce a direction.')
+  }
+  if (priorities.length === 0) {
+    throw new MandateGenerationError('The session named no priorities.')
+  }
+
+  return { mission, priorities, goals }
+}
+
+/**
+ * Run S001 and return a validated strategy proposal.
+ *
+ * @throws MandateGenerationError — the caller falls back to a blank form.
+ */
+export async function generateStrategyProposal(context: CompanyContext): Promise<GeneratedStrategy> {
+  const pkg = composeMandatePrompt({ kind: 'strategy', structuredTail: 'strategy', context })
+
+  let raw: string
+  // Same leak-avoidance as generateMandate above — the timer MUST be cleared.
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    raw = await Promise.race([
+      routedText('reasoning', [{ role: 'user', content: pkg.text }], { maxTokens: 6_000, temperature: 0.2 }),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('timeout')), TIMEOUT_MS)
+      }),
+    ])
+  } catch (err) {
+    log.warn('S001 generation failed', { executionId: pkg.executionId, err: (err as Error)?.message })
+    throw new MandateGenerationError('Could not draft your direction right now.')
+  } finally {
+    clearTimeout(timer)
+  }
+
+  const { document, json } = splitDocumentAndJson(raw)
+  const fields = validateGeneratedStrategy(json)
+
+  log.info('S001 generated a strategy proposal', {
+    executionId: pkg.executionId,
+    documentChars: document.length,
+  })
+
+  return { ...fields, document }
+}

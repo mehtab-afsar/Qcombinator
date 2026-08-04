@@ -19,6 +19,8 @@ export interface StrategySession {
   mission: string | null
   priorities: string[]
   goals: string[]
+  /** Optional founder-supplied traction note — replaces the old Weekly Check-in. */
+  currentTraction: string | null
   previousVersionId: string | null
   createdAt: string
 }
@@ -27,6 +29,7 @@ export interface StrategyInput {
   mission?: string
   priorities?: string[]
   goals?: string[]
+  currentTraction?: string
 }
 
 /** Raw row shape. Kept local — the generated Database type has no entry for this table yet. */
@@ -38,6 +41,7 @@ interface StrategyRow {
   mission: string | null
   priorities: unknown
   goals: unknown
+  current_traction: string | null
   previous_version_id: string | null
   created_at: string
 }
@@ -51,6 +55,7 @@ function toSession(row: StrategyRow): StrategySession {
     mission: row.mission,
     priorities: Array.isArray(row.priorities) ? (row.priorities as string[]) : [],
     goals: Array.isArray(row.goals) ? (row.goals as string[]) : [],
+    currentTraction: row.current_traction ?? null,
     previousVersionId: row.previous_version_id,
     createdAt: row.created_at,
   }
@@ -137,6 +142,7 @@ export async function saveStrategy(
       mission: input.mission ?? null,
       priorities: input.priorities ?? [],
       goals: input.goals ?? [],
+      current_traction: input.currentTraction ?? null,
       previous_version_id: existing?.id ?? null,
     })
     .select()

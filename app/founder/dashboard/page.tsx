@@ -29,7 +29,6 @@ import { useMetrics } from "@/features/founder/hooks/useFounderData";
 import { useDashboardData } from "@/features/founder/hooks/useDashboardData";
 import { WelcomeModal, FOUNDER_WELCOME_SLIDES } from "@/components/ui/WelcomeModal";
 import { ShareQScoreModal } from "@/components/ui/ShareQScoreModal";
-import { WeeklyCheckin } from "@/components/onboarding/WeeklyCheckin";
 import { UpgradeModal } from "@/components/ui/UpgradeModal";
 import { getUpcomingWorkshops } from "@/features/academy/data/workshops";
 import { bg, surf, bdr, ink, muted, blue, green, amber, red, purple, cyan, alpha } from '@/lib/constants/colors'
@@ -400,11 +399,7 @@ export default function FounderDashboard() {
   const [shareModalOpen, setShareModalOpen] = useState(false);
 
   // ── Agent goal watch state ───────────────────────────────────────────────
-  // ── Weekly check-in + stage gate state ──────────────────────────────────────
-  const [weeklyGoal,        setWeeklyGoal]        = useState<string | null>(null);
-  const [weeklyMetric,      setWeeklyMetric]       = useState<string | null>(null);
-  const [_weeklyCheckinAt,  _setWeeklyCheckinAt]   = useState<string | null>(null);
-  const [showWeeklyCheckin, setShowWeeklyCheckin]  = useState(false);
+  // ── Stage gate state ──────────────────────────────────────────────────────
   const [gateProgress,      setGateProgress]       = useState<Record<string, unknown>>({});
   const [customerCallsCount, setCustomerCallsCount] = useState<number>(0);
 
@@ -458,33 +453,19 @@ export default function FounderDashboard() {
       })
   }, [user])
 
-  // Load weekly check-in + stage gate data and decide whether to show the check-in modal
+  // Load stage gate data
   useEffect(() => {
     if (!user) return;
     const supabase = createClient();
     void supabase
       .from("founder_profiles")
-      .select("weekly_goal, weekly_metric_value, weekly_checkin_at, gate_progress, customer_calls_count")
+      .select("gate_progress, customer_calls_count")
       .eq("user_id", user.id)
       .single()
       .then(({ data }) => {
         if (!data) return;
-        setWeeklyGoal(data.weekly_goal ?? null);
-        setWeeklyMetric(data.weekly_metric_value ?? null);
-        _setWeeklyCheckinAt(data.weekly_checkin_at ?? null);
         setGateProgress(data.gate_progress ?? {});
         setCustomerCallsCount(data.customer_calls_count ?? 0);
-
-        // Show weekly check-in if: never done, or last check-in was before this week's Monday
-        const now = new Date();
-        const dayOfWeek = now.getDay(); // 0 = Sun
-        const monday = new Date(now);
-        monday.setDate(now.getDate() - ((dayOfWeek + 6) % 7));
-        monday.setHours(0, 0, 0, 0);
-        const lastCheckin = data.weekly_checkin_at ? new Date(data.weekly_checkin_at) : null;
-        if (!lastCheckin || lastCheckin < monday) {
-          setShowWeeklyCheckin(true);
-        }
       });
   }, [user]);
 
@@ -616,20 +597,6 @@ export default function FounderDashboard() {
 
   return (
     <div style={{ minHeight: "100vh", background: bg, color: ink, padding: "36px 28px 72px" }}>
-      {/* ── Weekly check-in modal ─────────────────────────────────────── */}
-      {showWeeklyCheckin && !isDemo && user && (
-        <WeeklyCheckin
-          userId={user.id}
-          lastGoal={weeklyGoal}
-          onComplete={(goal, metric) => {
-            setWeeklyGoal(goal);
-            setWeeklyMetric(metric);
-            setShowWeeklyCheckin(false);
-          }}
-          onDismiss={() => setShowWeeklyCheckin(false)}
-        />
-      )}
-
       <div style={{ maxWidth: 1120, margin: "0 auto" }}>
 
         {/* ── THE DOOR into the Executive model. Self-gating on the flag (the APIs 404 when it
@@ -1182,23 +1149,9 @@ export default function FounderDashboard() {
                 <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", color: muted, fontWeight: 600, margin: 0 }}>
                   Today&apos;s focus
                 </p>
-                {weeklyGoal && (
-                  <p style={{ fontSize: 11, color: ink, margin: "2px 0 0", fontWeight: 500 }}>
-                    This week: <span style={{ fontWeight: 600 }}>{weeklyGoal}</span>
-                    {weeklyMetric && <span style={{ color: muted, fontWeight: 400 }}> · {weeklyMetric}</span>}
-                  </p>
-                )}
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              {!weeklyGoal && !isDemo && (
-                <button
-                  onClick={() => setShowWeeklyCheckin(true)}
-                  style={{ fontSize: 11, fontWeight: 600, color: blue, background: alpha(blue, 0.07), border: "none", borderRadius: 6, padding: "4px 10px", cursor: "pointer" }}
-                >
-                  Set this week&apos;s goal
-                </button>
-              )}
               {dashLoading && <Loader2 style={{ height: 14, width: 14, color: muted, animation: "spin 1s linear infinite" }} />}
             </div>
           </div>
