@@ -37,11 +37,13 @@ export interface LLMChatResponse {
 /** Internal capability tier — provider maps this to a concrete model ID */
 export type RoutingTier = 'fast' | 'capable'
 
-/** A message content block — either plain text or a structured tool_use / tool_result block */
+/** A message content block — text, a structured tool block, or a document/image for vision. */
 export type ContentBlock =
   | { type: 'text'; text: string }
   | { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> }
   | { type: 'tool_result'; tool_use_id: string; content: string }
+  | { type: 'document'; source: { type: 'base64'; media_type: 'application/pdf'; data: string } }
+  | { type: 'image'; source: { type: 'base64'; media_type: 'image/png' | 'image/jpeg' | 'image/webp'; data: string } }
 
 /** Chat message — content may be a plain string or an array of content blocks */
 export interface ChatMessage {

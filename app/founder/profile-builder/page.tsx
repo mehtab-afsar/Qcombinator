@@ -1085,7 +1085,15 @@ export default function ProfileBuilderPage() {
         } else if ((data as { limitReached?: boolean }).limitReached) {
           setUpgradeOpen(true)
         } else {
-          setSubmitError(data.error ?? 'Submission failed')
+          // The consistency check (409-class "expected disagreement") names WHICH
+          // claims contradict each other and why — showing only the generic label
+          // ("Consistency check failed") left the founder with no way to act on it.
+          const issues = (data as { issues?: Array<{ message: string }> }).issues
+          setSubmitError(
+            issues?.length
+              ? issues.map(i => i.message).join(' ')
+              : data.error ?? 'Submission failed'
+          )
         }
         return
       }

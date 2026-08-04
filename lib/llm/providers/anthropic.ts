@@ -44,8 +44,15 @@ function toAnthropicContent(content: string | ContentBlock[]): string | Anthropi
     if (b.type === 'text')        return { type: 'text' as const, text: b.text }
     if (b.type === 'tool_use')    return { type: 'tool_use' as const, id: b.id, name: b.name, input: b.input }
     if (b.type === 'tool_result') return { type: 'tool_result' as const, tool_use_id: b.tool_use_id, content: b.content }
+    if (b.type === 'document')    return { type: 'document' as const, source: b.source } as Anthropic.DocumentBlockParam
+    if (b.type === 'image')       return { type: 'image' as const, source: b.source } as Anthropic.ImageBlockParam
     return { type: 'text' as const, text: '' }
   })
+}
+
+/** True if any message carries a `document` block — PDFs still need the beta endpoint. */
+function needsPdfBeta(messages: ChatMessage[]): boolean {
+  return messages.some(m => Array.isArray(m.content) && m.content.some(b => b.type === 'document'))
 }
 
 function splitMessages(messages: ChatMessage[]): {
@@ -106,22 +113,34 @@ export class AnthropicProvider implements LLMProvider {
     const hasTools = tools && tools.length > 0
     const anthropicTools = hasTools ? toAnthropicTools(tools) : undefined
 
+    // PDF document blocks (vision extraction from scanned/image-only decks) still require
+    // the beta messages endpoint with the pdfs beta flag — everything else uses the GA one.
+    const requestBody = {
+      model,
+      max_tokens: maxTokens,
+      temperature,
+      ...(systemParam !== undefined ? { system: systemParam } : {}),
+      messages: chat,
+      ...(anthropicTools ? { tools: anthropicTools, tool_choice: { type: 'auto' as const } } : {}),
+    }
+
+    // BetaMessage and Message aren't the same TS type (the beta response carries an extra
+    // context_management field), even though both have the .content/.stop_reason shape this
+    // method actually reads — normalize to that shape right where the branch happens so
+    // withRetry<T> isn't asked to infer a T that unifies two structurally-different types.
+    type MinimalResponse = { content: Array<{ type: string; text?: string; id?: string; name?: string; input?: unknown }>; stop_reason?: string | null }
+
     try {
-      const response = await withRetry(() => this.client.messages.create({
-        model,
-        max_tokens: maxTokens,
-        temperature,
-        ...(systemParam !== undefined ? { system: systemParam } : {}),
-        messages: chat,
-        ...(anthropicTools ? { tools: anthropicTools, tool_choice: { type: 'auto' as const } } : {}),
-      }))
+      const response = await withRetry((): Promise<MinimalResponse> => needsPdfBeta(messages)
+        ? this.client.beta.messages.create({ ...requestBody, betas: ['pdfs-2024-09-25'] })
+        : this.client.messages.create(requestBody))
 
       let text = ''
       let toolCall: LLMChatResponse['toolCall'] = null
       for (const block of response.content) {
-        if (block.type === 'text') text += block.text
+        if (block.type === 'text') text += block.text ?? ''
         if (block.type === 'tool_use') {
-          toolCall = { id: block.id, name: block.name, args: block.input as Record<string, unknown> }
+          toolCall = { id: block.id ?? '', name: block.name ?? '', args: (block.input ?? {}) as Record<string, unknown> }
         }
       }
       return { text, toolCall, stopReason: response.stop_reason ?? undefined }

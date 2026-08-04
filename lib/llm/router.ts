@@ -12,7 +12,9 @@
  */
 
 import { getProvider } from './providers'
-import type { RoutingTier, ToolDefinition, LLMChatResponse } from './types'
+import type { RoutingTier, ToolDefinition, LLMChatResponse, ChatMessage } from './types'
+
+type StreamEvent = { type: 'delta'; text: string } | { type: 'done'; toolCall: LLMChatResponse['toolCall'] }
 
 export type TaskClass = 'extraction' | 'generation' | 'reasoning' | 'classification' | 'summarisation'
 export type ModelTier = 'economy' | 'standard' | 'premium'
@@ -39,7 +41,8 @@ const TIER_TO_CLASS: Record<ModelTier, TaskClass> = {
 
 export interface RoutedCallParams {
   taskClass: TaskClass
-  messages: Array<{ role: string; content: string }>
+  /** Plain text is the common case; a ContentBlock[] carries a document/image for vision calls. */
+  messages: ChatMessage[]
   tools?: ToolDefinition[]
   overrides?: Partial<RoutingConfig>
 }
@@ -57,7 +60,7 @@ export async function routedCall(params: RoutedCallParams): Promise<LLMChatRespo
 
 export async function routedText(
   taskClass: TaskClass,
-  messages: Array<{ role: string; content: string }>,
+  messages: ChatMessage[],
   overrides?: Partial<RoutingConfig>,
 ): Promise<string> {
   const result = await routedCall({ taskClass, messages, overrides })
@@ -66,8 +69,22 @@ export async function routedText(
 
 export async function tieredText(
   tier: ModelTier,
-  messages: Array<{ role: string; content: string }>,
+  messages: ChatMessage[],
   overrides?: Partial<RoutingConfig>,
 ): Promise<string> {
   return routedText(TIER_TO_CLASS[tier], messages, overrides)
+}
+
+export function routedStream(
+  taskClass: TaskClass,
+  messages: ChatMessage[],
+  overrides?: Partial<RoutingConfig>,
+): AsyncGenerator<StreamEvent> {
+  const config = ROUTING_TABLE[taskClass]
+  return getProvider().stream({
+    messages,
+    modelTier:   overrides?.modelTier   ?? config.modelTier,
+    maxTokens:   overrides?.maxTokens   ?? config.maxTokens,
+    temperature: overrides?.temperature ?? config.temperature,
+  })
 }

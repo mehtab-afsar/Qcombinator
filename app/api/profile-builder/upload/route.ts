@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import Anthropic from '@anthropic-ai/sdk'
 import { parseDocument } from '@/lib/profile-builder/document-parser'
 import { EXTRACTION_PROMPTS } from '@/lib/profile-builder/extraction-prompts'
 import { routedText } from '@/lib/llm/router'
@@ -30,24 +29,33 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, onTimeout: () => 
 
 // ── Vision extraction for image-based / scanned PDFs ─────────────────────────
 // When pdf-parse yields < 50 chars (scanned doc, password protected, image-only),
-// send raw PDF bytes to Anthropic Claude vision (PDF beta).
+// send raw PDF bytes to Claude vision through the router — same model tier
+// ('extraction') every other profile-builder LLM call uses, not a hardcoded model
+// (CLAUDE.md §2: models only through lib/llm/router.ts).
+//
+// @param sections which section prompts to run against the document. Defaults to
+//   all 5 (the section-0 "optional upload" case); a per-section upload (founder
+//   attached a scanned PDF directly inside e.g. Section 3) passes just [3] so this
+//   doesn't ask five questions of a document offered for one.
 // Returns null on failure → caller shows the user a clear error.
 async function extractFieldsFromImagePDF(
   buffer: Buffer,
+  sections: number[] = [1, 2, 3, 4, 5],
 ): Promise<{ fields: Record<string, unknown>; conf: Record<string, number> } | null> {
-  const anthropicKey = process.env.ANTHROPIC_API_KEY
-
-  if (!anthropicKey) return null
+  if (!process.env.ANTHROPIC_API_KEY) return null
 
   const base64 = buffer.toString('base64')
 
-  // ── Shared extractor: takes a function that calls one section prompt ──────
-  async function runSections(
-    callOne: (sec: number) => Promise<string>
-  ): Promise<{ fields: Record<string, unknown>; conf: Record<string, number> }> {
+  try {
     const results = await Promise.allSettled(
-      [1, 2, 3, 4, 5].map(sec =>
-        callOne(sec).then(raw => {
+      sections.map(sec =>
+        routedText('extraction', [{
+          role: 'user',
+          content: [
+            { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
+            { type: 'text', text: EXTRACTION_PROMPTS[sec] },
+          ],
+        }], { maxTokens: 800 }).then(raw => {
           const m = raw.match(/\{[\s\S]*\}/)
           if (!m) return { fields: {} as Record<string, unknown>, conf: {} as Record<string, number> }
           const parsed = JSON.parse(m[0])
@@ -65,62 +73,31 @@ async function extractFieldsFromImagePDF(
       }
     }
     return { fields: mergedFields, conf: mergedConf }
+  } catch (e) {
+    log.warn('[upload] PDF vision extraction failed:', e instanceof Error ? e.message : e)
+    return null
   }
-
-  // ── Path 1: Anthropic SDK (direct) ───────────────────────────────────────
-  if (anthropicKey) {
-    try {
-      const client = new Anthropic({ apiKey: anthropicKey })
-      return await runSections(sec =>
-        client.beta.messages.create({
-          model: 'claude-haiku-4-5-20251001',
-          max_tokens: 800,
-          betas: ['pdfs-2024-09-25'],
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } } as Anthropic.DocumentBlockParam,
-              { type: 'text', text: EXTRACTION_PROMPTS[sec] },
-            ],
-          }],
-        }).then(res =>
-          res.content.filter(b => b.type === 'text').map(b => (b as Anthropic.TextBlock).text).join('')
-        )
-      )
-    } catch (e) {
-      log.warn('[upload] Anthropic vision failed:', e instanceof Error ? e.message : e)
-    }
-  }
-
-  return null
 }
 
 // ── Vision extraction for raster images (PNG / JPEG / WebP) ──────────────────
-// Sends image bytes to Claude's standard vision API (not the PDF beta).
+// Sends image bytes through the router's standard vision path (not the PDF beta).
 async function extractFieldsFromImage(
   buffer: Buffer,
   mimeType: 'image/png' | 'image/jpeg' | 'image/webp',
+  sections: number[] = [1, 2, 3, 4, 5],
 ): Promise<{ fields: Record<string, unknown>; conf: Record<string, number> } | null> {
-  const anthropicKey = process.env.ANTHROPIC_API_KEY
-  if (!anthropicKey) return null
+  if (!process.env.ANTHROPIC_API_KEY) return null
   try {
-    const client = new Anthropic({ apiKey: anthropicKey })
     const base64 = buffer.toString('base64')
     const results = await Promise.allSettled(
-      [1, 2, 3, 4, 5].map(sec =>
-        client.messages.create({
-          model: 'claude-haiku-4-5-20251001',
-          max_tokens: 800,
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } },
-              { type: 'text', text: EXTRACTION_PROMPTS[sec] },
-            ],
-          }],
-        }).then(res =>
-          res.content.filter(b => b.type === 'text').map(b => (b as Anthropic.TextBlock).text).join('')
-        ).then(raw => {
+      sections.map(sec =>
+        routedText('extraction', [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } },
+            { type: 'text', text: EXTRACTION_PROMPTS[sec] },
+          ],
+        }], { maxTokens: 800 }).then(raw => {
           const m = raw.match(/\{[\s\S]*\}/)
           if (!m) return { fields: {} as Record<string, unknown>, conf: {} as Record<string, number> }
           const parsed = JSON.parse(m[0])
@@ -393,12 +370,18 @@ export async function POST(req: NextRequest) {
     const DOC_CHAR_LIMIT = 8000
     const isPDF = filename.toLowerCase().endsWith('.pdf') || mimeType === 'application/pdf'
     const isRealImage = ['.png', '.jpg', '.jpeg', '.webp'].some(e => filename.toLowerCase().endsWith(e))
-    const isImagePDF = section === 0 && parsed.text.length <= 50 && isPDF && !isRealImage
+    // No longer gated on section === 0. A scanned deck attached directly inside one of
+    // the 5 sections (the "Attach" button in each section's chat — page.tsx:1879) used
+    // to get NO vision attempt at all here, just the honest "couldn't read this" message
+    // below — never silently wrong, but never even tried OCR either. Fixed: scope the
+    // vision call to just that one section's prompt instead of all 5.
+    const isImagePDF = parsed.text.length <= 50 && isPDF && !isRealImage
+    const visionSections = section === 0 ? [1, 2, 3, 4, 5] : [section]
 
     // Image-based / scanned PDF: send raw bytes to Claude vision instead of text
     if (isImagePDF) {
-      log.info('[upload] image-based PDF — attempting vision extraction', { filename, userId })
-      const visionResult = await extractFieldsFromImagePDF(buffer)
+      log.info('[upload] image-based PDF — attempting vision extraction', { filename, userId, sections: visionSections })
+      const visionResult = await extractFieldsFromImagePDF(buffer, visionSections)
       if (visionResult && Object.keys(visionResult.fields).length > 0) {
         mergeDeepFields(extractedFields, visionResult.fields)
         const flatConf = flattenConfidence(visionResult.conf as Record<string, unknown>)
@@ -419,7 +402,7 @@ export async function POST(req: NextRequest) {
     if (isRealImage) {
       log.info('[upload] raster image — attempting vision extraction', { filename, userId })
       const imgMime = (mimeType === 'image/webp' ? 'image/webp' : mimeType === 'image/png' ? 'image/png' : 'image/jpeg') as 'image/png' | 'image/jpeg' | 'image/webp'
-      const visionResult = await extractFieldsFromImage(buffer, imgMime)
+      const visionResult = await extractFieldsFromImage(buffer, imgMime, visionSections)
       if (visionResult && Object.keys(visionResult.fields).length > 0) {
         mergeDeepFields(extractedFields, visionResult.fields)
         for (const [k, v] of Object.entries(visionResult.conf)) {
