@@ -9,7 +9,7 @@
 
 import { readFileSync } from 'fs'
 import {
-  resolveMandateState,
+  resolveJourneyState,
   type Contract,
   type Strategy,
 } from '@/features/executive/types/executive.types'
@@ -27,26 +27,39 @@ const contract = (over: Partial<Contract> = {}): Contract => ({
 
 // ─── The state machine (F09's whole job) ──────────────────────────────────────
 
-describe('resolveMandateState — one thing to do next, always', () => {
+describe('resolveJourneyState — one thing to do next, always', () => {
   it.each([
-    ['nothing set at all',            null,          null,                                    'no_strategy'],
-    ['strategy but no mandate',       strategy(),    null,                                    'no_contract'],
-    ['a mandate is drafted',          strategy(),    contract({ status: 'draft' }),           'draft'],
-    ['the mandate is confirmed',      strategy(),    contract({ status: 'confirmed' }),       'confirmed'],
-  ])('%s -> %s', (_label, s, c, expected) => {
-    expect(resolveMandateState(s, c)).toBe(expected)
+    ['no score, nothing set',         false, null,          null,                              'no_score'],
+    ['scored, nothing set',           true,  null,          null,                              'no_strategy'],
+    ['strategy but no mandate',       true,  strategy(),    null,                               'no_contract'],
+    ['a mandate is drafted',          true,  strategy(),    contract({ status: 'draft' }),      'draft'],
+    ['the mandate is confirmed',      true,  strategy(),    contract({ status: 'confirmed' }),  'confirmed'],
+  ])('%s -> %s', (_label, hasScore, s, c, expected) => {
+    expect(resolveJourneyState(hasScore, s, c)).toBe(expected)
+  })
+
+  it('a draft outranks a missing score — never strand a founder mid-flow', () => {
+    // If the score read fails but a draft already exists, show the draft rather than
+    // sending them back to square one to redo work they have already done.
+    expect(resolveJourneyState(false, null, contract({ status: 'draft' }))).toBe('draft')
   })
 
   it('a draft outranks a missing strategy — never strand a founder mid-flow', () => {
     // If a strategy read fails but a draft exists, show the draft rather than
     // sending them back to square one to redo work they have already done.
-    expect(resolveMandateState(null, contract({ status: 'draft' }))).toBe('draft')
+    expect(resolveJourneyState(true, null, contract({ status: 'draft' }))).toBe('draft')
   })
 
   it('a superseded contract is not the current state', () => {
     // A superseded contract is history. With no current one, the founder's next
     // action is to draft again.
-    expect(resolveMandateState(strategy(), contract({ status: 'superseded' }))).toBe('no_contract')
+    expect(resolveJourneyState(true, strategy(), contract({ status: 'superseded' }))).toBe('no_contract')
+  })
+
+  it('an existing strategy is never sent back to the score step, even without one', () => {
+    // Shouldn't happen in practice (a strategy implies a score already existed), but if
+    // it ever does, don't strand a founder who already did the strategy work.
+    expect(resolveJourneyState(false, strategy(), null)).toBe('no_contract')
   })
 })
 
@@ -144,5 +157,34 @@ describe('client boundary', () => {
     const page = stripComments(readFileSync('app/founder/executive/page.tsx', 'utf8'))
     expect(page).not.toMatch(/from '@\/lib\/(mandate|registry|prompts)/)
     expect(page).toContain("fetch('/api/contracts')")
+  })
+})
+
+// ─── One resolver, not three independent guesses ───────────────────────────────
+
+describe('journey state has exactly one source of truth', () => {
+  // The bug this guards: before resolveJourneyState existed, the dashboard door and
+  // this page each hand-rolled their own read of "where is the founder," and neither
+  // checked Q-Score — which is exactly how a founder with no score ended up looking
+  // at "set your direction" as if nothing came before it. Both call sites must import
+  // the same function so they can never drift apart again.
+  const page = stripComments(readFileSync('app/founder/executive/page.tsx', 'utf8'))
+  const door = stripComments(readFileSync('features/executive/components/ExecutiveEntryCard.tsx', 'utf8'))
+
+  it('the Command View imports resolveJourneyState from executive.types', () => {
+    expect(page).toMatch(/from '@\/features\/executive\/types\/executive\.types'/)
+    expect(page).toContain('resolveJourneyState')
+  })
+
+  it('the dashboard door imports resolveJourneyState from the same module', () => {
+    expect(door).toMatch(/from '@\/features\/executive\/types\/executive\.types'/)
+    expect(door).toContain('resolveJourneyState')
+  })
+
+  it('neither call site hand-rolls its own state switch instead of the resolver', () => {
+    // A hand-rolled equivalent would check contract.status/strategy directly instead
+    // of calling the resolver — that's the exact shape of the original bug.
+    expect(page).not.toMatch(/contract\?\.status === 'confirmed'/)
+    expect(door).not.toMatch(/contract\?\.status === 'confirmed'/)
   })
 })

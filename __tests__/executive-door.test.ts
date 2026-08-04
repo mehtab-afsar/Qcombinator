@@ -21,7 +21,8 @@ const briefing = { id: 'b1', verdict: 'Two ICPs validated; messaging needs work.
 
 describe('the door is open at every stage', () => {
   const stages: Array<[string, DoorState]> = [
-    ['a brand-new founder, nothing set', at({ mandate: 'no_strategy' })],
+    ['a brand-new founder, no Q-Score yet', at({ mandate: 'no_score' })],
+    ['scored, nothing set', at({ mandate: 'no_strategy' })],
     ['direction set, no mandate yet', at({ mandate: 'no_contract' })],
     ['mandate drafted, not confirmed', at({ mandate: 'draft' })],
     ['confirmed, first cycle not finished', at({ mandate: 'confirmed' })],
@@ -43,6 +44,15 @@ describe('the door is open at every stage', () => {
     const content = contentFor(at({ mandate: 'no_strategy' }))
     expect(content).not.toBeNull()
     expect(content!.href).toBe('/founder/strategy')
+  })
+
+  it('a founder with no Q-Score is routed to the score, never to a cold mission box', () => {
+    // The bug Mo hit personally: "set your direction" shown with no Q-Score behind it.
+    // The score must come first — it's what the mandate gets drafted from.
+    const content = contentFor(at({ mandate: 'no_score' }))
+    expect(content).not.toBeNull()
+    expect(content!.href).toBe('/founder/profile-builder')
+    expect(content!.href).not.toBe('/founder/strategy')
   })
 })
 

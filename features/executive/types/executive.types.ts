@@ -48,22 +48,32 @@ export interface Strategy {
 }
 
 /**
- * The founder's position in the mandate loop. The Command View is a state machine
- * over this, and every state has exactly one thing to do next.
+ * The founder's position in the WHOLE journey — score, then direction, then mandate,
+ * then the team operating to it. The Command View is a state machine over this, and
+ * every state has exactly one thing to do next.
+ *
+ * `no_score` sits in front of the mandate states on purpose: the CEO drafts the
+ * mandate FROM the Q-Score (PRD §4, "Score → Mandate → Operate"), so a founder who
+ * hasn't been scored yet has nothing for the system to propose from. Before this
+ * state existed, the door and the Command View both jumped straight to "set your
+ * direction" regardless of Q-Score — the exact bug that made the flow feel random.
  */
-export type MandateState =
-  | 'no_strategy'      // nothing set — go and set a direction (F07)
+export type JourneyState =
+  | 'no_score'         // no Q-Score yet — nothing to draft a direction from
+  | 'no_strategy'      // scored, nothing set — go and set a direction (F07)
   | 'no_contract'      // strategy exists, no mandate drafted yet
   | 'draft'            // a mandate is drafted, awaiting the one confirmation
   | 'confirmed'        // the team is operating; redirect by issuing a new epoch
   | 'disabled'         // the Executive model is not switched on for this deployment
 
-export function resolveMandateState(
+export function resolveJourneyState(
+  hasScore: boolean,
   strategy: Strategy | null,
   contract: Contract | null,
-): MandateState {
+): JourneyState {
   if (contract?.status === 'draft') return 'draft'
   if (contract?.status === 'confirmed') return 'confirmed'
-  if (!strategy) return 'no_strategy'
-  return 'no_contract'
+  if (strategy) return 'no_contract'
+  if (!hasScore) return 'no_score'
+  return 'no_strategy'
 }

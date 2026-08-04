@@ -23,6 +23,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { ArrowRight, Loader2 } from 'lucide-react'
 import { bg, surf, bdr, ink, muted, blue, red } from '@/lib/constants/colors'
+import { useQScore } from '@/features/qscore/hooks/useQScore'
 import { MandateCard } from '@/features/executive/components/MandateCard'
 import { ExecutiveRoster } from '@/features/executive/components/ExecutiveRoster'
 import { ActionsPanel } from '@/features/executive/components/ActionsPanel'
@@ -30,13 +31,14 @@ import { ConnectorsPanel } from '@/features/executive/components/ConnectorsPanel
 import { RhythmPanel } from '@/features/executive/components/RhythmPanel'
 import { BriefingsPanel } from '@/features/executive/components/BriefingsPanel'
 import {
-  resolveMandateState,
+  resolveJourneyState,
   type Contract,
   type ProgramInstance,
   type Strategy,
 } from '@/features/executive/types/executive.types'
 
 export default function ExecutivePage() {
+  const { qScore, loading: qScoreLoading } = useQScore()
   const [strategy, setStrategy] = useState<Strategy | null>(null)
   const [contract, setContract] = useState<Contract | null>(null)
   const [programs, setPrograms] = useState<ProgramInstance[]>([])
@@ -93,7 +95,7 @@ export default function ExecutivePage() {
     }
   }
 
-  if (loading) {
+  if (loading || qScoreLoading) {
     return (
       <div style={{ background: bg, minHeight: '100vh', display: 'grid', placeItems: 'center' }}>
         <Loader2 size={20} color={muted} style={{ animation: 'spin 1s linear infinite' }} />
@@ -112,7 +114,8 @@ export default function ExecutivePage() {
     )
   }
 
-  const state = resolveMandateState(strategy, contract)
+  const hasScore = (qScore?.overall ?? 0) > 0
+  const state = resolveJourneyState(hasScore, strategy, contract)
 
   return (
     <Shell>
@@ -120,6 +123,8 @@ export default function ExecutivePage() {
       <p style={{ color: muted, fontSize: 15, marginTop: 8, lineHeight: 1.6, maxWidth: 620 }}>
         {state === 'confirmed'
           ? 'Your team is operating to this mandate. You don’t approve their work each week — you redirect them by setting a new mandate.'
+          : state === 'no_score'
+          ? 'Before your team can work, they need to know where you stand.'
           : 'Set the direction once. Your executive team works to it from there.'}
       </p>
 
@@ -130,6 +135,14 @@ export default function ExecutivePage() {
         }}>
           {error}
         </div>
+      )}
+
+      {state === 'no_score' && (
+        <Step
+          title="Get your Q-Score"
+          body="Your CEO reads your Q-Score to draft the direction they'd propose — without it, there's nothing for your team to work from."
+          action={<Link href="/founder/profile-builder" style={primaryLink}>Get your Q-Score <ArrowRight size={15} /></Link>}
+        />
       )}
 
       {state === 'no_strategy' && (

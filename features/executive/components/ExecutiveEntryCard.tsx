@@ -23,17 +23,18 @@
 import { useEffect, useState } from 'react'
 import { ArrowRight, Sparkles } from 'lucide-react'
 import { surf, bdr, ink, muted, blue, amber, alpha } from '@/lib/constants/colors'
+import { useQScore } from '@/features/qscore/hooks/useQScore'
 import {
-  resolveMandateState,
+  resolveJourneyState,
   type Contract,
-  type MandateState,
+  type JourneyState,
   type Strategy,
 } from '@/features/executive/types/executive.types'
 
 interface Briefing { id: string; verdict: string; createdAt: string }
 
 export interface DoorState {
-  mandate: MandateState
+  mandate: JourneyState
   briefing: Briefing | null
   pendingCount: number
 }
@@ -61,10 +62,17 @@ export function contentFor(state: DoorState): DoorContent | null {
   }
 
   switch (state.mandate) {
+    case 'no_score':
+      return {
+        eyebrow: 'Your executive team',
+        headline: 'Before your team can work, they need to know where you stand.',
+        cta: 'Get your Q-Score',
+        href: '/founder/profile-builder',
+      }
     case 'no_strategy':
       return {
         eyebrow: 'Your executive team',
-        headline: 'Set the direction once. Your team works to it from there.',
+        headline: "You're scored. Let's set your direction.",
         cta: 'Set your direction',
         href: '/founder/strategy',
       }
@@ -101,7 +109,7 @@ export function contentFor(state: DoorState): DoorContent | null {
       // being switched off is a real state, and a door to a disabled product must not appear.
       return null
     default: {
-      // A new MandateState must be given copy here, not silently fall through to a blank door.
+      // A new JourneyState must be given copy here, not silently fall through to a blank door.
       // `never` makes that a compile error rather than an empty card nobody notices. It has
       // already paid for itself once: it caught `disabled`, which this card would otherwise have
       // rendered as an empty box linking into a product that is not switched on.
@@ -112,9 +120,13 @@ export function contentFor(state: DoorState): DoorContent | null {
 }
 
 export function ExecutiveEntryCard() {
+  const { qScore, loading: qScoreLoading } = useQScore()
   const [state, setState] = useState<DoorState | null>(null)
 
   useEffect(() => {
+    // Wait for the real Q-Score read before deciding — otherwise a founder who HAS
+    // scored briefly sees "no_score" copy on every load, while the fetch is in flight.
+    if (qScoreLoading) return
     let live = true
     void (async () => {
       try {
@@ -124,7 +136,8 @@ export function ExecutiveEntryCard() {
 
         const strategy: Strategy | null = sRes.ok ? (await sRes.json()).strategy ?? null : null
         const contract: Contract | null = cRes.ok ? (await cRes.json()).contract ?? null : null
-        const mandate = resolveMandateState(strategy, contract)
+        const hasScore = (qScore?.overall ?? 0) > 0
+        const mandate = resolveJourneyState(hasScore, strategy, contract)
 
         // Only worth asking once there is a mandate to have produced anything.
         let briefing: Briefing | null = null
@@ -144,7 +157,7 @@ export function ExecutiveEntryCard() {
       }
     })()
     return () => { live = false }
-  }, [])
+  }, [qScoreLoading, qScore])
 
   if (!state) return null
 
