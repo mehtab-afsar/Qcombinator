@@ -14,6 +14,7 @@ export const blue  = "#2563EB"  // primary accent
 export const green = "#16A34A"  // success
 export const amber = "#D97706"  // warning
 export const red   = "#DC2626"  // error / danger
+export const white = "#FFFFFF"  // text on solid accent backgrounds
 
 // ─── Extended palette ─────────────────────────────────────────────────────────
 export const purple = "#7C3AED"  // investor pipeline in_dd, premium badges

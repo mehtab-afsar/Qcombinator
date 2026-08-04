@@ -41,9 +41,11 @@ describe('the door is open at every stage', () => {
   it('the FIRST-EVER visit is the case that was broken — pin it hard', () => {
     // A founder with no strategy, no contract, no briefing and nothing pending. This exact state
     // rendered nothing before, which is what made three Stories of work invisible.
+    // The unveiling (F07) lives inside /founder/executive itself now — no separate
+    // strategy-form page to link to (app/founder/strategy/page.tsx was deleted).
     const content = contentFor(at({ mandate: 'no_strategy' }))
     expect(content).not.toBeNull()
-    expect(content!.href).toBe('/founder/strategy')
+    expect(content!.href).toBe('/founder/executive')
   })
 
   it('a founder with no Q-Score is routed to the score, never to a cold mission box', () => {
@@ -52,7 +54,7 @@ describe('the door is open at every stage', () => {
     const content = contentFor(at({ mandate: 'no_score' }))
     expect(content).not.toBeNull()
     expect(content!.href).toBe('/founder/profile-builder')
-    expect(content!.href).not.toBe('/founder/strategy')
+    expect(content!.href).not.toBe('/founder/executive')
   })
 })
 

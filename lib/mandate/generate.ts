@@ -45,7 +45,7 @@ export interface GeneratedMandate extends ContractDraft {
  * matters: S002's own prompt contains a fenced block (its Output Structure
  * diagram), and the model may echo it. The tail is what we asked for last.
  */
-function splitDocumentAndJson(raw: string): { document: string; json: unknown } {
+export function splitDocumentAndJson(raw: string): { document: string; json: unknown } {
   const fences = [...raw.matchAll(/```(?:json)?\s*([\s\S]*?)```/g)]
   if (fences.length === 0) {
     throw new MandateGenerationError('The mandate came back without its machine-readable summary.')
@@ -212,6 +212,9 @@ export async function generateMandate(context: CompanyContext): Promise<Generate
 // blocked from setting their direction.
 
 export interface GeneratedStrategy {
+  /** The unveiling's Layer 1 text — 2-4 sentences, written and streamed BEFORE the
+   *  full document (see STRATEGY_READ_DELIMITER in lib/prompts/composer/mandate.ts). */
+  read: string
   mission: string
   priorities: string[]
   goals: string[]
@@ -219,16 +222,20 @@ export interface GeneratedStrategy {
   document: string
 }
 
-function validateGeneratedStrategy(json: unknown): Omit<GeneratedStrategy, 'document'> {
+export function validateGeneratedStrategy(json: unknown): Omit<GeneratedStrategy, 'document'> {
   if (typeof json !== 'object' || json === null) {
     throw new MandateGenerationError('The session summary was not an object.')
   }
   const raw = json as Record<string, unknown>
 
+  const read = typeof raw.read === 'string' ? raw.read.trim() : ''
   const mission = typeof raw.mission === 'string' ? raw.mission.trim() : ''
   const priorities = asStrings(raw.priorities)
   const goals = asStrings(raw.goals)
 
+  if (!read) {
+    throw new MandateGenerationError('The session did not produce a read of your Q-Score.')
+  }
   if (!mission) {
     throw new MandateGenerationError('The session did not produce a direction.')
   }
@@ -236,23 +243,33 @@ function validateGeneratedStrategy(json: unknown): Omit<GeneratedStrategy, 'docu
     throw new MandateGenerationError('The session named no priorities.')
   }
 
-  return { mission, priorities, goals }
+  return { read, mission, priorities, goals }
 }
 
 /**
  * Run S001 and return a validated strategy proposal.
  *
+ * @param reshape "Nudge this" — a short revision instead of a fresh session. See
+ *   ComposeMandateInput.reshape for why this is cheaper and stays in Morgan's voice.
  * @throws MandateGenerationError — the caller falls back to a blank form.
  */
-export async function generateStrategyProposal(context: CompanyContext): Promise<GeneratedStrategy> {
-  const pkg = composeMandatePrompt({ kind: 'strategy', structuredTail: 'strategy', context })
+export async function generateStrategyProposal(
+  context: CompanyContext,
+  reshape?: { previous: { mission: string; priorities: string[]; goals: string[] }; note: string },
+): Promise<GeneratedStrategy> {
+  const pkg = composeMandatePrompt({ kind: 'strategy', structuredTail: 'strategy', context, reshape })
 
   let raw: string
   // Same leak-avoidance as generateMandate above — the timer MUST be cleared.
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
     raw = await Promise.race([
-      routedText('reasoning', [{ role: 'user', content: pkg.text }], { maxTokens: 6_000, temperature: 0.2 }),
+      // A reshape only needs a short revision, not the six-step document — cheaper
+      // and faster with a lower cap, matching the "one tap, one short sentence" bar.
+      routedText('reasoning', [{ role: 'user', content: pkg.text }], {
+        maxTokens: reshape ? 1_200 : 6_000,
+        temperature: 0.2,
+      }),
       new Promise<never>((_, reject) => {
         timer = setTimeout(() => reject(new Error('timeout')), TIMEOUT_MS)
       }),
@@ -270,6 +287,7 @@ export async function generateStrategyProposal(context: CompanyContext): Promise
   log.info('S001 generated a strategy proposal', {
     executionId: pkg.executionId,
     documentChars: document.length,
+    reshaped: Boolean(reshape),
   })
 
   return { ...fields, document }

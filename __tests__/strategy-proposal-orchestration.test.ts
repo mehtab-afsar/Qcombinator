@@ -110,6 +110,12 @@ describe('proposeStrategy', () => {
 })
 
 // ─── The route follows the same established shape as every other new-model route ──
+//
+// F07 "the unveiling" (UX_SPEC_the_frame.md §3) rewrote this route from one blocking
+// JSON response to an SSE stream (Layer 1, "the read," types in live — see
+// STRATEGY_READ_DELIMITER in lib/prompts/composer/mandate.ts). The gate/auth/validate
+// order and the "never saves" property are unchanged, so those assertions stay as-is;
+// this block adds the streaming-specific properties alongside them.
 
 describe('POST /api/strategy/propose is gated and validated the same way as every route here', () => {
   const routeSrc = readFileSync('app/api/strategy/propose/route.ts', 'utf8')
@@ -133,5 +139,23 @@ describe('POST /api/strategy/propose is gated and validated the same way as ever
     // only thing that writes. This route must not call saveStrategy.
     expect(routeSrc).not.toContain('saveStrategy')
     expect(routeSrc).not.toMatch(/\.insert\(/)
+  })
+
+  it('generation is routed through routedStream — the router, not a hardcoded model', () => {
+    expect(routeSrc).toContain("from '@/lib/llm/router'")
+    expect(routeSrc).toContain('routedStream(')
+    expect(routeSrc).not.toMatch(/claude-[a-z0-9-]+/i)
+  })
+
+  it('streams the same data:/[DONE] framing already established for SSE in this codebase', () => {
+    expect(routeSrc).toContain('data: ')
+    expect(routeSrc).toContain('[DONE]')
+    expect(routeSrc).toContain("'Content-Type': 'text/event-stream'")
+  })
+
+  it('a generation failure is a soft `done` event, never a bare 500 mid-stream', () => {
+    // The stream has already sent a 200 + headers by the time generation can fail —
+    // a thrown error here must not become an unhandled rejection the client can't read.
+    expect(routeSrc).toContain("type: 'done', error: message")
   })
 })

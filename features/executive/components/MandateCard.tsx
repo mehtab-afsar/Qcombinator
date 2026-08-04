@@ -25,7 +25,14 @@ import type { Contract, ExecutiveSummary } from '../types/executive.types'
  *
  * Renders state. No executive reasoning lives here (CLAUDE.md §2).
  */
-export function MandateCard({ contract }: { contract: Contract }) {
+export function MandateCard({
+  contract, showResponsibilities = true,
+}: {
+  contract: Contract
+  /** false inside the unveiling's "mandate hardens" layer — Layer 4 shows who takes
+   *  it on a beat later, with more ceremony; showing it twice in a row is redundant. */
+  showResponsibilities?: boolean
+}) {
   const [executives, setExecutives] = useState<ExecutiveSummary[]>([])
 
   useEffect(() => {
@@ -61,7 +68,7 @@ export function MandateCard({ contract }: { contract: Contract }) {
       <Block label="Priorities" items={contract.priorities} />
       <Block label="Success metrics" items={contract.successMetrics} />
 
-      {contract.responsibilities.length > 0 && (
+      {showResponsibilities && contract.responsibilities.length > 0 && (
         <div style={{ marginTop: 20 }}>
           <h3 style={{ color: muted, fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4, margin: 0 }}>
             Who takes this on

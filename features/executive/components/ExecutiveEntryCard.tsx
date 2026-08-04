@@ -74,7 +74,7 @@ export function contentFor(state: DoorState): DoorContent | null {
         eyebrow: 'Your executive team',
         headline: "You're scored. Let's set your direction.",
         cta: 'Set your direction',
-        href: '/founder/strategy',
+        href: '/founder/executive',
       }
     case 'no_contract':
       return {

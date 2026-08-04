@@ -19,7 +19,7 @@ import type { Executive } from '../types'
  */
 export const CEO: Executive = {
   id: 'ceo',
-  name: 'CEO / Chief of Staff',
+  name: 'Morgan (CEO / Chief of Staff)',
   motto: 'I turn the score into a mandate.',
   domains: ['Strategy', 'Executive Contract', 'Q-Score interpretation', 'Quarterly Planning'],
 

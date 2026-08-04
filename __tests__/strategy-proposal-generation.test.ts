@@ -20,6 +20,7 @@ const mockLlm = routedText as jest.Mock
 const context = { companyName: 'Acme', qScore: { overall: 62, summary: 'Weakest: Go To Market (32).' } }
 
 const goodJson = {
+  read: 'Your Q-Score sits at 62 — Market Readiness is your strongest signal, Go To Market your weakest.',
   mission: 'We help mid-market procurement teams cut manual overhead.',
   priorities: ['Win 10 design partners', 'Prove the ICP'],
   goals: ['£40k MRR by Q4'],
@@ -79,6 +80,13 @@ describe('generateStrategyProposal', () => {
 // ─── Nothing the model returns is trusted ─────────────────────────────────────
 
 describe('nothing the model proposes is trusted', () => {
+  it('rejects a proposal with no read of the Q-Score', async () => {
+    // F07 "the unveiling" streams this paragraph live as Layer 1 — without it there
+    // is nothing to show before the mandate hardens.
+    mockLlm.mockResolvedValue(reply('doc', { ...goodJson, read: '' }))
+    await expect(generateStrategyProposal(context)).rejects.toThrow(/did not produce a read/)
+  })
+
   it('rejects a proposal with no mission', async () => {
     mockLlm.mockResolvedValue(reply('doc', { ...goodJson, mission: '' }))
     await expect(generateStrategyProposal(context)).rejects.toThrow(/did not produce a direction/)
@@ -154,6 +162,12 @@ describe('the strategy structured tail', () => {
     const withTail = composeMandatePrompt({ kind: 'strategy', structuredTail: 'strategy', context: {} })
     expect(withTail.layers[0].text).not.toContain('Machine-readable summary')
     expect(withTail.layers[0].sourceRef).toBe('S001')
+  })
+
+  it('tells the model to escape a quote mark inside a string value (live proof caught this — an unescaped quote in `read` broke JSON.parse)', () => {
+    const withTail = composeMandatePrompt({ kind: 'strategy', structuredTail: 'strategy', context: {} })
+    expect(withTail.text).toContain('valid, parseable JSON')
+    expect(withTail.text).toContain('escape that quote mark as \\"')
   })
 
   it('the contract tail and the strategy tail do not leak into each other', () => {

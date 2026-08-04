@@ -89,11 +89,15 @@ function stripComments(src: string): string {
 
 describe('the page is command, not approval', () => {
   // The Command View redesign moved the confirmed-state UI (mandate summary, "change
-  // direction", roster, actions, rhythm, briefings) out of page.tsx into CommandView.tsx —
-  // these checks now span both files so a rebuilt gate can't hide by moving files.
+  // direction", roster, actions, rhythm, briefings) out of page.tsx into CommandView.tsx.
+  // F07 "the unveiling" then moved the one mandate-confirm action itself (and the copy
+  // explaining it) out of page.tsx into Unveiling.tsx / OneConfirm.tsx — these checks now
+  // span all four files so a rebuilt gate can't hide by moving files.
   const page = stripComments(readFileSync('app/founder/executive/page.tsx', 'utf8'))
   const commandView = stripComments(readFileSync('features/executive/components/CommandView.tsx', 'utf8'))
-  const both = `${page}\n${commandView}`
+  const unveiling = stripComments(readFileSync('features/executive/components/unveiling/Unveiling.tsx', 'utf8'))
+  const oneConfirm = stripComments(readFileSync('features/executive/components/unveiling/OneConfirm.tsx', 'utf8'))
+  const both = `${page}\n${commandView}\n${unveiling}\n${oneConfirm}`
 
   it('has exactly ONE confirm action, and it is the mandate', () => {
     // ADR-002 removed the per-plan sign-off: the founder confirms once, then
@@ -118,9 +122,10 @@ describe('the page is command, not approval', () => {
   })
 
   it('tells the founder plainly what confirming means', () => {
-    // They are handing over autonomy. That should be stated, not buried. Still lives on
-    // the page itself — it's said at draft time, before CommandView ever renders.
-    expect(page).toMatch(/run to it without asking\s*\n?\s*\*?\s*again/i)
+    // They are handing over autonomy. That should be stated, not buried. Now lives in
+    // OneConfirm.tsx (Layer 5 of the unveiling) — said right before the founder confirms,
+    // not buried on the page itself.
+    expect(oneConfirm).toMatch(/run to it without asking\s*\n?\s*\*?\s*again/i)
   })
 
   it('explains that a new epoch keeps history (ADR-003)', () => {

@@ -72,7 +72,7 @@ const HEX_ALLOWLIST = new Set([
   'app/founder/onboarding/page.tsx', 'app/founder/page.tsx',
   'app/founder/pitch-analyzer/page.tsx', 'app/founder/pitch-deck/page.tsx',
   'app/founder/portfolio/page.tsx', 'app/founder/profile-builder/page.tsx',
-  'app/founder/settings/page.tsx', 'app/founder/strategy/page.tsx',
+  'app/founder/settings/page.tsx',
   'app/founder/verify-email/page.tsx', 'app/getting-started/page.tsx',
   'app/global-error.tsx', 'app/investor/ai-analysis/page.tsx',
   'app/investor/billing/page.tsx', 'app/investor/dashboard/page.tsx',

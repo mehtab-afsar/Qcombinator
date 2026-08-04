@@ -12,6 +12,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { generateStrategyProposal, MandateGenerationError, type GeneratedStrategy } from './generate'
 import { DIM_LABELS } from '@/features/qscore/constants/dimensions'
+import type { CompanyContext } from '@/lib/prompts/compose'
 
 export { MandateGenerationError }
 
@@ -53,16 +54,20 @@ function summarizeScore(row: ScoreRow): string {
 }
 
 /**
- * Propose a Strategy from the founder's real Q-Score and company context.
+ * Assemble the Company Context a Strategy proposal reasons from — the founder's
+ * real Q-Score, company name, and any traction note. Exported separately from
+ * `proposeStrategy` below so a streaming caller (the SSE route) can build the
+ * context, then call `composeMandatePrompt`/`routedStream` directly instead of
+ * going through a single blocking call — same data, same query, two shapes of use.
  *
- * @throws MandateGenerationError if there is no score yet, or the model call fails.
- *   Both are the caller's cue to fall back to a blank, founder-authored form.
+ * @throws MandateGenerationError if there is no score yet — the caller's cue to
+ *   fall back to a blank, founder-authored form.
  */
-export async function proposeStrategy(
+export async function buildStrategyContext(
   supabase: SupabaseClient,
   founderId: string,
   input: ProposeStrategyInput,
-): Promise<GeneratedStrategy> {
+): Promise<CompanyContext> {
   const [{ data: profile }, { data: scoreRow }] = await Promise.all([
     supabase.from('founder_profiles').select('company_name').eq('user_id', founderId).maybeSingle(),
     supabase
@@ -78,10 +83,26 @@ export async function proposeStrategy(
     throw new MandateGenerationError('There is no Q-Score to draft a direction from yet.')
   }
 
-  return generateStrategyProposal({
+  return {
     companyName: (profile as { company_name?: string } | null)?.company_name ?? undefined,
     currentDate: new Date().toISOString().slice(0, 10),
     qScore: { overall: scoreRow.overall_score, summary: summarizeScore(scoreRow as ScoreRow) },
     newInformation: input.currentTraction?.trim() || undefined,
-  })
+  }
+}
+
+/**
+ * Propose a Strategy from the founder's real Q-Score and company context — the
+ * non-streaming shape (still used by tests and any future non-UI caller).
+ *
+ * @throws MandateGenerationError if there is no score yet, or the model call fails.
+ *   Both are the caller's cue to fall back to a blank, founder-authored form.
+ */
+export async function proposeStrategy(
+  supabase: SupabaseClient,
+  founderId: string,
+  input: ProposeStrategyInput,
+): Promise<GeneratedStrategy> {
+  const context = await buildStrategyContext(supabase, founderId, input)
+  return generateStrategyProposal(context)
 }

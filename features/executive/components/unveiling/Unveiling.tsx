@@ -1,0 +1,204 @@
+'use client'
+
+/**
+ * F07 "The Unveiling" (UX_SPEC_the_frame.md §3) — one continuous descent, no
+ * screen-jumps, five layers: the read -> the proposed direction -> the mandate
+ * hardens -> the team claims it -> one confirm. Replaces the old propose-and-edit
+ * strategy form entirely; there is no mission/priorities/goals text box anywhere
+ * in this component.
+ *
+ * Resumes at the right layer from the SAME resolveJourneyState data the page
+ * already fetched — never restarts a decision already saved (§5 of the plan).
+ */
+
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { red, muted } from '@/lib/constants/colors'
+import { useStreamedProposal, type StreamedProposal } from '../../hooks/useStreamedProposal'
+import { Thread } from './Thread'
+import { TheRead } from './TheRead'
+import { ProposedDirection } from './ProposedDirection'
+import { NudgeExchange } from './NudgeExchange'
+import { MandateHardens } from './MandateHardens'
+import { TeamClaimsIt } from './TeamClaimsIt'
+import { OneConfirm } from './OneConfirm'
+import type { Contract, Strategy } from '../../types/executive.types'
+
+type Step = 1 | 2 | 3 | 4 | 5
+
+interface Committed { mission: string; priorities: string[]; goals: string[] }
+
+export function entryStep(strategy: Strategy | null, contract: Contract | null): Step {
+  if (contract) return 4
+  if (strategy) return 3
+  return 1
+}
+
+export function Unveiling({
+  strategy, contract, onDone,
+}: {
+  strategy: Strategy | null
+  contract: Contract | null
+  onDone: () => void | Promise<void>
+}) {
+  const [step, setStep] = useState<Step>(() => entryStep(strategy, contract))
+  const [localContract, setLocalContract] = useState<Contract | null>(contract)
+  const [committed, setCommitted] = useState<Committed | null>(
+    strategy ? { mission: strategy.mission ?? '', priorities: strategy.priorities, goals: strategy.goals } : null,
+  )
+  // Layer 2's current candidate — proposed or nudged, not yet saved.
+  const [candidate, setCandidate] = useState<StreamedProposal | null>(null)
+  const [nudging, setNudging] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  // Bumped on every fresh commit — forces MandateHardens to remount and re-draft
+  // instead of reusing a stale contract from a direction that's no longer current.
+  const [attempt, setAttempt] = useState(0)
+
+  const { streaming, readText, proposal, error: proposeError, run } = useStreamedProposal()
+  const startedProposing = useRef(false)
+
+  // Step 1: the read starts the moment we land here with nothing saved yet — no
+  // input asked first ("propose, don't ask" — UX_SPEC §1.2).
+  useEffect(() => {
+    if (step === 1 && !startedProposing.current) {
+      startedProposing.current = true
+      void run('/api/strategy/propose', {})
+    }
+  }, [step, run])
+
+  useEffect(() => {
+    if (proposal && step === 1) {
+      setCandidate(proposal)
+      setStep(2)
+    }
+  }, [proposal, step])
+
+  const saveAndCommit = useCallback(async (fields: Committed) => {
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/strategy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fields),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? 'Could not save your direction.'); return }
+      setCommitted(fields)
+      setLocalContract(null)
+      setAttempt(a => a + 1)
+      setNudging(false)
+      setStep(3)
+    } catch {
+      setError('Could not reach the server. Try again.')
+    } finally {
+      setBusy(false)
+    }
+  }, [])
+
+  async function confirm() {
+    if (!localContract) return
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/contracts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'confirm', contractId: localContract.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? 'Something went wrong.'); return }
+      await onDone()
+    } catch {
+      setError('Could not reach the server. Try again.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function refine() {
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/contracts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'draft' }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? 'Something went wrong.'); return }
+      setLocalContract(data.contract)
+    } catch {
+      setError('Could not reach the server. Try again.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function reviseDirection() {
+    if (committed) setCandidate({ ...committed, read: '', document: undefined })
+    setNudging(false)
+    setStep(2)
+  }
+
+  return (
+    <div style={{ display: 'flex', gap: 36, alignItems: 'flex-start' }}>
+      <div style={{ paddingTop: 4, flexShrink: 0 }}>
+        <Thread step={step} />
+      </div>
+
+      <div style={{ flex: 1, maxWidth: 620, display: 'flex', flexDirection: 'column', gap: 24 }}>
+        {error && <p style={{ color: red, fontSize: 14, margin: 0 }}>{error}</p>}
+
+        {step === 1 && (
+          <>
+            <TheRead text={readText} streaming={streaming} />
+            {proposeError && <p style={{ color: red, fontSize: 14, margin: 0 }}>{proposeError}</p>}
+          </>
+        )}
+
+        {step === 2 && candidate && !nudging && (
+          <ProposedDirection
+            mission={candidate.mission}
+            busy={busy}
+            onAccept={() => void saveAndCommit({ mission: candidate.mission, priorities: candidate.priorities, goals: candidate.goals })}
+            onNudgeClick={() => setNudging(true)}
+          />
+        )}
+        {step === 2 && nudging && candidate && (
+          <NudgeExchange
+            previous={{ mission: candidate.mission, priorities: candidate.priorities, goals: candidate.goals }}
+            onCancel={() => setNudging(false)}
+            onRevised={revised => { setCandidate(revised); setNudging(false) }}
+          />
+        )}
+
+        {step >= 3 && committed && (
+          <p style={{ color: muted, fontSize: 13, margin: 0 }}>
+            Direction: <span style={{ color: muted }}>{committed.mission}</span>
+          </p>
+        )}
+
+        {step >= 3 && (
+          <MandateHardens
+            key={attempt}
+            contract={localContract}
+            onHardened={c => { setLocalContract(c); setStep(s => (s < 4 ? 4 : s)) }}
+            onError={setError}
+          />
+        )}
+
+        {step >= 4 && localContract && <TeamClaimsIt contract={localContract} />}
+
+        {step >= 4 && localContract && (
+          <OneConfirm
+            busy={busy}
+            onConfirm={() => void confirm()}
+            onRefine={() => void refine()}
+            onRevise={reviseDirection}
+          />
+        )}
+      </div>
+    </div>
+  )
+}

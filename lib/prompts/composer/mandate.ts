@@ -57,6 +57,18 @@ export interface ComposeMandateInput {
    * design source and stays clean.
    */
   structuredTail?: 'contract' | 'strategy'
+  /**
+   * "Nudge this" (F07b) — only meaningful with kind: 'strategy'. When present, asks
+   * for a SHORT revision instead of redoing the six-step session: the founder has
+   * already seen `previous`, and pushed back with `note`. Keeps Morgan's voice and
+   * the founder's real data consistent between the original read and the reshape,
+   * because it reuses the exact same S001 system prompt as grounding — it just adds
+   * one instruction not to repeat the full document.
+   */
+  reshape?: {
+    previous: { mission: string; priorities: string[]; goals: string[] }
+    note: string
+  }
 }
 
 /**
@@ -85,13 +97,16 @@ const CONTRACT_JSON_TAIL = [
   '  above. Do not invent one. An unknown ID is rejected and the draft fails.',
   '- `executive` must be one of: ceo, growth, product, operations, finance.',
   '- 3–5 priorities. At least one success metric. At least one program.',
+  '- The block must be valid, parseable JSON. If a string value itself needs a quote',
+  '  mark (e.g. quoting a word from the document), escape it as \\" — never a bare ".',
 ].join('\n')
 
 /**
- * Asks S001 to distil its six-step session into the three fields F07 already
- * stores (`strategy_sessions.mission/priorities/goals` — see lib/mandate/strategy.ts).
- * Mirrors CONTRACT_JSON_TAIL: named sections point at S001's own headings so the
- * model transcribes its own Executive Recommendation rather than answering twice.
+ * Asks S001 to distil its six-step session into the four fields F07 needs
+ * (`strategy_sessions.mission/priorities/goals` — see lib/mandate/strategy.ts —
+ * plus `read`, the unveiling's Layer 1 text). Mirrors CONTRACT_JSON_TAIL: named
+ * sections point at S001's own headings so the model transcribes its own Executive
+ * Recommendation rather than answering twice.
  */
 const STRATEGY_JSON_TAIL = [
   '# Machine-readable summary (required)',
@@ -101,6 +116,7 @@ const STRATEGY_JSON_TAIL = [
   '',
   '```json',
   '{',
+  '  "read":       "the same opening paragraph you wrote before the six-step document, trimmed",',
   '  "mission":    "one sentence, from your Executive Recommendation — what this company is building and for whom",',
   '  "priorities": ["from your Top Strategic Priorities section — 3 to 5 items"],',
   '  "goals":      ["concrete, measurable — from your Executive Recommendation and chosen Scenario"]',
@@ -108,13 +124,65 @@ const STRATEGY_JSON_TAIL = [
   '```',
   '',
   'Rules:',
+  '- `read` must match the opening paragraph exactly (trimmed) — do not write a new one here.',
   '- `mission` is ONE sentence a founder would recognise as their own direction, not a',
   '  paragraph and not generic ("grow the business" is not acceptable).',
   '- 3-5 `priorities`. At least 1 `goal`.',
   '- If the company situation or Q-Score gives too little to say something specific and',
   '  honest, say less rather than invent confidence — a shorter, truthful mission beats a',
   '  padded, generic one.',
+  '- The block must be valid, parseable JSON. If `read` quotes a word from the document',
+  '  (e.g. a literal company name), escape that quote mark as \\" — never a bare ".',
 ].join('\n')
+
+/**
+ * The delimiter marking the end of Layer 1's "read" — the short paragraph the model
+ * writes BEFORE the six-step S001 document. Streamed live (F07b); everything after
+ * it is the slower full document + JSON tail, shown as a quiet "hardening…" state
+ * rather than raw markdown typing itself (that isn't what "the read" means in the
+ * spec — the read is 2-4 warm sentences, not a formal report).
+ */
+export const STRATEGY_READ_DELIMITER = '<<<END_READ>>>'
+
+const STRATEGY_READ_PREAMBLE = [
+  '# Before you begin',
+  '',
+  'Before Step 1, first write ONE short paragraph (2-4 sentences), first person, as this',
+  "company's CEO speaking directly to the founder — state plainly what their Q-Score",
+  'shows: their strongest and weakest dimensions, and what that implies. This is the',
+  'first thing the founder reads. Warm, direct, specific to their real numbers. Not a',
+  'question. If the data is thin, say so honestly rather than inventing a confident read.',
+  '',
+  `End that paragraph with the line ${STRATEGY_READ_DELIMITER} on its own, then continue`,
+  'with the full Executive Strategy Session exactly as specified below.',
+].join('\n')
+
+/**
+ * "Nudge this" — read LAST, so it overrides the "do the six-step session" default
+ * instead of competing with it. Reuses the S001 system prompt as grounding (same
+ * voice, same founder data) but asks for a short revision only — materially
+ * cheaper than a fresh session, since output length is what drives latency here.
+ */
+function buildReshapeBlock(reshape: NonNullable<ComposeMandateInput['reshape']>): string {
+  return [
+    '# Revision request — read this LAST; it overrides the instructions above',
+    '',
+    `The founder has already seen this direction: "${reshape.previous.mission}"`,
+    `Priorities so far: ${reshape.previous.priorities.join('; ') || '(none yet)'}`,
+    `Goals so far: ${reshape.previous.goals.join('; ') || '(none yet)'}`,
+    '',
+    `They pushed back: "${reshape.note}"`,
+    '',
+    'Do NOT redo the six-step session or write a new six-step document. Instead write ONLY:',
+    "1. One revised paragraph (2-4 sentences, this executive's voice) reflecting the feedback,",
+    `   ending with the line ${STRATEGY_READ_DELIMITER} on its own.`,
+    '2. Then the JSON tail (the same shape already specified above) with a revised',
+    '   mission/priorities/goals/read.',
+    '',
+    'Keep the whole reply under 250 words before the JSON block. `read` in the JSON must match',
+    'the revised paragraph you just wrote, not the original direction above.',
+  ].join('\n')
+}
 
 const MANDATE_PREAMBLE = [
   '# Mandate Package',
@@ -155,9 +223,14 @@ export function composeMandatePrompt(input: ComposeMandateInput): ExecutionPacka
     },
   ]
 
-  const parts = [MANDATE_PREAMBLE, ...layers.map(l => l.text)]
+  const parts = [MANDATE_PREAMBLE]
+  // A reshape skips the "write the read paragraph, then the full session" framing —
+  // buildReshapeBlock below tells the model explicitly not to redo the session.
+  if (input.kind === 'strategy' && !input.reshape) parts.push(STRATEGY_READ_PREAMBLE)
+  parts.push(...layers.map(l => l.text))
   if (input.structuredTail === 'contract') parts.push(CONTRACT_JSON_TAIL)
   if (input.structuredTail === 'strategy') parts.push(STRATEGY_JSON_TAIL)
+  if (input.reshape) parts.push(buildReshapeBlock(input.reshape))
   const text = parts.join(SEPARATOR)
 
   return {

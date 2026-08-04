@@ -24,8 +24,8 @@ import Link from 'next/link'
 import { ArrowRight, Loader2 } from 'lucide-react'
 import { bg, surf, bdr, ink, muted, blue, red } from '@/lib/constants/colors'
 import { useQScore } from '@/features/qscore/hooks/useQScore'
-import { MandateCard } from '@/features/executive/components/MandateCard'
 import { CommandView } from '@/features/executive/components/CommandView'
+import { Unveiling } from '@/features/executive/components/unveiling/Unveiling'
 import {
   resolveJourneyState,
   type Contract,
@@ -115,14 +115,16 @@ export default function ExecutivePage() {
 
   return (
     <Shell>
-      <h1 style={{ color: ink, fontSize: 28, fontWeight: 600, margin: 0 }}>Executive team</h1>
-      <p style={{ color: muted, fontSize: 15, marginTop: 8, lineHeight: 1.6, maxWidth: 620 }}>
-        {state === 'confirmed'
-          ? 'Your team is operating to this mandate. You don’t approve their work each week — you redirect them by setting a new mandate.'
-          : state === 'no_score'
-          ? 'Before your team can work, they need to know where you stand.'
-          : 'Set the direction once. Your executive team works to it from there.'}
-      </p>
+      {(state === 'no_score' || state === 'confirmed') && (
+        <>
+          <h1 style={{ color: ink, fontSize: 28, fontWeight: 600, margin: 0 }}>Executive team</h1>
+          <p style={{ color: muted, fontSize: 15, marginTop: 8, lineHeight: 1.6, maxWidth: 620 }}>
+            {state === 'confirmed'
+              ? 'Your team is operating to this mandate. You don’t approve their work each week — you redirect them by setting a new mandate.'
+              : 'Before your team can work, they need to know where you stand.'}
+          </p>
+        </>
+      )}
 
       {error && (
         <div style={{
@@ -141,58 +143,13 @@ export default function ExecutivePage() {
         />
       )}
 
-      {state === 'no_strategy' && (
-        <Step
-          title="Set your direction"
-          body="Your mandate is built from your strategy — mission, priorities, goals. It takes a few minutes."
-          action={<Link href="/founder/strategy" style={primaryLink}>Set your direction <ArrowRight size={15} /></Link>}
-        />
-      )}
-
-      {state === 'no_contract' && (
-        <Step
-          title="Draft your mandate"
-          body="Turn your direction into an executive contract — what your team will work on, and how success is measured."
-          action={
-            <button onClick={() => void post('/api/contracts', { action: 'draft' })} disabled={busy} style={primaryBtn(busy)}>
-              {busy ? 'Drafting…' : 'Draft my mandate'}
-            </button>
-          }
-        />
-      )}
-
-      {contract && state === 'draft' && (
+      {/* F07 "the unveiling" — one continuous descent (read -> direction -> mandate ->
+          team -> confirm), no screen-jumps between what used to be three separate
+          places (a strategy form, a draft-mandate page, a team page). Resumes at the
+          right layer itself from strategy/contract — see Unveiling's entryStep(). */}
+      {(state === 'no_strategy' || state === 'no_contract' || state === 'draft') && (
         <div style={{ marginTop: 24 }}>
-          <MandateCard contract={contract} />
-
-          <div style={{ marginTop: 20 }}>
-            <p style={{ color: muted, fontSize: 14, lineHeight: 1.6, maxWidth: 620, margin: '0 0 12px' }}>
-              {/* THE one confirmation in this product (ADR-002). Said plainly, because
-                  the founder is handing over autonomy and should know it. */}
-              Confirming this puts your team to work. They’ll run to it without asking
-              again — you change direction by setting a new mandate, not by approving
-              each week.
-            </p>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              <button
-                onClick={() => void post('/api/contracts', { action: 'confirm', contractId: contract.id })}
-                disabled={busy}
-                style={primaryBtn(busy)}
-              >
-                {busy ? 'Confirming…' : 'Confirm this mandate'}
-              </button>
-              <button
-                onClick={() => void post('/api/contracts', { action: 'draft' })}
-                disabled={busy}
-                style={secondaryBtn}
-              >
-                Refine
-              </button>
-              <Link href="/founder/strategy" style={{ color: muted, fontSize: 13, textDecoration: 'underline' }}>
-                Change your answers first
-              </Link>
-            </div>
-          </div>
+          <Unveiling strategy={strategy} contract={contract} onDone={load} />
         </div>
       )}
 
@@ -216,7 +173,7 @@ export default function ExecutivePage() {
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ background: bg, minHeight: '100vh', padding: '48px 24px' }}>
-      <div style={{ maxWidth: 760, margin: '0 auto' }}>{children}</div>
+      <div style={{ maxWidth: 820, margin: '0 auto' }}>{children}</div>
     </div>
   )
 }
@@ -239,11 +196,6 @@ const primaryBtn = (busy: boolean): React.CSSProperties => ({
   padding: '11px 22px', fontSize: 15, fontWeight: 500,
   cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.6 : 1,
 })
-
-const secondaryBtn: React.CSSProperties = {
-  background: 'none', color: ink, border: `1px solid ${bdr}`, borderRadius: 8,
-  padding: '11px 22px', fontSize: 15, cursor: 'pointer',
-}
 
 const primaryLink: React.CSSProperties = {
   ...primaryBtn(false),
