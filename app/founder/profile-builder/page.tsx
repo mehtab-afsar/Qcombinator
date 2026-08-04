@@ -1172,8 +1172,12 @@ export default function ProfileBuilderPage() {
   }
 
   const completedCount = ['1','2','3','4','5'].filter(k => sections[k]?.isComplete).length
-  // Fast mode (doc upload): allow submit when any section has ≥30% data — matches API gate
-  const hasAnySectionData = Object.values(sections).some(s => s.completionScore >= 30)
+  // Fast mode (doc upload): allow submit when any section has ≥30% data — matches API gate.
+  // Deliberately only sections 1-5, not 'pitch': saveSection() never persists the pitch
+  // practice section (it's a rehearsal, not scored data), so the server's own gate — at
+  // least one section saved with completion_score >= 30 — can never see it. Including
+  // pitch here let this button say "ready" while the server still rejected with a 400.
+  const hasAnySectionData = ['1', '2', '3', '4', '5'].some(k => (sections[k]?.completionScore ?? 0) >= 30)
   const canSubmit = completedCount >= 3 || (flowMode === 'fast' && uploadedFiles.length > 0 && hasAnySectionData)
 
   const STEP_ORDER = flowMode === 'fast' ? STEP_ORDER_FAST : STEP_ORDER_FULL
@@ -2975,7 +2979,7 @@ export default function ProfileBuilderPage() {
                   </h2>
                   <p style={{ fontSize: 14, color: muted, margin: 0 }}>
                     {flowMode === 'fast'
-                      ? `Based on ${Object.values(sections).filter(s => s.completionScore >= 30).length}/5 parameters answered. Add more sections to raise it.`
+                      ? `Based on ${['1', '2', '3', '4', '5'].filter(k => (sections[k]?.completionScore ?? 0) >= 30).length}/5 parameters answered. Add more sections to raise it.`
                       : `${completedCount}/5 sections complete. ${canSubmit ? 'Ready to calculate your Q-Score.' : 'Complete at least 1 section to submit.'}`}
                   </p>
                 </div>
