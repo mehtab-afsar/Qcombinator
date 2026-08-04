@@ -21,6 +21,9 @@ export interface Workshop {
   spotsLeft: number;
   isPast: boolean;
   recordingUrl?: string;
+  /** ISO datetime — calendar placement + "Add to Google Calendar" source of truth. */
+  startsAt?: string;
+  endsAt?: string;
 }
 
 export interface Mentor {

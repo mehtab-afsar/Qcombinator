@@ -5,13 +5,16 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Calendar, Users, Clock, Star,
   Award, ArrowRight, Video, Play, CheckCircle,
-  Sparkles, BookOpen, Zap, Brain,
+  Sparkles, BookOpen, Zap, Brain, ExternalLink,
 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import type { Workshop, Mentor, AcademyProgram } from "@/features/academy/types/academy.types";
-import { bg, surf, bdr, ink, muted } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted, red } from '@/lib/constants/colors'
 import { SectionSpinner } from '@/features/shared/components/Spinner'
+import { WorkshopCalendar } from '@/features/academy/components/WorkshopCalendar'
+import type { RegisterResult } from '@/features/academy/components/DayWorkshopPanel'
+import { buildGoogleCalendarUrl } from '@/features/academy/lib/googleCalendarLink'
 
 // ─── recommended resources per dimension ──────────────────────────────────────
 const RECOMMENDED = [
@@ -45,18 +48,60 @@ function AcademyInner() {
   const [workshops, setWorkshops]     = useState<Workshop[]>([]);
   const [mentors, setMentors]         = useState<Mentor[]>([]);
   const [academyPrograms, setAcademyPrograms] = useState<AcademyProgram[]>([]);
+  const [workshopView, setWorkshopView] = useState<'list' | 'calendar'>('list');
+  const [registeredIds, setRegisteredIds] = useState<Set<string>>(new Set());
+  const [registeringId, setRegisteringId] = useState<string | null>(null);
+  const [fullIds, setFullIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetch('/api/academy')
-      .then(r => r.ok ? r.json() : { workshops: [], mentors: [], programs: [] })
+      .then(r => r.ok ? r.json() : { workshops: [], mentors: [], programs: [], registeredWorkshopIds: [] })
       .then(d => {
         setWorkshops(d.workshops ?? [])
         setMentors(d.mentors ?? [])
         setAcademyPrograms(d.programs ?? [])
+        setRegisteredIds(new Set<string>(d.registeredWorkshopIds ?? []))
       })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])
+
+  // Single register/unregister code path — shared by the list-view "Reserve My Spot" button
+  // and the calendar's DayWorkshopPanel. Updates the one `workshops` source array so both
+  // views stay in sync without a refetch (list/calendar both derive from it).
+  async function handleRegister(workshopId: string): Promise<RegisterResult> {
+    try {
+      const res = await fetch(`/api/academy/workshops/${workshopId}/register`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) {
+        if (data.full) setFullIds(prev => new Set(prev).add(workshopId))
+        return { ok: false, full: Boolean(data.full), error: data.error }
+      }
+      setRegisteredIds(prev => new Set(prev).add(workshopId))
+      setWorkshops(prev => prev.map(w => w.id === workshopId
+        ? { ...w, registered: w.registered + 1, spotsLeft: typeof data.spotsLeft === 'number' ? data.spotsLeft : Math.max(w.spotsLeft - 1, 0) }
+        : w))
+      return { ok: true }
+    } catch {
+      return { ok: false, error: 'Network error — please try again.' }
+    }
+  }
+
+  async function handleUnregister(workshopId: string): Promise<RegisterResult> {
+    try {
+      const res = await fetch(`/api/academy/workshops/${workshopId}/register`, { method: 'DELETE' })
+      const data = await res.json()
+      if (!res.ok) return { ok: false, error: data.error }
+      setRegisteredIds(prev => { const next = new Set(prev); next.delete(workshopId); return next })
+      setFullIds(prev => { const next = new Set(prev); next.delete(workshopId); return next })
+      setWorkshops(prev => prev.map(w => w.id === workshopId
+        ? { ...w, registered: Math.max(w.registered - 1, 0), spotsLeft: typeof data.spotsLeft === 'number' ? data.spotsLeft : w.spotsLeft + 1 }
+        : w))
+      return { ok: true }
+    } catch {
+      return { ok: false, error: 'Network error — please try again.' }
+    }
+  }
 
   const upcomingWorkshops = workshops.filter(w => w.status === 'upcoming' || w.status === 'live');
   const pastWorkshops     = workshops.filter(w => w.status === 'past');
@@ -226,20 +271,49 @@ function AcademyInner() {
 
                 {/* Upcoming */}
                 <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18 }}>
-                    <h2 style={{ fontSize: 16, fontWeight: 500, color: ink }}>Upcoming Workshops</h2>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginBottom: 18 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <h2 style={{ fontSize: 16, fontWeight: 500, color: ink }}>Upcoming Workshops</h2>
+                      {upcomingWorkshops.length > 0 && (
+                        <span style={{
+                          fontSize: 11, fontWeight: 600, padding: "2px 10px", borderRadius: 99,
+                          background: "#F0FDF4", color: "#166534", border: "1px solid #BBF7D0",
+                          letterSpacing: "0.06em", textTransform: "uppercase",
+                        }}>
+                          {upcomingWorkshops.length} live
+                        </span>
+                      )}
+                    </div>
                     {upcomingWorkshops.length > 0 && (
-                      <span style={{
-                        fontSize: 11, fontWeight: 600, padding: "2px 10px", borderRadius: 99,
-                        background: "#F0FDF4", color: "#166534", border: "1px solid #BBF7D0",
-                        letterSpacing: "0.06em", textTransform: "uppercase",
-                      }}>
-                        {upcomingWorkshops.length} live
-                      </span>
+                      <div style={{ display: "flex", gap: 3, background: surf, borderRadius: 9, padding: 3, border: `1px solid ${bdr}` }}>
+                        {(["list", "calendar"] as const).map(v => (
+                          <button
+                            key={v}
+                            onClick={() => setWorkshopView(v)}
+                            style={{
+                              padding: "6px 14px", borderRadius: 7, border: "none", cursor: "pointer",
+                              fontSize: 12, fontWeight: workshopView === v ? 500 : 400,
+                              background: workshopView === v ? bg : "transparent",
+                              color: workshopView === v ? ink : muted,
+                              boxShadow: workshopView === v ? "0 1px 4px rgba(24,22,15,0.08)" : "none",
+                              transition: "all 0.15s", textTransform: "capitalize",
+                            }}
+                          >
+                            {v}
+                          </button>
+                        ))}
+                      </div>
                     )}
                   </div>
 
-                  {upcomingWorkshops.length === 0 ? (
+                  {upcomingWorkshops.length > 0 && workshopView === "calendar" ? (
+                    <WorkshopCalendar
+                      workshops={upcomingWorkshops}
+                      registeredIds={registeredIds}
+                      onRegister={handleRegister}
+                      onUnregister={handleUnregister}
+                    />
+                  ) : upcomingWorkshops.length === 0 ? (
                     <motion.div
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -283,11 +357,12 @@ function AcademyInner() {
                               {w.topic.replace("-", " ")}
                             </span>
                             <span style={{
-                              fontSize: 12, fontWeight: 400, color: muted,
+                              fontSize: 12, fontWeight: fullIds.has(w.id) || (!registeredIds.has(w.id) && w.spotsLeft <= 0) ? 600 : 400,
+                              color: fullIds.has(w.id) || (!registeredIds.has(w.id) && w.spotsLeft <= 0) ? red : muted,
                               background: surf, padding: "3px 10px", borderRadius: 99,
                               border: `1px solid ${bdr}`,
                             }}>
-                              {w.spotsLeft} spots left
+                              {fullIds.has(w.id) || (!registeredIds.has(w.id) && w.spotsLeft <= 0) ? "Workshop full" : `${w.spotsLeft} spots left`}
                             </span>
                           </div>
 
@@ -327,20 +402,57 @@ function AcademyInner() {
                             </div>
                           </div>
 
-                          <button
-                            onClick={showToast}
-                            onMouseEnter={e => (e.currentTarget.style.opacity = "0.85")}
-                            onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
-                            style={{
-                              width: "100%", display: "flex", alignItems: "center", justifyContent: "center",
-                              gap: 8, padding: "11px 0", borderRadius: 10, border: "none",
-                              background: ink, color: bg, fontSize: 13, fontWeight: 500,
-                              cursor: "pointer", transition: "opacity 0.15s",
-                            }}
-                          >
-                            Reserve My Spot
-                            <ArrowRight style={{ width: 14, height: 14 }} />
-                          </button>
+                          {registeredIds.has(w.id) ? (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                              <button
+                                onClick={async () => { setRegisteringId(w.id); await handleUnregister(w.id); setRegisteringId(null); }}
+                                disabled={registeringId === w.id}
+                                style={{
+                                  width: "100%", padding: "10px 0", borderRadius: 10,
+                                  border: `1px solid ${bdr}`, background: bg, color: ink,
+                                  fontSize: 13, fontWeight: 400,
+                                  cursor: registeringId === w.id ? "not-allowed" : "pointer",
+                                  opacity: registeringId === w.id ? 0.6 : 1,
+                                }}
+                              >
+                                {registeringId === w.id ? "Updating…" : "You're registered — Unregister"}
+                              </button>
+                              <a
+                                href={buildGoogleCalendarUrl(w)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  width: "100%", display: "flex", alignItems: "center", justifyContent: "center",
+                                  gap: 8, padding: "11px 0", borderRadius: 10, border: "none",
+                                  background: ink, color: bg, fontSize: 13, fontWeight: 500,
+                                  textDecoration: "none", boxSizing: "border-box",
+                                }}
+                              >
+                                Add to Google Calendar
+                                <ExternalLink style={{ width: 14, height: 14 }} />
+                              </a>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={async () => { setRegisteringId(w.id); await handleRegister(w.id); setRegisteringId(null); }}
+                              disabled={registeringId === w.id || fullIds.has(w.id) || w.spotsLeft <= 0}
+                              onMouseEnter={e => (e.currentTarget.style.opacity = "0.85")}
+                              onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
+                              style={{
+                                width: "100%", display: "flex", alignItems: "center", justifyContent: "center",
+                                gap: 8, padding: "11px 0", borderRadius: 10, border: "none",
+                                background: (fullIds.has(w.id) || w.spotsLeft <= 0) ? bdr : ink,
+                                color: (fullIds.has(w.id) || w.spotsLeft <= 0) ? muted : bg,
+                                fontSize: 13, fontWeight: 500,
+                                cursor: (registeringId === w.id || fullIds.has(w.id) || w.spotsLeft <= 0) ? "not-allowed" : "pointer",
+                                opacity: registeringId === w.id ? 0.7 : 1,
+                                transition: "opacity 0.15s",
+                              }}
+                            >
+                              {fullIds.has(w.id) || w.spotsLeft <= 0 ? "Workshop full" : registeringId === w.id ? "Registering…" : "Reserve My Spot"}
+                              {!(fullIds.has(w.id) || w.spotsLeft <= 0) && !(registeringId === w.id) && <ArrowRight style={{ width: 14, height: 14 }} />}
+                            </button>
+                          )}
                         </motion.div>
                       );
                     })}
