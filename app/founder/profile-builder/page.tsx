@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
-import { shouldTriggerUpload, getInitialQuestion, getMissingFields, buildFoundSnippets, getTargetedQuestion } from '@/lib/profile-builder/question-engine'
+import { shouldTriggerUpload, getInitialQuestion, getMissingFields, buildFoundSnippets, getTargetedQuestion, getSectionCompletionPct } from '@/lib/profile-builder/question-engine'
 import type { FounderProfile } from '@/lib/profile-builder/question-engine'
 import { generateSmartQuestions } from '@/lib/profile-builder/smart-questions'
 import type { SmartQuestion } from '@/lib/profile-builder/smart-questions'
@@ -580,6 +580,42 @@ export default function ProfileBuilderPage() {
       }),
     }).catch(() => {})
   }, [])
+
+  // ── "here's what we pulled — right?" — confirm before it counts ──────────
+  // A wrong extraction shouldn't silently feed the score. Deleting a field here
+  // reverts it to "missing" — it's re-asked in the normal flow, never just dropped.
+  function deleteNestedField(obj: Record<string, unknown>, path: string): Record<string, unknown> {
+    const parts = path.split('.')
+    const clone = JSON.parse(JSON.stringify(obj)) as Record<string, unknown>
+    let cur = clone
+    for (let i = 0; i < parts.length - 1; i++) {
+      const p = parts[i]
+      if (typeof cur[p] !== 'object' || cur[p] === null) return clone
+      cur = cur[p] as Record<string, unknown>
+    }
+    delete cur[parts[parts.length - 1]]
+    return clone
+  }
+
+  function dismissExtractedField(secKey: string, fieldKey: string, label: string) {
+    setSections(prev => {
+      const sec = prev[secKey] ?? initSection()
+      const nextFields = deleteNestedField(sec.extractedFields, fieldKey)
+      const pct = getSectionCompletionPct(nextFields, Number(secKey), founderProfile.stage ?? 'pre-product', sec.confidenceMap)
+      const updated: SectionState = { ...sec, extractedFields: nextFields, completionScore: pct, isComplete: pct >= 70 }
+      if (token) void saveSection(secKey, updated, token)
+      return { ...prev, [secKey]: updated }
+    })
+    setExtractionSummary(prev => prev.map(s => {
+      if (s.sectionKey !== secKey) return s
+      return {
+        ...s,
+        extractedSnippets: s.extractedSnippets.filter(sn => sn.fieldKey !== fieldKey),
+        missingLabels: [...s.missingLabels, label],
+        extractedCount: Math.max(0, s.extractedCount - 1),
+      }
+    }))
+  }
 
   // ── persist fast-flow state to DB (fire-and-forget) ──────────────────────
   const saveFlowState = useCallback((state: object | null) => {
@@ -2186,31 +2222,50 @@ export default function ProfileBuilderPage() {
                             </p>
                           )}
                           {s.extractedSnippets.length > 0 && (
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-                              {s.extractedSnippets.map((snip, i) => {
-                                const src = snip.fieldKey ? fieldSourceMap[snip.fieldKey] : undefined
-                                const srcLabel = src === 'conversation' ? 'chat' : src === 'inferred' ? 'derived' : src === 'document' ? 'doc' : null
-                                return (
-                                  <span key={i} style={{
-                                    display: 'inline-flex', alignItems: 'center', gap: 4,
-                                    fontSize: 11, padding: '3px 9px', borderRadius: 20,
-                                    background: '#D1FAE5', color: '#065F46', fontWeight: 500,
-                                  }}>
-                                    <Check size={9} strokeWidth={3} style={{ flexShrink: 0 }} />
-                                    {snip.label}: <span style={{ fontWeight: 700 }}>{snip.value}</span>
-                                    {srcLabel && (
-                                      <span style={{
-                                        fontSize: 9, fontWeight: 700, padding: '1px 5px',
-                                        borderRadius: 10, background: src === 'inferred' ? '#FEF3C7' : src === 'conversation' ? '#DBEAFE' : '#E0F2FE',
-                                        color: src === 'inferred' ? '#92400E' : src === 'conversation' ? '#1E40AF' : '#0369A1',
-                                        marginLeft: 2, letterSpacing: '0.03em',
-                                      }}>
-                                        {srcLabel}
-                                      </span>
-                                    )}
-                                  </span>
-                                )
-                              })}
+                            <div>
+                              <div style={{ fontSize: 10, color: muted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
+                                We pulled this — tap × on anything wrong
+                              </div>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                                {s.extractedSnippets.map((snip, i) => {
+                                  const src = snip.fieldKey ? fieldSourceMap[snip.fieldKey] : undefined
+                                  const srcLabel = src === 'conversation' ? 'chat' : src === 'inferred' ? 'derived' : src === 'document' ? 'doc' : null
+                                  return (
+                                    <span key={i} style={{
+                                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                                      fontSize: 11, padding: '3px 6px 3px 9px', borderRadius: 20,
+                                      background: '#D1FAE5', color: '#065F46', fontWeight: 500,
+                                    }}>
+                                      <Check size={9} strokeWidth={3} style={{ flexShrink: 0 }} />
+                                      {snip.label}: <span style={{ fontWeight: 700 }}>{snip.value}</span>
+                                      {srcLabel && (
+                                        <span style={{
+                                          fontSize: 9, fontWeight: 700, padding: '1px 5px',
+                                          borderRadius: 10, background: src === 'inferred' ? '#FEF3C7' : src === 'conversation' ? '#DBEAFE' : '#E0F2FE',
+                                          color: src === 'inferred' ? '#92400E' : src === 'conversation' ? '#1E40AF' : '#0369A1',
+                                          marginLeft: 2, letterSpacing: '0.03em',
+                                        }}>
+                                          {srcLabel}
+                                        </span>
+                                      )}
+                                      {snip.fieldKey && (
+                                        <button
+                                          onClick={() => dismissExtractedField(s.sectionKey, snip.fieldKey!, snip.label)}
+                                          title="Not right — remove this"
+                                          aria-label={`Remove ${snip.label}`}
+                                          style={{
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            width: 14, height: 14, borderRadius: '50%', border: 'none',
+                                            background: 'rgba(6,95,70,0.12)', color: '#065F46',
+                                            cursor: 'pointer', padding: 0, marginLeft: 1, flexShrink: 0,
+                                            fontSize: 10, lineHeight: 1, fontFamily: 'inherit',
+                                          }}
+                                        >×</button>
+                                      )}
+                                    </span>
+                                  )
+                                })}
+                              </div>
                             </div>
                           )}
                           {s.missingLabels.length > 0 && (
