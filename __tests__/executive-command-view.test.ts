@@ -238,3 +238,32 @@ describe('the mandate card shows who takes it on, by real name', () => {
     expect(card).toMatch(/who takes this on/i)
   })
 })
+
+// ─── The one-time reveal (F09 polish) ──────────────────────────────────────────
+
+describe('the team-assembly reveal plays once, not on every visit', () => {
+  const commandView = stripComments(readFileSync('features/executive/components/CommandView.tsx', 'utf8'))
+  const roster = stripComments(readFileSync('features/executive/components/ExecutiveRoster.tsx', 'utf8'))
+
+  it('decides reveal synchronously, in a lazy useState initializer, not an effect', () => {
+    // framer-motion only reads `initial` at MOUNT. Deciding this in a useEffect and then
+    // calling setState would flip the value after the component already mounted with the
+    // wrong `initial` baked in — the animation would silently never play. This is the
+    // exact bug the lazy initializer avoids: it runs once, synchronously, before paint.
+    expect(commandView).toMatch(/useState\(\(\)\s*=>\s*firstLandingOnThisContract/)
+  })
+
+  it('a broken or disabled localStorage never crashes the page over an animation', () => {
+    expect(commandView).toMatch(/try\s*{[\s\S]*localStorage[\s\S]*}\s*catch/)
+  })
+
+  it('is keyed by contract id, so a new mandate can earn its own reveal', () => {
+    expect(commandView).toContain('contract.id')
+    expect(commandView).toContain('command-view-revealed:')
+  })
+
+  it('ExecutiveRoster only plays the entrance when explicitly told to', () => {
+    expect(roster).toContain('reveal = false')
+    expect(roster).toContain("initial={reveal ? 'hidden' : false}")
+  })
+})

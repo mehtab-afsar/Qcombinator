@@ -15,13 +15,28 @@
  */
 
 import { useEffect, useState } from 'react'
+import { motion } from 'framer-motion'
 import { ExecutiveCard, type ExecutiveCardData } from './ExecutiveCard'
+import { ease } from '@/features/shared/tokens'
 import type { ExecutiveSummary, ProgramInstance } from '../types/executive.types'
 
 interface Briefing { id: string; programId: string | null; executiveId: string | null; verdict: string; createdAt: string }
 interface OwnedAction { id: string; executiveId: string | null }
 
-export function ExecutiveRoster({ programs }: { programs: ProgramInstance[] }) {
+/** Staggered entrance for the one-time "your team assembles" reveal (CommandView). */
+const containerVariants = { hidden: {}, show: { transition: { staggerChildren: 0.12 } } }
+const cardVariants = {
+  hidden: { opacity: 0, y: 12, scale: 0.98 },
+  show: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.4, ease } },
+}
+
+/**
+ * @param reveal play the staggered assembly entrance once (CommandView's first-landing
+ *   reveal). Omitted/false renders in its final state immediately — every subsequent
+ *   visit, and every other place this roster is used (e.g. a draft that isn't
+ *   confirmed yet doesn't render this at all).
+ */
+export function ExecutiveRoster({ programs, reveal = false }: { programs: ProgramInstance[]; reveal?: boolean }) {
   const [executives, setExecutives] = useState<ExecutiveSummary[] | null>(null)
   const [briefings, setBriefings] = useState<Briefing[]>([])
   const [pending, setPending] = useState<OwnedAction[]>([])
@@ -73,9 +88,18 @@ export function ExecutiveRoster({ programs }: { programs: ProgramInstance[] }) {
       }}>
         Your executive team
       </h2>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
-        {cards.map(c => <ExecutiveCard key={c.executive.id} data={c} />)}
-      </div>
+      <motion.div
+        variants={containerVariants}
+        initial={reveal ? 'hidden' : false}
+        animate="show"
+        style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}
+      >
+        {cards.map(c => (
+          <motion.div key={c.executive.id} variants={cardVariants}>
+            <ExecutiveCard data={c} />
+          </motion.div>
+        ))}
+      </motion.div>
     </div>
   )
 }
