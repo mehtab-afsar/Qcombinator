@@ -6,7 +6,7 @@ import { routedText } from '@/lib/llm/router'
 import { getSectionCompletionPct, getMissingFields } from '@/lib/profile-builder/question-engine'
 import { flattenConfidence } from '@/lib/profile-builder/utils'
 import { log } from '@/lib/logger'
-import { rankMissingIndicators } from '@/lib/profile-builder/gap-ranker'
+import { rankMissingIndicators, type GapQuestion } from '@/lib/profile-builder/gap-ranker'
 import { semanticVerify } from '@/lib/profile-builder/semantic-verifier'
 import type { SemanticIssue } from '@/lib/profile-builder/semantic-verifier'
 
@@ -299,6 +299,54 @@ function humanizeFieldKey(fullKey: string): string {
   const last = fullKey.split('.').pop() ?? fullKey
   const spaced = last.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/_/g, ' ').toLowerCase()
   return spaced.charAt(0).toUpperCase() + spaced.slice(1)
+}
+
+/**
+ * Per-founder quick-reply chips for one gap question — the fix for smart-questions.ts's
+ * hardcoded FIELD_QUESTIONS being the same for every founder. rankMissingIndicators()
+ * (gap-ranker.ts) stays a pure, rule-based ranker for WHICH field is worth asking about;
+ * this is the model-driven part, deciding what a plausible answer for THIS founder,
+ * in THIS sector, at THIS stage, with THIS context, would actually look like.
+ *
+ * @returns up to 4 short strings, or [] if generation fails/returns nothing usable —
+ *   the caller's fallback is simply not attaching quickReplies, and the smart-QA screen
+ *   already always has a free-text field regardless (CLAUDE.md: fail soft, not silent).
+ */
+async function generateQuickReplies(
+  gap: GapQuestion,
+  extracted: Record<string, unknown>,
+  sector: string,
+  stage: string,
+): Promise<string[]> {
+  // gap.paramIdx is 0-5 (P1-P6); the profile-builder UI has 5 sections, with P5+P6
+  // both living under section 5 — matches PARAM_IDX_TO_SECTION in page.tsx.
+  const PARAM_IDX_TO_SECTION: Record<number, number> = { 0: 1, 1: 2, 2: 3, 3: 4, 4: 5, 5: 5 }
+  const contextFields = getSectionRelevantFields(extracted, PARAM_IDX_TO_SECTION[gap.paramIdx] ?? 1)
+  const prompt = `A startup founder (${sector} sector, ${stage} stage) is being asked this question about their company:
+"${gap.question}"
+${gap.contextHint ? `What we already know: ${gap.contextHint}` : ''}
+
+What we've extracted about this specific founder so far, for context:
+${JSON.stringify(contextFields).slice(0, 1500)}
+
+Suggest up to 4 short, plausible answers THIS founder specifically might give — grounded in their
+actual sector/stage/context above, not generic placeholders. Each must be answerable with one tap,
+no follow-up needed (e.g. "No patents yet", "6-12 months", "Filed, not granted" — not full sentences).
+Include a realistic "none yet" option when that's plausible for an early-stage founder.
+
+Return ONLY a JSON array of strings, 2-4 items. No preamble, no explanation.`
+
+  try {
+    const raw = await routedText('generation', [{ role: 'user', content: prompt }], { maxTokens: 150 })
+    const match = raw.match(/\[[\s\S]*\]/)
+    if (!match) return []
+    const parsed = JSON.parse(match[0])
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter((s): s is string => typeof s === 'string' && s.trim().length > 0 && s.length <= 60).slice(0, 4)
+  } catch (e) {
+    log.warn(`[upload] quick-reply generation failed for ${gap.field}`, e instanceof Error ? e.message : e)
+    return []
+  }
 }
 
 /**
@@ -802,10 +850,26 @@ export async function POST(req: NextRequest) {
     const totalDocLength = parsed.text.length
     const docTruncated = section === 0 && totalDocLength > DOC_CHAR_LIMIT
 
-    // Rank the highest-impact missing indicators so the UI can ask ≤3 targeted questions
-    const gapQuestions = section === 0
+    // Rank the highest-impact missing indicators so the UI can ask ≤3 targeted questions.
+    // rankMissingIndicators stays pure/rule-based (which field is worth asking) — the
+    // quick-reply OPTIONS for each are generated per-founder below, not templated.
+    const gapQuestionsRanked = section === 0
       ? rankMissingIndicators(extractedFields, founderSector, founderStage, 3)
       : []
+
+    const gapQuestions: Array<GapQuestion & { quickReplies?: string[] }> = gapQuestionsRanked
+    if (gapQuestionsRanked.length > 0) {
+      const results = await Promise.allSettled(
+        gapQuestionsRanked.map(g => generateQuickReplies(g, extractedFields, founderSector, founderStage))
+      )
+      results.forEach((r, i) => {
+        if (r.status === 'fulfilled' && r.value.length > 0) {
+          gapQuestions[i] = { ...gapQuestionsRanked[i], quickReplies: r.value }
+        }
+        // Rejected or empty -> gapQuestions[i] keeps no quickReplies field. The UI's
+        // sane fallback is the free-text input, which is always present regardless.
+      })
+    }
 
     return NextResponse.json({
       uploadId,

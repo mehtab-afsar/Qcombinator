@@ -943,7 +943,7 @@ export default function ProfileBuilderPage() {
         const PARAM_IDX_TO_SECTION: Record<number, string> = { 0:'1', 1:'2', 2:'3', 3:'4', 4:'5', 5:'5' }
         const serverGaps = (data.gapQuestions ?? []) as Array<{
           field: string; question: string; contextHint: string; helpText: string
-          impact: number; paramLabel: string; paramIdx: number
+          impact: number; paramLabel: string; paramIdx: number; quickReplies?: string[]
         }>
         let qs: SmartQuestion[]
         if (serverGaps.length > 0) {
@@ -955,6 +955,7 @@ export default function ProfileBuilderPage() {
             contextHint: g.contextHint,
             helpText: g.helpText,
             priority: Math.round(g.impact * 1000) - i,
+            quickReplies: g.quickReplies,
           }))
         } else {
           const sectionCompletions: Record<string, number> = {}
@@ -2338,51 +2339,50 @@ export default function ProfileBuilderPage() {
           const isLast = smartQaIndex === smartQuestions.length - 1
           const progressPct = Math.round(((smartQaIndex) / smartQuestions.length) * 100)
 
-          const handleSmartNext = async () => {
-            if (!smartInput.trim() || !token) return
+          // @param answerOverride lets a tapped quick-reply chip answer directly —
+          // one tap, no typing, matching the free-text path's "Enter to submit" speed.
+          const handleSmartNext = async (answerOverride?: string) => {
+            const answer = (answerOverride ?? smartInput).trim()
+            if (!answer || !token) return
             setSmartProcessing(true)
             try {
-              const res = await fetch('/api/profile-builder/extract', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                body: JSON.stringify({
-                  section: parseInt(q.sectionKey, 10),
-                  conversationText: (sections[q.sectionKey]?.conversation ?? '') + `\nAgent: ${q.text}\nFounder: ${smartInput}`,
-                  founderProfile,
-                  existingExtracted: sections[q.sectionKey]?.extractedFields ?? {},
-                  existingConfidenceMap: sections[q.sectionKey]?.confidenceMap ?? {},
-                }),
+              // Streamed (SSE), same as the main chat (Stage B) — this used to call
+              // .json() on a route that now always returns text/event-stream, which
+              // silently failed every smart-QA answer via the catch block below.
+              const { meta } = await streamExtract({
+                section: parseInt(q.sectionKey, 10),
+                conversationText: (sections[q.sectionKey]?.conversation ?? '') + `\nAgent: ${q.text}\nFounder: ${answer}`,
+                founderProfile,
+                existingExtracted: sections[q.sectionKey]?.extractedFields ?? {},
+                existingConfidenceMap: sections[q.sectionKey]?.confidenceMap ?? {},
+              }, () => {})
+              const secKey = q.sectionKey
+              setSections(prev => {
+                const sec = prev[secKey] ?? initSection()
+                // Also append to messages so the section chatbot sees this Q&A
+                // and doesn't re-ask the same question when user navigates to that section
+                const newMessages: Message[] = [
+                  ...sec.messages,
+                  { role: 'agent' as const, text: q.text },
+                  { role: 'user' as const, text: answer },
+                ]
+                // If section is now complete, add a completion acknowledgement
+                const newScore = meta.completionScore ?? sec.completionScore
+                if (newScore >= 70 && sec.completionScore < 70) {
+                  newMessages.push({ role: 'agent' as const, text: `Got it — this section is looking good (${newScore}%). You can add more detail or move on.` })
+                }
+                const updated: SectionState = {
+                  ...sec,
+                  extractedFields: meta.mergedFields ?? sec.extractedFields,
+                  confidenceMap: { ...sec.confidenceMap, ...(meta.confidenceMap ?? {}) },
+                  completionScore: newScore,
+                  isComplete: newScore >= 70,
+                  messages: newMessages,
+                  conversation: (sec.conversation ?? '') + `\nAgent: ${q.text}\nFounder: ${answer}`,
+                }
+                if (token) saveSection(secKey, updated, token)
+                return { ...prev, [secKey]: updated }
               })
-              if (res.ok) {
-                const data = await res.json()
-                const secKey = q.sectionKey
-                setSections(prev => {
-                  const sec = prev[secKey] ?? initSection()
-                  // Also append to messages so the section chatbot sees this Q&A
-                  // and doesn't re-ask the same question when user navigates to that section
-                  const newMessages: Message[] = [
-                    ...sec.messages,
-                    { role: 'agent' as const, text: q.text },
-                    { role: 'user' as const, text: smartInput },
-                  ]
-                  // If section is now complete, add a completion acknowledgement
-                  const newScore = data.completionScore ?? sec.completionScore
-                  if (newScore >= 70 && sec.completionScore < 70) {
-                    newMessages.push({ role: 'agent' as const, text: `Got it — this section is looking good (${newScore}%). You can add more detail or move on.` })
-                  }
-                  const updated: SectionState = {
-                    ...sec,
-                    extractedFields: data.mergedFields ?? sec.extractedFields,
-                    confidenceMap: { ...sec.confidenceMap, ...(data.confidenceMap ?? {}) },
-                    completionScore: newScore,
-                    isComplete: newScore >= 70,
-                    messages: newMessages,
-                    conversation: (sec.conversation ?? '') + `\nAgent: ${q.text}\nFounder: ${smartInput}`,
-                  }
-                  if (token) saveSection(secKey, updated, token)
-                  return { ...prev, [secKey]: updated }
-                })
-              }
             } catch (e) {
               console.warn('smart-qa extract failed:', e)
             } finally {
@@ -2445,6 +2445,28 @@ export default function ProfileBuilderPage() {
                 </div>
               )}
 
+              {/* Quick replies — per-founder, model-generated (not the same chips for
+                  everyone). One tap answers; typing below always still works. */}
+              {q.quickReplies && q.quickReplies.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {q.quickReplies.map((reply, i) => (
+                    <button
+                      key={i}
+                      onClick={() => handleSmartNext(reply)}
+                      disabled={smartProcessing}
+                      style={{
+                        padding: '8px 14px', borderRadius: 20, border: `1.5px solid ${bdr}`,
+                        background: bg, color: ink, fontSize: 13, fontWeight: 500,
+                        cursor: smartProcessing ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
+                        opacity: smartProcessing ? 0.5 : 1, transition: 'border-color 0.15s, background 0.15s',
+                      }}
+                      onMouseEnter={e => { if (!smartProcessing) { e.currentTarget.style.borderColor = blue; e.currentTarget.style.background = '#EFF6FF' } }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = bdr; e.currentTarget.style.background = bg }}
+                    >{reply}</button>
+                  ))}
+                </div>
+              )}
+
               {/* Answer input */}
               <div style={{
                 display: 'flex', alignItems: 'flex-end',
@@ -2468,7 +2490,7 @@ export default function ProfileBuilderPage() {
                   }}
                 />
                 <button
-                  onClick={handleSmartNext}
+                  onClick={() => handleSmartNext()}
                   disabled={!smartInput.trim() || smartProcessing}
                   style={{
                     width: 36, height: 36, borderRadius: 10, border: 'none',

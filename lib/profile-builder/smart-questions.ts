@@ -14,6 +14,9 @@ export interface SmartQuestion {
   contextHint: string   // e.g. "We found: 12 paying customers at $18K MRR"
   helpText: string
   priority: number      // higher = shown first
+  /** Per-founder, model-generated one-tap answers — absent when generation didn't
+   *  run or failed. The free-text field is always available regardless (sane fallback). */
+  quickReplies?: string[]
 }
 
 // ── dot-notation accessor ────────────────────────────────────────────────────
