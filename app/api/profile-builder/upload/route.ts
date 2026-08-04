@@ -291,6 +291,32 @@ function snippetValue(value: unknown): string {
   return String(value).slice(0, 60)
 }
 
+// Fallback label for a field FIELD_LABELS/MISSING_FIELD_LABELS doesn't cover.
+// "p2.expansionPotential" -> "Expansion potential" — never the raw dotted key
+// (that was the actual leak: an unmapped field showed its literal JS property
+// path to the founder instead of a readable name).
+function humanizeFieldKey(fullKey: string): string {
+  const last = fullKey.split('.').pop() ?? fullKey
+  const spaced = last.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/_/g, ' ').toLowerCase()
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1)
+}
+
+/**
+ * Turns a section's raw extracted fields into a prompt asking for a human summary —
+ * the redesign this route's field-dump snippet list is being replaced by (on top of,
+ * not instead of: the snippet list stays as a fallback for thin sections).
+ */
+function buildNarrativePrompt(sectionLabel: string, fields: Record<string, unknown>): string {
+  return `You are summarising a startup founder's own words back to them, for the "${sectionLabel}" section of their profile.
+
+Given this extracted data (raw JSON — internal field names, not for you to repeat), write 1-2 tight sentences a founder would read and think "yes, that's my company." Plain language, no jargon, no field names, no JSON keys, no confidence numbers or scores. If the data is genuinely thin, say so honestly in one short line rather than padding it out.
+
+Data:
+${JSON.stringify(fields).slice(0, 3000)}
+
+Write only the summary — no preamble, no quotes around it.`
+}
+
 export async function POST(req: NextRequest) {
   try {
     const userId = await getUserId(req)
@@ -649,15 +675,20 @@ export async function POST(req: NextRequest) {
       extractedCount: number
       extractedSnippets: Array<{ label: string; value: string; fieldKey: string }>
       missingLabels: string[]
+      /** 1-2 tight, human sentences — "yes, that's my company," not a field dump. Null
+       *  while thin/empty; the UI falls back to the snippet list in that case. */
+      narrativeSummary: string | null
     }
 
     const sectionSummaries: SectionSummary[] = []
 
     if (section === 0 && Object.keys(extractedFields).length > 0) {
       const sectionsToUpsert: Array<{ section: number; extracted_fields: unknown; confidence_map: unknown; completion_score: number; uploaded_documents: Array<{ uploadId: string; filename: string; fields: number }> }> = []
+      const sectionFieldsBySection: Partial<Record<number, Record<string, unknown>>> = {}
 
       for (const secNum of [1, 2, 3, 4, 5] as const) {
         const sectionFields = getSectionRelevantFields(extractedFields, secNum)
+        sectionFieldsBySection[secNum] = sectionFields
         const completionScore = getSectionCompletionPct(sectionFields, secNum, founderStage, confidenceMap)
         const missing = getMissingFields(sectionFields, secNum, founderStage)
 
@@ -665,12 +696,17 @@ export async function POST(req: NextRequest) {
         const snippets: Array<{ label: string; value: string; fieldKey: string }> = []
         const flatField = (obj: Record<string, unknown>, prefix = '') => {
           for (const [k, v] of Object.entries(obj)) {
+            // `confidence` is a sibling metadata object the extraction prompts attach
+            // to every section (e.g. p3.confidence.hasPatent: 0.95) — it's already
+            // surfaced separately via confidenceMap/flattenConfidence. Walking into it
+            // here is what put raw floats like "hasPatent: 0.95" in front of founders.
+            if (k === 'confidence') continue
             const fullKey = prefix ? `${prefix}.${k}` : k
             if (v !== null && v !== undefined) {
               if (typeof v === 'object' && !Array.isArray(v)) {
                 flatField(v as Record<string, unknown>, fullKey)
               } else {
-                const label = FIELD_LABELS[fullKey] ?? fullKey
+                const label = FIELD_LABELS[fullKey] ?? humanizeFieldKey(fullKey)
                 snippets.push({ label, value: snippetValue(v), fieldKey: fullKey })
               }
             }
@@ -684,7 +720,8 @@ export async function POST(req: NextRequest) {
           completionPct: completionScore,
           extractedCount: snippets.length,
           extractedSnippets: snippets.slice(0, 5),
-          missingLabels: missing.map(f => MISSING_FIELD_LABELS[f] ?? f),
+          missingLabels: missing.map(f => MISSING_FIELD_LABELS[f] ?? humanizeFieldKey(f)),
+          narrativeSummary: null,
         })
 
         // Queue section for atomic upsert
@@ -717,6 +754,30 @@ export async function POST(req: NextRequest) {
             error: `Failed to save extracted data: ${rpcErr.message}`,
           }, { status: 500 })
         }
+      }
+
+      // ── Narrative summaries — the redesigned "startup snapshot" ──────────────
+      // Replaces the field-by-field dump with 1-2 sentences a founder reads and
+      // recognises as their own company. One extra call per section that actually
+      // has data (skips empty ones) — cheap tier, same as every other extraction
+      // call in this route (CLAUDE.md §2: models only through the router).
+      const narrativeTargets = sectionSummaries.filter(s => s.extractedCount > 0)
+      if (narrativeTargets.length > 0) {
+        const results = await Promise.allSettled(
+          narrativeTargets.map(s =>
+            routedText('summarisation', [{
+              role: 'user',
+              content: buildNarrativePrompt(s.label, sectionFieldsBySection[Number(s.sectionKey)] ?? {}),
+            }], { maxTokens: 150 })
+          )
+        )
+        results.forEach((r, i) => {
+          if (r.status === 'fulfilled' && r.value.trim()) {
+            const target = narrativeTargets[i]
+            const summary = sectionSummaries.find(s => s.sectionKey === target.sectionKey)
+            if (summary) summary.narrativeSummary = r.value.trim()
+          }
+        })
       }
     }
 

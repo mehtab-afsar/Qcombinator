@@ -92,6 +92,8 @@ interface SectionSummary {
   extractedCount: number
   extractedSnippets: Array<{ label: string; value: string; fieldKey?: string }>
   missingLabels: string[]
+  /** 1-2 human sentences from the model, replacing the field list when present. */
+  narrativeSummary?: string | null
 }
 
 const SECTION_LABELS: Record<string, string> = {
@@ -2177,6 +2179,11 @@ export default function ProfileBuilderPage() {
                       {/* Extracted + missing chips */}
                       {(s.extractedSnippets.length > 0 || s.missingLabels.length > 0) && (
                         <div style={{ padding: '0 18px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          {s.narrativeSummary && (
+                            <p style={{ fontSize: 13, color: ink, lineHeight: 1.6, margin: '0 0 2px' }}>
+                              {s.narrativeSummary}
+                            </p>
+                          )}
                           {s.extractedSnippets.length > 0 && (
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
                               {s.extractedSnippets.map((snip, i) => {
@@ -2519,6 +2526,7 @@ export default function ProfileBuilderPage() {
               completionPct: s.completionPct,
               snippets: [...s.extractedSnippets],
               missing: [...s.missingLabels],
+              narrative: s.narrativeSummary ?? null,
             }
             if (i === 4) {
               const fin = (sections['5']?.extractedFields?.financial ?? {}) as Record<string, unknown>
@@ -2614,7 +2622,14 @@ export default function ProfileBuilderPage() {
                         <div style={{ height: '100%', width: `${card.completionPct}%`, background: barColor(card.completionPct), borderRadius: 2 }} />
                       </div>
 
-                      {/* Extracted fields */}
+                      {/* The human summary — replaces the field list as the primary read. */}
+                      {card.narrative && (
+                        <p style={{ fontSize: 12.5, color: ink, lineHeight: 1.6, margin: '0 0 10px' }}>
+                          {card.narrative}
+                        </p>
+                      )}
+
+                      {/* Extracted fields — detail underneath, not the headline anymore */}
                       {card.snippets.length > 0 && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: card.missing.length > 0 ? 10 : 0 }}>
                           {card.snippets.slice(0, 4).map((s, i) => {
