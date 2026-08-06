@@ -11,6 +11,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import { Inbox } from 'lucide-react'
 import { trackBriefingOpened } from '@/lib/analytics-client'
 import { bdr, ink, muted, blue } from '@/lib/constants/colors'
@@ -99,7 +100,14 @@ export function BriefingsPanel({ executiveId }: { executiveId?: string } = {}) {
     <SectionCard title="Recent briefings">
       <div style={{ marginTop: 0 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-          <span style={{ color: ink, fontSize: 15, fontWeight: 600 }}>{latest.verdict}</span>
+          <Link
+            href={`/founder/briefings/${latest.id}`}
+            style={{ color: ink, fontSize: 15, fontWeight: 600, textDecoration: 'none' }}
+            onMouseEnter={e => { e.currentTarget.style.textDecoration = 'underline' }}
+            onMouseLeave={e => { e.currentTarget.style.textDecoration = 'none' }}
+          >
+            {latest.verdict}
+          </Link>
           <span style={{ color: muted, fontSize: 13, whiteSpace: 'nowrap' }}>
             {new Date(latest.createdAt).toLocaleDateString()}
           </span>
@@ -132,15 +140,19 @@ export function BriefingsPanel({ executiveId }: { executiveId?: string } = {}) {
           </p>
           <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
             {older.map(b => (
-              <div key={b.id} style={{
-                display: 'flex', justifyContent: 'space-between', gap: 12,
-                fontSize: 13, color: muted,
-              }}>
+              <Link
+                key={b.id}
+                href={`/founder/briefings/${b.id}`}
+                style={{
+                  display: 'flex', justifyContent: 'space-between', gap: 12,
+                  fontSize: 13, color: muted, textDecoration: 'none',
+                }}
+              >
                 <span style={{ color: ink, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {b.verdict}
                 </span>
                 <span style={{ whiteSpace: 'nowrap' }}>{new Date(b.createdAt).toLocaleDateString()}</span>
-              </div>
+              </Link>
             ))}
           </div>
         </div>

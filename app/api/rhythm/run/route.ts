@@ -24,7 +24,7 @@ import { verifyAuth } from '@/lib/auth/verify'
 import { parseBody } from '@/lib/api/validate'
 import { newModelOff } from '@/lib/api/response'
 import { RhythmError, runNextStep } from '@/lib/rhythm/run'
-import { createOrResumeRun, getLatestRun, CycleAlreadyRanError, StepLimitOpenError } from '@/lib/rhythm/runs'
+import { createOrResumeRun, getLatestRun, listRuns, CycleAlreadyRanError, StepLimitOpenError } from '@/lib/rhythm/runs'
 import { triggerNextRhythmStep } from '@/lib/rhythm/trigger'
 import { buildProgress } from '@/lib/rhythm/progress'
 import { getCurrentContract } from '@/lib/mandate/contract'
@@ -49,13 +49,21 @@ export async function GET(): Promise<NextResponse> {
     // User-scoped on purpose — RLS (SELECT-own) is the tenancy boundary, as in /api/briefings.
     const supabase = await createClient()
     const run = await getLatestRun(supabase, auth.user.id)
-    if (!run) return NextResponse.json({ progress: null }) // nothing has ever run — not an error
+    if (!run) return NextResponse.json({ progress: null, history: [] }) // nothing has ever run — not an error
 
     // The active Programs give the projection its total; a just-created run's stages are empty.
     const contract = await getCurrentContract(supabase, auth.user.id)
     const activePrograms = contract?.status === 'confirmed' ? contract.activePrograms : []
 
-    return NextResponse.json({ progress: buildProgress(run, activePrograms) })
+    // F09 artifact organization — "Past cycles". Thin by design: id/status/dates/done-total, not
+    // the full per-step detail buildProgress produces (that only matters for the LIVE run).
+    const runs = await listRuns(supabase, auth.user.id)
+    const history = runs.map(r => {
+      const p = buildProgress(r, activePrograms)
+      return { id: r.id, cycleKey: r.cycleKey, status: r.status, startedAt: r.startedAt, completedAt: r.completedAt, done: p.done, total: p.total }
+    })
+
+    return NextResponse.json({ progress: buildProgress(run, activePrograms), history })
   } catch (err) {
     log.error('GET /api/rhythm/run', { err })
     return NextResponse.json({ error: 'Failed to load the cycle' }, { status: 500 })

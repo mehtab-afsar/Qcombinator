@@ -8,6 +8,10 @@ interface Tab {
   id: string;
   label: string;
   icon?: LucideIcon;
+  /** Optional small decoration rendered after the label — e.g. a status dot. Additive: tabs
+   *  without one render exactly as before. Lets a consumer (ExecutiveTabBar) show per-tab state
+   *  without forking this component into a second tab primitive (CLAUDE.md "one of each"). */
+  indicator?: React.ReactNode;
 }
 
 interface TabNavProps {
@@ -19,18 +23,24 @@ interface TabNavProps {
 
 export function TabNav({ tabs, active, onChange, style }: TabNavProps) {
   return (
-    <div style={{
-      display: 'flex',
-      borderBottom: `1px solid ${bdr}`,
-      gap: 0,
-      ...style,
-    }}>
+    <div
+      role="tablist"
+      style={{
+        display: 'flex',
+        borderBottom: `1px solid ${bdr}`,
+        gap: 0,
+        overflowX: 'auto',
+        ...style,
+      }}
+    >
       {tabs.map(tab => {
         const isActive = tab.id === active;
         const Icon = tab.icon;
         return (
           <button
             key={tab.id}
+            role="tab"
+            aria-selected={isActive}
             onClick={() => onChange(tab.id)}
             style={{
               display: 'flex',
@@ -54,6 +64,7 @@ export function TabNav({ tabs, active, onChange, style }: TabNavProps) {
           >
             {Icon && <Icon style={{ width: 13, height: 13 }} />}
             {tab.label}
+            {tab.indicator}
           </button>
         );
       })}

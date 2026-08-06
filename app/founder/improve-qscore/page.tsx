@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useQScore } from "@/features/qscore/hooks/useQScore";
+import { QScoreTabs } from '@/features/founder/components/QScoreTabs'
 import { bg, surf, bdr, ink, muted, blue, green, amber, red, purple, alpha } from '@/lib/constants/colors'
 import type { LucideIcon } from 'lucide-react'
 
@@ -309,6 +310,8 @@ export default function ImproveQScorePage() {
 
       {/* ── header ─────────────────────────────────────────────────────────── */}
       <div style={{ padding: "32px 40px 0", maxWidth: 1040, margin: "0 auto" }}>
+        <QScoreTabs />
+
         <Link href="/founder/dashboard" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: muted, textDecoration: "none", marginBottom: 20 }}>
           <ArrowLeft size={14} /> Back to Dashboard
         </Link>

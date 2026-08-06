@@ -32,6 +32,7 @@ export interface AssetSummary {
   id: string
   name: string
   outputSchema: 'markdown' | 'json'
+  executiveId: string | null
   asset: AssetVersionSummary | null
 }
 

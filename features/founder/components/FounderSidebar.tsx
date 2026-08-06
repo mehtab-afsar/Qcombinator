@@ -3,7 +3,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Brain, ChevronsUpDown,
-  ClipboardList, CreditCard, GraduationCap, Home, LogOut, MessageSquare,
+  CreditCard, GraduationCap, Home, LogOut, MessageSquare,
   Settings, Target,
 } from "lucide-react";
 import Link from "next/link";
@@ -22,10 +22,13 @@ import { NotificationDropdown, NotificationBellButton, NotifItem } from '@/featu
 import type { LucideIcon } from 'lucide-react'
 
 // ─── nav items ────────────────────────────────────────────────────────────────
+// Profile Builder has no entry of its own here — it's reached via the Q Score Dashboard's own
+// sub-tabs (features/founder/components/QScoreTabs.tsx) now, not the main sidebar. Its route
+// (/founder/profile-builder) is unchanged — it's load-bearing elsewhere (middleware's
+// auth-exemption list, onboarding completion, welcome emails) — only its top-level nav entry moved.
 const BASE_NAV = [
-  { name: "Dashboard",         href: "/founder/dashboard",       icon: Home,          badge: null    },
-  { name: "Profile Builder",   href: "/founder/profile-builder", icon: ClipboardList, badge: null    },
-  { name: "Executive team",    href: "/founder/executive",       icon: Brain,         badge: null    },
+  { name: "Q Score Dashboard", href: "/founder/dashboard",       icon: Home,          badge: null    },
+  { name: "Executive Team",    href: "/founder/executive",       icon: Brain,         badge: null    },
   { name: "Investor Matching", href: "/founder/matching",        icon: Target,        badge: "Smart" },
   { name: "Academy",           href: "/founder/academy",         icon: GraduationCap, badge: "NEW"   },
   { name: "Messages",          href: "/founder/messages",        icon: MessageSquare, badge: null    },
@@ -160,8 +163,16 @@ export default function FounderSidebar() {
       : item
   );
 
+  // The 3 routes Q Score Dashboard's own sub-tabs cover (QScoreTabs.tsx) — Profile Builder and
+  // Improve My Score are separate top-level routes, not /founder/dashboard/* children, so they
+  // need naming here the same way /founder/executive/[executiveId] is handled below.
+  const Q_SCORE_FAMILY = ["/founder/dashboard", "/founder/improve-qscore", "/founder/profile-builder"];
+
   // Active path helpers for the Executive model (matches /founder/executive and its children)
   function isNavActive(href: string, pathname: string): boolean {
+    if (href === "/founder/dashboard") {
+      return Q_SCORE_FAMILY.some(p => pathname === p || pathname.startsWith(p + "/"));
+    }
     if (href === "/founder/executive") {
       return pathname === "/founder/executive" || pathname.startsWith("/founder/executive/");
     }

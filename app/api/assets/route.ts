@@ -34,22 +34,30 @@ export async function GET(): Promise<NextResponse> {
     }
 
     // Deduped, Registry-resolved, degrading exactly as buildProgress does: an active Program id
-    // the Registry no longer knows must not 500 this route.
-    const assetIds = [...new Set(
-      contract.activePrograms.flatMap(templateId => {
-        try { return getProgram(templateId).assets } catch { return [] }
-      }),
-    )]
+    // the Registry no longer knows must not 500 this route. ownerByAssetId piggybacks on the
+    // same walk — F09's artifact organization needs to know who made each document, and the
+    // Registry already has the answer (an Asset's owning Program's owner), so this is free.
+    const assetIds = new Set<string>()
+    const ownerByAssetId = new Map<string, string>()
+    for (const templateId of contract.activePrograms) {
+      let program
+      try { program = getProgram(templateId) } catch { continue }
+      for (const assetId of program.assets) {
+        assetIds.add(assetId)
+        ownerByAssetId.set(assetId, program.owner)
+      }
+    }
 
-    const versions = await getCurrentAssetsForProgram(supabase, auth.user.id, assetIds)
+    const versions = await getCurrentAssetsForProgram(supabase, auth.user.id, [...assetIds])
     const versionByAssetId = new Map(versions.map(v => [v.assetId, v]))
 
-    const assets = assetIds.map(id => {
+    const assets = [...assetIds].map(id => {
       const def = getAsset(id)
       return {
         id: def.id,
         name: def.name,
         outputSchema: def.outputSchema,
+        executiveId: ownerByAssetId.get(id) ?? null,
         asset: versionByAssetId.get(id) ?? null,
       }
     })

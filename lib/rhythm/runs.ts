@@ -276,6 +276,27 @@ export async function getLatestRun(
 }
 
 /**
+ * The founder's past cycles, newest first — F09 artifact organization's "Past cycles" list.
+ * Returns every status, including failed/stalled ones: an honest history is not just the clean
+ * runs. Same RLS-scoping convention as getLatestRun (user-scoped client is safe — SELECT-own).
+ */
+export async function listRuns(
+  client: SupabaseClient,
+  founderId: string,
+  limit = 10,
+): Promise<RhythmRun[]> {
+  const { data, error } = await client
+    .from('operating_rhythm_runs')
+    .select('*')
+    .eq('founder_id', founderId)
+    .order('started_at', { ascending: false })
+    .limit(limit)
+
+  if (error) throw new RunError(`Failed to read run history: ${error.message}`)
+  return (data ?? []).map(row => toRun(row as RunRow))
+}
+
+/**
  * Close the run with its terminal status and per-stage detail.
  *
  * `failureReason` is machine-readable and only set for a non-ordinary failure (today: the

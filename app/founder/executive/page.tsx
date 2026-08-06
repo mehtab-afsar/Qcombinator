@@ -28,6 +28,7 @@ import { EmptyState } from '@/features/shared/components/EmptyState'
 import { PageSpinner } from '@/features/shared/components/Spinner'
 import { fetchWithTimeout, isTimeoutError } from '@/features/shared/lib/fetchWithTimeout'
 import { ActivationGate } from '@/features/executive/components/ActivationGate'
+import { ExecutiveTabBar } from '@/features/executive/components/ExecutiveTabBar'
 import { Unveiling } from '@/features/executive/components/unveiling/Unveiling'
 import {
   resolveJourneyState,
@@ -145,6 +146,8 @@ export default function ExecutivePage() {
   return (
     <Shell>
       <PageHeader title="Executive team" subtitle={subtitleFor(state)} />
+
+      <ExecutiveTabBar />
 
       {error && (
         <div style={{

@@ -1,7 +1,7 @@
 import { CSSProperties, ReactNode } from 'react'
-import { blue, green, amber, red, muted, surf, bdr } from '@/features/shared/tokens'
+import { blue, green, amber, red, muted, surf, bdr, purple, cyan, pink, indigo } from '@/features/shared/tokens'
 
-export type BadgeVariant = 'blue' | 'green' | 'amber' | 'red' | 'neutral' | 'purple'
+export type BadgeVariant = 'blue' | 'green' | 'amber' | 'red' | 'neutral' | 'purple' | 'cyan' | 'pink' | 'indigo'
 
 const VARIANT_STYLES: Record<BadgeVariant, { bg: string; color: string; border: string }> = {
   blue:    { bg: '#EFF6FF', color: blue,    border: '#BFDBFE' },
@@ -9,7 +9,12 @@ const VARIANT_STYLES: Record<BadgeVariant, { bg: string; color: string; border: 
   amber:   { bg: '#FFFBEB', color: amber,   border: '#FDE68A' },
   red:     { bg: '#FEF2F2', color: red,     border: '#FECACA' },
   neutral: { bg: surf,      color: muted,   border: bdr       },
-  purple:  { bg: '#F5F3FF', color: '#7C3AED', border: '#C4B5FD' },
+  purple:  { bg: '#F5F3FF', color: purple,  border: '#C4B5FD' },
+  // Owner-attribution colors (F09 artifact organization) — one per executive, reusing
+  // already-defined palette tokens that had no assigned purpose until now.
+  cyan:    { bg: '#ECFEFF', color: cyan,    border: '#A5F3FC' },
+  pink:    { bg: '#FDF2F8', color: pink,    border: '#FBCFE8' },
+  indigo:  { bg: '#EEF2FF', color: indigo,  border: '#C7D2FE' },
 }
 
 interface BadgeProps {

@@ -39,11 +39,16 @@ describe('GET /api/assets — the route', () => {
   it('degrades an unresolvable Program rather than 500ing the whole home', () => {
     // Mirrors buildProgress's own programOrNull fail-open (lib/rhythm/progress.ts) — an
     // active Program id the Registry no longer knows must not take the page down.
-    expect(route).toMatch(/try\s*{\s*return\s+getProgram\(templateId\)\.assets\s*}\s*catch\s*{\s*return\s*\[\]\s*}/)
+    expect(route).toMatch(/try\s*{\s*program\s*=\s*getProgram\(templateId\)\s*}\s*catch\s*{\s*continue\s*}/)
   })
 
   it('resolves each Asset’s Registry name and current version via the batched read', () => {
-    expect(route).toContain('getCurrentAssetsForProgram(supabase, auth.user.id, assetIds)')
+    expect(route).toContain('getCurrentAssetsForProgram(supabase, auth.user.id, [...assetIds])')
     expect(route).toContain('getAsset(id)')
+  })
+
+  it('F09 artifact organization: resolves each Asset’s owning executive from the Registry, for free off the same walk', () => {
+    expect(route).toContain('ownerByAssetId.set(assetId, program.owner)')
+    expect(route).toContain('executiveId: ownerByAssetId.get(id) ?? null')
   })
 })

@@ -17,7 +17,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, Loader2, AlertCircle, Minus, Circle } from 'lucide-react'
+import { Check, Loader2, AlertCircle, Minus, Circle, ChevronDown } from 'lucide-react'
 import { bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
 import { SectionCard } from '@/features/shared/components/SectionCard'
 import { Button } from '@/features/shared/components/Button'
@@ -48,6 +48,17 @@ interface RunProgress {
   completedAt: string | null
 }
 
+/** F09 artifact organization — one past cycle, thin (GET /api/rhythm/run's `history` array). */
+interface RunSummary {
+  id: string
+  cycleKey: string
+  status: 'running' | 'completed' | 'failed'
+  startedAt: string
+  completedAt: string | null
+  done: number
+  total: number
+}
+
 /** Matches STEP_LIMIT_EXCEEDED in lib/rhythm/limits.ts — the circuit breaker's reason code. */
 const STEP_LIMIT_EXCEEDED = 'step_limit_exceeded'
 
@@ -62,6 +73,8 @@ const POLL_MS = 5_000
  */
 export function RhythmPanel({ executiveId }: { executiveId?: string } = {}) {
   const [progress, setProgress] = useState<RunProgress | null>(null)
+  const [history, setHistory] = useState<RunSummary[]>([])
+  const [historyOpen, setHistoryOpen] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -73,6 +86,7 @@ export function RhythmPanel({ executiveId }: { executiveId?: string } = {}) {
       if (!res.ok) return // a 404 (flag off) or 500 — leave the last good state on screen
       const data = await res.json()
       setProgress(data.progress ?? null)
+      setHistory(data.history ?? [])
     } catch {
       /* transient — the next poll retries */
     } finally {
@@ -147,6 +161,34 @@ export function RhythmPanel({ executiveId }: { executiveId?: string } = {}) {
           {scoped.steps.map(step => <StepRow key={step.key} step={step} />)}
         </div>
       )}
+
+      {/* F09 artifact organization — "Past cycles." Only appears once there IS a past to show;
+          a founder on their first cycle sees nothing new here. A cycle is whole-company by
+          design (ADR-008 — every contract-active Program runs together), so this isn't scoped
+          to `executiveId` the way the step list above is. */}
+      {history.length > 1 && (
+        <div style={{ marginTop: 18, paddingTop: 14, borderTop: `1px solid ${bdr}` }}>
+          <button
+            onClick={() => setHistoryOpen(o => !o)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none',
+              padding: 0, cursor: 'pointer', color: muted, fontSize: 12, fontFamily: 'inherit',
+              textTransform: 'uppercase', letterSpacing: 0.4,
+            }}
+          >
+            Past cycles
+            <ChevronDown
+              size={12}
+              style={{ transform: historyOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.15s' }}
+            />
+          </button>
+          {historyOpen && (
+            <div style={{ marginTop: 10, display: 'grid', gap: 6 }}>
+              {history.filter(h => h.id !== progress?.runId).map(h => <HistoryRow key={h.id} run={h} />)}
+            </div>
+          )}
+        </div>
+      )}
     </SectionCard>
   )
 }
@@ -218,6 +260,17 @@ function StepRow({ step }: { step: ProgressStep }) {
       <span style={{ display: 'flex', width: 16 }}>{icon}</span>
       <span style={{ color: step.state === 'pending' ? muted : ink, flex: 1 }}>{step.label}</span>
       {note && <span style={{ color, fontSize: 12 }}>{note}</span>}
+    </div>
+  )
+}
+
+function HistoryRow({ run }: { run: RunSummary }) {
+  const color = run.status === 'completed' ? green : run.status === 'failed' ? red : amber
+  const label = run.status === 'completed' ? 'Finished' : run.status === 'failed' ? 'Stopped early' : 'Running'
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
+      <span style={{ color: ink, flex: 1 }}>{new Date(run.startedAt).toLocaleDateString()}</span>
+      <span style={{ color, fontSize: 12 }}>{label} · {run.done} of {run.total}</span>
     </div>
   )
 }

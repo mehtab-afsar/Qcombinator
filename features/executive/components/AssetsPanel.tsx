@@ -10,12 +10,17 @@
  * uses) because CommandView also needs to know whether any Asset has real content yet, to
  * decide whether the mandate above this shrinks to its compact line — one fetch, one source of
  * truth for both.
+ *
+ * Stays a compact, un-grouped preview by design (artifact organization work) — the full,
+ * grouped-by-executive browsing experience lives at /founder/executive/documents, one "View
+ * all" link away, so this panel's own scope never grows past "land and go."
  */
 
 import Link from 'next/link'
-import { FileText } from 'lucide-react'
-import { bg, bdr, ink, muted, blue } from '@/lib/constants/colors'
+import { ArrowRight } from 'lucide-react'
+import { blue } from '@/lib/constants/colors'
 import { SectionCard } from '@/features/shared/components/SectionCard'
+import { ArtifactCard } from './ArtifactCard'
 import type { AssetSummary } from './CommandView'
 
 export function AssetsPanel({ assets, loaded }: { assets: AssetSummary[]; loaded: boolean }) {
@@ -23,33 +28,21 @@ export function AssetsPanel({ assets, loaded }: { assets: AssetSummary[]; loaded
   if (assets.length === 0) return null
 
   return (
-    <SectionCard title="Your documents" subtitle="What your team is actually producing — open any of these to read, edit, or see its history.">
+    <SectionCard
+      title="Your documents"
+      subtitle="What your team is actually producing — open any of these to read, edit, or see its history."
+      action={
+        <Link href="/founder/executive/documents" style={{
+          display: 'inline-flex', alignItems: 'center', gap: 4,
+          color: blue, fontSize: 13, fontWeight: 500, textDecoration: 'none',
+        }}>
+          View all <ArrowRight size={13} />
+        </Link>
+      }
+    >
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10 }}>
-        {assets.map(a => <AssetTile key={a.id} asset={a} />)}
+        {assets.map(a => <ArtifactCard key={a.id} data={a} />)}
       </div>
     </SectionCard>
-  )
-}
-
-function AssetTile({ asset }: { asset: AssetSummary }) {
-  const { id, name, asset: version } = asset
-  return (
-    <Link
-      href={`/founder/assets/${id}`}
-      style={{
-        display: 'block', background: bg, border: `1px solid ${bdr}`, borderRadius: 10,
-        padding: '14px 16px', textDecoration: 'none',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <FileText size={15} color={version ? blue : muted} />
-        <span style={{ color: ink, fontSize: 14, fontWeight: 600 }}>{name}</span>
-      </div>
-      <p style={{ color: muted, fontSize: 12.5, marginTop: 6 }}>
-        {version
-          ? <>v{version.version} · {new Date(version.createdAt).toLocaleDateString()}</>
-          : 'Not generated yet'}
-      </p>
-    </Link>
   )
 }

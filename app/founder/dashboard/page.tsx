@@ -33,8 +33,10 @@ import { UpgradeModal } from "@/components/ui/UpgradeModal";
 import { getUpcomingWorkshops } from "@/features/academy/data/workshops";
 import { bg, surf, bdr, ink, muted, blue, green, amber, red, purple, cyan, alpha } from '@/lib/constants/colors'
 import { DIM_COLORS, DIM_LABELS } from '@/features/qscore/constants/dimensions'
+import { resolveDimensions, type DimensionTuple, type IqParam } from '@/features/qscore/utils/resolveDimensions'
 import { PageSpinner } from '@/features/shared/components/Spinner'
 import { ExecutiveEntryCard } from '@/features/executive/components/ExecutiveEntryCard'
+import { QScoreTabs } from '@/features/founder/components/QScoreTabs'
 
 // ─── demo data ────────────────────────────────────────────────────────────────
 const DEMO_QSCORE = {
@@ -523,43 +525,26 @@ export default function FounderDashboard() {
     : qs.overall
 
   // Always v2_iq — use P1–P6 IQ parameters for display
-  type IQParam = { id: string; name: string; averageScore: number; weight: number; indicatorsActive: number }
-  const iqBreakdownObj = realQScore?.iqBreakdown as { parameters?: IQParam[] } | undefined
-  const iqParams: IQParam[] = iqBreakdownObj?.parameters ?? []
-
-  const sortedDims = [...iqParams]
-    .sort((a, b) => a.averageScore - b.averageScore)
-    .map(p => [p.id, { score: Math.round(p.averageScore * 20), change: 0, trend: 'neutral' as const }] as [string, { score: number; change: number; trend: 'up' | 'down' | 'neutral' }]);
+  const iqBreakdownObj = realQScore?.iqBreakdown as { parameters?: IqParam[] } | undefined
 
   // When no real IQ params (demo or legacy score), populate bars from DEMO breakdown
-  type DimTuple = [string, { score: number; change: number; trend: 'up' | 'down' | 'neutral' }];
-  const demoDims: DimTuple[] = ([
+  const demoDims: DimensionTuple[] = [
     ['p1', { score: DEMO_QSCORE.breakdown.market.score,     change: DEMO_QSCORE.breakdown.market.change,     trend: DEMO_QSCORE.breakdown.market.trend     }],
     ['p2', { score: DEMO_QSCORE.breakdown.goToMarket.score, change: DEMO_QSCORE.breakdown.goToMarket.change, trend: DEMO_QSCORE.breakdown.goToMarket.trend }],
     ['p3', { score: DEMO_QSCORE.breakdown.product.score,    change: DEMO_QSCORE.breakdown.product.change,    trend: DEMO_QSCORE.breakdown.product.trend    }],
     ['p4', { score: DEMO_QSCORE.breakdown.team.score,       change: DEMO_QSCORE.breakdown.team.change,       trend: DEMO_QSCORE.breakdown.team.trend       }],
     ['p5', { score: DEMO_QSCORE.breakdown.traction.score,   change: DEMO_QSCORE.breakdown.traction.change,   trend: DEMO_QSCORE.breakdown.traction.trend   }],
     ['p6', { score: DEMO_QSCORE.breakdown.financial.score,  change: DEMO_QSCORE.breakdown.financial.change,  trend: DEMO_QSCORE.breakdown.financial.trend  }],
-  ] as DimTuple[]).sort((a, b) => a[1].score - b[1].score);
-  // Build from legacy breakdown (used when IQ v2 params are unavailable)
-  const _lb = realQScore?.breakdown
-  const legacyDims: DimTuple[] = _lb
-    ? ([
-        ['p1', { score: Math.round((_lb.market     as { score?: number })?.score ?? 0), change: (_lb.market     as { change?: number })?.change ?? 0, trend: ((_lb.market     as { trend?: string })?.trend ?? 'neutral') as 'up' | 'down' | 'neutral' }],
-        ['p2', { score: Math.round((_lb.goToMarket as { score?: number })?.score ?? 0), change: (_lb.goToMarket as { change?: number })?.change ?? 0, trend: ((_lb.goToMarket as { trend?: string })?.trend ?? 'neutral') as 'up' | 'down' | 'neutral' }],
-        ['p3', { score: Math.round((_lb.product    as { score?: number })?.score ?? 0), change: (_lb.product    as { change?: number })?.change ?? 0, trend: ((_lb.product    as { trend?: string })?.trend ?? 'neutral') as 'up' | 'down' | 'neutral' }],
-        ['p4', { score: Math.round((_lb.team       as { score?: number })?.score ?? 0), change: (_lb.team       as { change?: number })?.change ?? 0, trend: ((_lb.team       as { trend?: string })?.trend ?? 'neutral') as 'up' | 'down' | 'neutral' }],
-        ['p5', { score: Math.round((_lb.traction   as { score?: number })?.score ?? 0), change: (_lb.traction   as { change?: number })?.change ?? 0, trend: ((_lb.traction   as { trend?: string })?.trend ?? 'neutral') as 'up' | 'down' | 'neutral' }],
-        ['p6', { score: Math.round((_lb.financial  as { score?: number })?.score ?? 0), change: (_lb.financial  as { change?: number })?.change ?? 0, trend: ((_lb.financial  as { trend?: string })?.trend ?? 'neutral') as 'up' | 'down' | 'neutral' }],
-      ] as DimTuple[]).sort((a, b) => a[1].score - b[1].score)
-    : []
+  ]
 
-  // Priority: IQ v2 params → legacy breakdown → demo (only when no real score at all)
-  const effectiveSortedDims = sortedDims.length > 0
-    ? sortedDims
-    : legacyDims.length > 0
-      ? legacyDims
-      : demoDims
+  // Priority: IQ v2 params → legacy breakdown → demo (only when no real score at all).
+  // features/qscore/utils/resolveDimensions.ts — shared so a second Q-Score view (a dashboard
+  // tab, a per-executive "Read" beat) never has to reimplement this priority chain.
+  const effectiveSortedDims = resolveDimensions({
+    iqParams: iqBreakdownObj?.parameters,
+    legacyBreakdown: realQScore?.breakdown,
+    demoDims,
+  })
 
   // Score freshness
   const lastScoreDate = scoreHistory.length > 0 ? new Date(scoreHistory[scoreHistory.length - 1].date) : null;
@@ -596,6 +581,8 @@ export default function FounderDashboard() {
   return (
     <div style={{ minHeight: "100vh", background: bg, color: ink, padding: "36px 28px 72px" }}>
       <div style={{ maxWidth: 1120, margin: "0 auto" }}>
+
+        <QScoreTabs />
 
         {/* ── THE DOOR into the Executive model. Self-gating on the flag (the APIs 404 when it
              is off, so this renders nothing), but NOT on progress: it is visible from the very
