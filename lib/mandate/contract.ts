@@ -340,10 +340,34 @@ export async function confirmContract(
 
   if (error) throw new ContractError(`Failed to confirm contract: ${error.message}`)
 
-  return {
-    contract: toContract(data as ContractRow),
-    programs: await getProgramsForContract(supabase, contractId),
+  const confirmed = toContract(data as ContractRow)
+
+  // Found live (2026-08-06): a call to this RPC returned successfully (no `error`) with a row
+  // whose status was still 'draft' — no exception, no thrown ContractError, just a 200 that told
+  // the founder their mandate was confirmed when it genuinely wasn't (no Program activated
+  // either). Root cause wasn't pinned with certainty (RLS policies, the RPC's own atomicity, and
+  // MandateHardens's Strict-Mode draft guard were all checked and are correct — an identical
+  // re-invocation succeeded cleanly) — but "the RPC raised no error" and "the mutation actually
+  // happened" turned out not to be the same guarantee. Never trust the absence of an error over
+  // checking the thing you asked for actually happened — verify the row this RPC itself claims
+  // to have returned really is confirmed before telling anyone it worked.
+  if (confirmed.status !== 'confirmed') {
+    throw new ContractError(
+      'Confirming did not complete — your mandate is still a draft. Nothing was activated. Try confirming again.',
+    )
   }
+
+  const activatedPrograms = await getProgramsForContract(supabase, contractId)
+  if (activatedPrograms.length === 0) {
+    // Same "trust but verify" principle, the other half of the atomic guarantee this function's
+    // own docstring promises: a confirmed contract with no active Programs would run the Rhythm
+    // on nothing, silently, forever.
+    throw new ContractError(
+      'Your mandate confirmed, but no team was activated — this should never happen. Please try again or contact support.',
+    )
+  }
+
+  return { contract: confirmed, programs: activatedPrograms }
 }
 
 /**

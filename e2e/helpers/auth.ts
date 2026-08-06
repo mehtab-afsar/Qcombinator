@@ -1,4 +1,7 @@
 import { Page, BrowserContext } from '@playwright/test'
+import { execSync } from 'child_process'
+import { config as dotenvConfig } from 'dotenv'
+import path from 'path'
 
 export const TEST_FOUNDER_EMAIL =
   process.env.TEST_FOUNDER_EMAIL ?? 'test-founder@edgealpha.test'
@@ -134,6 +137,78 @@ export async function createFounderAccount(opts: {
 
   const data = await res.json() as { user: { id: string }; profile: { id: string } }
   return { email, password, userId: data.user.id, profileId: data.profile.id }
+}
+
+const escapeSql = (s: string): string => s.replace(/'/g, "''")
+
+/**
+ * Create a fresh founder account WITHOUT going through /api/auth/signup — that route calls
+ * supabaseAdmin.auth.admin.createUser(), Supabase Auth's ADMIN api, which local dev currently
+ * rejects with "signing method HS256 is invalid" (the local Supabase CLI issues ES256 JWKS keys;
+ * the configured service-role key is the legacy HS256 demo key — a CLI/version compatibility
+ * defect, not something fixable in app code). Even a working admin API would dead-end at
+ * /founder/verify-email anyway, since email confirmation is Resend-only and RESEND_API_KEY is
+ * unset locally.
+ *
+ * Works around BOTH by using the real, unaffected GoTrue USER-FACING signup endpoint (a
+ * different code path than the broken admin API — confirmed working via direct curl) for
+ * auth.users/auth.identities, then inserting founder_profiles + the initial qscore_history row
+ * directly via psql, mirroring app/api/auth/signup/route.ts's own insert shape field-for-field —
+ * including its startup_name collision-avoidance suffix, so repeated runs never collide.
+ *
+ * Deliberately loads .env.development.local itself rather than trusting ambient process.env:
+ * playwright.config.ts's own dotenvConfig() loads .env.local, which points at the HOSTED
+ * Supabase project, not the local one the dev server actually runs against — trusting that here
+ * would silently create the account in the wrong project.
+ */
+export async function createFounderAccountDirect(opts: {
+  companyName: string
+  tagline?: string
+}): Promise<FounderAccount> {
+  const env = dotenvConfig({ path: path.resolve(__dirname, '..', '..', '.env.development.local') }).parsed ?? {}
+  const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL
+  const anonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!supabaseUrl || !anonKey) {
+    throw new Error('createFounderAccountDirect requires NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.development.local')
+  }
+
+  const email = `test-founder-${Date.now()}@edgealpha.local`
+  const password = 'TestPass123!'
+  const fullName = 'Fresh Founder'
+
+  const signupRes = await fetch(`${supabaseUrl}/auth/v1/signup`, {
+    method: 'POST',
+    headers: { apikey: anonKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password, data: { full_name: fullName } }),
+  })
+  if (!signupRes.ok) {
+    const body = await signupRes.text().catch(() => '')
+    throw new Error(`Direct GoTrue signup failed (${signupRes.status}): ${body.slice(0, 300)}`)
+  }
+  const signupData = await signupRes.json() as { user: { id: string } }
+  const userId = signupData.user.id
+
+  const startupName = `${opts.companyName}-${userId.slice(0, 6)}`
+  const tagline = opts.tagline ?? `The smarter way to ${opts.companyName.toLowerCase()}`
+
+  const sql = `
+    insert into founder_profiles (
+      user_id, full_name, startup_name, company_name, industry, stage, role,
+      subscription_tier, onboarding_completed, assessment_completed,
+      revenue_status, team_size, founder_name, registration_completed,
+      profile_builder_completed, tagline, location, email_confirmed_at
+    ) values (
+      '${userId}', '${escapeSql(fullName)}', '${escapeSql(startupName)}', '${escapeSql(opts.companyName)}',
+      'ai_ml', 'seed', 'founder', 'free', true, false,
+      'pre-revenue', '2-5', '${escapeSql(fullName)}', true,
+      false, '${escapeSql(tagline)}', 'San Francisco, CA', now()
+    );
+    insert into qscore_history (user_id, overall_score, data_source)
+    values ('${userId}', 0, 'registration');
+  `
+  execSync(`psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -c "${sql.replace(/"/g, '\\"')}"`)
+
+  return { email, password, userId, profileId: userId }
 }
 
 /**
