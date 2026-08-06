@@ -17,8 +17,8 @@
  */
 
 import { useCallback, useEffect, useState } from 'react'
-import { Check, X } from 'lucide-react'
-import { bdr, ink, muted, bg, amber, red } from '@/lib/constants/colors'
+import { Check, X, Clock, Circle } from 'lucide-react'
+import { bdr, ink, muted, bg, amber, red, green } from '@/lib/constants/colors'
 import { radius } from '@/features/shared/tokens'
 import { SectionCard } from '@/features/shared/components/SectionCard'
 import { Button } from '@/features/shared/components/Button'
@@ -37,6 +37,19 @@ interface PendingAction {
   executiveId?: string | null
 }
 
+/** Mirrors app/api/actions/route.ts's allActionsForFounder — every Action in the mandate's
+ *  active Programs, not just what's pending. 'never_run' is a client-side status, not a DB
+ *  value: the Registry knows the action exists before the engine has ever attempted it. */
+interface ActionSummary {
+  actionId: string
+  name: string
+  irreversible: boolean
+  executiveId: string | null
+  status: 'pending_approval' | 'approved' | 'sending' | 'executed' | 'failed' | 'declined' | 'unknown' | 'never_run'
+  provider: string | null
+  createdAt: string | null
+}
+
 /** Mirrors APPROVAL_TTL_MS in lib/actions/approve.ts — an approval is about a moment too. */
 const APPROVAL_TTL_MS = 24 * 60 * 60 * 1000
 
@@ -47,6 +60,7 @@ const APPROVAL_TTL_MS = 24 * 60 * 60 * 1000
  */
 export function ActionsPanel({ executiveId }: { executiveId?: string } = {}) {
   const [pending, setPending] = useState<PendingAction[]>([])
+  const [all, setAll] = useState<ActionSummary[]>([])
   const [loaded, setLoaded] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -56,8 +70,10 @@ export function ActionsPanel({ executiveId }: { executiveId?: string } = {}) {
       const res = await fetch('/api/actions')
       if (!res.ok) return // 404 = flag off; leave the last good state rather than flash an error
       const data = await res.json()
-      const all: PendingAction[] = data.pending ?? []
-      setPending(executiveId ? all.filter(a => a.executiveId === executiveId) : all)
+      const pendingAll: PendingAction[] = data.pending ?? []
+      const summaryAll: ActionSummary[] = data.all ?? []
+      setPending(executiveId ? pendingAll.filter(a => a.executiveId === executiveId) : pendingAll)
+      setAll(executiveId ? summaryAll.filter(a => a.executiveId === executiveId) : summaryAll)
     } catch {
       /* transient — the next load retries */
     } finally {
@@ -88,9 +104,22 @@ export function ActionsPanel({ executiveId }: { executiveId?: string } = {}) {
     }
   }
 
-  // Nothing waiting is the normal state — say nothing rather than occupy the page with an
-  // empty box the founder has to parse every visit.
-  if (!loaded || pending.length === 0) return null
+  if (!loaded) return null
+
+  if (pending.length === 0) {
+    // FU-009: this used to return null the moment nothing was pending, which hid the 4 internal
+    // actions entirely — not "nothing to show," a founder just had no way to see the team had
+    // done that work. Show honest status for all of them; say nothing only when there is
+    // genuinely no Program with any Actions defined at all.
+    if (all.length === 0) return null
+    return (
+      <SectionCard title="Your team's actions">
+        <div style={{ display: 'grid', gap: 10 }}>
+          {all.map(a => <ActionStatusRow key={a.actionId} action={a} />)}
+        </div>
+      </SectionCard>
+    )
+  }
 
   return (
     <SectionCard title="Needs your approval" action={<Badge variant="amber">{pending.length}</Badge>}>
@@ -111,8 +140,57 @@ export function ActionsPanel({ executiveId }: { executiveId?: string } = {}) {
           />
         ))}
       </div>
+
+      {all.length > pending.length && (
+        <div style={{ marginTop: 20, paddingTop: 16, borderTop: `1px solid ${bdr}` }}>
+          <p style={{ color: muted, fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4, margin: '0 0 10px' }}>
+            The rest of the team&rsquo;s actions
+          </p>
+          <div style={{ display: 'grid', gap: 10 }}>
+            {all.filter(a => a.status !== 'pending_approval').map(a => <ActionStatusRow key={a.actionId} action={a} />)}
+          </div>
+        </div>
+      )}
     </SectionCard>
   )
+}
+
+/** One line, honest status — done, waiting on you, or not run yet. No approve/decline here;
+ *  that control only exists on the actual pending card above, never duplicated. */
+function ActionStatusRow({ action }: { action: ActionSummary }) {
+  const { icon, color, note } = statusLook(action.status)
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 10, fontSize: 14,
+      background: bg, border: `1px solid ${bdr}`, borderRadius: radius.md, padding: '10px 14px',
+    }}>
+      <span style={{ display: 'flex', width: 16 }}>{icon}</span>
+      <span style={{ color: ink, flex: 1 }}>{action.name}</span>
+      {action.irreversible && (
+        <span style={{ color: muted, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+          {action.provider ? `via ${action.provider}` : 'external'}
+        </span>
+      )}
+      <span style={{ color, fontSize: 12 }}>{note}</span>
+    </div>
+  )
+}
+
+function statusLook(status: ActionSummary['status']): { icon: React.ReactNode; color: string; note: string } {
+  switch (status) {
+    case 'executed':
+      return { icon: <Check size={15} color={green} />, color: green, note: 'done' }
+    case 'pending_approval':
+      return { icon: <Clock size={15} color={amber} />, color: amber, note: 'waiting on you' }
+    case 'declined':
+      return { icon: <X size={15} color={muted} />, color: muted, note: 'declined' }
+    case 'failed':
+      return { icon: <X size={15} color={red} />, color: red, note: 'failed' }
+    case 'never_run':
+      return { icon: <Circle size={9} color={bdr} />, color: muted, note: 'not run yet' }
+    default:
+      return { icon: <Circle size={9} color={bdr} />, color: muted, note: status }
+  }
 }
 
 function ActionCard(

@@ -17,7 +17,7 @@
 export const runtime = 'nodejs'
 export const maxDuration = 200
 
-import { NextRequest, NextResponse, after } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createAdminClient, createClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
@@ -25,27 +25,14 @@ import { parseBody } from '@/lib/api/validate'
 import { newModelOff } from '@/lib/api/response'
 import { RhythmError, runNextStep } from '@/lib/rhythm/run'
 import { createOrResumeRun, getLatestRun, CycleAlreadyRanError, StepLimitOpenError } from '@/lib/rhythm/runs'
+import { triggerNextRhythmStep } from '@/lib/rhythm/trigger'
 import { buildProgress } from '@/lib/rhythm/progress'
 import { getCurrentContract } from '@/lib/mandate/contract'
 import { weekCycleKey } from '@/lib/rhythm/cycle-key'
-import { env } from '@/lib/env'
 import { log } from '@/lib/logger'
 
 // cycleKey override is for dev testing only; it defaults to the current ISO week.
 const bodySchema = z.object({ cycleKey: z.string().trim().max(40).optional() })
-
-
-/** Same after()-based hand-off the step route uses to chain itself — see its docstring. */
-function triggerStep(runId: string): void {
-  const secret = process.env.INTERNAL_RUN_SECRET ?? ''
-  after(async () => {
-    await fetch(`${env.appUrl}/api/rhythm/step`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-run-secret': secret },
-      body: JSON.stringify({ runId }),
-    }).catch(err => log.error('rhythm step trigger failed', { runId, err: (err as Error)?.message }))
-  })
-}
 
 /**
  * GET — the founder's latest cycle as readable progress ("Generating ICP Profiles… 2 of 6").
@@ -101,7 +88,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const run = await createOrResumeRun(admin, { founderId: auth.user.id, contractId: contract.id, cycleKey })
     // Step 1 runs inline: the caller's response reflects real progress, not an unstarted stub.
     const step = await runNextStep(admin, run.id)
-    if (!step.done) triggerStep(run.id)
+    if (!step.done) triggerNextRhythmStep(run.id)
 
     return NextResponse.json({ runId: run.id, cycleKey, done: step.done }, { status: 202 })
   } catch (err) {

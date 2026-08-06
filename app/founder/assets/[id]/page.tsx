@@ -44,6 +44,8 @@ export default function AssetPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [note, setNote] = useState<string | null>(null)
+  const [instruction, setInstruction] = useState('')
+  const [directing, setDirecting] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -94,6 +96,29 @@ export default function AssetPage() {
   async function restore(v: AssetVersion): Promise<void> {
     // Restore writes a NEW current version from an old one — it never rewinds history.
     await put(v.content, `Restored version ${v.version}`)
+  }
+
+  // F09 Stage 4 — a scoped command about THIS document, never an open chat (ADR-034 stays
+  // dead). One instruction in, one new version out; nothing here is a thread or gets replied to.
+  async function direct(): Promise<void> {
+    if (!instruction.trim()) return
+    setDirecting(true); setError(null); setNote(null)
+    try {
+      const res = await fetch(`/api/assets/${assetId}/direct`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instruction: instruction.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? 'Could not direct a rework.'); return }
+      setInstruction('')
+      setNote(`Reworked — now version ${data.asset.version}.`)
+      await load()
+    } catch {
+      setError('Could not reach the server. Try again.')
+    } finally {
+      setDirecting(false)
+    }
   }
 
   if (loading) {
@@ -151,6 +176,39 @@ export default function AssetPage() {
             {saving ? 'Saving…' : 'Save new version'}
           </button>
           {note && <span style={{ color: green, fontSize: 14 }}>{note}</span>}
+        </div>
+
+        <div style={{ marginTop: 32, borderTop: `1px solid ${bdr}`, paddingTop: 20 }}>
+          <h2 style={{ color: ink, fontSize: 15, fontWeight: 600, margin: 0 }}>Direct a rework</h2>
+          <p style={{ color: muted, fontSize: 13, marginTop: 4, lineHeight: 1.6 }}>
+            Tell your team what to change about this document. They rework it and save a new
+            version — this doesn&rsquo;t start a conversation, and it can&rsquo;t send or spend anything.
+          </p>
+          <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+            <input
+              value={instruction}
+              onChange={e => setInstruction(e.target.value)}
+              placeholder="e.g. Sharpen the ICP around companies with 50-200 employees"
+              maxLength={2000}
+              disabled={directing}
+              style={{
+                flex: 1, background: bg, border: `1px solid ${bdr}`, borderRadius: 8,
+                padding: '10px 12px', color: ink, fontSize: 14,
+              }}
+            />
+            <button
+              onClick={() => void direct()}
+              disabled={directing || !instruction.trim()}
+              style={{
+                background: blue, color: '#fff', border: 'none', borderRadius: 8,
+                padding: '10px 18px', fontSize: 14, fontWeight: 500, whiteSpace: 'nowrap',
+                cursor: directing || !instruction.trim() ? 'default' : 'pointer',
+                opacity: directing || !instruction.trim() ? 0.6 : 1,
+              }}
+            >
+              {directing ? 'Reworking…' : 'Send'}
+            </button>
+          </div>
         </div>
 
         {history.length > 0 && (

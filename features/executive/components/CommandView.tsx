@@ -13,10 +13,11 @@
  * anywhere in this view beyond the one confirmation already spent to get here.
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ScoreAnchor } from './ScoreAnchor'
 import { MandateCard } from './MandateCard'
 import { ExecutiveRoster } from './ExecutiveRoster'
+import { AssetsPanel } from './AssetsPanel'
 import { ActionsPanel } from './ActionsPanel'
 import { ConnectorsPanel } from './ConnectorsPanel'
 import { RhythmPanel } from './RhythmPanel'
@@ -25,6 +26,14 @@ import { muted } from '@/lib/constants/colors'
 import { space } from '@/features/shared/tokens'
 import { Button } from '@/features/shared/components/Button'
 import type { Contract, ProgramInstance } from '../types/executive.types'
+
+interface AssetVersionSummary { version: number; createdAt: string; updateReason: string | null }
+export interface AssetSummary {
+  id: string
+  name: string
+  outputSchema: 'markdown' | 'json'
+  asset: AssetVersionSummary | null
+}
 
 /**
  * Has THIS contract's team-assembly reveal already played? Keyed by contract id, not
@@ -58,6 +67,32 @@ export function CommandView({
   // reflects the real answer instead of flipping after an effect and missing the animation.
   const [reveal] = useState(() => firstLandingOnThisContract(contract.id))
 
+  // Owned here, not self-fetched like the other panels below: the compact-vs-full decision on
+  // MandateCard needs the same data AssetsPanel renders, so this is the one fetch both read
+  // from, rather than a duplicate request just to answer "do any assets exist yet."
+  const [assets, setAssets] = useState<AssetSummary[]>([])
+  const [assetsLoaded, setAssetsLoaded] = useState(false)
+
+  useEffect(() => {
+    let live = true
+    void (async () => {
+      try {
+        const res = await fetch('/api/assets')
+        if (res.ok && live) setAssets((await res.json()).assets ?? [])
+      } catch {
+        /* fail quiet — a secondary surface on a page that already shows the mandate */
+      } finally {
+        if (live) setAssetsLoaded(true)
+      }
+    })()
+    return () => { live = false }
+  }, [contract.id])
+
+  // Stage 3: once a real document exists, it — not the mandate — is the centre of this page.
+  // Before that (a fresh activation still in flight) the full card stays, so the founder isn't
+  // left reading a one-liner with nothing yet to point at.
+  const hasDocuments = assets.some(a => a.asset !== null)
+
   const changeDirection = (
     <div style={{ marginTop: 20 }}>
       <Button variant="secondary" loading={busy} onClick={onChangeDirection}>
@@ -77,7 +112,12 @@ export function CommandView({
       <ScoreAnchor />
 
       <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: space[5] }}>
-        <MandateCard contract={contract} footer={changeDirection} />
+        {hasDocuments
+          ? <MandateCard contract={contract} compact onChangeDirection={onChangeDirection} busy={busy} />
+          : <MandateCard contract={contract} footer={changeDirection} />}
+
+        {/* The documents lead — this is the payoff, not a status card. */}
+        <AssetsPanel assets={assets} loaded={assetsLoaded} />
 
         {/* Who is running the mandate, then what needs YOU first (F14 — the one checkpoint),
             then the cycle, then its output, then the tools the team may act in. */}

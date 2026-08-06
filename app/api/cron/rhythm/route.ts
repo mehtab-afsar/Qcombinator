@@ -19,26 +19,14 @@ export const runtime = 'nodejs'
 // of founders is comfortably under this even before the chain takes over for the rest.
 export const maxDuration = 200
 
-import { NextResponse, after } from 'next/server'
+import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { FF_NEW_EXECUTIVE_MODEL } from '@/lib/feature-flags'
 import { runNextStep } from '@/lib/rhythm/run'
 import { createOrResumeRun, CycleAlreadyRanError } from '@/lib/rhythm/runs'
+import { triggerNextRhythmStep } from '@/lib/rhythm/trigger'
 import { weekCycleKey } from '@/lib/rhythm/cycle-key'
-import { env } from '@/lib/env'
 import { log } from '@/lib/logger'
-
-/** Same after()-based hand-off /api/rhythm/run and /api/rhythm/step use to chain themselves. */
-function triggerStep(runId: string): void {
-  const secret = process.env.INTERNAL_RUN_SECRET ?? ''
-  after(async () => {
-    await fetch(`${env.appUrl}/api/rhythm/step`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-run-secret': secret },
-      body: JSON.stringify({ runId }),
-    }).catch(err => log.error('rhythm step trigger failed', { runId, err: (err as Error)?.message }))
-  })
-}
 
 export async function GET(request: Request): Promise<NextResponse> {
   // Fail closed on the secret (ADR-017): unset → 503, mismatch → 401. Never fail-open.
@@ -78,7 +66,7 @@ export async function GET(request: Request): Promise<NextResponse> {
     try {
       const run = await createOrResumeRun(admin, { founderId, contractId, cycleKey })
       const step = await runNextStep(admin, run.id)
-      if (!step.done) triggerStep(run.id)
+      if (!step.done) triggerNextRhythmStep(run.id)
       started++
     } catch (err) {
       if (err instanceof CycleAlreadyRanError) {

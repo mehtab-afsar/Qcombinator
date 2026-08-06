@@ -36,10 +36,16 @@ export interface JudgeArgs {
   founderId: string
   program: ProgramInstance
   assetId: AssetId
-  executionId: string
+  /** Null for a directed rework with no owning operating_rhythm_runs row (F09 Stage 4,
+   *  lib/rhythm/direct.ts) — every other caller passes the real run id. */
+  executionId: string | null
   contractId: string | null
   activePrograms: ProgramId[]
   context: CompanyContext
+  /** Defaults to the Operating Rhythm's own label. lib/rhythm/direct.ts overrides this so a
+   *  directed rework's history entry reads "Directed: <instruction>" instead of implying an
+   *  ordinary weekly cycle produced it. */
+  updateReason?: string
 }
 
 /**
@@ -131,7 +137,9 @@ export async function generateAssetContent(
     assetId: args.assetId,
     activePrograms: args.activePrograms, // Composer enforces mandate integrity
     context: args.context,
-    executionId: args.executionId,
+    // composePrompt mints its own exec_<timestamp> id when omitted — fine here, that id is
+    // purely a prompt-composition label, never the DB's execution_id (which stays null below).
+    executionId: args.executionId ?? undefined,
   })
 
   let raw: string
@@ -162,7 +170,8 @@ export async function generateAssetContent(
     programTemplateId: args.program.templateId,
     programId: args.program.id,
     executionId: args.executionId,
-    updateReason: 'Operating Rhythm cycle',
+    adHoc: args.executionId === null,
+    updateReason: args.updateReason ?? 'Operating Rhythm cycle',
   })
 
   trackAssetVersionCreated(args.founderId, {

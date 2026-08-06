@@ -50,6 +50,14 @@ export interface PersistAssetArgs {
   registryVersion?: string | null
   sourceRefs?: unknown[]
   updateReason?: string | null
+  /**
+   * True for a program-authored write with no owning run — F09 Stage 4's directed rework
+   * (lib/rhythm/direct.ts). Lets the validation gate skip requiring an execution id for this one
+   * legitimate case, without silently accepting a genuine omission bug on the normal weekly-
+   * cycle path, which never sets this. Meaningless (and ignored) for founder authorship, which
+   * already forbids an execution id outright.
+   */
+  adHoc?: boolean
 }
 
 interface AssetVersionRow {
@@ -141,6 +149,31 @@ export async function getAssetHistory(
     .order('version', { ascending: false })
 
   if (error) throw new AssetPersistenceError('read_failed', `Failed to read history for ${assetId}: ${error.message}`)
+  return (data ?? []).map(r => toVersion(r as AssetVersionRow))
+}
+
+/**
+ * The founder's current version of every Asset in `assetIds`, one query — Stage 3's artefact
+ * home needs all five documents together, and a five-request waterfall (one getCurrentAsset per
+ * Asset) is the thing this avoids. Assets with no version yet simply have no row back — the
+ * caller matches against `assetIds` and treats a miss as "not generated yet," same honest-not-
+ * broken pattern already used for idle executives elsewhere in this app.
+ */
+export async function getCurrentAssetsForProgram(
+  supabase: SupabaseClient,
+  founderId: string,
+  assetIds: readonly string[],
+): Promise<AssetVersion[]> {
+  if (assetIds.length === 0) return []
+
+  const { data, error } = await supabase
+    .from('asset_versions')
+    .select('*')
+    .eq('founder_id', founderId)
+    .in('asset_id', assetIds)
+    .eq('is_current', true)
+
+  if (error) throw new AssetPersistenceError('read_failed', `Failed to read assets: ${error.message}`)
   return (data ?? []).map(r => toVersion(r as AssetVersionRow))
 }
 

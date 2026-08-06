@@ -16,13 +16,13 @@ export const runtime = 'nodejs'
 // briefing call — one step never does more than one of those.
 export const maxDuration = 200
 
-import { NextRequest, NextResponse, after } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createAdminClient } from '@/lib/supabase/server'
 import { parseBody, uuidSchema } from '@/lib/api/validate'
 import { newModelOff } from '@/lib/api/response'
 import { runNextStep, RhythmError } from '@/lib/rhythm/run'
-import { env } from '@/lib/env'
+import { triggerNextRhythmStep } from '@/lib/rhythm/trigger'
 import { log } from '@/lib/logger'
 
 const bodySchema = z.object({ runId: uuidSchema })
@@ -33,17 +33,6 @@ function verifySecret(req: NextRequest): NextResponse | null {
   if (!secret) return NextResponse.json({ error: 'INTERNAL_RUN_SECRET not configured' }, { status: 503 })
   if (req.headers.get('x-run-secret') !== secret) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   return null
-}
-
-/** Fire the next step and let it run independently — after() guarantees this survives past the response. */
-function scheduleNextStep(runId: string, secret: string): void {
-  after(async () => {
-    await fetch(`${env.appUrl}/api/rhythm/step`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-run-secret': secret },
-      body: JSON.stringify({ runId }),
-    }).catch(err => log.error('rhythm step self-chain trigger failed', { runId, err: (err as Error)?.message }))
-  })
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
@@ -60,7 +49,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
     const admin = createAdminClient()
     const step = await runNextStep(admin, parsed.data.runId)
-    if (!step.done) scheduleNextStep(parsed.data.runId, process.env.INTERNAL_RUN_SECRET as string)
+    if (!step.done) triggerNextRhythmStep(parsed.data.runId)
     return NextResponse.json({ runId: parsed.data.runId, done: step.done })
   } catch (err) {
     // A step failing to even RUN (run row missing, mandate no longer confirmed) means the

@@ -175,12 +175,23 @@ export async function recordAttempt(
 }
 
 /**
- * The latest entry per action for a run — an Action's CURRENT state.
- *
- * Because the table is append-only, "what is the state of this action" is the newest row, not a
- * mutable column. Ordered newest-first and deduped in code rather than with a window function,
- * because the row counts here are tiny (actions per program per run) and the SQL stays legible.
+ * Reduce newest-first rows to one entry per Action id — an Action's CURRENT state, since the
+ * table is append-only and "what is the state of this action" is the newest row, not a mutable
+ * column. Deduped in code rather than with a window function, because the row counts here are
+ * tiny (actions per program per run, or per founder) and the SQL stays legible. Shared by
+ * latestPerAction (scoped to one run) and latestPerActionForFounder (scoped to the founder,
+ * across every run they've ever had) — the reduction is identical, only the query scope differs.
  */
+function dedupeLatestByActionId(rows: readonly ActionLogRow[]): ActionLogEntry[] {
+  const seen = new Set<string>()
+  return rows.map(toEntry).filter(e => {
+    if (seen.has(e.actionId)) return false
+    seen.add(e.actionId)
+    return true
+  })
+}
+
+/** The latest entry per action for one run — an Action's CURRENT state within that execution. */
 export async function latestPerAction(
   client: SupabaseClient,
   founderId: string,
@@ -194,13 +205,28 @@ export async function latestPerAction(
     .order('created_at', { ascending: false })
 
   if (error) throw new ActionLogError('read_failed', `Failed to read the action log: ${error.message}`)
+  return dedupeLatestByActionId((data ?? []) as ActionLogRow[])
+}
 
-  const seen = new Set<string>()
-  return (data ?? []).map(r => toEntry(r as ActionLogRow)).filter(e => {
-    if (seen.has(e.actionId)) return false
-    seen.add(e.actionId)
-    return true
-  })
+/**
+ * The latest entry per action across EVERY run the founder has ever had — F09 Stage 5's honest
+ * action surface. `latestPerAction` is scoped to a single execution and has always had zero
+ * callers outside tests; this is the founder-wide sibling the Command View actually needs, not
+ * an overload, since latestPerAction's existing contract (one specific run) stays intact for
+ * whatever future caller wants a single execution's outcome.
+ */
+export async function latestPerActionForFounder(
+  client: SupabaseClient,
+  founderId: string,
+): Promise<ActionLogEntry[]> {
+  const { data, error } = await client
+    .from('action_log')
+    .select('*')
+    .eq('founder_id', founderId)
+    .order('created_at', { ascending: false })
+
+  if (error) throw new ActionLogError('read_failed', `Failed to read the action log: ${error.message}`)
+  return dedupeLatestByActionId((data ?? []) as ActionLogRow[])
 }
 
 /**

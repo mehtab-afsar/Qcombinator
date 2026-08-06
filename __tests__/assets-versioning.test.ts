@@ -66,6 +66,13 @@ describe('F11 validation gate (UC-11 step 2)', () => {
     expectError({ ...base, executionId: undefined }, 'missing_execution')
   })
 
+  it('F09 Stage 4: adHoc explicitly waives the execution-id requirement for a directed rework', () => {
+    // Every OTHER program-authored call site still throws (the test above) — adHoc is a narrow,
+    // explicit opt-out for lib/rhythm/direct.ts, not a general weakening of check 5.
+    const result = validateAssetPersist({ ...base, executionId: undefined, adHoc: true })
+    expect(result.executiveId).toBe('growth')
+  })
+
   it('forbids an execution id on a founder edit', () => {
     expectError(
       { ...base, authoredBy: 'founder', programTemplateId: undefined, executionId: 'x' },
@@ -118,7 +125,7 @@ describe('F11 migration — the write path cannot be bypassed', () => {
     expect(kinds).toEqual(['select']) // exactly one policy, and it is SELECT-only
   })
 
-  it('enforces the execution-ref biconditional as a CHECK', () => {
+  it('originally created the execution-ref biconditional as a CHECK (superseded below, F09 Stage 4)', () => {
     expect(executable).toMatch(/check\s*\(\s*\(authored_by\s*=\s*'founder'\)\s*=\s*\(execution_id\s+is\s+null\)\s*\)/i)
   })
 
@@ -128,6 +135,29 @@ describe('F11 migration — the write path cannot be bypassed', () => {
 
   it('installs the immutability trigger', () => {
     expect(executable).toMatch(/create\s+trigger\s+asset_versions_immutable/i)
+  })
+})
+
+describe('F09 Stage 4 migration — the execution-ref CHECK relaxed for ad-hoc program writes', () => {
+  const sql = readFileSync(
+    join(__dirname, '..', 'supabase', 'migrations', '20260804000008_asset_versions_adhoc_program_writes.sql'),
+    'utf8',
+  )
+  const executable = sql.split('\n').filter(l => !l.trim().startsWith('--')).join('\n')
+
+  it('replaces the biconditional with a one-directional implication — founder still forbidden, program now optional', () => {
+    expect(executable).toMatch(
+      /check\s*\(\s*not\s*\(\s*authored_by\s*=\s*'founder'\s+and\s+execution_id\s+is\s+not\s+null\s*\)\s*\)/i,
+    )
+  })
+
+  it('touches only the CHECK — the FK to operating_rhythm_runs is untouched (real runs still enforced)', () => {
+    expect(executable).not.toMatch(/references\s+operating_rhythm_runs/i)
+    expect(executable).not.toMatch(/drop\s+constraint\s+if\s+exists\s+asset_versions_execution_fk/i)
+  })
+
+  it('ships a rollback back to the original biconditional', () => {
+    expect(sql).toMatch(/\(authored_by\s*=\s*'founder'\)\s*=\s*\(execution_id\s+is\s+null\)/i)
   })
 })
 

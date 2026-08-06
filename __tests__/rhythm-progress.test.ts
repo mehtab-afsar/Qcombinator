@@ -227,3 +227,32 @@ describe('buildProgress — every step names its Program and Executive', () => {
     expect(p.steps).toHaveLength(0)
   })
 })
+
+describe('buildProgress — kind/assetId (Stage 2 Activation)', () => {
+  // Activation needs to know the moment an ASSET step lands so it can fetch and reveal that
+  // exact document — without parsing `key`, which RhythmPanel is documented to never do.
+  it('asset steps carry kind:"asset" and their Registry asset id', () => {
+    const p = buildProgress(run(), ['P001'], NOW)
+    const assetSteps = p.steps.slice(0, P001_ASSETS.length)
+    assetSteps.forEach((step, i) => {
+      expect(step.kind).toBe('asset')
+      expect(step.assetId).toBe(P001_ASSETS[i])
+    })
+  })
+
+  it('the briefing step carries kind:"briefing" and a null assetId', () => {
+    const p = buildProgress(run(), ['P001'], NOW)
+    const briefing = p.steps.find(st => st.key.endsWith(':briefing'))!
+    expect(briefing.kind).toBe('briefing')
+    expect(briefing.assetId).toBeNull()
+  })
+
+  it('action steps carry kind:"action" and a null assetId', () => {
+    const p = buildProgress(run(), ['P001'], NOW)
+    const actionSteps = p.steps.slice(P001_ASSETS.length + 1)
+    actionSteps.forEach(step => {
+      expect(step.kind).toBe('action')
+      expect(step.assetId).toBeNull()
+    })
+  })
+})

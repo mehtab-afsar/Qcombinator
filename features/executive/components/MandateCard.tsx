@@ -26,7 +26,7 @@ import type { Contract, ExecutiveSummary } from '../types/executive.types'
  * Renders state. No executive reasoning lives here (CLAUDE.md §2).
  */
 export function MandateCard({
-  contract, showResponsibilities = true, footer,
+  contract, showResponsibilities = true, footer, compact = false, onChangeDirection, busy = false,
 }: {
   contract: Contract
   /** false inside the unveiling's "mandate hardens" layer — Layer 4 shows who takes
@@ -34,8 +34,16 @@ export function MandateCard({
   showResponsibilities?: boolean
   /** Rendered after the mandate content, inside the same card — e.g. CommandView's
    *  "Change direction" control. Kept as a prop rather than owned here so the copy
-   *  explaining it stays physically in the file that calls for it. */
+   *  explaining it stays physically in the file that calls for it. Ignored when compact. */
   footer?: React.ReactNode
+  /** Stage 3: once real Assets exist to be the home's centre, the mandate steps back to "a
+   *  line at the top with 'change direction'" (the plan's own words) rather than the full
+   *  priorities/metrics card — CommandView passes this once it has assets to show instead. */
+  compact?: boolean
+  /** Compact mode's own change-direction control — a plain inline action, not the full
+   *  card's button-plus-explanation footer (that explanation is what compact is dropping). */
+  onChangeDirection?: () => void
+  busy?: boolean
 }) {
   const [executives, setExecutives] = useState<ExecutiveSummary[]>([])
 
@@ -53,6 +61,32 @@ export function MandateCard({
   }, [])
 
   const nameById = new Map(executives.map(e => [e.id, e.name]))
+
+  if (compact) {
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+        padding: '2px 2px 4px',
+      }}>
+        <span style={{ color: muted, fontSize: 13 }}>
+          Epoch {contract.epoch}
+          {contract.confirmedAt && <> · confirmed {new Date(contract.confirmedAt).toLocaleDateString()}</>}
+        </span>
+        {onChangeDirection && (
+          <button
+            onClick={onChangeDirection}
+            disabled={busy}
+            style={{
+              background: 'none', border: 'none', padding: 0, color: muted, fontSize: 13,
+              textDecoration: 'underline', cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.6 : 1,
+            }}
+          >
+            Change direction
+          </button>
+        )}
+      </div>
+    )
+  }
 
   return (
     <SectionCard

@@ -24,7 +24,15 @@ import type { ContractDraft } from './contract'
 /** Executives a generated mandate may name. Mirrors PRD §7.1's roster. */
 const EXECUTIVE_IDS: readonly string[] = ['ceo', 'growth', 'product', 'operations', 'finance']
 
-const TIMEOUT_MS = 60_000
+// Was 60s — a live Stage-1 verification run (F07 spine) measured a real S002 generation at
+// ~77s under normal conditions, well past the old ceiling. That's not a stall; it's what this
+// call actually takes. The old value meant S002 was silently falling back to a non-AI,
+// deterministic draft on completely ordinary runs, with nothing telling the founder it had
+// happened — the mandate they saw wasn't the one the model wrote. Raised to match the ceiling
+// already used for S001's streamed generation (STREAM_TIMEOUT_MS in
+// app/api/strategy/propose/route.ts) so both halves of "the mandate hardens" beat are held to
+// the same real-world bar.
+const TIMEOUT_MS = 150_000
 
 export class MandateGenerationError extends Error {
   constructor(message: string) {

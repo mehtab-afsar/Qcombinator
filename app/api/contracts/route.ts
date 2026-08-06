@@ -10,7 +10,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { parseBody } from '@/lib/api/validate'
 import { newModelOff } from '@/lib/api/response'
@@ -22,6 +22,7 @@ import {
   getCurrentContract,
   getProgramsForContract,
 } from '@/lib/mandate/contract'
+import { startCycleIfDue } from '@/lib/rhythm/trigger'
 import { log } from '@/lib/logger'
 import { trackMandateDrafted, trackMandateConfirmed } from '@/lib/analytics'
 
@@ -94,6 +95,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     // Confirming is the moment the mandate becomes real and Programs start
     // running. Atomic in Postgres — see confirm_executive_contract.
     const result = await confirmContract(supabase, auth.user.id, parsed.data.contractId)
+
+    // F09 Activation (PRD §4, "the spine") — confirming must produce a real, watchable cycle
+    // immediately, not a "Run now" button and a silent room. startCycleIfDue only does a cheap
+    // DB read+insert before handing the actual LLM work off to Next's after(), so this response
+    // stays fast; by the time it returns, the run row already exists at status:'running' for
+    // the Activation screen's very first poll to see.
+    await startCycleIfDue(createAdminClient(), {
+      founderId: auth.user.id,
+      contractId: result.contract.id,
+    })
 
     // ACTIVATION. The one confirmation in the product, and the denominator of every retention
     // question that follows — a founder who never reaches here never entered the loop at all.

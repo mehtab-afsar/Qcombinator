@@ -81,10 +81,13 @@ export function validateAssetPersist(args: PersistAssetArgs): ValidatedAsset {
   // 3 + 4. Output matches the required structure, and is complete (non-empty).
   assertContentShape(outputSchema, args.content)
 
-  // 5. Valid execution reference: program ⟹ present, founder ⟹ absent (also a DB CHECK).
+  // 5. Valid execution reference: founder ⟹ absent (always); program ⟹ present, UNLESS this is
+  //    an explicitly-marked ad-hoc write (F09 Stage 4 — a directed rework has no owning run).
+  //    adHoc is a deliberate, narrow opt-out — every other program-authored call site still
+  //    throws on a missing execution id, exactly as before.
   const hasExecution = Boolean(args.executionId)
-  if (args.authoredBy === 'program' && !hasExecution) {
-    throw new AssetPersistenceError('missing_execution', 'program-authored versions require an execution id')
+  if (args.authoredBy === 'program' && !hasExecution && !args.adHoc) {
+    throw new AssetPersistenceError('missing_execution', 'program-authored versions require an execution id (unless explicitly ad-hoc)')
   }
   if (args.authoredBy === 'founder' && hasExecution) {
     throw new AssetPersistenceError('unexpected_execution', 'founder edits must not carry an execution id')

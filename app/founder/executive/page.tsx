@@ -27,7 +27,7 @@ import { PageHeader } from '@/features/shared/components/PageHeader'
 import { EmptyState } from '@/features/shared/components/EmptyState'
 import { PageSpinner } from '@/features/shared/components/Spinner'
 import { fetchWithTimeout, isTimeoutError } from '@/features/shared/lib/fetchWithTimeout'
-import { CommandView } from '@/features/executive/components/CommandView'
+import { ActivationGate } from '@/features/executive/components/ActivationGate'
 import { Unveiling } from '@/features/executive/components/unveiling/Unveiling'
 import {
   resolveJourneyState,
@@ -174,12 +174,14 @@ export default function ExecutivePage() {
         </div>
       )}
 
-      {/* The payoff screen — Q-Score at the centre, the team around it. Everything below the
-          mandate here (roster, actions, rhythm, briefings, connectors) is composed inside
-          CommandView, not rebuilt (CLAUDE.md §2). */}
+      {/* The payoff screen — Q-Score at the centre, the team around it. ActivationGate decides
+          whether the founder is watching the very first cycle build (F09 Activation) or
+          landing on the steady-state Command View; everything below the mandate there (roster,
+          actions, rhythm, briefings, connectors) is composed inside CommandView, not rebuilt
+          (CLAUDE.md §2). */}
       {contract && state === 'confirmed' && (
         <div style={{ marginTop: 24 }}>
-          <CommandView
+          <ActivationGate
             contract={contract}
             programs={programs}
             busy={busy}

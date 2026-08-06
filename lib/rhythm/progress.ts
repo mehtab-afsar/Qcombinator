@@ -29,6 +29,13 @@ export interface ProgressStep {
   /** The Program's owning Executive — e.g. 'growth' — or null if the Registry no longer knows
    *  this Program (mirrors programOrNull's fail-open: an unresolvable id must not 500 the view). */
   executiveId: string | null
+  /** What kind of work this step represents — lets a consumer (Activation) react to an asset
+   *  landing without parsing `key`, which RhythmPanel is documented to never do. */
+  kind: 'asset' | 'briefing' | 'action'
+  /** The Registry asset id this step produced — asset steps only. Lets Activation fetch the
+   *  real, just-persisted content the moment the step flips to 'done' without string-splitting
+   *  `key` (the thing this field exists specifically to avoid). */
+  assetId: string | null
 }
 
 export interface RunProgress {
@@ -93,7 +100,7 @@ function assetSteps(assetIds: readonly string[], templateId: string, executiveId
   let activeTaken = false
 
   return assetIds.map(assetId => {
-    const step = { key: `${templateId}:${assetId}`, label: assetLabel(assetId), templateId, executiveId }
+    const step = { key: `${templateId}:${assetId}`, label: assetLabel(assetId), templateId, executiveId, kind: 'asset' as const, assetId }
 
     if (doneIds.includes(assetId)) {
       // ADR-028: an existing asset with no new founder input isn't regenerated. 'skipped' is
@@ -114,7 +121,7 @@ function assetSteps(assetIds: readonly string[], templateId: string, executiveId
 
 /** The briefing step — always last for its program, and gated on its assets. */
 function briefingStep(templateId: string, executiveId: string | null, stage: StageShape, running: boolean, assetsSettled: boolean): ProgressStep {
-  const step = { key: `${templateId}:briefing`, label: 'Executive briefing', templateId, executiveId }
+  const step = { key: `${templateId}:briefing`, label: 'Executive briefing', templateId, executiveId, kind: 'briefing' as const, assetId: null }
 
   if (stage.briefing === 'completed') return { ...step, state: 'done' }
   if (stage.briefing === 'failed') return { ...step, state: 'failed' }
@@ -154,7 +161,7 @@ function actionSteps(
   let activeTaken = false
 
   return actionIds.map(actionId => {
-    const step = { key: `${templateId}:${actionId}`, label: actionLabel(actionId), templateId, executiveId }
+    const step = { key: `${templateId}:${actionId}`, label: actionLabel(actionId), templateId, executiveId, kind: 'action' as const, assetId: null }
 
     if (doneIds.includes(actionId)) return { ...step, state: 'done' as const }
     if (status === 'failed' && !activeTaken) {

@@ -20,10 +20,51 @@ import { createAdminClient, createClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { parseBody, uuidSchema } from '@/lib/api/validate'
 import { newModelOff } from '@/lib/api/response'
-import { pendingApprovals, attachOwners } from '@/lib/actions/log'
+import { pendingApprovals, latestPerActionForFounder, attachOwners } from '@/lib/actions/log'
 import { approveAction, declineAction, ApprovalError } from '@/lib/actions/approve'
 import { getCurrentContract, getProgramsForContract } from '@/lib/mandate/contract'
+import { getProgram, getAction } from '@/lib/registry'
 import { log } from '@/lib/logger'
+
+/**
+ * Stage 5 — the honest action surface (FU-009). ActionsPanel used to render nothing at all once
+ * nothing was pending, which hid the 4 internal, already-completed actions entirely — not a
+ * missing feature, a defect: a founder had no way to see the team had done that work. This is
+ * every Action across the founder's active Programs, not just what's waiting on them, degrading
+ * an action that has never run to 'never_run' rather than omitting it.
+ */
+async function allActionsForFounder(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  founderId: string,
+  activePrograms: readonly string[],
+) {
+  const actionIds = [...new Set(
+    activePrograms.flatMap(templateId => {
+      try { return getProgram(templateId).actions } catch { return [] }
+    }),
+  )]
+  if (actionIds.length === 0) return []
+
+  const latest = await latestPerActionForFounder(supabase, founderId)
+  const latestById = new Map(latest.map(e => [e.actionId, e]))
+
+  return actionIds.map(actionId => {
+    const def = getAction(actionId)
+    const entry = latestById.get(actionId) ?? null
+    const ownerTemplateId = activePrograms.find(id => {
+      try { return getProgram(id).actions.includes(actionId) } catch { return false }
+    })
+    return {
+      actionId,
+      name: def.name,
+      irreversible: def.irreversible,
+      executiveId: ownerTemplateId ? getProgram(ownerTemplateId).owner : null,
+      status: entry?.status ?? ('never_run' as const),
+      provider: entry?.provider ?? null,
+      createdAt: entry?.createdAt ?? null,
+    }
+  })
+}
 
 const bodySchema = z.object({
   entryId: uuidSchema,
@@ -51,7 +92,10 @@ export async function GET(): Promise<NextResponse> {
     // executive. No contract yet (shouldn't happen once anything is pending, but degrade
     // honestly) just means every entry resolves to null owners rather than throwing.
     const programs = contract ? await getProgramsForContract(supabase, contract.id) : []
-    return NextResponse.json({ pending: attachOwners(pending, programs) })
+    const all = contract?.status === 'confirmed'
+      ? await allActionsForFounder(supabase, auth.user.id, contract.activePrograms)
+      : []
+    return NextResponse.json({ pending: attachOwners(pending, programs), all })
   } catch (err) {
     log.error('GET /api/actions', { err })
     return NextResponse.json({ error: 'Failed to load actions' }, { status: 500 })

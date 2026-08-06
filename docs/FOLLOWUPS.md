@@ -200,3 +200,26 @@ any migration creates a table without enabling RLS — so the grant can't quietl
 migrations → **535/535 tests pass**, `anon` can read the academy tables its policies target but
 cannot write anywhere, and a seeded audit row is visible to the owner while `authenticated`
 sees zero (grant present, RLS denying — the layered defence proven at runtime, not asserted).
+
+---
+
+## FU-009 — The external action surface is one connector deep
+
+**Found:** during the Founder Experience spine build (Stage 5, "make the action surface
+honest").
+
+**What:** P001 defines 5 actions; only `interview_customers` reaches outside the product
+(Gmail, irreversible, gated). The other 4 are internal judgement, and Gmail is the only
+Connector implementation that exists.
+
+**Severity:** Not a bug — a scope boundary. The architecture (Connector interface + Registry)
+already supports more; adding reach is "write a new connector + register new Actions," not an
+engine change.
+
+**Do (later, Phase 5 — broaden):** add connectors as real product needs surface — calendar,
+a CRM write, LinkedIn outreach, a landing-page publish — each following the exact pattern
+`lib/connectors/gmail.ts` already sets.
+
+**Why deferred:** P001 is deliberately one program, one connector, prove-the-pattern scope
+(PRD §10). Widening connector breadth before the pattern is proven on one is exactly the
+"boil the ocean" the PRD's own strategy section warns against (§3).

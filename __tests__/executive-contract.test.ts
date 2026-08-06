@@ -232,7 +232,12 @@ describe('the contract routes', () => {
     expect(main).toContain('verifyAuth()')
     expect(main).toContain('parseBody(req, bodySchema)')
     expect(main).toContain('await createClient()')
-    expect(main).not.toContain('createAdminClient')
+    // The contract write itself (confirmContract) still goes through the RLS-scoped client —
+    // createAdminClient here is scoped to startCycleIfDue (F09 Activation's rhythm trigger,
+    // which legitimately needs service-role, same as /api/rhythm/run already does), never to
+    // reading or writing the contract row itself.
+    expect(main).toContain('confirmContract(supabase,')
+    expect(main).toContain('startCycleIfDue(createAdminClient()')
     expect(epoch).not.toContain('createAdminClient')
   })
 })
