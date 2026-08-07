@@ -1,7 +1,7 @@
 /**
  * E2E Smoke — Founder Pages
  *
- * Verifies all 14 testable founder pages load without 404/500
+ * Verifies all 12 testable founder pages load without 404/500
  * and don't redirect to /login when signed in as the seeded test founder.
  *
  * These are smoke tests — they check the page loads and has content,
@@ -14,8 +14,6 @@ import { signInAsFounder } from '../helpers/auth'
 const FOUNDER_PAGES = [
   { path: '/founder/dashboard',       key: 'dashboard'       },
   { path: '/founder/improve-qscore',  key: 'improve-qscore'  },
-  { path: '/founder/pitch-analyzer',  key: 'pitch-analyzer'  },
-  { path: '/founder/pitch-deck',      key: 'pitch-deck'      },
   { path: '/founder/metrics',         key: 'metrics'         },
   { path: '/founder/workspace',       key: 'workspace'       },
   { path: '/founder/portfolio',       key: 'portfolio'       },

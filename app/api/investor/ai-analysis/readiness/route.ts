@@ -17,7 +17,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { isFounderVisible } from '@/lib/investor/visibility'
-import { llmChat } from '@/lib/llm/provider'
+import { routedText } from '@/lib/llm/router'
+import { composeAdhocPrompt } from '@/lib/prompts/compose'
 import { log } from '@/lib/logger'
 
 export interface ReadinessDimension {
@@ -150,17 +151,14 @@ async function analyseDimension(
     : 'No artifacts available for this dimension.'
 
   try {
-    const response = await llmChat({
-      messages: [
-        { role: 'system', content: cfg.system },
-        { role: 'user',   content: `Founder context:\n${founderContext}\n\nArtifact data:\n${artifactText}` },
-      ],
-      modelTier:   'fast',
-      temperature: 0.1,
-      maxTokens:   400,
+    const messages = composeAdhocPrompt({
+      sourceRef: `investor/ai-analysis/readiness:${dimensionKey}`,
+      instructions: cfg.system,
+      data: `Founder context:\n${founderContext}\n\nArtifact data:\n${artifactText}`,
     })
+    const response = await routedText('classification', messages, { modelTier: 'fast', maxTokens: 400, temperature: 0.1 })
 
-    const raw = (response.text ?? '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '')
+    const raw = response.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '')
     const parsed = JSON.parse(raw) as Partial<ReadinessDimension>
 
     return {
@@ -282,19 +280,16 @@ Market (${market.score}/100): ${market.headline}
 Product (${product.score}/100): ${product.headline}
 `.trim()
 
-    const synthResponse = await llmChat({
-      messages: [
-        { role: 'system', content: SYNTHESIS_PROMPT },
-        { role: 'user',   content: `Founder context:\n${founderContext}\n\nDimension summaries:\n${dimensionSummary}` },
-      ],
-      modelTier:   'capable',
-      temperature: 0.2,
-      maxTokens:   500,
+    const synthMessages = composeAdhocPrompt({
+      sourceRef: 'investor/ai-analysis/readiness:synthesis',
+      instructions: SYNTHESIS_PROMPT,
+      data: `Founder context:\n${founderContext}\n\nDimension summaries:\n${dimensionSummary}`,
     })
+    const synthResponse = await routedText('reasoning', synthMessages, { maxTokens: 500, temperature: 0.2 })
 
     let synthesis: { overallScore: number; overallVerdict: string; summary: string; nextSteps: string[] }
     try {
-      const raw = (synthResponse.text ?? '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '')
+      const raw = synthResponse.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '')
       synthesis = JSON.parse(raw)
     } catch {
       // Synthesis parse failed — compute fallback

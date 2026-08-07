@@ -5,8 +5,8 @@
  */
 
 import { NextRequest } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { verifyAuth } from '@/lib/auth/verify'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
+import { verifyAuth, verifyInvestor } from '@/lib/auth/verify'
 import { INVESTOR_DEFAULTS } from '@/lib/constants/investor-config/defaults'
 import { parseBody, investorConfigSchema } from '@/lib/api/validate'
 import { log } from '@/lib/logger'
@@ -52,7 +52,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const auth = await verifyAuth()
+    const auth = await verifyInvestor(createAdminClient())
     if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status })
     const { user } = auth
     const supabase = await createClient()

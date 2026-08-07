@@ -10,6 +10,10 @@ interface QScoreData {
   overall: number;
   percentile: number | null;
   grade: string;
+  change?: number;
+  /** false/undefined = no prior score to compare against yet — never show a fabricated "steady"
+   *  trend for a founder's first-ever score. */
+  hasTrend?: boolean;
   scoreVersion?: string;
   iqBreakdown?: unknown;
   availableIQ?: number;

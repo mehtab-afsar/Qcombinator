@@ -10,7 +10,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/features/auth/hooks/useAuth";
-import { usePendingConnections } from "../hooks/usePendingConnections";
 import { useGettingStarted } from "../hooks/useGettingStarted";
 import { useNotifications } from "../hooks/useNotifications";
 import { SidebarNotification } from "../types/founder.types";
@@ -153,12 +152,29 @@ export default function FounderSidebar() {
   const router   = useRouter();
   const { user, signOut } = useAuth();
 
-  const msgCount  = usePendingConnections();
+  const [msgCount, setMsgCount] = useState(0);
   const { pct: gsPct, allDone: gsAllDone } = useGettingStarted();
+
+  // Real unread-message count (was previously a pending-connections count mislabeled
+  // as the Messages badge — /api/messages/unread already existed, correct, unused).
+  useEffect(() => {
+    let cancelled = false;
+    async function poll() {
+      try {
+        const res = await fetch("/api/messages/unread");
+        if (!res.ok || cancelled) return;
+        const d = await res.json();
+        setMsgCount(d.total ?? 0);
+      } catch { /* non-critical */ }
+    }
+    poll();
+    const id = setInterval(poll, 30_000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, []);
 
   // Build nav with dynamic message badge
   const nav = BASE_NAV.map(item =>
-    item.name === "Messages" && msgCount !== null && msgCount > 0
+    item.name === "Messages" && msgCount > 0
       ? { ...item, badge: String(msgCount) }
       : item
   );
@@ -195,7 +211,7 @@ export default function FounderSidebar() {
   return (
     <>
       <EmailConfirmBanner
-        statusApiPath="/api/founder/email-status"
+        statusApiPath="/api/auth/email-status"
         resendApiPath="/api/auth/resend-confirmation"
       />
       <motion.nav
@@ -236,9 +252,6 @@ export default function FounderSidebar() {
 
         {/* ── middle: nav links ────────────────────────────────────────── */}
         <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "8px 6px" }}>
-
-          {/* Divider */}
-          <div style={{ height: 1, background: bdr, margin: "6px 4px 8px" }} />
 
           {nav.map(item => {
             const active = isNavActive(item.href, pathname);
@@ -314,7 +327,7 @@ export default function FounderSidebar() {
             title={`Getting started — ${gsPct}% complete`}
           >
             {/* SVG ring */}
-            <div style={{ flexShrink: 0, position: "relative", width: 32, height: 32, margin: "0 auto" }}>
+            <div style={{ flexShrink: 0, position: "relative", width: 32, height: 32 }}>
               <svg width="32" height="32" viewBox="0 0 32 32" style={{ transform: "rotate(-90deg)" }}>
                 <circle cx="16" cy="16" r="13" fill="none" stroke={bdr} strokeWidth="3" />
                 <circle
@@ -337,7 +350,7 @@ export default function FounderSidebar() {
             <motion.div
               animate={{ opacity: expanded ? 1 : 0, x: expanded ? 0 : -4 }}
               transition={{ duration: 0.15 }}
-              style={{ overflow: "hidden", whiteSpace: "nowrap" }}
+              style={{ flex: 1, minWidth: 0, overflow: "hidden", whiteSpace: "nowrap" }}
             >
               <p style={{ fontSize: 11, fontWeight: 600, color: ink, margin: 0 }}>Getting started</p>
               <p style={{ fontSize: 10, color: muted, margin: "1px 0 0" }}>{gsPct}% complete</p>

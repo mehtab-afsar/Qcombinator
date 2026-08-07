@@ -16,8 +16,10 @@ export default function InvestorLayout({
   const pathname = usePathname();
   const { toasts, dismiss } = useToast();
 
-  // Hide sidebar during onboarding
-  const hideSidebar = pathname.includes('/onboarding');
+  // Hide sidebar during onboarding, and on the email-confirmation block screen — otherwise a
+  // blocked investor can simply click a sidebar link to route around the block entirely
+  // (middleware re-blocks the destination too, but there's no reason to show the nav at all).
+  const hideSidebar = pathname.includes('/onboarding') || pathname.includes('/verify-email');
 
   if (hideSidebar) {
     return <ErrorBoundary>{children}</ErrorBoundary>;
@@ -29,7 +31,7 @@ export default function InvestorLayout({
         <InvestorSidebar />
         {/* 52px left margin matches the collapsed sidebar width */}
         <EmailConfirmBanner
-          statusApiPath="/api/investor/email-status"
+          statusApiPath="/api/auth/email-status"
           resendApiPath="/api/auth/resend-confirmation"
         />
         <div style={{ flex: 1, overflowY: "auto", marginLeft: 52, position: "relative" }}>

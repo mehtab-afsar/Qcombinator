@@ -223,7 +223,7 @@ testing that case in TS would be theatre. Where it genuinely can be absent:
 At every such boundary: **unresolvable ⇒ irreversible ⇒ requires approval.** Never default to
 "reversible, run it".
 
-**Do not derive irreversibility from the Program Prompt.** `lib/prompts/programs/p001.ts:685` has
+**Do not derive irreversibility from the Program Prompt.** `lib/prompts/executives/growth/programs/p001.ts:685` has
 an `# Autonomous Actions` section whose approval rules (pricing, public claims, budget) are prose
 that contradicts ADR-004. Parsing it would put a language model in charge of a safety decision the
 Registry owns and the boot sequence enforces. It is layer-2 prose; `ACTION_FORMAT_RULE` already

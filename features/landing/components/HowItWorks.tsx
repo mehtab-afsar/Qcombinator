@@ -5,8 +5,8 @@ import { motion, useScroll, useTransform, type MotionValue } from "framer-motion
 import { L, FONT_SERIF, FONT_MONO } from "../theme";
 import { STEPS, PARAMETERS } from "../copy";
 import { Reveal, Eyebrow } from "./Section";
-import { useMotionPrefs } from "../hooks/useMotionPrefs";
-import { useIsWide } from "../hooks/useIsWide";
+import { useMotionPrefs } from "@/features/shared/hooks/useMotionPrefs";
+import { useIsWide } from "@/features/shared/hooks/useIsWide";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 

@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import {
   Check, ChevronRight, Lock, ArrowUpRight,
-  UserCircle, FileText, Target, TrendingUp, Users, DollarSign,
+  UserCircle, FileText, Target, Users, DollarSign,
   type LucideIcon,
 } from 'lucide-react'
 import { bg, surf, bdr, ink, muted, blue } from '@/lib/constants/colors'
@@ -24,7 +24,6 @@ interface FounderProgress {
   profile_builder_completed: boolean
   assessment_completed: boolean
   registration_completed: boolean
-  has_pitch_deck: boolean
   has_metrics: boolean
   has_team_member: boolean
   full_name: string
@@ -74,15 +73,6 @@ function getSteps(p: FounderProgress): Step[] {
       badge: 'High impact',
     },
     {
-      id: 'pitch_deck',
-      icon: TrendingUp,
-      title: 'Upload your pitch deck',
-      description: 'Investors can view your deck before requesting a connection.',
-      detail: 'Optional · Improves your profile quality signal',
-      href: '/founder/pitch-deck',
-      completed: p.has_pitch_deck,
-    },
-    {
       id: 'metrics',
       icon: DollarSign,
       title: 'Add your metrics',
@@ -122,8 +112,7 @@ export default function FounderGettingStarted() {
 
       if (!data) { router.replace('/founder/onboarding'); return }
 
-      // Check for pitch deck and metrics via startup profile data
-      const hasPitch   = !!(data.startup_profile_data as Record<string, unknown>)?.pitch_deck_url
+      // Check for metrics via startup profile data
       const hasMetrics = !!(data.startup_profile_data as Record<string, unknown>)?.mrr
 
       // Check for team members
@@ -139,7 +128,6 @@ export default function FounderGettingStarted() {
         profile_builder_completed:  data.profile_builder_completed   ?? false,
         assessment_completed:       data.assessment_completed        ?? false,
         registration_completed:     data.registration_completed      ?? false,
-        has_pitch_deck:             hasPitch,
         has_metrics:                hasMetrics,
         has_team_member:            hasTeamMember,
         full_name:                  data.full_name ?? '',
@@ -154,7 +142,6 @@ export default function FounderGettingStarted() {
     return (
       <div style={{ minHeight: '100vh', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: font.family }}>
         <div style={{ width: 24, height: 24, borderRadius: '50%', border: `2.5px solid ${bdr}`, borderTopColor: blue, animation: 'spin 0.8s linear infinite' }} />
-        <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
       </div>
     )
   }

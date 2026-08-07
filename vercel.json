@@ -1,16 +1,8 @@
 {
   "crons": [
     {
-      "path": "/api/agents/schedule/run",
-      "schedule": "0 8 * * *"
-    },
-    {
       "path": "/api/cron/weekly-automation",
       "schedule": "0 9 * * 1"
-    },
-    {
-      "path": "/api/agents/atlas/weekly-scan",
-      "schedule": "0 8 * * 1"
     },
     {
       "path": "/api/cron/drip-emails",
@@ -23,6 +15,14 @@
     {
       "path": "/api/cron/rhythm",
       "schedule": "0 9 * * 1"
+    },
+    {
+      "path": "/api/cron/update-benchmarks",
+      "schedule": "0 6 1 * *"
+    },
+    {
+      "path": "/api/cron/ingest-market-signals",
+      "schedule": "0 */6 * * *"
     }
   ]
 }

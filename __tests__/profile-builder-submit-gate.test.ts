@@ -15,23 +15,26 @@
 
 import { readFileSync } from 'fs'
 
-const page = readFileSync('app/founder/profile-builder/page.tsx', 'utf8')
+const reviewScreen = readFileSync('features/profile-builder/components/ReviewScreen.tsx', 'utf8')
+// saveSection moved out of page.tsx into its own data hook as part of the
+// profile-builder feature-folder split (Stage 7).
+const hook = readFileSync('features/profile-builder/hooks/useProfileBuilderData.ts', 'utf8')
 
 describe('the Q-Score submit gate matches what the server actually sees', () => {
   it('hasAnySectionData checks only the 5 real, saved sections — not Object.values(sections)', () => {
-    const line = page.split('\n').find(l => l.includes('const hasAnySectionData ='))
+    const line = reviewScreen.split('\n').find(l => l.includes('const hasAnySectionData ='))
     expect(line).toBeDefined()
     expect(line).not.toContain('Object.values(sections)')
     expect(line).toContain("['1', '2', '3', '4', '5']")
   })
 
   it('the "parameters answered" count on the fast-flow score preview excludes pitch too', () => {
-    expect(page).toContain("['1', '2', '3', '4', '5'].filter(k => (sections[k]?.completionScore ?? 0) >= 30).length}/5 parameters answered")
+    expect(reviewScreen).toContain("['1', '2', '3', '4', '5'].filter(k => (sections[k]?.completionScore ?? 0) >= 30).length}/5 parameters answered")
   })
 
   it('saveSection still skips persisting pitch — this is why the two checks must agree', () => {
     // If this ever changes (pitch starts being saved), the gate above stops being a
     // workaround and this test's premise should be revisited, not silently pass.
-    expect(page).toMatch(/if \(secNum === 'pitch'\) return/)
+    expect(hook).toMatch(/if \(secNum === 'pitch'\) return/)
   })
 })

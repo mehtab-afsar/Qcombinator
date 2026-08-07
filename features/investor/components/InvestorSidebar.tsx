@@ -9,7 +9,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/features/auth/hooks/useAuth";
-import { bg, surf, bdr, ink, muted, blue, alpha } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted, purple, alpha } from '@/lib/constants/colors'
 import { APP_NAME } from '@/lib/constants/app'
 import { Avatar } from '@/features/shared/components/Avatar'
 import { useInvestorNotifications } from '@/features/investor/hooks/useInvestorNotifications'
@@ -28,7 +28,7 @@ const BASE_NAV = [
 ];
 
 const BADGE: Record<string, { bg: string; color: string }> = {
-  "Live": { bg: alpha(blue, 0.10), color: blue },
+  "Live": { bg: alpha(purple, 0.10), color: purple },
 };
 
 function badgeStyle(badge: string): { bg: string; color: string } {
@@ -209,7 +209,7 @@ export default function InvestorSidebar() {
         display: "flex", alignItems: "center",
         padding: "0 10px",
       }}>
-        <Avatar url={firmLogoUrl} name={fundName} size={28} radius={7} bgColor={blue} fgColor="#fff" fontSize={9} />
+        <Avatar url={firmLogoUrl} name={fundName} size={28} radius={7} bgColor={purple} fgColor="#fff" fontSize={9} />
         <motion.div
           animate={{ opacity: expanded ? 1 : 0, x: expanded ? 0 : -4 }}
           transition={{ duration: 0.15 }}
@@ -243,7 +243,7 @@ export default function InvestorSidebar() {
                 padding: "0 10px",
                 marginBottom: 2,
                 textDecoration: "none",
-                background: active ? alpha(blue, 0.10) : "transparent",
+                background: active ? alpha(purple, 0.10) : "transparent",
                 transition: "background .12s",
               }}
               onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = surf; }}
@@ -251,7 +251,7 @@ export default function InvestorSidebar() {
             >
               <Icon style={{
                 height: 16, width: 16, flexShrink: 0,
-                color: active ? blue : muted,
+                color: active ? purple : muted,
               }} />
 
               <motion.div
@@ -264,7 +264,7 @@ export default function InvestorSidebar() {
               >
                 <span style={{
                   fontSize: 13, fontWeight: 500,
-                  color: active ? blue : ink,
+                  color: active ? purple : ink,
                 }}>
                   {item.name}
                 </span>
@@ -298,7 +298,7 @@ export default function InvestorSidebar() {
               <circle cx="16" cy="16" r="13" fill="none" stroke={bdr} strokeWidth="3" />
               <circle
                 cx="16" cy="16" r="13" fill="none"
-                stroke={blue}
+                stroke={purple}
                 strokeWidth="3"
                 strokeLinecap="round"
                 strokeDasharray={`${2 * Math.PI * 13}`}
@@ -367,7 +367,7 @@ export default function InvestorSidebar() {
             </div>
           </div>
           <div style={{ padding: "2px 14px 10px" }}>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 9px", borderRadius: 999, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", background: alpha(blue, 0.08), color: blue }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 9px", borderRadius: 999, fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", background: alpha(purple, 0.08), color: purple }}>
               ● INVESTOR
             </span>
           </div>

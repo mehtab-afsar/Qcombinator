@@ -19,6 +19,9 @@ import {
   DollarSign,
   Target,
   Loader2,
+  Share2,
+  Link2,
+  Check,
 } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/features/auth/hooks/useAuth";
@@ -35,6 +38,9 @@ import { bg, surf, bdr, ink, muted, blue, green, amber, red, purple, cyan, alpha
 import { DIM_COLORS, DIM_LABELS } from '@/features/qscore/constants/dimensions'
 import { resolveDimensions, type DimensionTuple, type IqParam } from '@/features/qscore/utils/resolveDimensions'
 import { PageSpinner } from '@/features/shared/components/Spinner'
+import { PageContainer } from '@/features/shared/components/PageContainer'
+import { SectionCard } from '@/features/shared/components/SectionCard'
+import { Badge } from '@/features/shared/components/Badge'
 import { ExecutiveEntryCard } from '@/features/executive/components/ExecutiveEntryCard'
 import { QScoreTabs } from '@/features/founder/components/QScoreTabs'
 
@@ -152,7 +158,11 @@ function ScoreChart({ points }: { points: ScorePoint[] }) {
     return (
       <div style={{ paddingTop: 4 }}>
         {p ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 20, padding: "16px 20px", background: surf, border: `1px solid ${bdr}`, borderRadius: 12, marginBottom: 14 }}>
+          <SectionCard
+            noPadding
+            style={{ background: surf, boxShadow: "none", marginBottom: 14 }}
+            bodyStyle={{ display: "flex", alignItems: "center", gap: 20, padding: "16px 20px" }}
+          >
             <div style={{ textAlign: "center", flexShrink: 0 }}>
               <div style={{ fontSize: 36, fontWeight: 300, color: col, letterSpacing: "-0.04em", lineHeight: 1 }}>{p.overall}</div>
               <div style={{ fontSize: 9, fontWeight: 600, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginTop: 3 }}>First score</div>
@@ -166,7 +176,7 @@ function ScoreChart({ points }: { points: ScorePoint[] }) {
                 Retake the assessment after completing more sections or building agent deliverables to track your progress here.
               </p>
             </div>
-          </div>
+          </SectionCard>
         ) : (
           <p style={{ fontSize: 13, color: muted, lineHeight: 1.6, paddingTop: 4 }}>
             Complete your assessment to start tracking your score over time.
@@ -367,9 +377,9 @@ function ScoreChart({ points }: { points: ScorePoint[] }) {
           <span style={{ fontSize: 11, color: muted }}> since first assessment</span>
         </div>
         {diff > 0 && (
-          <div style={{ marginLeft: "auto", fontSize: 10, fontWeight: 600, color: green, background: alpha(green, 0.06), padding: "2px 8px", borderRadius: 999 }}>
+          <Badge variant="green" style={{ marginLeft: "auto", background: alpha(green, 0.06), border: "none" }}>
             Improving
-          </div>
+          </Badge>
         )}
       </div>
     </div>
@@ -558,15 +568,6 @@ export default function FounderDashboard() {
   const runwayCritical = runwayMonths !== null && runwayMonths <= 2;
   const topActions = effectiveSortedDims.slice(0, 3);
 
-  // Living Q-Score dial — six dimension segments in P1–P6 order, real per-dim scores
-  const _dimScore: Record<string, number> = {};
-  effectiveSortedDims.forEach(([id, d]) => { _dimScore[id] = d.score; });
-  const dialSegments = (['p1', 'p2', 'p3', 'p4', 'p5', 'p6'] as const).map(id => ({
-    value: _dimScore[id] ?? displayScore,
-    color: DIM_COLORS[id],
-    label: DIM_LABELS[id],
-  }));
-
   const quickStats = [
     {
       label: "Agent sessions",
@@ -580,7 +581,7 @@ export default function FounderDashboard() {
 
   return (
     <div style={{ minHeight: "100vh", background: bg, color: ink, padding: "36px 28px 72px" }}>
-      <div style={{ maxWidth: 1120, margin: "0 auto" }}>
+      <PageContainer>
 
         <QScoreTabs />
 
@@ -604,16 +605,14 @@ export default function FounderDashboard() {
               {getGreeting((user?.user_metadata?.full_name as string | undefined) ?? user?.email?.split("@")[0])}
             </h1>
             {isDemo && (
-              <div style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "5px 14px", background: surf, border: `1px solid ${bdr}`, borderRadius: 999, fontSize: 11, color: muted }}>
-                <span style={{ height: 6, width: 6, background: amber, borderRadius: "50%", display: "inline-block", flexShrink: 0 }} />
+              <Badge variant="neutral" dot dotColor={amber} style={{ padding: "5px 14px", fontSize: 11, fontWeight: 400 }}>
                 Demo data — complete assessment for a real score
-              </div>
+              </Badge>
             )}
             {isPartial && (
-              <div style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "5px 14px", background: surf, border: `1px solid ${cyan}`, borderRadius: 999, fontSize: 11, color: cyan }}>
-                <span style={{ height: 6, width: 6, background: cyan, borderRadius: "50%", display: "inline-block", flexShrink: 0 }} />
+              <Badge variant="cyan" dot style={{ padding: "5px 14px", fontSize: 11, fontWeight: 400, background: surf, border: `1px solid ${cyan}` }}>
                 Partial score — based on {answeredParameters}/6 parameters
-              </div>
+              </Badge>
             )}
           </div>
         </motion.div>
@@ -841,7 +840,6 @@ export default function FounderDashboard() {
               <>
                 <QScoreDial
                   score={displayScore}
-                  segments={dialSegments}
                   size={132}
                   dark
                   centerLabel={isPartial ? `${answeredParameters}/6 params` : "Q-Score"}
@@ -895,7 +893,7 @@ export default function FounderDashboard() {
                   onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "rgba(249,247,242,0.18)")}
                   onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "rgba(249,247,242,0.1)")}
                 >
-                  Improve score <ArrowRight style={{ height: 12, width: 12 }} />
+                  <ArrowRight style={{ height: 12, width: 12 }} /> Improve score
                 </Link>
                 {/* Share Q-Score badge */}
                 {user && !isDemo && (
@@ -904,15 +902,16 @@ export default function FounderDashboard() {
                     style={{
                       display: "inline-flex", alignItems: "center", gap: 6,
                       padding: "9px 20px",
-                      background: "rgba(124,58,237,0.15)",
-                      border: `1px solid rgba(124,58,237,0.3)`,
+                      background: "rgba(249,247,242,0.1)", border: "1px solid rgba(249,247,242,0.18)",
                       borderRadius: 999, fontSize: 12,
-                      color: "#C4B5FD",
+                      color: "#F9F7F2",
                       fontWeight: 500, cursor: "pointer",
-                      transition: "all 0.2s", whiteSpace: "nowrap",
+                      transition: "background 0.15s", whiteSpace: "nowrap",
                     }}
+                    onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "rgba(249,247,242,0.18)")}
+                    onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "rgba(249,247,242,0.1)")}
                   >
-                    Share Q-Score →
+                    <Share2 style={{ height: 12, width: 12 }} /> Share Q-Score
                   </button>
                 )}
 
@@ -929,15 +928,16 @@ export default function FounderDashboard() {
                     style={{
                       display: "inline-flex", alignItems: "center", gap: 6,
                       padding: "9px 20px",
-                      background: linkCopied ? "rgba(22,163,74,0.25)" : "rgba(37,99,235,0.15)",
-                      border: `1px solid ${linkCopied ? "rgba(22,163,74,0.4)" : "rgba(37,99,235,0.3)"}`,
+                      background: "rgba(249,247,242,0.1)", border: "1px solid rgba(249,247,242,0.18)",
                       borderRadius: 999, fontSize: 12,
-                      color: linkCopied ? "#86EFAC" : "#93C5FD",
+                      color: "#F9F7F2",
                       fontWeight: 500, cursor: "pointer",
-                      transition: "all 0.2s", whiteSpace: "nowrap",
+                      transition: "background 0.15s", whiteSpace: "nowrap",
                     }}
+                    onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "rgba(249,247,242,0.18)")}
+                    onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "rgba(249,247,242,0.1)")}
                   >
-                    {linkCopied ? "Link copied!" : "Share Pitch Profile →"}
+                    {linkCopied ? <><Check style={{ height: 12, width: 12 }} /> Link copied</> : <><Link2 style={{ height: 12, width: 12 }} /> Share Pitch Profile</>}
                   </button>
                 )}
               </>
@@ -959,21 +959,13 @@ export default function FounderDashboard() {
                 {"IQ Matrix — P1–P6"}
               </p>
               {isDemo ? (
-                <span style={{
-                  fontSize: 9, fontWeight: 700, padding: "2px 8px", borderRadius: 999,
-                  background: "#FFFBEB", color: "#92400E", border: "1px solid #FDE68A",
-                  textTransform: "uppercase", letterSpacing: "0.1em",
-                }}>
+                <Badge variant="amber" style={{ padding: "2px 8px", color: "#92400E", textTransform: "uppercase", letterSpacing: "0.1em" }}>
                   Example — not your data
-                </span>
+                </Badge>
               ) : (
-                <span style={{
-                  fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 999,
-                  background: "#EFF6FF", color: blue, border: `1px solid ${blue}33`,
-                  textTransform: "uppercase", letterSpacing: "0.1em",
-                }}>
+                <Badge variant="blue" style={{ padding: "2px 6px", border: `1px solid ${blue}33`, textTransform: "uppercase", letterSpacing: "0.1em" }}>
                   {"IQ v2"}
-                </span>
+                </Badge>
               )}
             </div>
             <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: 4 }}>
@@ -1046,13 +1038,9 @@ export default function FounderDashboard() {
                             ))}
                             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
                               {(DIM_BOOSTS[key] ?? []).map((b, idx) => (
-                                <span key={idx} style={{
-                                  fontSize: 10, padding: "2px 8px", borderRadius: 999,
-                                  background: "#EFF6FF", color: blue, border: `1px solid ${blue}22`,
-                                  fontWeight: 600,
-                                }}>
+                                <Badge key={idx} variant="blue" style={{ border: `1px solid ${blue}22` }}>
                                   +{b.pts}pts · {b.artifact.replace(/_/g, " ")}
-                                </span>
+                                </Badge>
                               ))}
                             </div>
                             <Link
@@ -1128,9 +1116,9 @@ export default function FounderDashboard() {
                     style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 14, padding: "18px 20px", display: "flex", flexDirection: "column", gap: 10 }}
                   >
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: urgencyColor, padding: "2px 8px", background: urgencyBg, borderRadius: 999 }}>
+                      <Badge variant="neutral" style={{ textTransform: "uppercase", letterSpacing: "0.08em", color: urgencyColor, background: urgencyBg, border: "none" }}>
                         {p.urgency}
-                      </span>
+                      </Badge>
                       {p.agentId && (
                         <span style={{ fontSize: 10, color: muted, fontWeight: 500, textTransform: "capitalize" }}>{p.agentId}</span>
                       )}
@@ -1569,7 +1557,7 @@ export default function FounderDashboard() {
           </motion.div>
         </div>
 
-      </div>
+      </PageContainer>
 
       {/* Share Q-Score Modal */}
       <ShareQScoreModal

@@ -23,6 +23,16 @@ jest.mock('@/lib/connectors/oauth', () => ({
     return { accessToken: 'access.MINTED', expiresAt: null }
   }),
 }))
+// Slack bot tokens don't refresh — mocked separately so the "which provider's dispatch actually
+// ran" regression test below can tell the two apart.
+jest.mock('@/lib/connectors/slack-oauth', () => ({
+  mintAccessToken: jest.fn(async (stored: string) => ({ accessToken: `slack.${stored}`, expiresAt: null })),
+}))
+// gmail_read is a THIRD provider sharing Google's refresh mechanics conceptually but dispatched
+// through its own module — mocked separately for the same reason slack-oauth is.
+jest.mock('@/lib/connectors/gmail-read-oauth', () => ({
+  mintAccessToken: jest.fn(async (stored: string) => ({ accessToken: `gmailread.${stored}`, expiresAt: null })),
+}))
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { recordGrant, resolveGrant, revokeGrant } from '@/lib/connectors/grants'
@@ -30,6 +40,8 @@ import { storeSecret, resolveSecret, deleteSecret } from '@/lib/connectors/vault
 import { getConnector } from '@/lib/connectors/registry'
 import { ConnectorError } from '@/lib/connectors/types'
 import { refreshAccessToken } from '@/lib/connectors/oauth'
+import { mintAccessToken as slackMintAccessToken } from '@/lib/connectors/slack-oauth'
+import { mintAccessToken as gmailReadMintAccessToken } from '@/lib/connectors/gmail-read-oauth'
 
 const m = (fn: unknown) => fn as jest.Mock
 const calls: string[] = []
@@ -173,5 +185,43 @@ describe('resolve — fails closed on every branch', () => {
     m(refreshAccessToken).mockRejectedValueOnce(new Error('invalid_grant'))
     await expect(resolveGrant(fakeAdmin({ row: activeRow() }), 'f1', 'gmail')).rejects.toThrow()
     expect(calls).toContain('db:update')
+  })
+})
+
+/**
+ * F13 — the regression test for a real gap found adding Slack: `resolveGrant` used to import
+ * Google's `refreshAccessToken` directly and call it unconditionally, regardless of `provider`.
+ * A second provider's resolve would have silently gone through Google's refresh logic. The fix is
+ * `lib/connectors/oauth-provider.ts`'s dispatch table — this proves resolving a Slack grant uses
+ * Slack's own `mintAccessToken` and never touches Google's `refreshAccessToken` at all.
+ */
+describe('resolve dispatches to the PROVIDER-OWNED credential mint, not always Google\'s', () => {
+  it('resolving a slack grant calls slack-oauth.mintAccessToken, never oauth.refreshAccessToken', async () => {
+    const grant = await resolveGrant(
+      fakeAdmin({ row: activeRow({ provider: 'slack', scopes: ['chat:write'] }) }),
+      'f1',
+      'slack',
+    )
+    expect(grant.accessToken).toBe('slack.ya29.TOKEN')
+    expect(slackMintAccessToken).toHaveBeenCalledWith('ya29.TOKEN')
+    expect(refreshAccessToken).not.toHaveBeenCalled()
+  })
+
+  it('resolving a gmail grant still calls oauth.refreshAccessToken, never slack-oauth.mintAccessToken', async () => {
+    await resolveGrant(fakeAdmin({ row: activeRow() }), 'f1', 'gmail')
+    expect(refreshAccessToken).toHaveBeenCalledWith('ya29.TOKEN')
+    expect(slackMintAccessToken).not.toHaveBeenCalled()
+  })
+
+  it('resolving a gmail_read grant calls its OWN mintAccessToken, never gmail\'s or slack\'s', async () => {
+    const grant = await resolveGrant(
+      fakeAdmin({ row: activeRow({ provider: 'gmail_read', scopes: ['https://www.googleapis.com/auth/gmail.readonly'] }) }),
+      'f1',
+      'gmail_read',
+    )
+    expect(grant.accessToken).toBe('gmailread.ya29.TOKEN')
+    expect(gmailReadMintAccessToken).toHaveBeenCalledWith('ya29.TOKEN')
+    expect(refreshAccessToken).not.toHaveBeenCalled()
+    expect(slackMintAccessToken).not.toHaveBeenCalled()
   })
 })

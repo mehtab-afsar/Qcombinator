@@ -7,7 +7,7 @@
 
 import { usePersonalizedMatching } from '@/features/investor/hooks/usePersonalizedMatching'
 import { FounderMatchCard } from '@/components/ui/FounderMatchCard'
-import type { FounderProfile } from '@/lib/services/deal-matching.service'
+import type { FounderProfile } from '@/features/investor/services/deal-matching.service'
 import { bdr, muted, blue, alpha } from '@/lib/constants/colors'
 import { AlertCircle } from 'lucide-react'
 

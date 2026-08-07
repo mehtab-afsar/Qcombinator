@@ -14,17 +14,26 @@ const row = (over: Record<string, unknown> = {}) => ({
   created_at: '2026-08-01T00:00:00Z', ...over,
 })
 
-interface QueryBuilder {
+type QueryResult = { data: unknown[]; error: { message: string } | null }
+
+// Thenable, like the real Postgrest builder: `.order()` alone is awaitable directly
+// (latestPerAction's chain stops there) AND still chainable into `.limit()`
+// (latestPerActionForFounder's chain adds one more step) — both shapes need to work.
+interface QueryBuilder extends PromiseLike<QueryResult> {
   select: (...args: unknown[]) => QueryBuilder
   eq: (...args: unknown[]) => QueryBuilder
-  order: (...args: unknown[]) => Promise<{ data: unknown[]; error: { message: string } | null }>
+  order: (...args: unknown[]) => QueryBuilder
+  limit: (...args: unknown[]) => Promise<QueryResult>
 }
 
 function mockClient(rows: unknown[], error: { message: string } | null = null) {
+  const result: QueryResult = { data: rows, error }
   const builder = {} as QueryBuilder
   builder.select = jest.fn(() => builder)
   builder.eq = jest.fn(() => builder)
-  builder.order = jest.fn(() => Promise.resolve({ data: rows, error }))
+  builder.order = jest.fn(() => builder)
+  builder.limit = jest.fn(() => Promise.resolve(result))
+  builder.then = (onfulfilled) => Promise.resolve(result).then(onfulfilled)
   return { from: jest.fn(() => builder), _builder: builder }
 }
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { log } from '@/lib/logger'
+import { getMyDemoInvestorId, isInvestorPartyToConnection } from '@/lib/investor/demo-investor'
 
 // PATCH /api/investor/messages/[id]/read
 // Marks all unread messages in a thread (connectionId = [id]) as read.
@@ -18,13 +19,7 @@ export async function PATCH(
     const supabase = createAdminClient()
 
     // Verify this investor is party to the connection
-    const { data: investorProfile } = await supabase
-      .from('investor_profiles')
-      .select('demo_investor_id')
-      .eq('user_id', user.id)
-      .single()
-
-    const demoInvestorId = investorProfile?.demo_investor_id
+    const demoInvestorId = await getMyDemoInvestorId(supabase, user.id)
 
     const { data: conn } = await supabase
       .from('connection_requests')
@@ -36,10 +31,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Connection not found' }, { status: 404 })
     }
 
-    const isParty =
-      conn.investor_id === user.id ||
-      (demoInvestorId && conn.demo_investor_id === demoInvestorId)
-    if (!isParty) {
+    if (!isInvestorPartyToConnection(conn, user.id, demoInvestorId)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

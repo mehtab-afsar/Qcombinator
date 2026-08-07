@@ -7,7 +7,8 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
-import { verifyAuth } from '@/lib/auth/verify'
+import { verifyAuth, verifyInvestor } from '@/lib/auth/verify'
+import { isFounderVisible } from '@/lib/investor/visibility'
 import { parseBody, watchlistPostSchema, watchlistDeleteSchema } from '@/lib/api/validate'
 import { log } from '@/lib/logger'
 
@@ -27,9 +28,11 @@ export async function GET() {
 
     const founderIds = watchlist.map((w: { founder_id: string }) => w.founder_id)
 
-    // Enrich with founder profile + current Q-Score
+    // Enrich with founder profile + current Q-Score. Excludes founders who've since opted out
+    // of investor visibility — being on an old watchlist shouldn't keep surfacing their score
+    // after they gate themselves.
     const [{ data: profiles }, { data: scores }] = await Promise.all([
-      admin.from('founder_profiles').select('user_id, startup_name, full_name, industry, stage').in('user_id', founderIds),
+      admin.from('founder_profiles').select('user_id, startup_name, full_name, industry, stage, visibility_gated').in('user_id', founderIds),
       admin.from('qscore_history').select('user_id, overall_score, calculated_at').in('user_id', founderIds).order('calculated_at', { ascending: false }).limit(founderIds.length * 3),
     ])
 
@@ -39,19 +42,21 @@ export async function GET() {
       if (!scoreMap.has(s.user_id)) scoreMap.set(s.user_id, s.overall_score)
     }
 
-    const enriched = watchlist.map((w: Record<string, unknown>) => {
-      const p = profileMap.get(w.founder_id as string)
-      return {
-        ...w,
-        founderName:  (p?.full_name  as string) ?? 'Unknown',
-        startupName:  (p?.startup_name as string) ?? 'Unknown',
-        industry:     (p?.industry   as string) ?? '',
-        stage:        (p?.stage      as string) ?? '',
-        currentScore: scoreMap.get(w.founder_id as string) ?? 0,
-        thresholdMet: w.threshold_qscore !== null &&
-          (scoreMap.get(w.founder_id as string) ?? 0) >= (w.threshold_qscore as number),
-      }
-    })
+    const enriched = watchlist
+      .filter((w: Record<string, unknown>) => profileMap.get(w.founder_id as string)?.visibility_gated !== true)
+      .map((w: Record<string, unknown>) => {
+        const p = profileMap.get(w.founder_id as string)
+        return {
+          ...w,
+          founderName:  (p?.full_name  as string) ?? 'Unknown',
+          startupName:  (p?.startup_name as string) ?? 'Unknown',
+          industry:     (p?.industry   as string) ?? '',
+          stage:        (p?.stage      as string) ?? '',
+          currentScore: scoreMap.get(w.founder_id as string) ?? 0,
+          thresholdMet: w.threshold_qscore !== null &&
+            (scoreMap.get(w.founder_id as string) ?? 0) >= (w.threshold_qscore as number),
+        }
+      })
 
     return NextResponse.json({ watchlist: enriched })
   } catch (err) {
@@ -62,13 +67,19 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const auth = await verifyAuth()
-    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
     const admin = createAdminClient()
+    const auth = await verifyInvestor(admin)
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
     const parsed = await parseBody(request, watchlistPostSchema)
     if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
     const { founderId, thresholdQscore } = parsed.data
+
+    // A founder who opted out of investor visibility shouldn't be watchable — the watchlist
+    // exists specifically to keep surfacing their live Q-Score, indefinitely, to this investor.
+    if (!(await isFounderVisible(admin, founderId))) {
+      return NextResponse.json({ error: 'Founder not found' }, { status: 404 })
+    }
 
     const { data, error } = await admin
       .from('investor_watchlist')

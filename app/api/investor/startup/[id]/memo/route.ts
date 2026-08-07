@@ -4,7 +4,9 @@ import { verifyAuth } from '@/lib/auth/verify'
 import { isFounderVisible } from '@/lib/investor/visibility'
 import { parseBody, startupMemoSchema } from '@/lib/api/validate'
 import { log } from '@/lib/logger'
-import { callClaude } from '@/lib/claude'
+import { routedText } from '@/lib/llm/router'
+import { composeAdhocPrompt } from '@/lib/prompts/compose'
+import { APP_DOMAIN } from '@/lib/constants/app'
 
 // POST /api/investor/startup/:id/memo
 // Auth required (investor). Generates an AI investment memo for a founder.
@@ -91,10 +93,7 @@ export async function POST(
       .map(([k, v]) => `${v ? '✅' : '⬜'} ${k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}`)
       .join(' · ')
 
-    const prompt = `You are an experienced venture capital analyst. Write a concise, professional investment memo for the following startup. Use sharp, direct language. No fluff. Be specific about what's compelling AND what's concerning.
-
----STARTUP DATA---
-Company: ${startup.name}
+    const startupData = `Company: ${startup.name}
 Founder: ${startup.founderName}
 Stage: ${startup.stage}
 Sector: ${startup.sector}
@@ -117,8 +116,9 @@ Risks: ${(startup.aiAnalysis?.risks ?? []).join('; ')}
 Recommendations: ${(startup.aiAnalysis?.recommendations ?? []).join('; ')}
 ${weakDimsNote}
 
-Artifacts built by founder: ${artifactList}
----
+Artifacts built by founder: ${artifactList}`
+
+    const instructions = `You are an experienced venture capital analyst. Write a concise, professional investment memo for the startup described in the data provided. Use sharp, direct language. No fluff. Be specific about what's compelling AND what's concerning.
 
 Write the investment memo in this EXACT structure (use markdown headers):
 
@@ -149,10 +149,13 @@ Write exactly 3 numbered investment risks specific to this startup. Each risk mu
 ---
 Be analytical. Avoid superlatives. Cite specific Q-Score dimensions where relevant. If data is missing, say so directly (e.g. "financial data not yet available"). Aim for ~400-500 words total.`
 
-    const memoMd = (await callClaude(
-      [{ role: 'user', content: prompt }],
-      { maxTokens: 900, temperature: 0.4 },
-    )).trim()
+    const messages = composeAdhocPrompt({
+      sourceRef: 'investor/startup/memo',
+      instructions,
+      data: startupData,
+    })
+
+    const memoMd = (await routedText('generation', messages, { modelTier: 'fast', maxTokens: 900, temperature: 0.4 })).trim()
 
     // Build self-contained HTML
     const memoHtml = buildMemoHtml({
@@ -340,7 +343,7 @@ ${mdToHtml(memoMd)}
 <!-- Footer -->
 <div class="footer">
   <span>Confidential — prepared for ${firmName || investorName} internal use only</span>
-  <span>Edge Alpha · edgealpha.ai · ${today}</span>
+  <span>Edge Alpha · ${APP_DOMAIN} · ${today}</span>
 </div>
 
 </body>

@@ -33,6 +33,9 @@ import Link from "next/link";
 import { useQScore } from "@/features/qscore/hooks/useQScore";
 import { QScoreTabs } from '@/features/founder/components/QScoreTabs'
 import { bg, surf, bdr, ink, muted, blue, green, amber, red, purple, alpha } from '@/lib/constants/colors'
+import { useToast } from '@/features/shared/hooks/useToast'
+import { Badge } from '@/features/shared/components/Badge'
+import { PageContainer } from '@/features/shared/components/PageContainer'
 import type { LucideIcon } from 'lucide-react'
 
 // ─── types ────────────────────────────────────────────────────────────────────
@@ -171,11 +174,11 @@ function getDimLabel(key: string) {
 // ─── page ─────────────────────────────────────────────────────────────────────
 export default function ImproveQScorePage() {
   const { qScore } = useQScore();
+  const { toast } = useToast();
   const [aiActions,            setAiActions]            = useState<AIAction[]>([]);
   const [loadingActions,       setLoadingActions]       = useState(true);
   const [regeneratingActions,  setRegeneratingActions]  = useState(false);
   const [completedTypes,       setCompletedTypes]       = useState<Set<string>>(new Set());
-  const [toast,                setToast]                = useState<{ msg: string; ok: boolean } | null>(null);
   const [evidenceList,         setEvidenceList]         = useState<Array<{ id: string; dimension: string; evidence_type: string; title: string; data_value: string; status: string; points_awarded: number; created_at: string }>>([]);
   const [conflicts,            setConflicts]            = useState<Array<{ dimension: string; text: string; fix: string }>>([]);
   const [showEvidenceForm,     setShowEvidenceForm]     = useState(false);
@@ -206,8 +209,8 @@ export default function ImproveQScorePage() {
   };
 
   function showToast(msg: string, ok = true) {
-    setToast({ msg, ok });
-    setTimeout(() => setToast(null), 3500);
+    if (ok) toast.success(msg);
+    else toast.error(msg);
   }
 
   const toggleDim = (key: string) =>
@@ -301,15 +304,8 @@ export default function ImproveQScorePage() {
   return (
     <div style={{ minHeight: "100vh", background: bg, color: ink, fontFamily: "inherit" }}>
 
-      {/* toast */}
-      {toast && (
-        <div style={{ position: "fixed", top: 20, right: 20, zIndex: 9999, padding: "10px 18px", borderRadius: 10, background: toast.ok ? green : red, color: "#fff", fontSize: 13, fontWeight: 600, boxShadow: "0 4px 20px rgba(0,0,0,0.15)", pointerEvents: "none" }}>
-          {toast.msg}
-        </div>
-      )}
-
       {/* ── header ─────────────────────────────────────────────────────────── */}
-      <div style={{ padding: "32px 40px 0", maxWidth: 1040, margin: "0 auto" }}>
+      <PageContainer style={{ padding: "32px 40px 0" }}>
         <QScoreTabs />
 
         <Link href="/founder/dashboard" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: muted, textDecoration: "none", marginBottom: 20 }}>
@@ -360,9 +356,9 @@ export default function ImproveQScorePage() {
             </div>
           </div>
         )}
-      </div>
+      </PageContainer>
 
-      <div style={{ maxWidth: 1040, margin: "0 auto", padding: "28px 40px 60px" }}>
+      <PageContainer style={{ padding: "28px 40px 60px" }}>
 
         {/* conflicts */}
         {conflicts.length > 0 && (
@@ -439,16 +435,16 @@ export default function ImproveQScorePage() {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 5 }}>
                         <p style={{ fontSize: 14, fontWeight: 600, color: ink, lineHeight: 1.3, margin: 0 }}>{action.title}</p>
-                        <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 999, background: alpha(purple, 0.12), color: purple, flexShrink: 0, whiteSpace: "nowrap" }}>
+                        <Badge variant="purple" style={{ background: alpha(purple, 0.12), border: "none", flexShrink: 0, whiteSpace: "nowrap" }}>
                           {action.impact}
-                        </span>
+                        </Badge>
                       </div>
                       <p style={{ fontSize: 12, color: muted, lineHeight: 1.6, margin: "0 0 10px" }}>{action.description}</p>
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 999, background: surf, border: `1px solid ${bdr}`, color: scoreColor(dimScore) }}>
+                          <Badge variant="neutral" style={{ color: scoreColor(dimScore) }}>
                             {dim?.name ?? action.dimension}
-                          </span>
+                          </Badge>
                           <span style={{ fontSize: 11, color: muted }}>{action.timeframe}</span>
                         </div>
                         {/* Was /founder/cxo/<agentId>?prompt=… — a starter prompt for an adviser
@@ -602,9 +598,9 @@ export default function ImproveQScorePage() {
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <p style={{ fontSize: 12, fontWeight: 600, color: done ? ink : muted, marginBottom: 4, lineHeight: 1.2 }}>{ch.label}</p>
-                        <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 999, background: done ? alpha(green, 0.1) : surf, color: done ? green : muted, border: `1px solid ${done ? alpha(green, 0.3) : bdr}` }}>
+                        <Badge variant="neutral" style={{ padding: "1px 6px", background: done ? alpha(green, 0.1) : surf, color: done ? green : muted, border: `1px solid ${done ? alpha(green, 0.3) : bdr}` }}>
                           +{ch.points} pts
-                        </span>
+                        </Badge>
                         <div style={{ marginTop: 8 }}>
                           <Link href={`/founder/executive`} style={{ textDecoration: "none" }}>
                             <div style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 10px", borderRadius: 999, fontSize: 10, fontWeight: 600, background: done ? surf : ink, color: done ? muted : bg, border: `1px solid ${done ? bdr : ink}`, cursor: "pointer" }}>
@@ -690,14 +686,14 @@ export default function ImproveQScorePage() {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 1 }}>
                         <p style={{ fontSize: 12, fontWeight: 600, color: ink, margin: 0 }}>{ev.title}</p>
-                        {isAgent && <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", padding: "1px 5px", borderRadius: 999, background: alpha(blue, 0.15), color: blue }}>AI</span>}
+                        {isAgent && <Badge variant="blue" style={{ padding: "1px 5px", background: alpha(blue, 0.15), border: "none" }}>AI</Badge>}
                       </div>
                       <span style={{ fontSize: 10, color: muted }}>{getDimLabel(ev.dimension)} · {EVIDENCE_TYPES[ev.evidence_type] ?? ev.evidence_type}</span>
                     </div>
                     <div style={{ textAlign: "right", flexShrink: 0 }}>
-                      <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", padding: "2px 7px", borderRadius: 999, background: alpha(statusColors[ev.status] ?? muted, 0.1), color: statusColors[ev.status] ?? muted }}>
+                      <Badge variant="neutral" style={{ padding: "2px 7px", textTransform: "uppercase", background: alpha(statusColors[ev.status] ?? muted, 0.1), color: statusColors[ev.status] ?? muted, border: "none" }}>
                         {ev.status}
-                      </span>
+                      </Badge>
                       {ev.points_awarded > 0 && (
                         <p style={{ fontSize: 10, color: green, fontWeight: 600, marginTop: 1 }}>+{ev.points_awarded} pts{ev.status === "verified" ? " ✓" : " pending"}</p>
                       )}
@@ -713,7 +709,7 @@ export default function ImproveQScorePage() {
           )}
         </div>
 
-      </div>
+      </PageContainer>
     </div>
   );
 }

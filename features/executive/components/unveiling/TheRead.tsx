@@ -12,7 +12,7 @@ import { ink, muted } from '@/lib/constants/colors'
 import { Spinner } from '@/features/shared/components/Spinner'
 
 // The six steps the model is actually writing behind the spinner, in order —
-// see lib/prompts/knowledge/ceo-s001.ts's Step 1-6 headings. A silent 60-90s
+// see lib/prompts/executives/ceo/s001.ts's Step 1-6 headings. A silent 60-90s
 // wait behind a generic "Working through your mandate…" reads as frozen; naming
 // what's actually happening (even without real per-step progress signal, which
 // the stream doesn't expose) gives the founder something to track.

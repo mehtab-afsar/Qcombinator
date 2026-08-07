@@ -6,12 +6,12 @@ import { APP_NAME, APP_URL } from "@/lib/constants/app";
 export const metadata: Metadata = {
   title: `${APP_NAME} — Fundable is measurable`,
   description:
-    "Edge Alpha scores your startup across the six dimensions investors actually price — then nine AI advisers help you move the number. Get your Q-Score free.",
+    "Edge Alpha scores your startup across the six dimensions investors actually price — then five AI executives help you move the number. Get your Q-Score free.",
   alternates: { canonical: APP_URL },
   openGraph: {
     title: `${APP_NAME} — Fundable is measurable`,
     description:
-      "A 0–100 investment-readiness score, nine AI advisers, and a marketplace of verified investors that unlocks at Q-Score 70.",
+      "A 0–100 investment-readiness score, five AI executives, and a marketplace of verified investors that unlocks at Q-Score 70.",
     url: APP_URL,
     siteName: APP_NAME,
     type: "website",
@@ -31,7 +31,7 @@ const organizationJsonLd = {
   url: APP_URL,
   logo: `${APP_URL}/icon.svg`,
   description:
-    "The AI-powered startup OS: Q-Score investment readiness scoring, nine AI advisers, and a verified investor marketplace.",
+    "The AI-powered startup OS: Q-Score investment readiness scoring, five AI executives, and a verified investor marketplace.",
 };
 
 const faqJsonLd = {

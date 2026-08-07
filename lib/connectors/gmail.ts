@@ -20,6 +20,7 @@
 
 import { createHash } from 'crypto'
 import { log } from '@/lib/logger'
+import { APP_DOMAIN } from '@/lib/constants/app'
 import { assertRecipientsAllowed } from './allowlist'
 import type { Connector, ConnectorOutcome, ConnectorRequest, ResolvedGrant } from './types'
 
@@ -36,7 +37,7 @@ const TIMEOUT_MS = 30_000
  */
 function messageIdFor(idempotencyKey: string): string {
   const digest = createHash('sha256').update(idempotencyKey).digest('hex').slice(0, 32)
-  return `<${digest}@edgealpha.ai>`
+  return `<${digest}@${APP_DOMAIN}>`
 }
 
 /** RFC-5322 message, base64url-encoded as Gmail's API requires. */

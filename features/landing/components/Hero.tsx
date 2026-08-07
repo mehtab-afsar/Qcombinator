@@ -13,8 +13,8 @@ import {
 import { ArrowRight } from "lucide-react";
 import { L, DUSK, FONT_SERIF, FONT_MONO } from "../theme";
 import { FLOORS, HERO_SCORE } from "../copy";
-import { useMotionPrefs } from "../hooks/useMotionPrefs";
-import { useIsWide } from "../hooks/useIsWide";
+import { useMotionPrefs } from "@/features/shared/hooks/useMotionPrefs";
+import { useIsWide } from "@/features/shared/hooks/useIsWide";
 import { HeroBuilding } from "./building/HeroBuilding";
 import { CityBackdrop } from "./building/CityBackdrop";
 import { Crane } from "./building/Crane";
@@ -128,7 +128,7 @@ function StaticHero() {
         </h1>
         <p style={{ fontSize: 16.5, color: DUSK.textDim, lineHeight: 1.6, margin: "0 auto 30px", maxWidth: 460 }}>
           Edge Alpha scores your startup across the six dimensions investors actually price —
-          then nine AI advisers help you move the number.
+          then five AI executives help you move the number.
         </p>
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 8 }}><CtaRow center /></div>
       </div>
@@ -303,7 +303,7 @@ function PinnedHero() {
                 Now build yours.
               </h2>
               <p style={{ fontSize: 16.5, color: DUSK.textDim, maxWidth: 520, lineHeight: 1.6, margin: "0 auto 30px" }}>
-                Get your Q-Score, move it up with nine AI advisers, and raise when you hit 70.
+                Get your Q-Score, move it up with five AI executives, and raise when you hit 70.
               </p>
               <div style={{ display: "flex", justifyContent: "center" }}><CtaRow center variant="dusk" /></div>
             </motion.div>
@@ -314,7 +314,7 @@ function PinnedHero() {
                 Now build yours.
               </h2>
               <p style={{ fontSize: 16.5, color: L.muted, maxWidth: 520, lineHeight: 1.6, margin: "0 auto 30px" }}>
-                Get your Q-Score, move it up with nine AI advisers, and raise when you hit 70.
+                Get your Q-Score, move it up with five AI executives, and raise when you hit 70.
               </p>
               <div style={{ display: "flex", justifyContent: "center" }}><CtaRow center variant="light" /></div>
             </motion.div>

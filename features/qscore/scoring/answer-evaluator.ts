@@ -9,7 +9,7 @@
  * Falls back to heuristic estimates if the LLM call fails.
  */
 
-import { callClaude } from '@/lib/claude';
+import { routedText } from '@/lib/llm/router';
 import { AssessmentData } from '../types/qscore.types';
 import { SemanticEvaluation, AnswerQualityScores, MarketValidation } from './types';
 import { log } from '@/lib/logger'
@@ -144,9 +144,10 @@ Return ONLY valid JSON, no explanation:
 }`;
 
   try {
-    const raw = await callClaude(
+    const raw = await routedText(
+      'classification',
       [{ role: 'user', content: prompt }],
-      { maxTokens: 150, temperature: 0.1 }
+      { modelTier: 'fast', maxTokens: 150, temperature: 0.1 }
     );
     const cleaned = raw.replace(/```(?:json)?\s*/gi, '').replace(/```/g, '').trim();
     const parsed = JSON.parse(cleaned);
@@ -303,9 +304,10 @@ export async function evaluateAssessmentAnswers(
     const evaluationPrompt = buildEvaluationPrompt(fields, rubricContext);
 
     const [qualityRaw, marketValidation] = await Promise.all([
-      callClaude(
+      routedText(
+        'classification',
         [{ role: 'user', content: evaluationPrompt }],
-        { maxTokens: 300, temperature: 0.1 }
+        { modelTier: 'fast', maxTokens: 300, temperature: 0.1 }
       ),
       validateMarketClaims(data, benchmarkContext),
     ]);

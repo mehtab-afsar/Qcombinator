@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { randomUUID } from 'crypto'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
-import { sendWelcomeAndConfirmEmail } from '@/lib/email/send'
+import { sendWelcomeEmail } from '@/lib/email/send'
 import { log } from '@/lib/logger'
-import { FOUNDER_PLAN_LIMITS } from '@/lib/billing/plans'
+import { FOUNDER_PLAN_LIMITS, getNextMonthDate } from '@/lib/billing/plans'
 
 // Handles the OAuth redirect from Google (and any other provider).
 // Exchanges the code for a session, then routes the user by role.
@@ -56,12 +55,11 @@ export async function GET(req: NextRequest) {
   // if they navigate away from onboarding. Full profile is completed in onboarding.
   try {
     const admin = createAdminClient()
-    const fullName    = (user.user_metadata?.full_name as string | undefined) ?? user.email?.split('@')[0] ?? 'Founder'
-    const confirmToken = randomUUID()
+    const fullName = (user.user_metadata?.full_name as string | undefined) ?? user.email?.split('@')[0] ?? 'Founder'
 
-    // Google verifies emails before OAuth — mark as confirmed immediately
-    const now = new Date().toISOString()
-
+    // No email_confirmed_at stamping needed here — Supabase already marks a Google sign-in's
+    // email confirmed natively on the auth.users row (Google verifies it before OAuth even
+    // reaches us), which is what lib/auth/email-confirmed.ts and middleware.ts's gate read.
     await Promise.all([
       admin.from('founder_profiles').insert({
         user_id:              user.id,
@@ -72,8 +70,6 @@ export async function GET(req: NextRequest) {
         registration_completed: false,
         profile_builder_completed: false,
         assessment_completed: false,
-        email_confirmed_at:   now,       // Google emails are pre-verified
-        email_confirm_token:  confirmToken,
       }).then(({ error: e }) => {
         if (e) log.error('[oauth-callback] founder_profiles stub insert failed:', e)
       }),
@@ -95,13 +91,12 @@ export async function GET(req: NextRequest) {
       }),
     ])
 
-    // Send welcome email (no confirm link needed — Google already verified)
+    // Send welcome email — no confirm link needed, Google already verified this address
     if (user.email) {
-      void sendWelcomeAndConfirmEmail({
+      void sendWelcomeEmail({
         email:        user.email,
         fullName,
         startupName:  'Your Startup',
-        confirmToken, // still include so they can click — will just find already-confirmed
       }).catch(e => log.warn('[oauth-callback] welcome email failed:', e))
     }
   } catch (e) {
@@ -112,7 +107,3 @@ export async function GET(req: NextRequest) {
   return NextResponse.redirect(`${origin}/founder/onboarding`)
 }
 
-function getNextMonthDate(): string {
-  const now = new Date()
-  return new Date(now.getFullYear(), now.getMonth() + 1, now.getDate()).toISOString()
-}

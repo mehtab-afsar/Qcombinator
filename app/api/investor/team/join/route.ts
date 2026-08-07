@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getAdminClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
+import { parseBody } from '@/lib/api/validate'
 import { log } from '@/lib/logger'
 
 const schema = z.object({ token: z.string().min(1) })
@@ -16,9 +17,8 @@ export async function POST(req: NextRequest) {
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
     const { user } = auth
 
-    const body = await req.json()
-    const parsed = schema.safeParse(body)
-    if (!parsed.success) return NextResponse.json({ error: 'token is required' }, { status: 400 })
+    const parsed = await parseBody(req, schema)
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
     const { token } = parsed.data
 
     const admin = getAdminClient()

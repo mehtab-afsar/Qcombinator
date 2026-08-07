@@ -224,6 +224,7 @@ export async function latestPerActionForFounder(
     .select('*')
     .eq('founder_id', founderId)
     .order('created_at', { ascending: false })
+    .limit(500)
 
   if (error) throw new ActionLogError('read_failed', `Failed to read the action log: ${error.message}`)
   return dedupeLatestByActionId((data ?? []) as ActionLogRow[])
@@ -249,6 +250,7 @@ export async function pendingApprovals(
     .select('*')
     .eq('founder_id', founderId)
     .order('created_at', { ascending: false })
+    .limit(500)
 
   if (error) throw new ActionLogError('read_failed', `Failed to read pending approvals: ${error.message}`)
 

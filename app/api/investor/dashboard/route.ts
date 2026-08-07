@@ -19,6 +19,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { log } from '@/lib/logger'
+import { investorConnectionOrFilter } from '@/lib/investor/demo-investor'
 
 export async function GET() {
   try {
@@ -49,9 +50,7 @@ export async function GET() {
     const demoInvestorId = investorRow?.demo_investor_id
 
     // ── Step 2: pipeline + unread messages + pending connections — all parallel
-    const pendingOrFilter = demoInvestorId
-      ? `demo_investor_id.eq.${demoInvestorId},investor_id.eq.${user.id}`
-      : `investor_id.eq.${user.id}`
+    const pendingOrFilter = investorConnectionOrFilter(user.id, demoInvestorId ?? null)
 
     const [
       { data: pipelineRows, error: pipelineErr },

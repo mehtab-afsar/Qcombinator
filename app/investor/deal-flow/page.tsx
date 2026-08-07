@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Search, ChevronRight, ChevronDown, Flame, ArrowUp, Minus, LayoutGrid, List, MessageSquare, Send, X, Loader2, Bookmark } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted, blue, purple, green, amber, red } from '@/lib/constants/colors'
+import { font } from '@/features/shared/tokens'
 import { PIPELINE_STAGE_COLORS, momentumBadge as _momentumBadge } from '@/features/investor/constants/pipeline'
 import { Avatar } from '@/features/shared/components/Avatar'
 
@@ -142,7 +143,7 @@ function FounderCard({
       <div style={{ textAlign: "right", flexShrink: 0, minWidth: 44 }}>
         {founder.hasScore ? (
           <>
-            <p style={{ fontSize: 20, fontWeight: 700, color: scoreColor, lineHeight: 1, letterSpacing: "-0.03em" }}>{founder.weightedQScore}</p>
+            <p style={{ fontSize: 20, fontWeight: 700, color: scoreColor, lineHeight: 1, letterSpacing: "-0.03em", fontFamily: font.family.mono }}>{founder.weightedQScore}</p>
             <p style={{ fontSize: 9, color: muted, marginTop: 1 }}>Q-Score</p>
             {founder.qScorePercentile > 0 && (
               <p style={{ fontSize: 9, color: muted, marginTop: 1 }}>top {100 - founder.qScorePercentile}%</p>
@@ -214,13 +215,13 @@ function FounderCard({
           title={isWatched ? "Unwatch founder" : "Watch founder (get alerted when Q-Score rises)"}
           style={{
             height: 30, width: 30, display: "flex", alignItems: "center", justifyContent: "center",
-            background: isWatched ? `${blue}12` : surf,
-            border: `1px solid ${isWatched ? blue : bdr}`,
+            background: isWatched ? `${purple}12` : surf,
+            border: `1px solid ${isWatched ? purple : bdr}`,
             borderRadius: 7, cursor: "pointer", flexShrink: 0,
             transition: "all 0.15s",
           }}
         >
-          <Bookmark style={{ height: 12, width: 12, color: isWatched ? blue : muted }} />
+          <Bookmark style={{ height: 12, width: 12, color: isWatched ? purple : muted }} />
         </button>
       )}
 
@@ -274,7 +275,7 @@ function TableRow({ founder, pipelineStage, onPipelineChange, onView, isLast }: 
           <p style={{ fontSize: 11, color: muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{founder.sector} · {founder.stage}</p>
         </div>
       </div>
-      <p style={{ fontSize: 15, fontWeight: 700, color: founder.hasScore ? qScoreColor(founder.weightedQScore) : muted }}>{founder.hasScore ? founder.weightedQScore : "—"}</p>
+      <p style={{ fontSize: 15, fontWeight: 700, color: founder.hasScore ? qScoreColor(founder.weightedQScore) : muted, fontFamily: font.family.mono }}>{founder.hasScore ? founder.weightedQScore : "—"}</p>
       {mb && MIcon ? (
         <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 8px", background: mb.bg, borderRadius: 999, width: "fit-content" }}>
           <MIcon style={{ height: 9, width: 9, color: mb.color }} />
@@ -577,7 +578,6 @@ export default function DealFlowPage() {
       </div>
     </div>
 
-    <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
     {/* Outreach modal */}
     {outreachFounder && (
       <div
@@ -587,7 +587,7 @@ export default function DealFlowPage() {
         <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 480, background: bg, borderRadius: 16, border: `1px solid ${bdr}`, padding: "28px 28px 24px", boxShadow: "0 24px 64px rgba(0,0,0,0.12)" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <MessageSquare style={{ height: 16, width: 16, color: blue }} />
+              <MessageSquare style={{ height: 16, width: 16, color: purple }} />
               <p style={{ fontSize: 15, fontWeight: 600, color: ink }}>Message {outreachFounder.founder.name}</p>
             </div>
             <button onClick={() => setOutreachFounder(null)} style={{ background: "none", border: "none", cursor: "pointer", color: muted, padding: 4 }}>
@@ -616,7 +616,7 @@ export default function DealFlowPage() {
                 placeholder={`Hi ${outreachFounder.founder.name.split(' ')[0]}, I came across ${outreachFounder.name} and would love to learn more…`}
                 rows={5}
                 style={{ width: "100%", padding: "11px 14px", borderRadius: 8, border: `1.5px solid ${bdr}`, background: surf, fontSize: 13, color: ink, fontFamily: "inherit", outline: "none", resize: "vertical", lineHeight: 1.5, boxSizing: "border-box" }}
-                onFocus={e => (e.currentTarget.style.borderColor = blue)}
+                onFocus={e => (e.currentTarget.style.borderColor = purple)}
                 onBlur={e => (e.currentTarget.style.borderColor = bdr)}
               />
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 14 }}>
@@ -626,7 +626,7 @@ export default function DealFlowPage() {
                 <button
                   onClick={handleSendOutreach}
                   disabled={!outreachMsg.trim() || outreachSending}
-                  style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 20px", borderRadius: 8, border: "none", background: outreachMsg.trim() ? blue : bdr, color: "#fff", fontSize: 13, fontWeight: 600, cursor: outreachMsg.trim() ? "pointer" : "not-allowed", opacity: outreachSending ? 0.6 : 1, fontFamily: "inherit" }}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 20px", borderRadius: 8, border: "none", background: outreachMsg.trim() ? purple : bdr, color: "#fff", fontSize: 13, fontWeight: 600, cursor: outreachMsg.trim() ? "pointer" : "not-allowed", opacity: outreachSending ? 0.6 : 1, fontFamily: "inherit" }}
                 >
                   {outreachSending ? <Loader2 style={{ height: 13, width: 13, animation: "spin 1s linear infinite" }} /> : <Send style={{ height: 13, width: 13 }} />}
                   {outreachSending ? "Sending…" : "Send Message"}

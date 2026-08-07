@@ -14,7 +14,7 @@
 import { readFileSync } from 'fs'
 
 const route = readFileSync('app/api/profile-builder/upload/route.ts', 'utf8')
-const page = readFileSync('app/founder/profile-builder/page.tsx', 'utf8')
+const page = readFileSync('features/profile-builder/components/SmartQAScreen.tsx', 'utf8')
 
 describe('quick replies are generated per founder, through the router', () => {
   it('generateQuickReplies feeds the founder\'s real sector, stage and extracted context', () => {

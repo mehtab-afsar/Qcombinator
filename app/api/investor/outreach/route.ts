@@ -5,6 +5,7 @@ import { verifyAuth } from '@/lib/auth/verify'
 import { isFounderVisible } from '@/lib/investor/visibility'
 import { parseBody, outreachPostSchema } from '@/lib/api/validate'
 import { log } from '@/lib/logger'
+import { getMyDemoInvestorId, investorConnectionOrFilter } from '@/lib/investor/demo-investor'
 
 // POST /api/investor/outreach
 // Allows investors to initiate contact with a founder.
@@ -31,17 +32,10 @@ export async function POST(request: NextRequest) {
 
     // Look up this investor's demo_investor_id so we can check both FK columns.
     // A founder may have previously connected to the demo version of this investor.
-    const { data: myProfile } = await admin
-      .from('investor_profiles')
-      .select('demo_investor_id')
-      .eq('user_id', user.id)
-      .maybeSingle()
-    const demoInvestorId = (myProfile as { demo_investor_id?: string } | null)?.demo_investor_id ?? null
+    const demoInvestorId = await getMyDemoInvestorId(admin, user.id)
 
     // Prevent duplicate connections — check via investor_id AND demo_investor_id
-    const orFilter = demoInvestorId
-      ? `investor_id.eq.${user.id},demo_investor_id.eq.${demoInvestorId}`
-      : `investor_id.eq.${user.id}`
+    const orFilter = investorConnectionOrFilter(user.id, demoInvestorId)
 
     const { data: existing } = await admin
       .from('connection_requests')
@@ -52,6 +46,26 @@ export async function POST(request: NextRequest) {
 
     if (existing) {
       return NextResponse.json({ status: existing.status, already_exists: true })
+    }
+
+    // ── Check investor_connection usage limit (atomic RPC) ──────────────────
+    // Mirrors app/api/connections/route.ts's founder-side check on the same feature/RPC.
+    try {
+      const { data: usageData, error: usageErr } = await admin.rpc('increment_usage_if_allowed', {
+        p_user_id: user.id,
+        p_feature: 'investor_connection',
+      }) as { data: Array<{ allowed: boolean; remaining: number }> | null; error: unknown }
+
+      if (!usageErr && usageData?.[0]?.allowed === false) {
+        return NextResponse.json({
+          error: 'Monthly investor connection limit reached',
+          limitReached: true,
+          remaining: 0,
+        }, { status: 429 })
+      }
+    } catch {
+      // Usage check failed — allow through (fail-open)
+      log.warn('investor_connection usage check failed — allowing through', { userId: user.id })
     }
 
     // Investor reaching out = connection is live immediately (meeting_scheduled)

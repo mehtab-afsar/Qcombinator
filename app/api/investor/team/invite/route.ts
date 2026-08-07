@@ -6,13 +6,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getAdminClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
+import { parseBody, emailSchema } from '@/lib/api/validate'
+import { sendInvestorTeamInviteEmail } from '@/lib/email/send'
 import { log } from '@/lib/logger'
-import { APP_URL } from '@/lib/constants/app'
-import { Resend } from 'resend'
-import { APP_EMAIL_FROM } from '@/lib/constants/app'
 
 const schema = z.object({
-  email: z.string().email(),
+  email: emailSchema,
   role:  z.enum(['admin', 'analyst']),
 })
 
@@ -22,9 +21,8 @@ export async function POST(req: NextRequest) {
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
     const { user } = auth
 
-    const body = await req.json()
-    const parsed = schema.safeParse(body)
-    if (!parsed.success) return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
+    const parsed = await parseBody(req, schema)
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
     const { email, role } = parsed.data
 
     const admin = getAdminClient()
@@ -69,21 +67,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Failed to create invite' }, { status: 500 })
     }
 
-    // Send email
-    const resendKey = process.env.RESEND_API_KEY
-    if (resendKey) {
-      const resend   = new Resend(resendKey)
-      const joinUrl  = `${APP_URL}/investor/join?token=${invite.token}`
-      const roleLabel = role === 'admin' ? 'Admin' : 'Analyst'
-      void resend.emails.send({
-        from:    APP_EMAIL_FROM,
-        to:      email,
-        subject: `${invProfile.full_name} invited you to join ${invProfile.firm_name ?? 'their fund'} on Edge Alpha`,
-        html:    `<p>Hi,</p><p><strong>${invProfile.full_name}</strong> has invited you to join <strong>${invProfile.firm_name ?? 'their fund'}</strong> on Edge Alpha as <strong>${roleLabel}</strong>.</p><p><a href="${joinUrl}">Accept invite →</a></p><p>Link expires in 7 days.</p>`,
-      }).catch(e => log.warn('investor team invite email failed:', e instanceof Error ? e.message : e))
-    }
+    // Awaited, not fire-and-forget — the invitee has no account yet, so this email is the only
+    // way they find out. A silent failure here used to report {ok:true} while nobody was ever
+    // notified; the caller needs to know if it didn't actually go out.
+    const emailSent = await sendInvestorTeamInviteEmail({
+      toEmail:     email,
+      token:       invite.token,
+      firmName:    invProfile.firm_name ?? 'their fund',
+      role,
+      inviterName: invProfile.full_name ?? 'A team member',
+    }).catch(e => {
+      log.warn('investor team invite email failed:', e instanceof Error ? e.message : e)
+      return false
+    })
 
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ ok: true, emailSent })
   } catch (err) {
     log.error('POST /api/investor/team/invite', { err })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

@@ -38,8 +38,13 @@ export type AssetId = `AS${string}`
 /** e.g. 'interview_customers' — snake_case; the workbook defines no ID convention */
 export type ActionId = string
 
-/** Widened as adapters land in Story 3. Gmail is the first (PRD §10). */
-export type ConnectorId = 'gmail'
+/**
+ * Widened as adapters land in Story 3. Gmail (send) is the first (PRD §10); Slack is the second.
+ * `gmail_read` is a third, but never used as an `ActionDef.connector` — it has no irreversible
+ * action, it's a founder-triggered read connector (see `lib/connectors/gmail-read.ts`). The type
+ * still needs to admit it for `connector_grants`/registry bookkeeping.
+ */
+export type ConnectorId = 'gmail' | 'slack' | 'gmail_read'
 
 // ─── Definitions ──────────────────────────────────────────────────────────────
 

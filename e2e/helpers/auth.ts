@@ -136,6 +136,25 @@ export async function createFounderAccount(opts: {
   }
 
   const data = await res.json() as { user: { id: string }; profile: { id: string } }
+
+  // /api/auth/signup leaves the account genuinely unconfirmed now (Supabase sends its own
+  // confirmation email — see lib/auth/email-confirmed.ts) — a test account created here needs
+  // to be immediately usable, the same way createTestInvestorAccount's email_confirm:true is,
+  // so confirm it directly via the same admin API rather than waiting on a real email.
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceKey  = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (supabaseUrl && serviceKey) {
+    await fetch(`${supabaseUrl}/auth/v1/admin/users/${data.user.id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: serviceKey,
+        Authorization: `Bearer ${serviceKey}`,
+      },
+      body: JSON.stringify({ email_confirm: true }),
+    }).catch(() => { /* best-effort — signup already succeeded */ })
+  }
+
   return { email, password, userId: data.user.id, profileId: data.profile.id }
 }
 
@@ -196,15 +215,21 @@ export async function createFounderAccountDirect(opts: {
       user_id, full_name, startup_name, company_name, industry, stage, role,
       subscription_tier, onboarding_completed, assessment_completed,
       revenue_status, team_size, founder_name, registration_completed,
-      profile_builder_completed, tagline, location, email_confirmed_at
+      profile_builder_completed, tagline, location
     ) values (
       '${userId}', '${escapeSql(fullName)}', '${escapeSql(startupName)}', '${escapeSql(opts.companyName)}',
       'ai_ml', 'seed', 'founder', 'free', true, false,
       'pre-revenue', '2-5', '${escapeSql(fullName)}', true,
-      false, '${escapeSql(tagline)}', 'San Francisco, CA', now()
+      false, '${escapeSql(tagline)}', 'San Francisco, CA'
     );
     insert into qscore_history (user_id, overall_score, data_source)
     values ('${userId}', 0, 'registration');
+    -- The gate now reads Supabase's own auth.users.email_confirmed_at (lib/auth/email-confirmed.ts),
+    -- not founder_profiles — the raw GoTrue signup above leaves it unconfirmed like any real
+    -- self-service signup, so this test account needs the same stamp admin.createUser's
+    -- email_confirm:true would give it, applied directly since the admin API is the thing
+    -- broken locally (see the function doc comment above).
+    update auth.users set email_confirmed_at = now() where id = '${userId}';
   `
   execSync(`psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -c "${sql.replace(/"/g, '\\"')}"`)
 

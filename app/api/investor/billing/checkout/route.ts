@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/server'
-import { getStripe } from '@/lib/stripe'
 import { verifyAuth } from '@/lib/auth/verify'
+import { createCheckoutSession } from '@/lib/billing/checkout'
 import { log } from '@/lib/logger'
 
 export async function POST() {
@@ -10,54 +9,19 @@ export async function POST() {
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
     const { user } = auth
 
-    const admin = createAdminClient()
-    const { data: profile } = await admin
-      .from('investor_profiles')
-      .select('stripe_customer_id, subscription_tier, full_name')
-      .eq('user_id', user.id)
-      .single()
-
-    // If already pro, redirect to billing portal instead
-    if (profile?.subscription_tier === 'pro') {
-      const portalSession = await getStripe().billingPortal.sessions.create({
-        customer: profile.stripe_customer_id!,
-        return_url: `${process.env.NEXT_PUBLIC_APP_URL}/investor/billing`,
-      })
-      return NextResponse.json({ url: portalSession.url })
-    }
-
-    // Create or retrieve Stripe customer
-    let customerId = profile?.stripe_customer_id
-    if (!customerId) {
-      const customer = await getStripe().customers.create({
-        email: user.email,
-        name: (profile?.full_name as string) || user.email,
-        metadata: { user_id: user.id, role: 'investor' },
-      })
-      customerId = customer.id
-      await admin
-        .from('investor_profiles')
-        .update({ stripe_customer_id: customerId })
-        .eq('user_id', user.id)
-    }
-
-    const investorPriceId = process.env.STRIPE_INVESTOR_PRO_PRICE_ID
-    if (!investorPriceId) {
-      log.error('STRIPE_INVESTOR_PRO_PRICE_ID is not configured')
-      return NextResponse.json({ error: 'Investor Pro pricing is not configured yet. Please contact support.' }, { status: 503 })
-    }
-
-    const session = await getStripe().checkout.sessions.create({
-      customer: customerId,
-      mode: 'subscription',
-      line_items: [{ price: investorPriceId, quantity: 1 }],
-      subscription_data: { trial_period_days: 14 },
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/investor/billing?success=1`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/investor/billing`,
-      metadata: { user_id: user.id, userType: 'investor' },
+    const result = await createCheckoutSession({
+      table: 'investor_profiles',
+      userId: user.id,
+      userEmail: user.email,
+      premiumTierValue: 'pro',
+      priceEnvVar: 'STRIPE_INVESTOR_PRO_PRICE_ID',
+      returnPath: '/investor/billing',
+      metadataRole: 'investor',
+      notConfiguredMessage: 'Investor Pro pricing is not configured yet. Please contact support.',
     })
 
-    return NextResponse.json({ url: session.url })
+    if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status })
+    return NextResponse.json({ url: result.url })
   } catch (err) {
     log.error('POST /api/investor/billing/checkout', { err })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

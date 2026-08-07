@@ -25,25 +25,26 @@ import {
   type ProgramTemplate,
 } from './types'
 
-import { CEO } from './executives/ceo'
-import { GROWTH } from './executives/growth'
-import { PRODUCT } from './executives/product'
-import { OPERATIONS } from './executives/operations'
-import { FINANCE } from './executives/finance'
+import { CEO } from './executives/ceo/executive'
+import { GROWTH } from './executives/growth/executive'
+import { PRODUCT } from './executives/product/executive'
+import { OPERATIONS } from './executives/operations/executive'
+import { FINANCE } from './executives/finance/executive'
 
-import { P001_GTM } from './programs/growth/p001-gtm'
+import { P001_GTM } from './executives/growth/programs/p001-gtm'
 
-import { AS001_ICP_PROFILES } from './assets/growth/as001-icp'
-import { AS002_PAINS_GAINS_MATRIX } from './assets/growth/as002-pains-gains'
-import { AS003_BUYER_JOURNEY_MAP } from './assets/growth/as003-buyer-journey'
-import { AS004_POSITIONING_MESSAGING } from './assets/growth/as004-positioning'
-import { AS005_CHANNEL_STRATEGY } from './assets/growth/as005-channel-strategy'
+import { AS001_ICP_PROFILES } from './executives/growth/assets/as001-icp'
+import { AS002_PAINS_GAINS_MATRIX } from './executives/growth/assets/as002-pains-gains'
+import { AS003_BUYER_JOURNEY_MAP } from './executives/growth/assets/as003-buyer-journey'
+import { AS004_POSITIONING_MESSAGING } from './executives/growth/assets/as004-positioning'
+import { AS005_CHANNEL_STRATEGY } from './executives/growth/assets/as005-channel-strategy'
 
-import { VALIDATE_ICPS } from './actions/validate-icps'
-import { INTERVIEW_CUSTOMERS } from './actions/interview-customers'
-import { PRIORITIZE_CHANNELS } from './actions/prioritize-channels'
-import { REVIEW_MESSAGING } from './actions/review-messaging'
-import { APPROVE_GTM_PLAN } from './actions/approve-gtm-plan'
+import { VALIDATE_ICPS } from './executives/growth/actions/validate-icps'
+import { INTERVIEW_CUSTOMERS } from './executives/growth/actions/interview-customers'
+import { PRIORITIZE_CHANNELS } from './executives/growth/actions/prioritize-channels'
+import { REVIEW_MESSAGING } from './executives/growth/actions/review-messaging'
+import { APPROVE_GTM_PLAN } from './executives/growth/actions/approve-gtm-plan'
+import { POST_TEAM_UPDATE } from './executives/growth/actions/post-team-update'
 
 export * from './types'
 
@@ -69,6 +70,7 @@ const ACTIONS: readonly ActionDef[] = [
   PRIORITIZE_CHANNELS,
   REVIEW_MESSAGING,
   APPROVE_GTM_PLAN,
+  POST_TEAM_UPDATE,
 ]
 
 // ─── Validation ───────────────────────────────────────────────────────────────

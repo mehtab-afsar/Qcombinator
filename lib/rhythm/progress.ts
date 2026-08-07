@@ -11,7 +11,8 @@
  * than spinning forever.
  */
 
-import { getProgram, getAsset, getAction } from '@/lib/registry'
+import { getProgram } from '@/lib/registry'
+import { assetLabel, actionLabel } from '@/lib/registry/labels'
 import { STALE_AFTER_MS, type RhythmRun, type RunStatus } from './runs'
 
 export type StepState = 'done' | 'active' | 'pending' | 'failed' | 'skipped'
@@ -36,6 +37,15 @@ export interface ProgressStep {
    *  real, just-persisted content the moment the step flips to 'done' without string-splitting
    *  `key` (the thing this field exists specifically to avoid). */
   assetId: string | null
+  /** The Registry action id this step attempted — action steps only. Same reasoning as
+   *  assetId: lib/rhythm/preview.ts needs it to look up this step's action_log entry
+   *  without parsing `key`. */
+  actionId: string | null
+  /** A short, real snippet of what this step actually produced — the asset's own
+   *  content, the briefing's verdict, or the action's redacted metadata — set by
+   *  lib/rhythm/preview.ts for the live run only (never recomputed for history).
+   *  null until the step is done/skipped, or when no preview could be built. */
+  preview: string | null
 }
 
 export interface RunProgress {
@@ -71,15 +81,6 @@ interface StageShape {
   actionsDone?: string[]
 }
 
-/** Registry name, degrading to the raw id rather than throwing on an unknown asset. */
-function assetLabel(assetId: string): string {
-  try {
-    return getAsset(assetId).name
-  } catch {
-    return assetId
-  }
-}
-
 /**
  * The Program's assets, or null if the Registry no longer knows it. `activePrograms` is DATA
  * (stored on a confirmed contract), so a Registry change can leave a founder holding an id
@@ -100,7 +101,7 @@ function assetSteps(assetIds: readonly string[], templateId: string, executiveId
   let activeTaken = false
 
   return assetIds.map(assetId => {
-    const step = { key: `${templateId}:${assetId}`, label: assetLabel(assetId), templateId, executiveId, kind: 'asset' as const, assetId }
+    const step = { key: `${templateId}:${assetId}`, label: assetLabel(assetId), templateId, executiveId, kind: 'asset' as const, assetId, actionId: null, preview: null }
 
     if (doneIds.includes(assetId)) {
       // ADR-028: an existing asset with no new founder input isn't regenerated. 'skipped' is
@@ -121,22 +122,13 @@ function assetSteps(assetIds: readonly string[], templateId: string, executiveId
 
 /** The briefing step — always last for its program, and gated on its assets. */
 function briefingStep(templateId: string, executiveId: string | null, stage: StageShape, running: boolean, assetsSettled: boolean): ProgressStep {
-  const step = { key: `${templateId}:briefing`, label: 'Executive briefing', templateId, executiveId, kind: 'briefing' as const, assetId: null }
+  const step = { key: `${templateId}:briefing`, label: 'Executive briefing', templateId, executiveId, kind: 'briefing' as const, assetId: null, actionId: null, preview: null }
 
   if (stage.briefing === 'completed') return { ...step, state: 'done' }
   if (stage.briefing === 'failed') return { ...step, state: 'failed' }
   // 'blocked' means its assets failed so it never ran — pending, not failed.
   if (running && assetsSettled && stage.briefing !== 'blocked') return { ...step, state: 'active' }
   return { ...step, state: 'pending' }
-}
-
-/** Registry name for an Action, degrading to the raw id rather than throwing. */
-function actionLabel(actionId: string): string {
-  try {
-    return getAction(actionId).name
-  } catch {
-    return actionId
-  }
 }
 
 /**
@@ -161,7 +153,7 @@ function actionSteps(
   let activeTaken = false
 
   return actionIds.map(actionId => {
-    const step = { key: `${templateId}:${actionId}`, label: actionLabel(actionId), templateId, executiveId, kind: 'action' as const, assetId: null }
+    const step = { key: `${templateId}:${actionId}`, label: actionLabel(actionId), templateId, executiveId, kind: 'action' as const, assetId: null, actionId, preview: null }
 
     if (doneIds.includes(actionId)) return { ...step, state: 'done' as const }
     if (status === 'failed' && !activeTaken) {

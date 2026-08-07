@@ -290,8 +290,8 @@ Generic routes (never per-agent) · immutable Asset versioning with provenance �
 **Decision (CODEBASE_AUDIT Q-3, actioned 27 Jul 2026):** CLAUDE.md §0.5's *"~300 lines max per
 file"* governs **modules containing logic**. A **prompt-content module** — one that exports
 prompt prose and **contains no functions, no branching and no logic of any kind** — is exempt and
-should be kept whole. Today that means `lib/prompts/programs/p001.ts` (1,010 lines),
-`lib/prompts/knowledge/*.ts` and `lib/prompts/assets/as00N.ts`.
+should be kept whole. Today that means `lib/prompts/executives/growth/programs/p001.ts` (1,010 lines),
+`lib/prompts/executives/*/voice.ts` (or `s00N.ts` for the CEO) and `lib/prompts/executives/growth/assets/as00N.ts`.
 **Why:** these files are one continuous document written for a model to read. Splitting them at
 an arbitrary line count would scatter a single argument across files and make the prompt harder
 to review, which is the opposite of what the rule protects. The rule exists to stop *logic*

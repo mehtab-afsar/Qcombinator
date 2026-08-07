@@ -24,6 +24,7 @@ import { ChevronDown, ArrowRight } from 'lucide-react'
 import { bg, bdr, ink, muted, blue } from '@/lib/constants/colors'
 import { font, space } from '@/features/shared/tokens'
 import { PageHeader } from '@/features/shared/components/PageHeader'
+import { PageContainer } from '@/features/shared/components/PageContainer'
 import { EmptyState } from '@/features/shared/components/EmptyState'
 import { PageSpinner } from '@/features/shared/components/Spinner'
 import { ExecutiveTabBar } from '@/features/executive/components/ExecutiveTabBar'
@@ -77,7 +78,7 @@ export default function DocumentsHubPage() {
 
   return (
     <div style={{ background: bg, minHeight: '100vh', padding: '48px 24px' }}>
-      <div style={{ maxWidth: 1120, margin: '0 auto' }}>
+      <PageContainer>
         <PageHeader
           title="Your documents"
           subtitle="Organized by who made them"
@@ -104,7 +105,7 @@ export default function DocumentsHubPage() {
             ))}
           </div>
         )}
-      </div>
+      </PageContainer>
     </div>
   )
 }

@@ -5,11 +5,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus, Upload, Send, MoreHorizontal, Trash2, RefreshCw,
   CheckCircle, Clock, Mail, X, Loader2, ChevronDown, Search,
-  Building2, Users, ExternalLink,
+  Building2, Users, ExternalLink, type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
-import { bg, surf, bdr, ink, muted, blue, green, amber, red } from "@/lib/constants/colors";
+import { bg, surf, bdr, ink, muted, blue, purple, green, amber, red } from "@/lib/constants/colors";
 import { NotificationBell } from "@/features/investor/components/InvestorSidebar";
+import { Badge, type BadgeVariant } from "@/features/shared/components/Badge";
 
 // ─── types ────────────────────────────────────────────────────────────────────
 interface PortfolioCompany {
@@ -47,23 +48,21 @@ const EMPTY_FORM: AddCompanyForm = {
 };
 
 // ─── status badge ─────────────────────────────────────────────────────────────
+const STATUS_BADGE_CONFIG: Record<PortfolioCompany["invite_status"], { label: string; variant: BadgeVariant; Icon: LucideIcon }> = {
+  accepted:  { label: "On Platform ✓",  variant: "green",   Icon: CheckCircle },
+  pending:   { label: "Invite Pending", variant: "amber",   Icon: Clock },
+  not_sent:  { label: "Not Invited",    variant: "neutral", Icon: Mail },
+};
+
 function StatusBadge({ status }: { status: PortfolioCompany["invite_status"] }) {
-  const cfg = {
-    accepted:  { label: "On Platform ✓", bg: "#F0FDF4", color: green,  border: "#BBF7D0" },
-    pending:   { label: "Invite Pending", bg: "#FFFBEB", color: amber,  border: "#FDE68A" },
-    not_sent:  { label: "Not Invited",   bg: "#F9F7F2", color: muted,  border: bdr },
-  }[status];
+  const cfg = STATUS_BADGE_CONFIG[status];
   return (
-    <span style={{
-      display: "inline-flex", alignItems: "center", gap: 4,
-      padding: "2px 10px", borderRadius: 999, fontSize: 11, fontWeight: 600,
-      background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`,
-    }}>
-      {status === "accepted" ? <CheckCircle style={{ width: 10, height: 10 }} /> :
-       status === "pending"  ? <Clock       style={{ width: 10, height: 10 }} /> :
-                               <Mail        style={{ width: 10, height: 10 }} />}
-      {cfg.label}
-    </span>
+    <Badge variant={cfg.variant}>
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+        <cfg.Icon style={{ width: 10, height: 10 }} />
+        {cfg.label}
+      </span>
+    </Badge>
   );
 }
 
@@ -195,10 +194,10 @@ function AddCompanyModal({ onClose, onAdded }: { onClose: () => void; onAdded: (
         </div>
 
         {form.founder_email && (
-          <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", padding: "10px 12px", border: `1px solid ${bdr}`, borderRadius: 8, background: form.send_invite ? "#EFF6FF" : surf }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", padding: "10px 12px", border: `1px solid ${bdr}`, borderRadius: 8, background: form.send_invite ? `${purple}0D` : surf }}>
             <input
               type="checkbox" checked={form.send_invite} onChange={e => set("send_invite", e.target.checked)}
-              style={{ width: 15, height: 15, accentColor: blue }}
+              style={{ width: 15, height: 15, accentColor: purple }}
             />
             <div>
               <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>Send invite email now</p>
@@ -213,7 +212,7 @@ function AddCompanyModal({ onClose, onAdded }: { onClose: () => void; onAdded: (
           <button type="button" onClick={onClose} style={{ flex: 1, padding: "10px 0", borderRadius: 8, border: `1px solid ${bdr}`, background: "white", color: ink, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
             Cancel
           </button>
-          <button type="submit" disabled={saving} style={{ flex: 2, padding: "10px 0", borderRadius: 8, border: "none", background: blue, color: "white", fontSize: 13, fontWeight: 600, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+          <button type="submit" disabled={saving} style={{ flex: 2, padding: "10px 0", borderRadius: 8, border: "none", background: purple, color: "white", fontSize: 13, fontWeight: 600, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
             {saving ? <><Loader2 style={{ width: 14, height: 14 }} className="animate-spin" /> Saving…</> : "Add Company"}
           </button>
         </div>
@@ -327,7 +326,7 @@ function CsvImportModal({ onClose, onImported }: { onClose: () => void; onImport
           <CheckCircle style={{ width: 40, height: 40, color: green, margin: "0 auto 12px" }} />
           <p style={{ fontSize: 18, fontWeight: 700, color: ink }}>{done.imported} companies imported</p>
           <p style={{ fontSize: 13, color: muted, marginBottom: 20 }}>You can now send invites to all companies with an email address.</p>
-          <button onClick={onClose} style={{ padding: "10px 28px", borderRadius: 8, border: "none", background: blue, color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+          <button onClick={onClose} style={{ padding: "10px 28px", borderRadius: 8, border: "none", background: purple, color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
             Done
           </button>
         </div>
@@ -336,15 +335,15 @@ function CsvImportModal({ onClose, onImported }: { onClose: () => void; onImport
           <div
             onClick={() => fileRef.current?.click()}
             style={{
-              border: `2px dashed ${rows.length ? blue : bdr}`,
+              border: `2px dashed ${rows.length ? purple : bdr}`,
               borderRadius: 12, padding: "28px 20px", textAlign: "center",
               cursor: "pointer", marginBottom: rows.length ? 16 : 0,
-              background: rows.length ? "#EFF6FF" : surf,
+              background: rows.length ? `${purple}0D` : surf,
               transition: "all .15s",
             }}
           >
-            <Upload style={{ width: 24, height: 24, color: rows.length ? blue : muted, margin: "0 auto 8px" }} />
-            <p style={{ fontSize: 14, fontWeight: 600, color: rows.length ? blue : ink }}>
+            <Upload style={{ width: 24, height: 24, color: rows.length ? purple : muted, margin: "0 auto 8px" }} />
+            <p style={{ fontSize: 14, fontWeight: 600, color: rows.length ? purple : ink }}>
               {rows.length ? `${rows.length} rows ready to import` : "Click to upload CSV"}
             </p>
             <p style={{ fontSize: 12, color: muted }}>
@@ -384,7 +383,7 @@ function CsvImportModal({ onClose, onImported }: { onClose: () => void; onImport
             <button onClick={onClose} style={{ flex: 1, padding: "10px 0", borderRadius: 8, border: `1px solid ${bdr}`, background: "white", color: ink, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
               Cancel
             </button>
-            <button onClick={handleImport} disabled={!rows.length || importing} style={{ flex: 2, padding: "10px 0", borderRadius: 8, border: "none", background: rows.length ? blue : bdr, color: rows.length ? "white" : muted, fontSize: 13, fontWeight: 600, cursor: rows.length && !importing ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+            <button onClick={handleImport} disabled={!rows.length || importing} style={{ flex: 2, padding: "10px 0", borderRadius: 8, border: "none", background: rows.length ? purple : bdr, color: rows.length ? "white" : muted, fontSize: 13, fontWeight: 600, cursor: rows.length && !importing ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
               {importing ? <><Loader2 style={{ width: 14, height: 14 }} className="animate-spin" /> Importing…</> : `Import ${rows.length} Companies`}
             </button>
           </div>
@@ -542,7 +541,7 @@ export default function PortfolioCompaniesPage() {
     <div style={{ minHeight: "100vh", background: bg }}>
       {/* ── header ──────────────────────────────────────────────────────── */}
       <div style={{ position: "sticky", top: 0, zIndex: 30, background: bg, borderBottom: `1px solid ${bdr}`, padding: "0 28px", display: "flex", alignItems: "center", height: 56, gap: 16 }}>
-        <Building2 style={{ width: 18, height: 18, color: blue }} />
+        <Building2 style={{ width: 18, height: 18, color: purple }} />
         <h1 style={{ fontSize: 16, fontWeight: 700, color: ink }}>Portfolio Companies</h1>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
           <NotificationBell />
@@ -559,8 +558,8 @@ export default function PortfolioCompaniesPage() {
               style={{
                 padding: "10px 18px", fontSize: 13, fontWeight: 600,
                 border: "none", background: "none", cursor: "pointer", fontFamily: "inherit",
-                color: tab === t ? blue : muted,
-                borderBottom: `2px solid ${tab === t ? blue : "transparent"}`,
+                color: tab === t ? purple : muted,
+                borderBottom: `2px solid ${tab === t ? purple : "transparent"}`,
                 marginBottom: -1, transition: "color .12s",
               }}
             >
@@ -612,7 +611,7 @@ export default function PortfolioCompaniesPage() {
               <button onClick={() => setShowCsv(true)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, border: `1px solid ${bdr}`, background: "white", color: ink, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
                 <Upload style={{ width: 14, height: 14, color: muted }} /> Import CSV
               </button>
-              <button onClick={() => setShowAdd(true)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, border: "none", background: blue, color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+              <button onClick={() => setShowAdd(true)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, border: "none", background: purple, color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
                 <Plus style={{ width: 14, height: 14 }} /> Add Company
               </button>
             </div>
@@ -672,7 +671,7 @@ export default function PortfolioCompaniesPage() {
                       <button onClick={() => setShowCsv(true)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 16px", borderRadius: 8, border: `1px solid ${bdr}`, background: "white", color: ink, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
                         <Upload style={{ width: 14, height: 14, color: muted }} /> Import CSV
                       </button>
-                      <button onClick={() => setShowAdd(true)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 16px", borderRadius: 8, border: "none", background: blue, color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                      <button onClick={() => setShowAdd(true)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 16px", borderRadius: 8, border: "none", background: purple, color: "white", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
                         <Plus style={{ width: 14, height: 14 }} /> Add Company
                       </button>
                     </div>
@@ -700,7 +699,7 @@ export default function PortfolioCompaniesPage() {
                       >
                         <td style={{ padding: "12px 14px" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                            <div style={{ width: 32, height: 32, borderRadius: 8, background: `${blue}15`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: blue, flexShrink: 0 }}>
+                            <div style={{ width: 32, height: 32, borderRadius: 8, background: `${purple}15`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: purple, flexShrink: 0 }}>
                               {c.company_name.charAt(0).toUpperCase()}
                             </div>
                             <div>
@@ -829,7 +828,7 @@ function ConnectedFounders() {
           key={c.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
           style={{ border: `1px solid ${bdr}`, borderRadius: 12, padding: "16px 20px", background: "white", display: "flex", alignItems: "center", gap: 16 }}
         >
-          <div style={{ width: 40, height: 40, borderRadius: 10, background: `${blue}15`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 700, color: blue, flexShrink: 0 }}>
+          <div style={{ width: 40, height: 40, borderRadius: 10, background: `${purple}15`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 700, color: purple, flexShrink: 0 }}>
             {(c.startupName || c.founderName).charAt(0).toUpperCase()}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>

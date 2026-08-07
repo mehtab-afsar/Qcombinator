@@ -9,19 +9,23 @@
  * lookup table.
  */
 
-import { S003_GROWTH } from './knowledge/growth'
-import { S001_STRATEGY_SESSION, S002_EXECUTIVE_CONTRACT } from './knowledge/ceo'
-import { P001_GTM_PROMPT } from './programs/p001'
-import { AS001_ICP_PROFILES_PROMPT } from './assets/as001'
-import { AS002_PAINS_GAINS_PROMPT } from './assets/as002'
-import { AS003_BUYER_JOURNEY_PROMPT } from './assets/as003'
-import { AS004_POSITIONING_PROMPT } from './assets/as004'
-import { AS005_CHANNEL_STRATEGY_PROMPT } from './assets/as005'
-import { VALIDATE_ICPS_PROMPT } from './actions/validate-icps'
-import { INTERVIEW_CUSTOMERS_PROMPT } from './actions/interview-customers'
-import { PRIORITIZE_CHANNELS_PROMPT } from './actions/prioritize-channels'
-import { REVIEW_MESSAGING_PROMPT } from './actions/review-messaging'
-import { APPROVE_GTM_PLAN_PROMPT } from './actions/approve-gtm-plan'
+import { S003_GROWTH } from './executives/growth/voice'
+// No knowledge/ceo.ts barrel — it held no content of its own (just re-exported these
+// two), so the two are imported directly from where they actually live.
+import { S001_STRATEGY_SESSION } from './executives/ceo/s001'
+import { S002_EXECUTIVE_CONTRACT } from './executives/ceo/s002'
+import { P001_GTM_PROMPT } from './executives/growth/programs/p001'
+import { AS001_ICP_PROFILES_PROMPT } from './executives/growth/assets/as001'
+import { AS002_PAINS_GAINS_PROMPT } from './executives/growth/assets/as002'
+import { AS003_BUYER_JOURNEY_PROMPT } from './executives/growth/assets/as003'
+import { AS004_POSITIONING_PROMPT } from './executives/growth/assets/as004'
+import { AS005_CHANNEL_STRATEGY_PROMPT } from './executives/growth/assets/as005'
+import { VALIDATE_ICPS_PROMPT } from './executives/growth/actions/validate-icps'
+import { INTERVIEW_CUSTOMERS_PROMPT } from './executives/growth/actions/interview-customers'
+import { POST_TEAM_UPDATE_PROMPT } from './executives/growth/actions/post-team-update'
+import { PRIORITIZE_CHANNELS_PROMPT } from './executives/growth/actions/prioritize-channels'
+import { REVIEW_MESSAGING_PROMPT } from './executives/growth/actions/review-messaging'
+import { APPROVE_GTM_PLAN_PROMPT } from './executives/growth/actions/approve-gtm-plan'
 
 /**
  * Executive System Prompts, by `Executive.systemPromptRef` — and, for the CEO, by
@@ -73,6 +77,7 @@ const INSTRUCTION_PROMPTS: Readonly<Record<string, string>> = {
   prioritize_channels: PRIORITIZE_CHANNELS_PROMPT,
   review_messaging: REVIEW_MESSAGING_PROMPT,
   approve_gtm_plan: APPROVE_GTM_PLAN_PROMPT,
+  post_team_update: POST_TEAM_UPDATE_PROMPT,
 }
 
 /**

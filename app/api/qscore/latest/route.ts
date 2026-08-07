@@ -28,7 +28,7 @@ export async function GET() {
       log.warn('qscore_with_delta view error, falling back to direct query:', viewError.message);
       const { data: directData, error: directError } = await supabase
         .from('qscore_history')
-        .select('id, user_id, overall_score, percentile, grade, p1_score, p2_score, p3_score, p4_score, p5_score, p6_score, calculated_at, ai_actions, data_source, source_artifact_type, score_version, iq_breakdown, available_iq, track')
+        .select('id, user_id, previous_score_id, overall_score, percentile, grade, p1_score, p2_score, p3_score, p4_score, p5_score, p6_score, calculated_at, ai_actions, data_source, source_artifact_type, score_version, iq_breakdown, available_iq, track')
         .eq('user_id', user.id)
         .order('calculated_at', { ascending: false })
         .limit(1)
@@ -115,6 +115,11 @@ export async function GET() {
       percentile: latest.percentile,
       grade: latest.grade,
       change: num(latest.overall_change),
+      // Distinguishes "genuinely unchanged" from "this is the founder's first score" — the
+      // delta view COALESCEs a missing predecessor to 0 change, which would otherwise silently
+      // read as "steady" for a score that has never actually moved because there's nothing to
+      // compare it to yet.
+      hasTrend: latest.previous_score_id != null,
       ragMetadata,
       scoreVersion,
       iqBreakdown,

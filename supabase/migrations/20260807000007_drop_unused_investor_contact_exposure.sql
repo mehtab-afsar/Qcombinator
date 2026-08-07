@@ -1,0 +1,21 @@
+-- ============================================================
+-- Drop "Founders can view verified investors for matching"
+--
+-- This RLS policy granted a founder's own session the ENTIRE investor_profiles
+-- row for any verified investor — including email, phone, and linkedin_url —
+-- the moment the founder's assessment was complete, with no connection request
+-- sent or accepted. RLS is row-level only; there is no column-level filter on
+-- a policy like this, so "for matching" ended up meaning "for full contact
+-- details too."
+--
+-- It's safe to drop outright: the actual founder-facing directory
+-- (app/api/investors/route.ts) doesn't use it at all — it reads through the
+-- service-role client with an explicit, already-safe field list (no contact
+-- info), same as the codebase's normal pattern for investor discovery
+-- (demo_investors, synced from investor_profiles). No other founder-reachable
+-- code queries investor_profiles for a user other than themselves. Investors'
+-- own read/write access to their own row is a separate policy and is
+-- untouched by this change.
+-- ============================================================
+
+DROP POLICY IF EXISTS "Founders can view verified investors for matching" ON investor_profiles;

@@ -67,6 +67,22 @@ export interface CompanyContext {
   currentAssets?: Partial<Record<AssetId, string>>
   /** Anything new this cycle — uploads, notes, results. */
   newInformation?: string
+  /**
+   * Anonymized, aggregate stats from founders in a similar sector/stage bucket on this
+   * platform (lib/comparables/retrieve.ts). Never per-founder data — a single real founder's
+   * identity or exact figure must never reach this field. Market context about *other*
+   * companies, not this founder's own data; still fenced as data, not instructions, like
+   * everything else in this layer.
+   */
+  comparableCohort?: string
+  /**
+   * Recent, sector-matched startup funding news from a third-party source (TechCrunch RSS —
+   * lib/comparables/market-signals.ts). Unlike comparableCohort, this is real, already-public
+   * company names and figures, not anonymized platform data — but it is UNVERIFIED news, not
+   * a fact this product vouches for, and the rendered text says so explicitly. Same as
+   * qScore/comparableCohort: composing never moves the Q-Score, and never will from this field.
+   */
+  marketSignals?: string
 }
 
 export interface ComposeInput {

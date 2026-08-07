@@ -25,10 +25,11 @@ import { bg, red, alpha } from '@/lib/constants/colors'
 import { useQScore } from '@/features/qscore/hooks/useQScore'
 import { PageHeader } from '@/features/shared/components/PageHeader'
 import { EmptyState } from '@/features/shared/components/EmptyState'
-import { PageSpinner } from '@/features/shared/components/Spinner'
+import { PageIconLoader } from '@/features/shared/components/Spinner'
 import { fetchWithTimeout, isTimeoutError } from '@/features/shared/lib/fetchWithTimeout'
 import { ActivationGate } from '@/features/executive/components/ActivationGate'
 import { ExecutiveTabBar } from '@/features/executive/components/ExecutiveTabBar'
+import { PageContainer } from '@/features/shared/components/PageContainer'
 import { Unveiling } from '@/features/executive/components/unveiling/Unveiling'
 import {
   resolveJourneyState,
@@ -116,7 +117,7 @@ export default function ExecutivePage() {
   }
 
   if (loading || qScoreLoading) {
-    return <PageSpinner label="Loading…" />
+    return <PageIconLoader label="Loading…" />
   }
 
   if (timedOut) {
@@ -199,7 +200,7 @@ export default function ExecutivePage() {
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ background: bg, minHeight: '100vh', padding: '48px 24px' }}>
-      <div style={{ maxWidth: 820, margin: '0 auto' }}>{children}</div>
+      <PageContainer>{children}</PageContainer>
     </div>
   )
 }

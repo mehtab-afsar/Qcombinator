@@ -26,3 +26,44 @@ export async function isFounderVisible(
   if (!data) return false
   return data.visibility_gated !== true
 }
+
+/**
+ * Resolves the connection_requests.status between an investor and a founder,
+ * or null if no request exists between them at all.
+ *
+ * Most investors are linked through a "claimed" demo_investor row rather than
+ * a real investor_id — connection_requests.investor_id is NULL for those, so
+ * this also matches on investor_profiles.demo_investor_id, the same
+ * resolution used by app/api/messages/route.ts for the same reason.
+ */
+export async function getConnectionStatus(
+  admin: ReturnType<typeof createAdminClient>,
+  investorUserId: string,
+  founderId: string,
+): Promise<string | null> {
+  const { data: ip } = await admin
+    .from('investor_profiles')
+    .select('demo_investor_id')
+    .eq('user_id', investorUserId)
+    .maybeSingle()
+
+  const orFilter = ip?.demo_investor_id
+    ? `investor_id.eq.${investorUserId},demo_investor_id.eq.${ip.demo_investor_id}`
+    : `investor_id.eq.${investorUserId}`
+
+  const { data: conn } = await admin
+    .from('connection_requests')
+    .select('status')
+    .eq('founder_id', founderId)
+    .or(orFilter)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  return conn?.status ?? null
+}
+
+/** A connection unlocks full founder data once it's been accepted (or a meeting's been scheduled off it). */
+export function isConnectedStatus(status: string | null): boolean {
+  return status === 'accepted' || status === 'meeting_scheduled'
+}

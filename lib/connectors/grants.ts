@@ -16,7 +16,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { log } from '@/lib/logger'
 import { getConnector } from './registry'
 import { deleteSecret, resolveSecret, storeSecret, updateSecret } from './vault'
-import { refreshAccessToken } from './oauth'
+import { getOAuthProvider } from './oauth-provider'
 import { ConnectorError, type ResolvedGrant } from './types'
 
 export interface ConnectorGrant {
@@ -134,17 +134,19 @@ export async function listGrants(
  * ⚠️ The ONE place a credential enters memory. Everything downstream receives a `ResolvedGrant`
  * and never touches the vault, so there is a single function to audit.
  *
- * ⚠️ THE VAULT HOLDS A **REFRESH** TOKEN, NOT AN ACCESS TOKEN. They are different things and
- * Gmail rejects the former with a 401 — which is exactly what the first real send did, because
- * every test mocked the vault and could not tell them apart. The refresh token is exchanged for
- * a short-lived access token here, on every resolve.
+ * ⚠️ THE VAULT HOLDS THE DURABLE CREDENTIAL, NOT NECESSARILY AN ACCESS TOKEN. For Gmail these are
+ * different things (a refresh token vs. a short-lived access token) — Gmail rejects the former
+ * with a 401, which is exactly what the first real send did, because every test mocked the vault
+ * and could not tell them apart. `getOAuthProvider(provider).mintAccessToken()` is where that
+ * distinction is resolved per provider: Gmail exchanges for a fresh access token on every
+ * resolve; Slack's bot token doesn't expire, so its `mintAccessToken` is a pass-through.
  *
- * Exchanging each time is deliberate rather than lazy: it means NO access token is ever stored,
- * so the only credential at rest is the one that is useless without our client secret. The cost
- * is one extra HTTP call per send, which is nothing beside an email.
+ * Exchanging each time (where a provider needs it) is deliberate rather than lazy: it means NO
+ * access token is ever stored, so the only credential at rest is one that is useless without our
+ * client secret. The cost is one extra HTTP call per send, which is nothing beside an email.
  *
  * Fails closed on every branch: not connected, revoked, expired, missing secret, or a refresh
- * Google refuses (which means the founder revoked us on their side).
+ * the provider refuses (which means the founder revoked us on their side).
  */
 export async function resolveGrant(
   admin: SupabaseClient,
@@ -174,19 +176,19 @@ export async function resolveGrant(
 
   const refreshToken = await resolveSecret(admin, row.token_ref)
 
-  // Mint a fresh access token. A refusal from GOOGLE means the grant is genuinely dead — usually
-  // the founder revoked us at myaccount.google.com — so mark it expired and let the UI ask for a
+  // Mint a fresh access token. A refusal from the PROVIDER means the grant is genuinely dead —
+  // usually the founder revoked us on their side — so mark it expired and let the UI ask for a
   // reconnect rather than failing silently on every future send.
   //
-  // ⚠️ ONLY a refusal from Google. An error raised on OUR side (missing client credentials, a
-  // network failure, the vault being unreachable) says nothing about whether the founder still
+  // ⚠️ ONLY a refusal from the provider. An error raised on OUR side (missing client credentials,
+  // a network failure, the vault being unreachable) says nothing about whether the founder still
   // consents. Treating those the same way meant a local misconfiguration silently marked a
   // perfectly good connection dead and made the founder reconnect for no reason — which is what
   // happened the first time a script ran without the client env set. Our own faults leave the
   // grant exactly as it was, so the next correctly-configured attempt just works.
   let accessToken: string
   try {
-    accessToken = (await refreshAccessToken(refreshToken)).accessToken
+    accessToken = (await getOAuthProvider(provider).mintAccessToken(refreshToken)).accessToken
   } catch (err) {
     const ourFault = err instanceof ConnectorError && err.code === 'not_configured'
     if (ourFault) {
@@ -197,7 +199,7 @@ export async function resolveGrant(
       .from('connector_grants')
       .update({ status: 'expired', expires_at: new Date().toISOString() })
       .eq('id', row.id)
-    log.warn('grant marked expired — google refused the refresh', { grantId: row.id, provider })
+    log.warn('grant marked expired — the provider refused the refresh', { grantId: row.id, provider })
     throw err
   }
 

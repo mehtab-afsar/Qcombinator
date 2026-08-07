@@ -190,6 +190,31 @@ export const connectionsPatchSchema = z.object({
 
 export type ConnectionsPatchInput = z.infer<typeof connectionsPatchSchema>
 
+// ─── Match rationale (founder-facing "why this match") ────────────────────
+// investorId/demoInvestorId mirror connection_requests' real/demo split — exactly one is
+// required, matching the DB CHECK on founder_match_explanations.
+
+export const matchRationaleSchema = z.object({
+  investorId:        uuidSchema.optional(),
+  demoInvestorId:    uuidSchema.optional(),
+  investorName:      z.string().min(1).max(200),
+  investorFirm:      z.string().max(200).optional().default(''),
+  investorThesis:    z.string().max(2000).optional().default(''),
+  investorSectors:   z.array(z.string().max(100)).max(20).default([]),
+  investorStages:    z.array(z.string().max(100)).max(20).default([]),
+  investorPortfolio: z.array(z.string().max(200)).max(20).default([]),
+  matchScore:        z.number().min(0).max(100),
+  founderSector:     z.string().max(100),
+  founderStage:      z.string().max(100),
+  founderQScore:     z.number().min(0).max(100),
+  startupOneLiner:   z.string().max(500).optional(),
+  regenerate:        z.boolean().optional(),
+}).refine(d => Boolean(d.investorId) !== Boolean(d.demoInvestorId), {
+  message: 'Exactly one of investorId or demoInvestorId is required',
+})
+
+export type MatchRationaleInput = z.infer<typeof matchRationaleSchema>
+
 // ─── Investor watchlist (Phase 0-I / H-3) ─────────────────────────────────
 
 export const watchlistPostSchema = z.object({
@@ -220,17 +245,15 @@ export const startupChatSchema = z.object({
   question: z.string().min(1).max(1000),
 })
 
-export type AiAnalysisChatInput = z.infer<typeof aiAnalysisChatSchema>
-export type StartupChatInput    = z.infer<typeof startupChatSchema>
-
-// ─── Investor messages (Phase 0-I / H-3) ──────────────────────────────────
-
-export const investorMessagePostSchema = z.object({
-  connectionId: uuidSchema,
-  body:         z.string().min(1).max(4000),
+// CANVAS_SPEC §4.6's chat rail — a command/question LINE, not a research query, hence the
+// shorter cap than startupChatSchema's 1000.
+export const executiveChatSchema = z.object({
+  message: z.string().trim().min(1).max(500),
 })
 
-export type InvestorMessagePostInput = z.infer<typeof investorMessagePostSchema>
+export type AiAnalysisChatInput = z.infer<typeof aiAnalysisChatSchema>
+export type StartupChatInput    = z.infer<typeof startupChatSchema>
+export type ExecutiveChatInput  = z.infer<typeof executiveChatSchema>
 
 // ─── Investor config (Phase 0-I / H-3) ────────────────────────────────────
 
@@ -359,18 +382,3 @@ export const startupShareSchema = z.object({
 
 export type StartupMemoInput  = z.infer<typeof startupMemoSchema>
 export type StartupShareInput = z.infer<typeof startupShareSchema>
-
-// ─── Investor match alerts — internal cron caller (Phase 0-I / H-3) ──────
-
-export const investorAlertsSchema = z.object({
-  founderId:   uuidSchema,
-  founderName: z.string().min(1).max(200),
-  startupName: z.string().min(1).max(200),
-  industry:    z.string().max(80),
-  stage:       z.string().max(40),
-  qScore:      z.number().min(0).max(100),
-  tagline:     z.string().max(300).optional(),
-  publicUrl:   z.string().max(2083),
-})
-
-export type InvestorAlertsInput = z.infer<typeof investorAlertsSchema>

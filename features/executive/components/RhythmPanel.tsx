@@ -17,12 +17,17 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, Loader2, AlertCircle, Minus, Circle, ChevronDown } from 'lucide-react'
-import { bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
+import { motion } from 'framer-motion'
+import { Check, Loader2, AlertCircle, Minus, Circle, ChevronDown, FileText, MessageSquare, Send } from 'lucide-react'
+import { bdr, ink, muted, blue, green, amber, red, alpha } from '@/lib/constants/colors'
+import { ease } from '@/features/shared/tokens'
+import { FONT_SERIF } from '@/features/onboarding/theme'
 import { SectionCard } from '@/features/shared/components/SectionCard'
 import { Button } from '@/features/shared/components/Button'
+import { scopeStepsToExecutive } from '../lib/scope-progress'
 
 type StepState = 'done' | 'active' | 'pending' | 'failed' | 'skipped'
+type StepKind = 'asset' | 'briefing' | 'action'
 
 interface ProgressStep {
   key: string
@@ -32,6 +37,13 @@ interface ProgressStep {
    *  until the Command View redesign needed a real field to filter on. */
   templateId: string
   executiveId: string | null
+  /** What kind of work this step is — an asset being written, the briefing, or an action —
+   *  drives the small kind icon next to the label so the list reads as more than one
+   *  undifferentiated checklist (PRD §3). */
+  kind: StepKind
+  /** A short real snippet of what this step produced, once done/skipped — see
+   *  lib/rhythm/preview.ts. null while in flight, or when no preview could be built. */
+  preview: string | null
 }
 
 interface RunProgress {
@@ -130,25 +142,25 @@ export function RhythmPanel({ executiveId }: { executiveId?: string } = {}) {
 
   if (!loaded) return null // nothing to say yet; avoids a flash of the empty state
 
-  // Narrow to one executive's steps for the detail page — recompute done/total/currentLabel
-  // from the filtered set so the numbers on screen describe what's actually shown, not the
-  // whole cycle's progress next to a partial step list.
+  // Narrow to one executive's steps for the detail page — see scopeStepsToExecutive's own
+  // docstring for why this is shared (with BirdsEyeStats) rather than a second copy of the filter.
   const scoped = progress && executiveId
-    ? {
-        ...progress,
-        steps: progress.steps.filter(s => s.executiveId === executiveId),
-        done: progress.steps.filter(s => s.executiveId === executiveId && (s.state === 'done' || s.state === 'skipped')).length,
-        total: progress.steps.filter(s => s.executiveId === executiveId).length,
-        currentLabel: progress.steps.find(s => s.executiveId === executiveId && s.state === 'active')?.label ?? null,
-      }
+    ? { ...progress, ...scopeStepsToExecutive(progress.steps, executiveId) }
     : progress
 
+  // FU-010: a run whose self-chain died server-side still has status:'running' — this button
+  // used to hide (progress.status !== 'running') for exactly the case a founder most needs it,
+  // leaving the "starting a new cycle picks up from here" copy below with nothing on screen
+  // that does that. `startCycle` already calls the same POST /api/rhythm/run that correctly
+  // resumes a stale run (lib/rhythm/runs.ts's createOrResumeRun) — this was a visibility bug,
+  // not a missing capability.
   return (
     <SectionCard
       title="This week's cycle"
-      action={progress?.status !== 'running' && (
+      style={{ background: alpha(amber, 0.04) }}
+      action={(progress?.status !== 'running' || progress?.stalled) && (
         <Button variant="secondary" size="sm" loading={busy} onClick={() => void startCycle()}>
-          Run now
+          {progress?.stalled ? 'Resume' : 'Run now'}
         </Button>
       )}
     >
@@ -247,21 +259,56 @@ function StatusLine({ progress }: { progress: RunProgress }) {
   )
 }
 
+// UX_SPEC §6: serif is for the executive's own voice, never chrome or data — this line is
+// the team addressing the founder directly ("Working on X…", "Finished — your briefing is
+// below"), so it qualifies. Priorities/metrics lists elsewhere stay as-is; those are facts.
 function Line({ color, children }: { color: string; children: React.ReactNode }) {
   return (
-    <p style={{ color, fontSize: 14, marginTop: 10, lineHeight: 1.6, maxWidth: 560 }}>{children}</p>
+    <p style={{ color, fontFamily: FONT_SERIF, fontSize: 14, marginTop: 10, lineHeight: 1.6, maxWidth: 560 }}>
+      {children}
+    </p>
   )
 }
 
 function StepRow({ step }: { step: ProgressStep }) {
   const { icon, color, note } = stepLook(step.state)
+  const KindIcon = kindIcon(step.kind)
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14 }}>
-      <span style={{ display: 'flex', width: 16 }}>{icon}</span>
-      <span style={{ color: step.state === 'pending' ? muted : ink, flex: 1 }}>{step.label}</span>
-      {note && <span style={{ color, fontSize: 12 }}>{note}</span>}
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 14 }}>
+      <span style={{ display: 'flex', width: 16, marginTop: 2, flexShrink: 0 }}>{icon}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <KindIcon size={12} color={muted} style={{ flexShrink: 0 }} />
+          <span style={{ color: step.state === 'pending' ? muted : ink, flex: 1 }}>{step.label}</span>
+          {note && <span style={{ color, fontSize: 12, flexShrink: 0 }}>{note}</span>}
+        </div>
+        {step.preview && (
+          // Fades in once, the moment this step's preview first appears (mount-only —
+          // ActivationScreen owns the bigger, staggered first-cycle ceremony; recurring
+          // cycles get this same content, presented calmer, so they don't read as dead
+          // by comparison).
+          <motion.p
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35, ease }}
+            style={{
+              color: muted, fontSize: 12, margin: '4px 0 0', lineHeight: 1.5,
+              overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box',
+              WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+            }}
+          >
+            {step.preview}
+          </motion.p>
+        )}
+      </div>
     </div>
   )
+}
+
+function kindIcon(kind: StepKind) {
+  if (kind === 'briefing') return MessageSquare
+  if (kind === 'action') return Send
+  return FileText
 }
 
 function HistoryRow({ run }: { run: RunSummary }) {

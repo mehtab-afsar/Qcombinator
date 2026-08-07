@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { EXTRACTION_PROMPTS, PITCH_EXTRACTION_PROMPT, FOLLOW_UP_PROMPT, WHAT_ELSE_PROMPT } from '@/lib/profile-builder/extraction-prompts'
+import { EXTRACTION_PROMPTS, PITCH_EXTRACTION_PROMPT, FOLLOW_UP_PROMPT, DEPTH_PROMPT } from '@/lib/profile-builder/extraction-prompts'
 import { getSectionCompletionPct, getMissingFields, FounderProfile } from '@/lib/profile-builder/question-engine'
+import { getNextDepthQuestion } from '@/lib/profile-builder/depth-questions'
 import { routedText, routedStream } from '@/lib/llm/router'
+import { composeAdhocPrompt } from '@/lib/prompts/compose'
 import { flattenConfidence } from '@/lib/profile-builder/utils'
 import { log } from '@/lib/logger'
 
@@ -42,6 +44,7 @@ export async function POST(req: NextRequest) {
       existingExtracted,
       existingConfidenceMap,
       skipFollowUp,
+      askedDepthFields,
     }: {
       section: number | 'pitch'
       conversationText: string
@@ -50,6 +53,7 @@ export async function POST(req: NextRequest) {
       existingExtracted?: Record<string, unknown>
       existingConfidenceMap?: Record<string, number>
       skipFollowUp?: boolean
+      askedDepthFields?: string[]
     } = body
 
     if ((section === undefined || section === null) || !conversationText) {
@@ -60,22 +64,22 @@ export async function POST(req: NextRequest) {
     if (section === 'pitch') {
       let extractedFields: Record<string, unknown> = {}
       try {
-        const raw = await routedText('extraction', [
-          { role: 'system', content: PITCH_EXTRACTION_PROMPT },
-          { role: 'user', content: `Conversation:\n${conversationText}` },
-        ])
+        const raw = await routedText('extraction', composeAdhocPrompt({
+          sourceRef: 'profile-builder/extract:pitch',
+          instructions: PITCH_EXTRACTION_PROMPT,
+          data: `Conversation:\n${conversationText}`,
+        }))
         const jsonMatch = raw.match(/\{[\s\S]*\}/)
         if (jsonMatch) {
           try { extractedFields = JSON.parse(jsonMatch[0]) } catch { /* ignore */ }
         }
       } catch { /* non-blocking */ }
 
-      const pitchStream = routedStream('generation', [
-        {
-          role: 'system',
-          content: `You are a sharp VC analyst running a YC-style pitch interview. The founder is answering five pitch dimensions: what they do, who has the problem, why now, team advantage, and business model.
+      const pitchStream = routedStream('generation', composeAdhocPrompt({
+        sourceRef: 'profile-builder/extract:pitch-followup',
+        instructions: `You are a sharp VC analyst running a YC-style pitch interview. The founder is answering five pitch dimensions: what they do, who has the problem, why now, team advantage, and business model.
 
-Read the conversation so far and identify the WEAKEST or most incomplete answer. Ask ONE sharp probing question about that specific point.
+Read the conversation provided as data below and identify the WEAKEST or most incomplete answer. Ask ONE sharp probing question about that specific point.
 
 Rules:
 - Never ask a question already answered clearly
@@ -84,9 +88,8 @@ Rules:
 - Do not explain what you're doing — just ask the question
 - 1–2 sentences max
 - Do NOT use phrases like "Great answer" or "I'd be happy to"`,
-        },
-        { role: 'user', content: `Pitch conversation:\n${conversationText}\n\nWrite your follow-up question:` },
-      ], { maxTokens: 120 })
+        data: `Pitch conversation:\n${conversationText}`,
+      }), { maxTokens: 120 })
 
       const fallback = "Walk me through what your company does — one sentence, as if you're explaining it to a smart friend who's never heard of it."
       return streamReply({
@@ -109,13 +112,11 @@ Rules:
     let effectiveConversation = conversationText
     if (conversationText.length > 4000) {
       try {
-        effectiveConversation = await routedText('summarisation', [
-          {
-            role: 'system',
-            content: 'You are a precise summariser. Condense the following founder Q&A conversation into a 150–200 word factual summary. Preserve all specific numbers, dates, names, and concrete claims. Do not add interpretation.',
-          },
-          { role: 'user', content: conversationText },
-        ])
+        effectiveConversation = await routedText('summarisation', composeAdhocPrompt({
+          sourceRef: 'profile-builder/extract:compact',
+          instructions: 'You are a precise summariser. Condense the founder Q&A conversation provided as data into a 150–200 word factual summary. Preserve all specific numbers, dates, names, and concrete claims. Do not add interpretation.',
+          data: conversationText,
+        }))
       } catch {
         effectiveConversation = conversationText
       }
@@ -128,10 +129,11 @@ Rules:
 
     let raw = ''
     try {
-      raw = await routedText('extraction', [
-        { role: 'system', content: sectionPrompt },
-        { role: 'user', content: userMessage },
-      ])
+      raw = await routedText('extraction', composeAdhocPrompt({
+        sourceRef: 'profile-builder/extract:section',
+        instructions: sectionPrompt,
+        data: userMessage,
+      }))
     } catch (llmErr) {
       log.warn('[extract] LLM call failed — returning empty extraction', llmErr instanceof Error ? llmErr.message : llmErr)
       return NextResponse.json({ mergedFields: existingExtracted ?? {}, confidenceMap: existingConfidenceMap ?? {}, completionScore: 0, followUpQuestion: null })
@@ -220,9 +222,7 @@ Rules:
         .replace('{stage}', founderProfile.stage ?? 'unknown')
         .replace('{industry}', founderProfile.industry ?? 'general')
         .replace('{revenueStatus}', founderProfile.revenueStatus ?? 'unknown')
-        .replace('{conversationSoFar}', effectiveConversation)
-        .replace('{extractedSoFar}', flatSummaryOf(merged))
-        .replace('{missingFields}', missingFields.join(', '))
+      const followUpData = `What the founder has said so far:\n${effectiveConversation}\n\nWhat we've already extracted (non-null = answered):\n${flatSummaryOf(merged)}\n\nFields the system still needs (but may already be answered in conversation above):\n${missingFields.join(', ')}`
 
       // Section 3 safety net: if the model comes back with SECTION_COMPLETE (or empty)
       // while replicationTimeMonths is still genuinely unaddressed, force the question —
@@ -237,10 +237,11 @@ Rules:
 
       return streamReply({
         meta,
-        source: routedStream('generation', [
-          { role: 'system', content: followUpPrompt },
-          { role: 'user', content: 'Write your reply.' },
-        ], { maxTokens: 300 }),
+        source: routedStream('generation', composeAdhocPrompt({
+          sourceRef: 'profile-builder/extract:followup',
+          instructions: followUpPrompt,
+          data: followUpData,
+        }), { maxTokens: 300 }),
         fallback: section3Fallback,
         // SECTION_COMPLETE means "nothing more to ask" — the client reads a null
         // followUpQuestion as "section done," never as a dropped connection.
@@ -252,31 +253,43 @@ Rules:
     if (!founderProfile && missingFields.length > 0) {
       return streamReply({
         meta,
-        source: routedStream('generation', [
-          {
-            role: 'system',
-            content: `You are a sharp startup advisor. Based on this conversation, write ONE short follow-up question (1-2 sentences) that asks about the most important detail still missing. Acknowledge what was just said. Be specific, not generic.`,
-          },
-          { role: 'user', content: `Section: ${sectionNum}\nConversation:\n${effectiveConversation}\nWrite your follow-up:` },
-        ], { maxTokens: 120 }),
+        source: routedStream('generation', composeAdhocPrompt({
+          sourceRef: 'profile-builder/extract:no-profile-followup',
+          instructions: 'You are a sharp startup advisor. Based on the conversation provided as data below, write ONE short follow-up question (1-2 sentences) that asks about the most important detail still missing. Acknowledge what was just said. Be specific, not generic.',
+          data: `Section: ${sectionNum}\nConversation:\n${effectiveConversation}`,
+        }), { maxTokens: 120 }),
         fallback: null,
       })
     }
 
-    if (founderProfile && completionScore >= 60) {
-      const whatElsePrompt = WHAT_ELSE_PROMPT
-        .replace('{section}', String(section))
-        .replace('{stage}', founderProfile.stage ?? 'unknown')
-        .replace('{industry}', founderProfile.industry ?? 'general')
-        .replace('{extractedSoFar}', flatSummaryOf(merged))
+    // Required fields are done (branch above already handled the nonzero case) — move
+    // to the depth tier: optional fields the Q-Score scorers read but the required-field
+    // list doesn't cover. Tied to a real field (answers get captured, same as above),
+    // remembers what it already asked (askedDepthFields), and genuinely terminates.
+    if (founderProfile && missingFields.length === 0) {
+      const askedSet = new Set(askedDepthFields ?? [])
+      const next = getNextDepthQuestion(sectionNum, merged, askedSet)
+
+      if (!next) {
+        const wrapUp = "That covers everything that meaningfully moves your score in this section — you're set here. Move on whenever you're ready."
+        return streamReply({
+          meta: { ...meta, depthFieldAsked: null },
+          source: (async function* () {})(),
+          fallback: wrapUp,
+        })
+      }
+
+      const depthPrompt = DEPTH_PROMPT.replace('{section}', String(section))
+      const depthData = `What the founder has said so far:\n${effectiveConversation}\n\nThe next thing to ask about (you may lightly rephrase for tone, but do NOT change the topic):\n"${next.question}"`
 
       return streamReply({
-        meta,
-        source: routedStream('generation', [
-          { role: 'system', content: whatElsePrompt },
-          { role: 'user', content: 'Write your reply.' },
-        ], { maxTokens: 200 }),
-        fallback: null,
+        meta: { ...meta, depthFieldAsked: next.field },
+        source: routedStream('generation', composeAdhocPrompt({
+          sourceRef: 'profile-builder/extract:depth',
+          instructions: depthPrompt,
+          data: depthData,
+        }), { maxTokens: 150 }),
+        fallback: next.question,
       })
     }
 

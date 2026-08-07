@@ -12,14 +12,13 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { red, muted } from '@/lib/constants/colors'
+import { red } from '@/lib/constants/colors'
 import { useStreamedProposal, type StreamedProposal } from '../../hooks/useStreamedProposal'
 import { Thread } from './Thread'
 import { TheRead } from './TheRead'
 import { ProposedDirection } from './ProposedDirection'
 import { NudgeExchange } from './NudgeExchange'
-import { MandateHardens } from './MandateHardens'
-import { TeamClaimsIt } from './TeamClaimsIt'
+import { MandateReveal } from './MandateReveal'
 import { OneConfirm } from './OneConfirm'
 import type { Contract, Strategy } from '../../types/executive.types'
 
@@ -50,7 +49,7 @@ export function Unveiling({
   const [nudging, setNudging] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  // Bumped on every fresh commit — forces MandateHardens to remount and re-draft
+  // Bumped on every fresh commit — forces MandateReveal to remount and re-draft
   // instead of reusing a stale contract from a direction that's no longer current.
   const [attempt, setAttempt] = useState(0)
 
@@ -173,22 +172,15 @@ export function Unveiling({
           />
         )}
 
-        {step >= 3 && committed && (
-          <p style={{ color: muted, fontSize: 13, margin: 0 }}>
-            Direction: <span style={{ color: muted }}>{committed.mission}</span>
-          </p>
-        )}
-
         {step >= 3 && (
-          <MandateHardens
+          <MandateReveal
             key={attempt}
             contract={localContract}
+            mission={committed?.mission}
             onHardened={c => { setLocalContract(c); setStep(s => (s < 4 ? 4 : s)) }}
             onError={setError}
           />
         )}
-
-        {step >= 4 && localContract && <TeamClaimsIt contract={localContract} />}
 
         {step >= 4 && localContract && (
           <OneConfirm

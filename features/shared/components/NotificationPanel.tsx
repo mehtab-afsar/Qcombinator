@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import { useRef, useEffect } from 'react'
 import Link from 'next/link'
-import { bg, surf, bdr, ink, muted, blue, green } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted, blue, green, amber, purple, cyan, red, white } from '@/lib/constants/colors'
 
 export interface NotifItem {
   id: string
@@ -24,16 +24,16 @@ export interface NotifItem {
 // ─── type → accent color ──────────────────────────────────────────────────────
 const TYPE_COLOR: Record<string, string> = {
   connection_request:  blue,
-  connection_accepted: '#16A34A',
-  investor_outreach:   '#7C3AED',
+  connection_accepted: green,
+  investor_outreach:   purple,
   message:             blue,
-  qscore_update:       '#16A34A',
-  deal_flow:           '#D97706',
-  startup_share:       '#0891B2',
-  agent_complete:      '#6B7280',
-  agent_action:        '#7C3AED',  // autonomous agent work — purple to distinguish
-  investor_view:       '#D97706',
-  stripe_verify:       '#635BFF', // Stripe brand purple
+  qscore_update:       green,
+  deal_flow:           amber,
+  startup_share:       cyan,
+  agent_complete:      muted,
+  agent_action:        purple,  // autonomous agent work — purple to distinguish
+  investor_view:       amber,
+  stripe_verify:       '#635BFF', // Stripe brand purple — deliberate exception, not in the app palette
 }
 
 // ─── type → icon — the single place a notification type is given an icon.
@@ -89,15 +89,17 @@ function timeAgo(iso: string) {
   return `${Math.floor(h / 24)}d ago`
 }
 
-function NotifRow({ n, onViewStartup }: { n: NotifItem; onViewStartup?: (id: string) => void }) {
+export function NotifRow({ n, onViewStartup }: { n: NotifItem; onViewStartup?: (id: string) => void }) {
   const accent = getAccent(n.type)
   const Icon = getIcon(n.type)
   const founderId   = n.metadata?.founderId   as string | undefined
   const toAgent     = n.metadata?.toAgent     as string | undefined
   const artifactType = n.metadata?.artifactType as string | undefined
   const fromAgent   = n.metadata?.fromAgent   as string | undefined
-  // For agent_action notifications, link to the agent's CXO workspace
-  const agentActionHref = toAgent ? `/founder/executive` : '/founder/executive'
+  // For agent_action notifications, link to the specific executive's workspace when we know
+  // which one triggered it, otherwise the executive team list. Agent work is a founder-only
+  // concept in this product — there is no investor equivalent to link to.
+  const agentActionHref = toAgent ? `/founder/executive/${toAgent}` : '/founder/executive'
 
   return (
     <div style={{
@@ -152,8 +154,8 @@ function NotifRow({ n, onViewStartup }: { n: NotifItem; onViewStartup?: (id: str
             <Link
               href={agentActionHref}
               style={{
-                fontSize: 11, fontWeight: 600, color: '#7C3AED',
-                background: '#F5F3FF', border: '1px solid #DDD6FE',
+                fontSize: 11, fontWeight: 600, color: purple,
+                background: `${purple}12`, border: `1px solid ${purple}40`,
                 borderRadius: 999, padding: '2px 10px', textDecoration: 'none',
                 display: 'inline-block',
               }}
@@ -188,7 +190,7 @@ function NotifRow({ n, onViewStartup }: { n: NotifItem; onViewStartup?: (id: str
           <span style={{
             display: 'inline-block', marginTop: 4,
             fontSize: 10, fontWeight: 600, color: green,
-            background: '#F0FDF4', border: '1px solid #BBF7D0',
+            background: `${green}12`, border: `1px solid ${green}30`,
             borderRadius: 999, padding: '1px 8px', textTransform: 'capitalize',
           }}>
             {artifactType.replace(/_/g, ' ')}
@@ -238,7 +240,7 @@ export function NotificationDropdown({
       style={{
         position: 'fixed', top: 56, right: 12, zIndex: 200,
         width: 380, maxHeight: 520,
-        background: '#fff', borderRadius: 16,
+        background: white, borderRadius: 16,
         border: `1px solid ${bdr}`,
         boxShadow: '0 8px 40px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06)',
         display: 'flex', flexDirection: 'column',
@@ -368,11 +370,11 @@ export function NotificationBellButton({
             style={{
               position: 'absolute', top: -5, right: -5,
               minWidth: 17, height: 17, borderRadius: 999,
-              background: '#DC2626', color: '#fff',
+              background: red, color: white,
               fontSize: 9, fontWeight: 700,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               padding: '0 4px',
-              border: `2px solid #fff`,
+              border: `2px solid ${white}`,
               boxShadow: '0 1px 4px rgba(220,38,38,0.4)',
             }}
           >

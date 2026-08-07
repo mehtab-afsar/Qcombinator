@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getAdminClient } from '@/lib/supabase/server'
 import { withCircuitBreaker } from '@/lib/circuit-breaker'
+import { APP_EMAIL_FROM } from '@/lib/constants/app'
 import { log } from '@/lib/logger'
 
 // POST /api/digest/weekly
@@ -142,7 +143,7 @@ export async function POST() {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            from: 'Edge Alpha <no-reply@edgealpha.ai>',
+            from: APP_EMAIL_FROM,
             to: [founderEmail],
             subject: `Weekly digest — ${companyName} · ${activity.length} agent action${activity.length !== 1 ? 's' : ''} this week`,
             html: emailHtml,

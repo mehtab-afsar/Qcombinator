@@ -4,7 +4,7 @@
  * whose status was still 'draft' and zero Programs activated. No exception was raised anywhere,
  * so the founder would have been told their mandate was confirmed when it genuinely wasn't. Root
  * cause wasn't pinned with certainty — RLS policies, the RPC's own atomicity, and
- * MandateHardens's Strict-Mode draft guard were all checked and are correct, and an identical
+ * MandateReveal's Strict-Mode draft guard were all checked and are correct, and an identical
  * re-invocation succeeded cleanly — but "no error was raised" and "the mutation actually
  * happened" turned out not to be the same guarantee. This tests the defensive fix: never return
  * success without checking the RPC's own returned row actually reflects it.

@@ -3,8 +3,8 @@ import { verifyAuth } from '@/lib/auth/verify'
 import { getAdminClient } from '@/lib/supabase/server'
 import { parseBody, completeProfileSchema } from '@/lib/api/validate'
 import { log } from '@/lib/logger'
-import { mapStage, mapIndustry, mapRevenue } from '@/lib/founder/signup-mappings'
-import { enrichOnboardingText, autoLinkPortfolioByEmail, notifyAndTrackSignup } from '@/lib/founder/complete-onboarding'
+import { mapStage, mapIndustry, mapRevenue } from '@/features/founder/services/signup-mappings.service'
+import { enrichOnboardingText, autoLinkPortfolioByEmail, notifyAndTrackSignup } from '@/features/founder/services/complete-onboarding.service'
 
 /**
  * Finishes onboarding for a founder who signed up with Google.
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'Could not save your profile. Please try again.' }, { status: 500 })
     }
 
-    // Same side effects as email/password signup — see lib/founder/complete-onboarding.ts.
+    // Same side effects as email/password signup — see features/founder/services/complete-onboarding.service.ts.
     void enrichOnboardingText(auth.user.id, problemStatement, targetCustomer, admin)
     if (auth.user.email) {
       void autoLinkPortfolioByEmail(auth.user.id, auth.user.email, profile.id, admin)

@@ -12,7 +12,10 @@ import Link from "next/link";
 import type { Workshop, Mentor, AcademyProgram } from "@/features/academy/types/academy.types";
 import { bg, surf, bdr, ink, muted, red } from '@/lib/constants/colors'
 import { SectionSpinner } from '@/features/shared/components/Spinner'
+import { PageContainer } from '@/features/shared/components/PageContainer'
+import { SectionCard } from '@/features/shared/components/SectionCard'
 import { WorkshopCalendar } from '@/features/academy/components/WorkshopCalendar'
+import { AcademyYearCalendar } from '@/features/academy/components/AcademyYearCalendar'
 import type { RegisterResult } from '@/features/academy/components/DayWorkshopPanel'
 import { buildGoogleCalendarUrl } from '@/features/academy/lib/googleCalendarLink'
 
@@ -48,7 +51,8 @@ function AcademyInner() {
   const [workshops, setWorkshops]     = useState<Workshop[]>([]);
   const [mentors, setMentors]         = useState<Mentor[]>([]);
   const [academyPrograms, setAcademyPrograms] = useState<AcademyProgram[]>([]);
-  const [workshopView, setWorkshopView] = useState<'list' | 'calendar'>('list');
+  const [workshopView, setWorkshopView] = useState<'list' | 'calendar' | 'year'>('list');
+  const [yearJumpTarget, setYearJumpTarget] = useState<{ month: Date; dateKey: string } | null>(null);
   const [registeredIds, setRegisteredIds] = useState<Set<string>>(new Set());
   const [registeringId, setRegisteringId] = useState<string | null>(null);
   const [fullIds, setFullIds] = useState<Set<string>>(new Set());
@@ -103,6 +107,11 @@ function AcademyInner() {
     }
   }
 
+  function handleYearDateSelect(dateKey: string, monthAnchor: Date) {
+    setYearJumpTarget({ month: monthAnchor, dateKey });
+    setWorkshopView('calendar');
+  }
+
   const upcomingWorkshops = workshops.filter(w => w.status === 'upcoming' || w.status === 'live');
   const pastWorkshops     = workshops.filter(w => w.status === 'past');
   const openPrograms      = academyPrograms.filter(p => p.status === 'open');
@@ -114,7 +123,7 @@ function AcademyInner() {
 
   return (
     <div style={{ background: bg, minHeight: "100vh", padding: "32px 24px" }}>
-      <div style={{ maxWidth: 1120, margin: "0 auto" }}>
+      <PageContainer>
 
         {/* ── Header ──────────────────────────────────────────────────── */}
         <motion.div
@@ -286,10 +295,10 @@ function AcademyInner() {
                     </div>
                     {upcomingWorkshops.length > 0 && (
                       <div style={{ display: "flex", gap: 3, background: surf, borderRadius: 9, padding: 3, border: `1px solid ${bdr}` }}>
-                        {(["list", "calendar"] as const).map(v => (
+                        {(["list", "calendar", "year"] as const).map(v => (
                           <button
                             key={v}
-                            onClick={() => setWorkshopView(v)}
+                            onClick={() => { if (v !== 'year') setYearJumpTarget(null); setWorkshopView(v); }}
                             style={{
                               padding: "6px 14px", borderRadius: 7, border: "none", cursor: "pointer",
                               fontSize: 12, fontWeight: workshopView === v ? 500 : 400,
@@ -308,10 +317,19 @@ function AcademyInner() {
 
                   {upcomingWorkshops.length > 0 && workshopView === "calendar" ? (
                     <WorkshopCalendar
+                      key={yearJumpTarget?.dateKey ?? 'default'}
                       workshops={upcomingWorkshops}
                       registeredIds={registeredIds}
                       onRegister={handleRegister}
                       onUnregister={handleUnregister}
+                      initialMonth={yearJumpTarget?.month}
+                      initialSelectedDateKey={yearJumpTarget?.dateKey ?? null}
+                    />
+                  ) : upcomingWorkshops.length > 0 && workshopView === "year" ? (
+                    <AcademyYearCalendar
+                      year={new Date().getUTCFullYear()}
+                      workshops={upcomingWorkshops}
+                      onSelectDate={handleYearDateSelect}
                     />
                   ) : upcomingWorkshops.length === 0 ? (
                     <motion.div
@@ -730,10 +748,7 @@ function AcademyInner() {
                         </div>
 
                         {/* Right sidebar */}
-                        <div style={{
-                          minWidth: 200, background: surf, borderRadius: 12, padding: 20,
-                          border: `1px solid ${bdr}`,
-                        }}>
+                        <SectionCard style={{ minWidth: 200, background: surf, boxShadow: "none" }}>
                           <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 16 }}>
                             {[
                               { label: "Starts", value: new Date(prog.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric" }) },
@@ -777,7 +792,7 @@ function AcademyInner() {
                             Apply Now
                             <Award style={{ width: 13, height: 13 }} />
                           </button>
-                        </div>
+                        </SectionCard>
                       </div>
                     </motion.div>
                   );
@@ -814,7 +829,7 @@ function AcademyInner() {
 
           </motion.div>
         </AnimatePresence>}
-      </div>
+      </PageContainer>
 
       {/* ── Toast ─────────────────────────────────────────────────────── */}
       <AnimatePresence>

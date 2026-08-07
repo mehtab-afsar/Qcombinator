@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getAdminClient } from '@/lib/supabase/server'
-import { callClaude } from '@/lib/claude'
+import { routedText } from '@/lib/llm/router'
+import { composeAdhocPrompt } from '@/lib/prompts/compose'
 import { Resend } from 'resend'
+import { APP_DOMAIN } from '@/lib/constants/app'
 import { log } from '@/lib/logger'
 
 // POST /api/digest/daily
@@ -72,11 +74,9 @@ export async function POST() {
         : '',
     ].filter(Boolean).join('\n')
 
-    const raw = await callClaude(
-      [
-        {
-          role: 'system',
-          content: `You are a startup operating system generating a morning briefing for a founder. Be specific, brief, and actionable.
+    const messages = composeAdhocPrompt({
+      sourceRef: 'digest/daily',
+      instructions: `You are a startup operating system generating a morning briefing for a founder. Be specific, brief, and actionable.
 Return ONLY valid JSON:
 {
   "greeting": "personalized good morning, 1 sentence, mention day/date",
@@ -92,11 +92,10 @@ Rules:
 - priorities: 3 max, actually useful, drawn from the context data
 - Be direct, not motivational-poster-y
 - If founder has no pipeline, skip pipelineNudge`,
-        },
-        { role: 'user', content: `Generate morning briefing for:\n${context}` },
-      ],
-      { maxTokens: 500, temperature: 0.5 }
-    )
+      data: context,
+    })
+
+    const raw = await routedText('generation', messages, { modelTier: 'fast', maxTokens: 500, temperature: 0.5 })
 
     const clean = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
     let brief: Record<string, unknown>
@@ -145,7 +144,7 @@ Rules:
 
     const resend = new Resend(resendKey)
     const { error: sendError } = await resend.emails.send({
-      from: `${company} OS <no-reply@edgealpha.ai>`,
+      from: `${company} OS <no-reply@${APP_DOMAIN}>`,
       to: founderEmail,
       subject: `☀️ ${todayStr} — Your Morning Briefing`,
       html,

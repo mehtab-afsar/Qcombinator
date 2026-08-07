@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAdminClient } from '@/lib/supabase/server'
-import { callClaude } from '@/lib/claude'
+import { routedText } from '@/lib/llm/router'
+import { composeAdhocPrompt } from '@/lib/prompts/compose'
+import { APP_DOMAIN } from '@/lib/constants/app'
 import { log } from '@/lib/logger'
 
 // POST /api/webhook/lead?uid=USER_ID
@@ -49,25 +51,25 @@ export async function POST(request: NextRequest) {
     let responseEmail = ''
 
     try {
-      responseEmail = (await callClaude(
-        [
-          {
-            role: 'system',
-            content: `You are Susi, a sales assistant for ${companyName}. Write a warm, concise, personalized first-touch response email to a new inbound lead. Tone: professional but friendly, not salesy. Max 120 words. Do NOT use "I hope this email finds you well" or any clichés. Do NOT include a subject line — just the email body starting with "Hi [name],". End with a specific CTA (book a call, reply to chat, or demo link).`,
-          },
-          {
-            role: 'user',
-            content: [
-              `Lead name: ${name}`,
-              company ? `Company: ${company}` : '',
-              message ? `Their message/interest: ${message}` : 'They submitted an interest form.',
-              source ? `Source: ${source}` : '',
-              calendlyUrl ? `Calendar link: ${calendlyUrl}` : '',
-              `Sign off as: ${founderName}, ${companyName}`,
-            ].filter(Boolean).join('\n'),
-          },
-        ],
-        { maxTokens: 200, temperature: 0.6 },
+      const leadData = [
+        `Lead name: ${name}`,
+        company ? `Company: ${company}` : '',
+        message ? `Their message/interest: ${message}` : 'They submitted an interest form.',
+        source ? `Source: ${source}` : '',
+        calendlyUrl ? `Calendar link: ${calendlyUrl}` : '',
+        `Sign off as: ${founderName}, ${companyName}`,
+      ].filter(Boolean).join('\n')
+
+      const messages = composeAdhocPrompt({
+        sourceRef: 'webhook/lead',
+        instructions: `You are Susi, a sales assistant for ${companyName}. Write a warm, concise, personalized first-touch response email to a new inbound lead. Tone: professional but friendly, not salesy. Max 120 words. Do NOT use "I hope this email finds you well" or any clichés. Do NOT include a subject line — just the email body starting with "Hi [name],". End with a specific CTA (book a call, reply to chat, or demo link).`,
+        data: leadData,
+      })
+
+      responseEmail = (await routedText(
+        'generation',
+        messages,
+        { modelTier: 'fast', maxTokens: 200, temperature: 0.6 },
       )).trim()
     } catch {
       // AI unavailable — fall through to fallback template
@@ -103,7 +105,7 @@ export async function POST(request: NextRequest) {
         headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
         signal: ctrl1.signal,
         body: JSON.stringify({
-          from: `${founderName} at ${companyName} <no-reply@edgealpha.ai>`,
+          from: `${founderName} at ${companyName} <no-reply@${APP_DOMAIN}>`,
           to: [email],
           reply_to: founderEmail,
           subject: `Re: Your interest in ${companyName}`,
@@ -117,7 +119,9 @@ export async function POST(request: NextRequest) {
       clearTimeout(t1)
     }
 
-    // fire-and-forget: founder notification email — lead response to prospect already sent above
+    // fire-and-forget: founder notification email. Must reflect sendRes.ok honestly — this used
+    // to always claim "Susi auto-responded" and show the "sent" text even when the actual reply
+    // to the lead had just failed above, which is worse than no notification at all.
     const ctrl2 = new AbortController()
     const t2 = setTimeout(() => ctrl2.abort(), 10_000)
     fetch('https://api.resend.com/emails', {
@@ -125,10 +129,12 @@ export async function POST(request: NextRequest) {
       headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
       signal: ctrl2.signal,
       body: JSON.stringify({
-        from: `Susi via Edge Alpha <no-reply@edgealpha.ai>`,
+        from: `Susi via Edge Alpha <no-reply@${APP_DOMAIN}>`,
         to: [founderEmail],
-        subject: `🎯 New inbound lead: ${name}${company ? ` (${company})` : ''}`,
-        html: `<p><strong>Susi auto-responded to a new lead within 60 seconds.</strong></p>
+        subject: sendRes.ok
+          ? `🎯 New inbound lead: ${name}${company ? ` (${company})` : ''}`
+          : `⚠️ New inbound lead: ${name} — auto-reply FAILED, please follow up manually`,
+        html: `<p><strong>${sendRes.ok ? 'Susi auto-responded to a new lead within 60 seconds.' : 'Susi could not send an auto-response to this lead — the email failed to send.'}</strong></p>
 <table style="border-collapse:collapse;width:100%;max-width:500px;font-family:system-ui,sans-serif;font-size:14px">
   <tr><td style="padding:8px 12px;background:#F9F7F2;font-weight:600;color:#8A867C">Name</td><td style="padding:8px 12px;border-bottom:1px solid #E2DDD5">${name}</td></tr>
   <tr><td style="padding:8px 12px;background:#F9F7F2;font-weight:600;color:#8A867C">Email</td><td style="padding:8px 12px;border-bottom:1px solid #E2DDD5"><a href="mailto:${email}">${email}</a></td></tr>
@@ -136,7 +142,7 @@ export async function POST(request: NextRequest) {
   ${message ? `<tr><td style="padding:8px 12px;background:#F9F7F2;font-weight:600;color:#8A867C">Message</td><td style="padding:8px 12px;border-bottom:1px solid #E2DDD5">${message}</td></tr>` : ''}
   ${source ? `<tr><td style="padding:8px 12px;background:#F9F7F2;font-weight:600;color:#8A867C">Source</td><td style="padding:8px 12px">${source}</td></tr>` : ''}
 </table>
-<p style="margin-top:20px;font-size:13px;color:#8A867C"><strong>Response sent to ${email}:</strong></p>
+<p style="margin-top:20px;font-size:13px;color:#8A867C"><strong>${sendRes.ok ? `Response sent to ${email}:` : `Reply to ${email} yourself — Susi's draft was:`}</strong></p>
 <blockquote style="border-left:3px solid #2563EB;padding:12px 16px;background:#F0F6FF;font-size:13px;color:#374151;white-space:pre-wrap;font-family:inherit">${responseEmail.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</blockquote>`,
       }),
     }).catch(err => log.warn('Lead webhook: founder notification failed', { uid, err }))
@@ -149,7 +155,9 @@ export async function POST(request: NextRequest) {
           user_id: uid,
           agent_id: 'susi',
           action_type: 'inbound_lead',
-          description: `Inbound lead from ${name}${company ? ` (${company})` : ''} — auto-responded in <60s`,
+          description: sendRes.ok
+            ? `Inbound lead from ${name}${company ? ` (${company})` : ''} — auto-responded in <60s`
+            : `Inbound lead from ${name}${company ? ` (${company})` : ''} — auto-reply FAILED, needs manual follow-up`,
           metadata: { name, email, company, message, source, emailSent: sendRes.ok },
         }),
         adminClient.from('deals').insert({

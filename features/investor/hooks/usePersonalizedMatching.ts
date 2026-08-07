@@ -4,9 +4,9 @@
  */
 
 import { useState, useEffect } from 'react'
-import { getRankedMatches } from '@/lib/services/deal-matching.service'
+import { getRankedMatches } from '@/features/investor/services/deal-matching.service'
 import type { InvestorConfig } from '@/lib/constants/investor-config/types'
-import type { FounderProfile } from '@/lib/services/deal-matching.service'
+import type { FounderProfile } from '@/features/investor/services/deal-matching.service'
 
 interface PersonalizedMatch {
   founder: FounderProfile

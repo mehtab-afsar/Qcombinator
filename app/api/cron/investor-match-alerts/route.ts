@@ -20,11 +20,13 @@ export async function GET(req: NextRequest) {
   const supabase = getAdminClient()
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
 
-  // Founders who just completed profile builder
+  // Founders who just completed profile builder — visibility_gated founders opted out of
+  // being surfaced to investors, same exclusion the main deal-flow browsing list applies.
   const { data: newFounders, error: founderErr } = await supabase
     .from('founder_profiles')
     .select('user_id, full_name, startup_name, industry, stage, overall_score:qscore_history(overall_score)')
     .eq('profile_builder_completed', true)
+    .eq('visibility_gated', false)
     .gte('profile_builder_completed_at', since)
     .limit(200)
 

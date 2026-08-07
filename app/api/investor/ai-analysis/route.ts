@@ -30,10 +30,13 @@ export async function GET() {
 
     // ── 1. Fetch recent founders (onboarding completed) ──────────────────────
     // Uses admin client — founder_profiles RLS only allows self-reads, investors need service role.
+    // visibility_gated founders opted out of being shown to investors — excluded the same
+    // way app/api/investor/deal-flow/route.ts already does for the main browsing list.
     const { data: founders } = await admin
       .from('founder_profiles')
       .select('user_id, startup_name, industry, stage, full_name, created_at')
       .eq('onboarding_completed', true)
+      .eq('visibility_gated', false)
       .order('created_at', { ascending: false })
       .limit(50)
 

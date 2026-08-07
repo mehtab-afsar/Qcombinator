@@ -9,6 +9,7 @@ import { storageService } from '@/features/founder/services/founder.service';
 import { metricsService } from '@/features/founder/services/founder-metrics.service';
 import { fetchMetricsFromSupabase } from '@/features/founder/services/founder-data.service';
 import { FounderProfile, AssessmentData, MetricsData } from '@/features/founder/types/founder.types';
+import { log } from '@/lib/logger';
 
 /**
  * Hook for founder profile data — reads from Supabase via /api/founder/profile
@@ -16,12 +17,18 @@ import { FounderProfile, AssessmentData, MetricsData } from '@/features/founder/
 export function useFounderProfile() {
   const [profile, setProfile] = useState<FounderProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState<Error | null>(null);
 
   useEffect(() => {
     fetch('/api/founder/profile')
       .then(r => r.json())
-      .then(d => { setProfile(d.profile ?? null); setLoading(false); })
-      .catch(() => setLoading(false));
+      .then(d => { setProfile(d.profile ?? null); setError(null); setLoading(false); })
+      .catch((err: unknown) => {
+        const e = err instanceof Error ? err : new Error(String(err));
+        log.error('useFounderProfile: fetch failed', { err: e });
+        setError(e);
+        setLoading(false);
+      });
   }, []);
 
   const updateProfile = async (updates: Partial<FounderProfile>) => {
@@ -37,6 +44,7 @@ export function useFounderProfile() {
   return {
     profile,
     loading,
+    error,
     updateProfile,
     hasProfile: profile !== null,
   };
@@ -86,13 +94,20 @@ export function useMetrics(refreshTrigger = 0) {
   const { assessment, loading: assessmentLoading } = useAssessmentData();
   const [metrics,       setMetrics]       = useState<MetricsData | null>(null);
   const [supabaseLoading, setSupabaseLoading] = useState(true);
+  const [error,         setError]         = useState<Error | null>(null);
 
   useEffect(() => {
     setMetrics(null);
     setSupabaseLoading(true);
     fetchMetricsFromSupabase()
-      .then(data => { if (data) setMetrics(data); })
-      .catch(() => { /* fall through to localStorage */ })
+      .then(data => { if (data) setMetrics(data); setError(null); })
+      .catch((err: unknown) => {
+        // Falls through to the localStorage effect below — this isn't fatal, but it's
+        // still a real failure worth surfacing rather than silently swallowing.
+        const e = err instanceof Error ? err : new Error(String(err));
+        log.error('useMetrics: fetchMetricsFromSupabase failed', { err: e });
+        setError(e);
+      })
       .finally(() => setSupabaseLoading(false));
   }, [refreshTrigger]);
 
@@ -109,6 +124,7 @@ export function useMetrics(refreshTrigger = 0) {
     metrics,
     healthStatus,
     loading: supabaseLoading && assessmentLoading,
+    error,
     hasMetrics: metrics !== null,
   };
 }
@@ -117,9 +133,9 @@ export function useMetrics(refreshTrigger = 0) {
  * Hook for combined founder data (profile + assessment + metrics)
  */
 export function useFounderData() {
-  const { profile, loading: profileLoading, updateProfile } = useFounderProfile();
+  const { profile, loading: profileLoading, error: profileError, updateProfile } = useFounderProfile();
   const { assessment, loading: assessmentLoading } = useAssessmentData();
-  const { metrics, healthStatus, loading: metricsLoading } = useMetrics();
+  const { metrics, healthStatus, loading: metricsLoading, error: metricsError } = useMetrics();
 
   const loading = profileLoading || assessmentLoading || metricsLoading;
 
@@ -129,6 +145,7 @@ export function useFounderData() {
     metrics,
     healthStatus,
     loading,
+    error: profileError ?? metricsError,
     hasData: profile !== null && assessment !== null,
     updateProfile,
   };

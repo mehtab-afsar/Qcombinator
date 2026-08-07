@@ -65,6 +65,10 @@ export function validateRequiredEnv(): void {
     'RESEND_API_KEY',
     'TAVILY_API_KEY',
     'CRON_SECRET',
+    'GOOGLE_CONNECTOR_CLIENT_ID',
+    'GOOGLE_CONNECTOR_CLIENT_SECRET',
+    'SLACK_CONNECTOR_CLIENT_ID',
+    'SLACK_CONNECTOR_CLIENT_SECRET',
   ]
   const missingRecommended = recommended.filter(k => !process.env[k])
   if (missingRecommended.length > 0) {

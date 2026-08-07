@@ -1,30 +1,33 @@
 import { CSSProperties, ReactNode } from 'react'
-import { blue, green, amber, red, muted, surf, bdr, purple, cyan, pink, indigo } from '@/features/shared/tokens'
+import { blue, green, amber, red, muted, surf, bdr, purple, cyan, pink, indigo, alpha } from '@/features/shared/tokens'
 
 export type BadgeVariant = 'blue' | 'green' | 'amber' | 'red' | 'neutral' | 'purple' | 'cyan' | 'pink' | 'indigo'
 
 const VARIANT_STYLES: Record<BadgeVariant, { bg: string; color: string; border: string }> = {
-  blue:    { bg: '#EFF6FF', color: blue,    border: '#BFDBFE' },
-  green:   { bg: '#F0FDF4', color: green,   border: '#86EFAC' },
-  amber:   { bg: '#FFFBEB', color: amber,   border: '#FDE68A' },
-  red:     { bg: '#FEF2F2', color: red,     border: '#FECACA' },
-  neutral: { bg: surf,      color: muted,   border: bdr       },
-  purple:  { bg: '#F5F3FF', color: purple,  border: '#C4B5FD' },
+  blue:    { bg: alpha(blue, 0.08),   color: blue,    border: alpha(blue, 0.35)   },
+  green:   { bg: alpha(green, 0.08),  color: green,   border: alpha(green, 0.35) },
+  amber:   { bg: alpha(amber, 0.08),  color: amber,   border: alpha(amber, 0.35) },
+  red:     { bg: alpha(red, 0.08),    color: red,     border: alpha(red, 0.35)   },
+  neutral: { bg: surf,                color: muted,   border: bdr                },
+  purple:  { bg: alpha(purple, 0.08), color: purple,  border: alpha(purple, 0.35)},
   // Owner-attribution colors (F09 artifact organization) — one per executive, reusing
   // already-defined palette tokens that had no assigned purpose until now.
-  cyan:    { bg: '#ECFEFF', color: cyan,    border: '#A5F3FC' },
-  pink:    { bg: '#FDF2F8', color: pink,    border: '#FBCFE8' },
-  indigo:  { bg: '#EEF2FF', color: indigo,  border: '#C7D2FE' },
+  cyan:    { bg: alpha(cyan, 0.08),   color: cyan,    border: alpha(cyan, 0.35)  },
+  pink:    { bg: alpha(pink, 0.08),   color: pink,    border: alpha(pink, 0.35) },
+  indigo:  { bg: alpha(indigo, 0.08), color: indigo,  border: alpha(indigo, 0.35)},
 }
 
 interface BadgeProps {
   children: ReactNode
   variant?: BadgeVariant
   dot?: boolean
+  /** Overrides just the dot's color, independent of variant — e.g. a neutral pill
+   *  ("Demo data —", muted text) with an amber/cyan status dot doing the signaling. */
+  dotColor?: string
   style?: CSSProperties
 }
 
-export function Badge({ children, variant = 'neutral', dot = false, style }: BadgeProps) {
+export function Badge({ children, variant = 'neutral', dot = false, dotColor, style }: BadgeProps) {
   const s = VARIANT_STYLES[variant]
   return (
     <span style={{
@@ -35,7 +38,7 @@ export function Badge({ children, variant = 'neutral', dot = false, style }: Bad
       lineHeight: 1.6, flexShrink: 0,
       ...style,
     }}>
-      {dot && <span style={{ width: 6, height: 6, borderRadius: '50%', background: s.color, flexShrink: 0 }} />}
+      {dot && <span style={{ width: 6, height: 6, borderRadius: '50%', background: dotColor ?? s.color, flexShrink: 0 }} />}
       {children}
     </span>
   )

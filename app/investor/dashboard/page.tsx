@@ -4,11 +4,12 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import {
   Users, Bell, Briefcase, TrendingUp, ArrowRight,
-  MessageSquare, ChevronRight, Star, Clock,
+  MessageSquare, ChevronRight, Star, Clock, Sparkles,
 } from "lucide-react"
 import { motion } from "framer-motion"
 
-import { bg, surf, bdr, ink, muted, blue, alpha } from "@/lib/constants/colors"
+import { bg, surf, bdr, ink, muted, purple, alpha } from "@/lib/constants/colors"
+import { font } from "@/features/shared/tokens"
 import { PIPELINE_STAGE_COLORS } from "@/features/investor/constants/pipeline"
 import { Avatar } from "@/features/shared/components/Avatar"
 import { ScoreBadge } from "@/features/shared/components/Badge"
@@ -18,7 +19,7 @@ import { StatCardSkeleton, RowSkeleton } from "@/features/shared/components/Skel
 import { WelcomeModal, INVESTOR_WELCOME_SLIDES } from "@/components/ui/WelcomeModal"
 import { TopPersonalizedMatches } from "@/components/investor/TopPersonalizedMatches"
 import { ScoutDoodle } from "@/features/onboarding/components/doodles/ScoutDoodle"
-import type { FounderProfile } from "@/lib/services/deal-matching.service"
+import type { FounderProfile } from "@/features/investor/services/deal-matching.service"
 
 // ─── types ────────────────────────────────────────────────────────────────────
 interface DashboardData {
@@ -95,7 +96,7 @@ function SectionHeader({ title, href, linkLabel = "View all" }: { title: string;
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
       <h2 style={{ fontSize: 13, fontWeight: 700, color: ink, margin: 0 }}>{title}</h2>
       {href && (
-        <Link href={href} style={{ fontSize: 11, color: blue, textDecoration: "none", fontWeight: 600, display: "flex", alignItems: "center", gap: 3 }}>
+        <Link href={href} style={{ fontSize: 11, color: purple, textDecoration: "none", fontWeight: 600, display: "flex", alignItems: "center", gap: 3 }}>
           {linkLabel} <ArrowRight style={{ width: 10, height: 10 }} />
         </Link>
       )}
@@ -241,7 +242,7 @@ export default function InvestorDashboard() {
             {[...Array(5)].map((_, i) => <StatCardSkeleton key={i} />)}
           </div>
           {/* Main content skeleton */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 16 }}>
+          <div className="investor-dashboard-main" style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 16 }}>
             <div style={{ background: "#F0EDE6", border: "1px solid #E2DDD5", borderRadius: 14, overflow: "hidden" }}>
               {[...Array(5)].map((_, i) => <RowSkeleton key={i} />)}
             </div>
@@ -250,6 +251,11 @@ export default function InvestorDashboard() {
             </div>
           </div>
         </div>
+        <style>{`
+          @media (max-width: 900px) {
+            .investor-dashboard-main { grid-template-columns: 1fr !important; }
+          }
+        `}</style>
       </div>
     )
   }
@@ -306,14 +312,14 @@ export default function InvestorDashboard() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.35, delay: 0.06 + i * 0.06 }}
             >
-              <StatCard icon={card.icon} label={card.label} color={ink} value={card.value} sub={card.sub} href={card.href} />
+              <StatCard icon={card.icon} label={card.label} color={ink} value={card.value} sub={card.sub} href={card.href} mono />
             </motion.div>
           ))}
         </div>
 
         {/* ── Upgrade banner (free tier) — restrained, dark CTA ─────────── */}
         {d.subscriptionTier === 'free' && (
-          <div style={{ padding: '14px 18px', background: surf, border: `1px solid ${bdr}`, borderRadius: 12, marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+          <div style={{ padding: '14px 18px', background: surf, border: `1px solid ${bdr}`, borderRadius: 12, marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
             <div style={{ minWidth: 0 }}>
               <p style={{ fontSize: 13, fontWeight: 600, color: ink, margin: 0 }}>Unlock the full platform</p>
               <p style={{ fontSize: 12, color: muted, margin: '3px 0 0' }}>Deal flow, AI analysis, and founder deep-dives — $99/month</p>
@@ -323,7 +329,7 @@ export default function InvestorDashboard() {
         )}
 
         {/* ── Main grid ────────────────────────────────────────────────── */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 300px", gap: 18, alignItems: "start" }}>
+        <div className="investor-dashboard-main" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 300px", gap: 18, alignItems: "start" }}>
 
           {/* ── Top founder matches ──────────────────────────────────────── */}
           <SectionCard
@@ -334,7 +340,7 @@ export default function InvestorDashboard() {
           >
             {founderProfiles.length === 0 ? (
               <div style={{ padding: "36px 20px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
-                <div style={{ width: 84, height: 84, opacity: 0.9 }}><ScoutDoodle color={blue} /></div>
+                <div style={{ width: 84, height: 84, opacity: 0.9 }}><ScoutDoodle color={purple} /></div>
                 <p style={{ fontSize: 13, color: muted, margin: 0, maxWidth: 340, lineHeight: 1.55, fontFamily: "inherit" }}>
                   Your matches appear here as founders complete onboarding. Browse everyone available right now.
                 </p>
@@ -369,7 +375,7 @@ export default function InvestorDashboard() {
               {d.pipeline.length === 0 ? (
                 <div style={{ padding: "16px 18px", textAlign: "center" }}>
                   <p style={{ fontSize: 12, color: muted, margin: "0 0 10px" }}>No companies tracked yet</p>
-                  <Link href="/investor/deal-flow" style={{ fontSize: 11, color: blue, textDecoration: "none", fontWeight: 600 }}>
+                  <Link href="/investor/deal-flow" style={{ fontSize: 11, color: purple, textDecoration: "none", fontWeight: 600 }}>
                     Browse deal flow →
                   </Link>
                 </div>
@@ -386,7 +392,7 @@ export default function InvestorDashboard() {
                       <div style={{ width: 52, height: 4, borderRadius: 99, background: bdr, overflow: "hidden" }}>
                         <div style={{ width: `${(row.count / maxStageCount) * 100}%`, height: "100%", background: ink, borderRadius: 99, opacity: 0.55 }} />
                       </div>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: ink, minWidth: 14, textAlign: "right" }}>{row.count}</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: ink, minWidth: 14, textAlign: "right", fontFamily: font.family.mono }}>{row.count}</span>
                     </div>
                   )
                 })
@@ -401,6 +407,7 @@ export default function InvestorDashboard() {
                   { href: "/investor/pipeline",    icon: Briefcase,     label: "Manage pipeline" },
                   { href: "/investor/connections", icon: Users,         label: "Review connections" },
                   { href: "/investor/messages",    icon: MessageSquare, label: "Open messages" },
+                  { href: "/investor/ai-analysis", icon: Sparkles,      label: "AI analysis" },
                 ].map(item => (
                   <Link key={item.href} href={item.href} style={{ textDecoration: "none" }}>
                     <div style={{
@@ -509,10 +516,10 @@ export default function InvestorDashboard() {
               display: "flex", alignItems: "center", gap: 12,
               transition: "border-color 0.15s",
             }}
-              onMouseEnter={e => ((e.currentTarget as HTMLElement).style.borderColor = alpha(blue, 0.4))}
+              onMouseEnter={e => ((e.currentTarget as HTMLElement).style.borderColor = alpha(purple, 0.4))}
               onMouseLeave={e => ((e.currentTarget as HTMLElement).style.borderColor = bdr)}
             >
-              <Bell style={{ width: 16, height: 16, color: blue, flexShrink: 0 }} />
+              <Bell style={{ width: 16, height: 16, color: purple, flexShrink: 0 }} />
               <p style={{ flex: 1, fontSize: 13, color: ink, margin: 0 }}>
                 <strong>{d.pendingRequests} founder{d.pendingRequests !== 1 ? "s" : ""}</strong> requested a connection — review and respond.
               </p>
@@ -522,6 +529,13 @@ export default function InvestorDashboard() {
         )}
 
       </div>
+
+      {/* responsive styles */}
+      <style>{`
+        @media (max-width: 900px) {
+          .investor-dashboard-main { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
 
       <WelcomeModal
         storageKey="qc_investor_welcome_v1"

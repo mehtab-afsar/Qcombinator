@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { randomUUID } from 'crypto'
 import { getAdminClient } from '@/lib/supabase/server'
 import { parseBody, investorSignupSchema } from '@/lib/api/validate'
-import { sendWelcomeAndConfirmEmail } from '@/lib/email/send'
+import { sendWelcomeEmail } from '@/lib/email/send'
 import { log } from '@/lib/logger'
 
 export async function POST(request: NextRequest) {
@@ -16,15 +15,14 @@ export async function POST(request: NextRequest) {
 
     const supabaseAdmin = getAdminClient()
 
-    const confirmToken = randomUUID()
-
+    // email_confirm is omitted (defaults to false) — Supabase sends its own confirmation email
+    // and the account stays unconfirmed until that link is clicked. middleware.ts blocks
+    // /investor/** until then (lib/auth/email-confirmed.ts).
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
-      email_confirm: true,
       user_metadata: {
         role: 'investor',
-        email_confirm_token: confirmToken,
       },
     })
 
@@ -45,12 +43,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Fire-and-forget welcome + confirmation email
-    void sendWelcomeAndConfirmEmail({
+    // Fire-and-forget welcome email. Supabase sends the confirmation link itself, separately.
+    void sendWelcomeEmail({
       email,
       fullName:    email.split('@')[0],  // investor full name filled in during onboarding
       startupName: 'Edge Alpha Investor', // placeholder until onboarding completes
-      confirmToken,
     }).catch(e => log.warn('[investor-signup] welcome email failed:', e instanceof Error ? e.message : e))
 
     return NextResponse.json({ message: 'Account created', userId: authData.user.id })

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { surf, bdr, ink, muted, blue, alpha } from '@/lib/constants/colors';
-import { radius, shadow } from '@/features/shared/tokens';
+import { radius, shadow, font } from '@/features/shared/tokens';
 import type { LucideIcon } from 'lucide-react'
 
 interface StatCardProps {
@@ -14,9 +14,11 @@ interface StatCardProps {
   href?: string;
   delta?: { value: number; positive: boolean };
   style?: React.CSSProperties;
+  /** Tabular/monospace figures for the value — for dense, numeric-heavy contexts (e.g. investor deal flow). */
+  mono?: boolean;
 }
 
-export function StatCard({ icon: Icon, label, value, sub, color = blue, href, delta, style }: StatCardProps) {
+export function StatCard({ icon: Icon, label, value, sub, color = blue, href, delta, style, mono }: StatCardProps) {
   const card = (
     <div
       style={{
@@ -55,7 +57,7 @@ export function StatCard({ icon: Icon, label, value, sub, color = blue, href, de
 
       <div>
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
-          <span style={{ fontSize: 28, fontWeight: 300, letterSpacing: '-0.03em', color: ink, lineHeight: 1 }}>
+          <span style={{ fontSize: 28, fontWeight: 300, letterSpacing: '-0.03em', color: ink, lineHeight: 1, fontFamily: mono ? font.family.mono : undefined }}>
             {value}
           </span>
           {delta !== undefined && (

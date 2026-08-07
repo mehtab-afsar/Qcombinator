@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
-import { parseBody, investorMessagePostSchema } from '@/lib/api/validate'
 import { log } from '@/lib/logger'
+import { getMyDemoInvestorId, investorConnectionOrFilter } from '@/lib/investor/demo-investor'
 
 // GET /api/investor/messages
 // Returns all message threads (accepted connections) for the authenticated investor,
@@ -15,18 +15,10 @@ export async function GET() {
     const supabase = createAdminClient()
 
     // Get investor's demo_investor_id for connection lookup
-    const { data: investorProfile } = await supabase
-      .from('investor_profiles')
-      .select('demo_investor_id')
-      .eq('user_id', user.id)
-      .single()
-
-    const demoInvestorId = investorProfile?.demo_investor_id
+    const demoInvestorId = await getMyDemoInvestorId(supabase, user.id)
 
     // Fetch all accepted connections where this investor is a party
-    const connOrFilter = demoInvestorId
-      ? `demo_investor_id.eq.${demoInvestorId},investor_id.eq.${user.id}`
-      : `investor_id.eq.${user.id}`
+    const connOrFilter = investorConnectionOrFilter(user.id, demoInvestorId)
 
     const { data: connections, error: connErr } = await supabase
       .from('connection_requests')
@@ -132,76 +124,7 @@ export async function GET() {
   }
 }
 
-// POST /api/investor/messages
-// Body: { connectionId: string; body: string }
-// Sends a message to a founder within an accepted connection.
-export async function POST(request: NextRequest) {
-  try {
-    const auth = await verifyAuth()
-    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
-    const { user } = auth
-    const supabase = createAdminClient()
-
-    const parsed = await parseBody(request, investorMessagePostSchema)
-    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
-    const { connectionId, body } = parsed.data
-
-    // Verify this investor is party to the connection and it's accepted
-    const { data: investorProfile } = await supabase
-      .from('investor_profiles')
-      .select('demo_investor_id')
-      .eq('user_id', user.id)
-      .single()
-
-    const demoInvestorId = investorProfile?.demo_investor_id
-
-    // Build ownership filter and fetch in one query — prevents info leakage on IDs the investor doesn't own
-    const ownershipFilter = demoInvestorId
-      ? `investor_id.eq.${user.id},demo_investor_id.eq.${demoInvestorId}`
-      : `investor_id.eq.${user.id}`
-
-    const { data: conn } = await supabase
-      .from('connection_requests')
-      .select('id, founder_id, investor_id, demo_investor_id, status')
-      .eq('id', connectionId)
-      .or(ownershipFilter)
-      .single()
-
-    if (!conn) {
-      return NextResponse.json({ error: 'Connection not found or access denied' }, { status: 404 })
-    }
-    if (conn.status !== 'meeting_scheduled' && conn.status !== 'accepted') {
-      return NextResponse.json({ error: 'Can only message within an accepted connection' }, { status: 400 })
-    }
-
-    const { data: msg, error } = await supabase
-      .from('messages')
-      .insert({
-        connection_request_id: connectionId,
-        sender_id:    user.id,
-        recipient_id: conn.founder_id,
-        body:         body.trim(),
-      })
-      .select('id, sender_id, body, read_at, created_at')
-      .single()
-
-    if (error) {
-      log.error('POST /api/investor/messages insert', { error })
-      return NextResponse.json({ error: 'Failed to send message' }, { status: 500 })
-    }
-
-    // Notify the founder (fire-and-forget)
-    // fire-and-forget: in-app notification is non-critical; message insert already succeeded
-    void Promise.resolve(supabase.from('notifications').insert({
-      user_id:  conn.founder_id,
-      type:     'message',
-      title:    'New message from your investor',
-      metadata: { connection_id: connectionId, sender_id: user.id },
-    })).catch(() => {})
-
-    return NextResponse.json({ message: msg }, { status: 201 })
-  } catch (err) {
-    log.error('POST /api/investor/messages', { err })
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  }
-}
+// Sending/opening a specific thread goes through the shared /api/messages route
+// (used by both founder and investor UIs) — see app/api/messages/route.ts.
+// This route previously had its own parallel POST handler; it was never called
+// by any frontend code and had drifted from the shared route's ownership logic.

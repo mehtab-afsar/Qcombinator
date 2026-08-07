@@ -4,7 +4,7 @@
  * One Executive, as a visible entity — the centerpiece of the Command View redesign.
  *
  * ⚠️ WHY THIS EXISTS. Patel (the Growth Executive) was never deleted — he's fully present in the
- * Registry (`lib/registry/executives/growth.ts`, name "Patel (Chief Growth Officer)") — but
+ * Registry (`lib/registry/executives/growth/executive.ts`, name "Patel (Chief Growth Officer)") — but
  * nothing in the UI ever showed any of the 5 executives' names anywhere. The whole Command View
  * read as one undifferentiated mandate box because the people running it were invisible. This
  * card is where they reappear.
@@ -17,12 +17,22 @@
  * 4 of 5 executives). Idle is shown quieter, never hidden and never faked busy.
  */
 
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { motion } from 'framer-motion'
 import { ArrowRight } from 'lucide-react'
 import { ink, muted, bdr, bg, alpha, amber } from '@/lib/constants/colors'
 import { radius } from '@/features/shared/tokens'
 import { Badge } from '@/features/shared/components/Badge'
 import { FONT_SERIF } from '@/features/onboarding/theme'
+import { EXECUTIVE_DOODLE } from '../lib/executive-doodle'
 import type { ExecutiveSummary } from '../types/executive.types'
+
+// Phase 1 of the cockpit build (CANVAS_SPEC §9 step 2) — "spatial and delightful" without a
+// true cross-route shared-element morph (see the plan: no prior layoutId usage in this repo,
+// so a self-contained choreography on each side of the navigation is the lower-risk read of
+// D2's "pan/zoom feel"). Long enough to register, short enough not to feel like a delay.
+const ENTER_MS = 180
 
 export interface ExecutiveCardData {
   executive: ExecutiveSummary
@@ -32,30 +42,67 @@ export interface ExecutiveCardData {
   pendingActionCount: number
 }
 
-export function ExecutiveCard({ data }: { data: ExecutiveCardData }) {
+export function ExecutiveCard({
+  data, dimmed = false, onEnter,
+}: {
+  data: ExecutiveCardData
+  /** true while a SIBLING card is mid-entrance — dims this one so the clicked card reads as
+   *  the thing the founder is actually moving toward (ExecutiveRoster's `leavingId`). */
+  dimmed?: boolean
+  /** Fired the instant this card is clicked, before navigation — lets the roster dim siblings. */
+  onEnter?: () => void
+}) {
+  const router = useRouter()
+  const [entering, setEntering] = useState(false)
   const { executive, programName, latestBriefingVerdict, pendingActionCount } = data
   const active = programName !== null
   const needsFounder = pendingActionCount > 0
+  const Doodle = EXECUTIVE_DOODLE[executive.id]
+  const href = `/founder/executive/${executive.id}`
+  const baseOpacity = active ? 1 : 0.72 // idle: quieter, never hidden
+
+  function handleClick(e: React.MouseEvent<HTMLAnchorElement>) {
+    // New-tab/copy-link/middle-click keep normal <a> behavior — only a plain primary click
+    // gets the choreographed entrance before the route actually changes.
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return
+    e.preventDefault()
+    setEntering(true)
+    onEnter?.()
+    setTimeout(() => router.push(href), ENTER_MS)
+  }
 
   return (
-    <a
-      href={`/founder/executive/${executive.id}`}
+    <motion.a
+      href={href}
+      onClick={handleClick}
+      initial={false}
+      animate={{
+        opacity: entering ? 1 : dimmed ? baseOpacity * 0.4 : baseOpacity,
+        scale: entering ? 1.03 : 1,
+      }}
+      transition={{ duration: ENTER_MS / 1000, ease: 'easeOut' }}
       style={{
         display: 'block', textDecoration: 'none',
         background: bg,
         border: `1px solid ${needsFounder ? amber : active ? ink : bdr}`,
         borderRadius: radius.lg,
         padding: '20px 22px',
-        opacity: active ? 1 : 0.72, // idle: quieter, never hidden
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
-        <h3 style={{
-          fontFamily: FONT_SERIF, fontSize: 17, fontWeight: 500, letterSpacing: '-0.01em',
-          color: ink, margin: 0,
-        }}>
-          {executive.name}
-        </h3>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+          {Doodle && (
+            <div style={{ width: 32, height: 32, flexShrink: 0 }}>
+              <Doodle color={ink} />
+            </div>
+          )}
+          <h3 style={{
+            fontFamily: FONT_SERIF, fontSize: 17, fontWeight: 500, letterSpacing: '-0.01em',
+            color: ink, margin: 0,
+          }}>
+            {executive.name}
+          </h3>
+        </div>
         {needsFounder && (
           <Badge variant="amber">
             {pendingActionCount === 1 ? 'Needs you' : `Needs you · ${pendingActionCount}`}
@@ -92,6 +139,6 @@ export function ExecutiveCard({ data }: { data: ExecutiveCardData }) {
       }}>
         View <ArrowRight size={11} />
       </span>
-    </a>
+    </motion.a>
   )
 }

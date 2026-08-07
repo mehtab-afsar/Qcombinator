@@ -27,7 +27,8 @@ import { RhythmError, runNextStep } from '@/lib/rhythm/run'
 import { createOrResumeRun, getLatestRun, listRuns, CycleAlreadyRanError, StepLimitOpenError } from '@/lib/rhythm/runs'
 import { triggerNextRhythmStep } from '@/lib/rhythm/trigger'
 import { buildProgress } from '@/lib/rhythm/progress'
-import { getCurrentContract } from '@/lib/mandate/contract'
+import { buildStepPreviews } from '@/lib/rhythm/preview'
+import { getCurrentContract, getProgramsForContract } from '@/lib/mandate/contract'
 import { weekCycleKey } from '@/lib/rhythm/cycle-key'
 import { log } from '@/lib/logger'
 
@@ -63,7 +64,18 @@ export async function GET(): Promise<NextResponse> {
       return { id: r.id, cycleKey: r.cycleKey, status: r.status, startedAt: r.startedAt, completedAt: r.completedAt, done: p.done, total: p.total }
     })
 
-    return NextResponse.json({ progress: buildProgress(run, activePrograms), history })
+    const progress = buildProgress(run, activePrograms)
+
+    // Real content previews (PRD §3, "Activation — THE MISSING MOMENT") — only for the
+    // LIVE run, only while it's running; a completed run's steps don't need recomputing
+    // on every poll, and history stays thin by design (see above).
+    if (run.status === 'running' && run.contractId) {
+      const programs = await getProgramsForContract(supabase, run.contractId)
+      const previews = await buildStepPreviews(supabase, run, progress.steps, programs)
+      progress.steps = progress.steps.map(step => ({ ...step, preview: previews.get(step.key) ?? null }))
+    }
+
+    return NextResponse.json({ progress, history })
   } catch (err) {
     log.error('GET /api/rhythm/run', { err })
     return NextResponse.json({ error: 'Failed to load the cycle' }, { status: 500 })

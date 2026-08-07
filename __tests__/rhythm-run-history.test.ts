@@ -71,7 +71,8 @@ describe('GET /api/rhythm/run — history wiring', () => {
 
   it('reads run history via listRuns and returns it alongside progress', () => {
     expect(route).toContain('listRuns(supabase, auth.user.id)')
-    expect(route).toContain('progress: buildProgress(run, activePrograms), history')
+    expect(route).toContain('const progress = buildProgress(run, activePrograms)')
+    expect(route).toContain('NextResponse.json({ progress, history })')
   })
 
   it('returns an empty history rather than an error when nothing has ever run', () => {

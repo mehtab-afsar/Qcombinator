@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/server'
-import { getStripe } from '@/lib/stripe'
 import { verifyAuth } from '@/lib/auth/verify'
+import { createCheckoutSession } from '@/lib/billing/checkout'
 import { log } from '@/lib/logger'
 
 export async function POST() {
@@ -10,53 +9,18 @@ export async function POST() {
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
     const { user } = auth
 
-    const admin = createAdminClient()
-    const { data: profile } = await admin
-      .from('founder_profiles')
-      .select('stripe_customer_id, subscription_tier, full_name')
-      .eq('user_id', user.id)
-      .single()
-
-    // Already premium — redirect to billing portal instead
-    if (profile?.subscription_tier === 'premium') {
-      const portalSession = await getStripe().billingPortal.sessions.create({
-        customer: profile.stripe_customer_id!,
-        return_url: `${process.env.NEXT_PUBLIC_APP_URL}/founder/billing`,
-      })
-      return NextResponse.json({ url: portalSession.url })
-    }
-
-    // Create or retrieve Stripe customer
-    let customerId = profile?.stripe_customer_id as string | null
-    if (!customerId) {
-      const customer = await getStripe().customers.create({
-        email: user.email,
-        name: (profile?.full_name as string) || user.email,
-        metadata: { user_id: user.id, role: 'founder' },
-      })
-      customerId = customer.id
-      await admin
-        .from('founder_profiles')
-        .update({ stripe_customer_id: customerId })
-        .eq('user_id', user.id)
-    }
-
-    const priceId = process.env.STRIPE_FOUNDER_PREMIUM_PRICE_ID
-    if (!priceId) {
-      return NextResponse.json({ error: 'Billing not configured' }, { status: 503 })
-    }
-
-    const session = await getStripe().checkout.sessions.create({
-      customer: customerId,
-      mode: 'subscription',
-      line_items: [{ price: priceId, quantity: 1 }],
-      subscription_data: { trial_period_days: 14 },
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/founder/billing?success=1`,
-      cancel_url:  `${process.env.NEXT_PUBLIC_APP_URL}/founder/billing`,
-      metadata: { user_id: user.id, userType: 'founder' },
+    const result = await createCheckoutSession({
+      table: 'founder_profiles',
+      userId: user.id,
+      userEmail: user.email,
+      premiumTierValue: 'premium',
+      priceEnvVar: 'STRIPE_FOUNDER_PREMIUM_PRICE_ID',
+      returnPath: '/founder/billing',
+      metadataRole: 'founder',
     })
 
-    return NextResponse.json({ url: session.url })
+    if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status })
+    return NextResponse.json({ url: result.url })
   } catch (err) {
     log.error('POST /api/founder/billing/checkout', { err })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

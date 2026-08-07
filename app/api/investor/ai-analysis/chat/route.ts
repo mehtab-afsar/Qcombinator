@@ -3,11 +3,10 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { parseBody, aiAnalysisChatSchema } from '@/lib/api/validate'
 import { log } from '@/lib/logger'
-import Anthropic from '@anthropic-ai/sdk'
+import { routedStream } from '@/lib/llm/router'
+import { composeAdhocPrompt } from '@/lib/prompts/compose'
 
 export const maxDuration = 60
-
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 // POST /api/investor/ai-analysis/chat
 // Streams a response about the investor's deal flow portfolio.
@@ -36,10 +35,13 @@ export async function POST(req: NextRequest) {
 
     // Fetch portfolio data to ground the AI
     const [{ data: founders }, { data: scores }, { data: pipeline }] = await Promise.all([
+      // visibility_gated founders opted out of being shown to investors — excluded the same
+      // way app/api/investor/deal-flow/route.ts already does for the main browsing list.
       admin
         .from('founder_profiles')
         .select('user_id, startup_name, full_name, industry, stage, startup_profile_data, updated_at')
         .neq('role', 'investor')
+        .eq('visibility_gated', false)
         .order('updated_at', { ascending: false })
         .limit(60),
       admin
@@ -70,45 +72,48 @@ export async function POST(req: NextRequest) {
       return `• ${name} | ${f.industry || 'Unknown'} | ${f.stage || 'Unknown stage'} | Q-Score: ${q ? `${q.score} (${q.grade})` : 'Not assessed'}${ps ? ` | Pipeline: ${ps}` : ''}`
     }).join('\n')
 
-    const systemPrompt = `You are a sharp deal analyst AI for ${investorRow?.firm_name || 'the firm'}${investorRow?.full_name ? `, supporting ${investorRow.full_name}` : ''}.
+    const instructions = `You are a sharp deal analyst AI for ${investorRow?.firm_name || 'the firm'}${investorRow?.full_name ? `, supporting ${investorRow.full_name}` : ''}.
 
 Your job: give clear, specific, data-driven answers about this investor's deal flow. Reference real companies, Q-Scores, and pipeline stages from the data below. Be direct — no filler, no hedging.
 
-INVESTOR PROFILE:
+Rules:
+- Answer only from the data below — don't fabricate Q-Scores or details
+- When asked "who should I contact", rank by Q-Score ≥ 70 first, then pipeline stage
+- Keep answers concise and structured with bullet points when listing companies
+- If data is missing for a question, say so and suggest what info would help`
+
+    const data = `INVESTOR PROFILE:
 Firm: ${investorRow?.firm_name || 'Independent'}
 Thesis: ${investorRow?.thesis || 'Not specified'}
 Focus sectors: ${((investorRow?.focus_sectors as string[] | null) ?? []).join(', ') || 'All sectors'}
 Focus stages: ${((investorRow?.focus_stages as string[] | null) ?? []).join(', ') || 'All stages'}
 
 DEAL FLOW (${(founders ?? []).length} companies):
-${founderLines || 'No companies in pipeline yet.'}
+${founderLines || 'No companies in pipeline yet.'}`
 
-Rules:
-- Answer only from the data above — don't fabricate Q-Scores or details
-- When asked "who should I contact", rank by Q-Score ≥ 70 first, then pipeline stage
-- Keep answers concise and structured with bullet points when listing companies
-- If data is missing for a question, say so and suggest what info would help`
-
-    const messages: Anthropic.MessageParam[] = [
+    // composeAdhocPrompt's 2nd message is role:'user' by default (fine for a single-shot
+    // call), but this route splices real conversation history after it — two consecutive
+    // 'user' turns would break the API's strict role alternation if history starts with one.
+    // Re-tag it 'system' instead: the router already merges consecutive system messages into
+    // one combined string, so the same fenced-data text still reaches the model, just as
+    // context rather than a fake conversational turn.
+    const [systemMsg, dataMsg] = composeAdhocPrompt({ sourceRef: 'investor/ai-analysis/chat', instructions, data })
+    const messages = [
+      systemMsg,
+      { ...dataMsg, role: 'system' },
       ...history.map(h => ({ role: h.role, content: h.content })),
       { role: 'user', content: message },
     ]
 
-    // SSE stream
+    // SSE stream — same `data: {...}\n\n` / `[DONE]` framing as app/api/strategy/propose/route.ts,
+    // the one SSE convention already established in this codebase.
     const encoder = new TextEncoder()
     const readable = new ReadableStream({
       async start(controller) {
         try {
-          const stream = await anthropic.messages.stream({
-            model: 'claude-haiku-4-5-20251001',
-            max_tokens: 1500,
-            system: systemPrompt,
-            messages,
-          })
-
-          for await (const event of stream) {
-            if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'delta', text: event.delta.text })}\n\n`))
+          for await (const event of routedStream('generation', messages, { modelTier: 'fast', maxTokens: 1500, temperature: 0.5 })) {
+            if (event.type === 'delta') {
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'delta', text: event.text })}\n\n`))
             }
           }
           controller.enqueue(encoder.encode(`data: [DONE]\n\n`))

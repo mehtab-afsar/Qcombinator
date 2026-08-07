@@ -39,6 +39,12 @@ export interface ConnectorRequest {
   recipients: ReadonlyArray<{ email: string; name?: string }>
   subject: string
   body: string
+  /**
+   * A provider-specific destination for connectors that aren't recipient-shaped (Slack: a
+   * channel id). Deliberately NOT folded into `recipients` — a channel is not a person's
+   * address, and `allowlist.ts`'s `assertRecipientsAllowed` treats `.email` as a real one.
+   */
+  channel?: string
 }
 
 export type ConnectorOutcome =

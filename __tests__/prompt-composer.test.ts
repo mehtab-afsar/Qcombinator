@@ -258,6 +258,21 @@ describe('layer 4 is data, never instructions', () => {
     expect(pkg.layers[3].text).not.toContain('Strategy Session')
   })
 
+  it('renders comparableCohort as a fenced data block when present', () => {
+    const cohortText = 'Founders in a similar sector and stage on this platform (5 comparable, anonymized):\n- Monthly recurring revenue: typically around $12,000/mo'
+    const pkg = composePrompt({ ...valid, context: { ...context, comparableCohort: cohortText } })
+    const layer4 = pkg.layers[3].text
+    expect(layer4).toContain('## Comparable Companies')
+    const at = layer4.indexOf(cohortText)
+    expect(at).toBeGreaterThan(-1)
+    expect(layer4.lastIndexOf('<data>', at)).toBeGreaterThan(layer4.lastIndexOf('</data>', at))
+  })
+
+  it('omits the Comparable Companies section entirely when there is no cohort', () => {
+    const pkg = composePrompt({ ...valid, context: { ...context, comparableCohort: undefined } })
+    expect(pkg.layers[3].text).not.toContain('Comparable Companies')
+  })
+
   it('treats the Q-Score as read-only (ADR-005)', () => {
     expect(composePrompt(valid).layers[3].text).toContain('read only')
   })
@@ -352,7 +367,7 @@ describe('every P001 Action composes — the Story 3 prerequisite', () => {
   })
 
   it('the irreversible Action tells the model never to invent a recipient', () => {
-    // interview_customers is the ONLY irreversible Action in P001 and the Story 3 proof case.
+    // interview_customers is P001's Gmail proof case (post_team_update is the Slack one).
     // A fabricated address is not caught by the approval step — the founder is checking that
     // the message reads well, and a plausible address looks correct.
     const pkg = composePrompt({ ...valid, assetId: undefined, actionId: 'interview_customers' })

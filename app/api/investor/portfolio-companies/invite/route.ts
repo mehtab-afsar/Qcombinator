@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { parseBody, portfolioCompanyInviteSchema } from '@/lib/api/validate'
 import { sendPortfolioInviteEmail } from '@/lib/email/send'
+import { APP_URL } from '@/lib/constants/app'
 import { log } from '@/lib/logger'
 
 // POST /api/investor/portfolio-companies/invite
@@ -50,7 +51,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Founder has already joined' }, { status: 400 })
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://edgealpha.ai'
+    const appUrl = APP_URL
     const inviteUrl = `${appUrl}/founder/join?token=${company.invite_token}`
 
     await sendPortfolioInviteEmail({

@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { log } from '@/lib/logger'
+import { applyScoreDecay } from '@/lib/qscore/decay'
+import { STAGE_LABEL } from '@/lib/constants/stages'
 
 // GET /api/investor/deal-flow?page=1&limit=50
 // Returns founders sorted by score. Requires investor access (any tier except 'free').
@@ -124,15 +126,9 @@ export async function GET(request: Request) {
       artifactCountByUser.set(row.user_id, (artifactCountByUser.get(row.user_id) ?? 0) + 1)
     }
 
-    const stageLabel: Record<string, string> = {
-      idea: 'Idea', mvp: 'MVP', 'pre-seed': 'Pre-Seed', seed: 'Seed',
-      'series-a': 'Series A', bootstrapped: 'Bootstrapped',
-      launched: 'Seed', scaling: 'Series A', preseed: 'Pre-Seed',
-      'pre_seed': 'Pre-Seed', 'series_a': 'Series A',
-    }
-
     const enriched = filteredFounders.map((f) => {
       const qrow          = latestQScore.get(f.user_id) ?? null
+      const decayed        = qrow ? applyScoreDecay(qrow.overall_score, qrow.calculated_at) : null
       const weeklyActions = activityCountByUser.get(f.user_id) ?? 0
       const deliverableCount = artifactCountByUser.get(f.user_id) ?? 0
       const sp = (f.startup_profile_data ?? {}) as Record<string, unknown>
@@ -148,17 +144,12 @@ export async function GET(request: Request) {
         id: f.user_id,
         name: f.startup_name || (sp.companyName as string) || `${f.full_name}'s Startup`,
         tagline,
-        qScore: (() => {
-          if (!qrow) return 0
-          const d = Math.floor((Date.now() - new Date(qrow.calculated_at).getTime()) / 86400000)
-          const decay = d < 90 ? 1.00 : d < 180 ? 0.975 : d < 270 ? 0.95 : d < 365 ? 0.90 : 0.80
-          return Math.max(1, Math.round(qrow.overall_score * decay))
-        })(),
+        qScore:             decayed?.score ?? 0,
         rawQScore:          qrow?.overall_score ?? 0,
         qScoreCalculatedAt: qrow?.calculated_at ?? null,
-        qScoreDaysSince:    qrow ? Math.floor((Date.now() - new Date(qrow.calculated_at).getTime()) / 86400000) : null,
+        qScoreDaysSince:    decayed?.daysSince ?? null,
         qScorePercentile:   qrow?.percentile ?? 0,
-        stage:    stageLabel[f.stage ?? ''] ?? f.stage ?? 'Unknown',
+        stage:    STAGE_LABEL[f.stage ?? ''] ?? f.stage ?? 'Unknown',
         sector:   f.industry ?? 'Other',
         location: f.location ?? '',
         fundingGoal,

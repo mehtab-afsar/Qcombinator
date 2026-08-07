@@ -130,7 +130,7 @@ plan that may no longer be current.
 
 **The gate is not the model's decision.** `lib/actions/generate.ts` reads
 `action.irreversible` **from the Registry, before the LLM call**. The Program Prompt contains
-prose about approval rules (`lib/prompts/programs/p001.ts:685`); it is **deliberately not parsed**.
+prose about approval rules (`lib/prompts/executives/growth/programs/p001.ts:685`); it is **deliberately not parsed**.
 A model must never be able to talk its way into "this one doesn't need approval".
 
 ---

@@ -4,6 +4,7 @@ import { verifyAuth } from '@/lib/auth/verify'
 import { parseBody, investorOnboardingSchema } from '@/lib/api/validate'
 import { log } from '@/lib/logger'
 import { embedText } from '@/features/qscore/scoring/embeddings/embedder'
+import { INVESTOR_PRO_LIMITS, getNextMonthDate } from '@/lib/billing/plans'
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,10 +26,6 @@ export async function POST(request: NextRequest) {
     const fullName = [firstName, lastName].filter(Boolean).join(' ') || (email ? email.split('@')[0] : 'Investor')
 
     const supabase = await createClient()
-
-    // Pull the email_confirm_token from auth user metadata (set at signup)
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    const confirmToken = authUser?.user_metadata?.email_confirm_token as string | undefined ?? null
 
     const { data: profile, error } = await supabase
       .from('investor_profiles')
@@ -55,7 +52,6 @@ export async function POST(request: NextRequest) {
           monthly_deal_volume: timeline        || null,
           subscription_tier:    'pro',
           onboarding_completed: true,
-          email_confirm_token: confirmToken,    // migrate token from auth metadata to profile row
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'user_id' }
@@ -68,11 +64,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to save profile' }, { status: 500 })
     }
 
-    // Also set role = 'investor' on founder_profiles if the user has one
-    await supabase
-      .from('founder_profiles')
-      .update({ role: 'investor' })
-      .eq('user_id', user.id)
+    // Seed the usage row the metering RPC relies on. Onboarding grants 'pro' unconditionally
+    // above (no payment involved — a deliberate current product choice, not touched here), so
+    // the seeded limit matches that tier (unlimited), not the free-tier constant — otherwise
+    // the RPC would silently enforce a cap the billing page's "Unlimited" label contradicts.
+    await supabase.from('subscription_usage').upsert(
+      {
+        user_id: user.id,
+        feature: 'investor_connection',
+        usage_count: 0,
+        limit_count: INVESTOR_PRO_LIMITS.investor_connection,
+        reset_at: getNextMonthDate(),
+      },
+      { onConflict: 'user_id,feature' }
+    ).then(({ error: usageErr }) => {
+      if (usageErr) log.error('[investor/onboarding] subscription_usage seed failed (non-fatal):', usageErr)
+    })
+
+    // Dual-role is a supported case (e.g. a founder who also angel-invests) — completing
+    // investor onboarding does NOT touch founder_profiles.role. It used to flip it to
+    // 'investor', which was the actual mechanism behind a prior bug: middleware used that
+    // column as a founder-access lock, so this flip silently orphaned the user's founder
+    // account the moment they finished investor onboarding. Access to each side is now
+    // gated purely on whether that side's own profile row exists (see middleware.ts).
 
     // Create / upsert demo_investors entry so founders can discover + connect with this investor
     try {
@@ -129,6 +143,9 @@ export async function POST(request: NextRequest) {
 
     // fire-and-forget: embed investor thesis for semantic matching with founders
     // Stored in investor_profiles.thesis_embedding and used by /api/matching/scores
+    if (thesis && !process.env.VOYAGE_API_KEY) {
+      log.warn('[investor/onboarding] VOYAGE_API_KEY not configured — thesis embedding skipped', { userId: user.id })
+    }
     if (process.env.VOYAGE_API_KEY && thesis) {
       void (async () => {
         try {

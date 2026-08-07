@@ -178,6 +178,34 @@ export async function getCurrentAssetsForProgram(
 }
 
 /**
+ * How many versions each Asset has — one batched query (asset_id only, no content) rather than
+ * an N+1 of getAssetHistory per card. The cockpit's Documents section (CANVAS_SPEC §4.3) shows
+ * this as "v3 · 3 versions" so a founder can tell at a glance whether there's history worth
+ * opening, without it costing a request per card.
+ */
+export async function getVersionCounts(
+  supabase: SupabaseClient,
+  founderId: string,
+  assetIds: readonly string[],
+): Promise<Map<string, number>> {
+  if (assetIds.length === 0) return new Map()
+
+  const { data, error } = await supabase
+    .from('asset_versions')
+    .select('asset_id')
+    .eq('founder_id', founderId)
+    .in('asset_id', assetIds)
+
+  if (error) throw new AssetPersistenceError('read_failed', `Failed to read version counts: ${error.message}`)
+
+  const counts = new Map<string, number>()
+  for (const row of (data ?? []) as Array<{ asset_id: string }>) {
+    counts.set(row.asset_id, (counts.get(row.asset_id) ?? 0) + 1)
+  }
+  return counts
+}
+
+/**
  * Persist a new Asset version. Runs the validation gate, then the atomic DB function.
  *
  * MUST be given a service-role client: the function is revoked from authenticated so

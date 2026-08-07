@@ -4,7 +4,7 @@ import { bg, bdr, ink, muted } from '@/lib/constants/colors';
 import { radius, font, shadow } from '@/features/shared/tokens';
 
 interface SectionCardProps {
-  title?: string;
+  title?: React.ReactNode;
   subtitle?: string;
   action?: React.ReactNode;
   children: React.ReactNode;

@@ -4,6 +4,7 @@ import "./globals.css";
 import { AuthProvider } from "@/features/auth/hooks/useAuth";
 import { QScoreProvider } from "@/features/qscore/hooks/useQScore";
 import { PostHogProvider } from "@/components/providers/PostHogProvider";
+import { ToastProvider } from "@/features/shared/hooks/useToast";
 import { Toaster } from "sonner";
 import { APP_NAME, APP_TAGLINE, APP_URL as APP_BASE_URL } from "@/lib/constants/app";
 
@@ -68,8 +69,10 @@ export default function RootLayout({
         <PostHogProvider>
           <AuthProvider>
             <QScoreProvider>
-              {children}
-              <Toaster position="top-right" richColors />
+              <ToastProvider>
+                {children}
+                <Toaster position="top-right" richColors />
+              </ToastProvider>
             </QScoreProvider>
           </AuthProvider>
         </PostHogProvider>

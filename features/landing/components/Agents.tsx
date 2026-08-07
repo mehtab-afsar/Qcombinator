@@ -5,7 +5,7 @@ import { AnimatePresence, motion, useMotionValue, useSpring, useTransform } from
 import { L, FONT_SERIF, FONT_MONO } from "../theme";
 import { ADVISERS } from "../copy";
 import { Reveal } from "./Section";
-import { useMotionPrefs } from "../hooks/useMotionPrefs";
+import { useMotionPrefs } from "@/features/shared/hooks/useMotionPrefs";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -73,8 +73,9 @@ export function Agents() {
             Every founder worry has a specialist.
           </h2>
           <p style={{ fontSize: "clamp(16px, 2vw, 19px)", color: L.muted, lineHeight: 1.6, margin: 0, textWrap: "balance" }}>
-            Nine advisers, each an expert in one thing that makes or breaks a raise. Loaded
-            with your context — they answer with specifics, not platitudes.
+            Five AI executives, each backed by a bench of specialists — nine in all, each an
+            expert in one thing that makes or breaks a raise. Loaded with your context — they
+            answer with specifics, not platitudes.
           </p>
         </div>
       </Reveal>

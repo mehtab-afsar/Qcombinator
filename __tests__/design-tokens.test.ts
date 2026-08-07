@@ -69,10 +69,9 @@ const HEX_ALLOWLIST = new Set([
   'app/founder/layout.tsx', 'app/founder/matching/page.tsx',
   'app/founder/messages/page.tsx', 'app/founder/metrics/page.tsx',
   'app/founder/onboarding/page.tsx', 'app/founder/page.tsx',
-  'app/founder/pitch-analyzer/page.tsx', 'app/founder/pitch-deck/page.tsx',
   'app/founder/portfolio/page.tsx', 'app/founder/profile-builder/page.tsx',
   'app/founder/settings/page.tsx',
-  'app/founder/verify-email/page.tsx', 'app/getting-started/page.tsx',
+  'app/founder/verify-email/page.tsx', 'app/investor/verify-email/page.tsx', 'app/getting-started/page.tsx',
   'app/global-error.tsx', 'app/investor/ai-analysis/page.tsx',
   'app/investor/billing/page.tsx', 'app/investor/dashboard/page.tsx',
   'app/investor/deal-flow/page.tsx', 'app/investor/getting-started/page.tsx',
@@ -80,7 +79,7 @@ const HEX_ALLOWLIST = new Set([
   'app/investor/onboarding/page.tsx', 'app/investor/portfolio-companies/page.tsx',
   'app/investor/settings/page.tsx', 'app/investor/settings/preferences/page.tsx',
   'app/investor/startup/[id]/page.tsx', 'app/library/page.tsx',
-  'app/login/page.tsx', 'app/merch/page.tsx', 'app/not-found.tsx',
+  'app/login/page.tsx', 'app/not-found.tsx',
   'app/opengraph-image.tsx', 'app/p/[userId]/page.tsx', 'app/pitch/[userId]/page.tsx',
   'app/q/[userId]/page.tsx', 'app/reset-password/page.tsx', 'app/s/[surveyId]/page.tsx',
   'app/startup/[slug]/page.tsx', 'app/update-password/page.tsx',
@@ -149,7 +148,6 @@ describe('no NEW file hardcodes a raw hex color outside the token files', () => 
 const PALETTE_REDECLARATION_ALLOWLIST = new Set([
   'app/founder/join/page.tsx',
   'app/founder/billing/page.tsx',
-  'app/merch/page.tsx',
   'app/investor/join/page.tsx',
   'app/investor/billing/page.tsx',
 ])
@@ -199,6 +197,13 @@ describe('the email-verification block screen stays exempt from the sidebar shel
     // Regression guard for the bug found 4 Aug 2026: a founder blocked by email verification
     // could see the full sidebar/nav around the block screen and click their way around it.
     const src = readCode('app/founder/layout.tsx')
+    expect(src).toMatch(/hideSidebar[\s\S]{0,400}verify-email/)
+  })
+
+  it('app/investor/layout.tsx excludes /verify-email from the sidebar wrapper too', () => {
+    // Same bug class, investor side — the investor gate didn't exist at all until the
+    // Supabase-native email confirmation switch, so there was nothing to guard before.
+    const src = readCode('app/investor/layout.tsx')
     expect(src).toMatch(/hideSidebar[\s\S]{0,400}verify-email/)
   })
 })

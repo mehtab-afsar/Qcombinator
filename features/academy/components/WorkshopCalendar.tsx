@@ -13,14 +13,18 @@ interface WorkshopCalendarProps {
   registeredIds: Set<string>;
   onRegister: (workshopId: string) => Promise<RegisterResult>;
   onUnregister: (workshopId: string) => Promise<RegisterResult>;
+  /** Seeds the initial month/selection — used when the year view hands off a clicked day. */
+  initialMonth?: Date;
+  initialSelectedDateKey?: string | null;
 }
 
-export function WorkshopCalendar({ workshops, registeredIds, onRegister, onUnregister }: WorkshopCalendarProps) {
+export function WorkshopCalendar({ workshops, registeredIds, onRegister, onUnregister, initialMonth, initialSelectedDateKey }: WorkshopCalendarProps) {
   const [month, setMonth] = useState<Date>(() => {
+    if (initialMonth) return initialMonth;
     const now = new Date();
     return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   });
-  const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
+  const [selectedDateKey, setSelectedDateKey] = useState<string | null>(initialSelectedDateKey ?? null);
 
   const workshopsByDate = useMemo(() => {
     const map = new Map<string, Workshop[]>();

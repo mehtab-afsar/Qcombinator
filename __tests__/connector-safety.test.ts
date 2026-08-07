@@ -112,7 +112,7 @@ describe('Message-ID determinism — what makes an ambiguous timeout recoverable
   })
 
   it('is a well-formed RFC-5322 Message-ID', () => {
-    expect(__messageIdFor('key-abc')).toMatch(/^<[a-f0-9]{32}@edgealpha\.ai>$/)
+    expect(__messageIdFor('key-abc')).toMatch(/^<[a-f0-9]{32}@edgealpha\.vc>$/)
   })
 })
 
@@ -127,10 +127,18 @@ describe('the connector registry — one map, no switch statements', () => {
     expect(scopes.some(s => s.includes('readonly') || s === 'https://mail.google.com/')).toBe(false)
   })
 
+  it('resolves slack', () => {
+    expect(getConnector('slack').provider).toBe('slack')
+  })
+
+  it('slack requests post-only scope — it cannot read the workspace', () => {
+    expect(getConnector('slack').scopes).toEqual(['chat:write'])
+  })
+
   it('an unknown provider throws rather than silently doing nothing', () => {
     // A grant naming a provider we cannot serve must fail loudly: the alternative is an Action
     // that appears to send and quietly does not.
-    expect(() => getConnector('slack')).toThrow(ConnectorError)
+    expect(() => getConnector('unregistered_provider')).toThrow(ConnectorError)
   })
 })
 

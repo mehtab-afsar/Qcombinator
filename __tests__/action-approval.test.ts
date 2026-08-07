@@ -163,7 +163,7 @@ describe('pendingApprovals reflects the LATEST row, not any pending row', () => 
   const rows = (list: Array<Record<string, unknown>>) => ({
     from: () => ({
       select: () => ({
-        eq: () => ({ order: async () => ({ data: list, error: null }) }),
+        eq: () => ({ order: () => ({ limit: async () => ({ data: list, error: null }) }) }),
       }),
     }),
   }) as unknown as SupabaseClient

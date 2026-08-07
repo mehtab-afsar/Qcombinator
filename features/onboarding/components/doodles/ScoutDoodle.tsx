@@ -2,10 +2,10 @@
 import { DoodleFrame, DoodlePath } from "./Doodle";
 
 /** Investor · Intro/Account — a sketched magnifying glass (scouting deal flow). */
-export function ScoutDoodle({ color = "#18160F" }: { color?: string }) {
+export function ScoutDoodle({ color = "#18160F", active = false }: { color?: string; active?: boolean }) {
   const s = { stroke: color } as const;
   return (
-    <DoodleFrame label="A hand-drawn sketch of a magnifying glass">
+    <DoodleFrame label="A hand-drawn sketch of a magnifying glass" active={active}>
       {/* lens — drawn as a doubled, slightly offset outline for a hand-retraced sketch feel */}
       <DoodlePath {...s} strokeWidth={2.8} duration={1.1} delay={0}
         d="M42 66 C42 45 59 28 80 28 C101 28 118 45 118 66 C118 87 101 104 80 104 C59 104 42 87 42 66 Z" />

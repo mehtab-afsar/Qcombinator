@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { verifyAuth } from '@/lib/auth/verify'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
+import { verifyAuth, verifyInvestor } from '@/lib/auth/verify'
 import { parseBody, weightsSchema } from '@/lib/api/validate'
 import { log } from '@/lib/logger'
 
@@ -33,7 +33,7 @@ export async function GET() {
 // POST /api/investor/weights — upsert investor's custom dimension weights
 export async function POST(request: NextRequest) {
   try {
-    const auth = await verifyAuth()
+    const auth = await verifyInvestor(createAdminClient())
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
     const { user } = auth
 

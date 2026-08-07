@@ -3,12 +3,12 @@
 /**
  * The blocking screen for an unconfirmed email/password sign-up.
  *
- * ⚠️ WHY THIS EXISTS. All the confirmation infrastructure already existed —
- * /api/auth/confirm-email issues the token, /api/founder/email-status reports it,
- * /api/auth/resend-confirmation resends it — but nothing actually BLOCKED access. A founder who
- * signed up with a stranger's email had exactly the same dashboard, exactly the same access,
- * as one who'd verified. middleware.ts now redirects any founder with no `email_confirmed_at`
- * here, for every /founder/** page — this is the destination, not a decoration.
+ * ⚠️ WHY THIS EXISTS. A founder who signed up with a stranger's email used to get exactly the
+ * same dashboard, exactly the same access, as one who'd verified. middleware.ts now redirects
+ * any founder whose Supabase user has no `email_confirmed_at` (lib/auth/email-confirmed.ts)
+ * here, for every /founder/** page — this is the destination, not a decoration. Confirmation
+ * itself is Supabase's own native email flow now — /api/auth/email-status reports status,
+ * /api/auth/resend-confirmation triggers Supabase's built-in resend.
  *
  * A Google sign-up never sees this page: Google already verified the address, so
  * /auth/callback sets email_confirmed_at immediately and middleware's gate passes straight
@@ -38,7 +38,7 @@ export default function VerifyEmailPage() {
     let live = true
     async function check() {
       try {
-        const res = await fetch('/api/founder/email-status')
+        const res = await fetch('/api/auth/email-status')
         if (!res.ok) return
         const data: { emailConfirmed?: boolean; email?: string | null } = await res.json()
         if (!live) return

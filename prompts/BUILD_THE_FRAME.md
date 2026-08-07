@@ -16,7 +16,7 @@
 3. `CLAUDE.md` (rules), `DecisionLog.md` — especially **ADR-002** (no per-cycle approval gate),
    **ADR-003** (contract immutable; a change = a new epoch, never an edit).
 4. The existing pieces you WIRE, not rebuild: the `S001_STRATEGY_SESSION` prompt
-   (`lib/prompts/knowledge/ceo-s001.ts`), the Composer, F08 mandate generation
+   (`lib/prompts/executives/ceo/s001.ts`), the Composer, F08 mandate generation
    (`lib/mandate/**`), the Registry, the weekly briefing, the Story 3 approval gate + Gmail send.
 
 ## Hard rules

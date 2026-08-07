@@ -1,6 +1,16 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { ClaudeError } from '@/lib/claude'
 import type { LLMProvider, LLMChatResponse, RoutingTier, ToolDefinition, ChatMessage, ContentBlock } from '../types'
+
+export class ClaudeError extends Error {
+  constructor(
+    message: string,
+    public readonly statusCode: number,
+    public readonly isTimeout = false
+  ) {
+    super(message)
+    this.name = 'ClaudeError'
+  }
+}
 
 const MODEL_MAP: Record<RoutingTier, string> = {
   fast:    'claude-haiku-4-5-20251001',

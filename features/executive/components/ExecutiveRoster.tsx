@@ -18,7 +18,7 @@ import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { ExecutiveCard, type ExecutiveCardData } from './ExecutiveCard'
 import { ease } from '@/features/shared/tokens'
-import { SectionCard } from '@/features/shared/components/SectionCard'
+import { muted } from '@/lib/constants/colors'
 import type { ExecutiveSummary, ProgramInstance } from '../types/executive.types'
 
 interface Briefing { id: string; programId: string | null; executiveId: string | null; verdict: string; createdAt: string }
@@ -41,6 +41,9 @@ export function ExecutiveRoster({ programs, reveal = false }: { programs: Progra
   const [executives, setExecutives] = useState<ExecutiveSummary[] | null>(null)
   const [briefings, setBriefings] = useState<Briefing[]>([])
   const [pending, setPending] = useState<OwnedAction[]>([])
+  // Phase 1 of the cockpit build — which card (if any) the founder just clicked into, so its
+  // siblings can dim while it leads the transition (ExecutiveCard's own entrance animation).
+  const [leavingId, setLeavingId] = useState<string | null>(null)
 
   useEffect(() => {
     let live = true
@@ -82,19 +85,35 @@ export function ExecutiveRoster({ programs, reveal = false }: { programs: Progra
   })
 
   return (
-    <SectionCard title="Your team">
+    <div>
+      {/* UX_SPEC §5: "around it: the five executives" — a quiet caption, not a bordered/shadowed
+          SectionCard, so this reads as part of the same zone as ScoreAnchor above it, not a
+          separate boxed section several scrolls down. */}
+      <p style={{
+        color: muted, fontSize: 12, fontWeight: 600, textTransform: 'uppercase',
+        letterSpacing: 0.4, textAlign: 'center', margin: '0 0 12px',
+      }}>
+        Your team
+      </p>
       <motion.div
         variants={containerVariants}
         initial={reveal ? 'hidden' : false}
         animate="show"
-        style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}
+        style={{
+          display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 12,
+          maxWidth: 800, margin: '0 auto',
+        }}
       >
         {cards.map(c => (
-          <motion.div key={c.executive.id} variants={cardVariants}>
-            <ExecutiveCard data={c} />
+          <motion.div key={c.executive.id} variants={cardVariants} style={{ flex: '0 1 260px' }}>
+            <ExecutiveCard
+              data={c}
+              dimmed={leavingId !== null && leavingId !== c.executive.id}
+              onEnter={() => setLeavingId(c.executive.id)}
+            />
           </motion.div>
         ))}
       </motion.div>
-    </SectionCard>
+    </div>
   )
 }

@@ -27,7 +27,7 @@ export function EmailConfirmBanner({ statusApiPath, resendApiPath }: Props) {
       .then((d: { emailConfirmed?: boolean }) => {
         setStatus(d.emailConfirmed ? 'confirmed' : 'unconfirmed')
       })
-      .catch(() => setStatus('confirmed'))
+      .catch(() => setStatus('unconfirmed'))
   }, [statusApiPath])
 
   async function handleResend() {

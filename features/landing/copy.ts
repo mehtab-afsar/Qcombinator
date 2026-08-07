@@ -90,9 +90,9 @@ export const PRICING = {
 export const FAQS = [
   { q: "What is Q-Score and how is it calculated?", a: "Q-Score is a 0–100 investment readiness score across six dimensions: Market Readiness, Market Potential, IP & Defensibility, Founder & Team, Structural Impact, and Financials. It's built from your profile data, agent sessions, and documents you upload. Sector-adaptive weights ensure a HealthTech startup is scored against HealthTech benchmarks — and the scoring is deterministic, not a model's mood." },
   { q: "Are the investors real and verified?", a: "Yes. Every investor in the marketplace has been individually onboarded, verified their investment thesis, and opted in to receive introductions. We do not scrape public directories." },
-  { q: "How do the AI agents know about my business?", a: "When you complete onboarding, a Q-Score assessment, or upload documents, all nine agents are pre-loaded with your profile, financials, team, and market context. Every session is in context — agents remember what was discussed and built." },
+  { q: "How do the AI agents know about my business?", a: "When you complete onboarding, a Q-Score assessment, or upload documents, your whole executive team is pre-loaded with your profile, financials, team, and market context. Every session is in context — agents remember what was discussed and built." },
   { q: "Is my data secure and private?", a: "All data is encrypted at rest and in transit. Founder data is never shared with investors without explicit connection consent. We don't use your data to train models." },
-  { q: "What's the difference between Free and Pro?", a: "Free gives you 3 agents, a Q-Score, and an improvement roadmap — enough to understand where you stand. Pro unlocks all 9 agents, the investor marketplace, and Academy access for $49/month." },
+  { q: "What's the difference between Free and Pro?", a: "Free gives you a Q-Score and an improvement roadmap — enough to understand where you stand. Pro unlocks your full executive team, the investor marketplace, and Academy access for $49/month." },
   { q: "How long does it take to get investor introductions?", a: "The marketplace opens when your Q-Score reaches 70. Most founders reach 70 within 4–8 weeks of consistent agent use. The median time to first investor response is 4 days after unlocking." },
 ] as const;
 

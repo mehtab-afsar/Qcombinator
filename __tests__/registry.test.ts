@@ -206,13 +206,14 @@ describe('ADR-008 — the rhythm runs all contract-active programs', () => {
 // ─── ADR-004: the irreversible flag is a safety property ──────────────────────
 
 describe('P001 actions — approval surface', () => {
-  it('interview_customers is the only irreversible action, and it uses gmail', () => {
+  it('interview_customers and post_team_update are the only irreversible actions, each on its own connector', () => {
     const irreversible = getProgram('P001').actions
       .map(getAction)
       .filter(a => a.irreversible)
 
-    expect(irreversible.map(a => a.id)).toEqual(['interview_customers'])
+    expect(irreversible.map(a => a.id).sort()).toEqual(['interview_customers', 'post_team_update'])
     expect(getAction('interview_customers').connector).toBe('gmail')
+    expect(getAction('post_team_update').connector).toBe('slack')
   })
 
   it('the other four are internal, reversible and connector-free', () => {

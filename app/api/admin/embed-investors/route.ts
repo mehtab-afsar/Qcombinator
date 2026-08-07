@@ -55,19 +55,21 @@ export async function POST(request: NextRequest) {
       try {
         const embeddings = await embedBatch(batch.map((inv: { id: string; thesis: string | null }) => inv.thesis ?? ''))
 
-        // Upsert each investor's embedding
+        // Upsert each investor's embedding — one batched write instead of one round trip per row
         const updates = batch.map((inv: { id: string; thesis: string | null }, j: number) => ({
           id: inv.id,
           thesis_embedding: JSON.stringify(embeddings[j]),
         }))
 
-        for (const update of updates) {
-          const { error: updateErr } = await supabase
-            .from('demo_investors')
-            .update({ thesis_embedding: update.thesis_embedding })
-            .eq('id', update.id)
-          if (updateErr) { failed++; continue }
-          processed++
+        const { error: updateErr } = await supabase
+          .from('demo_investors')
+          .upsert(updates, { onConflict: 'id' })
+
+        if (updateErr) {
+          log.error('[embed-investors] batch upsert failed', { offset: i, err: updateErr })
+          failed += updates.length
+        } else {
+          processed += updates.length
         }
       } catch (batchErr) {
         log.error('[embed-investors] batch failed', { offset: i, err: batchErr })

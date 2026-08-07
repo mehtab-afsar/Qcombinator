@@ -24,7 +24,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted, blue, purple, green, amber, red } from '@/lib/constants/colors'
+import { font } from '@/features/shared/tokens'
 import { Avatar } from '@/features/shared/components/Avatar'
 import { PageSpinner } from '@/features/shared/components/Spinner'
 import { UpgradeModal } from '@/features/investor/components/UpgradeModal'
@@ -159,6 +160,7 @@ export default function StartupDeepDive() {
   const [shareSending, setShareSending]   = useState(false);
   const [shareDone,    setShareDone]      = useState(false);
   const [investors,    setInvestors]      = useState<Array<{ user_id: string; full_name: string; firm_name: string | null }>>([]);
+  const [isConnected,  setIsConnected]    = useState(true);
 
   async function handleUpgradeAction() {
     setUpgradeActing(true)
@@ -181,7 +183,7 @@ export default function StartupDeepDive() {
       fetch('/api/investor/pipeline').then(r => r.ok ? r.json() : { pipelineMap: {} }).catch(() => ({ pipelineMap: {} })),
     ]).then(([startupData, pipelineData]) => {
       if (startupData.error) setError(startupData.error);
-      else setStartup(startupData.startup);
+      else { setStartup(startupData.startup); setIsConnected(startupData.isConnected !== false); }
       const entry = (pipelineData.pipelineMap ?? {})[id];
       if (entry) {
         const raw = entry.stage === 'interested' ? 'watching' : entry.stage;
@@ -280,7 +282,7 @@ export default function StartupDeepDive() {
     return (
       <div style={{ minHeight: '100vh', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
         <p style={{ fontSize: 15, color: ink }}>{error || 'Not found'}</p>
-        <Link href="/investor/deal-flow" style={{ fontSize: 13, color: blue, textDecoration: 'none' }}>← Back to pipeline</Link>
+        <Link href="/investor/deal-flow" style={{ fontSize: 13, color: purple, textDecoration: 'none' }}>← Back to pipeline</Link>
       </div>
     );
   }
@@ -327,12 +329,12 @@ export default function StartupDeepDive() {
 
           <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
             <div style={{ textAlign: "center" }}>
-              <p style={{ fontSize: 20, fontWeight: 600, color: qColor(s.qScore), lineHeight: 1 }}>{s.qScore || '—'}</p>
+              <p style={{ fontSize: 20, fontWeight: 600, color: qColor(s.qScore), lineHeight: 1, fontFamily: font.family.mono }}>{s.qScore || '—'}</p>
               <p style={{ fontSize: 9, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginTop: 2 }}>Q-Score</p>
             </div>
             {s.qScorePercentile > 0 && (
               <div style={{ textAlign: "center" }}>
-                <p style={{ fontSize: 20, fontWeight: 600, color: ink, lineHeight: 1 }}>{s.qScorePercentile}th</p>
+                <p style={{ fontSize: 20, fontWeight: 600, color: ink, lineHeight: 1, fontFamily: font.family.mono }}>{s.qScorePercentile}th</p>
                 <p style={{ fontSize: 9, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginTop: 2 }}>Percentile</p>
               </div>
             )}
@@ -433,6 +435,23 @@ export default function StartupDeepDive() {
         </div>
       </div>
 
+      {/* ── preview notice: full profile unlocks once a connection is accepted ── */}
+      {!isConnected && (
+        <div style={{ maxWidth: 1100, margin: "16px auto 0", padding: "0 28px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "12px 18px", borderRadius: 10, background: `${purple}0d`, border: `1px solid ${purple}33` }}>
+            <p style={{ fontSize: 13, color: ink }}>
+              <span style={{ fontWeight: 600 }}>You&rsquo;re viewing a preview.</span> Financials, team, documents, and full AI analysis unlock once {s.founderName || 'this founder'} accepts a connection.
+            </p>
+            <button
+              onClick={() => { setShowOutreach(true); setOutreachDone(false) }}
+              style={{ flexShrink: 0, padding: "7px 14px", borderRadius: 8, border: "none", background: purple, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}
+            >
+              Request a connection
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── private notes panel ────────────────────────────────────── */}
       {/* Outreach modal */}
       {showOutreach && (
@@ -443,7 +462,7 @@ export default function StartupDeepDive() {
           <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 480, background: bg, borderRadius: 16, border: `1px solid ${bdr}`, padding: "28px 28px 24px", boxShadow: "0 24px 64px rgba(0,0,0,0.12)" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <MessageSquare style={{ height: 16, width: 16, color: blue }} />
+                <MessageSquare style={{ height: 16, width: 16, color: purple }} />
                 <p style={{ fontSize: 15, fontWeight: 600, color: ink }}>Message {startup?.founderName}</p>
               </div>
               <button onClick={() => setShowOutreach(false)} style={{ background: "none", border: "none", cursor: "pointer", color: muted, padding: 4 }}>
@@ -472,7 +491,7 @@ export default function StartupDeepDive() {
                   placeholder={`Hi ${startup?.founderName?.split(' ')[0] ?? 'there'}, I came across ${startup?.name} and would love to learn more…`}
                   rows={5}
                   style={{ width: "100%", padding: "11px 14px", borderRadius: 8, border: `1.5px solid ${bdr}`, background: surf, fontSize: 13, color: ink, fontFamily: "inherit", outline: "none", resize: "vertical", lineHeight: 1.5, boxSizing: "border-box" }}
-                  onFocus={e => (e.currentTarget.style.borderColor = blue)}
+                  onFocus={e => (e.currentTarget.style.borderColor = purple)}
                   onBlur={e => (e.currentTarget.style.borderColor = bdr)}
                 />
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 14 }}>
@@ -482,7 +501,7 @@ export default function StartupDeepDive() {
                   <button
                     onClick={handleSendOutreach}
                     disabled={!outreachMsg.trim() || outreachSending}
-                    style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 20px", borderRadius: 8, border: "none", background: outreachMsg.trim() ? blue : bdr, color: "#fff", fontSize: 13, fontWeight: 600, cursor: outreachMsg.trim() ? "pointer" : "not-allowed", opacity: outreachSending ? 0.6 : 1, fontFamily: "inherit" }}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "9px 20px", borderRadius: 8, border: "none", background: outreachMsg.trim() ? purple : bdr, color: "#fff", fontSize: 13, fontWeight: 600, cursor: outreachMsg.trim() ? "pointer" : "not-allowed", opacity: outreachSending ? 0.6 : 1, fontFamily: "inherit" }}
                   >
                     {outreachSending ? <Loader2 style={{ height: 13, width: 13, animation: "spin 1s linear infinite" }} /> : <Send style={{ height: 13, width: 13 }} />}
                     {outreachSending ? "Sending…" : "Send Message"}
@@ -504,7 +523,7 @@ export default function StartupDeepDive() {
             {/* header */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <Share2 style={{ height: 15, width: 15, color: blue }} />
+                <Share2 style={{ height: 15, width: 15, color: purple }} />
                 <p style={{ fontSize: 14, fontWeight: 600, color: ink }}>Share {s.name}</p>
               </div>
               <button onClick={() => setShowShare(false)} style={{ background: "none", border: "none", cursor: "pointer", color: muted }}>
@@ -554,7 +573,7 @@ export default function StartupDeepDive() {
                             onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = surf}
                             onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "transparent"}
                           >
-                            <div style={{ width: 32, height: 32, borderRadius: 8, background: `${blue}14`, border: `1px solid ${blue}30`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: blue, flexShrink: 0 }}>
+                            <div style={{ width: 32, height: 32, borderRadius: 8, background: `${purple}14`, border: `1px solid ${purple}30`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: purple, flexShrink: 0 }}>
                               {inv.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                             </div>
                             <div>
@@ -571,8 +590,8 @@ export default function StartupDeepDive() {
                 ) : (
                   <div>
                     {/* selected investor */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: `${blue}08`, border: `1px solid ${blue}20`, borderRadius: 8, marginBottom: 12 }}>
-                      <div style={{ width: 32, height: 32, borderRadius: 8, background: `${blue}14`, border: `1px solid ${blue}30`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: blue, flexShrink: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: `${purple}08`, border: `1px solid ${purple}20`, borderRadius: 8, marginBottom: 12 }}>
+                      <div style={{ width: 32, height: 32, borderRadius: 8, background: `${purple}14`, border: `1px solid ${purple}30`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: purple, flexShrink: 0 }}>
                         {shareTarget.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                       </div>
                       <div style={{ flex: 1 }}>
@@ -590,7 +609,7 @@ export default function StartupDeepDive() {
                       placeholder={`Add a note for ${shareTarget.full_name}… (optional)`}
                       rows={3}
                       style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${bdr}`, background: surf, fontSize: 13, color: ink, fontFamily: "inherit", outline: "none", resize: "none", lineHeight: 1.5, boxSizing: "border-box" }}
-                      onFocus={e => (e.currentTarget.style.borderColor = blue)}
+                      onFocus={e => (e.currentTarget.style.borderColor = purple)}
                       onBlur={e => (e.currentTarget.style.borderColor = bdr)}
                     />
                     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12 }}>
@@ -600,7 +619,7 @@ export default function StartupDeepDive() {
                       <button
                         onClick={handleSendShare}
                         disabled={shareSending}
-                        style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 18px", borderRadius: 8, border: "none", background: blue, color: "#fff", fontSize: 13, fontWeight: 600, cursor: shareSending ? "not-allowed" : "pointer", opacity: shareSending ? 0.6 : 1, fontFamily: "inherit" }}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 18px", borderRadius: 8, border: "none", background: purple, color: "#fff", fontSize: 13, fontWeight: 600, cursor: shareSending ? "not-allowed" : "pointer", opacity: shareSending ? 0.6 : 1, fontFamily: "inherit" }}
                       >
                         {shareSending ? <Loader2 style={{ height: 13, width: 13, animation: "spin 1s linear infinite" }} /> : <Share2 style={{ height: 13, width: 13 }} />}
                         {shareSending ? "Sharing…" : "Share"}
@@ -694,7 +713,7 @@ export default function StartupDeepDive() {
                       </div>
                       {s.website && (
                         <a href={s.website.startsWith('http') ? s.website : `https://${s.website}`} target="_blank" rel="noopener noreferrer"
-                          style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 16, fontSize: 12, color: blue, textDecoration: "none" }}>
+                          style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 16, fontSize: 12, color: purple, textDecoration: "none" }}>
                           <ExternalLink size={11} /> {s.website}
                         </a>
                       )}
@@ -828,7 +847,7 @@ export default function StartupDeepDive() {
                         )}
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <span style={{ fontSize: 20, fontWeight: 700, color: qColor(s.qScore) }}>{s.qScore || '—'}</span>
+                        <span style={{ fontSize: 20, fontWeight: 700, color: qColor(s.qScore), fontFamily: font.family.mono }}>{s.qScore || '—'}</span>
                         {s.scoreVersion === 'v2_q' && <span style={{ fontSize: 9, padding: "2px 7px", background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 999, color: blue, fontWeight: 600 }}>v2</span>}
                         {s.qScoreGrade && s.qScoreGrade !== '—' && <span style={{ fontSize: 11, padding: "2px 8px", background: surf, border: `1px solid ${bdr}`, borderRadius: 999, color: muted }}>{s.qScoreGrade}</span>}
                       </div>
@@ -885,7 +904,7 @@ export default function StartupDeepDive() {
 
                   {s.qScorePercentile > 0 && (
                     <div style={{ padding: "18px 20px", background: bg, border: `1px solid ${bdr}`, borderRadius: 18, textAlign: "center" }}>
-                      <p style={{ fontSize: 32, fontWeight: 300, color: ink, letterSpacing: "-0.04em" }}>{s.qScorePercentile}th</p>
+                      <p style={{ fontSize: 32, fontWeight: 300, color: ink, letterSpacing: "-0.04em", fontFamily: font.family.mono }}>{s.qScorePercentile}th</p>
                       <p style={{ fontSize: 11, color: muted }}>percentile among assessed founders</p>
                       <div style={{ marginTop: 14, height: 6, background: surf, border: `1px solid ${bdr}`, borderRadius: 999, overflow: "hidden" }}>
                         <motion.div style={{ height: "100%", borderRadius: 999, background: qColor(s.qScore) }} initial={{ width: 0 }} animate={{ width: `${s.qScorePercentile}%` }} transition={{ duration: 0.8, ease: "easeOut" }} />
@@ -947,16 +966,16 @@ export default function StartupDeepDive() {
                     <p style={{ fontSize: 11, color: amber }}>Team data sourced from profile builder — not yet verified via hiring plan artifact.</p>
                   </div>
                 )}
-                <div style={{ background: bg, border: `2px solid ${blue}`, borderRadius: 18, overflow: "hidden" }}>
+                <div style={{ background: bg, border: `2px solid ${purple}`, borderRadius: 18, overflow: "hidden" }}>
                   <div style={{ padding: "16px 22px", borderBottom: `1px solid ${bdr}`, display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ height: 6, width: 6, borderRadius: "50%", background: blue }} />
-                    <p style={{ fontSize: 11, fontWeight: 600, color: blue, textTransform: "uppercase", letterSpacing: "0.14em" }}>Founder</p>
+                    <div style={{ height: 6, width: 6, borderRadius: "50%", background: purple }} />
+                    <p style={{ fontSize: 11, fontWeight: 600, color: purple, textTransform: "uppercase", letterSpacing: "0.14em" }}>Founder</p>
                   </div>
                   <div style={{ padding: "22px", display: "flex", gap: 16 }}>
                     <Avatar url={s.avatarUrl ?? null} name={s.founderName} size={56} radius={14} />
                     <div style={{ flex: 1 }}>
                       <p style={{ fontSize: 15, fontWeight: 600, color: ink }}>{s.founderName}</p>
-                      <p style={{ fontSize: 12, color: blue, fontWeight: 500, marginTop: 2 }}>Founder & CEO</p>
+                      <p style={{ fontSize: 12, color: purple, fontWeight: 500, marginTop: 2 }}>Founder & CEO</p>
                       <p style={{ fontSize: 12, color: muted, marginTop: 4 }}>{s.sector} · {s.stage}</p>
                     </div>
                   </div>
@@ -1102,14 +1121,14 @@ export default function StartupDeepDive() {
                           >
                             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                               <div style={{ height: 36, width: 36, borderRadius: 9, background: bg, border: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                <FileText size={14} color={blue} />
+                                <FileText size={14} color={purple} />
                               </div>
                               <div>
                                 <p style={{ fontSize: 13, fontWeight: 500, color: ink }}>{doc.name}</p>
                                 <p style={{ fontSize: 11, color: muted }}>{ext}{sizeMb ? ` · ${sizeMb}` : ''} · Section {doc.section}</p>
                               </div>
                             </div>
-                            <span style={{ fontSize: 11, padding: "3px 10px", background: "#EFF6FF", border: "1px solid #93C5FD", borderRadius: 999, color: blue, fontWeight: 500 }}>Open ↗</span>
+                            <span style={{ fontSize: 11, padding: "3px 10px", background: `${purple}0d`, border: `1px solid ${purple}4d`, borderRadius: 999, color: purple, fontWeight: 500 }}>Open ↗</span>
                           </a>
                         )
                       })}
@@ -1136,7 +1155,7 @@ export default function StartupDeepDive() {
                         <div key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", background: has ? surf : "#FAFAF8", border: `1px solid ${has ? bdr : "#EDE9E1"}`, borderRadius: 12, opacity: has ? 1 : 0.55 }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                             <div style={{ height: 36, width: 36, borderRadius: 9, background: bg, border: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                              <FileText size={14} color={has ? blue : muted} />
+                              <FileText size={14} color={has ? purple : muted} />
                             </div>
                             <div>
                               <p style={{ fontSize: 13, fontWeight: 500, color: ink }}>{label}</p>
@@ -1173,7 +1192,8 @@ export default function StartupDeepDive() {
                   if (data.unanswerable) {
                     setChatMessages(prev => [...prev, {
                       role: 'bot',
-                      text: `That information hasn't been submitted yet. Would you like to send a message to ${data.founderName ?? 'the founder'} asking for it?`,
+                      text: data.reason
+                        ?? `That information hasn't been submitted yet. Would you like to send a message to ${data.founderName ?? 'the founder'} asking for it?`,
                     }])
                   } else {
                     setChatMessages(prev => [...prev, { role: 'bot', text: data.answer ?? 'No answer found.' }])
@@ -1258,7 +1278,7 @@ export default function StartupDeepDive() {
                       )}
                       {chatMessages.map((msg, i) => (
                         <div key={i} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
-                          <div style={{ maxWidth: "80%", padding: "10px 14px", borderRadius: msg.role === "user" ? "14px 4px 14px 14px" : "4px 14px 14px 14px", background: msg.role === "user" ? blue : surf, border: msg.role === "bot" ? `1px solid ${bdr}` : "none", fontSize: 13, color: msg.role === "user" ? "#fff" : ink, lineHeight: 1.55 }}>
+                          <div style={{ maxWidth: "80%", padding: "10px 14px", borderRadius: msg.role === "user" ? "14px 4px 14px 14px" : "4px 14px 14px 14px", background: msg.role === "user" ? purple : surf, border: msg.role === "bot" ? `1px solid ${bdr}` : "none", fontSize: 13, color: msg.role === "user" ? "#fff" : ink, lineHeight: 1.55 }}>
                             {msg.text}
                           </div>
                         </div>
@@ -1283,7 +1303,7 @@ export default function StartupDeepDive() {
                       <button
                         onClick={handleChatAsk}
                         disabled={!chatInput.trim() || chatLoading}
-                        style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: chatInput.trim() && !chatLoading ? blue : bdr, color: "#fff", fontSize: 12, fontWeight: 600, cursor: chatInput.trim() && !chatLoading ? "pointer" : "not-allowed", fontFamily: "inherit" }}
+                        style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: chatInput.trim() && !chatLoading ? purple : bdr, color: "#fff", fontSize: 12, fontWeight: 600, cursor: chatInput.trim() && !chatLoading ? "pointer" : "not-allowed", fontFamily: "inherit" }}
                       >
                         Ask
                       </button>

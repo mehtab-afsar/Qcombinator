@@ -58,56 +58,62 @@ export async function GET(req: NextRequest) {
   }
 
   // ── Send day-1 emails ────────────────────────────────────────────────────────
-  let day1Sent = 0
-  for (const founder of day1Founders ?? []) {
-    try {
-      const email = await getEmail(founder.user_id)
-      if (!email) continue
+  // Each founder's work is independent — bounded to 50 by the query above, so this
+  // is safe to run in parallel instead of one round trip at a time.
+  const day1Founders_ = day1Founders ?? []
+  const day1Results = await Promise.allSettled(day1Founders_.map(async founder => {
+    const email = await getEmail(founder.user_id)
+    if (!email) return false
 
-      // Check if they have any agent artifacts — if they do, skip the nudge
-      const { count } = await admin
-        .from('agent_artifacts')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', founder.user_id)
+    // Check if they have any agent artifacts — if they do, skip the nudge
+    const { count } = await admin
+      .from('agent_artifacts')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', founder.user_id)
 
-      if ((count ?? 0) > 0) {
-        // Active user — mark sent anyway to avoid future nudges
-        await admin.from('founder_profiles').update({ email_day1_sent: true }).eq('user_id', founder.user_id)
-        continue
-      }
-
-      await sendDay1NudgeEmail({ email, fullName: founder.full_name ?? 'Founder' })
+    if ((count ?? 0) > 0) {
+      // Active user — mark sent anyway to avoid future nudges
       await admin.from('founder_profiles').update({ email_day1_sent: true }).eq('user_id', founder.user_id)
-      day1Sent++
-    } catch (e) {
-      log.error('[drip-emails] day1 send failed', { userId: founder.user_id, err: e })
+      return false
     }
-  }
+
+    await sendDay1NudgeEmail({ email, fullName: founder.full_name ?? 'Founder' })
+    await admin.from('founder_profiles').update({ email_day1_sent: true }).eq('user_id', founder.user_id)
+    return true
+  }))
+
+  let day1Sent = 0
+  day1Results.forEach((r, i) => {
+    if (r.status === 'fulfilled') { if (r.value) day1Sent++ }
+    else log.error('[drip-emails] day1 send failed', { userId: day1Founders_[i]?.user_id, err: r.reason })
+  })
 
   // ── Send day-7 emails ────────────────────────────────────────────────────────
-  let day7Sent = 0
-  for (const founder of day7Founders ?? []) {
-    try {
-      const email = await getEmail(founder.user_id)
-      if (!email) continue
+  const day7Founders_ = day7Founders ?? []
+  const day7Results = await Promise.allSettled(day7Founders_.map(async founder => {
+    const email = await getEmail(founder.user_id)
+    if (!email) return false
 
-      const { count } = await admin
-        .from('agent_artifacts')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', founder.user_id)
+    const { count } = await admin
+      .from('agent_artifacts')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', founder.user_id)
 
-      if ((count ?? 0) > 0) {
-        await admin.from('founder_profiles').update({ email_day7_sent: true }).eq('user_id', founder.user_id)
-        continue
-      }
-
-      await sendDay7NudgeEmail({ email, fullName: founder.full_name ?? 'Founder' })
+    if ((count ?? 0) > 0) {
       await admin.from('founder_profiles').update({ email_day7_sent: true }).eq('user_id', founder.user_id)
-      day7Sent++
-    } catch (e) {
-      log.error('[drip-emails] day7 send failed', { userId: founder.user_id, err: e })
+      return false
     }
-  }
+
+    await sendDay7NudgeEmail({ email, fullName: founder.full_name ?? 'Founder' })
+    await admin.from('founder_profiles').update({ email_day7_sent: true }).eq('user_id', founder.user_id)
+    return true
+  }))
+
+  let day7Sent = 0
+  day7Results.forEach((r, i) => {
+    if (r.status === 'fulfilled') { if (r.value) day7Sent++ }
+    else log.error('[drip-emails] day7 send failed', { userId: day7Founders_[i]?.user_id, err: r.reason })
+  })
 
   log.info('[drip-emails] complete', { day1Sent, day7Sent })
   return NextResponse.json({ ok: true, day1Sent, day7Sent })

@@ -15,10 +15,18 @@
  */
 
 import { useEffect, useState } from 'react'
+import { blue, alpha } from '@/lib/constants/colors'
 import { SectionCard } from '@/features/shared/components/SectionCard'
 import { ArtifactCard, type ArtifactCardData } from './ArtifactCard'
 
-export function ProgramAssetsPanel({ executiveId }: { executiveId: string }) {
+export function ProgramAssetsPanel({
+  executiveId, onOpenAsset,
+}: {
+  executiveId: string
+  /** CANVAS_SPEC §5 — when supplied, clicking a document opens the node workspace panel in
+   *  place instead of navigating away. Passed straight through to ArtifactCard. */
+  onOpenAsset?: (assetId: string) => void
+}) {
   const [assets, setAssets] = useState<ArtifactCardData[] | null>(null)
 
   useEffect(() => {
@@ -40,9 +48,9 @@ export function ProgramAssetsPanel({ executiveId }: { executiveId: string }) {
   if (!assets || assets.length === 0) return null
 
   return (
-    <SectionCard title="Documents">
+    <SectionCard title="Documents" style={{ background: alpha(blue, 0.04) }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10 }}>
-        {assets.map(a => <ArtifactCard key={a.id} data={a} />)}
+        {assets.map(a => <ArtifactCard key={a.id} data={a} onOpen={onOpenAsset} />)}
       </div>
     </SectionCard>
   )

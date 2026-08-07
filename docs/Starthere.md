@@ -70,31 +70,38 @@ lib/
 ├── registry/                     ← THE CATALOG (authoritative runtime source)
 │   ├── types.ts                  Executive · ProgramTemplate · AssetDef · ActionDef
 │   ├── index.ts                  getExecutive() · getProgram() · getAsset() · getAction()
-│   ├── executives/
-│   │   ├── ceo.ts                owns S001/S002 prompts
-│   │   └── growth.ts             Patel (S003)   [product/operations/finance later]
-│   ├── programs/
-│   │   └── growth/
-│   │       └── p001-gtm.ts       objective · successMetric · assets · actions · prompt refs
-│   ├── assets/
-│   │   └── growth/
-│   │       ├── as001-icp.ts
-│   │       ├── as002-pains-gains.ts
-│   │       ├── as003-buyer-journey.ts
-│   │       ├── as004-positioning.ts
-│   │       └── as005-channel-strategy.ts
-│   └── actions/
-│       ├── validate-icps.ts
-│       ├── interview-customers.ts      (irreversible → connector: gmail)
-│       ├── prioritize-channels.ts
-│       ├── review-messaging.ts
-│       └── approve-gtm-plan.ts
+│   └── executives/                       ← one folder per executive (executive-first, not type-first —
+│       ├── ceo/                            each owns everything it produces; a shared asset's file
+│       │   └── executive.ts                still lives with its PRIMARY owner, cross-referenced via
+│       └── growth/                         AssetDef.sharedWith, never physically duplicated)
+│           ├── executive.ts      Patel (S003)   [product/operations/finance later, same shape]
+│           ├── programs/
+│           │   └── p001-gtm.ts   objective · successMetric · assets · actions · prompt refs
+│           ├── assets/
+│           │   ├── as001-icp.ts
+│           │   ├── as002-pains-gains.ts
+│           │   ├── as003-buyer-journey.ts
+│           │   ├── as004-positioning.ts
+│           │   └── as005-channel-strategy.ts
+│           └── actions/
+│               ├── validate-icps.ts
+│               ├── interview-customers.ts      (irreversible → connector: gmail)
+│               ├── prioritize-channels.ts
+│               ├── review-messaging.ts
+│               └── approve-gtm-plan.ts
 │
-├── prompts/                      ← THE WORDS (4-layer composition)
-│   ├── compose.ts                the Composer + validation
-│   └── knowledge/
-│       ├── ceo.ts
-│       └── growth.ts             lifted (read-only) from Patel's S003
+├── prompts/                       ← THE WORDS (4-layer composition)
+│   ├── compose.ts                the Composer + validation (composer/ — shared, stays central)
+│   ├── registry.ts               promptRef -> text lookup
+│   └── executives/                       ← one folder per executive, same shape as lib/registry
+│       ├── ceo/
+│       │   ├── s001.ts           the CEO's only two System Prompt Refs (ADR-023) —
+│       │   └── s002.ts             no separate "voice" file; these ARE its whole prompt
+│       └── growth/
+│           ├── voice.ts          S003, lifted (read-only) from Patel's S003
+│           ├── programs/p001.ts
+│           ├── assets/as001.ts … as005.ts
+│           └── actions/validate-icps.ts … post-team-update.ts
 │
 ├── mandate/                      ← SCORE → CONTRACT
 │   ├── strategy.ts               S001
@@ -159,8 +166,8 @@ supabase/migrations/
 
 Everything behind `NEW_EXECUTIVE_MODEL`; the old Patel untouched.
 
-1. **Define it in the Registry.** `lib/registry/executives/growth.ts` + `programs/growth/p001-gtm.ts` — assets **AS001–AS005**, actions `[validate_icps, interview_customers, prioritize_channels, review_messaging, approve_gtm_plan]`. → **F05**
-2. **Give it words.** `lib/prompts/knowledge/growth.ts` (lifted read-only from Patel's S003) + the P001 Program Prompt; wire `compose.ts` to assemble the 4 layers. → **F06**
+1. **Define it in the Registry.** `lib/registry/executives/growth/executive.ts` + `executives/growth/programs/p001-gtm.ts` (each executive owns its own `programs/`, `assets/`, `actions/` subfolders) — assets **AS001–AS005**, actions `[validate_icps, interview_customers, prioritize_channels, review_messaging, approve_gtm_plan]`. → **F05**
+2. **Give it words.** `lib/prompts/executives/growth/voice.ts` (lifted read-only from Patel's S003) + the P001 Program Prompt, each executive's prompt content under its own `lib/prompts/executives/{id}/` folder; wire `compose.ts` to assemble the 4 layers. → **F06**
 3. **The mandate.** The CEO drafts an Executive Contract from the Q-Score; `app/api/contracts` persists it; the founder confirms on `/founder/executive`; P001 goes active. → **F07, F08, F09**
 4. **The rhythm runs it.** `lib/rhythm/run.ts` executes P001: writes **versioned** AS001–AS005 and publishes a Briefing. Trigger manually first, Cron after. → **F10, F11, F12**
 5. **The founder can edit any Asset.** A save creates a new immutable current version, used next cycle. No approval. → **F11**

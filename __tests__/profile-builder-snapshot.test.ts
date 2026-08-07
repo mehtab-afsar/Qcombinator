@@ -65,19 +65,25 @@ describe('the narrative summary is generated per section, through the router', (
 })
 
 describe('the frontend renders the narrative ahead of the field list, not instead of it', () => {
-  const page = readFileSync('app/founder/profile-builder/page.tsx', 'utf8')
   // extract-results and pre-score used to be two separately-rendered screens; they're
   // now a single step ('extract-results') whose CTA and header copy adapt to whether
   // smart-qa has been answered yet, rendering through one shared card component —
   // see ProfileSnapshot.tsx — instead of each having its own duplicate card JSX.
-  const snapshot = readFileSync('features/founder/components/profile-builder/ProfileSnapshot.tsx', 'utf8')
+  const snapshot = readFileSync('features/profile-builder/components/ProfileSnapshot.tsx', 'utf8')
+  // The SectionSummary type moved out of page.tsx into its own types module as part
+  // of the profile-builder feature-folder split (Stage 0) — the type check now reads
+  // that file, not page.tsx's source text.
+  const types = readFileSync('features/profile-builder/types.ts', 'utf8')
+  // The `cards` mapping that wires narrativeSummary in moved into its own screen
+  // component as part of the same split (Stage 6) — page.tsx no longer builds it.
+  const extractResults = readFileSync('features/profile-builder/components/ExtractResultsScreen.tsx', 'utf8')
 
   it('SectionSummary carries narrativeSummary through from the API', () => {
-    expect(page).toContain('narrativeSummary?: string | null')
+    expect(types).toContain('narrativeSummary?: string | null')
   })
 
   it('the snapshot screen wires narrativeSummary into the shared card renderer', () => {
-    expect(page).toContain('narrative: s.narrativeSummary ?? null')
+    expect(extractResults).toContain('narrative: s.narrativeSummary ?? null')
   })
 
   it('the shared renderer shows the narrative ahead of the field list', () => {

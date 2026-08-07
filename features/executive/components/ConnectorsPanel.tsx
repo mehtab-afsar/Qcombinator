@@ -33,6 +33,8 @@ interface Available { provider: string; scopes: string[] }
 function describeScope(scope: string): string {
   if (scope.endsWith('/gmail.send')) return 'Send email as you. It cannot read your inbox.'
   if (scope.includes('gmail.readonly')) return 'Read your inbox.'
+  if (scope.includes('gmail.compose')) return 'Required by Google to read your inbox — this connection never drafts or sends anything.'
+  if (scope === 'chat:write') return 'Post messages to a channel you choose, as the Edge Alpha bot. It cannot read your workspace.'
   return scope
 }
 

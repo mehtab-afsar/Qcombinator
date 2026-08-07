@@ -19,6 +19,15 @@ import { log } from '@/lib/logger'
 /** The only addresses that may receive mail outside production. */
 const DEV_ALLOWLIST: readonly string[] = ['mo@innosphere.ventures']
 
+/**
+ * The only Slack channel that may receive a post outside production.
+ *
+ * ⚠️ PLACEHOLDER — replace with the real dev/test channel id before the Slack connector is used
+ * against a real workspace (a Slack App must exist first; see the connector plan's prerequisite).
+ * A channel id (`C0123456789`), not a channel name — names can be renamed out from under this.
+ */
+const DEV_SLACK_CHANNEL_ALLOWLIST: readonly string[] = ['REPLACE_WITH_TEST_CHANNEL_ID']
+
 export class RecipientBlockedError extends Error {
   readonly blocked: string[]
   constructor(blocked: string[]) {
@@ -28,6 +37,18 @@ export class RecipientBlockedError extends Error {
     )
     this.name = 'RecipientBlockedError'
     this.blocked = blocked
+  }
+}
+
+export class ChannelBlockedError extends Error {
+  readonly channel: string
+  constructor(channel: string) {
+    super(
+      `Blocked: outside production this system may only post to ${DEV_SLACK_CHANNEL_ALLOWLIST.join(', ')}. ` +
+      `Refused channel '${channel}'.`,
+    )
+    this.name = 'ChannelBlockedError'
+    this.channel = channel
   }
 }
 
@@ -63,5 +84,24 @@ export function assertRecipientsAllowed(recipients: ReadonlyArray<{ email: strin
   throw new RecipientBlockedError(blocked)
 }
 
+/**
+ * Refuse a Slack post outside production unless it targets the designated dev/test channel.
+ * Same shape and strictness as `assertRecipientsAllowed` — not configurable by an environment
+ * variable, hard-coded so a change to it is a reviewed diff, not a 2am setting.
+ *
+ * @throws ChannelBlockedError outside production when the channel is not allowlisted.
+ */
+export function assertChannelAllowed(channel: string | undefined): void {
+  if (isProduction()) return
+  if (!channel) return // nothing to post to, nothing blocked
+
+  const allowed = new Set(DEV_SLACK_CHANNEL_ALLOWLIST)
+  if (allowed.has(channel)) return
+
+  log.error('channel allowlist blocked a post outside production', { blockedChannel: channel })
+  throw new ChannelBlockedError(channel)
+}
+
 /** Exposed for tests and for the security review pack — never for runtime branching. */
 export const devAllowlist = DEV_ALLOWLIST
+export const devSlackChannelAllowlist = DEV_SLACK_CHANNEL_ALLOWLIST

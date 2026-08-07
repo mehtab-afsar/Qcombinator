@@ -5,7 +5,7 @@ import { L, FONT_SERIF, FONT_MONO } from "../theme";
 import { PROBLEMS } from "../copy";
 import { Reveal, Eyebrow } from "./Section";
 import { CountUp } from "./CountUp";
-import { useMotionPrefs } from "../hooks/useMotionPrefs";
+import { useMotionPrefs } from "@/features/shared/hooks/useMotionPrefs";
 import { TargetDoodle } from "@/features/onboarding/components/doodles/TargetDoodle";
 import { CompassDoodle } from "@/features/onboarding/components/doodles/CompassDoodle";
 import { ScoutDoodle } from "@/features/onboarding/components/doodles/ScoutDoodle";

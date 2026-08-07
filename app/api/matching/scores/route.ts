@@ -21,6 +21,7 @@ import { NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { getAdminClient } from '@/lib/supabase/server'
 import { embedText, embedBatch } from '@/features/qscore/scoring/embeddings/embedder'
+import { log } from '@/lib/logger'
 
 const BATCH_SIZE = 20
 
@@ -37,6 +38,10 @@ function cosineSimilarity(a: number[], b: number[]): number {
 
 export async function GET() {
   if (!process.env.VOYAGE_API_KEY) {
+    // Deliberate graceful degradation (see doc comment above) — but silent until now, so a key
+    // going missing/expiring in production would degrade every founder's match quality platform-
+    // wide with nothing in the logs to catch it.
+    log.warn('VOYAGE_API_KEY not configured — /api/matching/scores degrading to formula-only')
     return NextResponse.json({ scores: {} })
   }
 
@@ -143,7 +148,7 @@ export async function GET() {
 
     return NextResponse.json({ scores, source: 'live_embeddings' })
   } catch (err) {
-    console.error('[matching/scores] vector scoring failed:', err)
+    log.error('[matching/scores] vector scoring failed:', err)
     return NextResponse.json({ scores: {} })
   }
 }

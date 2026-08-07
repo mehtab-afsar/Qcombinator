@@ -75,6 +75,10 @@ function seedFounder(id: string, tag: string): void {
   psql(`INSERT INTO asset_versions (founder_id, asset_id, version, is_current, content,
           authored_by, executive_id)
         VALUES ('${id}', 'AS001', 1, true, '"${tag} CONFIDENTIAL ICP"'::jsonb, 'founder', 'growth')`)
+  // demo_investor_id, not investor_id — no auth.users row needed for a demo investor, and it
+  // keeps this seed independent of the demo_investors table's own contents.
+  psql(`INSERT INTO founder_match_explanations (founder_id, demo_investor_id, explanation)
+        VALUES ('${id}', gen_random_uuid(), '${tag} CONFIDENTIAL RATIONALE')`)
 }
 
 /** A client that behaves exactly like that founder's browser: anon key + their own JWT. */
@@ -107,6 +111,7 @@ gate('cross-tenant isolation — founder B cannot read founder A', () => {
     'strategy_sessions',
     'executive_contracts',
     'asset_versions',
+    'founder_match_explanations',
   ] as const
 
   it.each(TABLES)('B reads ZERO of A\'s rows from %s', async table => {

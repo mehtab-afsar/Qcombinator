@@ -256,3 +256,19 @@ describe('buildProgress — kind/assetId (Stage 2 Activation)', () => {
     })
   })
 })
+
+describe('buildProgress — actionId + preview (lib/rhythm/preview.ts consumers)', () => {
+  it('action steps carry their Registry action id; asset/briefing steps carry a null actionId', () => {
+    const p = buildProgress(run(), ['P001'], NOW)
+    const actionSteps = p.steps.slice(P001_ASSETS.length + 1)
+    actionSteps.forEach((step, i) => expect(step.actionId).toBe(P001_ACTIONS[i]))
+
+    const nonActionSteps = p.steps.slice(0, P001_ASSETS.length + 1)
+    nonActionSteps.forEach(step => expect(step.actionId).toBeNull())
+  })
+
+  it('every step starts with preview: null — buildProgress is pure, previews are attached separately', () => {
+    const p = buildProgress(run(), ['P001'], NOW)
+    p.steps.forEach(step => expect(step.preview).toBeNull())
+  })
+})

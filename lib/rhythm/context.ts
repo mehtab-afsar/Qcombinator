@@ -18,11 +18,17 @@ import { getCurrentStrategy } from '@/lib/mandate/strategy'
 import type { AssetId } from '@/lib/registry'
 import { getCurrentAsset } from '@/lib/assets/versioning'
 import type { CompanyContext } from '@/lib/prompts/compose'
+import { getComparableCohortContext } from '@/lib/comparables/retrieve'
+import { getMarketSignalContext } from '@/lib/comparables/market-signals'
 import { collectCycleDelta } from './delta'
 import { getLastCompletedRun, type RhythmRun } from './runs'
 import { RhythmError } from './errors'
 
-/** Compact Company Context from Strategy + Contract. (Q-Score is a v1 omission — see F10_DESIGN.) */
+/**
+ * Compact Company Context from Strategy + Contract, plus anonymized comparable-cohort stats
+ * (lib/comparables/retrieve.ts — RAG Phase 1) and recent sector-matched market news
+ * (lib/comparables/market-signals.ts — RAG Phase 3). Q-Score is a v1 omission — see F10_DESIGN.
+ */
 export async function buildContext(
   admin: SupabaseClient,
   founderId: string,
@@ -41,11 +47,15 @@ export async function buildContext(
     contract.successMetrics.length ? `Success metrics: ${contract.successMetrics.join('; ')}` : '',
     `Active programs: ${contract.activePrograms.join(', ')}`,
   ].filter(Boolean).join('\n')
+  const comparableCohort = await getComparableCohortContext(admin, founderId).catch(() => null)
+  const marketSignals = await getMarketSignalContext(admin, founderId).catch(() => null)
   return {
     strategy: strategyText,
     contract: contractText,
     // The real date — without it, run 4's documents invented "May 2024/2025".
     currentDate: new Date().toISOString().slice(0, 10),
+    comparableCohort: comparableCohort ?? undefined,
+    marketSignals: marketSignals ?? undefined,
   }
 }
 

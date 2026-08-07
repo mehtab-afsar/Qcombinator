@@ -11,6 +11,8 @@ import { useMetrics } from "@/features/founder/hooks/useFounderData";
 import Link from "next/link";
 import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
 import { PageSpinner } from '@/features/shared/components/Spinner'
+import { PageContainer } from '@/features/shared/components/PageContainer'
+import { SectionCard } from '@/features/shared/components/SectionCard'
 import type { LucideIcon } from 'lucide-react'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -317,7 +319,7 @@ export default function MetricsTracker() {
 
   return (
     <div style={{ background: bg, minHeight: "100vh", padding: "32px 24px" }}>
-      <div style={{ maxWidth: 1120, margin: "0 auto" }}>
+      <PageContainer>
 
         {/* ── Header ────────────────────────────────────────────────── */}
         <motion.div
@@ -504,7 +506,11 @@ export default function MetricsTracker() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5 }}
-          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", background: surf, borderRadius: 12, border: `1px solid ${bdr}` }}
+        >
+        <SectionCard
+          noPadding
+          style={{ background: surf, boxShadow: "none" }}
+          bodyStyle={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px" }}
         >
           <p style={{ fontSize: 13, fontWeight: 300, color: muted }}>
             Metrics update automatically when Felix generates a financial summary, or you can enter them manually above.
@@ -538,9 +544,10 @@ export default function MetricsTracker() {
               </button>
             </Link>
           </div>
+        </SectionCard>
         </motion.div>
 
-      </div>
+      </PageContainer>
     </div>
   );
 }

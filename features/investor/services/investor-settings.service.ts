@@ -3,6 +3,7 @@
  */
 
 import { createClient } from '@/lib/supabase/client'
+import { investorConnectionOrFilter } from '@/lib/investor/demo-investor'
 
 export interface InvestorSettingsData {
   email: string
@@ -158,4 +159,49 @@ export async function saveInvestorNotifications(input: SaveNotificationsInput): 
 export async function signOutInvestor(): Promise<void> {
   const supabase = createClient()
   await supabase.auth.signOut()
+}
+
+/**
+ * Download the investor's own data as a JSON file — client-side only, mirroring
+ * features/founder/services/settings.service.ts::exportUserData()'s mechanism exactly.
+ */
+export async function exportInvestorData(): Promise<void> {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not authenticated')
+
+  const { data: profile } = await supabase
+    .from('investor_profiles')
+    .select('*')
+    .eq('user_id', user.id)
+    .single()
+
+  const demoInvestorId = (profile as { demo_investor_id?: string } | null)?.demo_investor_id ?? null
+  const orFilter = investorConnectionOrFilter(user.id, demoInvestorId)
+
+  const [{ data: connections }, { data: portfolioCompanies }] = await Promise.all([
+    supabase
+      .from('connection_requests')
+      .select('id, founder_id, status, personal_message, created_at, updated_at')
+      .or(orFilter)
+      .order('created_at', { ascending: false })
+      .limit(50),
+    supabase
+      .from('investor_portfolio_companies')
+      .select('id, company_name, founder_name, sector, stage, invested_at, invite_status, created_at')
+      .eq('investor_user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(50),
+  ])
+
+  const blob = new Blob(
+    [JSON.stringify({ profile, connections, portfolioCompanies }, null, 2)],
+    { type: 'application/json' }
+  )
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `edge-alpha-investor-data-${new Date().toISOString().split('T')[0]}.json`
+  a.click()
+  URL.revokeObjectURL(url)
 }

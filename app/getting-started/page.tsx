@@ -55,8 +55,8 @@ const GTM_SECTIONS = [
 
 const QUICK_START = [
   { period: 'Day 1',    action: 'Complete your profile',         detail: 'Fill all 5 Profile Builder sections to calculate your Q-Score. The more evidence you provide, the higher your score.' },
-  { period: 'Week 1',   action: 'Run D1→D4 with Patel',         detail: 'Open the Patel workspace from your CXO hub. One message per deliverable — D1 first, then D2, D3, D4 in sequence.' },
-  { period: 'Week 2',   action: 'Generate your D6 GTM Playbook',detail: 'Once D1–D4 are done, ask Patel to build D6. This is your 9-section go-to-market playbook — export it as a PDF.' },
+  { period: 'Week 1',   action: 'Confirm your mandate',          detail: 'Review the CEO\'s proposed Executive Contract and confirm it. That activates Growth\'s GTM program — Patel\'s team gets to work immediately, no messages required.' },
+  { period: 'Week 2',   action: 'Read your first Executive Briefing', detail: 'Your ICP, Pains & Gains, Buyer Journey, Positioning, and Channel Strategy appear as living documents. Open any of them, edit directly if something\'s off — it\'s used next cycle.' },
   { period: 'Week 3',   action: 'Send your first investor connection', detail: 'Browse the Investor Marketplace. Filter by stage and industry. Send a personalised connection request with your pitch.' },
   { period: 'Day 30',   action: 'Review your Q-Score progress', detail: 'Head to your dashboard. If your Q-Score improved, you\'ve unlocked more investor visibility. If not, check which P-score is lowest and focus there.' },
 ]
@@ -106,7 +106,7 @@ export default function GettingStartedPage() {
             {APP_TAGLINE}. Your AI team is ready. Here&apos;s how to get the most from the platform in your first 30 days.
           </p>
           <div style={{ display: 'flex', justifyContent: 'center', gap: 24, flexWrap: 'wrap', marginTop: 16 }}>
-            {(['Q-Score', '11 AI Agents', 'GTM Playbook', 'Investor Matching'] as const).map(f => (
+            {(['Q-Score', '5 AI Executives', 'GTM Playbook', 'Investor Matching'] as const).map(f => (
               <div key={f} style={{ fontSize: 12, color: muted, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ width: 6, height: 6, background: blue, borderRadius: '50%' }} />
                 {f}
@@ -174,8 +174,8 @@ export default function GettingStartedPage() {
         {/* ── Slide 4: Agents ───────────────────────────────────────────── */}
         <div style={{ marginBottom: 72 }} className="page-break">
           <SectionLabel n="04" />
-          <SectionTitle>Meet Your CXO Agents</SectionTitle>
-          <SectionDesc>11 AI agents — each modelled on a different C-suite executive. They don&apos;t give generic advice. They build real deliverables: contracts, financial models, GTM strategies, and more.</SectionDesc>
+          <SectionTitle>Meet Your Executive Team</SectionTitle>
+          <SectionDesc>5 AI executives — CEO, Growth, Product, Operations, and Finance — each running a bench of specialists behind the scenes. They don&apos;t wait to be asked: once you confirm a mandate, they work to it on a weekly rhythm and hand you real deliverables — GTM strategy, financial models, contracts, and more — not chat replies.</SectionDesc>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 10, marginTop: 24 }}>
             {AGENTS.map(a => (
@@ -190,7 +190,7 @@ export default function GettingStartedPage() {
           </div>
 
           <Link href="/founder/executive" className="no-print" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 20, fontSize: 12, color: blue, textDecoration: 'none', fontWeight: 500 }}>
-            Open CXO Hub →
+            Open your Command View →
           </Link>
         </div>
 
@@ -198,7 +198,7 @@ export default function GettingStartedPage() {
         <div style={{ marginBottom: 72 }} className="page-break">
           <SectionLabel n="05" />
           <SectionTitle>Patel&apos;s D1→D6 Playbook System</SectionTitle>
-          <SectionDesc>Patel (CMO) builds six deliverables in sequence. Each unlocks the next — you must complete D1 before D2, and so on. They culminate in D6, the full 9-section GTM Playbook.</SectionDesc>
+          <SectionDesc>Growth builds six deliverables in sequence, automatically, on the weekly Operating Rhythm — no prompting needed. Each cycle sharpens them further. They culminate in D6, the full 9-section GTM Playbook.</SectionDesc>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 24 }}>
             {PLAYBOOK_DELIVERABLES.map(d => (
@@ -214,7 +214,7 @@ export default function GettingStartedPage() {
 
           <div style={{ marginTop: 20, padding: '14px 18px', background: green + '08', border: `1px solid ${green}30`, borderRadius: 10 }}>
             <p style={{ fontSize: 12, color: ink, margin: 0 }}>
-              <strong>How to trigger each deliverable:</strong> Open the Patel workspace, provide company context and the signal Patel asks for, then write &quot;Proceed and build D1 now&quot;. Patel will build the artifact and show a &quot;View document&quot; button when ready.
+              <strong>How each deliverable actually gets built:</strong> confirming your mandate activates the GTM program — the rhythm runs it every week and versions each document as it improves. Open any deliverable in your Command View to read it, or edit it directly; that edit becomes the new version, used next cycle. Want to redirect one? Ask Patel, in place, to sharpen a specific section — not a chat window, a scoped note on the document itself.
             </p>
           </div>
         </div>
@@ -337,14 +337,14 @@ export default function GettingStartedPage() {
               Your AI team is waiting.
             </p>
             <p style={{ fontSize: 13, color: muted, marginBottom: 24 }}>
-              Start with your profile, then meet Patel. Everything else follows.
+              Start with your profile, then confirm your mandate. Everything else follows.
             </p>
             <div className="no-print" style={{ display: 'flex', justifyContent: 'center', gap: 12 }}>
               <Link href="/founder/profile-builder" style={{ fontSize: 13, fontWeight: 600, color: '#fff', background: ink, padding: '10px 22px', borderRadius: 10, textDecoration: 'none' }}>
                 Complete my profile
               </Link>
               <Link href="/founder/executive" style={{ fontSize: 13, fontWeight: 600, color: ink, background: 'transparent', padding: '10px 22px', borderRadius: 10, border: `1px solid ${bdr}`, textDecoration: 'none' }}>
-                Open Patel
+                Open Command View
               </Link>
             </div>
           </div>

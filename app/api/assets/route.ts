@@ -15,7 +15,7 @@ import { createClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { newModelOff } from '@/lib/api/response'
 import { getCurrentContract } from '@/lib/mandate/contract'
-import { getCurrentAssetsForProgram } from '@/lib/assets/versioning'
+import { getCurrentAssetsForProgram, getVersionCounts } from '@/lib/assets/versioning'
 import { getProgram, getAsset } from '@/lib/registry'
 import { log } from '@/lib/logger'
 
@@ -48,7 +48,10 @@ export async function GET(): Promise<NextResponse> {
       }
     }
 
-    const versions = await getCurrentAssetsForProgram(supabase, auth.user.id, [...assetIds])
+    const [versions, versionCounts] = await Promise.all([
+      getCurrentAssetsForProgram(supabase, auth.user.id, [...assetIds]),
+      getVersionCounts(supabase, auth.user.id, [...assetIds]),
+    ])
     const versionByAssetId = new Map(versions.map(v => [v.assetId, v]))
 
     const assets = [...assetIds].map(id => {
@@ -59,6 +62,7 @@ export async function GET(): Promise<NextResponse> {
         outputSchema: def.outputSchema,
         executiveId: ownerByAssetId.get(id) ?? null,
         asset: versionByAssetId.get(id) ?? null,
+        versionCount: versionCounts.get(id) ?? 0,
       }
     })
 

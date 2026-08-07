@@ -22,7 +22,7 @@ const strategy = (over: Partial<Strategy> = {}): Strategy => ({
 const contract = (over: Partial<Contract> = {}): Contract => ({
   id: 'c1', epoch: 1, version: 1, status: 'confirmed',
   priorities: [], successMetrics: [], responsibilities: [], activePrograms: ['P001'],
-  confirmedAt: '2026-07-15T00:00:00Z', createdAt: '', ...over,
+  confirmedAt: '2026-07-15T00:00:00Z', createdAt: '', document: null, ...over,
 })
 
 // ─── The state machine (F09's whole job) ──────────────────────────────────────
@@ -97,7 +97,8 @@ describe('the page is command, not approval', () => {
   const commandView = stripComments(readFileSync('features/executive/components/CommandView.tsx', 'utf8'))
   const unveiling = stripComments(readFileSync('features/executive/components/unveiling/Unveiling.tsx', 'utf8'))
   const oneConfirm = stripComments(readFileSync('features/executive/components/unveiling/OneConfirm.tsx', 'utf8'))
-  const both = `${page}\n${commandView}\n${unveiling}\n${oneConfirm}`
+  const mandateCard = stripComments(readFileSync('features/executive/components/MandateCard.tsx', 'utf8'))
+  const both = `${page}\n${commandView}\n${unveiling}\n${oneConfirm}\n${mandateCard}`
 
   it('has exactly ONE confirm action, and it is the mandate', () => {
     // ADR-002 removed the per-plan sign-off: the founder confirms once, then
@@ -129,7 +130,11 @@ describe('the page is command, not approval', () => {
   })
 
   it('explains that a new epoch keeps history (ADR-003)', () => {
-    expect(commandView).toMatch(/nothing is overwritten/i)
+    // Used to live in a footer CommandView built and passed to MandateCard's full mode. Now
+    // MandateCard's compact mode is the only mode CommandView ever renders, and it needs to
+    // explain "Change direction" wherever that button appears — so MandateCard owns this text
+    // itself rather than a caller supplying it. Checked via `both`, which already spans it.
+    expect(both).toMatch(/nothing is overwritten/i)
   })
 })
 
@@ -154,14 +159,27 @@ describe('the briefings panel tells the truth', () => {
 })
 
 describe('the score anchor does not fabricate a trend', () => {
-  // The UX spec's own copy rule: "never fabricate confidence." ScoreAnchor shows the real
-  // overall number only — no invented "up N this month," since that would need the same
-  // version-resolution logic dashboard/page.tsx owns, not a guessed shortcut here.
+  // The UX spec's own copy rule: "never fabricate confidence." UX_SPEC §5 asks for the Q-Score
+  // "with its trend" at the centre — ScoreAnchor now shows one, sourced from a real
+  // qscore_history delta (/api/qscore/latest's `change`/`hasTrend`), not a guessed shortcut.
+  // What must stay true either way: no trend renders without real data to back it.
   const anchor = stripComments(readFileSync('features/executive/components/ScoreAnchor.tsx', 'utf8'))
+  const scoreTrend = stripComments(readFileSync('features/qscore/lib/scoreTrend.ts', 'utf8'))
 
-  it('renders the real overall score, not an invented delta', () => {
+  it('renders the real overall score', () => {
     expect(anchor).toContain('qScore.overall')
-    expect(anchor).not.toMatch(/\bup \d|\bdown \d|change|trend/i)
+  })
+
+  it('sources its trend from real Q-Score data, not an invented per-dimension shortcut', () => {
+    expect(anchor).toMatch(/qScore\.change/)
+    expect(anchor).toMatch(/qScore\.hasTrend/)
+    // The dashboard's own per-dimension breakdown is demo-seeded (DEMO_QSCORE) — this file
+    // must never reach for that shortcut.
+    expect(anchor).not.toMatch(/breakdown/i)
+  })
+
+  it('the trend formatter refuses to fabricate one when there is nothing to compare against', () => {
+    expect(scoreTrend).toMatch(/if\s*\(\s*!hasTrend\s*\)\s*return null/)
   })
 })
 

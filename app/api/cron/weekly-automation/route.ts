@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 import { encodeToken } from '@/lib/email/unsubscribe-token';
+import { APP_URL, APP_DOMAIN } from '@/lib/constants/app';
 import { log } from '@/lib/logger'
 
 // Stale deal threshold: deals not updated in 7+ days (non-terminal stages)
@@ -12,8 +13,6 @@ const RETENTION_ALERT_THRESHOLD = 30;  // % Day-30 retention → alert if below 
 // GET /api/cron/weekly-automation
 // Triggered every Monday at 9am UTC via Vercel Cron.
 // Sends weekly OKR standups + runway alerts to all active founders.
-
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://edgealpha.ai';
 
 export async function GET(request: Request) {
   // Verify cron secret — Vercel sends Authorization: Bearer <CRON_SECRET>
@@ -26,7 +25,11 @@ export async function GET(request: Request) {
 
   const resendKey = process.env.RESEND_API_KEY;
   if (!resendKey) {
-    return NextResponse.json({ skipped: true, reason: 'RESEND_API_KEY not configured — email sends skipped' }, { status: 200 });
+    // 503, not 200 — this is a config error, not "nothing to send this week." A 200 here is what
+    // let the weekly OKR/runway/churn digest silently stop for every founder with no alert firing:
+    // Vercel Cron and any uptime monitor read 2xx as success.
+    log.error('Cron: RESEND_API_KEY not configured — weekly automation cannot send any email');
+    return NextResponse.json({ error: 'RESEND_API_KEY not configured — email sends skipped' }, { status: 503 });
   }
 
   const supabase = createClient(
@@ -148,7 +151,7 @@ export async function GET(request: Request) {
         const companyName = (plan.companyName as string) ?? 'your startup';
 
         await resend.emails.send({
-          from: 'Sage — Edge Alpha <noreply@edgealpha.ai>',
+          from: `Sage — Edge Alpha <noreply@${APP_DOMAIN}>`,
           to: user.email,
           subject: `Weekly check-in: how are ${companyName}'s OKRs tracking?`,
           html: `
@@ -215,7 +218,7 @@ export async function GET(request: Request) {
           const founderName = user.user_metadata?.full_name ?? user.email.split('@')[0];
 
           await resend.emails.send({
-            from: 'Felix — Edge Alpha <noreply@edgealpha.ai>',
+            from: `Felix — Edge Alpha <noreply@${APP_DOMAIN}>`,
             to: user.email,
             subject: `${urgency === 'critical' ? '🚨' : '⚠️'} Runway alert: ${runwayStr} remaining`,
             html: `
@@ -270,7 +273,7 @@ export async function GET(request: Request) {
           if (retentionLow) signals.push(`Day-30 retention: <b>${state.day30_retention}%</b> (threshold: ${RETENTION_ALERT_THRESHOLD}%)`);
 
           await resend.emails.send({
-            from: 'Carter — Edge Alpha <noreply@edgealpha.ai>',
+            from: `Carter — Edge Alpha <noreply@${APP_DOMAIN}>`,
             to: user.email,
             subject: `⚠️ Churn risk detected — action needed`,
             html: `
@@ -329,7 +332,7 @@ export async function GET(request: Request) {
           .join('');
 
         await resend.emails.send({
-          from: 'Susi — Edge Alpha <noreply@edgealpha.ai>',
+          from: `Susi — Edge Alpha <noreply@${APP_DOMAIN}>`,
           to: user.email,
           subject: `${staleDealsForUser.length} deal${staleDealsForUser.length > 1 ? 's' : ''} need follow-up`,
           html: `

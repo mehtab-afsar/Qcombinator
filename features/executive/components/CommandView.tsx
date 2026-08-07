@@ -3,10 +3,16 @@
 /**
  * The Command View (F09) — the payoff screen once a mandate is confirmed.
  *
- * The USP made visible: the Q-Score at the centre, the mandate above it, the team below it,
- * "needs you" first among what follows. None of the panels here are rebuilt — MandateCard,
- * ExecutiveRoster, ActionsPanel, RhythmPanel, BriefingsPanel and ConnectorsPanel already
- * existed; this is composition and layout, not new machinery (CLAUDE.md §2).
+ * UX_SPEC §5's hierarchy, actually rendered this time (an earlier version of this file claimed
+ * "Q-Score at the centre, team around it" without doing it — it was a plain vertical stack):
+ * the mandate on top, one quiet line; the Q-Score large at centre with its trend, the team
+ * around it (ScoreAnchor + ExecutiveRoster, grouped tightly as one zone below); this week's
+ * briefing, in the team's own voice; then the one thing waiting on you. Documents, the cycle
+ * control, and connected tools follow — real and necessary, just not part of that emotional arc.
+ *
+ * None of the panels here are rebuilt — MandateCard, ExecutiveRoster, ActionsPanel, RhythmPanel,
+ * BriefingsPanel and ConnectorsPanel already existed; this is composition and layout, not new
+ * machinery (CLAUDE.md §2).
  *
  * ⚠️ Same rule as the page that renders this (ADR-002): "Change direction" starts a NEW
  * mandate — it never edits the confirmed one in place, and there is no approval control
@@ -22,9 +28,7 @@ import { ActionsPanel } from './ActionsPanel'
 import { ConnectorsPanel } from './ConnectorsPanel'
 import { RhythmPanel } from './RhythmPanel'
 import { BriefingsPanel } from './BriefingsPanel'
-import { muted } from '@/lib/constants/colors'
 import { space } from '@/features/shared/tokens'
-import { Button } from '@/features/shared/components/Button'
 import type { Contract, ProgramInstance } from '../types/executive.types'
 
 interface AssetVersionSummary { version: number; createdAt: string; updateReason: string | null }
@@ -89,43 +93,33 @@ export function CommandView({
     return () => { live = false }
   }, [contract.id])
 
-  // Stage 3: once a real document exists, it — not the mandate — is the centre of this page.
-  // Before that (a fresh activation still in flight) the full card stays, so the founder isn't
-  // left reading a one-liner with nothing yet to point at.
-  const hasDocuments = assets.some(a => a.asset !== null)
-
-  const changeDirection = (
-    <div style={{ marginTop: 20 }}>
-      <Button variant="secondary" loading={busy} onClick={onChangeDirection}>
-        Change direction
-      </Button>
-      <p style={{ color: muted, fontSize: 13, marginTop: 8, maxWidth: 620, lineHeight: 1.6 }}>
-        {/* ADR-003, in the founder's language. */}
-        This starts a new epoch. Your current mandate is kept exactly as it is —
-        nothing is overwritten, and you can always see what you were operating
-        under, and when.
-      </p>
-    </div>
-  )
-
   return (
     <div>
-      <ScoreAnchor />
+      {/* Top: the mandate, one quiet line — always compact now. The centre zone below it is
+          the thing to land on from the first confirmed mandate, documents or not, so there's
+          no longer a "fuller card while waiting for documents" branch to choose between. */}
+      <MandateCard contract={contract} compact onChangeDirection={onChangeDirection} busy={busy} />
 
-      <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: space[5] }}>
-        {hasDocuments
-          ? <MandateCard contract={contract} compact onChangeDirection={onChangeDirection} busy={busy} />
-          : <MandateCard contract={contract} footer={changeDirection} />}
+      {/* Centre: the Q-Score, with its trend. Around it: the team. Grouped tightly — a smaller
+          gap than the sections below — so the two read as one composed zone, not two stacked
+          cards. */}
+      <div style={{ marginTop: 24 }}>
+        <ScoreAnchor />
+        <div style={{ marginTop: 4 }}>
+          <ExecutiveRoster programs={programs} reveal={reveal} />
+        </div>
+      </div>
 
-        {/* The documents lead — this is the payoff, not a status card. */}
-        <AssetsPanel assets={assets} loaded={assetsLoaded} />
-
-        {/* Who is running the mandate, then what needs YOU first (F14 — the one checkpoint),
-            then the cycle, then its output, then the tools the team may act in. */}
-        <ExecutiveRoster programs={programs} reveal={reveal} />
-        <ActionsPanel />
-        <RhythmPanel />
+      <div style={{ marginTop: space[5], display: 'flex', flexDirection: 'column', gap: space[5] }}>
+        {/* Below: this week's briefing, in the team's own voice — then the one thing waiting
+            on you (F14 — the one checkpoint in the product). */}
         <BriefingsPanel />
+        <ActionsPanel />
+
+        {/* Real and necessary, not part of that emotional arc: the documents themselves, the
+            cycle control, and connected tools. */}
+        <AssetsPanel assets={assets} loaded={assetsLoaded} />
+        <RhythmPanel />
         <ConnectorsPanel />
       </div>
     </div>

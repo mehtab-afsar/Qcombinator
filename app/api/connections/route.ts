@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { verifyAuth } from '@/lib/auth/verify';
+import { isEmailConfirmed } from '@/lib/auth/email-confirmed';
 import { log } from '@/lib/logger';
 
 /**
@@ -10,8 +11,10 @@ import { log } from '@/lib/logger';
  * keyed by demo_investor_id (demo) or investor_id (real investors).
  *
  * POST /api/connections
- * Body: { demo_investor_id?, investor_id?, personal_message, founder_qscore }
+ * Body: { demo_investor_id?, investor_id?, personal_message }
  * Exactly one of demo_investor_id or investor_id must be present.
+ * founder_qscore is looked up server-side from the caller's own qscore_history — never
+ * accepted from the client.
  */
 
 export async function GET() {
@@ -60,20 +63,27 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient();
     const admin = createAdminClient();
 
-    const { demo_investor_id, investor_id, personal_message, founder_qscore } = await request.json();
+    const { demo_investor_id, investor_id, personal_message } = await request.json();
 
     if (!demo_investor_id && !investor_id) {
       return NextResponse.json({ error: 'demo_investor_id or investor_id is required' }, { status: 400 });
     }
 
-    // ── Require confirmed email before sending connection requests ───────────
-    const { data: emailCheck } = await admin
-      .from('founder_profiles')
-      .select('email_confirmed_at')
+    // The Q-Score shown to the investor on this request comes from the founder's own real,
+    // current score — never from the client. A client-supplied founder_qscore used to be
+    // inserted as-is, which meant a founder could show an investor an inflated number
+    // whenever the live qscore_history lookup elsewhere came up empty.
+    const { data: latestQ } = await admin
+      .from('qscore_history')
+      .select('overall_score')
       .eq('user_id', user.id)
+      .order('calculated_at', { ascending: false })
+      .limit(1)
       .maybeSingle()
+    const founder_qscore = latestQ?.overall_score ?? null
 
-    if (emailCheck && !emailCheck.email_confirmed_at) {
+    // ── Require confirmed email before sending connection requests ───────────
+    if (!isEmailConfirmed(user)) {
       return NextResponse.json({
         error: 'Please confirm your email address before sending connection requests.',
         requiresEmailConfirmation: true,
@@ -102,7 +112,7 @@ export async function POST(request: NextRequest) {
     const insertRow: Record<string, unknown> = {
       founder_id: user.id,
       personal_message: personal_message || '',
-      founder_qscore: founder_qscore || null,
+      founder_qscore,
       status: 'pending',
     };
     if (demo_investor_id) insertRow.demo_investor_id = demo_investor_id;

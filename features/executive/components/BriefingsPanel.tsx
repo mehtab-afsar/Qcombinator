@@ -14,9 +14,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Inbox } from 'lucide-react'
 import { trackBriefingOpened } from '@/lib/analytics-client'
-import { bdr, ink, muted, blue } from '@/lib/constants/colors'
+import { bdr, ink, muted, blue, green, alpha } from '@/lib/constants/colors'
+import { FONT_SERIF } from '@/features/onboarding/theme'
 import { SectionCard } from '@/features/shared/components/SectionCard'
-import { EmptyState } from '@/features/shared/components/EmptyState'
 
 interface Briefing {
   id: string
@@ -83,26 +83,25 @@ export function BriefingsPanel({ executiveId }: { executiveId?: string } = {}) {
     trackBriefingOpened(newest.id, newest.createdAt)
   }, [briefings])
 
-  // Empty state (no rhythm has run yet) — and the loading/failed states share its honest copy.
+  // Empty state (no rhythm has run yet) — and the loading/failed states share it. A greyed
+  // preview of a real filled briefing's shape (see app/founder/briefings/[id]/page.tsx),
+  // not just an apology — so "nothing yet" also previews what's coming.
   if (failed || briefings === null || briefings.length === 0) {
-    return (
-      <EmptyState
-        icon={Inbox}
-        title="No briefings yet"
-        body="Once your executive team starts running, each cycle produces a short briefing here — what changed, what it concluded, and where your attention is needed. Nothing has run yet."
-      />
-    )
+    return <EmptyBriefingPreview />
   }
 
   const [latest, ...older] = briefings
 
   return (
-    <SectionCard title="Recent briefings">
+    <SectionCard title="Recent briefings" style={{ background: alpha(green, 0.04) }}>
       <div style={{ marginTop: 0 }}>
+        {/* UX_SPEC §6: serif for the executive's own voice, the same rule already applied in
+            ActionsPanel/RhythmPanel this session — a briefing's verdict is the team speaking
+            directly to the founder, the clearest instance of that voice on this whole page. */}
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
           <Link
             href={`/founder/briefings/${latest.id}`}
-            style={{ color: ink, fontSize: 15, fontWeight: 600, textDecoration: 'none' }}
+            style={{ color: ink, fontFamily: FONT_SERIF, fontSize: 16, fontWeight: 500, textDecoration: 'none' }}
             onMouseEnter={e => { e.currentTarget.style.textDecoration = 'underline' }}
             onMouseLeave={e => { e.currentTarget.style.textDecoration = 'none' }}
           >
@@ -113,7 +112,7 @@ export function BriefingsPanel({ executiveId }: { executiveId?: string } = {}) {
           </span>
         </div>
         {bodySummary(latest.body) && (
-          <p style={{ color: muted, fontSize: 14, marginTop: 8, lineHeight: 1.6 }}>
+          <p style={{ color: muted, fontFamily: FONT_SERIF, fontSize: 14, marginTop: 8, lineHeight: 1.6 }}>
             {bodySummary(latest.body)}
           </p>
         )}
@@ -162,5 +161,52 @@ export function BriefingsPanel({ executiveId }: { executiveId?: string } = {}) {
         Briefings point to what changed — the full detail always lives in your Assets.
       </p>
     </SectionCard>
+  )
+}
+
+/** Skeleton lines standing in for real prose — never real content, just the shape of it. */
+function GreyLine({ width }: { width: number }) {
+  return <div style={{ height: 8, width: `${width}%`, borderRadius: 4, background: alpha(bdr, 1) }} />
+}
+
+function EmptyBriefingPreview() {
+  return (
+    <div style={{
+      border: `1.5px dashed ${bdr}`, borderRadius: 16, padding: '32px 28px', textAlign: 'left',
+    }}>
+      <div style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 10px', borderRadius: 20,
+        background: alpha(blue, 0.08), fontSize: 11, fontWeight: 600, color: blue,
+        textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 16,
+      }}>
+        <Inbox size={11} /> No briefings yet
+      </div>
+
+      <h3 style={{
+        fontFamily: FONT_SERIF, fontSize: 18, fontWeight: 500, lineHeight: 1.4,
+        color: alpha(ink, 0.4), margin: 0,
+      }}>
+        This is roughly what one will look like — a verdict in one line, then why.
+      </h3>
+
+      <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <GreyLine width={90} />
+        <GreyLine width={70} />
+        <GreyLine width={80} />
+      </div>
+
+      <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
+        {[0, 1].map(i => (
+          <div key={i} style={{
+            height: 20, width: 92, borderRadius: 6, border: `1px solid ${bdr}`, background: alpha(bdr, 0.4),
+          }} />
+        ))}
+      </div>
+
+      <p style={{ color: muted, fontSize: 13, marginTop: 20, lineHeight: 1.6 }}>
+        Once your executive team starts running, each cycle produces a short briefing here — what
+        changed, what it concluded, and where your attention is needed. Nothing has run yet.
+      </p>
+    </div>
   )
 }

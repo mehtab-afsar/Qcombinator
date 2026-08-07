@@ -152,7 +152,7 @@ Executive System Prompt       = executive knowledge and operating principles
 3. Remove duplicate context; exclude irrelevant Assets; prioritise current/authoritative info; respect model context limits; preserve source references.
 4. **Validate before release:** hierarchy preserved · lower layers don't override higher · Program prompt compatible with its Executive · Asset/Action instructions match the requested execution · no unresolved contradictions · no capability outside the Contract.
 5. Invalid → block + runtime error `{executionId, failedRule, conflictingComponent, affectedEntity, timestamp}`.
-6. Growth knowledge lifted (read-only) from `features/agents/patel/prompts/system-prompt.ts` into `lib/prompts/knowledge/growth.ts`. **Do not edit the frozen source.**
+6. Growth knowledge lifted (read-only) from `features/agents/patel/prompts/system-prompt.ts` into `lib/prompts/executives/growth/voice.ts`. **Do not edit the frozen source.**
 
 **Acceptance.**
 - [ ] Given P001 + Growth, Then one ordered package returns and validates.

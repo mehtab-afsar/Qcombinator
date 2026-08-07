@@ -15,7 +15,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { newModelOff } from '@/lib/api/response'
 import { getConnector } from '@/lib/connectors/registry'
-import { authorizeUrl } from '@/lib/connectors/oauth'
+import { getOAuthProvider } from '@/lib/connectors/oauth-provider'
 import { ConnectorError } from '@/lib/connectors/types'
 import { log } from '@/lib/logger'
 
@@ -35,7 +35,7 @@ export async function POST(
     // caller widen what the system may do with a founder's account.
     const connector = getConnector(provider)
 
-    return NextResponse.json({ url: authorizeUrl(auth.user.id, connector.scopes) })
+    return NextResponse.json({ url: getOAuthProvider(provider).authorizeUrl(auth.user.id, connector.scopes) })
   } catch (err) {
     if (err instanceof ConnectorError) {
       return NextResponse.json({ error: err.message, code: err.code }, { status: 400 })

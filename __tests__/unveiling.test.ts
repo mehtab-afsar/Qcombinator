@@ -16,7 +16,7 @@ const strategy: Strategy = { id: 's1', version: 1, mission: 'Win the ICP', prior
 const contract: Contract = {
   id: 'c1', epoch: 1, version: 1, status: 'draft',
   priorities: ['p'], successMetrics: [], responsibilities: [], activePrograms: [],
-  confirmedAt: null, createdAt: '',
+  confirmedAt: null, createdAt: '', document: null,
 }
 
 describe('entryStep — the unveiling resumes from the SAME resolved data, never restarts', () => {

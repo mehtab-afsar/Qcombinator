@@ -11,7 +11,7 @@ export interface GettingStartedProgress {
 }
 
 export function useGettingStarted(): GettingStartedProgress {
-  const TOTAL = 7
+  const TOTAL = 6
   const [completed, setCompleted] = useState(0)
 
   useEffect(() => {
@@ -34,7 +34,6 @@ export function useGettingStarted(): GettingStartedProgress {
       if (data.profile_builder_completed) done++
 
       const profileData = data.startup_profile_data as Record<string, unknown> | null
-      if (profileData?.pitch_deck_url)    done++
       if (profileData?.mrr)               done++
 
       // team — check startup_members

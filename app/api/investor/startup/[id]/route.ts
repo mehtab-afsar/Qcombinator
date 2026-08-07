@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
-import { isFounderVisible } from '@/lib/investor/visibility'
+import { isFounderVisible, getConnectionStatus, isConnectedStatus } from '@/lib/investor/visibility'
 import { log } from '@/lib/logger'
+import { applyScoreDecay } from '@/lib/qscore/decay'
+import { STAGE_LABEL } from '@/lib/constants/stages'
 
 // GET /api/investor/startup/:id
 // Returns a full founder profile for the investor deep-dive page.
@@ -189,12 +191,7 @@ export async function GET(
     // Extract competitors from competitive matrix, with profile-builder fallback
     const competitors = extractArray(comp, ['competitors', 'competitorAnalysis', 'matrix', 'companies']) ?? []
 
-    // Build stage label
-    const stageLabel: Record<string, string> = {
-      idea: 'Idea', mvp: 'MVP', launched: 'Seed', scaling: 'Series A',
-      'pre-seed': 'Pre-Seed', seed: 'Seed', 'series-a': 'Series A',
-      'series-b': 'Series B', bootstrapped: 'Bootstrapped',
-    }
+    const decayed = qrow ? applyScoreDecay(qrow.overall_score, qrow.calculated_at) : null
 
     // IQ v2 parameters from iq_breakdown JSONB
     type IQParam = { id: string; name: string; weight: number; averageScore: number; indicatorCount?: number }
@@ -273,19 +270,14 @@ export async function GET(
       website: profile.website || (sp.website as string) || '',
       founded: (sp.foundedDate as string) ? String(new Date(sp.foundedDate as string).getFullYear()) : '',
       location: profile.location || '',
-      stage: stageLabel[profile.stage ?? ''] ?? profile.stage ?? 'Unknown',
+      stage: STAGE_LABEL[profile.stage ?? ''] ?? profile.stage ?? 'Unknown',
       sector: profile.industry || 'Technology',
       fundingGoal: profile.funding || (sp.raisingAmount as string) || '',
       teamSize: (sp.teamSize as number | string) ? Number(sp.teamSize) || teamMembers.length || 1 : teamMembers.length || 0,
 
-      qScore: (() => {
-        if (!qrow) return 0;
-        const days = Math.floor((Date.now() - new Date(qrow.calculated_at).getTime()) / 86400000);
-        const decay = days < 90 ? 1.00 : days < 180 ? 0.975 : days < 270 ? 0.95 : days < 365 ? 0.90 : 0.80;
-        return Math.max(1, Math.round(qrow.overall_score * decay));
-      })(),
+      qScore: decayed?.score ?? 0,
       rawQScore: qrow?.overall_score ?? 0,
-      qScoreDaysSince: qrow ? Math.floor((Date.now() - new Date(qrow.calculated_at).getTime()) / 86400000) : null,
+      qScoreDaysSince: decayed?.daysSince ?? null,
       qScorePercentile: qrow?.percentile ?? 0,
       qScoreGrade: qrow?.grade ?? '—',
       qScoreBreakdown,
@@ -385,7 +377,19 @@ export async function GET(
       aiDerivedFields: sp._aiDerived === true,
     }
 
-    return NextResponse.json({ startup: result })
+    // Full data is only for an accepted connection — browsing deal flow (no connection, or one
+    // still pending/viewed/declined) gets a redacted preview instead. This has to happen here,
+    // not just in the UI: the frontend also POSTs this same object to the memo/chat routes, so
+    // redacting the payload at the source is what actually keeps a founder's real documents,
+    // financials, and strategy fields off the wire pre-connection — not just hidden on screen.
+    const connectionStatus = await getConnectionStatus(admin, user.id, founderId)
+    const isConnected = isConnectedStatus(connectionStatus)
+
+    return NextResponse.json({
+      startup: isConnected ? result : redactForPreview(result),
+      isConnected,
+      connectionStatus,
+    })
   } catch (err) {
     log.error('GET /api/investor/startup/[id]', { err })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -393,6 +397,30 @@ export async function GET(
 }
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
+
+// Keeps the exact response shape (so the page never hits an undefined field) but strips
+// everything beyond what deal-flow browsing already shows: real documents, financials, team,
+// competitors, strategy answers, AI analysis, agent activity, and the detailed score breakdown.
+// Headline identity (name, tagline, stage, sector, location, the top-line Q-Score) stays — none
+// of that is new exposure, it's already visible on the browsing card before this page loads.
+function redactForPreview(result: Record<string, unknown>): Record<string, unknown> {
+  return {
+    ...result,
+    financials: Object.fromEntries(Object.keys(result.financials as Record<string, string>).map(k => [k, ''])),
+    financialsFromArtifact: false,
+    teamMembers: [],
+    teamFromArtifact: false,
+    competitors: [],
+    aiAnalysis: { strengths: [], risks: [], recommendations: [] },
+    startupProfile: Object.fromEntries(
+      Object.entries(result.startupProfile as Record<string, unknown>).map(([k, v]) => [k, Array.isArray(v) ? [] : typeof v === 'boolean' ? null : ''])
+    ),
+    uploadedDocuments: [],
+    agentStats: { activeAgents: 0, actionsThisWeek: 0, totalDeliverables: 0, lastActiveAt: null, lastActiveDays: null },
+    iqBreakdown: null,
+    qScoreBreakdown: [],
+  }
+}
 
 function extractValue(obj: Record<string, unknown>, keys: string[]): string {
   for (const k of keys) {

@@ -7,7 +7,10 @@ import { ink, muted, blue } from '@/lib/constants/colors';
 import { font, duration } from '@/features/shared/tokens';
 
 interface PageHeaderProps {
-  title: string;
+  /** Omit when a page renders its own identity right below (e.g. the executive cockpit's
+   *  Anchor, CANVAS_SPEC §4.1) — an empty heading here would just double it. The back-link and
+   *  entrance motion still apply either way. */
+  title?: string;
   subtitle?: string;
   action?: React.ReactNode;
   back?: { label: string; href: string };
@@ -42,33 +45,37 @@ export function PageHeader({ title, subtitle, action, back, style }: PageHeaderP
           {back.label}
         </Link>
       )}
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 }}>
-        <div>
-          {subtitle && (
-            <p style={{
-              fontSize: font.size.sm,
-              fontWeight: font.weight.medium,
-              textTransform: 'uppercase',
-              letterSpacing: '0.18em',
-              color: muted,
-              marginBottom: 6,
-            }}>
-              {subtitle}
-            </p>
-          )}
-          <h1 style={{
-            fontSize: 'clamp(1.4rem, 3vw, 2rem)',
-            fontWeight: 300,
-            letterSpacing: '-0.03em',
-            color: ink,
-            lineHeight: 1.1,
-            margin: 0,
-          }}>
-            {title}
-          </h1>
+      {(title || action) && (
+        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 }}>
+          <div>
+            {subtitle && (
+              <p style={{
+                fontSize: font.size.sm,
+                fontWeight: font.weight.medium,
+                textTransform: 'uppercase',
+                letterSpacing: '0.18em',
+                color: muted,
+                marginBottom: 6,
+              }}>
+                {subtitle}
+              </p>
+            )}
+            {title && (
+              <h1 style={{
+                fontSize: 'clamp(1.4rem, 3vw, 2rem)',
+                fontWeight: 300,
+                letterSpacing: '-0.03em',
+                color: ink,
+                lineHeight: 1.1,
+                margin: 0,
+              }}>
+                {title}
+              </h1>
+            )}
+          </div>
+          {action && <div style={{ flexShrink: 0 }}>{action}</div>}
         </div>
-        {action && <div style={{ flexShrink: 0 }}>{action}</div>}
-      </div>
+      )}
     </motion.div>
   );
 }

@@ -22,6 +22,8 @@ export interface ActionPayload {
   recipients?: ReadonlyArray<{ email: string; name?: string }>
   subject?: string
   body?: string
+  /** A provider-specific destination for connectors that aren't recipient-shaped (Slack: a channel id). */
+  channel?: string
   [key: string]: unknown
 }
 
@@ -32,6 +34,8 @@ export interface PayloadMetadata {
   recipientDomains: string[]
   subjectLength: number
   bodyLength: number
+  /** A Slack channel id is "which mailbox", not PII the way an email address is — logged verbatim. */
+  channel?: string
 }
 
 /**
@@ -86,5 +90,6 @@ export function payloadMetadata(payload: ActionPayload): PayloadMetadata {
     recipientDomains: domains.sort(),
     subjectLength: payload.subject?.length ?? 0,
     bodyLength: payload.body?.length ?? 0,
+    ...(payload.channel ? { channel: payload.channel } : {}),
   }
 }

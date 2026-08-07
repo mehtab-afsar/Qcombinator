@@ -1,7 +1,7 @@
 /**
  * E2E Smoke — Investor Pages
  *
- * Verifies all 9 testable investor pages load without 404/500
+ * Verifies all 10 testable investor pages load without 404/500
  * and don't redirect to /login when signed in as the seeded test investor.
  */
 
@@ -18,6 +18,7 @@ const INVESTOR_PAGES = [
   { path: '/investor/billing',      key: 'billing'      },
   { path: '/investor/connections',  key: 'connections'  },
   { path: '/investor/messages',     key: 'messages'     },
+  { path: '/investor/notifications', key: 'notifications' },
 ] as const
 
 test.describe('Investor Pages — Smoke Tests', () => {

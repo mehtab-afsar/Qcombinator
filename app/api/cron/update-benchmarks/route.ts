@@ -7,26 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAdminClient } from '@/lib/supabase/server'
 import { clearAllCaches } from '@/lib/cache/qscore-cache'
-
-// Map founder_profiles.industry → benchmark sector key
-function mapToSector(industry?: string | null): string {
-  if (!industry) return 'default'
-  const i = industry.toLowerCase().replace(/[-\s]/g, '_')
-  if (i.includes('ai') || i.includes('software')) return 'ai_ml'
-  if (i.includes('saas') || i.includes('b2b')) return 'b2b_saas'
-  const direct = ['biotech', 'marketplace', 'fintech', 'consumer', 'climate', 'hardware', 'edtech', 'healthtech']
-  return direct.find(k => i.includes(k)) ?? 'default'
-}
-
-// Map founder_profiles.stage → benchmark stage bucket
-function mapToStage(stage?: string | null): string {
-  if (!stage) return 'early'
-  const s = stage.toLowerCase()
-  if (s.includes('idea') || s.includes('pre') || s.includes('mvp') || s.includes('seed') || s.includes('angel')) return 'early'
-  if (s.includes('series_a') || s.includes('series-a') || s.includes('launched') || s.includes('commerci') || s.includes('early-revenue') || s.includes('revenue')) return 'mid'
-  if (s.includes('series_b') || s.includes('series-b') || s.includes('scaling') || s.includes('growth') || s.includes('series_c') || s.includes('series-c')) return 'growth'
-  return 'early'
-}
+import { mapToSector, mapToStage, SECTORS, STAGES } from '@/lib/qscore/sector-stage-buckets'
 
 const INDICATOR_IDS = [
   '1.1', '1.2', '1.3', '1.4', '1.5',
@@ -37,8 +18,6 @@ const INDICATOR_IDS = [
   '6.1', '6.2', '6.3', '6.4', '6.5',
 ]
 
-const SECTORS = ['b2b_saas', 'biotech', 'marketplace', 'fintech', 'consumer', 'climate', 'hardware', 'edtech', 'healthtech', 'ai_ml', 'default']
-const STAGES = ['early', 'mid', 'growth']
 const MIN_SAMPLE = 20
 
 export async function POST(req: NextRequest) {

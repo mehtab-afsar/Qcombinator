@@ -1,18 +1,21 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { User, Building2, Target, Bell, LogOut, Save, RefreshCw, CheckCircle, Upload, FileText, Users, Mail, Loader2, X, ChevronDown, Shield, Lock } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { User, Target, Bell, LogOut, Save, RefreshCw, CheckCircle, Upload, Users, Mail, Loader2, X, ChevronDown, Shield, Lock, Download } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useInvestorSettings } from '@/features/investor/hooks/useInvestorSettings'
 import {
   saveInvestorAccount,
   saveInvestorPreferences,
   saveInvestorNotifications,
+  exportInvestorData,
 } from '@/features/investor/services/investor-settings.service'
-import { bg, surf, bdr, ink, muted, blue, green, amber, red, alpha } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted, blue, purple, green, amber, red, alpha } from '@/lib/constants/colors'
 import { Avatar } from '@/features/shared/components/Avatar'
 import { TabNav } from '@/features/shared/components/TabNav'
+import { SectionCard } from '@/features/shared/components/SectionCard'
+import { Button } from '@/features/shared/components/Button'
 import { INVESTOR_SECTORS, INVESTOR_STAGES, INVESTOR_CHECK_SIZES } from '@/features/investor/constants/criteria'
 import { PageSpinner } from '@/features/shared/components/Spinner'
 import type { LucideIcon } from 'lucide-react'
@@ -178,7 +181,11 @@ export default function InvestorSettingsPage() {
       const res  = await fetch('/api/investor/team/invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: invInviteEmail.trim(), role: invInviteRole }) })
       const data = await res.json()
       if (!res.ok) { showToast(data.error ?? 'Failed to send invite', 'error'); return }
-      showToast(`Invite sent to ${invInviteEmail.trim()}`)
+      if (data.emailSent === false) {
+        showToast(`Invite created, but the email to ${invInviteEmail.trim()} couldn't be sent — share the link manually`, 'error')
+      } else {
+        showToast(`Invite sent to ${invInviteEmail.trim()}`)
+      }
       setInvInviteEmail('')
       setShowInvTeamForm(false)
       loadInvTeam()
@@ -281,17 +288,33 @@ export default function InvestorSettingsPage() {
   if (loading) return <PageSpinner label="Loading settings…" />
 
   return (
-    <div style={{ minHeight: '100vh', background: bg, color: ink, padding: '40px 24px' }}>
-      <div style={{ maxWidth: 720, margin: '0 auto' }}>
+    <div style={{ minHeight: '100vh', background: bg, color: ink, padding: '36px 28px 72px' }}>
+
+      {/* ── Toast ── */}
+      {toast && (
+        <div style={{
+          position: 'fixed', top: 20, right: 20, zIndex: 9999,
+          padding: '10px 18px', borderRadius: 10,
+          background: toast.type === 'success' ? green : red,
+          color: '#fff', fontSize: 13, fontWeight: 600,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.18)',
+          pointerEvents: 'none',
+        }}>
+          {toast.msg}
+        </div>
+      )}
+
+      <div style={{ maxWidth: 860, margin: '0 auto' }}>
 
         {/* header */}
         <div style={{ marginBottom: 32 }}>
-          <p style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.18em', color: muted, fontWeight: 600, marginBottom: 8 }}>
+          <p style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.2em', color: muted, fontWeight: 600, marginBottom: 5 }}>
             Investor · Settings
           </p>
-          <h1 style={{ fontSize: 'clamp(1.8rem,4vw,2.4rem)', fontWeight: 300, letterSpacing: '-0.03em', color: ink }}>
-            Settings.
+          <h1 style={{ fontSize: 'clamp(1.4rem,3vw,2rem)', fontWeight: 300, letterSpacing: '-0.03em', color: ink }}>
+            Settings
           </h1>
+          <p style={{ fontSize: 13, color: muted, marginTop: 4 }}>Manage your fund profile and deal flow preferences</p>
         </div>
 
         {/* tabs */}
@@ -307,12 +330,8 @@ export default function InvestorSettingsPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 
             {/* Photo & Logo */}
-            <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden' }}>
-              <div style={{ padding: '16px 20px', borderBottom: `1px solid ${bdr}`, background: surf, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <User style={{ height: 14, width: 14, color: muted }} />
-                <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>Profile Photo & Firm Logo</p>
-              </div>
-              <div style={{ padding: '20px', display: 'flex', gap: 28, flexWrap: 'wrap' }}>
+            <SectionCard title="Profile Photo & Firm Logo" style={{ background: surf }}>
+              <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap' }}>
                 <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, cursor: uploadingAvatar ? 'wait' : 'pointer' }}>
                   <div style={{ position: 'relative' }}>
                     <Avatar url={avatarUrl} name={displayName || 'You'} size={80} radius={999} fontSize={28} />
@@ -328,7 +347,7 @@ export default function InvestorSettingsPage() {
                 </label>
                 <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, cursor: uploadingLogo ? 'wait' : 'pointer' }}>
                   <div style={{ position: 'relative' }}>
-                    <Avatar url={firmLogoUrl} name={fundName || 'Fund'} size={80} radius={14} fontSize={26} bgColor={blue} fgColor="#fff" />
+                    <Avatar url={firmLogoUrl} name={fundName || 'Fund'} size={80} radius={14} fontSize={26} bgColor={purple} fgColor="#fff" />
                     {uploadingLogo && (
                       <div style={{ position: 'absolute', inset: 0, borderRadius: 14, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <RefreshCw style={{ height: 18, width: 18, color: '#fff', animation: 'spin 1s linear infinite' }} />
@@ -340,81 +359,90 @@ export default function InvestorSettingsPage() {
                     onChange={e => { const f = e.target.files?.[0]; if (f) handleImageUpload(f, 'investor-logo'); e.target.value = ''; }} />
                 </label>
               </div>
-            </div>
+            </SectionCard>
 
-            <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden' }}>
-              <div style={{ padding: '16px 20px', borderBottom: `1px solid ${bdr}`, background: surf, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <User style={{ height: 14, width: 14, color: muted }} />
-                <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>Account Information</p>
-              </div>
-              <div style={{ padding: '20px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
-                  <div>
-                    <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                      Display Name
-                    </label>
-                    <input value={displayName} onChange={e => setDisplayName(e.target.value)} style={inputStyle} />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                      Email
-                    </label>
-                    <input value={email} readOnly style={{ ...inputStyle, opacity: 0.6, cursor: 'not-allowed' }} />
-                  </div>
+            <SectionCard title="Account Information" style={{ background: surf }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 500, color: ink, display: 'block', marginBottom: 6 }}>
+                    Display Name
+                  </label>
+                  <input value={displayName} onChange={e => setDisplayName(e.target.value)} style={inputStyle} />
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
-                  <div>
-                    <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                      Fund / Firm Name
-                    </label>
-                    <input value={fundName} onChange={e => setFundName(e.target.value)} placeholder="Sequoia Capital" style={inputStyle} />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                      Title
-                    </label>
-                    <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Partner" style={inputStyle} />
-                  </div>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 500, color: ink, display: 'block', marginBottom: 6 }}>
+                    Email
+                  </label>
+                  <input value={email} readOnly style={{ ...inputStyle, opacity: 0.6, cursor: 'not-allowed' }} />
                 </div>
-                <button
-                  onClick={handleSaveAccount}
-                  disabled={saving}
-                  style={{ padding: '9px 20px', borderRadius: 8, border: 'none', background: ink, color: bg, fontSize: 13, fontWeight: 500, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}
-                >
-                  <Save style={{ height: 13, width: 13 }} />
-                  {saving ? 'Saving…' : 'Save account'}
-                </button>
               </div>
-            </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 500, color: ink, display: 'block', marginBottom: 6 }}>
+                    Fund / Firm Name
+                  </label>
+                  <input value={fundName} onChange={e => setFundName(e.target.value)} placeholder="Sequoia Capital" style={inputStyle} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 500, color: ink, display: 'block', marginBottom: 6 }}>
+                    Title
+                  </label>
+                  <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Partner" style={inputStyle} />
+                </div>
+              </div>
+              <Button onClick={handleSaveAccount} loading={saving} icon={<Save style={{ height: 13, width: 13 }} />}>
+                {saving ? 'Saving…' : 'Save account'}
+              </Button>
+            </SectionCard>
 
-            {/* danger zone */}
-            <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 14, padding: '20px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                <Building2 style={{ height: 14, width: 14, color: red }} />
-                <p style={{ fontSize: 13, fontWeight: 600, color: red }}>Delete Account</p>
+            {/* export data */}
+            <SectionCard title="Data & Account" subtitle="Export your data or delete your account" style={{ background: surf }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div>
+                  <p style={{ fontSize: 13, fontWeight: 500, color: ink, marginBottom: 4 }}>Export Your Data</p>
+                  <p style={{ fontSize: 12, color: muted, marginBottom: 12 }}>Download all your data as JSON</p>
+                  <Button
+                    variant="secondary"
+                    icon={<Download style={{ height: 13, width: 13 }} />}
+                    onClick={async () => {
+                      try {
+                        await exportInvestorData();
+                        showToast('Data exported successfully', 'success');
+                      } catch {
+                        showToast('Failed to export data', 'error');
+                      }
+                    }}
+                  >
+                    Export Data
+                  </Button>
+                </div>
+                <div style={{ borderTop: `1px solid ${bdr}`, paddingTop: 16 }}>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: red, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Danger Zone</p>
+                  <p style={{ fontSize: 12, color: muted, marginBottom: 14 }}>Permanently delete your account and all associated data.</p>
+                  <Button
+                    variant="danger"
+                    icon={<LogOut style={{ height: 13, width: 13 }} />}
+                    onClick={async () => {
+                      if (!window.confirm('Are you sure? This action cannot be undone. All your account data will be permanently deleted.')) return;
+                      try {
+                        const response = await fetch('/api/investor/delete-account', { method: 'POST' });
+                        if (response.ok) {
+                          showToast('Account deleted successfully', 'success');
+                          await new Promise(r => setTimeout(r, 500));
+                          router.push('/');
+                        } else {
+                          showToast('Failed to delete account', 'error');
+                        }
+                      } catch {
+                        showToast('Failed to delete account', 'error');
+                      }
+                    }}
+                  >
+                    Delete Account
+                  </Button>
+                </div>
               </div>
-              <p style={{ fontSize: 12, color: muted, marginBottom: 14 }}>Permanently delete your account and all associated data.</p>
-              <button
-                onClick={async () => {
-                  if (!window.confirm('Are you sure? This action cannot be undone. All your account data will be permanently deleted.')) return;
-                  try {
-                    const response = await fetch('/api/investor/delete-account', { method: 'POST' });
-                    if (response.ok) {
-                      showToast('Account deleted successfully', 'success');
-                      await new Promise(r => setTimeout(r, 500));
-                      router.push('/');
-                    } else {
-                      showToast('Failed to delete account', 'error');
-                    }
-                  } catch {
-                    showToast('Failed to delete account', 'error');
-                  }
-                }}
-                style={{ padding: '8px 18px', borderRadius: 8, border: 'none', background: red, color: 'white', fontSize: 12, fontWeight: 500, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
-              >
-                <LogOut style={{ height: 12, width: 12 }} /> Delete Account
-              </button>
-            </div>
+            </SectionCard>
           </div>
         )}
 
@@ -422,110 +450,87 @@ export default function InvestorSettingsPage() {
         {activeTab === 'preferences' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
             {/* Investment Thesis PDF upload — extract sectors/stages/check sizes automatically */}
-            <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden' }}>
-              <div style={{ padding: '16px 20px', borderBottom: `1px solid ${bdr}`, background: surf, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <FileText style={{ height: 14, width: 14, color: muted }} />
-                <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>Investment Thesis PDF</p>
-              </div>
-              <div style={{ padding: '20px' }}>
-                <p style={{ fontSize: 12, color: muted, marginBottom: 16 }}>
-                  Upload your fund thesis or LP deck — we&apos;ll extract your focus sectors, stages, and investment philosophy automatically.
-                </p>
-                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 16px', borderRadius: 8, border: `1px solid ${bdr}`, background: surf, fontSize: 12, fontWeight: 500, color: ink, cursor: thesisUploading ? 'wait' : 'pointer' }}>
-                  {thesisUploading ? (
-                    <><RefreshCw style={{ height: 13, width: 13, animation: 'spin 1s linear infinite' }} /> Extracting thesis data…</>
-                  ) : (
-                    <><Upload style={{ height: 13, width: 13 }} /> Upload PDF (max 10 MB)</>
-                  )}
-                  <input type="file" accept="application/pdf" style={{ display: 'none' }} disabled={thesisUploading}
-                    onChange={e => { const f = e.target.files?.[0]; if (f) handleThesisUpload(f); e.target.value = ''; }} />
-                </label>
-
-                {thesisExtracted && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                    style={{ marginTop: 20, padding: '16px', background: surf, border: `1px solid ${bdr}`, borderRadius: 10 }}
-                  >
-                    <p style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 12 }}>Extracted Data Preview</p>
-                    {thesisExtracted?.thesis && (
-                      <div style={{ marginBottom: 10 }}>
-                        <p style={{ fontSize: 11, color: muted, marginBottom: 3 }}>Thesis</p>
-                        <p style={{ fontSize: 12, color: ink }}>{thesisExtracted?.thesis}</p>
-                      </div>
-                    )}
-                    {(thesisExtracted?.sectors?.length ?? 0) > 0 && (
-                      <div style={{ marginBottom: 10 }}>
-                        <p style={{ fontSize: 11, color: muted, marginBottom: 5 }}>Sectors</p>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                          {thesisExtracted?.sectors.map(s => (
-                            <span key={s} style={{ padding: '2px 8px', borderRadius: 999, background: '#EFF6FF', color: blue, fontSize: 11, fontWeight: 500 }}>{s}</span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {(thesisExtracted?.stages?.length ?? 0) > 0 && (
-                      <div style={{ marginBottom: 10 }}>
-                        <p style={{ fontSize: 11, color: muted, marginBottom: 5 }}>Stages</p>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                          {thesisExtracted?.stages.map(s => (
-                            <span key={s} style={{ padding: '2px 8px', borderRadius: 999, background: surf, border: `1px solid ${bdr}`, color: ink, fontSize: 11 }}>{s}</span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {thesisExtracted?.checkSize && (
-                      <div style={{ marginBottom: 14 }}>
-                        <p style={{ fontSize: 11, color: muted, marginBottom: 3 }}>Check Size</p>
-                        <p style={{ fontSize: 12, color: ink }}>{thesisExtracted?.checkSize}</p>
-                      </div>
-                    )}
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button
-                        onClick={handleApplyThesis}
-                        disabled={saving}
-                        style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: ink, color: bg, fontSize: 12, fontWeight: 500, cursor: saving ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5 }}
-                      >
-                        <CheckCircle style={{ height: 12, width: 12 }} /> Apply to my profile
-                      </button>
-                      <button
-                        onClick={() => setThesisExtracted(null)}
-                        style={{ padding: '8px 14px', borderRadius: 8, border: `1px solid ${bdr}`, background: 'transparent', color: muted, fontSize: 12, cursor: 'pointer' }}
-                      >
-                        Dismiss
-                      </button>
-                    </div>
-                  </motion.div>
+            <SectionCard title="Investment Thesis PDF" style={{ background: surf }}>
+              <p style={{ fontSize: 12, color: muted, marginBottom: 16 }}>
+                Upload your fund thesis or LP deck — we&apos;ll extract your focus sectors, stages, and investment philosophy automatically.
+              </p>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 16px', borderRadius: 999, border: `1px solid ${bdr}`, background: bg, fontSize: 12, fontWeight: 500, color: ink, cursor: thesisUploading ? 'wait' : 'pointer' }}>
+                {thesisUploading ? (
+                  <><RefreshCw style={{ height: 13, width: 13, animation: 'spin 1s linear infinite' }} /> Extracting thesis data…</>
+                ) : (
+                  <><Upload style={{ height: 13, width: 13 }} /> Upload PDF (max 10 MB)</>
                 )}
-              </div>
-            </div>
+                <input type="file" accept="application/pdf" style={{ display: 'none' }} disabled={thesisUploading}
+                  onChange={e => { const f = e.target.files?.[0]; if (f) handleThesisUpload(f); e.target.value = ''; }} />
+              </label>
+
+              {thesisExtracted && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                  style={{ marginTop: 20, padding: '16px', background: bg, border: `1px solid ${bdr}`, borderRadius: 10 }}
+                >
+                  <p style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 12 }}>Extracted Data Preview</p>
+                  {thesisExtracted?.thesis && (
+                    <div style={{ marginBottom: 10 }}>
+                      <p style={{ fontSize: 11, color: muted, marginBottom: 3 }}>Thesis</p>
+                      <p style={{ fontSize: 12, color: ink }}>{thesisExtracted?.thesis}</p>
+                    </div>
+                  )}
+                  {(thesisExtracted?.sectors?.length ?? 0) > 0 && (
+                    <div style={{ marginBottom: 10 }}>
+                      <p style={{ fontSize: 11, color: muted, marginBottom: 5 }}>Sectors</p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                        {thesisExtracted?.sectors.map(s => (
+                          <span key={s} style={{ padding: '2px 8px', borderRadius: 999, background: alpha(purple, 0.08), color: purple, fontSize: 11, fontWeight: 500 }}>{s}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {(thesisExtracted?.stages?.length ?? 0) > 0 && (
+                    <div style={{ marginBottom: 10 }}>
+                      <p style={{ fontSize: 11, color: muted, marginBottom: 5 }}>Stages</p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                        {thesisExtracted?.stages.map(s => (
+                          <span key={s} style={{ padding: '2px 8px', borderRadius: 999, background: surf, border: `1px solid ${bdr}`, color: ink, fontSize: 11 }}>{s}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {thesisExtracted?.checkSize && (
+                    <div style={{ marginBottom: 14 }}>
+                      <p style={{ fontSize: 11, color: muted, marginBottom: 3 }}>Check Size</p>
+                      <p style={{ fontSize: 12, color: ink }}>{thesisExtracted?.checkSize}</p>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <Button size="sm" onClick={handleApplyThesis} loading={saving} icon={<CheckCircle style={{ height: 12, width: 12 }} />}>
+                      Apply to my profile
+                    </Button>
+                    <Button size="sm" variant="secondary" onClick={() => setThesisExtracted(null)}>
+                      Dismiss
+                    </Button>
+                  </div>
+                </motion.div>
+              )}
+            </SectionCard>
 
             {/* Investment Thesis text */}
-            <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden' }}>
-              <div style={{ padding: '16px 20px', borderBottom: `1px solid ${bdr}`, background: surf, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Target style={{ height: 14, width: 14, color: muted }} />
-                <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>Investment Thesis</p>
-              </div>
-              <div style={{ padding: '20px' }}>
-                <label style={{ fontSize: 11, fontWeight: 600, color: muted, display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                  Your thesis (shown to founders when they match with you)
-                </label>
-                <textarea
-                  value={thesis}
-                  onChange={e => setThesis(e.target.value)}
-                  placeholder="We invest in pre-seed and seed stage companies building in AI/ML and developer tools. We look for technical founders with strong market insight…"
-                  rows={4}
-                  style={{ ...inputStyle, resize: 'vertical' }}
-                />
-              </div>
-            </div>
+            <SectionCard title="Investment Thesis" style={{ background: surf }}>
+              <label style={{ fontSize: 12, fontWeight: 500, color: ink, display: 'block', marginBottom: 6 }}>
+                Your thesis (shown to founders when they match with you)
+              </label>
+              <textarea
+                value={thesis}
+                onChange={e => setThesis(e.target.value)}
+                placeholder="We invest in pre-seed and seed stage companies building in AI/ML and developer tools. We look for technical founders with strong market insight…"
+                rows={4}
+                style={{ ...inputStyle, resize: 'vertical' }}
+              />
+            </SectionCard>
 
             {/* Sectors */}
-            <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden' }}>
-              <div style={{ padding: '16px 20px', borderBottom: `1px solid ${bdr}`, background: surf }}>
-                <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>Sector Focus</p>
-                <p style={{ fontSize: 11, color: muted, marginTop: 2 }}>Select all that apply</p>
-              </div>
-              <div style={{ padding: '16px 20px', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <SectionCard title="Sector Focus" subtitle="Select all that apply" style={{ background: surf }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {INVESTOR_SECTORS.map(o => {
                   const selected = sectors.includes(o.value)
                   return (
@@ -535,9 +540,9 @@ export default function InvestorSettingsPage() {
                       style={{
                         padding: '6px 14px', borderRadius: 999, fontSize: 12, fontWeight: 500,
                         cursor: 'pointer', transition: 'all .12s',
-                        border: `1px solid ${selected ? blue : bdr}`,
-                        background: selected ? alpha(blue, 0.08) : bg,
-                        color: selected ? blue : muted,
+                        border: `1px solid ${selected ? purple : bdr}`,
+                        background: selected ? alpha(purple, 0.08) : bg,
+                        color: selected ? purple : muted,
                       }}
                     >
                       {o.label}
@@ -545,14 +550,11 @@ export default function InvestorSettingsPage() {
                   )
                 })}
               </div>
-            </div>
+            </SectionCard>
 
             {/* Stages */}
-            <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden' }}>
-              <div style={{ padding: '16px 20px', borderBottom: `1px solid ${bdr}`, background: surf }}>
-                <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>Stage Preference</p>
-              </div>
-              <div style={{ padding: '16px 20px', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <SectionCard title="Stage Preference" style={{ background: surf }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {INVESTOR_STAGES.map(o => {
                   const selected = stages.includes(o.value)
                   return (
@@ -562,9 +564,9 @@ export default function InvestorSettingsPage() {
                       style={{
                         padding: '6px 14px', borderRadius: 999, fontSize: 12, fontWeight: 500,
                         cursor: 'pointer', transition: 'all .12s',
-                        border: `1px solid ${selected ? blue : bdr}`,
-                        background: selected ? alpha(blue, 0.08) : bg,
-                        color: selected ? blue : muted,
+                        border: `1px solid ${selected ? purple : bdr}`,
+                        background: selected ? alpha(purple, 0.08) : bg,
+                        color: selected ? purple : muted,
                       }}
                     >
                       {o.label}
@@ -572,14 +574,11 @@ export default function InvestorSettingsPage() {
                   )
                 })}
               </div>
-            </div>
+            </SectionCard>
 
             {/* Check Size */}
-            <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden' }}>
-              <div style={{ padding: '16px 20px', borderBottom: `1px solid ${bdr}`, background: surf }}>
-                <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>Check Size</p>
-              </div>
-              <div style={{ padding: '16px 20px', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <SectionCard title="Check Size" style={{ background: surf }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {INVESTOR_CHECK_SIZES.map(o => {
                   const selected = checkSizes.includes(o.value)
                   return (
@@ -589,9 +588,9 @@ export default function InvestorSettingsPage() {
                       style={{
                         padding: '6px 14px', borderRadius: 999, fontSize: 12, fontWeight: 500,
                         cursor: 'pointer', transition: 'all .12s',
-                        border: `1px solid ${selected ? blue : bdr}`,
-                        background: selected ? alpha(blue, 0.08) : bg,
-                        color: selected ? blue : muted,
+                        border: `1px solid ${selected ? purple : bdr}`,
+                        background: selected ? alpha(purple, 0.08) : bg,
+                        color: selected ? purple : muted,
                       }}
                     >
                       {o.label}
@@ -599,23 +598,14 @@ export default function InvestorSettingsPage() {
                   )
                 })}
               </div>
-            </div>
+            </SectionCard>
 
-            <button
-              onClick={handleSavePreferences}
-              disabled={saving}
-              style={{ alignSelf: 'flex-start', padding: '9px 20px', borderRadius: 8, border: 'none', background: ink, color: bg, fontSize: 13, fontWeight: 500, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}
-            >
-              <Save style={{ height: 13, width: 13 }} />
+            <Button onClick={handleSavePreferences} loading={saving} icon={<Save style={{ height: 13, width: 13 }} />} style={{ alignSelf: 'flex-start' }}>
               {saving ? 'Saving…' : 'Save preferences'}
-            </button>
+            </Button>
 
             {/* Portfolio Display Configuration */}
-            <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden' }}>
-              <div style={{ padding: '16px 20px', borderBottom: `1px solid ${bdr}`, background: surf }}>
-                <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>Portfolio Display</p>
-                <p style={{ fontSize: 11, color: muted, marginTop: 2 }}>Choose which metrics to show on your portfolio view</p>
-              </div>
+            <SectionCard title="Portfolio Display" subtitle="Choose which metrics to show on your portfolio view" noPadding style={{ background: surf }}>
               <div style={{ padding: '4px 0' }}>
                 {([
                   { key: 'showQScore',  label: 'Q-Score',    sub: 'Composite investor readiness score' },
@@ -640,19 +630,14 @@ export default function InvestorSettingsPage() {
                 ))}
               </div>
               <div style={{ padding: '14px 20px', borderTop: `1px solid ${bdr}`, display: 'flex', justifyContent: 'flex-end' }}>
-                <button onClick={handleSavePortfolioCfg} disabled={savingPortfolioCfg} style={{ padding: '8px 18px', borderRadius: 8, border: 'none', background: ink, color: bg, fontSize: 12, fontWeight: 500, cursor: savingPortfolioCfg ? 'not-allowed' : 'pointer', opacity: savingPortfolioCfg ? 0.7 : 1, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                  <Save style={{ height: 12, width: 12 }} />
-                  {savingPortfolioCfg ? 'Saving…' : 'Save display settings'}
-                </button>
+                <Button size="sm" onClick={handleSavePortfolioCfg} loading={savingPortfolioCfg} icon={<Save style={{ height: 12, width: 12 }} />}>
+                  Save display settings
+                </Button>
               </div>
-            </div>
+            </SectionCard>
 
             {/* Q-Score Dimension Weights */}
-            <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden' }}>
-              <div style={{ padding: '16px 20px', borderBottom: `1px solid ${bdr}`, background: surf }}>
-                <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>Q-Score Dimension Weights</p>
-                <p style={{ fontSize: 11, color: muted, marginTop: 2 }}>Adjust how each dimension is weighted when ranking deal flow</p>
-              </div>
+            <SectionCard title="Q-Score Dimension Weights" subtitle="Adjust how each dimension is weighted when ranking deal flow" noPadding style={{ background: surf }}>
               <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 18 }}>
                 {([
                   { key: 'weight_p1', label: 'P1: Market Readiness',   color: blue },
@@ -679,22 +664,17 @@ export default function InvestorSettingsPage() {
                 </p>
               </div>
               <div style={{ padding: '14px 20px', borderTop: `1px solid ${bdr}`, display: 'flex', justifyContent: 'flex-end' }}>
-                <button onClick={handleSaveWeights} disabled={savingWeights} style={{ padding: '8px 18px', borderRadius: 8, border: 'none', background: ink, color: bg, fontSize: 12, fontWeight: 500, cursor: savingWeights ? 'not-allowed' : 'pointer', opacity: savingWeights ? 0.7 : 1, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                  <Save style={{ height: 12, width: 12 }} />
-                  {savingWeights ? 'Saving…' : 'Save weights'}
-                </button>
+                <Button size="sm" onClick={handleSaveWeights} loading={savingWeights} icon={<Save style={{ height: 12, width: 12 }} />}>
+                  Save weights
+                </Button>
               </div>
-            </div>
+            </SectionCard>
           </div>
         )}
 
         {/* ── notifications tab ── */}
         {activeTab === 'notifications' && (
-          <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden' }}>
-            <div style={{ padding: '16px 20px', borderBottom: `1px solid ${bdr}`, background: surf, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Bell style={{ height: 14, width: 14, color: muted }} />
-              <p style={{ fontSize: 13, fontWeight: 600, color: ink }}>Notification Preferences</p>
-            </div>
+          <SectionCard title="Notification Preferences" noPadding style={{ background: surf }}>
             <div style={{ padding: '4px 0' }}>
               {/* Deal flow alerts */}
               <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: muted, padding: '12px 20px 4px' }}>Deal Flow Alerts</p>
@@ -760,16 +740,11 @@ export default function InvestorSettingsPage() {
             </div>
             <div style={{ padding: '16px 20px', borderTop: `1px solid ${bdr}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
               <p style={{ fontSize: 11, color: muted }}>Notification emails will be sent to <strong>{email}</strong></p>
-              <button
-                onClick={handleSaveNotifications}
-                disabled={saving}
-                style={{ padding: '9px 20px', borderRadius: 8, border: 'none', background: ink, color: bg, fontSize: 13, fontWeight: 500, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}
-              >
-                <Save style={{ height: 13, width: 13 }} />
+              <Button onClick={handleSaveNotifications} loading={saving} icon={<Save style={{ height: 13, width: 13 }} />}>
                 {saving ? 'Saving…' : 'Save notifications'}
-              </button>
+              </Button>
             </div>
-          </div>
+          </SectionCard>
         )}
 
         {/* Team */}
@@ -860,12 +835,10 @@ export default function InvestorSettingsPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             {/* Password reset */}
-            <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 14, padding: '20px 22px' }}>
-              <p style={{ fontSize: 15, fontWeight: 700, color: ink, marginBottom: 4 }}>Password</p>
-              <p style={{ fontSize: 13, color: muted, marginBottom: 16 }}>
-                To change your password, we&apos;ll send a reset link to your email.
-              </p>
-              <button
+            <SectionCard title="Password" subtitle="To change your password, we'll send a reset link to your email." style={{ background: surf }}>
+              <Button
+                variant="secondary"
+                icon={<RefreshCw style={{ height: 13, width: 13 }} />}
                 onClick={async () => {
                   const { data: { user } } = await (await import('@/lib/supabase/client')).createClient().auth.getUser()
                   if (!user?.email) return
@@ -873,18 +846,14 @@ export default function InvestorSettingsPage() {
                   await sb.auth.resetPasswordForEmail(user.email, { redirectTo: `${window.location.origin}/update-password` })
                   setToast({ msg: 'Password reset email sent', type: 'success' })
                 }}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 9, border: `1.5px solid ${bdr}`, background: 'white', color: ink, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
               >
-                <RefreshCw style={{ height: 13, width: 13 }} />
                 Send password reset email
-              </button>
-            </div>
+              </Button>
+            </SectionCard>
 
             {/* Connected accounts */}
-            <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 14, padding: '20px 22px' }}>
-              <p style={{ fontSize: 15, fontWeight: 700, color: ink, marginBottom: 4 }}>Connected accounts</p>
-              <p style={{ fontSize: 13, color: muted, marginBottom: 16 }}>OAuth providers linked to your account.</p>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderRadius: 10, border: `1px solid ${bdr}`, background: 'white' }}>
+            <SectionCard title="Connected accounts" subtitle="OAuth providers linked to your account." style={{ background: surf }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderRadius: 10, border: `1px solid ${bdr}`, background: bg }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
                     <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
@@ -896,53 +865,28 @@ export default function InvestorSettingsPage() {
                 </div>
                 <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 999, background: '#ECFDF5', color: '#059669' }}>Connected</span>
               </div>
-            </div>
+            </SectionCard>
 
             {/* Sign out all sessions */}
-            <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 14, padding: '20px 22px' }}>
-              <p style={{ fontSize: 15, fontWeight: 700, color: ink, marginBottom: 4 }}>Sign out everywhere</p>
-              <p style={{ fontSize: 13, color: muted, marginBottom: 16 }}>
-                Revoke all active sessions on other devices. You&apos;ll remain signed in here.
-              </p>
-              <button
+            <SectionCard title="Sign out everywhere" subtitle="Revoke all active sessions on other devices. You'll remain signed in here." style={{ background: surf }}>
+              <Button
+                variant="secondary"
+                icon={<Lock style={{ height: 13, width: 13 }} />}
                 onClick={async () => {
                   if (!confirm('Sign out from all other devices?')) return
                   const sb = (await import('@/lib/supabase/client')).createClient()
                   await sb.auth.signOut({ scope: 'others' })
                   setToast({ msg: 'Signed out from all other sessions', type: 'success' })
                 }}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 9, border: `1.5px solid ${bdr}`, background: 'white', color: ink, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
               >
-                <Lock style={{ height: 13, width: 13 }} />
                 Sign out other sessions
-              </button>
-            </div>
+              </Button>
+            </SectionCard>
 
           </div>
         )}
 
       </div>
-
-      {/* toast */}
-      <AnimatePresence>
-        {toast && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            style={{
-              position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
-              background: toast.type === 'success' ? ink : red,
-              color: bg, borderRadius: 10, padding: '10px 20px',
-              fontSize: 13, fontWeight: 500, zIndex: 9999,
-              display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap',
-            }}
-          >
-            {toast.type === 'success' && <CheckCircle style={{ height: 14, width: 14 }} />}
-            {toast.msg}
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   )
 }

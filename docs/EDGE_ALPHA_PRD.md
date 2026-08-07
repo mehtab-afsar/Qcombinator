@@ -178,6 +178,32 @@ interactivity-for-its-own-sake; it is the difference between a product and a bac
 | **Q-Score** | A **separate diagnostic**, updated from Company Builder artefacts. Asset creation never raises it. Outcomes are evidence for later reassessment, not an automatic trigger. |
 | **Direction** | Set via the mandate. Contracts are **immutable**; any change (priority, success metric, an executive's mandate, pausing a Program, new direction) creates a **new current version = a new operating epoch**. History is preserved. No per-cycle approval, no waiting state. |
 
+### Messaging — the connection-gated conversation layer
+
+Added retroactively (this section didn't exist before — messaging shipped without PRD coverage;
+this documents the settled shape, not a new proposal).
+
+**Guardrail, unconditional:** a connection is the gate. No message send and no thread ever
+renders without an `accepted`/`meeting_scheduled` `connection_requests` row naming both parties.
+There is no separate "message request" concept distinct from a connection request — they are the
+same mechanism, one status field. This must never grow a second, parallel gating path.
+
+**Model today: founder ↔ investor only.** Founders send a connection request that sits `pending`
+until the investor responds; investor-initiated outreach is live immediately (no approval step —
+a real, intentional asymmetry, not a bug). Both roles get a Requests/Conversations split in their
+inbox once accepted.
+
+**Future — role-agnostic messaging (not built, explicitly deferred):** the schema doesn't
+structurally forbid founder↔founder or investor↔investor pairs, but the app code
+(`app/api/connections/route.ts`) hardcodes founder-initiates-to-investor directionality, and RLS
+is written in terms of `founder_id`/`investor_id` columns, not generic parties. Supporting other
+pairings needs: a symmetric connection-creation endpoint (or a role-agnostic rewrite), new RLS
+reasoning with cross-tenant isolation re-verified, and a discovery surface (there's no "browse
+other founders" page today). Treated as its own future feature, not a rider on any UI work.
+
+**Out of scope, current phase:** file/image/video attachments (no schema, storage, or UI support
+exists), typing/presence indicators, a Realtime polling backstop.
+
 ---
 
 ## 5. User stories with acceptance criteria

@@ -4,6 +4,7 @@ import { verifyAuth } from '@/lib/auth/verify'
 import { parseBody, connectionsPatchSchema } from '@/lib/api/validate'
 import { log } from '@/lib/logger'
 import { sendConnectionAcceptedEmails } from '@/lib/email/send'
+import { getMyDemoInvestorId, investorConnectionOrFilter } from '@/lib/investor/demo-investor'
 
 // GET /api/investor/connections
 // Returns pending connection requests for the authenticated investor,
@@ -17,19 +18,11 @@ export async function GET() {
 
     // Look up this investor's demo_investor_id — connections are stored by demo_investor_id,
     // NOT investor_id (which is an auth.users FK used only for real-auth investor accounts).
-    const { data: investorProfile } = await supabase
-      .from('investor_profiles')
-      .select('demo_investor_id')
-      .eq('user_id', user.id)
-      .single()
-
-    const demoInvestorId = investorProfile?.demo_investor_id
+    const demoInvestorId = await getMyDemoInvestorId(supabase, user.id)
 
     // Query via BOTH FK columns — a connection may have been created by the founder
     // (demo_investor_id) or by the investor's outreach (investor_id). OR catches both.
-    const connOrFilter = demoInvestorId
-      ? `demo_investor_id.eq.${demoInvestorId},investor_id.eq.${user.id}`
-      : `investor_id.eq.${user.id}`
+    const connOrFilter = investorConnectionOrFilter(user.id, demoInvestorId)
 
     const { data: rawRequests, error } = await supabase
       .from('connection_requests')
@@ -148,14 +141,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Look up demo_investor_id to use the correct ownership check
-    const { data: investorProfile } = await supabase
-      .from('investor_profiles')
-      .select('demo_investor_id')
-      .eq('user_id', user.id)
-      .single()
-
-
-    const demoInvestorId = investorProfile?.demo_investor_id
+    const demoInvestorId = await getMyDemoInvestorId(supabase, user.id)
 
     let updateQuery = supabase
       .from('connection_requests')
@@ -169,11 +155,19 @@ export async function PATCH(request: NextRequest) {
       updateQuery = updateQuery.eq('investor_id', user.id)
     }
 
-    const { error } = await updateQuery
+    // .update() alone reports an error only on a query failure, never on "matched zero rows" —
+    // an ownership filter that matches nothing looks identical to success. .select() forces
+    // the actual updated row back so we can tell those two cases apart, which matters here:
+    // without it, an investor could PATCH a requestId they don't own, get {success:true} back,
+    // and still trigger a real "connection accepted" notification/email toward that founder.
+    const { data: updated, error } = await updateQuery.select('founder_id').maybeSingle()
 
     if (error) {
       log.error('PATCH /api/investor/connections update', { error })
       return NextResponse.json({ error: 'Failed to update request' }, { status: 500 })
+    }
+    if (!updated) {
+      return NextResponse.json({ error: 'Connection not found or access denied' }, { status: 404 })
     }
 
     // If decline with feedback, log it as an analytics event
@@ -188,27 +182,20 @@ export async function PATCH(request: NextRequest) {
     // On accept: notify the founder in-app
     if (action === 'accept') {
       try {
-        const { data: connReqForNotif } = await supabase
-          .from('connection_requests')
-          .select('founder_id')
-          .eq('id', requestId)
+        const { data: ip } = await supabase
+          .from('investor_profiles')
+          .select('full_name, firm_name')
+          .eq('user_id', user.id)
           .single()
-        if (connReqForNotif?.founder_id) {
-          const { data: ip } = await supabase
-            .from('investor_profiles')
-            .select('full_name, firm_name')
-            .eq('user_id', user.id)
-            .single()
-          const investorName = (ip as { full_name?: string } | null)?.full_name ?? 'An investor'
-          const firmName     = (ip as { firm_name?: string }  | null)?.firm_name  ?? ''
-          await supabase.from('notifications').insert({
-            user_id:  connReqForNotif.founder_id,
-            type:     'connection_accepted',
-            title:    `${investorName}${firmName ? ` from ${firmName}` : ''} accepted your connection request`,
-            read:     false,
-            metadata: { connection_id: requestId, investor_id: user.id },
-          })
-        }
+        const investorName = (ip as { full_name?: string } | null)?.full_name ?? 'An investor'
+        const firmName     = (ip as { firm_name?: string }  | null)?.firm_name  ?? ''
+        await supabase.from('notifications').insert({
+          user_id:  updated.founder_id,
+          type:     'connection_accepted',
+          title:    `${investorName}${firmName ? ` from ${firmName}` : ''} accepted your connection request`,
+          read:     false,
+          metadata: { connection_id: requestId, investor_id: user.id },
+        })
       } catch (notifErr) {
         log.error('PATCH /api/investor/connections accept notification', { notifErr })
       }
@@ -217,41 +204,32 @@ export async function PATCH(request: NextRequest) {
     // On accept: fetch names/emails and send notification emails
     if (action === 'accept' && process.env.RESEND_API_KEY) {
       try {
-        // Get the connection request to find the founder_id
-        const { data: connReq } = await supabase
-          .from('connection_requests')
-          .select('founder_id')
-          .eq('id', requestId)
-          .single()
+        const [
+          { data: { user: founderUser } },
+          { data: { user: investorUser } },
+          { data: founderProfile },
+          { data: investorProfile },
+        ] = await Promise.all([
+          supabase.auth.admin.getUserById(updated.founder_id),
+          supabase.auth.admin.getUserById(user.id),
+          supabase.from('founder_profiles').select('full_name, startup_name').eq('user_id', updated.founder_id).single(),
+          supabase.from('investor_profiles').select('full_name, firm_name').eq('user_id', user.id).single(),
+        ])
 
-        if (connReq?.founder_id) {
-          const [
-            { data: { user: founderUser } },
-            { data: { user: investorUser } },
-            { data: founderProfile },
-            { data: investorProfile },
-          ] = await Promise.all([
-            supabase.auth.admin.getUserById(connReq.founder_id),
-            supabase.auth.admin.getUserById(user.id),
-            supabase.from('founder_profiles').select('full_name, startup_name').eq('user_id', connReq.founder_id).single(),
-            supabase.from('investor_profiles').select('full_name, firm_name').eq('user_id', user.id).single(),
-          ])
+        const founderEmail = founderUser?.email
+        const investorEmail = investorUser?.email
+        const fp = founderProfile as { full_name?: string; startup_name?: string } | null
+        const ip = investorProfile as { full_name?: string; firm_name?: string } | null
 
-          const founderEmail = founderUser?.email
-          const investorEmail = investorUser?.email
-          const fp = founderProfile as { full_name?: string; startup_name?: string } | null
-          const ip = investorProfile as { full_name?: string; firm_name?: string } | null
-
-          if (founderEmail && investorEmail) {
-            await sendConnectionAcceptedEmails({
-              founderEmail,
-              founderName: fp?.full_name ?? 'Founder',
-              startupName: fp?.startup_name ?? 'Your Startup',
-              investorEmail,
-              investorName: ip?.full_name ?? 'Investor',
-              investorFirm: ip?.firm_name ?? 'Their Firm',
-            })
-          }
+        if (founderEmail && investorEmail) {
+          await sendConnectionAcceptedEmails({
+            founderEmail,
+            founderName: fp?.full_name ?? 'Founder',
+            startupName: fp?.startup_name ?? 'Your Startup',
+            investorEmail,
+            investorName: ip?.full_name ?? 'Investor',
+            investorFirm: ip?.firm_name ?? 'Their Firm',
+          })
         }
       } catch (emailErr) {
         log.error('PATCH /api/investor/connections email', { emailErr })

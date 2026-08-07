@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Send, Loader2, TrendingUp, Users, BarChart3, RefreshCw, MessageSquare, X, Activity } from 'lucide-react'
 import Link from 'next/link'
-import { bg, surf, bdr, ink, muted, blue, green, amber } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted, blue, purple, green, amber } from '@/lib/constants/colors'
 
 // ─── types ────────────────────────────────────────────────────────────────────
 interface Insight {
@@ -181,7 +181,7 @@ export default function AIAnalysisPage() {
         <div style={{ maxWidth: 1280, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 24 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ height: 36, width: 36, borderRadius: 10, background: '#F5F3FF', border: '1px solid #DDD6FE', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Activity size={16} color="#7C3AED" />
+              <Activity size={16} color={purple} />
             </div>
             <div>
               <h1 style={{ fontSize: 16, fontWeight: 700, color: ink, lineHeight: 1.1 }}>Portfolio Intelligence</h1>
@@ -228,7 +228,7 @@ export default function AIAnalysisPage() {
                 <div style={{ padding: '16px 14px', textAlign: 'center' }}>
                   <p style={{ fontSize: 12, fontWeight: 600, color: ink, marginBottom: 4 }}>Pro Feature</p>
                   <p style={{ fontSize: 11, color: muted, lineHeight: 1.55, marginBottom: 12 }}>Portfolio Intelligence is available on the Pro plan. Upgrade to unlock AI-powered deal flow insights.</p>
-                  <a href="/investor/billing" style={{ display: 'inline-block', fontSize: 11, fontWeight: 600, color: '#7C3AED', textDecoration: 'none' }}>Upgrade to Pro →</a>
+                  <a href="/investor/billing" style={{ display: 'inline-block', fontSize: 11, fontWeight: 600, color: purple, textDecoration: 'none' }}>Upgrade to Pro →</a>
                 </div>
               ) : insights.length === 0 ? (
                 <p style={{ fontSize: 12, color: muted, padding: '8px 0', textAlign: 'center' }}>Insights will appear as founders join and complete their assessments.</p>
@@ -302,7 +302,7 @@ export default function AIAnalysisPage() {
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20, padding: 32 }}>
                 <div style={{ textAlign: 'center' }}>
                   <div style={{ width: 44, height: 44, borderRadius: 12, background: '#F5F3FF', border: '1px solid #DDD6FE', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
-                    <MessageSquare size={20} color="#7C3AED" />
+                    <MessageSquare size={20} color={purple} />
                   </div>
                   <p style={{ fontSize: 14, fontWeight: 600, color: ink, marginBottom: 6 }}>Ask about your deal flow</p>
                   <p style={{ fontSize: 12, color: muted, lineHeight: 1.5 }}>I have context on all your companies, Q-Scores, and pipeline stages.</p>
@@ -313,7 +313,7 @@ export default function AIAnalysisPage() {
                       key={p}
                       onClick={() => send(p)}
                       style={{ padding: '8px 14px', borderRadius: 20, border: `1px solid ${bdr}`, background: bg, fontSize: 12, color: ink, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.1s', textAlign: 'left', lineHeight: 1.4 }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = surf; (e.currentTarget as HTMLElement).style.borderColor = blue }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = surf; (e.currentTarget as HTMLElement).style.borderColor = purple }}
                       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = bg; (e.currentTarget as HTMLElement).style.borderColor = bdr }}
                     >
                       {p}
@@ -338,7 +338,7 @@ export default function AIAnalysisPage() {
                 }}>
                   {msg.content}
                   {msg.streaming && (
-                    <span style={{ display: 'inline-block', width: 8, height: 14, background: blue, borderRadius: 2, marginLeft: 3, animation: 'pulse 0.7s infinite', verticalAlign: 'middle' }} />
+                    <span style={{ display: 'inline-block', width: 8, height: 14, background: purple, borderRadius: 2, marginLeft: 3, animation: 'pulse 0.7s infinite', verticalAlign: 'middle' }} />
                   )}
                 </div>
               </div>
@@ -459,7 +459,6 @@ export default function AIAnalysisPage() {
 
       <style>{`
         @keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
-        @keyframes spin   { to{transform:rotate(360deg)} }
         @keyframes pulse  { 0%,100%{opacity:1} 50%{opacity:0.3} }
       `}</style>
     </div>

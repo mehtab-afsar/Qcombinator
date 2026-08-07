@@ -44,11 +44,14 @@ export default function InvestorMatching() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          ...(investor.type === 'real'
+            ? { investorId: investor.id }
+            : { demoInvestorId: investor.id }),
           investorName:    investor.name,
           investorFirm:    investor.firm,
           investorThesis:  investor.thesis,
           investorSectors: investor.investmentFocus,
-          investorStages:  [],
+          investorStages:  investor.stages,
           investorPortfolio: investor.portfolio,
           matchScore:      investor.matchScore,
           founderSector,

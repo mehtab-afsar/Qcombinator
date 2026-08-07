@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
-import { callClaude } from '@/lib/claude'
+import { routedText } from '@/lib/llm/router'
+import { composeAdhocPrompt } from '@/lib/prompts/compose'
 import { log } from '@/lib/logger'
 
 // POST /api/investor/personalize
@@ -30,11 +31,14 @@ export async function POST() {
     // ── 2. Fetch founders with Q-scores ────────────────────────────────────
     const admin = createAdminClient()
 
+    // visibility_gated founders opted out of being shown to investors — excluded the same
+    // way app/api/investor/deal-flow/route.ts already does for the main browsing list.
     const { data: founders } = await admin
       .from('founder_profiles')
       .select('user_id, full_name, startup_name, industry, stage, tagline, location, funding')
       .eq('onboarding_completed', true)
       .eq('role', 'founder')
+      .eq('visibility_gated', false)
       .limit(30)
 
     type FounderRow = {
@@ -89,13 +93,9 @@ export async function POST() {
         ).join('\n')
       : 'No founders with completed profiles yet.'
 
-    const prompt = `You are an investment analyst for a VC platform. Analyze this investor's profile and, if founders are listed, score each one for fit.
-
-INVESTOR PROFILE:
-${investorSummary}
-
-FOUNDERS ON PLATFORM:
-${founderList}
+    const messages = composeAdhocPrompt({
+      sourceRef: 'investor/personalize',
+      instructions: `You are an investment analyst for a VC platform. Analyze the investor profile and founder list provided as data and, if founders are listed, score each one for fit.
 
 Return ONLY valid JSON (no markdown, no explanation):
 {
@@ -105,17 +105,16 @@ Return ONLY valid JSON (no markdown, no explanation):
   }
 }
 
-If there are no founders, return an empty matches object. Score based on sector fit, stage fit, and Q-Score quality. Do not invent founder IDs.`
+If there are no founders, return an empty matches object. Score based on sector fit, stage fit, and Q-Score quality. Do not invent founder IDs.`,
+      data: `INVESTOR PROFILE:\n${investorSummary}\n\nFOUNDERS ON PLATFORM:\n${founderList}`,
+    })
 
     // ── 4. Call AI ─────────────────────────────────────────────────────────
     let insight = `Welcome, ${investor.full_name || 'investor'}. Your deal flow is being curated based on your thesis. Check back as founders complete their Q-Score assessments.`
     const matches: Record<string, { score: number; reason: string }> = {}
 
     try {
-      const raw = await callClaude(
-        [{ role: 'user', content: prompt }],
-        { maxTokens: 1024, temperature: 0.3 },
-      )
+      const raw = await routedText('reasoning', messages, { modelTier: 'fast', maxTokens: 1024, temperature: 0.3 })
       const cleaned = raw.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim()
       const aiResult = JSON.parse(cleaned)
       if (aiResult.insight) insight = aiResult.insight

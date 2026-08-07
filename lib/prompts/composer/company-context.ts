@@ -57,6 +57,9 @@ export function renderCompanyContext(
     field('Q-Score (diagnostic — read only)', `Overall: ${overall}${summary ? `\n${summary}` : ''}`)
   }
 
+  field('Comparable Companies', context.comparableCohort)
+  field('Recent Market Activity (unverified third-party news)', context.marketSignals)
+
   const assets = context.currentAssets ?? {}
   const included = relevantAssets.filter(id => assets[id]?.trim())
   if (included.length > 0) {

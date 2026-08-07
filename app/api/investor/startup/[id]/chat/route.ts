@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
-import { isFounderVisible } from '@/lib/investor/visibility'
+import { isFounderVisible, getConnectionStatus, isConnectedStatus } from '@/lib/investor/visibility'
 import { parseBody, startupChatSchema } from '@/lib/api/validate'
 import { log } from '@/lib/logger'
 import { routedText } from '@/lib/llm/router'
+import { composeAdhocPrompt } from '@/lib/prompts/compose'
 
 // POST /api/investor/startup/[id]/chat
 // Answers investor questions about a startup strictly from DB data.
@@ -16,6 +17,7 @@ export async function POST(
   try {
     const auth = await verifyAuth()
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+    const { user } = auth
 
     const { id: founderId } = await params
     const parsed = await parseBody(req, startupChatSchema)
@@ -26,6 +28,17 @@ export async function POST(
 
     if (!(await isFounderVisible(admin, founderId))) {
       return NextResponse.json({ error: 'Founder not found' }, { status: 404 })
+    }
+
+    // This assistant answers from the founder's real documents and financials — that's only
+    // fair game once a connection is accepted, same boundary as the deep-dive page itself.
+    const connectionStatus = await getConnectionStatus(admin, user.id, founderId)
+    if (!isConnectedStatus(connectionStatus)) {
+      return NextResponse.json({
+        unanswerable: true,
+        founderName: null,
+        reason: 'Connect with this founder to ask questions about their financials, team, and strategy.',
+      })
     }
 
     // Fetch all startup data in parallel
@@ -120,22 +133,23 @@ export async function POST(
     }
 
     // Build system prompt — strict data-only answering
-    const systemPrompt = `You are a concise investment research assistant answering questions about a specific startup for an investor.
+    const instructions = `You are a concise investment research assistant answering questions about a specific startup for an investor.
 
 STRICT RULES:
 1. Answer ONLY using the startup data provided below. Do not extrapolate, infer, or invent anything not explicitly in the data.
 2. If the answer cannot be found in the data, respond with EXACTLY this JSON: {"unanswerable": true}
 3. Keep answers to 2-3 sentences maximum. Be precise and factual.
 4. When citing a number or fact, mention where it comes from (e.g. "Per their Q-Score assessment...", "From their profile...").
-5. Do not give investment advice or recommendations.
+5. Do not give investment advice or recommendations.`
 
-STARTUP DATA:
-${JSON.stringify(startupContext, null, 2)}`
+    const messages = composeAdhocPrompt({
+      sourceRef: 'investor/startup/chat',
+      instructions,
+      data: JSON.stringify(startupContext, null, 2),
+    })
+    messages.push({ role: 'user', content: question })
 
-    const rawText = await routedText('reasoning', [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: question },
-    ], { maxTokens: 400 })
+    const rawText = await routedText('reasoning', messages, { maxTokens: 400 })
 
     // Check if the model returned an unanswerable signal
     try {

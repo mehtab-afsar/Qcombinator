@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { L, FONT_SERIF } from "../theme";
 import { TESTIMONIALS } from "../copy";
 import { Reveal, Eyebrow } from "./Section";
-import { useMotionPrefs } from "../hooks/useMotionPrefs";
+import { useMotionPrefs } from "@/features/shared/hooks/useMotionPrefs";
 
 export function SocialProof() {
   const reduced = useMotionPrefs();

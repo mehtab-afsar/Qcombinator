@@ -3,12 +3,16 @@ import { createClient } from '@supabase/supabase-js'
 import { parseDocument } from '@/lib/profile-builder/document-parser'
 import { EXTRACTION_PROMPTS } from '@/lib/profile-builder/extraction-prompts'
 import { routedText } from '@/lib/llm/router'
+import { composeAdhocPrompt } from '@/lib/prompts/compose'
 import { getSectionCompletionPct, getMissingFields } from '@/lib/profile-builder/question-engine'
 import { flattenConfidence } from '@/lib/profile-builder/utils'
 import { log } from '@/lib/logger'
 import { rankMissingIndicators, type GapQuestion } from '@/lib/profile-builder/gap-ranker'
 import { semanticVerify } from '@/lib/profile-builder/semantic-verifier'
 import type { SemanticIssue } from '@/lib/profile-builder/semantic-verifier'
+import { verifyIdentityConsistency } from '@/lib/profile-builder/identity-verifier'
+import type { FounderIdentityContext, IdentityVerification } from '@/lib/profile-builder/identity-verifier'
+import { createAdminClient } from '@/lib/supabase/server'
 
 // Parsing + up to 5 parallel LLM extraction calls + a verification pass can take a
 // while for large decks. Without this, the platform kills the function at its short
@@ -49,13 +53,11 @@ async function extractFieldsFromImagePDF(
   try {
     const results = await Promise.allSettled(
       sections.map(sec =>
-        routedText('extraction', [{
-          role: 'user',
-          content: [
-            { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
-            { type: 'text', text: EXTRACTION_PROMPTS[sec] },
-          ],
-        }], { maxTokens: 800 }).then(raw => {
+        routedText('extraction', composeAdhocPrompt({
+          sourceRef: `profile-builder/upload:vision-pdf:${sec}`,
+          instructions: EXTRACTION_PROMPTS[sec],
+          data: [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }],
+        }), { maxTokens: 800 }).then(raw => {
           const m = raw.match(/\{[\s\S]*\}/)
           if (!m) return { fields: {} as Record<string, unknown>, conf: {} as Record<string, number> }
           const parsed = JSON.parse(m[0])
@@ -91,13 +93,11 @@ async function extractFieldsFromImage(
     const base64 = buffer.toString('base64')
     const results = await Promise.allSettled(
       sections.map(sec =>
-        routedText('extraction', [{
-          role: 'user',
-          content: [
-            { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } },
-            { type: 'text', text: EXTRACTION_PROMPTS[sec] },
-          ],
-        }], { maxTokens: 800 }).then(raw => {
+        routedText('extraction', composeAdhocPrompt({
+          sourceRef: `profile-builder/upload:vision-image:${sec}`,
+          instructions: EXTRACTION_PROMPTS[sec],
+          data: [{ type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } }],
+        }), { maxTokens: 800 }).then(raw => {
           const m = raw.match(/\{[\s\S]*\}/)
           if (!m) return { fields: {} as Record<string, unknown>, conf: {} as Record<string, number> }
           const parsed = JSON.parse(m[0])
@@ -248,14 +248,12 @@ const MISSING_FIELD_LABELS: Record<string, string> = {
   'p3.replicationTimeMonths': 'Months to replicate your tech',
 }
 
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  )
-}
-
+// Bearer-token check, not the shared verifyAuth() — the frontend upload calls
+// (app/founder/profile-builder/page.tsx) explicitly send Authorization: Bearer <token> for
+// this route rather than relying on the cookie session verifyAuth() reads, so switching this
+// one to verifyAuth() isn't a safe drop-in swap without also changing the frontend call and
+// verifying the session cookie is reliably present for every caller. Left as-is; every
+// resulting userId is still scoped correctly through the rest of this route.
 async function getUserId(req: NextRequest): Promise<string | null> {
   const token = req.headers.get('authorization')?.replace('Bearer ', '')
   if (!token) return null
@@ -322,22 +320,29 @@ async function generateQuickReplies(
   // both living under section 5 — matches PARAM_IDX_TO_SECTION in page.tsx.
   const PARAM_IDX_TO_SECTION: Record<number, number> = { 0: 1, 1: 2, 2: 3, 3: 4, 4: 5, 5: 5 }
   const contextFields = getSectionRelevantFields(extracted, PARAM_IDX_TO_SECTION[gap.paramIdx] ?? 1)
-  const prompt = `A startup founder (${sector} sector, ${stage} stage) is being asked this question about their company:
-"${gap.question}"
-${gap.contextHint ? `What we already know: ${gap.contextHint}` : ''}
-
-What we've extracted about this specific founder so far, for context:
-${JSON.stringify(contextFields).slice(0, 1500)}
+  const instructions = `You are helping suggest quick-reply answer chips for a startup founder filling out their profile.
 
 Suggest up to 4 short, plausible answers THIS founder specifically might give — grounded in their
-actual sector/stage/context above, not generic placeholders. Each must be answerable with one tap,
-no follow-up needed (e.g. "No patents yet", "6-12 months", "Filed, not granted" — not full sentences).
-Include a realistic "none yet" option when that's plausible for an early-stage founder.
+actual sector/stage/context provided as data below, not generic placeholders. Each must be answerable
+with one tap, no follow-up needed (e.g. "No patents yet", "6-12 months", "Filed, not granted" — not
+full sentences). Include a realistic "none yet" option when that's plausible for an early-stage founder.
 
 Return ONLY a JSON array of strings, 2-4 items. No preamble, no explanation.`
 
+  const data = `Sector: ${sector}
+Stage: ${stage}
+Question being asked: "${gap.question}"
+${gap.contextHint ? `What we already know: ${gap.contextHint}` : ''}
+
+What we've extracted about this specific founder so far, for context:
+${JSON.stringify(contextFields).slice(0, 1500)}`
+
   try {
-    const raw = await routedText('generation', [{ role: 'user', content: prompt }], { maxTokens: 150 })
+    const raw = await routedText('generation', composeAdhocPrompt({
+      sourceRef: 'profile-builder/upload:quick-replies',
+      instructions,
+      data,
+    }), { maxTokens: 150 })
     const match = raw.match(/\[[\s\S]*\]/)
     if (!match) return []
     const parsed = JSON.parse(match[0])
@@ -354,15 +359,16 @@ Return ONLY a JSON array of strings, 2-4 items. No preamble, no explanation.`
  * the redesign this route's field-dump snippet list is being replaced by (on top of,
  * not instead of: the snippet list stays as a fallback for thin sections).
  */
-function buildNarrativePrompt(sectionLabel: string, fields: Record<string, unknown>): string {
-  return `You are summarising a startup founder's own words back to them, for the "${sectionLabel}" section of their profile.
+function buildNarrativePrompt(sectionLabel: string, fields: Record<string, unknown>) {
+  return composeAdhocPrompt({
+    sourceRef: 'profile-builder/upload:narrative',
+    instructions: `You are summarising a startup founder's own words back to them, for the "${sectionLabel}" section of their profile.
 
-Given this extracted data (raw JSON — internal field names, not for you to repeat), write 1-2 tight sentences a founder would read and think "yes, that's my company." Plain language, no jargon, no field names, no JSON keys, no confidence numbers or scores. If the data is genuinely thin, say so honestly in one short line rather than padding it out.
+Given the extracted data provided as data below (raw JSON — internal field names, not for you to repeat), write 1-2 tight sentences a founder would read and think "yes, that's my company." Plain language, no jargon, no field names, no JSON keys, no confidence numbers or scores. If the data is genuinely thin, say so honestly in one short line rather than padding it out.
 
-Data:
-${JSON.stringify(fields).slice(0, 3000)}
-
-Write only the summary — no preamble, no quotes around it.`
+Write only the summary — no preamble, no quotes around it.`,
+    data: JSON.stringify(fields).slice(0, 3000),
+  })
 }
 
 export async function POST(req: NextRequest) {
@@ -392,7 +398,7 @@ export async function POST(req: NextRequest) {
     const parsed = await parseDocument(buffer, filename, mimeType)
 
     // Store file in Supabase Storage — ensure bucket exists first
-    const supabase = getSupabase()
+    const supabase = createAdminClient()
     await supabase.storage.createBucket('uploads', { public: false }).catch(() => {
       // Bucket likely already exists — ignore
     })
@@ -412,14 +418,15 @@ export async function POST(req: NextRequest) {
       fileUrl = signedData?.signedUrl ?? null
     }
 
-    // Read founder stage for completion scoring
+    // Read founder stage for completion scoring + registered identity for the
+    // identity-consistency check below.
     const { data: fp } = await supabase
       .from('founder_profiles')
-      .select('stage, sector')
+      .select('stage, industry, company_name, startup_name, tagline, description')
       .eq('user_id', userId)
       .single()
     const founderStage: string = fp?.stage ?? 'pre-product'
-    const founderSector: string = fp?.sector ?? 'default'
+    const founderSector: string = fp?.industry ?? 'default'
 
     let extractedFields: Record<string, unknown> = {}
     let confidenceMap: Record<string, number> = {}
@@ -493,12 +500,11 @@ export async function POST(req: NextRequest) {
 
     if (section === 0 && parsed.text.length > 50 && !isRealImage) {
       // Run all 5 section prompts in parallel so every sidebar section gets populated
-      const docUserMsg = `Document text:\n\n${parsed.text.slice(0, DOC_CHAR_LIMIT)}`
+      const docData = `Document text:\n\n${parsed.text.slice(0, DOC_CHAR_LIMIT)}`
       const results = await Promise.allSettled(
         [1, 2, 3, 4, 5].map(sec =>
           routedText('extraction',
-            [{ role: 'system', content: EXTRACTION_PROMPTS[sec] },
-             { role: 'user', content: docUserMsg }],
+            composeAdhocPrompt({ sourceRef: `profile-builder/upload:section0:${sec}`, instructions: EXTRACTION_PROMPTS[sec], data: docData }),
             { maxTokens: 800 }
           ).then(raw => {
             const m = raw.match(/\{[\s\S]*\}/)
@@ -549,16 +555,21 @@ export async function POST(req: NextRequest) {
       const sectionPrompt = EXTRACTION_PROMPTS[section]
       if (sectionPrompt) {
         try {
-          const raw = await routedText('extraction', [
-            { role: 'system', content: sectionPrompt },
-            { role: 'user', content: `Document text:\n\n${parsed.text}` },
-          ], { maxTokens: 1200 })
+          const raw = await routedText('extraction', composeAdhocPrompt({
+            sourceRef: `profile-builder/upload:section:${section}`,
+            instructions: sectionPrompt,
+            data: `Document text:\n\n${parsed.text}`,
+          }), { maxTokens: 1200 })
           const jsonMatch = raw.match(/\{[\s\S]*\}/)
           if (jsonMatch) {
             const parsed2 = JSON.parse(jsonMatch[0])
-            const { confidence: rawConf, ...rest } = parsed2
-            extractedFields = rest
-            confidenceMap = rawConf ? flattenConfidence(rawConf as Record<string, unknown>) : {}
+            const { confidence: rawConf, startup_document: isStartupDoc, ...rest } = parsed2
+            if (isStartupDoc === false) {
+              extractionError = `"${filename}" doesn't look like it's about your startup — we didn't merge any data from it. You can still answer this section's questions manually.`
+            } else {
+              extractedFields = rest
+              confidenceMap = rawConf ? flattenConfidence(rawConf as Record<string, unknown>) : {}
+            }
           }
         } catch (e) {
           log.warn('LLM extraction failed for upload:', e)
@@ -653,27 +664,60 @@ export async function POST(req: NextRequest) {
       log.warn('[upload] no fields extracted — surfacing extractionError', { filename, userId, parseError: parsed.error ?? null })
     }
 
-    // ── Semantic verification pass ───────────────────────────────────────────
-    // Runs after full extraction for section-0 uploads only.
-    // Catches type errors (year-as-MRR, projected-as-current) that the haiku
-    // extraction pass misses. Non-blocking — original fields used on failure,
-    // and time-boxed so a slow verification can't push the request past its budget.
+    // ── Semantic verification + identity-consistency checks ──────────────────
+    // Two independent judgment passes over the same document, run concurrently so the
+    // added identity check doesn't extend the request's critical path. Both are
+    // non-blocking — original fields used on failure — and individually time-boxed so
+    // a slow pass can't push the request past its maxDuration budget.
     let semanticIssues: SemanticIssue[] = []
-    if (section === 0 && !isRealImage && Object.keys(extractedFields).length > 0) {
-      try {
-        const verification = await withTimeout(
-          semanticVerify(extractedFields, parsed.text),
-          12_000,
-          () => ({ corrected: extractedFields, issues: [] as SemanticIssue[] }),
-        )
-        if (verification.issues.length > 0) {
-          extractedFields = verification.corrected
-          semanticIssues = verification.issues
-          log.warn(`[upload] semantic verifier corrected ${verification.issues.filter(i => i.severity === 'corrected').length} field(s)`)
-        }
-      } catch (e) {
-        log.warn('[upload] semanticVerify failed (non-blocking):', e instanceof Error ? e.message : e)
+    let identityCheck: IdentityVerification = { identityPlausible: true, identityMismatchReason: null }
+    if (!isRealImage && Object.keys(extractedFields).length > 0) {
+      const identityContext: FounderIdentityContext = {
+        companyName: fp?.company_name ?? null,
+        startupName: fp?.startup_name ?? null,
+        tagline: fp?.tagline ?? null,
+        description: fp?.description ?? null,
       }
+      const [semanticResult, identityResult] = await Promise.allSettled([
+        section === 0
+          ? withTimeout(semanticVerify(extractedFields, parsed.text), 12_000, () => ({ corrected: extractedFields, issues: [] as SemanticIssue[] }))
+          : Promise.resolve({ corrected: extractedFields, issues: [] as SemanticIssue[] }),
+        withTimeout(verifyIdentityConsistency(identityContext, parsed.text), 8_000, () => ({ identityPlausible: true, identityMismatchReason: null })),
+      ])
+      if (semanticResult.status === 'fulfilled' && semanticResult.value.issues.length > 0) {
+        extractedFields = semanticResult.value.corrected
+        semanticIssues = semanticResult.value.issues
+        log.warn(`[upload] semantic verifier corrected ${semanticResult.value.issues.filter(i => i.severity === 'corrected').length} field(s)`)
+      } else if (semanticResult.status === 'rejected') {
+        log.warn('[upload] semanticVerify failed (non-blocking):', semanticResult.reason instanceof Error ? semanticResult.reason.message : semanticResult.reason)
+      }
+      if (identityResult.status === 'fulfilled') identityCheck = identityResult.value
+    }
+
+    // Identity mismatch: don't trust ANY of this document's content for this founder's
+    // profile — same discard gate as startup_document:false, just a second signal
+    // feeding it. This only ever prevents a merge into profile_builder_data; it never
+    // touches qscore_history or calls the score signal (ADR-005).
+    if (!identityCheck.identityPlausible) {
+      extractedFields = {}
+      extractionError = identityCheck.identityMismatchReason
+        ?? `"${filename}" doesn't appear to be about ${fp?.company_name || fp?.startup_name || 'your registered company'} — we didn't merge its data into your profile.`
+      log.warn('[upload] identity mismatch detected — discarding extracted fields', { userId, filename })
+
+      // Secondary, non-blocking: record an append-only, founder-visible flag (same
+      // shape as features/qscore/services/consistency-checker.ts's score_evidence
+      // writes). Never awaited into the response path; never moves any score.
+      void supabase.from('score_evidence').insert({
+        user_id: userId,
+        dimension: 'integrity',
+        evidence_type: 'identity_mismatch',
+        title: `Uploaded document "${filename}" doesn't match registered company`,
+        description: identityCheck.identityMismatchReason,
+        status: 'flagged',
+        points_awarded: -3,
+      }).then(({ error }: { error: { message: string } | null }) => {
+        if (error) log.warn('[upload] failed to record identity_mismatch evidence (non-blocking):', error.message)
+      })
     }
 
     // Idempotency: skip insert if same file was uploaded within the last 60 seconds
@@ -813,10 +857,7 @@ export async function POST(req: NextRequest) {
       if (narrativeTargets.length > 0) {
         const results = await Promise.allSettled(
           narrativeTargets.map(s =>
-            routedText('summarisation', [{
-              role: 'user',
-              content: buildNarrativePrompt(s.label, sectionFieldsBySection[Number(s.sectionKey)] ?? {}),
-            }], { maxTokens: 150 })
+            routedText('summarisation', buildNarrativePrompt(s.label, sectionFieldsBySection[Number(s.sectionKey)] ?? {}), { maxTokens: 150 })
           )
         )
         results.forEach((r, i) => {
@@ -889,6 +930,7 @@ export async function POST(req: NextRequest) {
       gapQuestions,      // top 3 missing indicators ranked by scoring impact
       fileUrl,           // signed URL for client-side file preview (1h validity)
       semanticIssues,    // fields corrected or flagged by the semantic verification pass
+      identityMismatch: !identityCheck.identityPlausible, // true when the doc didn't match the registered company
     })
   } catch (err) {
     log.error('[profile-builder/upload]', err)

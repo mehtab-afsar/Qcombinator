@@ -67,6 +67,7 @@ Fields to extract:
   "customerList": ["string"] — named companies or customers mentioned,
   "hasPayingCustomers": boolean — ALWAYS set to true or false, NEVER null; false if no paying customers mentioned or pre-product,
   "payingCustomerDetail": "string — who paid, how much, how often",
+  "customerType": "string | null — B2B, B2C, or both, and who the actual buyer is",
   "salesCycleLength": "string — <1 week | 1-4 weeks | 1-3 months | 3+ months | unknown",
   "hasRetention": boolean — ALWAYS set to true or false, NEVER null; false if no retention data or no customers yet,
   "retentionDetail": "string — renewals, expansions, repeat engagements",
@@ -168,7 +169,8 @@ Fields to extract:
     "buildComplexity": "string — MUST fill if replication time is mentioned: <1 month | 1-3 months | 3-6 months | 6-12 months | 12+ months",
     "replicationCostUsd": number | null,
     "replicationTimeMonths": number | null — extract the lower bound of any range (e.g. '18-36 months' → 18)
-  }
+  },
+  "advantageExplanation": "string | null — the single hardest-to-copy thing about what's been built"
 }
 
 IMPORTANT: If the founder mentions any replication time (even a range), you MUST fill BOTH replicationTimeMonths AND buildComplexity. Example: '18-36 months' → replicationTimeMonths: 18, buildComplexity: '12+ months'.
@@ -260,6 +262,7 @@ Fields to extract:
     "cogs": number | null,
     "averageDealSize": number | null
   },
+  "costPerAcquisition": number | null,
   "p5": {
     "climateLeverage": "string | null — climate impact claim with measurability",
     "socialImpact": "string | null — social/resource efficiency impact",
@@ -311,14 +314,8 @@ export const FOLLOW_UP_PROMPT = `You are a sharp, warm startup advisor helping a
 
 The founder is on Section {section}. Stage: {stage}. Industry: {industry}. Revenue status: {revenueStatus}.
 
-What the founder has said so far:
-{conversationSoFar}
-
-What we've already extracted (non-null = answered):
-{extractedSoFar}
-
-Fields the system still needs (but may already be answered in conversation above):
-{missingFields}
+The conversation so far, what's already been extracted (non-null = answered), and which fields the system
+still needs (but may already be answered in the conversation) are provided as data below.
 
 YOUR JOB:
 Write a single short reply (1-2 sentences) that:
@@ -351,32 +348,21 @@ HIGH-PRIORITY if genuinely missing:
 - Section 4: years in this domain, how long team has worked together
 - Section 5: current MRR (or "pre-revenue"), monthly burn, runway in months`
 
-export const WHAT_ELSE_PROMPT = `You are a sharp, warm startup advisor. The founder has completed Section {section} of their profile — the system has captured all key indicators.
+export const DEPTH_PROMPT = `You are a sharp, warm startup advisor. The founder has covered every required field in Section {section} — you're now adding depth that strengthens their Q-Score, without repeating anything already asked.
 
-Section: {section}. Stage: {stage}. Industry: {industry}.
-
-What's been captured so far:
-{extractedSoFar}
+The conversation so far, and the next thing to ask about (you may lightly rephrase for tone, but do NOT
+change the topic), are provided as data below.
 
 YOUR JOB:
-Write a single short reply (1–2 sentences max) that:
-1. Opens with a warm acknowledgement — e.g. "Great, that's solid context —", "Good, we have the essentials —", "Got it —"
-2. Asks for ONE additional piece of specific depth that would strengthen this section — a name, number, story, or concrete detail that adds precision and credibility
-
-SECTION GUIDANCE — what to ask for:
-- Section 1 (Market Validation): A specific customer name or logo, exact retention figure in months, or a pilot story / customer quote
-- Section 2 (Market Size): Source of their TAM estimate, the specific vertical they're targeting first, or a competitor's revenue for comparison
-- Section 3 (IP & Defensibility): The single hardest component to replicate, a proprietary dataset or certification, or the patent filing number if one exists
-- Section 4 (Team): A specific domain win — a product shipped, company built, team led, or a notable recent hire
-- Section 5 (Climate/Sustainability): A concrete metric — tons of CO2 reduced, energy saved, or water conserved per unit deployed
-- Section 6 (Financials): Customer-level economics — average contract value, LTV, payback period, or a marquee customer's spend
+Write a single short reply (1–2 sentences):
+1. Open with a brief acknowledgement that references a specific detail — a name, number, or fact — from the founder's most recent answer in the data below. Never use the phrase "Great, that's solid context" or any close variant of it. If the last answer was itself vague or a non-answer, skip the acknowledgement and go straight to the question.
+2. Then ask the question given in the data below — same topic, light rephrasing only.
 
 RULES:
-1. One question only. Specific to the section. Never generic "anything else?"
-2. Open with a brief warm acknowledgement of what's already good
-3. Ask for something concrete — a number, a name, a story, a source
-4. No scoring jargon, no indicator codes, no bullet points
-5. Maximum 2 sentences total`
+1. Do not invent a different question or topic — stick to the question given in the data below.
+2. Do not repeat a question that already appears in the conversation in the data below.
+3. No scoring jargon, no indicator codes, no bullet points.
+4. Maximum 2 sentences total.`
 
 export const UPLOAD_TRIGGER_KEYWORDS: Record<number, string[]> = {
   1: ['loi', 'letter of intent', 'signed', 'contract', 'invoice', 'pilot agreement', 'purchase order', 'po '],

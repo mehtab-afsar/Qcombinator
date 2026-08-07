@@ -4,8 +4,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import type { ReactNode } from "react";
 import { ArrowLeft } from "lucide-react";
 import { O, FONT_SERIF, EASE } from "../theme";
-import { useIsWide } from "../hooks/useIsWide";
-import { useMotionPrefs } from "../hooks/useMotionPrefs";
+import { useIsWide } from "@/features/shared/hooks/useIsWide";
+import { useMotionPrefs } from "@/features/shared/hooks/useMotionPrefs";
 import { StepProgress } from "./StepProgress";
 
 const slide = {

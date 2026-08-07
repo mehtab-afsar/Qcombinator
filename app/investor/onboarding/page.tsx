@@ -215,7 +215,6 @@ export default function InvestorOnboardingPage() {
         <div style={{ width: 20, height: 20, borderRadius: '50%', border: `2.5px solid ${ACCENT}`, borderTopColor: 'transparent', animation: 'spin 0.7s linear infinite' }} />
       </div>
       <p style={{ fontSize: 14, color: O.muted, margin: 0 }}>Creating your account…</p>
-      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
     </div>
   )
 

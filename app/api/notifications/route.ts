@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { parseBody, markReadSchema } from '@/lib/api/validate'
+import { log } from '@/lib/logger'
 
 const NOTABLE_ACTIVITY = [
   'price_change_alert', 'runway_alert', 'runway_cuts_analysis', 'deal_reminder',
@@ -14,7 +15,7 @@ const NOTABLE_ACTIVITY = [
 export async function GET() {
   try {
     const auth = await verifyAuth()
-    if (!auth.ok) return NextResponse.json({ notifications: [], total: 0 })
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
     const { user } = auth
     const supabase = await createClient()
 
@@ -61,8 +62,9 @@ export async function GET() {
     }))
 
     return NextResponse.json({ notifications, total: notifications.length })
-  } catch {
-    return NextResponse.json({ notifications: [], total: 0 })
+  } catch (err) {
+    log.error('GET /api/notifications', { err })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 

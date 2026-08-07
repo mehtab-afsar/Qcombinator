@@ -28,6 +28,13 @@ export function workshopDateKey(w: Workshop): string | null {
   return toDateKey(d)
 }
 
+/** True if `dateKey` (YYYY-MM-DD) is today or later. String comparison is safe because
+ *  YYYY-MM-DD sorts lexicographically the same as chronologically, including across
+ *  year boundaries. */
+export function isTodayOrFuture(dateKey: string, todayKey: string = toDateKey(new Date())): boolean {
+  return dateKey >= todayKey
+}
+
 /** "August 2026" for the month containing `monthAnchor`. */
 export function monthLabel(monthAnchor: Date): string {
   return monthAnchor.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })

@@ -19,7 +19,7 @@ import { log } from '@/lib/logger'
 import { trackActionExecuted } from '@/lib/analytics'
 import { getConnector } from '@/lib/connectors/registry'
 import { resolveGrant } from '@/lib/connectors/grants'
-import { RecipientBlockedError } from '@/lib/connectors/allowlist'
+import { RecipientBlockedError, ChannelBlockedError } from '@/lib/connectors/allowlist'
 import { recordAttempt, AlreadyExecutedError, type ActionLogEntry } from './log'
 import type { ActionPayload } from './payload'
 import { hashPayload } from './payload'
@@ -125,13 +125,19 @@ export async function executeApprovedAction(
       recipients: args.payload.recipients ?? [],
       subject: args.payload.subject ?? '',
       body: args.payload.body ?? '',
+      channel: args.payload.channel,
     })
   } catch (err) {
     // The allowlist refusing outside production is the ONE case that must be loud and obvious —
-    // it means something tried to email a non-allowlisted address.
+    // it means something tried to reach a non-allowlisted destination.
     if (err instanceof RecipientBlockedError) {
       log.error('SEND BLOCKED — non-allowlisted recipient outside production', {
         actionId: args.actionId, blockedCount: err.blocked.length,
+      })
+    }
+    if (err instanceof ChannelBlockedError) {
+      log.error('SEND BLOCKED — non-allowlisted channel outside production', {
+        actionId: args.actionId, blockedChannel: err.channel,
       })
     }
     return recordAttempt(admin, {

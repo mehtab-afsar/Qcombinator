@@ -2,13 +2,15 @@
  * AI Match Rationale
  *
  * Generates a 2-3 sentence explanation of why a specific investor is a strong
- * fit for a founder's startup. Uses economy tier (fast + cheap).
+ * fit for a founder's startup. Fast/cheap model tier, short output.
  *
- * Called on-demand when a founder expands an investor card or clicks Connect.
- * Result is cached in connection_requests.match_metadata after a connection is sent.
+ * Called on-demand when a founder expands an investor card or clicks Connect. The result is
+ * cached by the caller (app/api/connections/rationale/route.ts, in founder_match_explanations)
+ * — this function is pure generation and knows nothing about caching.
  */
 
-import { tieredText } from '@/lib/llm/router'
+import { composeAdhocPrompt } from '@/lib/prompts/compose'
+import { routedText } from '@/lib/llm/router'
 
 export interface MatchRationaleInput {
   investorName: string
@@ -24,6 +26,10 @@ export interface MatchRationaleInput {
   startupOneLiner?: string
 }
 
+const INSTRUCTIONS = `You are a startup fundraising advisor. Write a 2-3 sentence explanation of why this investor is a strong match for this founder. Be specific, concrete, and reference the actual data below. Do not use filler phrases like "great fit" — explain *why*.
+
+Write 2-3 sentences. Start with the strongest alignment reason. End with what the investor could specifically add beyond capital.`
+
 export async function generateMatchRationale(input: MatchRationaleInput): Promise<string> {
   const {
     investorName, investorFirm, investorThesis, investorSectors,
@@ -31,9 +37,7 @@ export async function generateMatchRationale(input: MatchRationaleInput): Promis
     founderSector, founderStage, founderQScore, startupOneLiner,
   } = input
 
-  const prompt = `You are a startup fundraising advisor. Write a 2-3 sentence explanation of why this investor is a strong match for this founder. Be specific, concrete, and reference the actual data. Do not use filler phrases like "great fit" — explain *why*.
-
-Investor: ${investorName} (${investorFirm})
+  const data = `Investor: ${investorName} (${investorFirm})
 Thesis: ${investorThesis || 'Not specified'}
 Sectors: ${investorSectors.join(', ')}
 Stages: ${investorStages.join(', ')}
@@ -43,15 +47,15 @@ Founder startup: ${startupOneLiner || 'N/A'}
 Sector: ${founderSector}
 Stage: ${founderStage}
 Q-Score: ${founderQScore}/100
-Match score: ${matchScore}%
-
-Write 2-3 sentences. Start with the strongest alignment reason. End with what the investor could specifically add beyond capital.`
+Match score: ${matchScore}%`
 
   try {
-    const rationale = await tieredText('economy', [
-      { role: 'system', content: prompt },
-      { role: 'user', content: 'Generate the match rationale.' },
-    ], { maxTokens: 200 })
+    const messages = composeAdhocPrompt({
+      sourceRef: 'connections/rationale',
+      instructions: INSTRUCTIONS,
+      data,
+    })
+    const rationale = await routedText('summarisation', messages, { maxTokens: 200 })
     return rationale.trim()
   } catch {
     // Deterministic fallback

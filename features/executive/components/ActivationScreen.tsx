@@ -8,29 +8,35 @@
  *
  * Polls the SAME /api/rhythm/run endpoint RhythmPanel already polls (just faster — 2s vs 5s,
  * since this is the one moment worth the extra chattiness) and reveals each artefact as its
- * step lands, one after another, real generated content — never token-by-token typing (that
- * would require forking judge.ts's generateAssetContent into a second, streaming generation
- * path, which is exactly the "second parallel way to do the same thing" CLAUDE.md exists to
- * prevent, for a cosmetic win). Each document appears whole, the moment it's actually done.
+ * step lands, one after another — real content, never token-by-token typing (that would
+ * require forking judge.ts's generation into a second, streaming path, which is exactly the
+ * "second parallel way to do the same thing" CLAUDE.md exists to prevent, for a cosmetic win).
  *
- * Client boundary: same rule as RhythmPanel — fetches via /api/rhythm/run and /api/assets/:id,
- * never imports lib/registry|rhythm directly.
+ * The preview text itself is server-computed (lib/rhythm/preview.ts, attached to each step by
+ * GET /api/rhythm/run) — this used to fetch each asset's content itself, one request per
+ * asset; now it just reads step.preview, the same field RhythmPanel reads, so both surfaces
+ * are one source of truth, two presentations (CLAUDE.md "one of each").
+ *
+ * Client boundary: same rule as RhythmPanel — fetches via /api/rhythm/run, never imports
+ * lib/registry|rhythm directly.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Check, Loader2 } from 'lucide-react'
+import { Check, Loader2, FileText, MessageSquare, Send } from 'lucide-react'
 import { bg, bdr, ink, muted, blue, green, surf } from '@/lib/constants/colors'
+import { FONT_SERIF } from '@/features/onboarding/theme'
 import { ease } from '@/features/shared/tokens'
 
 type StepState = 'done' | 'active' | 'pending' | 'failed' | 'skipped'
+type StepKind = 'asset' | 'briefing' | 'action'
 
 interface ProgressStep {
   key: string
   label: string
   state: StepState
-  kind: 'asset' | 'briefing' | 'action'
-  assetId: string | null
+  kind: StepKind
+  preview: string | null
 }
 
 interface RunProgress {
@@ -43,46 +49,22 @@ interface RunProgress {
   steps: ProgressStep[]
 }
 
-interface RevealedAsset {
-  assetId: string
-  name: string
-  preview: string
-}
-
 /** Faster than RhythmPanel's 5s — this is the one screen where the extra chattiness earns its keep. */
 const POLL_MS = 2_000
 
-/** markdown is already text; json is pretty-printed and clipped — this is a glimpse, not the editor. */
-function preview(content: unknown, outputSchema: 'markdown' | 'json'): string {
-  const text = outputSchema === 'markdown'
-    ? (typeof content === 'string' ? content : '')
-    : (() => { try { return JSON.stringify(content ?? {}, null, 2) } catch { return '' } })()
-  return text.length > 280 ? `${text.slice(0, 280)}…` : text
+const SETTLED: ReadonlySet<StepState> = new Set(['done', 'skipped'])
+
+function kindIcon(kind: StepKind) {
+  if (kind === 'briefing') return MessageSquare
+  if (kind === 'action') return Send
+  return FileText
 }
 
 export function ActivationScreen({ onComplete }: { onComplete: () => void }) {
   const [progress, setProgress] = useState<RunProgress | null>(null)
-  const [revealed, setRevealed] = useState<RevealedAsset[]>([])
+  const [revealedKeys, setRevealedKeys] = useState<string[]>([])
   const timer = useRef<ReturnType<typeof setInterval> | null>(null)
-  const fetchedAssetIds = useRef(new Set<string>())
   const completedRef = useRef(false)
-
-  const revealAsset = useCallback(async (assetId: string) => {
-    if (fetchedAssetIds.current.has(assetId)) return
-    fetchedAssetIds.current.add(assetId)
-    try {
-      const res = await fetch(`/api/assets/${assetId}`)
-      if (!res.ok) return
-      const data = await res.json()
-      if (!data.asset) return
-      setRevealed(prev => [
-        ...prev,
-        { assetId, name: data.definition?.name ?? assetId, preview: preview(data.asset.content, data.definition?.outputSchema ?? 'markdown') },
-      ])
-    } catch {
-      /* a missed reveal isn't fatal — the artefact is still reachable from the Assets home */
-    }
-  }, [])
 
   const load = useCallback(async () => {
     try {
@@ -93,11 +75,11 @@ export function ActivationScreen({ onComplete }: { onComplete: () => void }) {
       setProgress(p)
       if (!p) return
 
-      for (const step of p.steps) {
-        if (step.kind === 'asset' && step.assetId && (step.state === 'done' || step.state === 'skipped')) {
-          void revealAsset(step.assetId)
-        }
-      }
+      setRevealedKeys(prev => {
+        const settledKeys = p.steps.filter(s => SETTLED.has(s.state)).map(s => s.key)
+        const next = settledKeys.filter(k => !prev.includes(k))
+        return next.length > 0 ? [...prev, ...next] : prev
+      })
 
       if (p.status !== 'running' && !completedRef.current) {
         completedRef.current = true
@@ -106,7 +88,7 @@ export function ActivationScreen({ onComplete }: { onComplete: () => void }) {
     } catch {
       /* transient — the next poll retries */
     }
-  }, [revealAsset, onComplete])
+  }, [onComplete])
 
   useEffect(() => { void load() }, [load])
 
@@ -118,6 +100,7 @@ export function ActivationScreen({ onComplete }: { onComplete: () => void }) {
 
   const done = progress?.done ?? 0
   const total = progress?.total ?? 0
+  const revealed = (progress?.steps ?? []).filter(s => revealedKeys.includes(s.key))
 
   return (
     <div style={{ maxWidth: 680, margin: '0 auto' }}>
@@ -136,31 +119,37 @@ export function ActivationScreen({ onComplete }: { onComplete: () => void }) {
 
       <div style={{ marginTop: 28, display: 'grid', gap: 14 }}>
         <AnimatePresence initial={false}>
-          {revealed.map(asset => (
-            <motion.div
-              key={asset.assetId}
-              initial={{ opacity: 0, y: 14, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              transition={{ duration: 0.45, ease }}
-              style={{
-                background: bg, border: `1px solid ${bdr}`, borderRadius: 12,
-                padding: '16px 18px',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Check size={15} color={green} />
-                <span style={{ color: ink, fontSize: 15, fontWeight: 600 }}>{asset.name}</span>
-              </div>
-              {asset.preview && (
-                <p style={{
-                  color: muted, fontSize: 13, marginTop: 8, lineHeight: 1.6,
-                  whiteSpace: 'pre-wrap', maxHeight: 90, overflow: 'hidden',
-                }}>
-                  {asset.preview}
-                </p>
-              )}
-            </motion.div>
-          ))}
+          {revealed.map(step => {
+            const KindIcon = kindIcon(step.kind)
+            const isBriefing = step.kind === 'briefing'
+            return (
+              <motion.div
+                key={step.key}
+                initial={{ opacity: 0, y: 14, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ duration: 0.45, ease }}
+                style={{
+                  background: bg, border: `1px solid ${bdr}`, borderRadius: 12,
+                  padding: '16px 18px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Check size={15} color={green} />
+                  <KindIcon size={13} color={muted} />
+                  <span style={{ color: ink, fontSize: 15, fontWeight: 600 }}>{step.label}</span>
+                </div>
+                {step.preview && (
+                  <p style={{
+                    color: ink, fontSize: isBriefing ? 14 : 13, marginTop: 8, lineHeight: 1.6,
+                    whiteSpace: 'pre-wrap', maxHeight: 90, overflow: 'hidden',
+                    fontFamily: isBriefing ? FONT_SERIF : 'inherit',
+                  }}>
+                    {step.preview}
+                  </p>
+                )}
+              </motion.div>
+            )
+          })}
         </AnimatePresence>
 
         {progress?.status === 'running' && (

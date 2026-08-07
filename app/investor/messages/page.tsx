@@ -1,750 +1,238 @@
-'use client'
+'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { useRouter } from 'next/navigation'
-import {
-  CheckCircle, X, Send, TrendingUp, ChevronRight,
-  Inbox, MessageSquare,
-} from 'lucide-react'
-import { bg, surf, bdr, ink, muted, green, amber, red } from '@/lib/constants/colors'
-import { ChatMessage, MessageGroupBlock, buildGroups } from '@/features/shared/components/MessageBubble'
-import { createClient } from '@/lib/supabase/client'
+import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { MessageSquare } from 'lucide-react';
+import { green, amber, red, muted, purple } from '@/lib/constants/colors';
+import { useToast } from '@/features/shared/hooks/useToast';
+import { EmptyState } from '@/features/shared/components/EmptyState';
+import { MessagingShell } from '@/features/messaging/components/MessagingShell';
+import { ConversationList, MessagingTab } from '@/features/messaging/components/ConversationList';
+import { ThreadPanel } from '@/features/messaging/components/ThreadPanel';
+import { RequestDetailPanel } from '@/features/messaging/components/RequestDetailPanel';
+import { useMessageThread } from '@/features/messaging/hooks/useMessageThread';
+import { useConversationSearch } from '@/features/messaging/hooks/useConversationSearch';
+import type { ConversationSummary, PendingRequestDetail, MessagingPanel } from '@/features/messaging/types';
 
-// ─── types ────────────────────────────────────────────────────────────────────
-interface PendingRequest {
-  id: string
-  founderId: string
-  founderName: string
-  startupName: string
-  oneLiner: string
-  stage: string
-  industry: string
-  qScore: number
-  qScoreBreakdown: { p1: number; p2: number; p3: number; p4: number; p5: number; p6: number }
-  personalMessage?: string
-  requestedDate: string
+interface RawRequest {
+  id: string; founderId: string; founderName: string; startupName: string;
+  oneLiner: string; stage: string; industry: string; qScore: number;
+  qScoreBreakdown: { p1: number; p2: number; p3: number; p4: number; p5: number; p6: number };
+  personalMessage?: string; requestedDate: string;
 }
 
-interface Conversation {
-  id: string
-  founderId: string
-  founderName: string
-  startupName: string
-  stage: string
-  industry: string
-  qScore: number
-  connectedAt: string
-  personalMessage?: string
-  lastMessage?: { body: string; created_at: string; senderId: string } | null
-  unreadCount?: number
+interface RawThread {
+  connectionId: string; founderId: string; founderName: string; startupName: string;
+  stage: string; industry: string; qScore: number; updatedAt: string;
+  personalMessage?: string; unreadCount: number;
+  latestMessage?: { body: string; createdAt: string; senderId: string } | null;
 }
 
-
-type Panel = { type: 'request'; data: PendingRequest } | { type: 'conversation'; data: Conversation } | null
-
-// ─── helpers ──────────────────────────────────────────────────────────────────
-function relDate(iso: string) {
-  const diff = Date.now() - new Date(iso).getTime()
-  const h = Math.floor(diff / 3600000)
-  const d = Math.floor(diff / 86400000)
-  if (h < 1) return 'Just now'
-  if (h < 24) return `${h}h ago`
-  if (d === 1) return 'Yesterday'
-  if (d < 30) return `${d}d ago`
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+function toRequestDetail(r: RawRequest): PendingRequestDetail {
+  return {
+    id: r.id, displayName: r.startupName, subtitle: `${r.founderName} · ${r.industry}`,
+    personalMessage: r.personalMessage ?? null, status: 'pending', createdAt: r.requestedDate,
+    founderId: r.founderId, founderName: r.founderName, startupName: r.startupName,
+    oneLiner: r.oneLiner, stage: r.stage, industry: r.industry,
+    qScore: r.qScore, qScoreBreakdown: r.qScoreBreakdown,
+  };
 }
 
-function qColor(n: number) { return n >= 70 ? green : n >= 50 ? amber : red }
-function qBg(n: number)    { return n >= 70 ? '#F0FDF4' : n >= 50 ? '#FFFBEB' : '#FEF2F2' }
-function qBorder(n: number){ return n >= 70 ? '#86EFAC' : n >= 50 ? '#FDE68A' : '#FECACA' }
-
-function initials(name: string) {
-  return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+function toConversationSummary(t: RawThread): ConversationSummary {
+  return {
+    id: t.connectionId, displayName: t.startupName, subtitle: `${t.founderName} · ${t.industry}`,
+    personalMessage: t.personalMessage ?? null, status: 'accepted', createdAt: t.updatedAt,
+    unreadCount: t.unreadCount,
+    lastMessage: t.latestMessage ? { body: t.latestMessage.body, createdAt: t.latestMessage.createdAt, senderId: t.latestMessage.senderId } : null,
+  };
 }
 
-const AVATAR_PALETTES = [
-  { bg: '#EDE9FE', color: '#6D28D9' },
-  { bg: '#DBEAFE', color: '#1D4ED8' },
-  { bg: '#D1FAE5', color: '#065F46' },
-  { bg: '#FEF3C7', color: '#92400E' },
-  { bg: '#FCE7F3', color: '#9D174D' },
-  { bg: '#E0F2FE', color: '#0369A1' },
-  { bg: '#FEE2E2', color: '#991B1B' },
-  { bg: '#F3F4F6', color: '#374151' },
-]
-function avatarPalette(name: string) {
-  let h = 0
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffff
-  return AVATAR_PALETTES[h % AVATAR_PALETTES.length]
-}
+function qColor(n: number) { return n >= 70 ? green : n >= 50 ? amber : red; }
+function qBg(n: number) { return n >= 70 ? '#F0FDF4' : n >= 50 ? '#FFFBEB' : '#FEF2F2'; }
 
-// ─── component ────────────────────────────────────────────────────────────────
 export default function InvestorMessagesPage() {
-  const router = useRouter()
-  const [requests,      setRequests]      = useState<PendingRequest[]>([])
-  const [conversations, setConversations] = useState<Conversation[]>([])
-  const [loading,       setLoading]       = useState(true)
-  const [panel,         setPanel]         = useState<Panel>(null)
-  const [activeTab,     setActiveTab]     = useState<'requests' | 'conversations'>('requests')
-  const [actionLoading, setActionLoading] = useState<string | null>(null)
-  const [messages,      setMessages]      = useState<ChatMessage[]>([])
-  const [msgLoading,    setMsgLoading]    = useState(false)
-  const [msgInput,      setMsgInput]      = useState('')
-  const [sending,       setSending]       = useState(false)
-  const [myUserId,      setMyUserId]      = useState<string | null>(null)
-  const [toast,         setToast]         = useState<string | null>(null)
-  const bottomRef   = useRef<HTMLDivElement>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const router = useRouter();
+  const { toast } = useToast();
+  const [requestsRaw, setRequestsRaw] = useState<RawRequest[]>([]);
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [panel, setPanel] = useState<MessagingPanel>(null);
+  const [activeTab, setActiveTab] = useState<MessagingTab>('requests');
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [myUserId, setMyUserId] = useState<string | null>(null);
+  const { search, setSearch } = useConversationSearch();
 
-  // ── load ───────────────────────────────────────────────────────────────────
+  const requests = requestsRaw.map(toRequestDetail);
+
   useEffect(() => {
-    async function load() {
+    (async () => {
       try {
-        const { getAuthUserId } = await import('@/features/auth/services/auth.service')
-        const uid = await getAuthUserId()
-        if (uid) setMyUserId(uid)
+        const { getAuthUserId } = await import('@/features/auth/services/auth.service');
+        const uid = await getAuthUserId();
+        if (uid) setMyUserId(uid);
 
         const [pendingRes, threadsRes] = await Promise.all([
           fetch('/api/investor/connections'),
           fetch('/api/investor/messages'),
-        ])
+        ]);
         if (pendingRes.ok) {
-          const d = await pendingRes.json()
-          setRequests(d.requests ?? [])
+          const d = await pendingRes.json();
+          setRequestsRaw(d.requests ?? []);
         }
         if (threadsRes.ok) {
-          const d = await threadsRes.json()
-          setConversations(
-            (d.threads ?? []).map((t: {
-              connectionId: string; founderId: string; founderName: string; startupName: string;
-              stage: string; industry: string; qScore: number; updatedAt: string;
-              personalMessage?: string; unreadCount: number;
-              latestMessage?: { body: string; createdAt: string; senderId: string } | null;
-            }) => ({
-              id:              t.connectionId,
-              founderId:       t.founderId,
-              founderName:     t.founderName,
-              startupName:     t.startupName,
-              stage:           t.stage,
-              industry:        t.industry,
-              qScore:          t.qScore,
-              connectedAt:     t.updatedAt,
-              personalMessage: t.personalMessage,
-              unreadCount:     t.unreadCount,
-              lastMessage:     t.latestMessage
-                ? { body: t.latestMessage.body, created_at: t.latestMessage.createdAt, senderId: t.latestMessage.senderId }
-                : null,
-            }))
-          )
+          const d = await threadsRes.json();
+          setConversations((d.threads ?? []).map(toConversationSummary));
         }
-      } catch { /* silently fail */ } finally { setLoading(false) }
-    }
-    load()
-  }, [])
+      } catch { /* silently fail */ } finally { setLoading(false); }
+    })();
+  }, []);
 
-  // Auto-open first unread / first request
   useEffect(() => {
-    if (loading) return
-    if (requests.length > 0 && !panel) {
-      setActiveTab('requests')
-      setPanel({ type: 'request', data: requests[0] })
-    } else if (conversations.length > 0 && !panel) {
-      setActiveTab('conversations')
-      setPanel({ type: 'conversation', data: conversations[0] })
-    }
-  }, [loading]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (loading || panel) return;
+    if (requestsRaw.length > 0) { setActiveTab('requests'); setPanel({ type: 'request', data: toRequestDetail(requestsRaw[0]) }); }
+    else if (conversations.length > 0) { setActiveTab('conversations'); setPanel({ type: 'conversation', data: conversations[0] }); }
+  }, [loading, requestsRaw, conversations, panel]);
 
-  // Load messages + subscribe to Realtime when conversation selected
-  useEffect(() => {
-    if (!panel || panel.type !== 'conversation') { setMessages([]); return }
-    const connectionId = panel.data.id
+  const activeConnectionId = panel?.type === 'conversation' ? panel.data.id : null;
+  const thread = useMessageThread(activeConnectionId, panel?.type === 'conversation');
 
-    setMsgLoading(true)
-    fetch(`/api/messages?connectionId=${connectionId}`)
-      .then(r => r.ok ? r.json() : { messages: [] })
-      .then(d => setMessages(d.messages ?? []))
-      .catch(() => {})
-      .finally(() => setMsgLoading(false))
-
-    // Realtime subscription — append incoming messages without re-fetching
-    let supabase: ReturnType<typeof createClient>
-    let channel: ReturnType<ReturnType<typeof createClient>['channel']>
-    try {
-      supabase = createClient()
-      channel = supabase
-        .channel(`messages:${connectionId}`)
-        .on(
-          'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'messages', filter: `connection_request_id=eq.${connectionId}` },
-          (payload) => {
-            const newMsg = payload.new as ChatMessage
-            setMessages(prev => {
-              if (prev.some(m => m.id === newMsg.id)) return prev
-              return [...prev, newMsg]
-            })
-            // Update last message preview in sidebar
-            setConversations(prev => prev.map(c =>
-              c.id === connectionId
-                ? { ...c, lastMessage: { body: newMsg.body, created_at: newMsg.created_at, senderId: newMsg.sender_id } }
-                : c
-            ))
-          }
-        )
-        .subscribe()
-    } catch { /* Realtime not available — graceful degradation */ }
-
-    return () => {
-      try { if (channel!) supabase!.removeChannel(channel!) } catch { /* ignore */ }
-    }
-  }, [panel])
-
-  // Scroll to bottom on new messages
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
-
-  // Auto-resize textarea
-  useEffect(() => {
-    const el = textareaRef.current
-    if (!el) return
-    el.style.height = 'auto'
-    el.style.height = Math.min(el.scrollHeight, 140) + 'px'
-  }, [msgInput])
-
-  function showToast(msg: string) {
-    setToast(msg)
-    setTimeout(() => setToast(null), 3000)
-  }
-
-  const handleAccept = useCallback(async (req: PendingRequest) => {
-    setActionLoading(req.id)
+  const handleAccept = useCallback(async (req: PendingRequestDetail) => {
+    setActionLoading(req.id);
     try {
       const res = await fetch('/api/investor/connections', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ requestId: req.id, action: 'accept' }),
-      })
+      });
       if (res.ok) {
-        const newConv: Conversation = {
-          id: req.id, founderId: req.founderId,
-          founderName: req.founderName, startupName: req.startupName,
-          stage: req.stage, industry: req.industry, qScore: req.qScore,
-          connectedAt: new Date().toISOString(),
-          personalMessage: req.personalMessage,
-        }
-        setRequests(prev => prev.filter(r => r.id !== req.id))
-        setConversations(prev => prev.some(c => c.id === req.id) ? prev : [newConv, ...prev])
-        setPanel({ type: 'conversation', data: newConv })
-        setActiveTab('conversations')
-        showToast(`Connected with ${req.founderName}`)
+        const newConv: ConversationSummary = {
+          id: req.id, displayName: req.startupName, subtitle: `${req.founderName} · ${req.industry}`,
+          personalMessage: req.personalMessage, status: 'accepted', createdAt: new Date().toISOString(),
+        };
+        setRequestsRaw(prev => prev.filter(r => r.id !== req.id));
+        setConversations(prev => prev.some(c => c.id === req.id) ? prev : [newConv, ...prev]);
+        setPanel({ type: 'conversation', data: newConv });
+        setActiveTab('conversations');
+        toast.success(`Connected with ${req.founderName}`);
       }
-    } catch { /* noop */ } finally { setActionLoading(null) }
-  }, [])
+    } catch { /* noop */ } finally { setActionLoading(null); }
+  }, [toast]);
 
-  const handleDecline = useCallback(async (req: PendingRequest) => {
-    setActionLoading(req.id)
+  const handleDecline = useCallback(async (req: PendingRequestDetail) => {
+    setActionLoading(req.id);
     try {
       const res = await fetch('/api/investor/connections', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ requestId: req.id, action: 'decline' }),
-      })
+      });
       if (res.ok) {
-        setRequests(prev => {
-          const remaining = prev.filter(r => r.id !== req.id)
+        setRequestsRaw(prev => {
+          const remaining = prev.filter(r => r.id !== req.id);
           if (panel?.type === 'request' && panel.data.id === req.id) {
-            setPanel(remaining.length > 0 ? { type: 'request', data: remaining[0] } : null)
+            setPanel(remaining.length > 0 ? { type: 'request', data: toRequestDetail(remaining[0]) } : null);
           }
-          return remaining
-        })
-        showToast('Request declined')
+          return remaining;
+        });
+        toast.info('Request declined');
       }
-    } catch { /* noop */ } finally { setActionLoading(null) }
-  }, [panel])
+    } catch { /* noop */ } finally { setActionLoading(null); }
+  }, [panel, toast]);
 
   async function handleSend() {
-    if (!panel || panel.type !== 'conversation' || !msgInput.trim() || sending) return
-    setSending(true)
-    try {
-      const res = await fetch('/api/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ connectionId: panel.data.id, body: msgInput.trim() }),
-      })
-      if (res.ok) {
-        const d = await res.json()
-        setMessages(prev => [...prev, d.message])
-        setMsgInput('')
-        // Update last message preview in conversation list
-        setConversations(prev => prev.map(c =>
-          c.id === panel.data.id
-            ? { ...c, lastMessage: { body: msgInput.trim(), created_at: new Date().toISOString(), senderId: myUserId ?? '' } }
-            : c
-        ))
-      } else {
-        showToast('Failed to send')
-      }
-    } catch { showToast('Failed to send') } finally { setSending(false) }
+    const sent = await thread.send();
+    if (!sent) { toast.error('Failed to send'); return; }
+    if (panel?.type === 'conversation') {
+      setConversations(prev => prev.map(c => c.id === panel.data.id
+        ? { ...c, lastMessage: { body: sent.body, createdAt: sent.created_at, senderId: sent.sender_id } }
+        : c));
+    }
   }
 
-  // ── render ─────────────────────────────────────────────────────────────────
   return (
-    <div style={{ display: 'flex', height: '100vh', background: bg, color: ink, overflow: 'hidden' }}>
-
-      {/* ── LEFT PANEL ────────────────────────────────────────────────── */}
-      <div style={{
-        width: 320, flexShrink: 0, borderRight: `1px solid ${bdr}`,
-        display: 'flex', flexDirection: 'column', height: '100%',
-      }}>
-        {/* left header */}
-        <div style={{ padding: '20px 20px 0', flexShrink: 0 }}>
-          <p style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.18em', color: muted, fontWeight: 600, marginBottom: 4 }}>Investor · Inbox</p>
-          <h1 style={{ fontSize: 18, fontWeight: 600, color: ink, letterSpacing: '-0.02em', marginBottom: 16 }}>
-            Inbox
-          </h1>
-          {/* tabs */}
-          <div style={{ display: 'flex', gap: 2, padding: '3px', background: surf, border: `1px solid ${bdr}`, borderRadius: 10, marginBottom: 12 }}>
-            {([
-              { key: 'requests'      as const, label: 'Requests',      count: requests.length      },
-              { key: 'conversations' as const, label: 'Conversations', count: conversations.length },
-            ]).map(t => (
-              <button
-                key={t.key}
-                onClick={() => setActiveTab(t.key)}
-                style={{
-                  flex: 1, padding: '7px 10px', borderRadius: 8, border: 'none', cursor: 'pointer',
-                  fontSize: 12, fontWeight: 500, fontFamily: 'inherit',
-                  background: activeTab === t.key ? bg : 'transparent',
-                  color: activeTab === t.key ? ink : muted,
-                  boxShadow: activeTab === t.key ? '0 1px 4px rgba(0,0,0,0.07)' : 'none',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                  transition: 'all .12s',
-                }}
-              >
-                {t.label}
-                {t.count > 0 && (
-                  <span style={{
-                    fontSize: 10, fontWeight: 700, borderRadius: 999, padding: '1px 6px',
-                    background: t.key === 'requests' ? red : surf,
-                    color: t.key === 'requests' ? '#fff' : muted,
-                  }}>
-                    {t.count}
-                  </span>
-                )}
-              </button>
-            ))}
+    <MessagingShell
+      showingPanel={panel !== null}
+      onBack={() => setPanel(null)}
+      list={
+        <ConversationList
+          eyebrow="Investor · Inbox"
+          title="Inbox"
+          loading={loading}
+          requests={requests}
+          conversations={conversations}
+          activeTab={activeTab}
+          onTabChange={tab => {
+            setActiveTab(tab);
+            if (tab === 'requests' && requests.length > 0) setPanel({ type: 'request', data: requests[0] });
+            else if (tab === 'conversations' && conversations.length > 0) setPanel({ type: 'conversation', data: conversations[0] });
+          }}
+          selectedId={panel?.data.id ?? null}
+          onSelect={(item, tab) => {
+            if (tab === 'requests') {
+              const raw = requestsRaw.find(r => r.id === item.id);
+              if (raw) setPanel({ type: 'request', data: toRequestDetail(raw) });
+            } else {
+              setPanel({ type: 'conversation', data: item });
+            }
+          }}
+          search={search}
+          onSearchChange={setSearch}
+          myUserId={myUserId}
+          renderSubtitleRight={(item, tab) => tab === 'requests' && 'qScore' in item ? (
+            <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 999, background: qBg((item as PendingRequestDetail).qScore), color: qColor((item as PendingRequestDetail).qScore), flexShrink: 0 }}>
+              Q{(item as PendingRequestDetail).qScore}
+            </span>
+          ) : null}
+          requestsEmptyIcon={undefined}
+          conversationsEmptyIcon={MessageSquare}
+          conversationsEmptyBody="Accepted connections will show up here."
+        />
+      }
+      panel={
+        !panel ? (
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12 }}>
+            {requests.length === 0 && conversations.length === 0 ? (
+              <EmptyState
+                icon={MessageSquare}
+                title="No conversations yet"
+                body="Connect with founders in deal flow to start a conversation."
+                action={{ label: 'Browse deal flow', href: '/investor/deal-flow' }}
+                style={{ border: 'none', background: 'transparent' }}
+              />
+            ) : (
+              <>
+                <p style={{ fontSize: 14, color: muted }}>Select a conversation to get started</p>
+                <Link href="/investor/deal-flow" style={{ fontSize: 13, color: purple, textDecoration: 'none' }}>Browse deal flow →</Link>
+              </>
+            )}
           </div>
-        </div>
-
-        {/* list */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0 8px 20px' }}>
-          {loading ? (
-            <div style={{ padding: '40px 12px', textAlign: 'center' }}>
-              <p style={{ fontSize: 12, color: muted }}>Loading…</p>
-            </div>
-          ) : activeTab === 'requests' ? (
-            requests.length === 0 ? (
-              <div style={{ padding: '48px 16px', textAlign: 'center' }}>
-                <Inbox style={{ height: 28, width: 28, color: muted, margin: '0 auto 12px' }} />
-                <p style={{ fontSize: 13, color: muted, lineHeight: 1.5 }}>No pending requests yet</p>
-              </div>
-            ) : requests.map(req => {
-              const isActive = panel?.type === 'request' && panel.data.id === req.id
-              const pal = avatarPalette(req.startupName)
-              return (
-                <button
-                  key={req.id}
-                  onClick={() => { setPanel({ type: 'request', data: req }); setActiveTab('requests') }}
-                  style={{
-                    width: '100%', display: 'flex', alignItems: 'center', gap: 11,
-                    padding: '9px 10px 9px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
-                    background: isActive ? '#4F46E508' : 'transparent',
-                    boxShadow: isActive ? 'inset 2px 0 0 #4F46E5' : 'none',
-                    transition: 'all .12s', textAlign: 'left', fontFamily: 'inherit', marginBottom: 1,
-                  }}
-                  onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = surf }}
-                  onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
-                >
-                  <div style={{ width: 38, height: 38, borderRadius: 10, flexShrink: 0, background: pal.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: pal.color, letterSpacing: '0.02em' }}>
-                    {initials(req.startupName)}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{req.startupName}</p>
-                      <p style={{ fontSize: 10, color: muted, flexShrink: 0, marginLeft: 8 }}>{relDate(req.requestedDate)}</p>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-                      <p style={{ fontSize: 11, color: muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{req.founderName} · {req.industry}</p>
-                      {req.qScore > 0 && (
-                        <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 999, background: qBg(req.qScore), color: qColor(req.qScore), flexShrink: 0 }}>Q{req.qScore}</span>
-                      )}
-                    </div>
-                  </div>
-                </button>
-              )
-            })
-          ) : (
-            conversations.length === 0 ? (
-              <div style={{ padding: '48px 16px', textAlign: 'center' }}>
-                <MessageSquare style={{ height: 28, width: 28, color: muted, margin: '0 auto 12px' }} />
-                <p style={{ fontSize: 13, color: muted, lineHeight: 1.5 }}>No conversations yet</p>
-                <button onClick={() => setActiveTab('requests')} style={{ marginTop: 12, fontSize: 12, color: '#4F46E5', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
-                  View requests →
-                </button>
-              </div>
-            ) : conversations.map(conv => {
-              const isActive = panel?.type === 'conversation' && panel.data.id === conv.id
-              const pal = avatarPalette(conv.startupName)
-              const hasUnread = (conv.unreadCount ?? 0) > 0
-              return (
-                <button
-                  key={conv.id}
-                  onClick={() => setPanel({ type: 'conversation', data: conv })}
-                  style={{
-                    width: '100%', display: 'flex', alignItems: 'center', gap: 11,
-                    padding: '9px 10px 9px 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
-                    background: isActive ? '#4F46E508' : 'transparent',
-                    boxShadow: isActive ? 'inset 2px 0 0 #4F46E5' : 'none',
-                    transition: 'all .12s', textAlign: 'left', fontFamily: 'inherit', marginBottom: 1,
-                  }}
-                  onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = surf }}
-                  onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
-                >
-                  <div style={{ position: 'relative', flexShrink: 0 }}>
-                    <div style={{ width: 38, height: 38, borderRadius: 10, background: pal.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: pal.color, letterSpacing: '0.02em' }}>
-                      {initials(conv.startupName)}
-                    </div>
-                    {hasUnread && (
-                      <span style={{ position: 'absolute', top: -2, right: -2, width: 8, height: 8, borderRadius: '50%', background: '#4F46E5', border: `2px solid ${bg}` }} />
-                    )}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
-                      <p style={{ fontSize: 13, fontWeight: hasUnread ? 700 : 600, color: ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{conv.startupName}</p>
-                      <p style={{ fontSize: 10, color: muted, flexShrink: 0, marginLeft: 8 }}>
-                        {conv.lastMessage ? relDate(conv.lastMessage.created_at) : relDate(conv.connectedAt)}
-                      </p>
-                    </div>
-                    <p style={{ fontSize: 11, color: hasUnread ? ink : muted, fontWeight: hasUnread ? 500 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {conv.lastMessage
-                        ? `${conv.lastMessage.senderId === myUserId ? 'You: ' : `${conv.founderName}: `}${conv.lastMessage.body}`
-                        : `${conv.founderName} · ${conv.industry}`}
-                    </p>
-                  </div>
-                </button>
-              )
-            })
-          )}
-        </div>
-      </div>
-
-      {/* ── RIGHT PANEL ───────────────────────────────────────────────── */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-        <AnimatePresence mode="wait">
-          {!panel ? (
-            <motion.div
-              key="empty"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 40 }}
-            >
-              <MessageSquare style={{ height: 40, width: 40, color: muted, marginBottom: 16 }} />
-              <p style={{ fontSize: 15, fontWeight: 500, color: ink, marginBottom: 6 }}>Select a conversation</p>
-              <p style={{ fontSize: 13, color: muted }}>Choose a request or conversation from the left to get started.</p>
-            </motion.div>
-
-          ) : panel.type === 'request' ? (
-            /* ── REQUEST DETAIL ─────────────────────────────────────── */
-            <motion.div
-              key={`req-${panel.data.id}`}
-              initial={{ opacity: 0, x: 10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
-            >
-              {/* context banner */}
-              <div style={{
-                padding: '10px 24px', background: '#EFF6FF',
-                borderBottom: `1px solid #BFDBFE`, flexShrink: 0,
-                display: 'flex', alignItems: 'center', gap: 8,
-              }}>
-                <Inbox style={{ height: 13, width: 13, color: '#1D4ED8', flexShrink: 0 }} />
-                <span style={{ fontSize: 12, color: '#1E40AF' }}>
-                  <strong>Connection request</strong> — this founder wants to connect with you. Accept to start messaging, or decline to pass.
-                </span>
-              </div>
-              {/* header */}
-              <div style={{ padding: '16px 24px', borderBottom: `1px solid ${bdr}`, display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-                {(() => { const pal = avatarPalette(panel.data.startupName); return (
-                  <div style={{ width: 40, height: 40, borderRadius: 10, background: pal.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: pal.color, flexShrink: 0, letterSpacing: '0.02em' }}>
-                    {initials(panel.data.startupName)}
-                  </div>
-                )})()}
-                <div>
-                  <p style={{ fontSize: 15, fontWeight: 600, color: ink, marginBottom: 2 }}>{panel.data.startupName}</p>
-                  <p style={{ fontSize: 12, color: muted }}>{panel.data.founderName} · {panel.data.industry} · {panel.data.stage}</p>
-                </div>
-                <button
-                  onClick={() => router.push(`/investor/startup/${panel.data.founderId}`)}
-                  style={{ marginLeft: 'auto', padding: '7px 14px', borderRadius: 8, border: `1px solid ${bdr}`, background: 'transparent', fontSize: 12, fontWeight: 500, color: ink, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
-                >
-                  <TrendingUp style={{ height: 12, width: 12 }} /> Full profile
-                </button>
-              </div>
-
-              {/* body */}
-              <div style={{ flex: 1, overflowY: 'auto', padding: '32px 40px', maxWidth: 640, width: '100%', margin: '0 auto' }}>
-                {/* connection request label */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 24 }}>
-                  <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.14em', color: muted }}>Connection Request</span>
-                  <span style={{ fontSize: 10, color: muted, background: surf, border: `1px solid ${bdr}`, borderRadius: 999, padding: '2px 9px' }}>{relDate(panel.data.requestedDate)}</span>
-                </div>
-
-                {/* Q-Score display */}
-                <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 14, padding: '20px 22px', marginBottom: 20 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-                    <div>
-                      <p style={{ fontSize: 11, color: muted, marginBottom: 4 }}>Q-Score</p>
-                      <p style={{ fontSize: 32, fontWeight: 300, color: qColor(panel.data.qScore), letterSpacing: '-0.04em', lineHeight: 1 }}>
-                        {panel.data.qScore}
-                      </p>
-                    </div>
-                    <div style={{ width: 1, height: 40, background: bdr }} />
-                    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-                      {([ ['p1','Mkt Ready'],['p2','Mkt Potential'],['p3','IP & Def'],['p4','Team'],['p5','Impact'],['p6','Finance'] ] as [keyof typeof panel.data.qScoreBreakdown, string][]).map(([key, label]) => (
-                        <div key={key} style={{ textAlign: 'center' }}>
-                          <p style={{ fontSize: 13, fontWeight: 600, color: qColor(panel.data.qScoreBreakdown[key]), lineHeight: 1 }}>{panel.data.qScoreBreakdown[key]}</p>
-                          <p style={{ fontSize: 9, color: muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 3 }}>
-                            {label}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                    <div style={{ marginLeft: 'auto', padding: '4px 12px', borderRadius: 999, background: qBg(panel.data.qScore), border: `1px solid ${qBorder(panel.data.qScore)}` }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: qColor(panel.data.qScore) }}>
-                        {panel.data.qScore >= 70 ? 'Strong' : panel.data.qScore >= 50 ? 'Moderate' : 'Early stage'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* tags */}
-                <div style={{ display: 'flex', gap: 6, marginBottom: 20 }}>
-                  <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 999, background: surf, border: `1px solid ${bdr}`, color: muted }}>{panel.data.stage}</span>
-                  <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 999, background: '#EFF6FF', border: '1px solid #BFDBFE', color: '#2563EB' }}>{panel.data.industry}</span>
-                </div>
-
-                {/* one-liner */}
-                {panel.data.oneLiner && (
-                  <p style={{ fontSize: 14, color: ink, lineHeight: 1.65, marginBottom: 20 }}>
-                    {panel.data.oneLiner}
-                  </p>
-                )}
-
-                {/* personal message */}
-                {panel.data.personalMessage && (
-                  <div style={{ borderLeft: `3px solid ${bdr}`, paddingLeft: 16, marginBottom: 28 }}>
-                    <p style={{ fontSize: 11, color: muted, marginBottom: 6, fontWeight: 500 }}>Personal note from {panel.data.founderName}</p>
-                    <p style={{ fontSize: 14, color: ink, lineHeight: 1.7, fontStyle: 'italic' }}>
-                      &quot;{panel.data.personalMessage}&quot;
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* accept / decline footer */}
-              <div style={{ padding: '14px 24px', borderTop: `1px solid ${bdr}`, display: 'flex', gap: 10, justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, background: bg }}>
-                <button
-                  onClick={() => handleDecline(panel.data)}
-                  disabled={actionLoading === panel.data.id}
-                  style={{ padding: '9px 18px', borderRadius: 9, border: `1px solid #FECACA`, background: '#FEF2F2', fontSize: 13, fontWeight: 500, color: red, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit', transition: 'opacity .12s', opacity: actionLoading === panel.data.id ? 0.5 : 1 }}
-                >
-                  <X style={{ height: 12, width: 12 }} /> Decline
-                </button>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button
-                    onClick={() => handleAccept(panel.data)}
-                    disabled={actionLoading === panel.data.id}
-                    style={{ padding: '9px 18px', borderRadius: 9, border: `1px solid ${bdr}`, background: surf, fontSize: 13, fontWeight: 500, color: ink, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit', opacity: actionLoading === panel.data.id ? 0.5 : 1 }}
-                  >
-                    <CheckCircle style={{ height: 12, width: 12 }} />
-                    Accept
-                  </button>
-                  <button
-                    onClick={() => handleAccept(panel.data)}
-                    disabled={actionLoading === panel.data.id}
-                    style={{ padding: '9px 22px', borderRadius: 9, border: 'none', background: '#4F46E5', fontSize: 13, fontWeight: 600, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit', opacity: actionLoading === panel.data.id ? 0.5 : 1, transition: 'opacity .12s, background .12s' }}
-                  >
-                    <CheckCircle style={{ height: 12, width: 12 }} />
-                    {actionLoading === panel.data.id ? 'Accepting…' : 'Accept & Reply →'}
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-
-          ) : (
-            /* ── CONVERSATION THREAD ────────────────────────────────── */
-            <motion.div
-              key={`conv-${panel.data.id}`}
-              initial={{ opacity: 0, x: 10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
-            >
-              {/* header */}
-              <div style={{ padding: '14px 24px', borderBottom: `1px solid ${bdr}`, display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-                {(() => { const pal = avatarPalette(panel.data.startupName); return (
-                  <div style={{ width: 36, height: 36, borderRadius: 9, background: pal.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: pal.color, flexShrink: 0, letterSpacing: '0.02em' }}>
-                    {initials(panel.data.startupName)}
-                  </div>
-                )})()}
-                <div>
-                  <p style={{ fontSize: 14, fontWeight: 600, color: ink, marginBottom: 1 }}>{panel.data.startupName}</p>
-                  <p style={{ fontSize: 11, color: muted }}>{panel.data.founderName} · {panel.data.industry}</p>
-                </div>
-                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 999, background: qBg(panel.data.qScore), color: qColor(panel.data.qScore) }}>
-                    Q{panel.data.qScore}
-                  </span>
-                  <button
-                    onClick={() => router.push(`/investor/startup/${panel.data.founderId}`)}
-                    style={{ padding: '6px 12px', borderRadius: 8, border: `1px solid ${bdr}`, background: 'transparent', fontSize: 11, fontWeight: 500, color: ink, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
-                  >
-                    Profile <ChevronRight style={{ height: 10, width: 10 }} />
-                  </button>
-                </div>
-              </div>
-
-              {/* messages area */}
-              <div style={{ flex: 1, overflowY: 'auto', padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {/* connection accepted pill */}
-                <div style={{ textAlign: 'center', marginBottom: 20 }}>
-                  <span style={{ fontSize: 11, color: muted, background: surf, padding: '4px 14px', borderRadius: 999, border: `1px solid ${bdr}` }}>
-                    Connected · {relDate(panel.data.connectedAt)}
-                  </span>
-                </div>
-
-                {/* initial personal message from founder */}
-                {panel.data.personalMessage && (
-                  <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'flex-start' }}>
-                    {(() => { const pal = avatarPalette(panel.data.founderName); return (
-                      <div style={{ width: 28, height: 28, borderRadius: 7, background: pal.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: pal.color, flexShrink: 0, letterSpacing: '0.02em', marginTop: 18 }}>
-                        {initials(panel.data.founderName)}
-                      </div>
-                    )})()}
-                    <div style={{ maxWidth: '72%' }}>
-                      <p style={{ fontSize: 10, color: muted, marginBottom: 5, fontWeight: 500 }}>{panel.data.founderName} <span style={{ color: bdr, margin: '0 3px' }}>·</span> Connection note</p>
-                      <div style={{ background: '#F9F7FF', border: '1px solid #E0D9FF', borderRadius: '3px 12px 12px 12px', padding: '11px 14px' }}>
-                        <p style={{ fontSize: 13, color: ink, lineHeight: 1.7, margin: 0 }}>{panel.data.personalMessage}</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {msgLoading && (
-                  <p style={{ fontSize: 12, color: muted, textAlign: 'center', padding: '20px 0' }}>Loading messages…</p>
-                )}
-
-                {buildGroups(messages, myUserId ?? '').map((group, gi) => (
-                  <motion.div
-                    key={group.messages[0].id}
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.22, delay: gi < 5 ? 0 : 0 }}
-                  >
-                    <MessageGroupBlock
-                      group={group}
-                      senderInitials={initials(panel.data.founderName)}
-                      myInitials="Me"
-                      isFirst={gi === 0}
-                    />
-                  </motion.div>
-                ))}
-                <div ref={bottomRef} />
-              </div>
-
-              {/* compose */}
-              <div style={{ padding: '12px 20px 14px', borderTop: `1px solid ${bdr}`, flexShrink: 0, background: bg }}>
-                <div
-                  style={{
-                    display: 'flex', alignItems: 'flex-end', gap: 10,
-                    background: surf, border: `1px solid ${bdr}`, borderRadius: 12, padding: '10px 10px 10px 14px',
-                    transition: 'border-color .15s, box-shadow .15s',
-                  }}
-                  onFocusCapture={e => {
-                    const el = e.currentTarget as HTMLElement
-                    el.style.borderColor = '#4F46E5'
-                    el.style.boxShadow = '0 0 0 3px rgba(79,70,229,0.08)'
-                  }}
-                  onBlurCapture={e => {
-                    const el = e.currentTarget as HTMLElement
-                    el.style.borderColor = bdr
-                    el.style.boxShadow = 'none'
-                  }}
-                >
-                  <textarea
-                    ref={textareaRef}
-                    value={msgInput}
-                    onChange={e => setMsgInput(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                        e.preventDefault()
-                        handleSend()
-                      }
-                    }}
-                    placeholder={`Message ${panel.data.founderName}…`}
-                    rows={1}
-                    style={{
-                      flex: 1, border: 'none', outline: 'none', resize: 'none', overflow: 'hidden',
-                      background: 'transparent', fontSize: 13, color: ink,
-                      fontFamily: 'inherit', lineHeight: 1.6, maxHeight: 140,
-                    }}
-                  />
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                    {msgInput.length > 3500 && (
-                      <span style={{ fontSize: 10, color: msgInput.length > 4000 ? red : muted }}>
-                        {msgInput.length}/4000
-                      </span>
-                    )}
-                    <button
-                      onClick={handleSend}
-                      disabled={!msgInput.trim() || sending || msgInput.length > 4000}
-                      style={{
-                        width: 32, height: 32, borderRadius: 8, border: 'none',
-                        background: msgInput.trim() && !sending ? '#4F46E5' : bdr,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        cursor: msgInput.trim() && !sending ? 'pointer' : 'default',
-                        transition: 'background .12s',
-                        flexShrink: 0,
-                      }}
-                    >
-                      <Send style={{ height: 13, width: 13, color: msgInput.trim() && !sending ? '#fff' : muted }} />
-                    </button>
-                  </div>
-                </div>
-                <p style={{ fontSize: 10, color: muted, marginTop: 5, paddingLeft: 2 }}>⌘+Enter to send</p>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      {/* toast */}
-      <AnimatePresence>
-        {toast && (
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 16 }}
-            style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: ink, color: bg, borderRadius: 10, padding: '10px 20px', fontSize: 13, fontWeight: 500, zIndex: 9999, whiteSpace: 'nowrap', boxShadow: '0 4px 20px rgba(0,0,0,0.15)' }}
-          >
-            {toast}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  )
+        ) : panel.type === 'request' ? (
+          <RequestDetailPanel
+            request={panel.data}
+            onViewProfile={() => router.push(`/investor/startup/${panel.data.founderId}`)}
+            onAccept={() => handleAccept(panel.data)}
+            onDecline={() => handleDecline(panel.data)}
+            actionLoading={actionLoading === panel.data.id}
+          />
+        ) : (
+          <ThreadPanel
+            title={panel.data.displayName}
+            subtitle={panel.data.subtitle}
+            avatarSeed={panel.data.displayName}
+            personalMessage={panel.data.personalMessage}
+            createdAt={panel.data.createdAt}
+            myUserId={myUserId}
+            canMessage
+            messages={thread.messages}
+            loading={thread.loading}
+            input={thread.input}
+            onInputChange={thread.setInput}
+            onSend={handleSend}
+            sending={thread.sending}
+            composerPlaceholder={`Message ${panel.data.displayName}…`}
+          />
+        )
+      }
+    />
+  );
 }
+

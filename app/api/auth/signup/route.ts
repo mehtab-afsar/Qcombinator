@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { randomUUID } from 'crypto'
 import { getAdminClient } from '@/lib/supabase/server';
 import { parseBody, signupSchema } from '@/lib/api/validate';
 import { log } from '@/lib/logger'
-import { sendWelcomeAndConfirmEmail } from '@/lib/email/send'
-import { FOUNDER_PLAN_LIMITS } from '@/lib/billing/plans'
-import { mapStage, mapIndustry, mapRevenue } from '@/lib/founder/signup-mappings'
-import { enrichOnboardingText, autoLinkPortfolioByEmail, notifyAndTrackSignup } from '@/lib/founder/complete-onboarding'
+import { sendWelcomeEmail } from '@/lib/email/send'
+import { FOUNDER_PLAN_LIMITS, getNextMonthDate } from '@/lib/billing/plans'
+import { mapStage, mapIndustry, mapRevenue } from '@/features/founder/services/signup-mappings.service'
+import { enrichOnboardingText, autoLinkPortfolioByEmail, notifyAndTrackSignup } from '@/features/founder/services/complete-onboarding.service'
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,7 +22,6 @@ export async function POST(request: NextRequest) {
       problemStatement, targetCustomer, location, tagline,
     } = parsed.data;
 
-    // Use admin client with service role key to bypass email confirmation
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL) throw new Error('Missing env: NEXT_PUBLIC_SUPABASE_URL')
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) throw new Error('Missing env: SUPABASE_SERVICE_ROLE_KEY')
 
@@ -33,10 +31,12 @@ export async function POST(request: NextRequest) {
     const dbIndustry = mapIndustry(industry);
     const dbRevenue  = mapRevenue(revenueStatus);
 
+    // email_confirm is omitted (defaults to false) — Supabase sends its own confirmation email
+    // and the account stays unconfirmed until that link is clicked. middleware.ts blocks
+    // /founder/** until then (lib/auth/email-confirmed.ts).
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
-      email_confirm: true,
       user_metadata: {
         full_name: fullName,
         startup_name: startupName || companyName,
@@ -72,8 +72,6 @@ export async function POST(request: NextRequest) {
       ? `${baseStartupName}-${authData.user.id.slice(0, 6)}`
       : null
 
-    const confirmToken = randomUUID()
-
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('founder_profiles')
       .insert({
@@ -96,7 +94,6 @@ export async function POST(request: NextRequest) {
         profile_builder_completed: false,
         tagline: tagline || null,
         location: location || null,
-        email_confirm_token: confirmToken,
       })
       .select()
       .single();
@@ -140,6 +137,37 @@ export async function POST(request: NextRequest) {
       log.error('subscription_usage insert failed (non-fatal — user created successfully):', usageErr);
     }
 
+    // Every new founder gets their own workspace by default, so Settings → Team has
+    // a startup_id to attach invites to. Skipped when joining someone else's via
+    // teamToken (handled just below) — a founder should only own one workspace.
+    if (!teamToken) {
+      const { data: startup, error: startupError } = await supabaseAdmin
+        .from('startups')
+        .insert({
+          name: baseStartupName ?? 'Untitled Startup',
+          industry: dbIndustry,
+          stage: dbStage,
+          website: website || null,
+          owner_user_id: authData.user.id,
+        })
+        .select('id')
+        .single()
+
+      if (startupError) {
+        log.error('Failed to create startup workspace:', startupError)
+      } else {
+        await supabaseAdmin.from('startup_members').insert({
+          startup_id: startup.id,
+          user_id: authData.user.id,
+          role: 'owner',
+        })
+        await supabaseAdmin
+          .from('founder_profiles')
+          .update({ startup_id: startup.id })
+          .eq('user_id', authData.user.id)
+      }
+    }
+
     // Auto-join a team workspace if a teamToken was provided (invite link signup)
     if (teamToken) {
       void (async () => {
@@ -179,12 +207,11 @@ export async function POST(request: NextRequest) {
     // response, but non-fatal if either fails (see notifyAndTrackSignup).
     void notifyAndTrackSignup(authData.user.id, fullName, 'email', supabaseAdmin)
 
-    // Fire-and-forget: send welcome + email confirmation email
-    void sendWelcomeAndConfirmEmail({
+    // Fire-and-forget: welcome email. Supabase sends the confirmation link itself, separately.
+    void sendWelcomeEmail({
       email:        email,
       fullName:     fullName,
       startupName:  baseStartupName ?? 'Your Startup',
-      confirmToken,
     }).catch(e => log.warn('[signup] welcome email failed:', e instanceof Error ? e.message : e))
 
     return NextResponse.json({
@@ -199,9 +226,4 @@ export async function POST(request: NextRequest) {
     log.error('Error during signup:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
-}
-
-function getNextMonthDate(): string {
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth() + 1, now.getDate()).toISOString();
 }

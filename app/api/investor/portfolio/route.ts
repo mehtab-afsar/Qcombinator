@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { log } from '@/lib/logger'
+import { getMyDemoInvestorId, investorConnectionOrFilter } from '@/lib/investor/demo-investor'
 
 // GET /api/investor/portfolio
 // Returns accepted connection requests enriched with founder Q-Score + artifact data
@@ -15,20 +16,12 @@ export async function GET() {
     const supabase = createAdminClient()
 
     // Get investor profile to find their demo_investor_id (if any)
-    const { data: investorProfile } = await supabase
-      .from('investor_profiles')
-      .select('demo_investor_id')
-      .eq('user_id', user.id)
-      .single()
-
-    const demoInvestorId = investorProfile?.demo_investor_id
+    const demoInvestorId = await getMyDemoInvestorId(supabase, user.id)
 
     // Find accepted connections for this investor — check BOTH FK columns.
     // A founder may have connected via demo_investor_id; investor may also have
     // sent outreach that set investor_id directly. Use OR to catch both.
-    const connOrFilter = demoInvestorId
-      ? `demo_investor_id.eq.${demoInvestorId},investor_id.eq.${user.id}`
-      : `investor_id.eq.${user.id}`
+    const connOrFilter = investorConnectionOrFilter(user.id, demoInvestorId)
 
     const { data: rawConnections } = await supabase
       .from('connection_requests')

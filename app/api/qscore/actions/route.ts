@@ -3,7 +3,8 @@ import { createClient } from '@/lib/supabase/server';
 import { verifyAuth } from '@/lib/auth/verify';
 import { log } from '@/lib/logger';
 import { aiActionsSchema } from '@/lib/api/jsonb-schemas';
-import { callClaude } from '@/lib/claude';
+import { routedText } from '@/lib/llm/router';
+import { composeAdhocPrompt } from '@/lib/prompts/compose';
 import { retrieveActionsContext, inferSector, loadKnowledgeBase } from '@/features/qscore/scoring/retrieval';
 import { AssessmentData } from '@/features/qscore/types/qscore.types';
 
@@ -148,15 +149,15 @@ Return a JSON array of exactly 5 objects:
   }
 ]
 
-Return ONLY valid JSON. No markdown, no explanation.`;
+Return ONLY valid JSON. No markdown, no explanation.
+
+Generate the 5 personalized actions now.`;
 
     // Track which chunks were used (for analytics)
     void chunkIds; // Available for future logging
 
-    const raw = await callClaude([
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: 'Generate the 5 personalized actions now.' },
-    ], { maxTokens: 1600, temperature: 0.5 });
+    const messages = composeAdhocPrompt({ sourceRef: 'qscore/actions', instructions: systemPrompt });
+    const raw = await routedText('generation', messages, { modelTier: 'fast', maxTokens: 1600, temperature: 0.5 });
 
     const cleaned = raw
       .replace(/^```(?:json)?\s*/i, '')

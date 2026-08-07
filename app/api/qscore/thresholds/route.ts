@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient, createAdminClient } from '@/lib/supabase/server';
-import { verifyAuth } from '@/lib/auth/verify';
+import { createAdminClient } from '@/lib/supabase/server';
+import { verifyAdmin } from '@/lib/auth/verify';
 import { log } from '@/lib/logger';
 import { fetchQScoreThresholds, invalidateQScoreThresholdCache } from '@/features/qscore/services/threshold-config';
 
@@ -35,14 +35,8 @@ export async function GET() {
  */
 export async function PATCH(request: NextRequest) {
   try {
-    const auth = await verifyAuth();
+    const auth = await verifyAdmin();
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
-    const { user } = auth;
-    const supabase = await createClient();
-
-    const { data: profile } = await supabase
-      .from('founder_profiles').select('role').eq('user_id', user.id).single();
-    if (profile?.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
     const body = await request.json();
     const { dimension, metric, tierRank, minValue, maxValue, points, label, isActive } = body;
@@ -83,14 +77,8 @@ export async function PATCH(request: NextRequest) {
  */
 export async function PUT(request: NextRequest) {
   try {
-    const auth = await verifyAuth();
+    const auth = await verifyAdmin();
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
-    const { user } = auth;
-    const supabase = await createClient();
-
-    const { data: profile } = await supabase
-      .from('founder_profiles').select('role').eq('user_id', user.id).single();
-    if (profile?.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
     const { sector, dimension, weight } = await request.json();
     if (!sector || !dimension || weight == null) {

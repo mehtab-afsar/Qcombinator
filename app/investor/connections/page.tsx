@@ -391,7 +391,6 @@ export default function InvestorConnectionsPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: bg, color: ink, padding: "40px 28px 72px" }}>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
       <div style={{ maxWidth: 960, margin: "0 auto" }}>
 
         {/* header */}

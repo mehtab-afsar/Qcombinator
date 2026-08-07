@@ -1,6 +1,6 @@
 import { Resend } from 'resend'
 import { log } from '@/lib/logger'
-import { APP_EMAIL_FROM, APP_URL as APP_BASE_URL } from '@/lib/constants/app'
+import { APP_EMAIL_FROM, APP_URL as APP_BASE_URL, APP_DOMAIN } from '@/lib/constants/app'
 
 const FROM    = APP_EMAIL_FROM
 const APP_URL = APP_BASE_URL
@@ -28,7 +28,7 @@ function emailShell(body: string): string {
       <div style="padding:16px 32px;border-top:1px solid #E2DDD5">
         <p style="font-size:11px;color:#8A867C;margin:0;line-height:1.6">
           You're receiving this because you have an Edge Alpha founder account.
-          <br>© 2026 Edge Alpha · <a href="${APP_URL}" style="color:#8A867C">edgealpha.ai</a>
+          <br>© 2026 Edge Alpha · <a href="${APP_URL}" style="color:#8A867C">${APP_DOMAIN}</a>
         </p>
       </div>
     </div>
@@ -96,29 +96,26 @@ export interface WelcomeEmailParams {
   email: string
   fullName: string
   startupName: string
-  confirmToken: string
 }
 
-export async function sendWelcomeAndConfirmEmail(params: WelcomeEmailParams): Promise<void> {
+// The confirmation link itself is Supabase's job now (native email confirmation, configured in
+// the Supabase Dashboard's SMTP/template settings) — this email is purely a warm welcome, sent
+// independently at signup. It used to also carry the confirm link before that switch.
+export async function sendWelcomeEmail(params: WelcomeEmailParams): Promise<void> {
   const resend = getResend()
   if (!resend) return
 
-  const { email, fullName, startupName, confirmToken } = params
-  const confirmUrl = `${APP_URL}/api/auth/confirm-email?token=${confirmToken}`
-  const firstName  = fullName.split(' ')[0] || fullName
+  const { email, fullName, startupName } = params
+  const firstName = fullName.split(' ')[0] || fullName
 
   const html = emailShell(`
     <h1 style="font-size:28px;font-weight:300;letter-spacing:-0.02em;margin:0 0 8px">Welcome, ${firstName} 👋</h1>
     <p style="font-size:13px;color:#8A867C;margin:0 0 28px;font-weight:500;letter-spacing:0.04em;text-transform:uppercase">${startupName}</p>
 
     <p style="font-size:15px;line-height:1.7;color:#18160F;margin:0 0 28px">
-      Your Edge Alpha account is live. Confirm your email address to unlock investor matching
-      and keep your account in good standing.
+      Your Edge Alpha account is live. Check your inbox for a separate email confirming your
+      address — click it to unlock investor matching.
     </p>
-
-    <div style="margin:0 0 36px">
-      ${ctaBtn(confirmUrl, 'Confirm email address →')}
-    </div>
 
     <div style="background:#F0EDE6;border-radius:10px;padding:20px 24px;margin:0 0 8px">
       <p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#8A867C;margin:0 0 14px">Get started in 3 steps</p>
@@ -154,53 +151,16 @@ export async function sendWelcomeAndConfirmEmail(params: WelcomeEmailParams): Pr
       </p>
       <a href="${APP_URL}/getting-started" style="font-size:12px;color:#2563EB;font-weight:600;text-decoration:none">View Getting Started Guide →</a>
     </div>
-
-    <p style="font-size:12px;color:#8A867C;margin:20px 0 0;line-height:1.6">
-      If the button doesn't work, copy this link:<br>
-      <a href="${confirmUrl}" style="color:#2563EB;word-break:break-all">${confirmUrl}</a>
-    </p>
   `)
 
   const { error } = await resend.emails.send({
     from:    FROM,
     to:      email,
-    subject: `Confirm your Edge Alpha account, ${firstName}`,
+    subject: `Welcome to Edge Alpha, ${firstName}`,
     html,
   })
 
-  if (error) log.error('[email] sendWelcomeAndConfirmEmail failed:', error)
-}
-
-// ─── Resend confirmation (triggered manually from banner) ─────────────────────
-
-export async function sendConfirmationOnlyEmail(params: Omit<WelcomeEmailParams, 'startupName'>): Promise<void> {
-  const resend = getResend()
-  if (!resend) return
-
-  const { email, fullName, confirmToken } = params
-  const confirmUrl = `${APP_URL}/api/auth/confirm-email?token=${confirmToken}`
-  const firstName  = fullName.split(' ')[0] || fullName
-
-  const html = emailShell(`
-    <h1 style="font-size:26px;font-weight:300;letter-spacing:-0.02em;margin:0 0 16px">Confirm your email</h1>
-    <p style="font-size:15px;line-height:1.7;color:#18160F;margin:0 0 28px">
-      Hi ${firstName}, click below to verify your Edge Alpha account.
-    </p>
-    ${ctaBtn(confirmUrl, 'Confirm email address →')}
-    <p style="font-size:12px;color:#8A867C;margin:24px 0 0;line-height:1.6">
-      Link expires in 7 days. Copy it if the button doesn't work:<br>
-      <a href="${confirmUrl}" style="color:#2563EB;word-break:break-all">${confirmUrl}</a>
-    </p>
-  `)
-
-  const { error } = await resend.emails.send({
-    from:    FROM,
-    to:      email,
-    subject: 'Confirm your Edge Alpha email address',
-    html,
-  })
-
-  if (error) log.error('[email] sendConfirmationOnlyEmail failed:', error)
+  if (error) log.error('[email] sendWelcomeEmail failed:', error)
 }
 
 // ─── Day-1 drip: Profile Builder nudge ────────────────────────────────────────
@@ -380,4 +340,53 @@ export async function sendTeamInviteEmail(params: TeamInviteEmailParams): Promis
   })
 
   if (error) log.error('[email] sendTeamInviteEmail failed:', error)
+}
+
+// ─── Investor team invite email ───────────────────────────────────────────────
+// Same shape as sendTeamInviteEmail — a fund/firm invite rather than a startup one,
+// investor_team_invites' two-role model (admin/analyst) rather than founder's four-tier one.
+
+export interface InvestorTeamInviteEmailParams {
+  toEmail:     string
+  inviterName: string
+  firmName:    string
+  role:        'admin' | 'analyst'
+  token:       string
+}
+
+// Returns whether the email actually sent — the caller has no other way to notify the invitee
+// (the account doesn't exist yet), so silently swallowing a failure here means an inviter is
+// told "invite sent" while nobody ever received anything.
+export async function sendInvestorTeamInviteEmail(params: InvestorTeamInviteEmailParams): Promise<boolean> {
+  const resend = getResend()
+  if (!resend) return false
+
+  const { toEmail, inviterName, firmName, role, token } = params
+  const joinUrl = `${APP_URL}/investor/join?token=${token}`
+  const roleLabel = role === 'admin' ? 'Admin' : 'Analyst'
+
+  const html = emailShell(`
+    <h1 style="font-size:24px;font-weight:700;margin:0 0 12px">You're invited to ${firmName}</h1>
+    <p style="font-size:15px;line-height:1.7;color:#18160F;margin:0 0 8px">
+      <strong>${inviterName}</strong> has invited you to join <strong>${firmName}</strong> on Edge Alpha as <strong>${roleLabel}</strong>.
+    </p>
+    ${ctaBtn(joinUrl, 'Accept invite →')}
+    <p style="font-size:12px;color:#8A867C;margin:24px 0 0;line-height:1.6">
+      Link expires in 7 days. Copy it if the button doesn't work:<br>
+      <a href="${joinUrl}" style="color:#2563EB;word-break:break-all">${joinUrl}</a>
+    </p>
+  `)
+
+  const { error } = await resend.emails.send({
+    from:    FROM,
+    to:      toEmail,
+    subject: `${inviterName} invited you to join ${firmName} on Edge Alpha`,
+    html,
+  })
+
+  if (error) {
+    log.error('[email] sendInvestorTeamInviteEmail failed:', error)
+    return false
+  }
+  return true
 }

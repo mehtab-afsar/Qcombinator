@@ -16,6 +16,7 @@ import { RocketDoodle } from '@/features/onboarding/components/doodles/RocketDoo
 import { ChartDoodle } from '@/features/onboarding/components/doodles/ChartDoodle'
 import { CompassDoodle } from '@/features/onboarding/components/doodles/CompassDoodle'
 import { LightbulbDoodle } from '@/features/onboarding/components/doodles/LightbulbDoodle'
+import { useMotionPrefs } from '@/features/shared/hooks/useMotionPrefs'
 
 const ACCENT = ACCENTS.founder
 
@@ -45,7 +46,7 @@ const FUNDING = [
 const STEP_NAMES = ['Account', 'Startup', 'Traction', 'Strategy', 'Problem']
 
 const STEP_PANE = [
-  { eyebrow: 'Welcome',  title: "Let's build something fundable.", body: 'Six dimensions, one honest score, and nine AI advisers who help you move it.', Doodle: SunDoodle },
+  { eyebrow: 'Welcome',  title: "Let's build something fundable.", body: 'Six dimensions, one honest score, and five AI executives who help you move it.', Doodle: SunDoodle },
   { eyebrow: 'Your startup', title: 'First impressions count.', body: 'This is exactly what investors see first on your profile.', Doodle: RocketDoodle },
   { eyebrow: 'Momentum', title: 'Where you stand today.', body: 'Revenue, team, and funding — the fastest way we calibrate your Q-Score.', Doodle: ChartDoodle },
   { eyebrow: 'Strategy', title: 'A little more context.', body: 'Optional, but it sharpens your Q-Score and the advice you get.', Doodle: CompassDoodle },
@@ -95,6 +96,7 @@ function PrimaryButton({ onClick, disabled, children }: { onClick: () => void; d
 
 export default function FounderOnboardingPage() {
   const router = useRouter()
+  const reducedMotion = useMotionPrefs()
   const [page, setPage] = useState(1)
   const [dir, setDir] = useState(1)
   const [form, setForm] = useState<FormData>(EMPTY)
@@ -184,12 +186,18 @@ export default function FounderOnboardingPage() {
 
   if (loading) return (
     <div style={{ minHeight: '100vh', background: O.bg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 24 }}>
-      <div style={{ width: 100, height: 100 }}><RocketDoodle color={ACCENT} /></div>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
-        <div style={{ width: 20, height: 20, borderRadius: '50%', border: `2.5px solid ${ACCENT}`, borderTopColor: 'transparent', animation: 'spin 0.7s linear infinite' }} />
-        <p style={{ fontSize: 14, color: O.muted, margin: 0 }}>Setting up your workspace…</p>
+      <div style={{ width: 100, height: 100, animation: reducedMotion ? 'none' : 'rocketFlyUp 2.2s ease-in-out infinite' }}>
+        <RocketDoodle color={ACCENT} />
       </div>
-      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+      <p style={{ fontSize: 14, color: O.muted, margin: 0 }}>Setting up your workspace…</p>
+      <style>{`
+        @keyframes rocketFlyUp {
+          0%   { transform: translateY(0);     opacity: 1; }
+          85%  { transform: translateY(-16px); opacity: 0; }
+          86%  { transform: translateY(16px);  opacity: 0; }
+          100% { transform: translateY(0);     opacity: 1; }
+        }
+      `}</style>
     </div>
   )
 

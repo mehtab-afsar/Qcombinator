@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { log } from '@/lib/logger'
-import { callClaude } from '@/lib/claude'
+import { routedText } from '@/lib/llm/router'
+import { composeAdhocPrompt } from '@/lib/prompts/compose'
 
 // GET /api/qscore/priority
 // Returns AI-generated top 3 priorities for the founder to work on TODAY.
@@ -182,11 +183,9 @@ ${overdueDeal ? `⚠️ Overdue deal: "${overdueDeal.contact_name}" has a past-d
       'Financials':         'felix',
     }
 
-    const raw = await callClaude(
-      [
-        {
-          role: 'system',
-          content: `You are a YC-style startup advisor — direct, data-driven, focused on behaviors not documents.
+    const messages = composeAdhocPrompt({
+      sourceRef: 'qscore/priority',
+      instructions: `You are a YC-style startup advisor — direct, data-driven, focused on behaviors not documents.
 
 Given the founder's current state, identify the 3 most impactful things they should DO TODAY. Not documents to generate — behaviors to execute.
 
@@ -209,15 +208,13 @@ Rules:
 - If there's an overdue deal, that's always priority #1
 - Focus on the lowest-scoring dimensions — but frame the fix as a behavior ("Get 3 LOIs" not "Build pipeline document")
 - The agent is the HELPER, not the deliverable — say "Patel can help you structure your ICP calls" not "Build ICP with Patel"
-- urgency: high = founder should do this in the next 4 hours, medium = this week, low = important but not urgent`,
-        },
-        {
-          role: 'user',
-          content: `Here's my current state:\n${contextBlock}\n\nWhat should I work on today?`,
-        },
-      ],
-      { maxTokens: 600, temperature: 0.4 }
-    )
+- urgency: high = founder should do this in the next 4 hours, medium = this week, low = important but not urgent
+
+What should the founder work on today?`,
+      data: contextBlock,
+    })
+
+    const raw = await routedText('generation', messages, { modelTier: 'fast', maxTokens: 600, temperature: 0.4 })
 
     // Parse LLM response
     const cleanRaw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()

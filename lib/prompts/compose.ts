@@ -12,7 +12,8 @@
  *   composer/execution.ts       entry 1 · four layers · an Asset or an Action
  *   composer/mandate.ts         entry 2 · two layers  · S001 Strategy / S002 Contract
  *   composer/briefing.ts        entry 3 · three layers · the cycle's Briefing (F12)
- *   composer/company-context.ts layer 4 · shared by all three; founder data, fenced
+ *   composer/adhoc.ts           entry 4 · instructions + fenced data · no Registry id
+ *   composer/company-context.ts layer 4 · shared by entries 1–3; founder data, fenced
  *   composer/validate.ts        PRD §7.2's rules, checked against the Registry
  *   composer/shared.ts          the layer separator
  *
@@ -33,6 +34,7 @@ import type { ActionId, AssetId, ExecutiveId, ProgramId } from '@/lib/registry'
 export { composePrompt } from './composer/execution'
 export { composeMandatePrompt, type ComposeMandateInput, type MandateKind } from './composer/mandate'
 export { composeBriefingPrompt, type ComposeBriefingInput } from './composer/briefing'
+export { composeAdhocPrompt, type ComposeAdhocInput } from './composer/adhoc'
 export { renderCompanyContext } from './composer/company-context'
 
 export * from './types'

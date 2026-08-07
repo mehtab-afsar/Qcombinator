@@ -61,9 +61,12 @@ export const FOUNDER_PLAN_LIMITS: Record<FounderTier, Record<MeteredFeature, num
 }
 
 /**
- * Investor Pro limits. Investors are only metered on deal-flow connections —
- * the webhook has never written the other two features for them.
+ * Investor limits. Investors are only metered on deal-flow connections — the
+ * other two features don't apply to them at all.
  */
+export const INVESTOR_FREE_LIMITS: Partial<Record<MeteredFeature, number>> = {
+  investor_connection: 3,
+}
 export const INVESTOR_PRO_LIMITS: Partial<Record<MeteredFeature, number>> = {
   investor_connection: UNLIMITED,
 }
@@ -74,4 +77,14 @@ export const INVESTOR_PRO_LIMITS: Partial<Record<MeteredFeature, number>> = {
  */
 export function toDisplayLimit(limit: number): number | null {
   return limit === UNLIMITED ? null : limit
+}
+
+/**
+ * One month from today, as an ISO string — the `subscription_usage.reset_at` value
+ * written when a new usage row is seeded at signup. Was duplicated identically in
+ * app/auth/callback/route.ts and app/api/auth/signup/route.ts; single-sourced here.
+ */
+export function getNextMonthDate(): string {
+  const now = new Date()
+  return new Date(now.getFullYear(), now.getMonth() + 1, now.getDate()).toISOString()
 }

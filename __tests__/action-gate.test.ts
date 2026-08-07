@@ -94,7 +94,7 @@ describe('the gate — irreversible Actions never execute', () => {
   it('every P001 Action with a connector is irreversible — enforced at import time', () => {
     // lib/registry/index.ts refuses to boot on connector && !irreversible. Restated here so the
     // property is visible in the test suite, not only in a module that happens to load.
-    for (const id of ['validate_icps', 'interview_customers', 'prioritize_channels', 'review_messaging', 'approve_gtm_plan']) {
+    for (const id of ['validate_icps', 'interview_customers', 'prioritize_channels', 'review_messaging', 'approve_gtm_plan', 'post_team_update']) {
       const action = getAction(id)
       if (action.connector) expect(action.irreversible).toBe(true)
     }

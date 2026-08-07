@@ -75,13 +75,18 @@ export async function POST(request: NextRequest) {
   try {
     const rawBody = await request.text()
 
-    // Verify the webhook signature if signing secret is configured
+    // Fail closed: without a signing secret there is no way to tell a real Resend event from a
+    // forged one, and this route writes to outreach_sends / startup_state / a founder's activity
+    // feed off whatever it's told. Silently trusting unverified input here was the bug — never
+    // skip verification just because the secret isn't set.
     const signingSecret = process.env.RESEND_WEBHOOK_SECRET
-    if (signingSecret) {
-      const valid = await verifySignature(rawBody, request.headers, signingSecret)
-      if (!valid) {
-        return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
-      }
+    if (!signingSecret) {
+      log.error('RESEND_WEBHOOK_SECRET not configured — rejecting all webhook events')
+      return NextResponse.json({ error: 'Webhook not configured' }, { status: 503 })
+    }
+    const valid = await verifySignature(rawBody, request.headers, signingSecret)
+    if (!valid) {
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
     }
 
     const body = JSON.parse(rawBody)

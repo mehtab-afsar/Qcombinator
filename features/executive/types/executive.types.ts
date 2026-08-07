@@ -18,6 +18,13 @@ export interface Contract {
   activePrograms: string[]
   confirmedAt: string | null
   createdAt: string
+  /**
+   * S002's full Executive Contract reasoning (objectives, pathway choice, risks) —
+   * the server has always returned this (lib/mandate/contract.ts), it just had no
+   * field here to land in, so every client silently dropped it. null on a
+   * deterministic fallback draft (no LLM reasoning to show).
+   */
+  document: string | null
 }
 
 export interface ProgramInstance {

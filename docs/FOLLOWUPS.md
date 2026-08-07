@@ -109,7 +109,7 @@ existing failed-week path untouched.
   Extract one helper into `lib/api/response.ts`. It grows by one copy per feature — the exact
   mechanism that produced the 173-route sprawl.
 - **Q-3:** record an ADR that the ~300-line file limit applies to *code*; prompt-content modules
-  (`lib/prompts/programs/**` etc., zero functions) are exempt. Undocumented, the exemption will
+  (`lib/prompts/executives/*/programs/**` etc., zero functions) are exempt. Undocumented, the exemption will
   be either violated or wrongly cited.
 
 ---

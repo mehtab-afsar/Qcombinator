@@ -18,8 +18,9 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Check, X, Clock, Circle } from 'lucide-react'
-import { bdr, ink, muted, bg, amber, red, green } from '@/lib/constants/colors'
+import { bdr, ink, muted, bg, amber, red, green, purple, alpha } from '@/lib/constants/colors'
 import { radius } from '@/features/shared/tokens'
+import { FONT_SERIF } from '@/features/onboarding/theme'
 import { SectionCard } from '@/features/shared/components/SectionCard'
 import { Button } from '@/features/shared/components/Button'
 import { Badge } from '@/features/shared/components/Badge'
@@ -113,7 +114,7 @@ export function ActionsPanel({ executiveId }: { executiveId?: string } = {}) {
     // genuinely no Program with any Actions defined at all.
     if (all.length === 0) return null
     return (
-      <SectionCard title="Your team's actions">
+      <SectionCard title="Your team's actions" style={{ background: alpha(purple, 0.04) }}>
         <div style={{ display: 'grid', gap: 10 }}>
           {all.map(a => <ActionStatusRow key={a.actionId} action={a} />)}
         </div>
@@ -122,8 +123,15 @@ export function ActionsPanel({ executiveId }: { executiveId?: string } = {}) {
   }
 
   return (
-    <SectionCard title="Needs your approval" action={<Badge variant="amber">{pending.length}</Badge>}>
-      <p style={{ color: muted, fontSize: 14, lineHeight: 1.6, maxWidth: 560 }}>
+    <SectionCard
+      title="Needs your approval"
+      style={{ background: alpha(purple, 0.04) }}
+      action={<Badge variant="amber">{pending.length}</Badge>}
+    >
+      {/* UX_SPEC §6: the team addressing the founder directly, not chrome — serif per the rule
+          applied in RhythmPanel.tsx's StatusLine. Deliberately stops here; recipient counts and
+          statuses below stay in the default sans, since those are facts, not someone talking. */}
+      <p style={{ color: muted, fontFamily: FONT_SERIF, fontSize: 14, lineHeight: 1.6, maxWidth: 560 }}>
         Your team prepared these but will not send anything until you say so. This is the only
         thing in the product that waits for you.
       </p>

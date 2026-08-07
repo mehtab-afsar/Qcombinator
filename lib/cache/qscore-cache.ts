@@ -2,10 +2,11 @@
  * Edge Alpha Q-Score v2 — In-Memory LRU Cache
  *
  * No Redis dependency. Sufficient for this load.
- * Three TTL tiers:
- *   - benchmarks:    1 hour
- *   - reconciliation: 24 hours (per userId × indicatorId)
- *   - sector weights: 6 hours
+ * Four TTL tiers:
+ *   - benchmarks:            1 hour
+ *   - reconciliation:        24 hours (per userId × indicatorId)
+ *   - sector weights:        6 hours
+ *   - comparable population: 45 minutes (whole eligible-founder population, see below)
  */
 
 interface CacheEntry<T> {
@@ -55,9 +56,10 @@ class LRUCache<T> {
 // ── Cache instances ────────────────────────────────────────────────────────────
 
 const TTL = {
-  BENCHMARK:      60 * 60 * 1000,        // 1 hour
-  RECONCILIATION: 24 * 60 * 60 * 1000,   // 24 hours
-  SECTOR_WEIGHTS: 6 * 60 * 60 * 1000,    // 6 hours
+  BENCHMARK:               60 * 60 * 1000,        // 1 hour
+  RECONCILIATION:          24 * 60 * 60 * 1000,   // 24 hours
+  SECTOR_WEIGHTS:          6 * 60 * 60 * 1000,    // 6 hours
+  COMPARABLE_POPULATION:   45 * 60 * 1000,        // 45 minutes
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -66,6 +68,10 @@ const benchmarkCache     = new LRUCache<any>(1000)
 const reconciliationCache = new LRUCache<any>(500)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sectorWeightsCache = new LRUCache<any>(100)
+// Single-entry cache — the whole eligible-founder population is cached as one array under one
+// key, not parameterized per sector/stage (bucketing happens in memory after the fetch).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const comparablePopulationCache = new LRUCache<any>(2)
 
 // ── Public API ─────────────────────────────────────────────────────────────────
 
@@ -117,8 +123,19 @@ export function setCachedSectorWeights<T>(
   sectorWeightsCache.set(`${sector}:${stage}`, value, TTL.SECTOR_WEIGHTS)
 }
 
+const COMPARABLE_POPULATION_KEY = 'v1'
+
+export function getCachedComparablePopulation<T>(): T | null {
+  return comparablePopulationCache.get(COMPARABLE_POPULATION_KEY)
+}
+
+export function setCachedComparablePopulation<T>(value: T): void {
+  comparablePopulationCache.set(COMPARABLE_POPULATION_KEY, value, TTL.COMPARABLE_POPULATION)
+}
+
 export function clearAllCaches(): void {
   benchmarkCache.clear()
   reconciliationCache.clear()
   sectorWeightsCache.clear()
+  comparablePopulationCache.clear()
 }

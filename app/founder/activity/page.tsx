@@ -470,7 +470,7 @@ export default function ActivityPage() {
           {digestToast.ok ? "✉️" : "⚠️"} {digestToast.msg}
         </div>
       )}
-      <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } } @keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }`}</style>
 
       {/* Body */}
       <div style={{ maxWidth: 800, margin: "0 auto", padding: "24px 24px 80px" }}>

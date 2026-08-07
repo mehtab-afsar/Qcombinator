@@ -7,10 +7,7 @@
  * Thresholds:
  *   - >3 failures in 60 seconds → circuit opens for 5 minutes
  *
- * Protected services: Hunter.io, Tavily, Netlify, Resend, OpenAI embeddings
- *
- * Special case for OpenAI embeddings: when open, embedArtifact() is skipped
- * silently rather than throwing — artifact generation must not be blocked.
+ * Protected services: Hunter.io, Tavily, Netlify, Resend, Voyage embeddings, TechCrunch RSS
  */
 
 import { log } from '@/lib/logger'
@@ -26,7 +23,8 @@ export type ServiceId =
   | 'calendly'
   | 'vapi'
   | 'anthropic'
-  | 'groq';
+  | 'groq'
+  | 'techcrunch_rss';
 
 interface CircuitState {
   failures: number;

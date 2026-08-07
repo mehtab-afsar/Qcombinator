@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useMotionPrefs } from "../hooks/useMotionPrefs";
+import { useMotionPrefs } from "@/features/shared/hooks/useMotionPrefs";
 import type { ReactNode, CSSProperties } from "react";
 
 const EASE = [0.22, 1, 0.36, 1] as const;

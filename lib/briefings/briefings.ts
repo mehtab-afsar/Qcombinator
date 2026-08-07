@@ -114,6 +114,27 @@ export async function getLatestPerProgram(
   return pickLatestPerProgram(await getBriefings(supabase, founderId))
 }
 
+/**
+ * Every briefing published by one execution (rhythm run) — mirrors
+ * getAssetVersionsForExecution (lib/assets/versioning.ts) and latestPerAction
+ * (lib/actions/log.ts)'s identical execution-scoped shape. Used to show the
+ * briefing's real verdict while a cycle is still live, not just once it's history.
+ */
+export async function getBriefingsForExecution(
+  supabase: SupabaseClient,
+  founderId: string,
+  executionId: string,
+): Promise<Briefing[]> {
+  const { data, error } = await supabase
+    .from('executive_briefings')
+    .select('*')
+    .eq('founder_id', founderId)
+    .eq('execution_id', executionId)
+
+  if (error) throw new BriefingError('read_failed', `Failed to read run briefings: ${error.message}`)
+  return (data ?? []).map(r => toBriefing(r as BriefingRow))
+}
+
 /** Full briefing history for one Program, newest first. */
 export async function getBriefingHistory(
   supabase: SupabaseClient,

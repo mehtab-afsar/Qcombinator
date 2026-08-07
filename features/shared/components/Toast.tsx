@@ -1,12 +1,13 @@
 'use client'
 
 import { Toast as ToastItem, ToastVariant } from '@/features/shared/hooks/useToast'
+import { green, amber, blue, red, alpha } from '@/features/shared/tokens'
 
 const VARIANT_STYLES: Record<ToastVariant, { bg: string; border: string; color: string; icon: string }> = {
-  success: { bg: '#F0FDF4', border: '#86EFAC', color: '#15803D', icon: '✓' },
-  error:   { bg: '#FEF2F2', border: '#FECACA', color: '#DC2626', icon: '✕' },
-  warning: { bg: '#FFFBEB', border: '#FDE68A', color: '#B45309', icon: '⚠' },
-  info:    { bg: '#EFF6FF', border: '#BFDBFE', color: '#2563EB', icon: 'ℹ' },
+  success: { bg: alpha(green, 0.08), border: alpha(green, 0.35), color: green, icon: '✓' },
+  error:   { bg: alpha(red, 0.08),   border: alpha(red, 0.35),   color: red,   icon: '✕' },
+  warning: { bg: alpha(amber, 0.08), border: alpha(amber, 0.35), color: amber, icon: '⚠' },
+  info:    { bg: alpha(blue, 0.08),  border: alpha(blue, 0.35),  color: blue,  icon: 'ℹ' },
 }
 
 function ToastItem_({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: string) => void }) {

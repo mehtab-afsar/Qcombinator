@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { log } from '@/lib/logger'
+import { getMyDemoInvestorId } from '@/lib/investor/demo-investor'
 
 // GET /api/investor/messages/unread
 // Returns { unreadMessages: number, pendingRequests: number, total: number }
@@ -22,20 +23,15 @@ export async function GET() {
       .is('read_at', null)
 
     // Count pending connection requests
-    // First get demo_investor_id if any
-    const { data: profile } = await supabase
-      .from('investor_profiles')
-      .select('demo_investor_id')
-      .eq('user_id', user.id)
-      .single()
+    const demoInvestorId = await getMyDemoInvestorId(supabase, user.id)
 
     let pendingQuery = supabase
       .from('connection_requests')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'pending')
 
-    pendingQuery = profile?.demo_investor_id
-      ? pendingQuery.eq('demo_investor_id', profile.demo_investor_id)
+    pendingQuery = demoInvestorId
+      ? pendingQuery.eq('demo_investor_id', demoInvestorId)
       : pendingQuery.eq('investor_id', user.id)
 
     const { count: pendingRequests } = await pendingQuery

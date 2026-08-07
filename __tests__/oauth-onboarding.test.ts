@@ -82,7 +82,7 @@ describe('signup and OAuth completion share one implementation, not two', () => 
     const src = read('app/api/auth/signup/route.ts')
     expect(src).not.toContain('async function enrichOnboardingText')
     expect(src).not.toContain('async function autoLinkPortfolioByEmail')
-    expect(src).toContain("from '@/lib/founder/complete-onboarding'")
+    expect(src).toContain("from '@/features/founder/services/complete-onboarding.service'")
   })
 
   it('both routes import the same mapping and side-effect functions', () => {

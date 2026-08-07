@@ -10,10 +10,14 @@
  */
 
 import { gmailConnector } from './gmail'
+import { slackConnector } from './slack'
+import { gmailReadConnector } from './gmail-read'
 import { ConnectorError, type Connector } from './types'
 
 const CONNECTORS: Readonly<Record<string, Connector>> = {
   gmail: gmailConnector,
+  slack: slackConnector,
+  gmail_read: gmailReadConnector,
 }
 
 /**

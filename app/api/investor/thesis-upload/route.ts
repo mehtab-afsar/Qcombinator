@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import Anthropic from '@anthropic-ai/sdk'
 import { parseDocument } from '@/lib/profile-builder/document-parser'
 import { routedText } from '@/lib/llm/router'
+import { composeAdhocPrompt } from '@/lib/prompts/compose'
 import { log } from '@/lib/logger'
 
 const MAX_SIZE = 10 * 1024 * 1024 // 10 MB
 
-const THESIS_PROMPT = `You are a VC research assistant. Extract the following fields from this investment thesis document.
+const THESIS_INSTRUCTIONS = `You are a VC research assistant. Extract the following fields from the investment thesis document provided as data.
 Return ONLY valid JSON. No explanation, no markdown, just the raw JSON object.
 
 Required JSON shape:
@@ -24,10 +24,7 @@ Rules:
 - sectors: list up to 6 focus sectors mentioned. Use common labels: SaaS, AI/ML, FinTech, HealthTech, CleanTech, EdTech, Deep Tech, Consumer, Marketplace, Developer Tools, etc.
 - stages: list stages mentioned. Use: Pre-Seed, Seed, Series A, Series B+
 - checkSize: typical check size range as a string, or "" if not mentioned
-- portfolioCompanies: list company names mentioned as portfolio or investments. Up to 10. Empty array if none.
-
-Document text:
-`
+- portfolioCompanies: list company names mentioned as portfolio or investments. Up to 10. Empty array if none.`
 
 export async function POST(req: NextRequest) {
   try {
@@ -66,49 +63,45 @@ export async function POST(req: NextRequest) {
     } = { thesis: '', sectors: [], stages: [], checkSize: '', portfolioCompanies: [] }
 
     const isScannedPDF = docText.length < 50
+    // Tracks "we couldn't even attempt extraction" (missing key, thrown error) as distinct from
+    // "we tried and the document genuinely had nothing to extract" — the old version returned
+    // 200 with all-blank fields in both cases, so an investor whose upload failed outright saw
+    // the same silent, empty result as one whose thesis PDF just had no useful text in it.
+    let extractionFailed = false
 
     if (isScannedPDF) {
-      // Vision path: send raw PDF bytes to Claude
-      const anthropicKey = process.env.ANTHROPIC_API_KEY
-      if (anthropicKey) {
-        try {
-          const client = new Anthropic({ apiKey: anthropicKey })
-          const base64 = buffer.toString('base64')
-          const msg = await (client.beta.messages as unknown as {
-            create: (params: unknown) => Promise<{ content: Array<{ type: string; text: string }> }>
-          }).create({
-            model: 'claude-haiku-4-5-20251001',
-            max_tokens: 800,
-            betas: ['pdfs-2024-09-25'],
-            messages: [{
-              role: 'user',
-              content: [{
-                type: 'document',
-                source: { type: 'base64', media_type: 'application/pdf', data: base64 },
-              }, {
-                type: 'text',
-                text: THESIS_PROMPT + '(Extract from the document above)',
-              }],
-            }],
-          })
-          const raw = msg.content.find(c => c.type === 'text')?.text ?? ''
-          const m = raw.match(/\{[\s\S]*\}/)
-          if (m) extractedData = { ...extractedData, ...JSON.parse(m[0]) }
-        } catch (e) {
-          log.warn('Vision thesis extraction failed:', e)
-        }
+      // Vision path: send the raw PDF bytes to the router — its provider layer detects the
+      // 'document' content block and automatically switches to the PDF beta endpoint.
+      try {
+        const base64 = buffer.toString('base64')
+        const messages = composeAdhocPrompt({
+          sourceRef: 'investor/thesis-upload:vision',
+          instructions: THESIS_INSTRUCTIONS,
+          data: [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }],
+        })
+        const raw = await routedText('extraction', messages, { maxTokens: 800 })
+        const m = raw.match(/\{[\s\S]*\}/)
+        if (m) extractedData = { ...extractedData, ...JSON.parse(m[0]) }
+        else extractionFailed = true
+      } catch (e) {
+        log.warn('Vision thesis extraction failed:', e)
+        extractionFailed = true
       }
     } else {
       // Text path
       try {
-        const raw = await routedText('extraction',
-          [{ role: 'user', content: THESIS_PROMPT + docText }],
-          { maxTokens: 800 }
-        )
+        const messages = composeAdhocPrompt({
+          sourceRef: 'investor/thesis-upload:text',
+          instructions: THESIS_INSTRUCTIONS,
+          data: docText,
+        })
+        const raw = await routedText('extraction', messages, { maxTokens: 800 })
         const m = raw.match(/\{[\s\S]*\}/)
         if (m) extractedData = { ...extractedData, ...JSON.parse(m[0]) }
+        else extractionFailed = true
       } catch (e) {
         log.warn('Text thesis extraction failed:', e)
+        extractionFailed = true
       }
     }
 
@@ -122,6 +115,9 @@ export async function POST(req: NextRequest) {
     extractedData.stages            = extractedData.stages.slice(0, 4)
     extractedData.portfolioCompanies = extractedData.portfolioCompanies.slice(0, 12)
 
+    if (extractionFailed) {
+      return NextResponse.json({ error: 'Could not extract data from this document', extractedData }, { status: 502 })
+    }
     return NextResponse.json({ extractedData })
   } catch (err) {
     log.error('Thesis upload error:', err)

@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import type { ReactNode } from "react";
 import { EASE } from "../../theme";
-import { useMotionPrefs } from "../../hooks/useMotionPrefs";
+import { useMotionPrefs } from "@/features/shared/hooks/useMotionPrefs";
 
 /**
  * One stroke of a monoline doodle. Uses framer-motion's `pathLength` (0→1)
@@ -43,17 +43,22 @@ export function DoodlePath({
 }
 
 /**
- * Wraps a doodle's strokes with a very slow idle "breathing" motion once
- * drawn — a subtle rotate + vertical drift, like a sketch settling on paper.
+ * Wraps a doodle's strokes with an idle motion once drawn. Two modes:
+ * - default: a very slow, subtle rotate + vertical drift, like a sketch settling on paper.
+ * - `active`: a faster, larger rotate + scale pulse — used where the doodle stands in for
+ *   ongoing work (e.g. a "calculating…" loader) and needs to visibly read as still running,
+ *   not idle.
  * Disabled entirely under reduced motion.
  */
-export function DoodleStage({ children, drawDuration = 1.1 }: { children: ReactNode; drawDuration?: number }) {
+export function DoodleStage({ children, drawDuration = 1.1, active = false }: { children: ReactNode; drawDuration?: number; active?: boolean }) {
   const reduced = useMotionPrefs();
   if (reduced) return <>{children}</>;
   return (
     <motion.g
-      animate={{ rotate: [0, 1.4, 0, -1.2, 0], y: [0, -2, 0, 1.5, 0] }}
-      transition={{ duration: 8, repeat: Infinity, ease: "easeInOut", delay: drawDuration + 0.3 }}
+      animate={active
+        ? { rotate: [0, -6, 6, -6, 0], scale: [1, 1.06, 1, 1.06, 1] }
+        : { rotate: [0, 3.5, 0, -3, 0], y: [0, -5, 0, 3.5, 0] }}
+      transition={{ duration: active ? 1.6 : 6, repeat: Infinity, ease: "easeInOut", delay: drawDuration + 0.3 }}
       style={{ transformOrigin: "50% 55%" }}
     >
       {children}
@@ -62,10 +67,10 @@ export function DoodleStage({ children, drawDuration = 1.1 }: { children: ReactN
 }
 
 /** Standard 160×160 doodle frame — every doodle SVG renders inside this. */
-export function DoodleFrame({ children, label }: { children: ReactNode; label: string }) {
+export function DoodleFrame({ children, label, active = false }: { children: ReactNode; label: string; active?: boolean }) {
   return (
     <svg viewBox="0 0 160 160" width="100%" height="100%" role="img" aria-label={label} style={{ display: "block", overflow: "visible" }}>
-      <DoodleStage>{children}</DoodleStage>
+      <DoodleStage active={active}>{children}</DoodleStage>
     </svg>
   );
 }

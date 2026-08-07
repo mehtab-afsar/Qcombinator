@@ -177,7 +177,11 @@ export async function generateMandate(context: CompanyContext): Promise<Generate
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
     raw = await Promise.race([
-      routedText('reasoning', [{ role: 'user', content: pkg.text }], { maxTokens: 4_000, temperature: 0.2 }),
+      // Verified live (7 Aug 2026): at 4_000 this truncated mid-document on a real call
+      // (17k chars in, still on Step 4 of 8, no closing JSON fence — splitDocumentAndJson
+      // threw, generateMandate fell back to the thin deterministic draft). 10_000 held on
+      // a repeat run that reached 8_000 before finishing the previous ceiling.
+      routedText('reasoning', [{ role: 'user', content: pkg.text }], { maxTokens: 10_000, temperature: 0.2 }),
       new Promise<never>((_, reject) => {
         timer = setTimeout(() => reject(new Error('timeout')), TIMEOUT_MS)
       }),
@@ -207,7 +211,7 @@ export async function generateMandate(context: CompanyContext): Promise<Generate
 //
 // The founder's own complaint, verbatim: a blank mission/priorities/goals form asks
 // them to do the executive team's job before the team exists. S001's prompt is
-// already written (lib/prompts/knowledge/ceo-s001.ts) and the Composer already has
+// already written (lib/prompts/executives/ceo/s001.ts) and the Composer already has
 // an entry point for it (MANDATE_PROMPT_REF.strategy = 'S001') — nothing called it
 // with kind: 'strategy' until this function. Same shape as generateMandate: one
 // call, validated before it reaches the founder, a document plus the structured

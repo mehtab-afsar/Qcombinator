@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { sendPortfolioInviteEmail } from '@/lib/email/send'
+import { APP_URL } from '@/lib/constants/app'
 import { log } from '@/lib/logger'
 
 // POST /api/investor/portfolio-companies/bulk-invite
@@ -34,7 +35,7 @@ export async function POST() {
 
     const companies = companiesRes.data ?? []
     const investor  = investorRes.data
-    const appUrl    = process.env.NEXT_PUBLIC_APP_URL ?? 'https://edgealpha.ai'
+    const appUrl    = APP_URL
 
     let sent = 0
     let failed = 0
