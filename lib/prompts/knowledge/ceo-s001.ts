@@ -4,17 +4,20 @@
  * Layer 1 of a mandate package (ADR-023). The CEO conducting a structured
  * executive strategy session from the Q-Score and company context.
  *
- * NOT duplicated, despite 3 headings recurring. The prompt describes six Steps
- * and then, under "# Final Output", gives the output document's template — which
- * reuses those same section names ("Company Situation", "Executive Constraint
- * Review", "Executive Recommendation"). That is correct prompt design.
- *
- * The extractor left it alone because the two halves are not identical, and it
- * only ever removes a provably identical copy. Had it trimmed on "a heading
- * repeats", it would have deleted the output template.
- *
- * Lifted verbatim from `docs/registry-source/Edge_Alpha_Agentic_OS_Template.xlsx`.
- * ADR-010: the workbook is the design/seed source — nothing reads it at runtime.
+ * Originally lifted verbatim from `docs/registry-source/Edge_Alpha_Agentic_OS_Template.xlsx`
+ * (ADR-010: the workbook is the design/seed source — nothing reads it at runtime),
+ * that verbatim version also included a "# Final Output" section restating the same
+ * six steps as a clean document, plus closing commentary ("Why I think this is much
+ * stronger", "One final idea") that reads as the workbook author's own notes about
+ * the prompt, not instructions for the model. Both are cut here (6 Aug 2026):
+ * `STRATEGY_JSON_TAIL` in composer/mandate.ts — the only thing that reads this
+ * generation's output — transcribes its fields from Step 3 ("Top Strategic
+ * Priorities") and Step 6 ("Executive Recommendation") by name, never from "Final
+ * Output". The full document this prompt produces is itself never shown to the
+ * founder or saved (see TheRead.tsx) — only the short pre-Step-1 "read" paragraph
+ * and the JSON tail survive. Asking the model to write the whole session a second
+ * time as a "Final Output" restatement was pure generation time (~80 lines of
+ * prompt, a meaningful share of the ~90s wait) for output nothing downstream reads.
  */
 export const S001_STRATEGY_SESSION = `
 ---
@@ -254,82 +257,10 @@ Maximum one page.
 
 ---
 
-# Final Output
-
-# Executive Strategy Session
-
-## Executive Summary
-
----
-
-## Company Situation
-
----
-
-## Executive Constraint Review
-
----
-
-## Top Strategic Priorities
-
----
-
-## Recommended Strategic Pathways
-
----
-
-## Scenario A
-
-Ambitious
-
----
-
-## Scenario B
-
-Achievable
-
----
-
-## Executive Recommendation
-
----
-
-# Why I think this is much stronger
-
-Notice what **doesn't** happen.
-
-We still haven't created
-
-* an ICP
-* a Financial Model
-* a Dashboard
-* a GTM Plan
-
-Those belong in **Shape II**.
-
 S001 is the moment where the founder and the executive team agree:
 
 > **This is the company we are trying to build over the next 90 days.**
 
-Only then do the Co-Pilots begin creating the management assets.
-
----
-
-## One final idea
-
-I would actually rename **Playbooks** to **Strategic Pathways**.
-
-"Playbook" implies a predefined set of actions.
-
-"Strategic Pathway" implies a strategic choice.
-
-For example:
-
-* **Commercial Acceleration** (grow revenue)
-* **Investment Readiness** (prepare to raise capital)
-* **Product Validation** (prove product-market fit)
-* **Operational Excellence** (improve execution)
-* **International Expansion** (enter new markets)
-
-Each pathway then automatically activates a portfolio of Shape assets (e.g., GTM Sprint, ICP, Financial Model, KPI Dashboard) in the next phase. That creates a beautiful bridge between **Score** (understand the company) and **Shape** (build the right management assets), while keeping strategy separate from execution. I think that's a cleaner mental model than "Playbooks" because founders first choose a direction, then assemble the assets needed to pursue it.
+We still haven't created an ICP, a Financial Model, a Dashboard, or a GTM Plan —
+those belong in **Shape II**, once the founder confirms the mandate above.
 `
