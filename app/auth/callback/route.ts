@@ -43,12 +43,18 @@ export async function GET(req: NextRequest) {
 
   const { data: founderProfile } = await supabase
     .from('founder_profiles')
-    .select('id')
+    .select('id, onboarding_completed')
     .eq('user_id', user.id)
     .maybeSingle()
 
   if (founderProfile) {
-    return NextResponse.redirect(`${origin}/founder/dashboard`)
+    // A row existing is not the same as onboarding being done — the stub this route creates
+    // below (for a brand-new sign-up) has onboarding_completed: false, and used to be enough
+    // on its own to route straight to the dashboard on any later callback (a repeat Google
+    // sign-in, a session refresh, anything that re-hits this route).
+    return NextResponse.redirect(
+      `${origin}${founderProfile.onboarding_completed ? '/founder/dashboard' : '/founder/onboarding'}`
+    )
   }
 
   // New OAuth user with no profile — create a minimal stub so they aren't orphaned

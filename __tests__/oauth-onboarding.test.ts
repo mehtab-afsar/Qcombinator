@@ -11,6 +11,13 @@
  * Guards two things: the redirect check reads onboarding_completed, not row existence — and the
  * completion path for an OAuth founder can never be the account-creation route, since that route
  * tries to register their already-existing Google email a second time and collides.
+ *
+ * SAME BUG CLASS RECURRED 11 Aug 2026, in the two gatekeepers this file didn't yet cover:
+ * /auth/callback itself (the route that CREATES the stub row) and middleware.ts's founder gate
+ * (which runs on every /founder/** page). Both checked "does a founder_profiles row exist,"
+ * which the stub satisfies instantly — so a repeat Google sign-in, a session refresh, or just
+ * typing /founder/dashboard into the address bar mid-onboarding landed an unfinished founder on
+ * the dashboard, same as before, just via a different door.
  */
 
 import { readFileSync } from 'fs'
@@ -74,6 +81,40 @@ describe('the complete-profile route', () => {
     const body = block.slice(0, block.indexOf('})'))
     expect(body).not.toMatch(/\bemail\s*:/)
     expect(body).not.toMatch(/\bpassword\s*:/)
+  })
+})
+
+describe('the OAuth callback route routes on completion, not row existence', () => {
+  const src = read('app/auth/callback/route.ts')
+
+  it('selects onboarding_completed alongside the row, not just id', () => {
+    expect(src).toContain(".select('id, onboarding_completed')")
+  })
+
+  it('does NOT redirect to dashboard merely because a profile row exists', () => {
+    // The exact bug: `if (founderProfile) redirect(dashboard)` — true for every fresh stub.
+    expect(src).not.toMatch(/if\s*\(\s*founderProfile\s*\)\s*\{\s*return NextResponse\.redirect\(`\$\{origin\}\/founder\/dashboard`\)/)
+  })
+
+  it('branches on onboarding_completed when a row already exists', () => {
+    const block = src.slice(src.indexOf('if (founderProfile) {'), src.indexOf('if (founderProfile) {') + 700)
+    expect(block).toContain('founderProfile.onboarding_completed')
+    expect(block).toContain('/founder/onboarding')
+    expect(block).toContain('/founder/dashboard')
+  })
+})
+
+describe('the founder-side middleware gate checks completion, not row existence', () => {
+  const src = read('middleware.ts')
+
+  it('selects onboarding_completed alongside user_id for the founder gate', () => {
+    expect(src).toContain(".select('user_id, onboarding_completed')")
+  })
+
+  it('sends an incomplete founder back to onboarding even though a row exists', () => {
+    const block = src.slice(src.indexOf(".select('user_id, onboarding_completed')"), src.indexOf('isEmailConfirmed(user)'))
+    expect(block).toMatch(/if\s*\(\s*!fp\.onboarding_completed\s*\)/)
+    expect(block).toContain('/founder/onboarding')
   })
 })
 

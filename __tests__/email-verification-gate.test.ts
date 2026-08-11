@@ -25,7 +25,7 @@ describe('middleware actually blocks an unconfirmed founder', () => {
 
   it('redirects an unconfirmed founder to /founder/verify-email', () => {
     const i = src.indexOf("return NextResponse.redirect(new URL('/founder/onboarding', request.url))")
-    const gate = src.slice(i, i + 500)
+    const gate = src.slice(i, i + 1000)
     expect(gate).toContain("'/founder/verify-email'")
   })
 

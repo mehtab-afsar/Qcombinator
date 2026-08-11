@@ -249,12 +249,19 @@ export async function middleware(request: NextRequest) {
       if (cachedRole !== 'founder' && !CONFIRMATION_GATE_EXEMPT.includes(pathname)) {
         const { data: fp } = await supabase
           .from('founder_profiles')
-          .select('user_id')
+          .select('user_id, onboarding_completed')
           .eq('user_id', user.id)
           .maybeSingle()
         if (!fp) {
           // No founder profile — send them to create one, regardless of whether they also
           // have an investor profile (dual-role is allowed; it isn't assumed).
+          return NextResponse.redirect(new URL('/founder/onboarding', request.url))
+        }
+        if (!fp.onboarding_completed) {
+          // A row exists but onboarding was never finished — e.g. a Google sign-up's stub
+          // row (created on first OAuth callback so they aren't orphaned mid-flow). Row
+          // presence alone used to be treated as "done," which let an incomplete founder
+          // straight into the dashboard on any later visit. Existence is not completion.
           return NextResponse.redirect(new URL('/founder/onboarding', request.url))
         }
         if (!isEmailConfirmed(user)) {
