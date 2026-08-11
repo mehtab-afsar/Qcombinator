@@ -454,7 +454,6 @@ export function FounderNotificationBell() {
             unreadCount={unreadCount}
             onClose={() => setOpen(false)}
             onMarkAllRead={markAllRead}
-            footerHref="/founder/activity"
           />
         )}
       </AnimatePresence>

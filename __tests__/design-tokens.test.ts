@@ -62,7 +62,7 @@ function allTsxFiles(dirs: string[]): string[] {
 const HEX_ALLOWLIST = new Set([
   'app/admin/metrics/page.tsx', 'app/admin/qscore/thresholds/page.tsx',
   'app/auth/confirm-email/page.tsx', 'app/error.tsx',
-  'app/founder/academy/page.tsx', 'app/founder/activity/page.tsx',
+  'app/founder/academy/page.tsx',
   'app/founder/assets/[id]/page.tsx', 'app/founder/billing/page.tsx',
   'app/founder/dashboard/page.tsx', 'app/founder/getting-started/page.tsx',
   'app/founder/improve-qscore/page.tsx', 'app/founder/join/page.tsx',
