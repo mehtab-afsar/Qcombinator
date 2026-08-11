@@ -12,6 +12,7 @@ import {
 import Link from "next/link";
 import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
 import { Avatar } from '@/features/shared/components/Avatar'
+import { BrandMark } from '@/features/shared/components/BrandMark'
 import type { LucideIcon } from 'lucide-react'
 
 // ─── artifact meta ────────────────────────────────────────────────────────────
@@ -128,8 +129,8 @@ export default function PublicPortfolio() {
     return (
       <div style={{ minHeight: "100vh", background: bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div style={{ textAlign: "center" }}>
-          <div style={{ height: 40, width: 40, borderRadius: 10, background: blue, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-            <span style={{ color: "#fff", fontWeight: 900, fontSize: 9 }}>EA</span>
+          <div style={{ display: "flex", justifyContent: "center", margin: "0 auto 16px" }}>
+            <BrandMark size={40} />
           </div>
           <p style={{ color: muted, fontSize: 13 }}>Loading portfolio…</p>
         </div>
@@ -141,8 +142,8 @@ export default function PublicPortfolio() {
     return (
       <div style={{ minHeight: "100vh", background: bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div style={{ textAlign: "center", maxWidth: 360, padding: "0 24px" }}>
-          <div style={{ height: 40, width: 40, borderRadius: 10, background: ink, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-            <span style={{ color: "#fff", fontWeight: 900, fontSize: 9 }}>EA</span>
+          <div style={{ display: "flex", justifyContent: "center", margin: "0 auto 16px" }}>
+            <BrandMark size={40} />
           </div>
           <h1 style={{ fontSize: 20, fontWeight: 300, color: ink, marginBottom: 8 }}>Portfolio not found</h1>
           <p style={{ color: muted, fontSize: 13, marginBottom: 24 }}>This founder hasn&apos;t published their portfolio yet, or the link may have changed.</p>
@@ -165,9 +166,7 @@ export default function PublicPortfolio() {
       {/* ── nav ───────────────────────────────────────────────────────── */}
       <div style={{ position: "sticky", top: 0, zIndex: 10, background: bg, borderBottom: `1px solid ${bdr}`, padding: "14px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ height: 28, width: 28, borderRadius: 7, background: blue, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <span style={{ color: "#fff", fontWeight: 900, fontSize: 8 }}>EA</span>
-          </div>
+          <BrandMark size={28} />
           <span style={{ fontSize: 13, fontWeight: 600, color: ink }}>Edge Alpha</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

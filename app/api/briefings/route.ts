@@ -11,6 +11,7 @@ import { verifyAuth } from '@/lib/auth/verify'
 import { getBriefings, pickLatestPerProgram } from '@/lib/briefings/briefings'
 import { log } from '@/lib/logger'
 import { newModelOff } from '@/lib/api/response'
+import { getAnchorFounderId } from '@/lib/team/founder-permissions'
 
 
 export async function GET(): Promise<NextResponse> {
@@ -23,7 +24,13 @@ export async function GET(): Promise<NextResponse> {
 
     // User-scoped client on purpose — RLS is the tenancy boundary (SELECT-own).
     const supabase = await createClient()
-    const briefings = await getBriefings(supabase, auth.user.id)
+
+    // Team data anchors to the startup owner's founder_id, not whichever teammate is
+    // logged in — see getAnchorFounderId's own doc comment.
+    const anchorId = await getAnchorFounderId(auth.user.id, supabase)
+    if (!anchorId) return NextResponse.json({ error: 'No workspace found' }, { status: 400 })
+
+    const briefings = await getBriefings(supabase, anchorId)
 
     return NextResponse.json({ briefings, latest: pickLatestPerProgram(briefings) })
   } catch (err) {

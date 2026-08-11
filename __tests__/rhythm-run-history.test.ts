@@ -70,7 +70,9 @@ describe('GET /api/rhythm/run — history wiring', () => {
   const route = readFileSync('app/api/rhythm/run/route.ts', 'utf8')
 
   it('reads run history via listRuns and returns it alongside progress', () => {
-    expect(route).toContain('listRuns(supabase, auth.user.id)')
+    // Team Management, Phase 2: reads resolve the team's shared anchor founder_id
+    // (getAnchorFounderId), not the logged-in caller's own auth.user.id directly.
+    expect(route).toContain('listRuns(supabase, anchorId)')
     expect(route).toContain('const progress = buildProgress(run, activePrograms)')
     expect(route).toContain('NextResponse.json({ progress, history })')
   })

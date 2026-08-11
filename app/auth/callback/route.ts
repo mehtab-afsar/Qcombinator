@@ -10,6 +10,10 @@ export async function GET(req: NextRequest) {
   const { searchParams, origin } = new URL(req.url)
   const code = searchParams.get('code')
   const next = searchParams.get('next') ?? null
+  // Set by the investor onboarding page's own Google button (founder onboarding sends none) —
+  // the only signal this route has for which wizard a brand-new sign-up actually came from.
+  // Ignored once a profile of either kind already exists; only decides the NEW-user branch below.
+  const intent = searchParams.get('intent')
 
   if (!code) {
     return NextResponse.redirect(`${origin}/login?error=missing_code`)
@@ -57,6 +61,22 @@ export async function GET(req: NextRequest) {
     )
   }
 
+  // New investor sign-up — investor_profiles is never stubbed (unlike founder_profiles): the
+  // whole row is written once, complete, at the end of the onboarding wizard
+  // (POST /api/investor/onboarding). Nothing to insert here; just point them at the right
+  // wizard instead of falling through to the founder branch below.
+  if (intent === 'investor') {
+    if (user.email) {
+      const fullName = (user.user_metadata?.full_name as string | undefined) ?? user.email.split('@')[0]
+      void sendWelcomeEmail({
+        email:        user.email,
+        fullName,
+        startupName:  'Edge Alpha Investor', // matches /api/auth/investor-signup's placeholder
+      }).catch(e => log.warn('[oauth-callback] investor welcome email failed:', e))
+    }
+    return NextResponse.redirect(`${origin}/investor/onboarding`)
+  }
+
   // New OAuth user with no profile — create a minimal stub so they aren't orphaned
   // if they navigate away from onboarding. Full profile is completed in onboarding.
   try {
@@ -96,6 +116,32 @@ export async function GET(req: NextRequest) {
         if (e) log.error('[oauth-callback] subscription_usage insert failed:', e)
       }),
     ])
+
+    // Every founder gets their own workspace, same as app/api/auth/signup/route.ts's
+    // email/password path — without this, getAnchorFounderId (lib/team/founder-permissions.ts)
+    // has no startup_id to resolve, and every team-shared read (Mandate, Assets, Rhythm,
+    // Actions, Q-Score, Briefings) 400s with "No workspace found" for every Google sign-up.
+    // Runs after the founder_profiles insert above, not in the same Promise.all — the
+    // founder_profiles.startup_id update below needs that row to already exist.
+    try {
+      const { data: startup, error: startupError } = await admin
+        .from('startups')
+        .insert({ name: 'Untitled Startup', owner_user_id: user.id })
+        .select('id')
+        .single()
+      if (startupError) {
+        log.error('[oauth-callback] startup workspace creation failed:', startupError)
+      } else {
+        await Promise.all([
+          admin.from('startup_members').insert({ startup_id: startup.id, user_id: user.id, role: 'owner' })
+            .then(({ error: e }) => { if (e) log.error('[oauth-callback] startup_members insert failed:', e) }),
+          admin.from('founder_profiles').update({ startup_id: startup.id }).eq('user_id', user.id)
+            .then(({ error: e }) => { if (e) log.error('[oauth-callback] founder_profiles.startup_id update failed:', e) }),
+        ])
+      }
+    } catch (e) {
+      log.error('[oauth-callback] startup workspace creation failed:', e)
+    }
 
     // Send welcome email — no confirm link needed, Google already verified this address
     if (user.email) {

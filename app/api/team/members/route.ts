@@ -3,6 +3,7 @@ import { getAdminClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { getMyTeamRole, canInviteMembers, canRemoveMember, type TeamRole } from '@/lib/team/founder-permissions'
 import { log } from '@/lib/logger'
+import { logTeamEvent } from '@/lib/team/audit'
 
 export async function GET(_request: NextRequest) {
   try {
@@ -86,7 +87,7 @@ async function authenticate() {
 export async function PATCH(request: NextRequest) {
   const auth = await authenticate()
   if ('error' in auth) return auth.error
-  const { supabase, myRole, startupId } = auth
+  const { supabase, user, myRole, startupId } = auth
 
   if (!canInviteMembers(myRole)) {
     return NextResponse.json({ error: 'Not authorized to change roles' }, { status: 403 })
@@ -111,6 +112,20 @@ export async function PATCH(request: NextRequest) {
 
   if (error) return NextResponse.json({ error: 'Failed to update role' }, { status: 500 })
   if (!count) return NextResponse.json({ error: 'Member not found' }, { status: 404 })
+
+  logTeamEvent(supabase, {
+    startupId, actorId: user.id, event: 'role_changed',
+    targetUserId: userId, metadata: { toRole: newRole },
+  })
+  void supabase.from('notifications').insert({
+    user_id:  userId,
+    type:     'team_role_changed',
+    title:    `Your team role changed to ${newRole}`,
+    metadata: { startupId, changedBy: user.id },
+  }).then(({ error: e }: { error: { message: string } | null }) => {
+    if (e) log.error('[team-members] role-change notification insert failed:', e)
+  })
+
   return NextResponse.json({ ok: true })
 }
 
@@ -125,15 +140,22 @@ export async function DELETE(request: NextRequest) {
     if (!canInviteMembers(myRole)) {
       return NextResponse.json({ error: 'Not authorized to cancel invites' }, { status: 403 })
     }
+    // Read the email before deleting — gone from the row once the delete succeeds.
+    const { data: invite } = await supabase
+      .from('team_invites').select('email').eq('id', inviteId).eq('startup_id', startupId).maybeSingle()
     const { error } = await supabase.from('team_invites').delete().eq('id', inviteId).eq('startup_id', startupId)
     if (error) return NextResponse.json({ error: 'Failed to cancel invite' }, { status: 500 })
+    logTeamEvent(supabase, {
+      startupId, actorId: user.id, event: 'invite_cancelled', targetEmail: invite?.email,
+    })
     return NextResponse.json({ ok: true })
   }
 
   const userId = request.nextUrl.searchParams.get('userId')
   if (!userId) return NextResponse.json({ error: 'userId or inviteId is required' }, { status: 400 })
 
-  if (userId !== user.id) {
+  const selfRemoval = userId === user.id
+  if (!selfRemoval) {
     const { data: target } = await supabase
       .from('startup_members')
       .select('role')
@@ -147,5 +169,20 @@ export async function DELETE(request: NextRequest) {
 
   const { error } = await supabase.from('startup_members').delete().eq('startup_id', startupId).eq('user_id', userId)
   if (error) return NextResponse.json({ error: 'Failed to remove member' }, { status: 500 })
+
+  logTeamEvent(supabase, {
+    startupId, actorId: user.id, event: selfRemoval ? 'left' : 'removed', targetUserId: userId,
+  })
+  if (!selfRemoval) {
+    void supabase.from('notifications').insert({
+      user_id:  userId,
+      type:     'team_member_removed',
+      title:    `You were removed from the team`,
+      metadata: { startupId, removedBy: user.id },
+    }).then(({ error: e }: { error: { message: string } | null }) => {
+      if (e) log.error('[team-members] removal notification insert failed:', e)
+    })
+  }
+
   return NextResponse.json({ ok: true })
 }

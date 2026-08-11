@@ -15,9 +15,9 @@
 import { useEffect, useState } from 'react'
 import { ink, muted, bdr, bg, amber } from '@/lib/constants/colors'
 import { radius } from '@/features/shared/tokens'
-import { scopeStepsToExecutive, type ScopableStep } from '../lib/scope-progress'
+import { scopeStepsToExecutive, documentProgress, type ScopableStepWithKind } from '../lib/scope-progress'
 
-interface Step extends ScopableStep {
+interface Step extends ScopableStepWithKind {
   key: string
 }
 
@@ -59,12 +59,16 @@ export function BirdsEyeStats({ executiveId }: { executiveId: string }) {
 
   if (!loaded || !progress) return null
 
+  // Documents (Assets + the Briefing), not the whole 12-step run — Actions already get their own
+  // tile below. See documentProgress's docstring (RhythmPanel's "This week's cycle" has the same
+  // fix, for the same reason).
   const scoped = scopeStepsToExecutive(progress.steps, executiveId)
+  const docs = documentProgress(scoped.steps)
   const lastRan = progress.completedAt ?? (progress.status === 'running' ? progress.startedAt : null)
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-      <Tile label="This cycle" value={`${scoped.done} of ${scoped.total}`} />
+      <Tile label="This cycle" value={`${docs.done} of ${docs.total}`} />
       <Tile label="Waiting on you" value={String(pendingCount)} highlight={pendingCount > 0} />
       <Tile label="Last ran" value={lastRan ? new Date(lastRan).toLocaleDateString() : '—'} />
     </div>

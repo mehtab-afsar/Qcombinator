@@ -35,7 +35,8 @@ export async function POST(
     // caller widen what the system may do with a founder's account.
     const connector = getConnector(provider)
 
-    return NextResponse.json({ url: getOAuthProvider(provider).authorizeUrl(auth.user.id, connector.scopes) })
+    const url = await getOAuthProvider(provider).authorizeUrl(auth.user.id, connector.scopes)
+    return NextResponse.json({ url })
   } catch (err) {
     if (err instanceof ConnectorError) {
       return NextResponse.json({ error: err.message, code: err.code }, { status: 400 })

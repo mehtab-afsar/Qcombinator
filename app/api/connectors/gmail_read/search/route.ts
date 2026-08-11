@@ -2,7 +2,7 @@
  * GET /api/connectors/gmail_read/search?q=... — search the founder's connected inbox.
  *
  * ⚠️ FOUNDER-TRIGGERED ONLY, ON PURPOSE. This is the one deliberately-built consumer of the
- * gmail_read connector (see `lib/connectors/gmail-read.ts`'s scope warning) — called from a UI
+ * gmail_read connector (see `lib/connectors/gmail/read.ts`'s scope warning) — called from a UI
  * action, never from the Operating Rhythm or a Program. Wiring this into autonomous execution is
  * a distinct product decision (ADR-028's "autonomous external signal"), not something this route
  * should do quietly.
@@ -16,7 +16,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { newModelOff } from '@/lib/api/response'
 import { resolveGrant } from '@/lib/connectors/grants'
-import { searchGmailThreads } from '@/lib/connectors/gmail-read'
+import { searchGmailThreads } from '@/lib/connectors/gmail/read'
 import { ConnectorError } from '@/lib/connectors/types'
 import { log } from '@/lib/logger'
 

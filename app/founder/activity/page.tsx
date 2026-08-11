@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useActivity } from "@/features/founder/hooks/useActivity";
+import { Bot, Sun, Zap, Mail, AlertTriangle, Check } from "lucide-react";
 import { bg, surf, bdr, ink, muted, blue, green, amber, red, purple } from '@/lib/constants/colors'
 import { PageSpinner } from '@/features/shared/components/Spinner'
 
@@ -146,11 +147,12 @@ function ActivityItem({ row }: { row: ActivityRow }) {
         {row.action_type === 'autonomous_delegation' && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
             <span style={{
+              display: "inline-flex", alignItems: "center", gap: 4,
               fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 999,
-              background: "#F5F3FF", border: "1px solid #DDD6FE", color: "#7C3AED",
+              background: `${purple}15`, border: `1px solid ${purple}35`, color: purple,
               letterSpacing: "0.05em",
             }}>
-              🤖 AUTONOMOUS
+              <Bot size={10} /> AUTONOMOUS
             </span>
             {typeof row.metadata?.fromAgent === 'string' && (
               <span style={{ fontSize: 11, color: muted }}>
@@ -396,7 +398,7 @@ export default function ActivityPage() {
               opacity: sendingBriefing ? 0.7 : 1,
             }}
           >
-            {sendingBriefing ? "Sending…" : "☀️ Morning Briefing"}
+            {sendingBriefing ? "Sending…" : <><Sun size={13} /> Morning Briefing</>}
           </button>
 
           {/* Claim daily Q-Score boost */}
@@ -414,7 +416,11 @@ export default function ActivityPage() {
               transition: "all 0.15s",
             }}
           >
-            {claimingBoost ? "Checking…" : boostResult?.boosted ? `+${boostResult.boostAmount} claimed ✓` : "⚡ Daily Boost"}
+            {claimingBoost
+              ? "Checking…"
+              : boostResult?.boosted
+              ? <><Check size={13} /> +{boostResult.boostAmount} claimed</>
+              : <><Zap size={13} /> Daily Boost</>}
           </button>
 
           {/* Send weekly digest */}
@@ -467,7 +473,7 @@ export default function ActivityPage() {
           maxWidth: 380,
           animation: "fadeIn 0.2s ease",
         }}>
-          {digestToast.ok ? "✉️" : "⚠️"} {digestToast.msg}
+          {digestToast.ok ? <Mail size={16} /> : <AlertTriangle size={16} />} {digestToast.msg}
         </div>
       )}
       <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }`}</style>
@@ -495,9 +501,9 @@ export default function ActivityPage() {
               width: 56, height: 56, borderRadius: "50%",
               background: `${blue}10`, border: `1.5px solid ${blue}30`,
               display: "flex", alignItems: "center", justifyContent: "center",
-              margin: "0 auto 20px", fontSize: 24,
+              margin: "0 auto 20px", fontSize: 22, color: blue, fontWeight: 600,
             }}>
-              {agentFilter === "all" ? "🤖" : AGENT_META[agentFilter]?.label.charAt(0) ?? "?"}
+              {agentFilter === "all" ? <Bot size={24} /> : AGENT_META[agentFilter]?.label.charAt(0) ?? "?"}
             </div>
             <h3 style={{
               fontFamily: "inherit",

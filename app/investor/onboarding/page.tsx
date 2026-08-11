@@ -88,6 +88,10 @@ export default function InvestorOnboardingPage() {
   const [dir, setDir] = useState(1)
   const [form, setForm] = useState<FormData>(EMPTY)
   const [showPwd, setShowPwd] = useState(false)
+  // Set when this page loads with a session already established but no investor_profiles row —
+  // a Google sign-up returning from /auth/callback, which already created the account. Mirrors
+  // founder onboarding's isOAuthUser handling.
+  const [isOAuthUser, setIsOAuthUser] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [processing, setProcessing] = useState(false)
@@ -112,7 +116,14 @@ export default function InvestorOnboardingPage() {
         const { createClient } = await import('@/lib/supabase/client')
         const sb = createClient()
         const { data: ip } = await sb.from('investor_profiles').select('user_id').eq('user_id', s.user.id).maybeSingle()
-        if (ip) router.replace('/investor/dashboard')
+        if (ip) { router.replace('/investor/dashboard'); return }
+        // A session with no investor_profiles row yet is a Google sign-up returning from
+        // /auth/callback — the account already exists, so skip the Account step straight to
+        // Profile. Direct state set (not go()) since this is the initial mount, not a
+        // user-triggered transition — no slide animation to fire.
+        if (s.user.email) setForm(f => ({ ...f, email: s.user.email! }))
+        setIsOAuthUser(true)
+        setStep(2)
       })
       .catch(() => {})
   }, [router])
@@ -239,7 +250,7 @@ export default function InvestorOnboardingPage() {
       stepKey={step}
       footer={
         <>
-          {step > 1 && (
+          {step > 1 && !(isOAuthUser && step === 2) && (
             <button onClick={() => go(step - 1)} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: O.muted, background: 'none', border: 'none', cursor: 'pointer', marginBottom: 14, padding: 0 }}>
               <ArrowLeft size={13} /> Back to {STEP_NAMES[step - 2]}
             </button>
@@ -279,7 +290,7 @@ export default function InvestorOnboardingPage() {
         <button
           onClick={async () => {
             const { createClient } = await import('@/lib/supabase/client')
-            await createClient().auth.signInWithOAuth({ provider: 'google', options: { redirectTo: `${window.location.origin}/auth/callback` } })
+            await createClient().auth.signInWithOAuth({ provider: 'google', options: { redirectTo: `${window.location.origin}/auth/callback?intent=investor` } })
           }}
           style={{
             width: '100%', height: 46, borderRadius: 12,

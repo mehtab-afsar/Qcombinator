@@ -171,7 +171,10 @@ export class AnthropicProvider implements LLMProvider {
     maxTokens: number
     temperature: number
     tools?: ToolDefinition[]
-  }): AsyncGenerator<{ type: 'delta'; text: string } | { type: 'done'; toolCall: LLMChatResponse['toolCall'] }> {
+  }): AsyncGenerator<
+    | { type: 'delta'; text: string }
+    | { type: 'done'; toolCall: LLMChatResponse['toolCall']; stopReason?: string }
+  > {
     const { messages, modelTier, maxTokens, temperature, tools } = params
     const model = MODEL_MAP[modelTier]
     const { system, chat } = splitMessages(messages)
@@ -189,6 +192,7 @@ export class AnthropicProvider implements LLMProvider {
     })
 
     let toolCall: LLMChatResponse['toolCall'] = null
+    let stopReason: string | undefined
 
     try {
       for await (const event of stream) {
@@ -197,6 +201,7 @@ export class AnthropicProvider implements LLMProvider {
         }
       }
       const final = await stream.finalMessage()
+      stopReason = final.stop_reason ?? undefined
       for (const block of final.content) {
         if (block.type === 'tool_use') {
           toolCall = { id: block.id, name: block.name, args: block.input as Record<string, unknown> }
@@ -210,6 +215,6 @@ export class AnthropicProvider implements LLMProvider {
       throw err
     }
 
-    yield { type: 'done', toolCall }
+    yield { type: 'done', toolCall, stopReason }
   }
 }

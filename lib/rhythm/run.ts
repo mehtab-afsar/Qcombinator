@@ -89,9 +89,18 @@ function actionsPhase(stage: StageStatus): { status: string; done: string[] } {
  * duplicate LLM attempt for the SAME asset still hits the existing unique constraint on
  * `asset_versions(asset_id, execution_id)` (a clean 23505) rather than double-writing.
  *
+ * @param onDelta PRD 2 Stage 2 — when supplied, threaded through to generateAssetContent ONLY
+ *   when this step turns out to be an asset generation (never briefings/actions — the PRD's own
+ *   "Patel is building your ICP profiles…" language is specifically about documents). Every
+ *   existing caller (the step-chain route) passes nothing, so this step behaves identically to
+ *   before for the unattended case — additive, not a second code path.
  * @throws RhythmError if the run row doesn't exist or the mandate is no longer confirmed.
  */
-export async function runNextStep(admin: SupabaseClient, runId: string): Promise<StepResult> {
+export async function runNextStep(
+  admin: SupabaseClient,
+  runId: string,
+  onDelta?: (text: string) => void,
+): Promise<StepResult> {
   const run = await getRun(admin, runId)
   if (!run) throw new RhythmError(`Run ${runId} not found.`)
   if (run.status !== 'running') return { done: true } // already terminal — nothing to do
@@ -127,6 +136,7 @@ export async function runNextStep(admin: SupabaseClient, runId: string): Promise
               contractId: contract.id,
               activePrograms: contract.activePrograms,
               context: { ...baseContext, currentAssets },
+              onDelta,
             })
             stage.assetsGenerated++
           }
@@ -187,6 +197,16 @@ export async function runNextStep(admin: SupabaseClient, runId: string): Promise
       }
       await recordStep(admin, run.id, stages)
       return { done: false }
+    }
+
+    // Mirrors the assets-failure guard above: a program whose briefing failed must not still
+    // attempt Actions — they're meant to follow FROM the briefing (PRD §7.4), and generating
+    // them anyway would leave a founder with new actions to approve on a cycle whose "what
+    // changed" summary never got written. 'blocked', same vocabulary as a blocked briefing,
+    // never silently left 'pending' forever.
+    if (stage.briefing === 'failed') {
+      stage.actions = 'blocked'
+      continue
     }
 
     // ── F14 — Actions, one per step, after the Briefing ────────────────────────────

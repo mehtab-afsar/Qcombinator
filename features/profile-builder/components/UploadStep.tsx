@@ -316,7 +316,7 @@ export function UploadStep({
                 background: greenTintBg, border: `1px solid ${greenBorderSoft}`,
                 fontSize: 13, fontWeight: 600, color: green,
               }}>
-                IQ {recalcResult.finalIQ} · {recalcResult.grade}
+                Q-Score {recalcResult.finalIQ} · {recalcResult.grade}
               </div>
             )}
           </div>

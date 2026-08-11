@@ -8,12 +8,12 @@ import { parseAssetContent, generateAssetContent } from '@/lib/rhythm/judge'
 import { createOrResumeRun, CycleAlreadyRanError, RunError, StepLimitOpenError } from '@/lib/rhythm/runs'
 import { STEP_LIMIT_EXCEEDED } from '@/lib/rhythm/limits'
 import { buildDigest, type CycleSignals } from '@/lib/rhythm/delta'
-import { routedCall } from '@/lib/llm/router'
+import { routedCall, routedStream } from '@/lib/llm/router'
 import { persistAssetVersion } from '@/lib/assets/versioning'
 
 // Mocked ONLY for the truncation-guard tests below; parseAssetContent/buildDigest/
 // createOrResumeRun tests don't touch these modules.
-jest.mock('@/lib/llm/router', () => ({ routedCall: jest.fn() }))
+jest.mock('@/lib/llm/router', () => ({ routedCall: jest.fn(), routedStream: jest.fn() }))
 jest.mock('@/lib/assets/versioning', () => ({ persistAssetVersion: jest.fn() }))
 
 // ─── B3 — sanitise model output before persisting ─────────────────────────────
@@ -95,6 +95,56 @@ describe('generateAssetContent — truncation is a loud failure, never a stored 
     ;(routedCall as jest.Mock).mockResolvedValue({ text: '# Doc\n\nBody.', toolCall: null })
     ;(persistAssetVersion as jest.Mock).mockResolvedValue({ id: 'v1' })
     await expect(generateAssetContent(admin, args)).resolves.toBeDefined()
+  })
+})
+
+// ─── PRD 2 Stage 2 — streaming (onDelta) is a transport choice, not a second path ─────
+
+/** Same event shape AnthropicProvider.stream() yields via routedStream. */
+async function* fakeStream(chunks: string[], stopReason = 'end_turn') {
+  for (const c of chunks) yield { type: 'delta' as const, text: c }
+  yield { type: 'done' as const, toolCall: null, stopReason }
+}
+
+describe('generateAssetContent — streaming (onDelta) mirrors the non-streamed path exactly', () => {
+  const admin = {} as unknown as SupabaseClient
+  const program = {
+    id: 'row-1', contractId: 'c1', templateId: 'P001' as const, owner: 'growth',
+    objective: 'o', successMetric: 's', status: 'active' as const,
+  }
+  const args = {
+    founderId: 'f1', program, assetId: 'AS001' as const, executionId: 'run-1',
+    contractId: 'c1', activePrograms: ['P001' as const], context: {},
+  }
+
+  beforeEach(() => jest.clearAllMocks())
+
+  it('onDelta fires per chunk and the persisted content matches the accumulated text', async () => {
+    const chunks = ['# ICP Profiles\n\n', 'Segment A: ', 'mid-market.']
+    ;(routedStream as jest.Mock).mockReturnValue(fakeStream(chunks))
+    ;(persistAssetVersion as jest.Mock).mockResolvedValue({ id: 'v1' })
+    const seen: string[] = []
+    await generateAssetContent(admin, { ...args, onDelta: text => seen.push(text) })
+    expect(seen).toEqual(chunks)
+    expect(routedStream).toHaveBeenCalledTimes(1)
+    expect(routedCall).not.toHaveBeenCalled()
+    expect((persistAssetVersion as jest.Mock).mock.calls[0][1].content).toBe(chunks.join(''))
+  })
+
+  it('a streamed max_tokens stop reason is a loud failure too — nothing persisted, no retry', async () => {
+    ;(routedStream as jest.Mock).mockReturnValue(fakeStream(['# Cut docum'], 'max_tokens'))
+    await expect(generateAssetContent(admin, { ...args, onDelta: () => {} })).rejects.toThrow(/token cap/)
+    expect(persistAssetVersion).not.toHaveBeenCalled()
+    // Same non-retry rule as the non-streamed truncation test above — deterministic, not transient.
+    expect(routedStream).toHaveBeenCalledTimes(1)
+  })
+
+  it('no onDelta → the non-streaming path is used, unchanged (regression)', async () => {
+    ;(routedCall as jest.Mock).mockResolvedValue({ text: '# Doc\n\nBody.', toolCall: null, stopReason: 'end_turn' })
+    ;(persistAssetVersion as jest.Mock).mockResolvedValue({ id: 'v1' })
+    await generateAssetContent(admin, args)
+    expect(routedCall).toHaveBeenCalledTimes(1)
+    expect(routedStream).not.toHaveBeenCalled()
   })
 })
 

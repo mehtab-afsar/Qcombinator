@@ -4,6 +4,8 @@ export const dynamic = 'force-dynamic'
 
 import { useState, useEffect, useMemo, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { Settings, ClipboardList, BookOpen, FlaskConical, FileText, CheckSquare, BarChart3, Bookmark, ChevronUp, ChevronDown } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { bg, surf, bdr, ink, muted, blue } from '@/lib/constants/colors'
 
 // ── types ─────────────────────────────────────────────────────────────────────
@@ -48,23 +50,14 @@ const FUNCTION_COLORS: Record<string, string> = {
   sage:   '#7C3AED',
 }
 
-const TYPE_ICONS: Record<string, string> = {
-  framework:  '⚙️',
-  playbook:   '📋',
-  guide:      '📖',
-  case_study: '🔬',
-  template:   '📄',
-  checklist:  '✅',
-  benchmark:  '📊',
-}
-
-const FORMAT_ICONS: Record<string, string> = {
-  article:   '📰',
-  pdf:       '📑',
-  template:  '📄',
-  video:     '🎬',
-  tool:      '🔧',
-  checklist: '☑️',
+const TYPE_ICONS: Record<string, LucideIcon> = {
+  framework:  Settings,
+  playbook:   ClipboardList,
+  guide:      BookOpen,
+  case_study: FlaskConical,
+  template:   FileText,
+  checklist:  CheckSquare,
+  benchmark:  BarChart3,
 }
 
 const STAGES = ['idea', 'mvp', 'seed', 'series-a']
@@ -195,7 +188,7 @@ function LibraryContent() {
           >
             <option value="">All Types</option>
             {allTypes.map(t => (
-              <option key={t} value={t}>{TYPE_ICONS[t] ?? ''} {t.replace('_', ' ')}</option>
+              <option key={t} value={t}>{t.replace('_', ' ')}</option>
             ))}
           </select>
           {filterActive && (
@@ -248,7 +241,7 @@ function LibraryContent() {
 
 export default function LibraryPage() {
   return (
-    <Suspense fallback={<div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8A867C' }}>Loading…</div>}>
+    <Suspense fallback={<div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: muted }}>Loading…</div>}>
       <LibraryContent />
     </Suspense>
   )
@@ -314,9 +307,9 @@ function ResourceCard({
           width: 36, height: 36, borderRadius: 8,
           background: `${fnColor}18`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 18, flexShrink: 0,
+          flexShrink: 0,
         }}>
-          {TYPE_ICONS[r.type] ?? '📌'}
+          {(() => { const Icon = TYPE_ICONS[r.type] ?? Bookmark; return <Icon size={17} color={fnColor} strokeWidth={1.75} /> })()}
         </div>
 
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -337,8 +330,8 @@ function ResourceCard({
         {/* metadata chips */}
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <Chip label={r.type.replace('_', ' ')} color={fnColor} />
-          {r.format !== 'article' && <Chip label={`${FORMAT_ICONS[r.format] ?? ''} ${r.format}`} color={muted} />}
-          <span style={{ fontSize: 18, color: muted, marginLeft: 4 }}>{expanded ? '▲' : '▼'}</span>
+          {r.format !== 'article' && <Chip label={r.format} color={muted} />}
+          {expanded ? <ChevronUp size={16} color={muted} style={{ marginLeft: 4 }} /> : <ChevronDown size={16} color={muted} style={{ marginLeft: 4 }} />}
         </div>
       </button>
 

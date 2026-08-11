@@ -69,6 +69,8 @@ export function validateRequiredEnv(): void {
     'GOOGLE_CONNECTOR_CLIENT_SECRET',
     'SLACK_CONNECTOR_CLIENT_ID',
     'SLACK_CONNECTOR_CLIENT_SECRET',
+    'STRIPE_CONNECT_CLIENT_ID',
+    'POSTHOG_CONNECTOR_STATE_SECRET',
   ]
   const missingRecommended = recommended.filter(k => !process.env[k])
   if (missingRecommended.length > 0) {

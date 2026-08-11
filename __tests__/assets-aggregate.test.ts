@@ -43,7 +43,10 @@ describe('GET /api/assets — the route', () => {
   })
 
   it('resolves each Asset’s Registry name and current version via the batched read', () => {
-    expect(route).toContain('getCurrentAssetsForProgram(supabase, auth.user.id, [...assetIds])')
+    // Team Management, Phase 2: reads resolve the team's shared anchor founder_id
+    // (getAnchorFounderId), not the logged-in caller's own auth.user.id directly —
+    // see lib/team/founder-permissions.ts.
+    expect(route).toContain('getCurrentAssetsForProgram(supabase, anchorId, [...assetIds])')
     expect(route).toContain('getAsset(id)')
   })
 

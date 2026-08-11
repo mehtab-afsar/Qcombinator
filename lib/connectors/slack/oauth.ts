@@ -16,9 +16,9 @@
  */
 
 import { env } from '@/lib/env'
-import { ConnectorError } from './types'
-import { signState, verifySignedState } from './oauth-state'
-import type { ExchangedTokens } from './oauth'
+import { ConnectorError } from '../types'
+import { signState, verifySignedState } from '../oauth-state'
+import type { ExchangedTokens } from '../gmail/google-oauth'
 
 const AUTHORIZE_URL = 'https://slack.com/oauth/v2/authorize'
 const TOKEN_URL = 'https://slack.com/api/oauth.v2.access'

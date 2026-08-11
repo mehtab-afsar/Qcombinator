@@ -21,8 +21,8 @@
 import { createHash } from 'crypto'
 import { log } from '@/lib/logger'
 import { APP_DOMAIN } from '@/lib/constants/app'
-import { assertRecipientsAllowed } from './allowlist'
-import type { Connector, ConnectorOutcome, ConnectorRequest, ResolvedGrant } from './types'
+import { assertRecipientsAllowed } from '../allowlist'
+import type { Connector, ConnectorOutcome, ConnectorRequest, ResolvedGrant } from '../types'
 
 const GMAIL_SEND_URL = 'https://gmail.googleapis.com/gmail/v1/users/me/messages/send'
 const REVOKE_URL = 'https://oauth2.googleapis.com/revoke'

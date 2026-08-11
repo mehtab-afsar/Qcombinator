@@ -10,12 +10,13 @@ import {
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import type { Workshop, Mentor, AcademyProgram } from "@/features/academy/types/academy.types";
-import { bg, surf, bdr, ink, muted, red } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted, red, blue, amber, green, indigo, purple, pink, cyan, alpha } from '@/lib/constants/colors'
 import { SectionSpinner } from '@/features/shared/components/Spinner'
 import { PageContainer } from '@/features/shared/components/PageContainer'
 import { SectionCard } from '@/features/shared/components/SectionCard'
 import { WorkshopCalendar } from '@/features/academy/components/WorkshopCalendar'
 import { AcademyYearCalendar } from '@/features/academy/components/AcademyYearCalendar'
+import { ActivityHeatmap } from '@/features/academy/components/ActivityHeatmap'
 import type { RegisterResult } from '@/features/academy/components/DayWorkshopPanel'
 import { buildGoogleCalendarUrl } from '@/features/academy/lib/googleCalendarLink'
 
@@ -27,12 +28,12 @@ const RECOMMENDED = [
 ];
 
 const TOPIC_COLORS: Record<string, { bg: string; text: string }> = {
-  "go-to-market": { bg: "#EEF2FF", text: "#3730A3" },
-  product:        { bg: "#F0FDF4", text: "#166534" },
-  fundraising:    { bg: "#FFF7ED", text: "#9A3412" },
-  team:           { bg: "#FDF4FF", text: "#6B21A8" },
-  sales:          { bg: "#FFF1F2", text: "#9F1239" },
-  operations:     { bg: "#F0FDFA", text: "#134E4A" },
+  "go-to-market": { bg: alpha(indigo, 0.1), text: indigo },
+  product:        { bg: alpha(green, 0.1),  text: green },
+  fundraising:    { bg: alpha(amber, 0.1),  text: amber },
+  team:           { bg: alpha(purple, 0.1), text: purple },
+  sales:          { bg: alpha(pink, 0.1),   text: pink },
+  operations:     { bg: alpha(cyan, 0.1),   text: cyan },
 };
 
 const TABS = [
@@ -148,90 +149,37 @@ function AcademyInner() {
               style={{
                 display: "inline-flex", alignItems: "center", gap: 8,
                 padding: "8px 14px", borderRadius: 99,
-                background: "#FFF7ED", border: "1px solid #FDE68A",
-                fontSize: 12, fontWeight: 500, color: "#92400E",
+                background: alpha(amber, 0.1), border: `1px solid ${alpha(amber, 0.35)}`,
+                fontSize: 12, fontWeight: 500, color: amber,
               }}
             >
-              <span style={{ height: 6, width: 6, borderRadius: "50%", background: "#F59E0B", display: "inline-block" }} />
+              <span style={{ height: 6, width: 6, borderRadius: "50%", background: amber, display: "inline-block" }} />
               Launching soon
             </div>
           </div>
         </motion.div>
 
-        {/* ── Recommended for you ─────────────────────────────────────── */}
+        {/* ── Activity heatmap ────────────────────────────────────────── */}
         <motion.div
-          initial={{ opacity: 0, y: 10 }}
+          initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.06 }}
-          style={{ marginBottom: 32 }}
+          transition={{ duration: 0.5, delay: 0.03 }}
+          style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 16, padding: "20px 24px", marginBottom: 28 }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-            <h2 style={{ fontSize: 14, fontWeight: 600, color: ink }}>Recommended for you</h2>
-            {focusDim && (
-              <span style={{
-                fontSize: 10, fontWeight: 600, padding: "2px 9px", borderRadius: 999,
-                background: "#EEF2FF", color: "#3730A3", border: "1px solid #C7D2FE",
-                textTransform: "capitalize",
-              }}>
-                Focus: {focusDim}
-              </span>
-            )}
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 14 }}>
-            {RECOMMENDED.map((r, i) => {
-              const topicStyle = TOPIC_COLORS[r.topic] ?? { bg: surf, text: muted };
-              return (
-                <motion.div
-                  key={r.title}
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.07 }}
-                  style={{
-                    background: bg, border: `1px solid ${bdr}`, borderRadius: 14,
-                    padding: "18px 20px", position: "relative",
-                  }}
-                >
-                  <span style={{
-                    position: "absolute", top: 14, right: 14,
-                    fontSize: 9, fontWeight: 700, padding: "2px 8px", borderRadius: 999,
-                    background: "#EEF2FF", color: "#3730A3",
-                    letterSpacing: "0.08em", textTransform: "uppercase",
-                  }}>
-                    Recommended
-                  </span>
-                  <span style={{
-                    fontSize: 10, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase",
-                    padding: "2px 8px", borderRadius: 999, display: "inline-block", marginBottom: 10,
-                    background: topicStyle.bg, color: topicStyle.text,
-                  }}>
-                    {r.topic.replace("-", " ")}
-                  </span>
-                  <h3 style={{ fontSize: 14, fontWeight: 500, color: ink, marginBottom: 8, lineHeight: 1.4 }}>
-                    {r.title}
-                  </h3>
-                  <p style={{ fontSize: 12, color: muted, lineHeight: 1.6, marginBottom: 14 }}>
-                    {r.summary}
-                  </p>
-                  <Link
-                    href={`/founder/executive`}
-                    style={{
-                      display: "inline-flex", alignItems: "center", gap: 6,
-                      fontSize: 12, fontWeight: 600, color: "#2563EB", textDecoration: "none",
-                    }}
-                  >
-                    <Brain style={{ width: 12, height: 12 }} />
-                    Work on this with AI →
-                  </Link>
-                </motion.div>
-              );
-            })}
-          </div>
+          <ActivityHeatmap />
         </motion.div>
 
-        {loading && <SectionSpinner label="Loading academy…" minHeight={120} />}
+        {/* ── Main content (left) + Recommended for you (right, vertical) ──
+            Was a full-width band ABOVE the tabs — pushed the calendar/workshop list
+            below the fold on every visit. Now a right-hand column beside it instead,
+            so the thing a founder came here for (the calendar) is what they see first. */}
+        <div className="academy-main-grid" style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 32, alignItems: "start" }}>
 
-        {/* ── Tab bar ─────────────────────────────────────────────────── */}
-        {!loading && <motion.div
+          <div style={{ minWidth: 0 }}>
+            {loading && <SectionSpinner label="Loading academy…" minHeight={120} />}
+
+            {/* ── Tab bar ───────────────────────────────────────────────── */}
+            {!loading && <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.08 }}
@@ -286,7 +234,7 @@ function AcademyInner() {
                       {upcomingWorkshops.length > 0 && (
                         <span style={{
                           fontSize: 11, fontWeight: 600, padding: "2px 10px", borderRadius: 99,
-                          background: "#F0FDF4", color: "#166534", border: "1px solid #BBF7D0",
+                          background: alpha(green, 0.1), color: green, border: `1px solid ${alpha(green, 0.3)}`,
                           letterSpacing: "0.06em", textTransform: "uppercase",
                         }}>
                           {upcomingWorkshops.length} live
@@ -415,7 +363,7 @@ function AcademyInner() {
                                 initial={{ width: 0 }}
                                 animate={{ width: `${pct}%` }}
                                 transition={{ duration: 0.7, delay: i * 0.06 + 0.3 }}
-                                style={{ height: "100%", borderRadius: 99, background: pct > 80 ? "#DC2626" : ink }}
+                                style={{ height: "100%", borderRadius: 99, background: pct > 80 ? red : ink }}
                               />
                             </div>
                           </div>
@@ -609,7 +557,7 @@ function AcademyInner() {
                       }}>
                         <div style={{ textAlign: "center" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 4, justifyContent: "center", marginBottom: 2 }}>
-                            <Star style={{ width: 12, height: 12, color: "#D97706" }} />
+                            <Star style={{ width: 12, height: 12, color: amber }} />
                             <span style={{ fontSize: 14, fontWeight: 500, color: ink }}>{mentor.rating}</span>
                           </div>
                           <p style={{ fontSize: 10, color: muted, fontWeight: 300 }}>Rating</p>
@@ -723,7 +671,7 @@ function AcademyInner() {
                             <h3 style={{ fontSize: 19, fontWeight: 400, color: ink }}>{prog.name}</h3>
                             <span style={{
                               fontSize: 10, fontWeight: 600, padding: "3px 10px", borderRadius: 99,
-                              background: "#F0FDF4", color: "#166534", border: "1px solid #BBF7D0",
+                              background: alpha(green, 0.1), color: green, border: `1px solid ${alpha(green, 0.3)}`,
                               letterSpacing: "0.08em", textTransform: "uppercase",
                             }}>
                               Open
@@ -740,7 +688,7 @@ function AcademyInner() {
                           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 20 }}>
                             {prog.curriculum.map((module: string, idx: number) => (
                               <div key={idx} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                <CheckCircle style={{ width: 11, height: 11, color: "#8A867C" }} />
+                                <CheckCircle style={{ width: 11, height: 11, color: muted }} />
                                 <span style={{ fontSize: 12, fontWeight: 300, color: muted }}>{module}</span>
                               </div>
                             ))}
@@ -773,7 +721,7 @@ function AcademyInner() {
                                 initial={{ width: 0 }}
                                 animate={{ width: `${pct}%` }}
                                 transition={{ duration: 0.8, delay: i * 0.07 + 0.4 }}
-                                style={{ height: "100%", borderRadius: 99, background: pct > 80 ? "#DC2626" : ink }}
+                                style={{ height: "100%", borderRadius: 99, background: pct > 80 ? red : ink }}
                               />
                             </div>
                           </div>
@@ -829,6 +777,85 @@ function AcademyInner() {
 
           </motion.div>
         </AnimatePresence>}
+          </div>
+
+          {/* ── Recommended for you (right column) ─────────────────────── */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.06 }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+              <h2 style={{ fontSize: 14, fontWeight: 600, color: ink }}>Recommended for you</h2>
+              {focusDim && (
+                <span style={{
+                  fontSize: 10, fontWeight: 600, padding: "2px 9px", borderRadius: 999,
+                  background: alpha(indigo, 0.1), color: indigo, border: `1px solid ${alpha(indigo, 0.3)}`,
+                  textTransform: "capitalize",
+                }}>
+                  Focus: {focusDim}
+                </span>
+              )}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              {RECOMMENDED.map((r, i) => {
+                const topicStyle = TOPIC_COLORS[r.topic] ?? { bg: surf, text: muted };
+                return (
+                  <motion.div
+                    key={r.title}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.07 }}
+                    style={{
+                      background: bg, border: `1px solid ${bdr}`, borderRadius: 14,
+                      padding: "18px 20px", position: "relative",
+                    }}
+                  >
+                    <span style={{
+                      position: "absolute", top: 14, right: 14,
+                      fontSize: 9, fontWeight: 700, padding: "2px 8px", borderRadius: 999,
+                      background: alpha(indigo, 0.1), color: indigo,
+                      letterSpacing: "0.08em", textTransform: "uppercase",
+                    }}>
+                      Recommended
+                    </span>
+                    <span style={{
+                      fontSize: 10, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase",
+                      padding: "2px 8px", borderRadius: 999, display: "inline-block", marginBottom: 10,
+                      background: topicStyle.bg, color: topicStyle.text,
+                    }}>
+                      {r.topic.replace("-", " ")}
+                    </span>
+                    <h3 style={{ fontSize: 14, fontWeight: 500, color: ink, marginBottom: 8, lineHeight: 1.4 }}>
+                      {r.title}
+                    </h3>
+                    <p style={{ fontSize: 12, color: muted, lineHeight: 1.6, marginBottom: 14 }}>
+                      {r.summary}
+                    </p>
+                    <Link
+                      href={`/founder/executive`}
+                      style={{
+                        display: "inline-flex", alignItems: "center", gap: 6,
+                        fontSize: 12, fontWeight: 600, color: blue, textDecoration: "none",
+                      }}
+                    >
+                      <Brain style={{ width: 12, height: 12 }} />
+                      Work on this with AI →
+                    </Link>
+                  </motion.div>
+                );
+              })}
+            </div>
+          </motion.div>
+
+        </div>
+
+        {/* Stack to one column on narrower viewports — same pattern as the dashboard grids. */}
+        <style>{`
+          @media (max-width: 900px) {
+            .academy-main-grid { grid-template-columns: 1fr !important; }
+          }
+        `}</style>
       </PageContainer>
 
       {/* ── Toast ─────────────────────────────────────────────────────── */}
@@ -859,8 +886,8 @@ function AcademyInner() {
 export default function Academy() {
   return (
     <Suspense fallback={
-      <div style={{ minHeight: "100vh", background: "#F9F7F2", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <p style={{ fontSize: 13, color: "#8A867C", fontFamily: "system-ui, sans-serif" }}>Loading Academy…</p>
+      <div style={{ minHeight: "100vh", background: bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <p style={{ fontSize: 13, color: muted, fontFamily: "system-ui, sans-serif" }}>Loading Academy…</p>
       </div>
     }>
       <AcademyInner />

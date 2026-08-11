@@ -56,7 +56,7 @@ export function buildMemoHtml(
       </div>
       <span style="font-size:13px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase">Edge Alpha</span>
     </div>
-    <span style="font-size:10px;color:rgba(250,248,243,0.5);letter-spacing:0.08em">IQ SCORE MEMO</span>
+    <span style="font-size:10px;color:rgba(250,248,243,0.5);letter-spacing:0.08em">Q-SCORE MEMO</span>
   </div>
 
   <!-- Document header -->

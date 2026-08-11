@@ -14,19 +14,23 @@ export type DimensionTuple = [DimensionId, DimensionPoint]
 
 export interface IqParam { id: string; averageScore: number }
 
-/** Keyed exactly as realQScore.breakdown is shaped (the pre-IQv2 legacy score object). */
+/** Keyed exactly as realQScore.breakdown is shaped (app/api/qscore/latest/route.ts). weight is
+ *  the founder's real sector×stage-blended weight for that parameter (0-1 fraction). */
 export interface LegacyBreakdown {
-  market?:     { score?: number; change?: number; trend?: string }
-  goToMarket?: { score?: number; change?: number; trend?: string }
-  product?:    { score?: number; change?: number; trend?: string }
-  team?:       { score?: number; change?: number; trend?: string }
-  traction?:   { score?: number; change?: number; trend?: string }
-  financial?:  { score?: number; change?: number; trend?: string }
+  marketReadiness?:  { score?: number; change?: number; trend?: string; weight?: number }
+  marketPotential?:  { score?: number; change?: number; trend?: string; weight?: number }
+  ipDefensibility?:  { score?: number; change?: number; trend?: string; weight?: number }
+  founderTeam?:      { score?: number; change?: number; trend?: string; weight?: number }
+  structuralImpact?: { score?: number; change?: number; trend?: string; weight?: number }
+  financials?:       { score?: number; change?: number; trend?: string; weight?: number }
 }
 
-/** Which legacy breakdown key each P-id reads from. */
-const LEGACY_KEY_FOR: Record<DimensionId, keyof LegacyBreakdown> = {
-  p1: 'market', p2: 'goToMarket', p3: 'product', p4: 'team', p5: 'traction', p6: 'financial',
+/** Which legacy breakdown key each P-id reads from. Exported so any consumer reading a field
+ *  other than score/change/trend off realQScore.breakdown (e.g. weight) can address the right
+ *  key without keeping its own copy of this mapping. */
+export const LEGACY_KEY_FOR: Record<DimensionId, keyof LegacyBreakdown> = {
+  p1: 'marketReadiness', p2: 'marketPotential', p3: 'ipDefensibility',
+  p4: 'founderTeam', p5: 'structuralImpact', p6: 'financials',
 }
 
 const ALL_DIMENSION_IDS: readonly DimensionId[] = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6']

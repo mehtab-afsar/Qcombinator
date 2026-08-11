@@ -25,6 +25,14 @@ jest.mock('next/server', () => {
 const mockFetch = jest.fn().mockResolvedValue({ ok: true })
 global.fetch = mockFetch as unknown as typeof fetch
 
+// PRD 2 Stage 2 Part B — the route creates one delta writer per step and must always clear it,
+// success or failure. Mocked so these tests observe threading/cleanup without touching real
+// Supabase writes (already covered by rhythm-streaming.test.ts).
+const mockOnDelta = jest.fn()
+const mockFinish = jest.fn().mockResolvedValue(undefined)
+const mockCreateDeltaWriter = jest.fn((..._args: unknown[]) => ({ onDelta: mockOnDelta, finish: mockFinish }))
+jest.mock('@/lib/rhythm/streaming', () => ({ createDeltaWriter: (...args: unknown[]) => mockCreateDeltaWriter(...args) }))
+
 import { POST } from '@/app/api/rhythm/step/route'
 
 const RUN_ID = '11111111-1111-4111-8111-111111111111'
@@ -108,5 +116,28 @@ describe('POST /api/rhythm/step — advancing and self-chaining', () => {
 
     expect(res.status).toBe(400)
     expect(mockAfter).not.toHaveBeenCalled()
+  })
+})
+
+describe('POST /api/rhythm/step — PRD 2 Stage 2 Part B (live text for ActivationScreen)', () => {
+  it('threads a delta writer\'s onDelta into runNextStep as the 3rd argument', async () => {
+    mockRunNextStep.mockResolvedValue({ done: false })
+    await POST(request({ runId: RUN_ID }, { 'x-run-secret': SECRET }) as never)
+
+    expect(mockCreateDeltaWriter).toHaveBeenCalledWith(expect.anything(), RUN_ID)
+    expect(mockRunNextStep).toHaveBeenCalledWith(expect.anything(), RUN_ID, mockOnDelta)
+  })
+
+  it('always clears the writer after a successful step — the next step must not inherit stale text', async () => {
+    mockRunNextStep.mockResolvedValue({ done: false })
+    await POST(request({ runId: RUN_ID }, { 'x-run-secret': SECRET }) as never)
+    expect(mockFinish).toHaveBeenCalledTimes(1)
+  })
+
+  it('still clears the writer when the step throws — a failed step must not leave stale live text behind', async () => {
+    const { RhythmError } = jest.requireActual('@/lib/rhythm/run')
+    mockRunNextStep.mockRejectedValue(new RhythmError('Run not found.'))
+    await POST(request({ runId: RUN_ID }, { 'x-run-secret': SECRET }) as never)
+    expect(mockFinish).toHaveBeenCalledTimes(1)
   })
 })

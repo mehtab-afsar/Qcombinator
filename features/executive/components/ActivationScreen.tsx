@@ -17,6 +17,15 @@
  * asset; now it just reads step.preview, the same field RhythmPanel reads, so both surfaces
  * are one source of truth, two presentations (CLAUDE.md "one of each").
  *
+ * PRD 2 Stage 2 Part B — the "Working on X…" line below now shows real live text, not just a
+ * spinner: the currently-generating step runs entirely server-to-server (this screen's own
+ * browser was never connected to it — see lib/rhythm/trigger.ts), so a Supabase Realtime
+ * subscription on this run's own row is what carries lib/rhythm/streaming.ts's batched writes
+ * here, the same postgres_changes pattern already used by useMessageThread.ts/useQScore.tsx,
+ * reused for UPDATE instead of INSERT. Degrades gracefully to the plain "Working…" line (as
+ * before) if Realtime is unavailable — this was always cosmetic, never load-bearing: the
+ * settled reveal above still lands from the ordinary poll either way.
+ *
  * Client boundary: same rule as RhythmPanel — fetches via /api/rhythm/run, never imports
  * lib/registry|rhythm directly.
  */
@@ -27,6 +36,8 @@ import { Check, Loader2, FileText, MessageSquare, Send } from 'lucide-react'
 import { bg, bdr, ink, muted, blue, green, surf } from '@/lib/constants/colors'
 import { FONT_SERIF } from '@/features/onboarding/theme'
 import { ease } from '@/features/shared/tokens'
+import { scopeStepsToExecutive } from '../lib/scope-progress'
+import { createClient } from '@/lib/supabase/client'
 
 type StepState = 'done' | 'active' | 'pending' | 'failed' | 'skipped'
 type StepKind = 'asset' | 'briefing' | 'action'
@@ -37,6 +48,10 @@ interface ProgressStep {
   state: StepState
   kind: StepKind
   preview: string | null
+  // Already on the wire (lib/rhythm/progress.ts) — RhythmPanel's identical-shaped type has
+  // always carried it. Added here so this screen can be scoped to one executive (below); its
+  // absence before now was an oversight, not a design choice.
+  executiveId: string | null
 }
 
 interface RunProgress {
@@ -60,9 +75,17 @@ function kindIcon(kind: StepKind) {
   return FileText
 }
 
-export function ActivationScreen({ onComplete }: { onComplete: () => void }) {
+export function ActivationScreen({
+  executiveId, onComplete,
+}: {
+  /** Scopes the reveal to one executive's steps — the per-executive cockpit page's usage.
+   *  Omitted on the CEO tab, where watching the WHOLE team assemble is the correct picture. */
+  executiveId?: string
+  onComplete: () => void
+}) {
   const [progress, setProgress] = useState<RunProgress | null>(null)
   const [revealedKeys, setRevealedKeys] = useState<string[]>([])
+  const [liveText, setLiveText] = useState('')
   const timer = useRef<ReturnType<typeof setInterval> | null>(null)
   const completedRef = useRef(false)
 
@@ -71,7 +94,10 @@ export function ActivationScreen({ onComplete }: { onComplete: () => void }) {
       const res = await fetch('/api/rhythm/run')
       if (!res.ok) return
       const data = await res.json()
-      const p: RunProgress | null = data.progress ?? null
+      const fetched: RunProgress | null = data.progress ?? null
+      const p: RunProgress | null = fetched && executiveId
+        ? { ...fetched, ...scopeStepsToExecutive(fetched.steps, executiveId) }
+        : fetched
       setProgress(p)
       if (!p) return
 
@@ -88,7 +114,7 @@ export function ActivationScreen({ onComplete }: { onComplete: () => void }) {
     } catch {
       /* transient — the next poll retries */
     }
-  }, [onComplete])
+  }, [onComplete, executiveId])
 
   useEffect(() => { void load() }, [load])
 
@@ -97,6 +123,36 @@ export function ActivationScreen({ onComplete }: { onComplete: () => void }) {
     timer.current = setInterval(() => { void load() }, POLL_MS)
     return () => { if (timer.current) clearInterval(timer.current) }
   }, [load, progress?.status])
+
+  // PRD 2 Stage 2 Part B — subscribe to THIS run's own row for live text while it's actively
+  // generating. Re-subscribes if the run id ever changes (it won't mid-activation, but this
+  // keys correctly regardless); cleans up on unmount same as useMessageThread.ts.
+  const runId = progress?.runId ?? null
+  useEffect(() => {
+    setLiveText('')
+    if (!runId) return
+    let supabase: ReturnType<typeof createClient>
+    let channel: ReturnType<ReturnType<typeof createClient>['channel']>
+    try {
+      supabase = createClient()
+      channel = supabase
+        .channel(`operating_rhythm_runs:${runId}`)
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'operating_rhythm_runs', filter: `id=eq.${runId}` },
+          payload => {
+            const text = (payload.new as { streaming_text: string | null }).streaming_text
+            setLiveText(text ?? '')
+          },
+        )
+        .subscribe()
+    } catch {
+      /* Realtime unavailable — the settled reveal above still lands from the ordinary poll */
+    }
+    return () => {
+      try { if (channel) supabase.removeChannel(channel) } catch { /* ignore */ }
+    }
+  }, [runId])
 
   const done = progress?.done ?? 0
   const total = progress?.total ?? 0
@@ -155,12 +211,24 @@ export function ActivationScreen({ onComplete }: { onComplete: () => void }) {
         {progress?.status === 'running' && (
           <div style={{
             background: surf, border: `1px dashed ${bdr}`, borderRadius: 12,
-            padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 10,
+            padding: '14px 18px', display: 'flex', alignItems: 'flex-start', gap: 10,
           }}>
-            <Loader2 size={15} color={blue} style={{ animation: 'spin 1s linear infinite' }} />
-            <span style={{ color: muted, fontSize: 13 }}>
-              {progress.currentLabel ?? 'Working…'}
-            </span>
+            <Loader2 size={15} color={blue} style={{ marginTop: 2, flexShrink: 0, animation: 'spin 1s linear infinite' }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ color: muted, fontSize: 13 }}>
+                {progress.currentLabel ?? 'Working…'}
+              </span>
+              {liveText && (
+                // Real live text (PRD 2 Stage 2 Part B) — not the settled preview above, which
+                // only appears once a step lands; this is the same document, mid-generation.
+                <p style={{
+                  color: ink, fontSize: 13, marginTop: 6, lineHeight: 1.6, whiteSpace: 'pre-wrap',
+                  maxHeight: 90, overflow: 'hidden',
+                }}>
+                  {liveText}
+                </p>
+              )}
+            </div>
           </div>
         )}
       </div>

@@ -17,7 +17,7 @@ jest.mock('@/lib/connectors/registry', () => ({ getConnector: jest.fn() }))
 // The vault holds a REFRESH token; resolveGrant exchanges it for a short-lived access token on
 // every resolve. Mocking the vault alone is what let the 401 reach production — these tests must
 // distinguish the two credentials, not treat them as one string.
-jest.mock('@/lib/connectors/oauth', () => ({
+jest.mock('@/lib/connectors/gmail/send-oauth', () => ({
   refreshAccessToken: jest.fn(async (refresh: string) => {
     if (refresh !== 'ya29.TOKEN') throw new Error('google refused the refresh')
     return { accessToken: 'access.MINTED', expiresAt: null }
@@ -25,12 +25,12 @@ jest.mock('@/lib/connectors/oauth', () => ({
 }))
 // Slack bot tokens don't refresh — mocked separately so the "which provider's dispatch actually
 // ran" regression test below can tell the two apart.
-jest.mock('@/lib/connectors/slack-oauth', () => ({
+jest.mock('@/lib/connectors/slack/oauth', () => ({
   mintAccessToken: jest.fn(async (stored: string) => ({ accessToken: `slack.${stored}`, expiresAt: null })),
 }))
 // gmail_read is a THIRD provider sharing Google's refresh mechanics conceptually but dispatched
 // through its own module — mocked separately for the same reason slack-oauth is.
-jest.mock('@/lib/connectors/gmail-read-oauth', () => ({
+jest.mock('@/lib/connectors/gmail/read-oauth', () => ({
   mintAccessToken: jest.fn(async (stored: string) => ({ accessToken: `gmailread.${stored}`, expiresAt: null })),
 }))
 
@@ -39,9 +39,9 @@ import { recordGrant, resolveGrant, revokeGrant } from '@/lib/connectors/grants'
 import { storeSecret, resolveSecret, deleteSecret } from '@/lib/connectors/vault'
 import { getConnector } from '@/lib/connectors/registry'
 import { ConnectorError } from '@/lib/connectors/types'
-import { refreshAccessToken } from '@/lib/connectors/oauth'
-import { mintAccessToken as slackMintAccessToken } from '@/lib/connectors/slack-oauth'
-import { mintAccessToken as gmailReadMintAccessToken } from '@/lib/connectors/gmail-read-oauth'
+import { refreshAccessToken } from '@/lib/connectors/gmail/send-oauth'
+import { mintAccessToken as slackMintAccessToken } from '@/lib/connectors/slack/oauth'
+import { mintAccessToken as gmailReadMintAccessToken } from '@/lib/connectors/gmail/read-oauth'
 
 const m = (fn: unknown) => fn as jest.Mock
 const calls: string[] = []

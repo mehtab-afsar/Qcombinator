@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { CheckCircle, Loader2, ArrowRight, BarChart2, Users, Search } from "lucide-react";
+import { BrandMark } from "@/features/shared/components/BrandMark";
 
 const C = {
   bg:    "#F9F7F2",
@@ -75,9 +76,7 @@ function InvestorJoinContent() {
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "24px 16px" }}>
 
       <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} style={{ marginBottom: 40, display: "flex", alignItems: "center", gap: 10 }}>
-        <div style={{ width: 36, height: 36, borderRadius: 10, background: C.blue, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <span style={{ fontSize: 18, fontWeight: 800, color: "white", fontFamily: "monospace" }}>E</span>
-        </div>
+        <BrandMark size={36} color={C.ink} />
         <span style={{ fontSize: 20, fontWeight: 700, color: C.ink }}>Edge Alpha</span>
       </motion.div>
 

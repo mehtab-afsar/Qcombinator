@@ -1,0 +1,11 @@
+{
+  "client_name": "Edge Alpha",
+  "redirect_uris": [
+    "https://www.edgealpha.vc/api/connectors/posthog/callback",
+    "http://localhost:3000/api/connectors/posthog/callback"
+  ],
+  "logo_uri": "https://www.edgealpha.vc/icon.svg",
+  "token_endpoint_auth_method": "none",
+  "grant_types": ["authorization_code", "refresh_token"],
+  "response_types": ["code"]
+}

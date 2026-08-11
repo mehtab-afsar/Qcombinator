@@ -29,6 +29,14 @@ jest.mock('@/lib/briefings/briefings', () => {
   return { ...actual, getBriefings: (...args: unknown[]) => mockGetBriefings(...args) }
 })
 
+// Team Management, Phase 2: the route resolves the team's shared anchor founder_id before
+// reading anything. Mocked to resolve to the caller's own id — these tests are all
+// single-founder scenarios (no team involved), so anchorId === auth.user.id here.
+const mockGetAnchorFounderId = jest.fn()
+jest.mock('@/lib/team/founder-permissions', () => ({
+  getAnchorFounderId: (...args: unknown[]) => mockGetAnchorFounderId(...args),
+}))
+
 const mockRoutedText = jest.fn()
 jest.mock('@/lib/llm/router', () => ({ routedText: (...args: unknown[]) => mockRoutedText(...args) }))
 
@@ -57,6 +65,7 @@ function call(body: unknown) {
 beforeEach(() => {
   jest.clearAllMocks()
   mockVerifyAuth.mockResolvedValue({ ok: true, user: USER })
+  mockGetAnchorFounderId.mockResolvedValue(USER.id)
   mockGetCurrentContract.mockResolvedValue({ id: 'c1', status: 'confirmed' })
   mockGetProgramsForContract.mockResolvedValue([OWNED_PROGRAM])
   mockGetActivityForExecutive.mockResolvedValue([])

@@ -4,8 +4,9 @@ import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { CheckCircle, Loader2, ArrowRight, Building2, Users, TrendingUp, Star, UserPlus } from "lucide-react";
-import { bg, surf, bdr, ink, muted, blue, green, purple } from "@/lib/constants/colors";
+import { CheckCircle, Loader2, ArrowRight, Building2, Users, TrendingUp, Star, UserPlus, AlertTriangle } from "lucide-react";
+import { bg, surf, bdr, ink, muted, blue, green, purple, red, alpha } from "@/lib/constants/colors";
+import { BrandMark } from "@/features/shared/components/BrandMark";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -112,9 +113,7 @@ function JoinContent() {
 
       {/* Logo */}
       <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} style={{ marginBottom: 40, display: "flex", alignItems: "center", gap: 10 }}>
-        <div style={{ width: 36, height: 36, borderRadius: 10, background: blue, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <span style={{ fontSize: 18, fontWeight: 800, color: "white", fontFamily: "monospace" }}>E</span>
-        </div>
+        <BrandMark size={36} />
         <span style={{ fontSize: 20, fontWeight: 700, color: ink }}>Edge Alpha</span>
       </motion.div>
 
@@ -130,8 +129,8 @@ function JoinContent() {
 
         ) : error ? (
           <div style={{ padding: "48px 32px", textAlign: "center" }}>
-            <div style={{ width: 48, height: 48, borderRadius: 999, background: "#FEF2F2", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-              <span style={{ fontSize: 22 }}>⚠️</span>
+            <div style={{ width: 48, height: 48, borderRadius: 999, background: alpha(red, 0.1), display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+              <AlertTriangle size={22} color={red} />
             </div>
             <p style={{ fontSize: 17, fontWeight: 700, color: ink, marginBottom: 8 }}>Invalid Invite</p>
             <p style={{ fontSize: 14, color: muted, marginBottom: 24 }}>{error}</p>

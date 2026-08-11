@@ -76,6 +76,15 @@ export interface Connector {
   reconcile(grant: ResolvedGrant, idempotencyKey: string): Promise<boolean | null>
   /** Tell the provider to forget us. Called BEFORE the local grant is marked revoked. */
   revoke(grant: ResolvedGrant): Promise<void>
+  /**
+   * Optional — most connectors don't implement this. Called once, best-effort, right after a
+   * NEW grant is recorded (never on every resolve). For a connector whose whole point is a
+   * one-time or periodic sync rather than an approval-gated send (Stripe: pull revenue metrics
+   * the moment access is granted), this is the generic hook that avoids a per-provider branch in
+   * the callback route — the route calls it the same way for every provider; connectors that
+   * don't need it simply don't define it.
+   */
+  onConnected?(grant: ResolvedGrant): Promise<void>
 }
 
 export class ConnectorError extends Error {

@@ -4,6 +4,7 @@ import { TargetDoodle } from '@/features/onboarding/components/doodles/TargetDoo
 import { CompassDoodle } from '@/features/onboarding/components/doodles/CompassDoodle'
 import { IdCardDoodle } from '@/features/onboarding/components/doodles/IdCardDoodle'
 import { SunDoodle } from '@/features/onboarding/components/doodles/SunDoodle'
+import { ScoutDoodle } from '@/features/onboarding/components/doodles/ScoutDoodle'
 
 export const MISSING_FIELD_LABELS: Record<string, string> = {
   customerCommitment: 'customer commitments (LOIs, pilots)',
@@ -87,6 +88,24 @@ export const UPLOAD_DOODLES = [
   ChartDoodle,    // Building financial picture
   TargetDoodle,   // Scoring your indicators
   SunDoodle,      // Almost done
+]
+
+// ── Q-Score calculation loading messages — rotate every 2.2s while final scoring is in
+// progress (submit route: indicator scoring → percentile benchmarking → AI reconciliation
+// → finalize). Mirrors UPLOAD_MESSAGES' pattern/timing so the two "big moment" loaders feel
+// like the same system.
+export const QSCORE_MESSAGES = [
+  'Scoring your indicators…',
+  'Running peer benchmarks…',
+  'Reconciling with AI…',
+  'Finalizing your Q-Score…',
+]
+
+export const QSCORE_DOODLES = [
+  ChartDoodle,   // Scoring your indicators
+  TargetDoodle,  // Running peer benchmarks
+  ScoutDoodle,   // Reconciling with AI
+  SunDoodle,     // Finalizing your Q-Score
 ]
 
 export const MAX_UPLOAD_FILES = 10

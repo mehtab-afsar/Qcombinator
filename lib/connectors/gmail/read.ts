@@ -29,8 +29,8 @@
  * genuinely can't be answered.
  */
 
-import { assertToolExists, connectAndCall, withTimeout, type McpToolResult } from './mcp/client'
-import type { Connector, ConnectorOutcome, ConnectorRequest, ResolvedGrant } from './types'
+import { assertToolExists, connectAndCall, withTimeout, type McpToolResult } from '../mcp/client'
+import type { Connector, ConnectorOutcome, ConnectorRequest, ResolvedGrant } from '../types'
 
 const GMAIL_MCP_URL = 'https://gmailmcp.googleapis.com/mcp/v1'
 const REVOKE_URL = 'https://oauth2.googleapis.com/revoke'

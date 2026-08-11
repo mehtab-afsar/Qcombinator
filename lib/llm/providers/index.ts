@@ -60,7 +60,10 @@ class FallbackProvider implements LLMProvider {
     maxTokens: number
     temperature: number
     tools?: ToolDefinition[]
-  }): AsyncGenerator<{ type: 'delta'; text: string } | { type: 'done'; toolCall: LLMChatResponse['toolCall'] }> {
+  }): AsyncGenerator<
+    | { type: 'delta'; text: string }
+    | { type: 'done'; toolCall: LLMChatResponse['toolCall']; stopReason?: string }
+  > {
     if (isCircuitOpen('anthropic')) {
       const groq = getGroq()
       if (groq) { yield* groq.stream(params); return }

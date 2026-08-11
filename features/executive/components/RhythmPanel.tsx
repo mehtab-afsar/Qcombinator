@@ -24,7 +24,9 @@ import { ease } from '@/features/shared/tokens'
 import { FONT_SERIF } from '@/features/onboarding/theme'
 import { SectionCard } from '@/features/shared/components/SectionCard'
 import { Button } from '@/features/shared/components/Button'
-import { scopeStepsToExecutive } from '../lib/scope-progress'
+import { scopeStepsToExecutive, documentProgress } from '../lib/scope-progress'
+import { useStreamedRhythmStep } from '../hooks/useStreamedRhythmStep'
+import { POLL_MS, isCycleLive } from '../lib/useCycleLive'
 
 type StepState = 'done' | 'active' | 'pending' | 'failed' | 'skipped'
 type StepKind = 'asset' | 'briefing' | 'action'
@@ -74,9 +76,6 @@ interface RunSummary {
 /** Matches STEP_LIMIT_EXCEEDED in lib/rhythm/limits.ts — the circuit breaker's reason code. */
 const STEP_LIMIT_EXCEEDED = 'step_limit_exceeded'
 
-/** How often to re-read an in-flight cycle. A step is ~90s, so this is responsive but cheap. */
-const POLL_MS = 5_000
-
 /**
  * @param executiveId scope the step list (and its done/total counts) to one executive's steps —
  *   the detail page. "Run now" still starts the WHOLE weekly cycle regardless (there is no way to
@@ -88,8 +87,7 @@ export function RhythmPanel({ executiveId }: { executiveId?: string } = {}) {
   const [history, setHistory] = useState<RunSummary[]>([])
   const [historyOpen, setHistoryOpen] = useState(false)
   const [loaded, setLoaded] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const { streaming, liveText, error, run: runStreamedStep } = useStreamedRhythmStep()
   const timer = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const load = useCallback(async () => {
@@ -110,34 +108,19 @@ export function RhythmPanel({ executiveId }: { executiveId?: string } = {}) {
 
   // Poll only while a cycle is actually in flight, and always clear on unmount — an interval
   // that outlives its component is the timer-leak class already on the follow-up list.
-  const live = progress?.status === 'running' && !progress.stalled
+  const live = isCycleLive(progress)
   useEffect(() => {
     if (!live) return
     timer.current = setInterval(() => { void load() }, POLL_MS)
     return () => { if (timer.current) clearInterval(timer.current) }
   }, [live, load])
 
+  // PRD 2 Stage 2 Part A — streams step 1's asset content live via SSE (useStreamedRhythmStep);
+  // the hook owns its own busy/error state, including the 409/400 "already ran"/"no mandate"
+  // cases (real JSON, resolved before the stream opens — see the route's own comment).
   async function startCycle() {
-    setBusy(true)
-    setError(null)
-    try {
-      // The body must be valid JSON even though every field is optional — the route validates
-      // with Zod via parseBody, which rejects an empty body outright. Sending nothing here
-      // returned "Invalid or missing JSON body" and the button silently never worked.
-      const res = await fetch('/api/rhythm/run', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: '{}',
-      })
-      const data = await res.json()
-      // 409 = already ran this week (the idempotency guarantee), 400 = no confirmed mandate.
-      if (!res.ok) { setError(data.error ?? 'Could not start the cycle.'); return }
-      await load()
-    } catch {
-      setError('Could not reach the server. Try again.')
-    } finally {
-      setBusy(false)
-    }
+    const result = await runStreamedStep()
+    if (result) await load()
   }
 
   if (!loaded) return null // nothing to say yet; avoids a flash of the empty state
@@ -147,6 +130,11 @@ export function RhythmPanel({ executiveId }: { executiveId?: string } = {}) {
   const scoped = progress && executiveId
     ? { ...progress, ...scopeStepsToExecutive(progress.steps, executiveId) }
     : progress
+
+  // Documents (Assets + the Briefing), separate from Actions — Actions already have their own
+  // surface below (ActionsPanel). Without this, "This week's cycle" reads as "12 documents" when
+  // it's really 5 documents, 1 briefing, and 6 actions — see documentProgress's own docstring.
+  const docs = scoped ? documentProgress(scoped.steps) : null
 
   // FU-010: a run whose self-chain died server-side still has status:'running' — this button
   // used to hide (progress.status !== 'running') for exactly the case a founder most needs it,
@@ -159,19 +147,29 @@ export function RhythmPanel({ executiveId }: { executiveId?: string } = {}) {
       title="This week's cycle"
       style={{ background: alpha(amber, 0.04) }}
       action={(progress?.status !== 'running' || progress?.stalled) && (
-        <Button variant="secondary" size="sm" loading={busy} onClick={() => void startCycle()}>
+        <Button variant="secondary" size="sm" loading={streaming} onClick={() => void startCycle()}>
           {progress?.stalled ? 'Resume' : 'Run now'}
         </Button>
       )}
     >
       {error && <p style={{ color: red, fontSize: 13, marginTop: 10 }}>{error}</p>}
 
-      {!scoped && <Empty />}
-      {scoped && <StatusLine progress={scoped} />}
-      {scoped && (
-        <div style={{ marginTop: 14, display: 'grid', gap: 8 }}>
-          {scoped.steps.map(step => <StepRow key={step.key} step={step} />)}
-        </div>
+      {streaming ? (
+        // The founder's own click — the one request their browser is actually connected to
+        // (see judge.ts's onDelta comment). Stale progress from a prior run is hidden rather
+        // than shown alongside this, to avoid implying it's what's updating live; `load()`
+        // replaces this with the real, settled step list the moment the stream ends.
+        <StreamingRow text={liveText} />
+      ) : (
+        <>
+          {!scoped && <Empty />}
+          {scoped && docs && <StatusLine progress={scoped} docs={docs} />}
+          {docs && (
+            <div style={{ marginTop: 14, display: 'grid', gap: 8 }}>
+              {docs.steps.map(step => <StepRow key={step.key} step={step} />)}
+            </div>
+          )}
+        </>
       )}
 
       {/* F09 artifact organization — "Past cycles." Only appears once there IS a past to show;
@@ -214,9 +212,17 @@ function Empty() {
   )
 }
 
-/** The one-line headline: what's happening, or what happened. */
-function StatusLine({ progress }: { progress: RunProgress }) {
-  const { status, stalled, failureReason, done, total, currentLabel } = progress
+/**
+ * The one-line headline: what's happening, or what happened.
+ *
+ * Stalled/failed/circuit-breaker read from the WHOLE run (`progress`) — those are legitimately
+ * whole-cycle concerns (a stalled run needs "Resume" regardless of which stage it stalled in).
+ * The ordinary running/finished framing reads from `docs` (Assets + Briefing only) instead — see
+ * documentProgress's docstring for why: a founder's "documents" is 5-6 things, not 12, and
+ * Actions already narrate themselves via ActionsPanel below.
+ */
+function StatusLine({ progress, docs }: { progress: RunProgress; docs: ReturnType<typeof documentProgress> }) {
+  const { status, stalled, failureReason, done, total } = progress
 
   if (failureReason === STEP_LIMIT_EXCEEDED) {
     // A tripped run's steps are left exactly as they were, so without this it would read as an
@@ -237,13 +243,6 @@ function StatusLine({ progress }: { progress: RunProgress }) {
       </Line>
     )
   }
-  if (status === 'running') {
-    return (
-      <Line color={blue}>
-        {currentLabel ? `Working on ${currentLabel}…` : 'Working…'} ({done} of {total})
-      </Line>
-    )
-  }
   if (status === 'failed') {
     return (
       <Line color={red}>
@@ -252,9 +251,19 @@ function StatusLine({ progress }: { progress: RunProgress }) {
       </Line>
     )
   }
+  if (status === 'running' && !docs.finished) {
+    return (
+      <Line color={blue}>
+        {docs.currentLabel ? `Working on ${docs.currentLabel}…` : 'Working…'} ({docs.done} of {docs.total})
+      </Line>
+    )
+  }
+  // Reads as "finished" the moment every document + the briefing are done — even if the run is
+  // still `running` because Actions are still being decided behind the scenes (that's their own
+  // story, told by ActionsPanel, not this line).
   return (
     <Line color={green}>
-      Finished — {done} of {total} steps. Your briefing is below.
+      Finished — {docs.done} of {docs.total} documents ready. Your briefing is below.
     </Line>
   )
 }
@@ -273,13 +282,23 @@ function Line({ color, children }: { color: string; children: React.ReactNode })
 function StepRow({ step }: { step: ProgressStep }) {
   const { icon, color, note } = stepLook(step.state)
   const KindIcon = kindIcon(step.kind)
+  const isActive = step.state === 'active'
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 14 }}>
+    <div
+      style={{
+        display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 14,
+        // A little more present than a 15px spinner alone — this is the "your team is working
+        // on this right now" row, deliberately still lighter than ActivationScreen's cards
+        // (that's the first-time ceremony; this is the ambient, ongoing view).
+        background: isActive ? alpha(blue, 0.05) : 'transparent',
+        borderRadius: 8, padding: isActive ? '6px 8px' : 0, margin: isActive ? '-6px -8px' : 0,
+      }}
+    >
       <span style={{ display: 'flex', width: 16, marginTop: 2, flexShrink: 0 }}>{icon}</span>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <KindIcon size={12} color={muted} style={{ flexShrink: 0 }} />
-          <span style={{ color: step.state === 'pending' ? muted : ink, flex: 1 }}>{step.label}</span>
+          <span style={{ color: step.state === 'pending' ? muted : ink, fontWeight: isActive ? 600 : 400, flex: 1 }}>{step.label}</span>
           {note && <span style={{ color, fontSize: 12, flexShrink: 0 }}>{note}</span>}
         </div>
         {step.preview && (
@@ -300,6 +319,35 @@ function StepRow({ step }: { step: ProgressStep }) {
             {step.preview}
           </motion.p>
         )}
+      </div>
+    </div>
+  )
+}
+
+/** PRD 2 Stage 2 Part A — the live-generation row. Same visual language as StepRow's 'active'
+ *  tint (a calmer, ongoing look, not ActivationScreen's first-time ceremony) rather than a new
+ *  loading pattern. */
+function StreamingRow({ text }: { text: string }) {
+  return (
+    <div
+      style={{
+        display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 14, marginTop: 14,
+        background: alpha(blue, 0.05), borderRadius: 8, padding: '8px 10px',
+      }}
+    >
+      <span style={{ display: 'flex', width: 16, marginTop: 2, flexShrink: 0 }}>
+        <Loader2 size={15} color={blue} style={{ animation: 'spin 1s linear infinite' }} />
+      </span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <span style={{ color: ink, fontWeight: 600 }}>Writing…</span>
+        <p
+          style={{
+            color: muted, fontSize: 12, margin: '4px 0 0', lineHeight: 1.5,
+            whiteSpace: 'pre-wrap', maxHeight: 160, overflowY: 'auto',
+          }}
+        >
+          {text || 'Starting…'}
+        </p>
       </div>
     </div>
   )

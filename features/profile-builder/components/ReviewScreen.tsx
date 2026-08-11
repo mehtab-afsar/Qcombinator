@@ -1,10 +1,10 @@
 "use client";
 
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check } from 'lucide-react';
 import { bg, surf, bdr, ink, muted, blue, green, amber, red, white } from '@/lib/constants/colors';
-import { ScoutDoodle } from '@/features/onboarding/components/doodles/ScoutDoodle';
-import { SECTION_LABELS, surf2, greenBadgeBg, amberTintBg, amberTintText, redTintBg, redTintBorder } from '@/features/profile-builder/lib/constants';
+import { SECTION_LABELS, surf2, greenBadgeBg, amberTintBg, amberTintText, redTintBg, redTintBorder, QSCORE_MESSAGES, QSCORE_DOODLES } from '@/features/profile-builder/lib/constants';
 import { ScoreReport } from '@/features/profile-builder/components/ScoreReport';
 import type { SectionState, SubmitResult, FlowMode, UploadedFile } from '@/features/profile-builder/types';
 import type { FounderProfile } from '@/lib/profile-builder/question-engine';
@@ -32,6 +32,17 @@ export function ReviewScreen({
   rateLimitUntil, retakeLoading, founderProfile, onSubmit, onRetake, onSectionSelect, onUploadMore, onBack,
 }: ReviewScreenProps) {
   const router = useRouter();
+
+  // Rotates every 2.2s while the final Q-Score calculation is in progress — same
+  // pattern/timing as UploadStep's loading card.
+  const [qScoreMsgIdx, setQScoreMsgIdx] = useState(0);
+  useEffect(() => {
+    if (!isSubmitting) { setQScoreMsgIdx(0); return; }
+    const timer = setInterval(() => setQScoreMsgIdx(i => (i + 1) % QSCORE_MESSAGES.length), 2200);
+    return () => clearInterval(timer);
+  }, [isSubmitting]);
+  const QScoreDoodle = QSCORE_DOODLES[qScoreMsgIdx];
+
   const completedCount = ['1', '2', '3', '4', '5'].filter(k => sections[k]?.isComplete).length;
   // Fast mode (doc upload): allow submit when any section has ≥30% data — matches API gate.
   // Deliberately only sections 1-5, not 'pitch': saveSection() never persists the pitch
@@ -52,24 +63,39 @@ export function ReviewScreen({
           retakeLoading={retakeLoading}
           onRetake={onRetake}
         />
+      ) : isSubmitting ? (
+        <div style={{
+          borderRadius: 20, padding: '56px 32px', background: surf,
+          border: `1px solid ${bdr}`, textAlign: 'center',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20,
+        }}>
+          {/* Hand-drawn doodle — re-draws on each phase (keyed by message index) */}
+          <div style={{ width: 96, height: 96 }}>
+            <QScoreDoodle key={qScoreMsgIdx} color={blue} />
+          </div>
+          {/* Rotating message */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'center' }}>
+            <div style={{ fontSize: 17, fontWeight: 700, color: ink, letterSpacing: '-0.01em', minHeight: 26 }}>
+              {QSCORE_MESSAGES[qScoreMsgIdx]}
+            </div>
+            <div style={{ fontSize: 13, color: muted }}>
+              Calculating your Q-Score — this takes a few seconds
+            </div>
+          </div>
+          {/* Indicator dots */}
+          <div style={{ display: 'flex', gap: 8 }}>
+            {QSCORE_MESSAGES.map((_, i) => (
+              <div key={i} style={{
+                width: 6, height: 6, borderRadius: '50%',
+                background: i === qScoreMsgIdx ? blue : bdr,
+                transition: 'background 0.4s',
+              }} />
+            ))}
+          </div>
+        </div>
       ) : (
         <>
-          {flowMode === 'fast' && isSubmitting ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', marginBottom: 4, borderRadius: 10, background: surf, border: `1px solid ${bdr}` }}>
-              <div style={{ width: 44, height: 44, flexShrink: 0 }}>
-                <ScoutDoodle color={blue} active />
-              </div>
-              <div style={{ textAlign: 'left' }}>
-                <h2 style={{ fontSize: 15, fontWeight: 700, color: ink, margin: '0 0 2px', letterSpacing: '-0.01em' }}>
-                  Calculating your Q-Score…
-                </h2>
-                <p style={{ fontSize: 12.5, color: muted, margin: 0, lineHeight: 1.4 }}>
-                  Scoring all parameters, running benchmarks and AI reconciliation.
-                </p>
-              </div>
-            </div>
-          ) : null}
-          <div style={{ textAlign: 'center', display: flowMode === 'fast' && isSubmitting ? 'none' : undefined }}>
+          <div style={{ textAlign: 'center' }}>
             <h2 style={{ fontSize: 24, fontWeight: 700, color: ink, margin: '0 0 8px', letterSpacing: '-0.02em' }}>
               {flowMode === 'fast' ? 'Your partial Q-Score' : 'Review & Submit'}
             </h2>

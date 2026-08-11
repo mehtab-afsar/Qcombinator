@@ -22,6 +22,7 @@ import {
   Share2,
   Link2,
   Check,
+  AlertTriangle,
 } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/features/auth/hooks/useAuth";
@@ -35,8 +36,8 @@ import { ShareQScoreModal } from "@/components/ui/ShareQScoreModal";
 import { UpgradeModal } from "@/components/ui/UpgradeModal";
 import { getUpcomingWorkshops } from "@/features/academy/data/workshops";
 import { bg, surf, bdr, ink, muted, blue, green, amber, red, purple, cyan, alpha } from '@/lib/constants/colors'
-import { DIM_COLORS, DIM_LABELS } from '@/features/qscore/constants/dimensions'
-import { resolveDimensions, type DimensionTuple, type IqParam } from '@/features/qscore/utils/resolveDimensions'
+import { DIM_COLORS, DIM_LABELS, DIM_AGENTS } from '@/features/qscore/constants/dimensions'
+import { resolveDimensions, findDimension, LEGACY_KEY_FOR, type DimensionTuple, type IqParam, type DimensionId } from '@/features/qscore/utils/resolveDimensions'
 import { PageSpinner } from '@/features/shared/components/Spinner'
 import { PageContainer } from '@/features/shared/components/PageContainer'
 import { SectionCard } from '@/features/shared/components/SectionCard'
@@ -69,34 +70,33 @@ const DIMENSION_META: Record<string, { label: string; weight: number }> = {
 };
 
 // ─── dimension inline panel data ──────────────────────────────────────────────
+// Keyed by the real P1-P6 ids (matching effectiveSortedDims) — this used to be keyed by the
+// pre-refactor legacy names (market/product/goToMarket/...), which no lookup here ever used,
+// so every "how to improve" bullet and boost badge silently rendered as an empty list for
+// every founder. Same failure shape as the resolveDimensions bug fixed earlier — a rename that
+// didn't propagate to every table keyed the old way.
 const DIM_ISSUES: Record<string, string[]> = {
-  market:     ["TAM needs clearer validation", "LTV:CAC ratio below 3:1"],
-  product:    ["Customer conversation count below 30", "Failed assumption documentation missing"],
-  goToMarket: ["ICP definition needs specificity", "Channel testing breadth low"],
-  financial:  ["Runway below 12 months", "Gross margin not documented"],
-  team:       ["Team completeness: consider co-founder", "Domain expertise narrative weak"],
-  traction:   ["Revenue or LOI commitments not documented", "Customer commitment level low"],
+  p1: ["Customer validation is thin — few real conversations logged", "ICP definition lacks specificity"],
+  p2: ["TAM/SAM/SOM not documented with real numbers", "Market timing ('why now') isn't argued yet"],
+  p3: ["No documented moat — unclear why this can't be copied", "Technical depth or build complexity not explained"],
+  p4: ["Team completeness gap — consider a co-founder or key hire", "Founder-market fit narrative is weak"],
+  p5: ["Unit economics of a single customer win aren't mapped", "Retention or network-effect story isn't told"],
+  p6: ["Runway below 12 months", "LTV:CAC ratio not verified"],
 };
 
 const DIM_BOOSTS: Record<string, { agent: string; artifact: string; pts: number }[]> = {
-  market:     [{ agent: "atlas",  artifact: "competitive_matrix", pts: 5 }, { agent: "patel",  artifact: "battle_card",    pts: 4 }],
-  product:    [{ agent: "nova",   artifact: "pmf_survey",         pts: 5 }, { agent: "nova",   artifact: "interview_notes", pts: 3 }],
-  goToMarket: [{ agent: "patel",  artifact: "gtm_playbook",       pts: 6 }, { agent: "patel",  artifact: "icp_document",   pts: 5 }],
-  financial:  [{ agent: "felix",  artifact: "financial_summary",  pts: 6 }, { agent: "leo",    artifact: "legal_checklist", pts: 3 }],
-  team:       [{ agent: "harper", artifact: "hiring_plan",        pts: 5 }, { agent: "sage",   artifact: "strategic_plan", pts: 4 }],
-  traction:   [{ agent: "susi",   artifact: "outreach_sequence",  pts: 4 }, { agent: "susi",   artifact: "sales_script",   pts: 4 }],
+  p1: [{ agent: "patel",  artifact: "gtm_playbook",      pts: 6 }, { agent: "patel", artifact: "icp_document", pts: 5 }],
+  p2: [{ agent: "atlas",  artifact: "competitive_matrix", pts: 5 }],
+  p3: [{ agent: "leo",    artifact: "legal_checklist",    pts: 5 }],
+  p4: [{ agent: "harper", artifact: "hiring_plan",        pts: 5 }],
+  p5: [{ agent: "sage",   artifact: "strategic_plan",     pts: 4 }],
+  p6: [{ agent: "felix",  artifact: "financial_summary",  pts: 6 }],
 };
 
-// Maps each Q-Score v2 parameter (and legacy dimension) to the best agent to challenge it
-const DIMENSION_AGENT: Record<string, { agentId: string; agentName: string; label: string }> = {
-  // IQ v2 P1–P6
-  p1:         { agentId: "patel",  agentName: "Patel",  label: "GTM Playbook"         },
-  p2:         { agentId: "atlas",  agentName: "Atlas",  label: "Competitive Analysis" },
-  p3:         { agentId: "leo",    agentName: "Leo",    label: "Legal Checklist"      },
-  p4:         { agentId: "harper", agentName: "Harper", label: "Hiring Plan"          },
-  p5:         { agentId: "sage",   agentName: "Sage",   label: "Strategic Plan"       },
-  p6:         { agentId: "felix",  agentName: "Felix",  label: "Financial Summary"    },
-};
+// Maps each Q-Score v2 parameter to the best agent to challenge it — single source of truth,
+// features/qscore/constants/dimensions.ts (also used by /api/qscore/priority, which used to
+// keep its own drifted copy).
+const DIMENSION_AGENT = DIM_AGENTS;
 
 // Behavior-centric framing for each Q-Score dimension.
 // The challenge is the behavior, the agent is the helper — not the deliverable generator.
@@ -252,8 +252,8 @@ function ScoreChart({ points }: { points: ScorePoint[] }) {
           </button>
         ))}
         {agentBoosts > 0 && (
-          <span style={{ fontSize: 10, color: blue, marginLeft: 6, fontWeight: 600 }}>
-            ⚡ {agentBoosts} agent boost{agentBoosts > 1 ? "s" : ""}
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, color: blue, marginLeft: 6, fontWeight: 600 }}>
+            <Zap size={10} /> {agentBoosts} agent boost{agentBoosts > 1 ? "s" : ""}
           </span>
         )}
         <span style={{ fontSize: 10, color: muted, marginLeft: "auto" }}>
@@ -328,7 +328,7 @@ function ScoreChart({ points }: { points: ScorePoint[] }) {
             >
               {/* Agent boost indicator */}
               {isAgent && (
-                <text x={x} y={yPos(0) + mb - 4} fill={blue} fontSize={10} textAnchor="middle">⚡</text>
+                <Zap x={x - 5} y={yPos(0) + mb - 14} width={10} height={10} color={blue} />
               )}
               {/* Outer ring on hover */}
               {isHov && <circle cx={x} cy={y} r={9} fill={col} fillOpacity="0.15" />}
@@ -420,6 +420,9 @@ export default function FounderDashboard() {
     verified: boolean; mrr?: number; signalStrength?: number; integrityIndex?: number;
   } | null>(null);
 
+  // ── Connected accounts (real status — Gmail/Slack are live connectors, not "soon") ──
+  const [connectedProviders, setConnectedProviders] = useState<Set<string>>(new Set());
+
   // ── Usage & subscription state ────────────────────────────────────────────
   const [upgradeModal, setUpgradeModal] = useState<{ open: boolean; feature?: string }>({ open: false });
   const [usage, setUsage] = useState<{ agentChat: number; qscoreRecalc: number; investorConnection: number } | null>(null);
@@ -510,6 +513,18 @@ export default function FounderDashboard() {
       .catch(() => {});
   }, []);
 
+  // Load connected-account status on mount (F13 registry — gmail/slack are real connectors,
+  // not the placeholder "soon" state the strip used to show for every non-Stripe entry).
+  useEffect(() => {
+    fetch("/api/connectors")
+      .then(r => r.json())
+      .then(d => {
+        const grants = (d.grants ?? []) as { provider: string; status: string }[];
+        setConnectedProviders(new Set(grants.filter(g => g.status === "active").map(g => g.provider)));
+      })
+      .catch(() => {});
+  }, []);
+
 
   const scoreHistory   = dashData?.scoreHistory   ?? [];
   const weeklyActivity = dashData?.weeklyActivity  ?? null;
@@ -567,6 +582,13 @@ export default function FounderDashboard() {
   const runwayLow    = runwayMonths !== null && runwayMonths < 6;
   const runwayCritical = runwayMonths !== null && runwayMonths <= 2;
   const topActions = effectiveSortedDims.slice(0, 3);
+
+  // Real, founder-specific sector×stage-blended weight (0-100) when a real score exists;
+  // DIMENSION_META's flat default only for the demo state, where there's no real breakdown to read.
+  function weightFor(key: string): number {
+    const real = realQScore?.breakdown?.[LEGACY_KEY_FOR[key as DimensionId]]?.weight
+    return real != null ? Math.round(real * 100) : DIMENSION_META[key].weight
+  }
 
   const quickStats = [
     {
@@ -689,9 +711,8 @@ export default function FounderDashboard() {
               height: 36, width: 36, borderRadius: 9, flexShrink: 0,
               background: runwayCritical ? alpha(red, 0.12) : alpha(amber, 0.15),
               display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 18,
             }}>
-              {runwayCritical ? "🚨" : "⚠️"}
+              <AlertTriangle size={17} color={runwayCritical ? red : amber} />
             </div>
             <div style={{ flex: 1 }}>
               <p style={{ fontSize: 13, fontWeight: 600, color: runwayCritical ? red : amber, marginBottom: 2 }}>
@@ -956,7 +977,7 @@ export default function FounderDashboard() {
           >
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20 }}>
               <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", color: muted, fontWeight: 600, margin: 0 }}>
-                {"IQ Matrix — P1–P6"}
+                {"Q-Score Matrix — P1–P6"}
               </p>
               {isDemo ? (
                 <Badge variant="amber" style={{ padding: "2px 8px", color: "#92400E", textTransform: "uppercase", letterSpacing: "0.1em" }}>
@@ -964,7 +985,7 @@ export default function FounderDashboard() {
                 </Badge>
               ) : (
                 <Badge variant="blue" style={{ padding: "2px 6px", border: `1px solid ${blue}33`, textTransform: "uppercase", letterSpacing: "0.1em" }}>
-                  {"IQ v2"}
+                  {"Q-Score v2"}
                 </Badge>
               )}
             </div>
@@ -1152,7 +1173,7 @@ export default function FounderDashboard() {
         >
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
             <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", color: muted, fontWeight: 600 }}>
-              Score challenges — do the behavior, {"{"}agent{"}"} generates the evidence
+              Top score opportunities — do the behavior, {"{"}agent{"}"} generates the evidence
             </p>
             <Link href="/founder/improve-qscore" style={{ fontSize: 11, color: blue, textDecoration: "none", fontWeight: 500 }}>
               View all →
@@ -1164,6 +1185,8 @@ export default function FounderDashboard() {
               const aInfo    = DIMENSION_AGENT[key];
               const behavior = DIMENSION_BEHAVIOR[key];
               const col      = scoreColor(dim.score);
+              const weight   = weightFor(key);
+              const potentialGain = Math.round((80 - dim.score) * (weight / 100) * 2.5);
               const TrendIcon = dim.trend === "up" ? TrendingUp : dim.trend === "down" ? TrendingDown : Minus;
               return (
                 <Link key={key} href="/founder/executive" style={{ textDecoration: "none" }}>
@@ -1198,8 +1221,11 @@ export default function FounderDashboard() {
                     <p style={{ fontSize: 13, fontWeight: 700, color: ink, marginBottom: 4, lineHeight: 1.35 }}>
                       {behavior?.action ?? meta.label}
                     </p>
-                    <p style={{ fontSize: 11, color: muted, marginBottom: 10, lineHeight: 1.5 }}>
+                    <p style={{ fontSize: 11, color: muted, marginBottom: 6, lineHeight: 1.5 }}>
                       Evidence: {behavior?.evidence ?? `Build a ${aInfo.label}`} — {aInfo.agentName} can help
+                    </p>
+                    <p style={{ fontSize: 10, color: muted, marginBottom: 10 }}>
+                      {weight}% of your score · up to +{potentialGain} pts
                     </p>
                     <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600, color: col }}>
                       Start with {aInfo.agentName} <ChevronRight style={{ height: 11, width: 11 }} />
@@ -1253,75 +1279,32 @@ export default function FounderDashboard() {
                 Stripe {stripeStatus.verified ? "connected" : "not connected"}
               </span>
             </Link>
-            {(["LinkedIn", "Google Sheets", "Gmail", "Slack"] as const).map(name => (
-              <Link key={name} href="/founder/settings?tab=integrations" style={{
-                display: "inline-flex", alignItems: "center", gap: 6, textDecoration: "none",
-                padding: "5px 12px", borderRadius: 999, background: surf, border: `1px solid ${bdr}`,
-              }}>
-                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#D1CEC8", flexShrink: 0 }} />
-                <span style={{ fontSize: 11, color: muted }}>{name} · soon</span>
-              </Link>
-            ))}
+            {([
+              { name: "Gmail", provider: "gmail" },
+              { name: "Slack", provider: "slack" },
+              { name: "LinkedIn", provider: null },
+              { name: "Google Sheets", provider: null },
+            ] as const).map(({ name, provider }) => {
+              // LinkedIn/Google Sheets aren't registered connectors at all (lib/connectors/registry.ts)
+              // — "soon" is accurate for those two. Gmail/Slack ARE real, working connectors elsewhere
+              // in the app (Settings → Integrations); this strip used to show "soon" for them too.
+              const connected = provider !== null && connectedProviders.has(provider);
+              return (
+                <Link key={name} href="/founder/settings?tab=integrations" style={{
+                  display: "inline-flex", alignItems: "center", gap: 6, textDecoration: "none",
+                  padding: "5px 12px", borderRadius: 999,
+                  background: connected ? "#F0FDF4" : surf,
+                  border: `1px solid ${connected ? green + "44" : bdr}`,
+                }}>
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: connected ? green : "#D1CEC8", flexShrink: 0 }} />
+                  <span style={{ fontSize: 11, fontWeight: connected ? 500 : 400, color: connected ? green : muted }}>
+                    {name} {provider === null ? "· soon" : connected ? "connected" : "not connected"}
+                  </span>
+                </Link>
+              );
+            })}
           </div>
         )}
-
-        {/* ── top actions ──────────────────────────────────────────── */}
-        <div style={{ marginBottom: 24 }}>
-
-          {/* top actions */}
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 18, overflow: "hidden" }}
-          >
-            <div style={{ padding: "20px 22px 16px", borderBottom: `1px solid ${bdr}` }}>
-              <p style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", color: muted, fontWeight: 600 }}>
-                Top actions to improve your score
-              </p>
-            </div>
-            <div>
-              {topActions.map(([key, dim], i) => {
-                const meta = DIMENSION_META[key];
-                const potentialGain = Math.round((80 - dim.score) * (meta.weight / 100) * 2.5);
-                const col = scoreColor(dim.score);
-                return (
-                  <motion.div key={key}
-                    initial={{ opacity: 0, x: -6 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.45 + i * 0.07 }}
-                    style={{ borderBottom: i < 2 ? `1px solid ${bdr}` : "none" }}
-                  >
-                    {/* Was a per-adviser chat link. The Executive model works this dimension to
-                        the mandate without being asked, so the score points at the team. */}
-                    <Link href="/founder/executive" style={{ textDecoration: "none" }}>
-                      <div
-                        style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 22px", cursor: "pointer", transition: "background 0.15s" }}
-                        onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = surf)}
-                        onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "transparent")}
-                      >
-                        {/* score pill */}
-                        <div style={{ width: 36, height: 36, borderRadius: 10, background: surf, border: `1px solid ${bdr}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: col, fontFamily: "monospace" }}>{dim.score}</span>
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <p style={{ fontSize: 13, fontWeight: 500, color: ink }}>
-                            {meta.label}
-                          </p>
-                          <p style={{ fontSize: 11, color: muted, marginTop: 2 }}>
-                            {meta.weight}% weight · up to +{potentialGain} pts
-                          </p>
-                        </div>
-                        <ChevronRight style={{ height: 13, width: 13, color: muted, flexShrink: 0 }} />
-                      </div>
-                    </Link>
-                  </motion.div>
-                );
-              })}
-            </div>
-          </motion.div>
-
-        </div>
 
         {/* ── score trajectory (full width) ─────────────────────── */}
         <motion.div
@@ -1564,6 +1547,17 @@ export default function FounderDashboard() {
         isOpen={shareModalOpen}
         onClose={() => setShareModalOpen(false)}
         shareUrl={publicSlug ? `${typeof window !== 'undefined' ? window.location.origin : ''}/startup/${publicSlug}` : undefined}
+        onPublish={async () => {
+          try {
+            const res = await fetch('/api/founder/publish-portfolio', { method: 'POST' });
+            if (!res.ok) return null;
+            const { slug } = await res.json();
+            setPublicSlug(slug);
+            return `${window.location.origin}/startup/${slug}`;
+          } catch {
+            return null;
+          }
+        }}
         qscoreData={{
           companyName: founderCompanyName,
           oneLiner: founderOneLiner,
@@ -1571,12 +1565,12 @@ export default function FounderDashboard() {
           stage: founderStage,
           overallScore: Math.round(qs.overall || 0),
           dimensions: {
-            marketReadiness: Math.round((qs as Record<string, number>).p1 || 0),
-            marketPotential: Math.round((qs as Record<string, number>).p2 || 0),
-            ipDefensibility: Math.round((qs as Record<string, number>).p3 || 0),
-            founderTeam: Math.round((qs as Record<string, number>).p4 || 0),
-            structuralImpact: Math.round((qs as Record<string, number>).p5 || 0),
-            financials: Math.round((qs as Record<string, number>).p6 || 0),
+            marketReadiness:  findDimension(effectiveSortedDims, 'p1')?.score ?? 0,
+            marketPotential:  findDimension(effectiveSortedDims, 'p2')?.score ?? 0,
+            ipDefensibility:  findDimension(effectiveSortedDims, 'p3')?.score ?? 0,
+            founderTeam:      findDimension(effectiveSortedDims, 'p4')?.score ?? 0,
+            structuralImpact: findDimension(effectiveSortedDims, 'p5')?.score ?? 0,
+            financials:       findDimension(effectiveSortedDims, 'p6')?.score ?? 0,
           },
         }}
       />

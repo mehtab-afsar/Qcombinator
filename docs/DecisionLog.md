@@ -558,6 +558,52 @@ conflated by a future reader.
 
 ---
 
+## ADR-037 — Workspace-scoped engine data reuses `founder_profiles.startup_id` via SELECT-only RLS widening, not a new column 🔒
+
+**Date:** 11 Aug 2026 · **Status:** Locked · **Supersedes:** none
+
+**Decision (Mo):** to make a teammate's view of `executive_contracts`, `asset_versions`,
+`operating_rhythm_runs`, `action_log`, `qscore_history` and `executive_briefings` show the
+company's shared state instead of their own empty slot, add **no new column to any of those
+tables**. Every row already anchors to one identity (`startups.owner_user_id`); every teammate
+already links to that startup via their own `founder_profiles.startup_id`. The fix is a
+`SECURITY DEFINER` function, `team_founder_ids()`, that returns every user_id sharing the caller's
+`startup_id`, used to widen each table's SELECT policy to
+`founder_id IN (SELECT public.team_founder_ids())`. Write-path RLS is untouched — inserts/updates
+stay `auth.uid() = founder_id`; a new `getAnchorFounderId()` resolver in application code picks
+which identity a write anchors to, before the write ever reaches the database.
+
+**Why:** the obvious alternative — add `startup_id` to all 5-6 tables, backfill, requery by it —
+is a schema change across the core engine tables for a problem that doesn't need one. The
+naive version of the RLS-only fix is a real trap, not a hypothetical: a plain
+`founder_id IN (SELECT user_id FROM founder_profiles WHERE startup_id = (SELECT startup_id FROM
+founder_profiles WHERE user_id = auth.uid()))` collapses back to exactly `founder_id = auth.uid()`,
+because `founder_profiles`' own SELECT policy (`auth.uid() = user_id`) filters the inner subquery
+first — every manual owner-only test passes, and the actual goal (a teammate sees shared data)
+silently never works. `SECURITY DEFINER` breaks that self-filtering trap by running outside RLS,
+and isn't a new pattern here: `user_startup_ids()` (`20260806000001_fix_startup_members_rls_recursion.sql`)
+already established it for `startup_members`' own recursion problem — this reuses that precedent
+rather than rediscovering it.
+
+**Consequences:**
+- Any future engine table that needs to be team-visible widens its SELECT policy the same way —
+  `founder_id IN (SELECT public.team_founder_ids())` — rather than growing a `startup_id` column.
+- Every read call site must resolve `getAnchorFounderId(userId, supabase)` before querying by
+  founder/user id; querying by the raw session user id will silently return zero rows for any
+  teammate who isn't the startup owner. `executive_briefings` was missed in the first pass of this
+  build and caught only by tracing the executive chat route's actual read calls — a reminder that
+  this class of change needs a full-repo call-site sweep, not just the tables named in the plan.
+- Google OAuth sign-up had no equivalent of email/password signup's `startups` row creation, so
+  `getAnchorFounderId` returned `null` for every Google OAuth founder until the callback route was
+  fixed to match — a real regression this change surfaced and required a backfill migration for
+  users created between the two signup paths diverging and this fix landing.
+
+**Rejected:** a new `startup_id` column on each of the 5-6 tables plus a backfill — more schema
+surface, more migration risk, no benefit over widening SELECT policies through the identity link
+that already exists.
+
+---
+
 ## Open (non-blocking)
 
 - Rhythm cadence configuration (weekly default — per-company override?). *Decide during Story 2.*

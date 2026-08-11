@@ -39,9 +39,12 @@ import { BirdsEyeStats } from '@/features/executive/components/BirdsEyeStats'
 import { ActivityLog } from '@/features/executive/components/ActivityLog'
 import { ChatRail } from '@/features/executive/components/ChatRail'
 import { AssetWorkspacePanel } from '@/features/executive/components/AssetWorkspacePanel'
+import { ActivationScreen } from '@/features/executive/components/ActivationScreen'
+import { useActivationCheck } from '@/features/executive/lib/useActivationCheck'
 import { ExecutiveTabBar } from '@/features/executive/components/ExecutiveTabBar'
 import { ExecutiveRead } from '@/features/executive/components/ExecutiveRead'
 import { BeatHeading } from '@/features/executive/components/BeatHeading'
+import type { Rect } from '@/features/executive/lib/panel-origin'
 import type { Contract, ExecutiveSummary, ProgramInstance } from '@/features/executive/types/executive.types'
 
 // Phase 1's entrance choreography, continued: the cockpit's sections stagger in on mount —
@@ -86,13 +89,29 @@ export default function ExecutiveDetailPage() {
   const [contract, setContract] = useState<Contract | null>(null)
   const live = useRef(true)
 
+  // F09 Activation, brought to this page (PRD 2, Stage 1) — previously only reachable from the
+  // CEO tab, so a founder landing here directly never saw their team actually start working,
+  // regardless of cycle number. `contract` is null while loading; the hook handles that (settles
+  // immediately, no fetch) rather than needing a conditional hook call, which Rules of Hooks
+  // forbids.
+  const [forceSettled, setForceSettled] = useState(false)
+  const activationChecked = useActivationCheck(contract)
+  const activationState = forceSettled ? 'settled' : activationChecked
+
   // CANVAS_SPEC §5 — the node workspace panel's open asset, mirrored into ?asset= so it's
   // linkable/refresh-safe without a full page navigation ("preserve the sense of place").
   const openAssetId = searchParams.get('asset')
-  const openAsset = useCallback((assetId: string) => {
+  // PRD 2 Stage 3 — the clicked card's own rect, so the panel can visually grow out of it
+  // (features/executive/lib/panel-origin.ts) instead of always sliding from the screen edge.
+  // Kept OUTSIDE the URL on purpose (a DOMRect isn't a sensible query param) — null on a direct
+  // load of a ?asset= link, which the panel already falls back to a plain slide-in for.
+  const [openAssetOrigin, setOpenAssetOrigin] = useState<Rect | null>(null)
+  const openAsset = useCallback((assetId: string, originRect: Rect) => {
+    setOpenAssetOrigin(originRect)
     router.push(`?asset=${encodeURIComponent(assetId)}`, { scroll: false })
   }, [router])
   const closeAsset = useCallback(() => {
+    setOpenAssetOrigin(null)
     router.push(window.location.pathname, { scroll: false })
   }, [router])
 
@@ -227,25 +246,33 @@ export default function ExecutiveDetailPage() {
             {active && (
               <motion.div variants={sectionVariants}>
                 <BeatHeading>The Executive</BeatHeading>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: space[4] }}>
-                  {/* 2. Bird's-eye stats (§4.2), then Rhythm as the detail behind it (§4.2's
-                      "click-to-expand" read as: the glance leads, the running detail follows).
-                      Anchored so the chat rail's "initiated" reply can point back up here. */}
-                  <div id="rhythm-cycle" style={{ display: 'flex', flexDirection: 'column', gap: space[4] }}>
-                    <BirdsEyeStats executiveId={executiveId} />
-                    <RhythmPanel executiveId={executiveId} />
+                {activationState === 'activation' ? (
+                  // PRD 2, Stage 1 — a founder landing HERE during their team's just-triggered
+                  // first cycle watches it happen, the same payoff the CEO tab already gave,
+                  // scoped to just this executive's steps (ActivationScreen is whole-company
+                  // when executiveId is omitted, which is correct on the CEO tab and wrong here).
+                  <ActivationScreen executiveId={executiveId} onComplete={() => setForceSettled(true)} />
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: space[4] }}>
+                    {/* 2. Bird's-eye stats (§4.2), then Rhythm as the detail behind it (§4.2's
+                        "click-to-expand" read as: the glance leads, the running detail follows).
+                        Anchored so the chat rail's "initiated" reply can point back up here. */}
+                    <div id="rhythm-cycle" style={{ display: 'flex', flexDirection: 'column', gap: space[4] }}>
+                      <BirdsEyeStats executiveId={executiveId} />
+                      <RhythmPanel executiveId={executiveId} />
+                    </div>
+                    {/* 3. Documents (§4.3) */}
+                    <ProgramAssetsPanel executiveId={executiveId} onOpenAsset={openAsset} />
+                    {/* 4. Actions (§4.4) */}
+                    <ActionsPanel executiveId={executiveId} />
+                    <BriefingsPanel executiveId={executiveId} />
+                    {/* 5. Activity log (§4.5) — everything the executive has done, in one feed. */}
+                    <ActivityLog executiveId={executiveId} />
+                    {/* 6. Chat rail (§4.6) — the last cockpit section. Stateless, see ChatRail's
+                        own docstring for why. */}
+                    <ChatRail executiveId={executiveId} />
                   </div>
-                  {/* 3. Documents (§4.3) */}
-                  <ProgramAssetsPanel executiveId={executiveId} onOpenAsset={openAsset} />
-                  {/* 4. Actions (§4.4) */}
-                  <ActionsPanel executiveId={executiveId} />
-                  <BriefingsPanel executiveId={executiveId} />
-                  {/* 5. Activity log (§4.5) — everything the executive has done, in one feed. */}
-                  <ActivityLog executiveId={executiveId} />
-                  {/* 6. Chat rail (§4.6) — the last cockpit section. Stateless, see ChatRail's
-                      own docstring for why. */}
-                  <ChatRail executiveId={executiveId} />
-                </div>
+                )}
               </motion.div>
             )}
 
@@ -256,7 +283,7 @@ export default function ExecutiveDetailPage() {
         )}
       </div>
 
-      <AssetWorkspacePanel assetId={openAssetId} onClose={closeAsset} />
+      <AssetWorkspacePanel assetId={openAssetId} originRect={openAssetOrigin} onClose={closeAsset} />
     </div>
   )
 }

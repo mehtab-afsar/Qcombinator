@@ -27,9 +27,9 @@
  */
 
 import { log } from '@/lib/logger'
-import { assertChannelAllowed } from './allowlist'
-import { withTimeout, connectAndCall, assertToolExists, McpToolMissingError, type McpToolResult } from './mcp/client'
-import type { Connector, ConnectorOutcome, ConnectorRequest, ResolvedGrant } from './types'
+import { assertChannelAllowed } from '../allowlist'
+import { withTimeout, connectAndCall, assertToolExists, McpToolMissingError, type McpToolResult } from '../mcp/client'
+import type { Connector, ConnectorOutcome, ConnectorRequest, ResolvedGrant } from '../types'
 
 const SLACK_MCP_URL = 'https://mcp.slack.com/mcp'
 const SLACK_REVOKE_URL = 'https://slack.com/api/auth.revoke'

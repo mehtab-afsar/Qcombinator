@@ -13,11 +13,12 @@
  */
 
 import { useCallback, useEffect, useState } from 'react'
-import { ShieldCheck } from 'lucide-react'
+import { ShieldCheck, Plug } from 'lucide-react'
 import { bdr, ink, muted, bg, green, red } from '@/lib/constants/colors'
 import { radius } from '@/features/shared/tokens'
 import { SectionCard } from '@/features/shared/components/SectionCard'
 import { Button } from '@/features/shared/components/Button'
+import { CONNECTOR_BRANDING } from '../constants/connector-branding'
 
 interface Grant {
   id: string
@@ -35,6 +36,9 @@ function describeScope(scope: string): string {
   if (scope.includes('gmail.readonly')) return 'Read your inbox.'
   if (scope.includes('gmail.compose')) return 'Required by Google to read your inbox — this connection never drafts or sends anything.'
   if (scope === 'chat:write') return 'Post messages to a channel you choose, as the Edge Alpha bot. It cannot read your workspace.'
+  if (scope === 'read_only') return 'Read your subscriptions, customers and charges. It cannot move money or change anything.'
+  if (scope === 'insight:read' || scope === 'query:read') return 'Read your product analytics and insights.'
+  if (scope === 'dashboard:read') return 'Read your dashboards. It cannot create or change anything.'
   return scope
 }
 
@@ -115,12 +119,22 @@ export function ConnectorsPanel() {
       <div style={{ marginTop: 16, display: 'grid', gap: 10 }}>
         {available.map(({ provider, scopes }) => {
           const grant = activeFor(provider)
+          const branding = CONNECTOR_BRANDING[provider]
+          const Icon = branding?.icon ?? Plug
+          const color = branding?.color ?? muted
           return (
             <div key={provider} style={row}>
+              <div style={{
+                width: 38, height: 38, borderRadius: radius.md, flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: `${color}18`,
+              }}>
+                <Icon size={18} color={color} strokeWidth={2} />
+              </div>
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ color: ink, fontSize: 15, fontWeight: 600, textTransform: 'capitalize' }}>
-                    {provider}
+                  <span style={{ color: ink, fontSize: 15, fontWeight: 600 }}>
+                    {branding?.label ?? provider}
                   </span>
                   {grant && (
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: green, fontSize: 12 }}>
@@ -155,7 +169,7 @@ export function ConnectorsPanel() {
 /** Callback outcomes worth explaining rather than swallowing. */
 const CONNECT_MESSAGES: Record<string, string> = {
   cancelled: 'You cancelled the connection — nothing was changed.',
-  scope_declined: 'Sending permission was not granted. Connect again and leave the send permission ticked.',
+  scope_declined: 'The required permission was not granted. Connect again and leave every permission ticked.',
   no_refresh_token: 'Google did not return a durable credential. Remove this app at myaccount.google.com, then connect again.',
   expired_state: 'That connection link expired. Try again.',
   bad_state: 'That connection link was not valid. Start again from this page.',

@@ -21,20 +21,11 @@ export default function OGImage() {
           fontFamily: 'system-ui, -apple-system, sans-serif',
         }}
       >
-        {/* Logo row */}
+        {/* Logo row — the Edge Alpha mark: two bars, one long one short */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
-          <div
-            style={{
-              width: 52,
-              height: 52,
-              borderRadius: 13,
-              background: '#2563EB',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <span style={{ color: '#fff', fontWeight: 900, fontSize: 14, letterSpacing: '0.05em' }}>EA</span>
+          <div style={{ width: 52, height: 52, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 10 }}>
+            <div style={{ width: 52, height: 8, borderRadius: 4, background: '#F9F7F2' }} />
+            <div style={{ width: 34, height: 8, borderRadius: 4, background: '#F9F7F2' }} />
           </div>
           <span style={{ color: '#F9F7F2', fontWeight: 600, fontSize: 24, letterSpacing: '-0.02em' }}>
             Edge Alpha

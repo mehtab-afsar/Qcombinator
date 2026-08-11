@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { motion } from 'framer-motion';
-import { User, Bell, Lock, Download, Trash2, RefreshCw, Save, Plug, CheckCircle, Users, Mail, Loader2 } from 'lucide-react';
+import { User, Bell, Lock, Download, Trash2, RefreshCw, Save, Plug, CheckCircle, Users, Mail } from 'lucide-react';
 import { useFounderData } from '@/features/founder/hooks/useFounderData';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
@@ -11,12 +11,17 @@ import {
   saveNotificationSettings,
   exportUserData,
 } from '@/features/founder/services/settings.service';
-import { bg, surf, bdr, ink, muted, blue, green, red } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted, blue, green, red, purple, alpha } from '@/lib/constants/colors'
 import { Avatar } from '@/features/shared/components/Avatar'
 import { TabNav } from '@/features/shared/components/TabNav'
 import { SectionCard } from '@/features/shared/components/SectionCard'
 import { Button } from '@/features/shared/components/Button'
+import { Badge, type BadgeVariant } from '@/features/shared/components/Badge'
+import { EmptyState } from '@/features/shared/components/EmptyState'
+import { RowSkeleton } from '@/features/shared/components/Skeleton'
 import { InviteModal } from '@/components/ui/InviteModal'
+import { ConnectorsPanel } from '@/features/executive/components/ConnectorsPanel'
+import { useToast } from '@/features/shared/hooks/useToast'
 import type { LucideIcon } from 'lucide-react'
 
 type TabId = 'profile' | 'notifications' | 'team' | 'integrations';
@@ -34,6 +39,7 @@ function SettingsInner() {
   const urlTab   = params.get('tab');  // string | null
 
   const { loading } = useFounderData();
+  const { toast } = useToast();
   const VALID_TABS: TabId[] = ['profile', 'notifications', 'team', 'integrations'];
   const [activeTab, setActiveTab] = useState<TabId>(
     VALID_TABS.includes(urlTab as TabId) ? (urlTab as TabId) : 'profile'
@@ -51,7 +57,6 @@ function SettingsInner() {
     router.push(`/founder/settings?tab=${tab}`);
   }
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
   // Images
   const [avatarUrl,       setAvatarUrl]       = useState<string | null>(null);
@@ -75,15 +80,6 @@ function SettingsInner() {
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
 
   // Notifications
-  const [stripeStatus, setStripeStatus] = useState<{
-    stripe_verified: boolean; stripe_verified_at: string | null;
-    stripe_mrr: number | null; stripe_arr: number | null;
-    stripe_customers: number | null; stripe_last30: number | null;
-  } | null>(null);
-  const [stripeLoading,    setStripeLoading]    = useState(false);
-  const [stripeKeyInput,   setStripeKeyInput]   = useState('');
-  const [stripeConnecting, setStripeConnecting] = useState(false);
-
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [qScoreUpdates,       setQScoreUpdates]       = useState(true);
   const [investorMessages,    setInvestorMessages]    = useState(true);
@@ -120,7 +116,7 @@ function SettingsInner() {
         });
         const data = await res.json();
         if (!res.ok) {
-          showToast(data.error ?? 'Failed to load team', 'error');
+          toast.error(data.error ?? 'Failed to load team');
           return;
         }
 
@@ -129,7 +125,7 @@ function SettingsInner() {
         setMyTeamRole(data.myRole ?? null);
       } catch (err) {
         console.error('Failed to load team:', err);
-        showToast('Failed to load team', 'error');
+        toast.error('Failed to load team');
       } finally {
         setTeamLoading(false);
       }
@@ -138,54 +134,10 @@ function SettingsInner() {
 
   useEffect(() => { if (activeTab === 'team') loadTeam(); }, [activeTab]);
 
-  function loadStripeStatus() {
-    setStripeLoading(true);
-    (async () => {
-      try {
-        const res = await fetch('/api/stripe/connect');
-        const data = await res.json();
-        if (!res.ok) { showToast(data.error ?? 'Failed to load Stripe status', 'error'); return; }
-        setStripeStatus(data.profile ?? null);
-      } catch (err) {
-        console.error('Failed to load Stripe status:', err);
-        showToast('Failed to load Stripe status', 'error');
-      } finally {
-        setStripeLoading(false);
-      }
-    })();
-  }
-
-  useEffect(() => { if (activeTab === 'integrations') loadStripeStatus(); }, [activeTab]);
-
-  async function handleStripeConnect() {
-    if (!stripeKeyInput.trim().startsWith('rk_')) {
-      showToast('Enter a Stripe restricted key — it starts with "rk_"', 'error');
-      return;
-    }
-    setStripeConnecting(true);
-    try {
-      const res = await fetch('/api/stripe/connect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ restrictedKey: stripeKeyInput.trim() }),
-      });
-      const data = await res.json();
-      if (!res.ok) { showToast(data.error ?? 'Failed to verify with Stripe', 'error'); return; }
-      showToast('Revenue verified with Stripe');
-      setStripeKeyInput('');
-      loadStripeStatus();
-    } catch (err) {
-      console.error('Stripe connect failed:', err);
-      showToast('Failed to verify with Stripe', 'error');
-    } finally {
-      setStripeConnecting(false);
-    }
-  }
-
   async function getAuthHeader(): Promise<Record<string, string> | null> {
     const sb = (await import('@/lib/supabase/client')).createClient();
     const { data: { session } } = await sb.auth.getSession();
-    if (!session) { showToast('Not authenticated', 'error'); return null; }
+    if (!session) { toast.error('Not authenticated'); return null; }
     return { Authorization: `Bearer ${session.access_token}` };
   }
 
@@ -201,12 +153,12 @@ function SettingsInner() {
         body: JSON.stringify({ email: email.trim(), role }),
       });
       const data = await res.json();
-      if (!res.ok) { showToast(data.error ?? 'Failed to send invite', 'error'); return; }
+      if (!res.ok) { toast.error(data.error ?? 'Failed to send invite'); return; }
 
-      showToast(`Invite sent to ${email.trim()}`);
+      toast.success(`Invite sent to ${email.trim()}`);
       setInviteModalOpen(false);
       loadTeam();
-    } catch (_err) { showToast('Failed to send invite', 'error'); }
+    } catch (_err) { toast.error('Failed to send invite'); }
     finally { setInviteSending(false); }
   }
 
@@ -216,8 +168,8 @@ function SettingsInner() {
     if (!authHeader) return;
     const res = await fetch(`/api/team/members?userId=${userId}`, { method: 'DELETE', headers: authHeader });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) { showToast(data.error ?? 'Failed to remove member', 'error'); return; }
-    showToast(`${name} removed from team`);
+    if (!res.ok) { toast.error(data.error ?? 'Failed to remove member'); return; }
+    toast.success(`${name} removed from team`);
     loadTeam();
   }
 
@@ -230,7 +182,7 @@ function SettingsInner() {
       body: JSON.stringify({ role }),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) { showToast(data.error ?? 'Failed to update role', 'error'); return; }
+    if (!res.ok) { toast.error(data.error ?? 'Failed to update role'); return; }
     loadTeam();
   }
 
@@ -240,8 +192,8 @@ function SettingsInner() {
     if (!authHeader) return;
     const res = await fetch(`/api/team/members?inviteId=${inviteId}`, { method: 'DELETE', headers: authHeader });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) { showToast(data.error ?? 'Failed to cancel invite', 'error'); return; }
-    showToast('Invite cancelled');
+    if (!res.ok) { toast.error(data.error ?? 'Failed to cancel invite'); return; }
+    toast.success('Invite cancelled');
     loadTeam();
   }
 
@@ -256,16 +208,11 @@ function SettingsInner() {
         body: JSON.stringify({ email, role }),
       });
       const data = await res.json();
-      if (!res.ok) { showToast(data.error ?? 'Failed to resend', 'error'); return; }
-      showToast(`Invite resent to ${email}`);
+      if (!res.ok) { toast.error(data.error ?? 'Failed to resend'); return; }
+      toast.success(`Invite resent to ${email}`);
       loadTeam();
-    } catch { showToast('Failed to resend invite', 'error'); }
+    } catch { toast.error('Failed to resend invite'); }
     finally { setInviteSending(false); }
-  }
-
-  function showToast(msg: string, type: 'success' | 'error' = 'success') {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 3000);
   }
 
   const handleImageUpload = async (file: File, imageType: 'founder-avatar' | 'founder-logo') => {
@@ -280,9 +227,9 @@ function SettingsInner() {
       const { url } = await res.json();
       if (imageType === 'founder-avatar') setAvatarUrl(url);
       else setCompanyLogoUrl(url);
-      showToast('Image updated');
+      toast.success('Image updated');
     } catch {
-      showToast('Upload failed', 'error');
+      toast.error('Upload failed');
     } finally {
       setUploading(false);
     }
@@ -292,9 +239,9 @@ function SettingsInner() {
     setSaving(true);
     try {
       await saveAccountSettings(fullName);
-      showToast('Account settings saved');
+      toast.success('Account settings saved');
     } catch {
-      showToast('Failed to save settings', 'error');
+      toast.error('Failed to save settings');
     } finally {
       setSaving(false);
     }
@@ -303,9 +250,9 @@ function SettingsInner() {
   const handleExportData = async () => {
     try {
       await exportUserData();
-      showToast('Data exported successfully');
+      toast.success('Data exported successfully');
     } catch {
-      showToast('Failed to export data', 'error');
+      toast.error('Failed to export data');
     }
   };
 
@@ -313,9 +260,9 @@ function SettingsInner() {
     setSaving(true);
     try {
       await saveNotificationSettings({ emailNotifications, qScoreUpdates, investorMessages, weeklyDigest, runwayAlerts });
-      showToast('Preferences saved');
+      toast.success('Preferences saved');
     } catch {
-      showToast('Failed to save preferences', 'error');
+      toast.error('Failed to save preferences');
     } finally {
       setSaving(false);
     }
@@ -327,14 +274,14 @@ function SettingsInner() {
       const response = await fetch('/api/founder/delete-account', { method: 'POST' });
       const data = await response.json().catch(() => ({}));
       if (response.ok) {
-        showToast('Account deleted successfully', 'success');
+        toast.success('Account deleted successfully');
         await new Promise(r => setTimeout(r, 500));
         router.push('/');
       } else {
-        showToast(data.error ?? 'Failed to delete account', 'error');
+        toast.error(data.error ?? 'Failed to delete account');
       }
     } catch {
-      showToast('Failed to delete account', 'error');
+      toast.error('Failed to delete account');
     }
   };
 
@@ -351,20 +298,6 @@ function SettingsInner() {
 
   return (
     <div style={{ minHeight: '100vh', background: bg, color: ink, padding: '36px 28px 72px' }}>
-
-      {/* ── Toast ── */}
-      {toast && (
-        <div style={{
-          position: 'fixed', top: 20, right: 20, zIndex: 9999,
-          padding: '10px 18px', borderRadius: 10,
-          background: toast.type === 'success' ? green : red,
-          color: '#fff', fontSize: 13, fontWeight: 600,
-          boxShadow: '0 4px 20px rgba(0,0,0,0.18)',
-          pointerEvents: 'none',
-        }}>
-          {toast.msg}
-        </div>
-      )}
 
       <div style={{ maxWidth: 860, margin: '0 auto' }}>
 
@@ -508,7 +441,7 @@ function SettingsInner() {
                         if (!u?.email) return
                         const sb = (await import('@/lib/supabase/client')).createClient()
                         await sb.auth.resetPasswordForEmail(u.email, { redirectTo: `${window.location.origin}/update-password` })
-                        showToast('Password reset email sent')
+                        toast.success('Password reset email sent')
                       }}
                     >
                       Send password reset email
@@ -524,7 +457,7 @@ function SettingsInner() {
                         if (!confirm('Sign out from all other devices?')) return
                         const sb = (await import('@/lib/supabase/client')).createClient()
                         await sb.auth.signOut({ scope: 'others' })
-                        showToast('Signed out from all other sessions')
+                        toast.success('Signed out from all other sessions')
                       }}
                     >
                       Sign out other sessions
@@ -606,77 +539,7 @@ function SettingsInner() {
           {/* Integrations */}
           {activeTab === 'integrations' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <SectionCard title="Verify revenue with Stripe" subtitle="A restricted key is used once to read your metrics, then discarded — never stored" style={{ background: surf }}>
-                {stripeLoading ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', color: muted, fontSize: 13 }}>
-                    <Loader2 style={{ width: 14, height: 14, animation: 'spin 1s linear infinite' }} />
-                    Loading…
-                  </div>
-                ) : stripeStatus?.stripe_verified ? (
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                      <div style={{ width: 26, height: 26, borderRadius: '50%', background: '#DCFCE7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <CheckCircle style={{ width: 15, height: 15, color: green }} />
-                      </div>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: ink }}>
-                        Verified {stripeStatus.stripe_verified_at ? new Date(stripeStatus.stripe_verified_at).toLocaleDateString() : ''}
-                      </span>
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 12, marginBottom: 18 }}>
-                      {[
-                        { label: 'MRR',       value: stripeStatus.stripe_mrr },
-                        { label: 'ARR',       value: stripeStatus.stripe_arr },
-                        { label: 'Customers', value: stripeStatus.stripe_customers },
-                        { label: 'Last 30d',  value: stripeStatus.stripe_last30 },
-                      ].map(({ label, value }) => (
-                        <div key={label} style={{ padding: '10px 14px', background: surf, borderRadius: 10, border: `1px solid ${bdr}` }}>
-                          <p style={{ fontSize: 10, color: muted, textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 3px' }}>{label}</p>
-                          <p style={{ fontSize: 15, fontWeight: 700, color: ink, margin: 0 }}>
-                            {value == null ? '—' : label === 'Customers' ? value.toLocaleString() : `$${value.toLocaleString()}`}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                    <p style={{ fontSize: 12, color: muted, marginBottom: 8 }}>Re-verify to refresh these numbers with a new key.</p>
-                    <input
-                      type="password" value={stripeKeyInput} onChange={e => setStripeKeyInput(e.target.value)}
-                      placeholder="rk_live_..." autoComplete="off"
-                      style={{ width: '100%', maxWidth: 360, padding: '9px 12px', borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 13, marginBottom: 10, boxSizing: 'border-box' }}
-                    />
-                    <div>
-                      <Button variant="secondary" onClick={handleStripeConnect} disabled={stripeConnecting}>
-                        {stripeConnecting ? 'Verifying…' : 'Re-verify'}
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    <p style={{ fontSize: 13, color: muted, lineHeight: 1.6, marginBottom: 14, maxWidth: 480 }}>
-                      Connect a Stripe <a href="https://dashboard.stripe.com/apikeys" target="_blank" rel="noreferrer" style={{ color: blue }}>restricted key</a> (read-only, subscriptions + customers + charges)
-                      to unlock a verified-revenue badge and boost your Q-Score&apos;s Signal Strength.
-                    </p>
-                    <input
-                      type="password" value={stripeKeyInput} onChange={e => setStripeKeyInput(e.target.value)}
-                      placeholder="rk_live_..." autoComplete="off"
-                      style={{ width: '100%', maxWidth: 360, padding: '9px 12px', borderRadius: 8, border: `1px solid ${bdr}`, fontSize: 13, marginBottom: 10, boxSizing: 'border-box' }}
-                    />
-                    <div>
-                      <Button onClick={handleStripeConnect} loading={stripeConnecting} icon={<Save style={{ height: 13, width: 13 }} />}>
-                        {stripeConnecting ? 'Verifying…' : 'Verify with Stripe'}
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </SectionCard>
-
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 10, padding: '40px 24px' }}>
-                <Plug style={{ width: 26, height: 26, color: muted }} />
-                <h2 style={{ fontSize: 15, fontWeight: 700, color: ink, margin: 0 }}>Other connectors are being rebuilt</h2>
-                <p style={{ fontSize: 13, color: muted, lineHeight: 1.6, maxWidth: 380, margin: 0 }}>
-                  We&apos;re moving off one-off, paste-your-own-API-key connections onto a single secure
-                  framework. This section will come back once the first connectors land on it.
-                </p>
-              </div>
+              <ConnectorsPanel />
             </div>
           )}
 
@@ -684,78 +547,71 @@ function SettingsInner() {
           {activeTab === 'team' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 
-              {/* Header */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <h2 style={{ fontSize: 16, fontWeight: 700, color: ink, marginBottom: 4 }}>Your Team</h2>
-                  <p style={{ fontSize: 13, color: muted }}>Invite co-founders and employees to your startup workspace.</p>
-                </div>
-                {(myTeamRole === 'owner' || myTeamRole === 'admin') && (
-                  <button
-                    onClick={() => setInviteModalOpen(true)}
-                    style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 16px', borderRadius: 9, background: blue, border: 'none', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-                  >
-                    <Mail style={{ width: 13, height: 13 }} /> Invite member
-                  </button>
+              <SectionCard
+                title="Your Team"
+                subtitle="Invite co-founders and employees to your startup workspace."
+                action={(myTeamRole === 'owner' || myTeamRole === 'admin') && (
+                  <Button variant="primary" icon={<Mail size={13} />} onClick={() => setInviteModalOpen(true)}>
+                    Invite member
+                  </Button>
                 )}
-              </div>
-
-
-              {/* Members list */}
-              <div style={{ background: '#fff', border: `1px solid ${bdr}`, borderRadius: 16, overflow: 'hidden' }}>
+                noPadding
+              >
                 {teamLoading ? (
-                  <div style={{ padding: '32px 0', textAlign: 'center' }}>
-                    <Loader2 style={{ width: 20, height: 20, color: muted, margin: '0 auto' }} className="animate-spin" />
-                  </div>
+                  <>
+                    <RowSkeleton />
+                    <RowSkeleton />
+                    <RowSkeleton />
+                  </>
                 ) : teamMembers.length === 0 ? (
-                  <div style={{ padding: '32px', textAlign: 'center' }}>
-                    <Users style={{ width: 28, height: 28, color: muted, margin: '0 auto 10px' }} />
-                    <p style={{ fontSize: 13, color: muted }}>Just you for now — invite your co-founder.</p>
-                  </div>
+                  <EmptyState
+                    icon={Users}
+                    title="Just you for now"
+                    body="Invite your co-founder to share the workspace."
+                    style={{ border: 'none', borderRadius: 0, padding: '40px 24px' }}
+                  />
                 ) : (
                   teamMembers.map((m, i) => {
                     const name    = m.founder_profiles?.full_name ?? 'Unknown';
                     const isOwner = m.role === 'owner';
-                    const roleColors: Record<string, string> = { owner: '#7C3AED', admin: blue, member: green, viewer: muted };
+                    const roleColor: Record<string, string> = { owner: purple, admin: blue, member: green, viewer: muted };
+                    const roleBadgeVariant: Record<string, BadgeVariant> = { owner: 'purple', admin: 'blue', member: 'green', viewer: 'neutral' };
+                    const color = roleColor[m.role] ?? muted;
                     return (
                       <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 20px', borderTop: i > 0 ? `1px solid ${bdr}` : 'none' }}>
-                        <div style={{ width: 36, height: 36, borderRadius: 10, background: `${roleColors[m.role] ?? muted}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: roleColors[m.role] ?? muted, flexShrink: 0 }}>
-                          {name[0]?.toUpperCase() ?? '?'}
-                        </div>
+                        <Avatar name={name} size={36} radius={10} bgColor={alpha(color, 0.08)} fgColor={color} />
                         <div style={{ flex: 1 }}>
                           <p style={{ fontSize: 13, fontWeight: 600, color: ink, marginBottom: 1 }}>{name}</p>
                           <p style={{ fontSize: 11, color: muted }}>Joined {new Date(m.joined_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</p>
                         </div>
-                        <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 999, background: `${roleColors[m.role] ?? muted}15`, color: roleColors[m.role] ?? muted, textTransform: 'capitalize' }}>
-                          {m.role}
-                        </span>
+                        <Badge variant={roleBadgeVariant[m.role] ?? 'neutral'} style={{ textTransform: 'capitalize' }}>{m.role}</Badge>
                         {!isOwner && myTeamRole === 'owner' && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <select
                               value={m.role}
                               onChange={e => handleChangeRole(m.founder_profiles?.user_id ?? '', e.target.value as 'admin' | 'member' | 'viewer')}
-                              style={{ padding: '4px 8px', borderRadius: 7, border: `1px solid ${bdr}`, fontSize: 11, color: ink, background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}
+                              style={{ padding: '4px 8px', borderRadius: 7, border: `1px solid ${bdr}`, fontSize: 11, color: ink, background: bg, cursor: 'pointer', fontFamily: 'inherit' }}
                             >
                               <option value="admin">Admin</option>
                               <option value="member">Member</option>
                               <option value="viewer">Viewer</option>
                             </select>
-                            <button onClick={() => handleRemoveMember(m.founder_profiles?.user_id ?? '', name)} style={{ padding: '4px 10px', borderRadius: 7, background: 'transparent', border: `1px solid #FECACA`, fontSize: 11, color: '#DC2626', cursor: 'pointer' }}>
+                            <Button variant="secondary" size="sm" onClick={() => handleRemoveMember(m.founder_profiles?.user_id ?? '', name)} style={{ color: red, borderColor: alpha(red, 0.3) }}>
                               Remove
-                            </button>
+                            </Button>
                           </div>
                         )}
                       </div>
                     );
                   })
                 )}
-              </div>
+              </SectionCard>
 
               {/* Pending invites */}
               {teamInvites.length > 0 && (
                 <div>
                   <p style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Pending invites</p>
-                  <div style={{ background: '#fff', border: `1px solid ${bdr}`, borderRadius: 14, overflow: 'hidden' }}>
+                  <SectionCard noPadding>
                     {teamInvites.map((inv, i) => (
                       <div key={inv.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 20px', borderTop: i > 0 ? `1px solid ${bdr}` : 'none' }}>
                         <Mail style={{ width: 15, height: 15, color: muted, flexShrink: 0 }} />
@@ -763,26 +619,27 @@ function SettingsInner() {
                           <p style={{ fontSize: 13, color: ink, margin: 0 }}>{inv.email}</p>
                           <p style={{ fontSize: 11, color: muted, margin: '2px 0 0', textTransform: 'capitalize' }}>{inv.role}</p>
                         </div>
-                        <span style={{ fontSize: 11, color: '#D97706', background: '#FFFBEB', padding: '2px 8px', borderRadius: 999, fontWeight: 600, flexShrink: 0 }}>Pending</span>
+                        <Badge variant="amber">Pending</Badge>
                         {(myTeamRole === 'owner' || myTeamRole === 'admin') && (
                           <div style={{ display: 'flex', gap: 6 }}>
-                            <button
+                            <Button
+                              variant="secondary" size="sm"
                               onClick={() => handleResendInvite(inv.email, inv.role as 'admin' | 'member' | 'viewer')}
-                              style={{ padding: '4px 10px', borderRadius: 7, background: 'transparent', border: `1px solid ${bdr}`, fontSize: 11, color: muted, cursor: 'pointer' }}
                             >
                               Resend
-                            </button>
-                            <button
+                            </Button>
+                            <Button
+                              variant="secondary" size="sm"
                               onClick={() => handleCancelInvite(inv.id)}
-                              style={{ padding: '4px 10px', borderRadius: 7, background: 'transparent', border: `1px solid #FECACA`, fontSize: 11, color: '#DC2626', cursor: 'pointer' }}
+                              style={{ color: red, borderColor: alpha(red, 0.3) }}
                             >
                               Cancel
-                            </button>
+                            </Button>
                           </div>
                         )}
                       </div>
                     ))}
-                  </div>
+                  </SectionCard>
                 </div>
               )}
 

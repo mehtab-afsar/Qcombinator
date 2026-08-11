@@ -538,12 +538,13 @@ export default function ImproveQScorePage() {
                           <div style={{
                             display: "flex", alignItems: "center", gap: 6,
                             padding: "7px 12px", borderRadius: 8, marginBottom: 10,
-                            background: "#F0FDF4", border: "1px solid #BBF7D0",
+                            background: alpha(green, 0.1), border: `1px solid ${alpha(green, 0.3)}`,
                           }}>
-                            <span style={{ fontSize: 11, color: "#16A34A", fontWeight: 600 }}>
+                            <Zap size={12} color={green} style={{ flexShrink: 0 }} />
+                            <span style={{ fontSize: 11, color: green, fontWeight: 600 }}>
                               {unlocks
-                                ? `⚡ Improving this 10pts unlocks the investor marketplace`
-                                : `⚡ Improving this 10pts adds ~${pointsGain} to your Q-Score (→${Math.round(newScore)})`}
+                                ? `Improving this 10pts unlocks the investor marketplace`
+                                : `Improving this 10pts adds ~${pointsGain} to your Q-Score (→${Math.round(newScore)})`}
                             </span>
                           </div>
                         );

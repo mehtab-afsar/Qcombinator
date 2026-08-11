@@ -9,11 +9,15 @@ interface ShareQScoreModalProps {
   isOpen: boolean
   onClose: () => void
   shareUrl?: string
+  /** Called when the founder has no public link yet — publishes one and reports it back to the
+   *  parent (so the next open of this modal already has `shareUrl` set). */
+  onPublish?: () => Promise<string | null>
   qscoreData: QScoreExportData
 }
 
-export function ShareQScoreModal({ isOpen, onClose, shareUrl, qscoreData }: ShareQScoreModalProps) {
+export function ShareQScoreModal({ isOpen, onClose, shareUrl, onPublish, qscoreData }: ShareQScoreModalProps) {
   const [linkCopied, setLinkCopied] = useState(false)
+  const [publishing, setPublishing] = useState(false)
 
   if (!isOpen) return null
 
@@ -23,13 +27,19 @@ export function ShareQScoreModal({ isOpen, onClose, shareUrl, qscoreData }: Shar
     return '#DC2626'
   }
 
-  const handleCopyLink = () => {
-    if (shareUrl) {
-      navigator.clipboard.writeText(shareUrl).then(() => {
-        setLinkCopied(true)
-        setTimeout(() => setLinkCopied(false), 2500)
-      })
+  const handleCopyLink = async () => {
+    let url = shareUrl
+    if (!url && onPublish) {
+      setPublishing(true)
+      url = (await onPublish()) ?? undefined
+      setPublishing(false)
+      if (!url) return
     }
+    if (!url) return
+    navigator.clipboard.writeText(url).then(() => {
+      setLinkCopied(true)
+      setTimeout(() => setLinkCopied(false), 2500)
+    })
   }
 
   const handleDownload = () => {
@@ -154,7 +164,7 @@ export function ShareQScoreModal({ isOpen, onClose, shareUrl, qscoreData }: Shar
         <div style={{ padding: '20px 28px', borderTop: `1px solid ${bdr}`, display: 'flex', gap: 10 }}>
           <button
             onClick={handleCopyLink}
-            disabled={!shareUrl}
+            disabled={publishing || (!shareUrl && !onPublish)}
             style={{
               flex: 1,
               display: 'flex',
@@ -168,13 +178,13 @@ export function ShareQScoreModal({ isOpen, onClose, shareUrl, qscoreData }: Shar
               color: linkCopied ? '#fff' : blue,
               fontSize: 13,
               fontWeight: 600,
-              cursor: shareUrl ? 'pointer' : 'not-allowed',
-              opacity: shareUrl ? 1 : 0.5,
+              cursor: publishing ? 'wait' : (shareUrl || onPublish) ? 'pointer' : 'not-allowed',
+              opacity: (shareUrl || onPublish) ? 1 : 0.5,
               transition: 'all 0.2s',
             }}
           >
             <Copy size={16} />
-            {linkCopied ? 'Link copied!' : 'Copy link'}
+            {publishing ? 'Publishing…' : linkCopied ? 'Link copied!' : 'Copy link'}
           </button>
           <button
             onClick={handleDownload}

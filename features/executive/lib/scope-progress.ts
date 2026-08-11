@@ -27,3 +27,30 @@ export function scopeStepsToExecutive<T extends ScopableStep>(
     currentLabel: scoped.find(s => s.state === 'active')?.label ?? null,
   }
 }
+
+export interface ScopableStepWithKind extends ScopableStep {
+  kind: 'asset' | 'briefing' | 'action'
+}
+
+/**
+ * PRD 2 — "documents" (Assets + the Briefing) as their own progress view, excluding Actions.
+ * Actions already have a dedicated, better surface (ActionsPanel: approve/decline, "waiting on
+ * you", expandable analysis) — folding them into one generic step count reads as "12 documents,"
+ * which they are not (P001 is 5 Assets + 1 Briefing + 6 Actions; the founder should never have to
+ * do that arithmetic themselves). `finished` is derived from THIS narrower scope, not the
+ * server's whole-run status: once every document/briefing step is done, that reads as finished
+ * to a founder even if the run is still working through Actions behind the scenes.
+ */
+export function documentProgress<T extends ScopableStepWithKind>(
+  steps: readonly T[],
+): { steps: T[]; done: number; total: number; currentLabel: string | null; finished: boolean } {
+  const docSteps = steps.filter(s => s.kind !== 'action')
+  const done = docSteps.filter(s => s.state === 'done' || s.state === 'skipped').length
+  return {
+    steps: docSteps,
+    done,
+    total: docSteps.length,
+    currentLabel: docSteps.find(s => s.state === 'active')?.label ?? null,
+    finished: docSteps.length > 0 && done === docSteps.length,
+  }
+}

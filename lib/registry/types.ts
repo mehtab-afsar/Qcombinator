@@ -40,11 +40,12 @@ export type ActionId = string
 
 /**
  * Widened as adapters land in Story 3. Gmail (send) is the first (PRD §10); Slack is the second.
- * `gmail_read` is a third, but never used as an `ActionDef.connector` — it has no irreversible
- * action, it's a founder-triggered read connector (see `lib/connectors/gmail-read.ts`). The type
- * still needs to admit it for `connector_grants`/registry bookkeeping.
+ * `gmail_read`, `stripe` and `posthog` are never used as an `ActionDef.connector` — none has an
+ * irreversible action; all three are founder-triggered/sync connectors (see
+ * `lib/connectors/{gmail-read,stripe,posthog}.ts`). The type still needs to admit them for
+ * `connector_grants`/registry bookkeeping.
  */
-export type ConnectorId = 'gmail' | 'slack' | 'gmail_read'
+export type ConnectorId = 'gmail' | 'slack' | 'gmail_read' | 'stripe' | 'posthog'
 
 // ─── Definitions ──────────────────────────────────────────────────────────────
 

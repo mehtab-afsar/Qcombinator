@@ -10,8 +10,8 @@ process.env.GOOGLE_CONNECTOR_CLIENT_ID = 'test-google-client-id.apps.googleuserc
 process.env.GOOGLE_CONNECTOR_CLIENT_SECRET = 'test-google-secret'
 
 import { createHmac } from 'crypto'
-import { createState, verifyState, authorizeUrl, redirectUri } from '@/lib/connectors/gmail-read-oauth'
-import { createState as createSendState, redirectUri as sendRedirectUri } from '@/lib/connectors/oauth'
+import { createState, verifyState, authorizeUrl, redirectUri } from '@/lib/connectors/gmail/read-oauth'
+import { createState as createSendState, redirectUri as sendRedirectUri } from '@/lib/connectors/gmail/send-oauth'
 import { getConnector } from '@/lib/connectors/registry'
 import { ConnectorError } from '@/lib/connectors/types'
 

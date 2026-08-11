@@ -5,7 +5,7 @@ import {
   Bell, X, Check, Tag, AlertTriangle, Scissors, Handshake, Mail, Megaphone,
   Globe, PenLine, FileText, FileSignature, Scale, FolderOpen, BarChart3, Send,
   ClipboardList, DoorOpen, Eye, TrendingUp, MessageCircle, UserPlus,
-  CheckCircle2, Link2, CreditCard, Zap, CalendarCheck, type LucideIcon,
+  CheckCircle2, Link2, CreditCard, Zap, CalendarCheck, UserCog, UserX, type LucideIcon,
 } from 'lucide-react'
 import { useRef, useEffect } from 'react'
 import Link from 'next/link'
@@ -34,6 +34,9 @@ const TYPE_COLOR: Record<string, string> = {
   agent_action:        purple,  // autonomous agent work — purple to distinguish
   investor_view:       amber,
   stripe_verify:       '#635BFF', // Stripe brand purple — deliberate exception, not in the app palette
+  team_member_joined:  green,
+  team_role_changed:   blue,
+  team_member_removed: red,
 }
 
 // ─── type → icon — the single place a notification type is given an icon.
@@ -69,6 +72,9 @@ const TYPE_ICON: Record<string, LucideIcon> = {
   agent_complete:       CheckCircle2,
   agent_action:         Zap,
   workshop_registered:  CalendarCheck,
+  team_member_joined:   UserPlus,
+  team_role_changed:    UserCog,
+  team_member_removed:  UserX,
 }
 
 function getAccent(type: string) {

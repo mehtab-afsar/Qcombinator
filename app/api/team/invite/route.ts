@@ -6,6 +6,9 @@ import { verifyAuth } from '@/lib/auth/verify'
 import { parseBody, emailSchema } from '@/lib/api/validate'
 import { sendTeamInviteEmail } from '@/lib/email/send'
 import { log } from '@/lib/logger'
+import { getCallerTeamRole, canInviteMembers } from '@/lib/team/founder-permissions'
+import { logTeamEvent } from '@/lib/team/audit'
+import { FOUNDER_SEAT_LIMITS, type FounderTier } from '@/lib/billing/plans'
 
 const schema = z.object({
   email: emailSchema,
@@ -37,6 +40,41 @@ export async function POST(request: NextRequest) {
 
     const startupId = profile.startup_id
 
+    // Role check — previously missing entirely, so any member/viewer could invite
+    // someone in as admin. getAdminClient() bypasses RLS, so this application-level
+    // check is the only gate that exists for this route.
+    const callerRole = await getCallerTeamRole(user.id, startupId, supabase)
+    if (!callerRole || !canInviteMembers(callerRole)) {
+      return NextResponse.json({ error: 'Not authorized to invite team members' }, { status: 403 })
+    }
+
+    // Seat limit — a live headcount, not a subscription_usage metered feature (see
+    // FOUNDER_SEAT_LIMITS' own doc comment). Counts CURRENT members only; pending invites
+    // don't consume a seat until accepted, matching how the eventual member count is what
+    // actually gets billed. Resolved against the OWNER's subscription, not the caller's — an
+    // inviting admin has no billing plan of their own for this workspace; the workspace's
+    // plan is whatever the owner is paying for.
+    const { data: startupRow } = await supabase
+      .from('startups')
+      .select('owner_user_id')
+      .eq('id', startupId)
+      .maybeSingle()
+    const { data: ownerProfile } = startupRow?.owner_user_id
+      ? await supabase
+          .from('founder_profiles')
+          .select('subscription_tier')
+          .eq('user_id', startupRow.owner_user_id)
+          .maybeSingle()
+      : { data: null }
+    const tier = ((ownerProfile?.subscription_tier as FounderTier | undefined) ?? 'free')
+    const { count: memberCount } = await supabase
+      .from('startup_members')
+      .select('id', { count: 'exact', head: true })
+      .eq('startup_id', startupId)
+    if ((memberCount ?? 0) >= FOUNDER_SEAT_LIMITS[tier]) {
+      return NextResponse.json({ error: `Seat limit reached for your plan (${FOUNDER_SEAT_LIMITS[tier]} members)` }, { status: 403 })
+    }
+
     // Generate invite token
     const inviteToken = randomBytes(16).toString('hex')
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
@@ -66,6 +104,11 @@ export async function POST(request: NextRequest) {
       role,
       inviterName: String(user.user_metadata?.full_name ?? user.email ?? 'A team member'),
     }).catch((err: unknown) => log.error('[team-invite] email failed:', err))
+
+    logTeamEvent(supabase, {
+      startupId, actorId: user.id, event: 'invited',
+      targetEmail: email.toLowerCase(), metadata: { role },
+    })
 
     return NextResponse.json({ invite }, { status: 201 })
   } catch (error) {

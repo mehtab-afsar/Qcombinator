@@ -61,6 +61,22 @@ export const FOUNDER_PLAN_LIMITS: Record<FounderTier, Record<MeteredFeature, num
 }
 
 /**
+ * Team seats per tier — a live headcount cap on `startup_members`, NOT a
+ * `subscription_usage` metered feature. That table is purpose-built for monthly-resetting
+ * counters (`usage_count` increments, `reset_at` zeroes it every month, checked with `>=`).
+ * A seat cap is structurally different: it's `COUNT(*) FROM startup_members WHERE
+ * startup_id = ...` at invite time, not a counter that resets — team size doesn't reset
+ * monthly. Shoehorning it into subscription_usage would be the same "one fact, two
+ * meanings" problem as reusing action_log for team audit events (see that migration's
+ * comment). Enforced directly in app/api/team/invite/route.ts, not via
+ * increment_usage_if_allowed().
+ */
+export const FOUNDER_SEAT_LIMITS: Record<FounderTier, number> = {
+  free: 2,
+  premium: 10,
+}
+
+/**
  * Investor limits. Investors are only metered on deal-flow connections — the
  * other two features don't apply to them at all.
  */

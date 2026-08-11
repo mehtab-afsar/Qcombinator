@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { motion } from 'framer-motion'
+import { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   Search,
   Send,
@@ -21,9 +21,50 @@ import { ConnectionStatus, MatchingInvestor } from '@/features/matching/types/ma
 import { useQScore } from '@/features/qscore/hooks/useQScore'
 import { useMatchingData } from '@/features/matching/hooks/useMatchingData'
 import { UpgradeModal } from '@/components/ui/UpgradeModal'
-import { bg, surf, bdr, ink, muted, blue, green, amber } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted, blue, green, amber, alpha } from '@/lib/constants/colors'
 
 type Investor = MatchingInvestor
+
+// ─── platform-wide stats — count up on mount rather than appearing static ─────
+const HEADLINE_STATS: { target: number; decimals: number; format: (v: number) => string; label: string }[] = [
+  { target: 1247, decimals: 0, format: v => Math.round(v).toLocaleString(), label: 'active investors' },
+  { target: 89,   decimals: 0, format: v => `${Math.round(v)}%`,            label: 'match accuracy' },
+  { target: 6.2,  decimals: 1, format: v => `${v.toFixed(1)}×`,             label: 'higher response rate' },
+]
+
+/** Counts up from 0 to `target` once on mount; jumps straight there under reduced-motion. */
+function useCountUp(target: number, durationMs = 1100): number {
+  const [value, setValue] = useState(0)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setValue(target)
+      return
+    }
+    let raf: number
+    const start = performance.now()
+    function tick(now: number) {
+      const t = Math.min(1, (now - start) / durationMs)
+      const eased = 1 - Math.pow(1 - t, 3) // ease-out cubic — fast start, settles gently
+      setValue(target * eased)
+      if (t < 1) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [target, durationMs])
+  return value
+}
+
+function AnimatedStat({ stat }: { stat: (typeof HEADLINE_STATS)[number] }) {
+  const value = useCountUp(stat.target)
+  return (
+    <div style={{ display: "flex", gap: 6, alignItems: "baseline" }}>
+      <span style={{ fontSize: 15, fontWeight: 600, color: ink, fontVariantNumeric: "tabular-nums" }}>
+        {stat.format(value)}
+      </span>
+      <span style={{ fontSize: 12, color: muted }}>{stat.label}</span>
+    </div>
+  )
+}
 
 // ─── component ────────────────────────────────────────────────────────────────
 
@@ -141,32 +182,41 @@ export default function InvestorMatching() {
           <p style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.18em", color: muted, fontWeight: 600, marginBottom: 8 }}>
             Investor Marketplace
           </p>
-          <h1 style={{ fontSize: "clamp(1.6rem,4vw,2.4rem)", fontWeight: 300, letterSpacing: "-0.03em", color: ink, marginBottom: 8 }}>
-            {loadingInvestors ? 'Loading investors…' : `${filtered.length} investors matched to your profile.`}
-          </h1>
-          <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
-            {/* Dynamic: how many investors can see this founder */}
-            <div style={{
-                display: "flex", alignItems: "center", gap: 8,
-                padding: "6px 14px", borderRadius: 999,
-                background: "#F0FDF4", border: "1px solid #BBF7D0",
-              }}>
+          <AnimatePresence mode="wait">
+            <motion.h1
+              key={loadingInvestors ? 'loading' : 'loaded'}
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
+              style={{ fontSize: "clamp(1.6rem,4vw,2.4rem)", fontWeight: 300, letterSpacing: "-0.03em", color: ink, marginBottom: 8 }}
+            >
+              {loadingInvestors ? 'Loading investors…' : `${filtered.length} investors matched to your profile.`}
+            </motion.h1>
+          </AnimatePresence>
+          <div style={{ display: "flex", gap: 20, flexWrap: "wrap", alignItems: "center", minHeight: 26 }}>
+            {/* Dynamic: how many investors can see this founder — held back until it has a
+                real count, so it never flashes "0 investors" while the fetch is in flight. */}
+            {loadingInvestors ? (
+              <div style={{ width: 190, height: 26, borderRadius: 999, background: surf }} />
+            ) : (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.25 }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  padding: "6px 14px", borderRadius: 999,
+                  background: alpha(green, 0.1), border: `1px solid ${alpha(green, 0.3)}`,
+                }}>
                 <div style={{ width: 7, height: 7, borderRadius: "50%", background: green }} />
                 <span style={{ fontSize: 12, fontWeight: 600, color: green }}>
-                  {investors.length} investors can see your profile
+                  {investors.length} investor{investors.length === 1 ? '' : 's'} can see your profile
                 </span>
                 <span style={{ fontSize: 11, color: muted }}>· Q-Score {founderQScore}</span>
-              </div>
-            {[
-              { value: "1,247", label: "active investors" },
-              { value: "89%",   label: "match accuracy" },
-              { value: "6.2×",  label: "higher response rate" },
-            ].map((s) => (
-              <div key={s.label} style={{ display: "flex", gap: 6, alignItems: "baseline" }}>
-                <span style={{ fontSize: 15, fontWeight: 600, color: ink }}>{s.value}</span>
-                <span style={{ fontSize: 12, color: muted }}>{s.label}</span>
-              </div>
-            ))}
+              </motion.div>
+            )}
+            {HEADLINE_STATS.map(s => <AnimatedStat key={s.label} stat={s} />)}
           </div>
         </div>
 

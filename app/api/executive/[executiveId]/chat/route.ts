@@ -35,6 +35,7 @@ import { routedText } from '@/lib/llm/router'
 import { matchesInitiateIntent } from '@/features/executive/lib/chat-intent'
 import { env } from '@/lib/env'
 import { log } from '@/lib/logger'
+import { getAnchorFounderId } from '@/lib/team/founder-permissions'
 
 // Only the first 12 (already newest-first) activity entries and each program's bare verdict are
 // fenced — bounding what goes INTO the model, not just guarding what comes out. Fencing all 50
@@ -79,7 +80,13 @@ export async function POST(
     const { message } = parsed.data
 
     const supabase = await createClient()
-    const contract = await getCurrentContract(supabase, auth.user.id)
+
+    // Team data anchors to the startup owner's founder_id, not whichever teammate is
+    // logged in — see getAnchorFounderId's own doc comment.
+    const anchorId = await getAnchorFounderId(auth.user.id, supabase)
+    if (!anchorId) return NextResponse.json({ error: 'No workspace found' }, { status: 400 })
+
+    const contract = await getCurrentContract(supabase, anchorId)
     if (!contract || contract.status !== 'confirmed') {
       return NextResponse.json({ error: 'No confirmed mandate — there is nothing to ask yet.' }, { status: 400 })
     }
@@ -113,9 +120,9 @@ export async function POST(
     }
 
     // Everything else: one grounded LLM call that both answers and recognizes steer-shaped asks.
-    const activity = (await getActivityForExecutive(supabase, auth.user.id, executiveId, programs))
+    const activity = (await getActivityForExecutive(supabase, anchorId, executiveId, programs))
       .slice(0, MAX_ACTIVITY_ENTRIES)
-    const latestBriefings = pickLatestPerProgram(await getBriefings(supabase, auth.user.id))
+    const latestBriefings = pickLatestPerProgram(await getBriefings(supabase, anchorId))
       .filter(b => owned.some(p => p.id === b.programId))
       .map(b => ({ program: b.programId, verdict: b.verdict }))
 

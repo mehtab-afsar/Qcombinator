@@ -164,8 +164,9 @@ async function sendDealFlowEmails(params: {
             <table width="100%" cellpadding="0" cellspacing="0">
               <tr>
                 <td>
-                  <div style="height:28px;width:28px;border-radius:7px;background:#2563EB;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;margin-right:8px">
-                    <span style="color:#fff;font-weight:900;font-size:8px;letter-spacing:0.05em">EA</span>
+                  <div style="display:inline-block;vertical-align:middle;margin-right:8px">
+                    <div style="width:24px;height:5px;border-radius:2.5px;background:#F9F7F2;margin-bottom:4px;font-size:0;line-height:0">&nbsp;</div>
+                    <div style="width:15px;height:5px;border-radius:2.5px;background:#F9F7F2;font-size:0;line-height:0">&nbsp;</div>
                   </div>
                   <span style="color:#8A867C;font-size:12px;font-weight:500;vertical-align:middle">Edge Alpha Deal Alert</span>
                 </td>

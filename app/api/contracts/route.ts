@@ -25,6 +25,7 @@ import {
 import { startCycleIfDue } from '@/lib/rhythm/trigger'
 import { log } from '@/lib/logger'
 import { trackMandateDrafted, trackMandateConfirmed } from '@/lib/analytics'
+import { getAnchorFounderId, getMyTeamRole } from '@/lib/team/founder-permissions'
 
 /**
  * Whole days between signup and now, for activation latency.
@@ -57,9 +58,15 @@ export async function GET(): Promise<NextResponse> {
     // User-scoped client: RLS is the tenancy boundary, so the database enforces
     // isolation rather than this route remembering to.
     const supabase = await createClient()
-    const contract = await getCurrentContract(supabase, auth.user.id)
+
+    // Team data anchors to the startup owner's founder_id, not whichever teammate is
+    // logged in — see getAnchorFounderId's own doc comment.
+    const anchorId = await getAnchorFounderId(auth.user.id, supabase)
+    if (!anchorId) return NextResponse.json({ error: 'No workspace found' }, { status: 400 })
+
+    const contract = await getCurrentContract(supabase, anchorId)
     const [history, programs] = await Promise.all([
-      getContractHistory(supabase, auth.user.id),
+      getContractHistory(supabase, anchorId),
       contract ? getProgramsForContract(supabase, contract.id) : Promise.resolve([]),
     ])
 
@@ -82,6 +89,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
 
     const supabase = await createClient()
+
+    // Drafting or confirming the Mandate stays a single point of accountability even on a
+    // multi-founder team — it defines which Programs are allowed to run at all, and two
+    // co-founders racing to each confirm a different mandate is a real failure mode with only
+    // one company underneath it. Owner-only, not owner-or-admin (deliberately narrower than
+    // canInviteMembers). RLS's own WITH CHECK (auth.uid() = founder_id) would reject a non-owner's
+    // write anyway once contracts anchor to the owner — gating here first means a clean 403
+    // instead of a confusing Postgres rejection.
+    const { role } = await getMyTeamRole(auth.user.id, supabase)
+    if (role !== 'owner') {
+      return NextResponse.json({ error: 'Only the workspace owner can change the mandate' }, { status: 403 })
+    }
 
     if (parsed.data.action === 'draft') {
       const contract = await createDraft(supabase, auth.user.id)

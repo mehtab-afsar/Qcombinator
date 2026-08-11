@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useSearchParams } from "next/navigation";
+import { SearchX } from "lucide-react";
 import { bg, surf, bdr, ink, muted, blue, green } from '@/lib/constants/colors'
 
 // ─── types ────────────────────────────────────────────────────────────────────
@@ -227,7 +228,7 @@ export default function SurveyPage() {
           background: surf, border: `1px solid ${bdr}`, borderRadius: 12,
           padding: 40, maxWidth: 480, width: "100%", textAlign: "center",
         }}>
-          <div style={{ fontSize: 40, marginBottom: 16 }}>🔍</div>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}><SearchX size={36} color={muted} strokeWidth={1.5} /></div>
           <h2 style={{ fontFamily: "system-ui, -apple-system, sans-serif", color: ink, fontSize: 20, fontWeight: 600, margin: "0 0 8px" }}>
             Survey not found
           </h2>

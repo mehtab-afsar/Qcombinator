@@ -15,7 +15,7 @@
  * boundary between one connector's flow and another's.
  */
 
-import { ConnectorError } from './types'
+import { ConnectorError } from '../types'
 
 const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
 const TOKEN_URL = 'https://oauth2.googleapis.com/token'

@@ -230,6 +230,10 @@ describe('F10 runCycle', () => {
     expect(result.stages.P001.assets).toBe('completed')
     expect(result.stages.P001.briefing).toBe('failed') // not 'pending', not 'blocked'
     expect(result.stages.P001.error).toMatch(/briefing exploded/)
+    // A briefing that never got written must not still have Actions generated on top of it
+    // (mirrors the assets-failure guard) — 'blocked', not silently 'pending' forever.
+    expect(result.stages.P001.actions).toBe('blocked')
+    expect(m(generateAction)).not.toHaveBeenCalled()
   })
 })
 

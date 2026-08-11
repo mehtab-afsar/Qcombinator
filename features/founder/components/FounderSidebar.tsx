@@ -16,6 +16,7 @@ import { SidebarNotification } from "../types/founder.types";
 import { bg, surf, bdr, ink, muted, blue } from '@/lib/constants/colors'
 import { APP_NAME } from '@/lib/constants/app'
 import { Avatar } from '@/features/shared/components/Avatar'
+import { BrandMark } from '@/features/shared/components/BrandMark'
 import { EmailConfirmBanner } from '@/features/shared/components/EmailConfirmBanner'
 import { NotificationDropdown, NotificationBellButton, NotifItem } from '@/features/shared/components/NotificationPanel'
 import type { LucideIcon } from 'lucide-react'
@@ -196,9 +197,13 @@ export default function FounderSidebar() {
   }
 
   const displayName   = (user?.user_metadata?.full_name as string) || user?.email?.split("@")[0] || "Founder";
-  const startupName   = (user?.user_metadata?.startup_name as string) || APP_NAME;
+  const rawStartupName = user?.user_metadata?.startup_name as string | undefined;
+  const startupName   = rawStartupName || APP_NAME;
   const avatarUrl     = (user?.user_metadata?.avatar_url as string | null) ?? null;
   const companyLogoUrl = (user?.user_metadata?.company_logo_url as string | null) ?? null;
+  // No startup name or logo set yet — show the Edge Alpha mark as a placeholder rather than
+  // Avatar's initials-from-"Edge Alpha" fallback (which rendered as an accidental, unstyled "EA").
+  const hasOwnBranding = Boolean(companyLogoUrl || rawStartupName);
 
   const handleSignOut = async () => {
     await signOut();
@@ -237,7 +242,9 @@ export default function FounderSidebar() {
           display: "flex", alignItems: "center",
           padding: "0 10px",
         }}>
-          <Avatar url={companyLogoUrl} name={startupName} size={28} radius={7} />
+          {hasOwnBranding
+            ? <Avatar url={companyLogoUrl} name={startupName} size={28} radius={7} />
+            : <BrandMark size={28} />}
           <motion.div
             animate={{ opacity: expanded ? 1 : 0, x: expanded ? 0 : -4 }}
             transition={{ duration: 0.15 }}

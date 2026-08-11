@@ -169,6 +169,13 @@ export async function generateAction(
   // Reversible and internal: no approval, per ADR-002/ADR-004 — gates exist only at the
   // Connector boundary. In Stage C there is no execution to do; the analysis IS the output, and
   // it is recorded as executed because it genuinely completed.
+  //
+  // `summary` carries the model's actual prose (the same category of content already stored in
+  // full for Assets and Briefings — never a recipient/subject/body, which stays redacted by
+  // payloadMetadata inside recordAttempt; that rule is untouched, see action-gate.test.ts). Falls
+  // back to `raw` because an internal action need not emit a fenced JSON block (parseActionPayload
+  // returns null and `payload` becomes `{ body: raw }` above) — but if it did, `payload.body`
+  // takes priority as the more deliberately-produced field.
   return recordAttempt(admin, {
     founderId: args.founderId,
     actionId: args.actionId,
@@ -177,6 +184,6 @@ export async function generateAction(
     programId: args.program.id,
     executionId: args.executionId,
     payload,
-    result: { kind: 'internal_analysis', completed: true },
+    result: { kind: 'internal_analysis', completed: true, summary: payload.body ?? raw },
   })
 }

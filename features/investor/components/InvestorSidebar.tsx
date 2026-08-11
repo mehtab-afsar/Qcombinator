@@ -12,6 +12,7 @@ import { useAuth } from "@/features/auth/hooks/useAuth";
 import { bg, surf, bdr, ink, muted, purple, alpha } from '@/lib/constants/colors'
 import { APP_NAME } from '@/lib/constants/app'
 import { Avatar } from '@/features/shared/components/Avatar'
+import { BrandMark } from '@/features/shared/components/BrandMark'
 import { useInvestorNotifications } from '@/features/investor/hooks/useInvestorNotifications'
 import { useInvestorGettingStarted } from '@/features/investor/hooks/useInvestorGettingStarted'
 import { NotificationDropdown, NotificationBellButton, NotifItem } from '@/features/shared/components/NotificationPanel'
@@ -172,9 +173,13 @@ export default function InvestorSidebar() {
   });
 
   const displayName = (user?.user_metadata?.full_name as string) || user?.email?.split("@")[0] || "Investor";
-  const fundName    = (user?.user_metadata?.fund_name as string) || APP_NAME;
+  const rawFundName = user?.user_metadata?.fund_name as string | undefined;
+  const fundName    = rawFundName || APP_NAME;
   const avatarUrl   = (user?.user_metadata?.avatar_url as string | null) ?? null;
   const firmLogoUrl = (user?.user_metadata?.firm_logo_url as string | null) ?? null;
+  // No firm name or logo set yet — show the Edge Alpha mark instead of Avatar's
+  // initials-from-"Edge Alpha" fallback.
+  const hasOwnBranding = Boolean(firmLogoUrl || rawFundName);
 
   const handleSignOut = async () => {
     await signOut();
@@ -209,7 +214,9 @@ export default function InvestorSidebar() {
         display: "flex", alignItems: "center",
         padding: "0 10px",
       }}>
-        <Avatar url={firmLogoUrl} name={fundName} size={28} radius={7} bgColor={purple} fgColor="#fff" fontSize={9} />
+        {hasOwnBranding
+          ? <Avatar url={firmLogoUrl} name={fundName} size={28} radius={7} bgColor={purple} fgColor="#fff" fontSize={9} />
+          : <BrandMark size={28} />}
         <motion.div
           animate={{ opacity: expanded ? 1 : 0, x: expanded ? 0 : -4 }}
           transition={{ duration: 0.15 }}

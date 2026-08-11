@@ -9,6 +9,16 @@
  *
  * Auth: INTERNAL_RUN_SECRET / x-run-secret header — the same pattern the old model already
  * uses for its own internal runner (app/api/agents/generate/run/route.ts), reused here as-is.
+ *
+ * PRD 2 Stage 2 Part B — every step this route runs is one the founder's own browser was never
+ * connected to (that's the whole reason this self-chain exists — see triggerNextRhythmStep's
+ * docstring), so this is the ONE place that needs the Realtime write path: judge.ts's onDelta
+ * (built for Part A's inline streamed click) is reused here, batched into
+ * operating_rhythm_runs.streaming_text via lib/rhythm/streaming.ts, for ActivationScreen.tsx to
+ * subscribe to. Applies uniformly regardless of what started the run (a fresh confirm, the
+ * weekly cron, or step 2+ of a manually-streamed cycle) — ActivationScreen watches a run to
+ * completion, not just its first step, so there is no separate "is this the activation step"
+ * flag to thread through.
  */
 
 export const runtime = 'nodejs'
@@ -23,6 +33,7 @@ import { parseBody, uuidSchema } from '@/lib/api/validate'
 import { newModelOff } from '@/lib/api/response'
 import { runNextStep, RhythmError } from '@/lib/rhythm/run'
 import { triggerNextRhythmStep } from '@/lib/rhythm/trigger'
+import { createDeltaWriter } from '@/lib/rhythm/streaming'
 import { log } from '@/lib/logger'
 
 const bodySchema = z.object({ runId: uuidSchema })
@@ -48,7 +59,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   try {
     const admin = createAdminClient()
-    const step = await runNextStep(admin, parsed.data.runId)
+    const writer = createDeltaWriter(admin, parsed.data.runId)
+    let step: Awaited<ReturnType<typeof runNextStep>>
+    try {
+      step = await runNextStep(admin, parsed.data.runId, writer.onDelta)
+    } finally {
+      // Clears streaming_text regardless of outcome — a failed step must not leave stale live
+      // text sitting on the run row for the next step (a different asset) to inherit.
+      await writer.finish()
+    }
     if (!step.done) triggerNextRhythmStep(parsed.data.runId)
     return NextResponse.json({ runId: parsed.data.runId, done: step.done })
   } catch (err) {

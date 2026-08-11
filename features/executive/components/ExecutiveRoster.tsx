@@ -12,11 +12,26 @@
  *
  * `programs` comes from the page as a prop (same data MandateCard already receives) rather than
  * a second /api/contracts fetch.
+ *
+ * PRD 2 Stage 3 — this now owns composing the centre WITH the team, not just the cards.
+ * CommandView's own docstring already called ScoreAnchor + this roster "one zone, grouped
+ * tightly" — that was true in spirit but false in layout: it was still a vertical stack (dial,
+ * then a grid below it), the exact "plain vertical stack" CommandView's docstring already
+ * confesses an earlier version was guilty of. On a wide viewport this renders a genuine radial
+ * arrangement (CANVAS_SPEC D2 — "score centre, agents around it") via the pure
+ * `orbitPosition` helper; below the breakpoint (`useIsWide`) it falls back to exactly the same
+ * flex-wrap grid this file has always rendered — a literal ring is illegible on a phone, not a
+ * cut corner. `ExecutiveCard`'s own click choreography (scale, sibling-dimming, the deliberate
+ * non-`layoutId` transition — see its docstring) is untouched either way; only WHERE each card
+ * sits changes, never what it is.
  */
 
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { ExecutiveCard, type ExecutiveCardData } from './ExecutiveCard'
+import { ScoreAnchor } from './ScoreAnchor'
+import { orbitPosition } from '../lib/orbit-layout'
+import { useIsWide } from '@/features/shared/hooks/useIsWide'
 import { ease } from '@/features/shared/tokens'
 import { muted } from '@/lib/constants/colors'
 import type { ExecutiveSummary, ProgramInstance } from '../types/executive.types'
@@ -31,6 +46,15 @@ const cardVariants = {
   show: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.4, ease } },
 }
 
+// Ring geometry (wide viewport only) — clears ScoreAnchor's 176px dial plus a card's own
+// footprint. Approximate by design (card height varies with whether a briefing verdict is
+// present); tuned by eye, not derived from a measured layout.
+const RING_RADIUS = 230
+const RING_CARD_WIDTH = 240
+const RING_CARD_HALF_HEIGHT = 90
+const CENTRE_HALF_WIDTH = 100
+const CENTRE_HALF_HEIGHT = 120
+
 /**
  * @param reveal play the staggered assembly entrance once (CommandView's first-landing
  *   reveal). Omitted/false renders in its final state immediately — every subsequent
@@ -44,6 +68,7 @@ export function ExecutiveRoster({ programs, reveal = false }: { programs: Progra
   // Phase 1 of the cockpit build — which card (if any) the founder just clicked into, so its
   // siblings can dim while it leads the transition (ExecutiveCard's own entrance animation).
   const [leavingId, setLeavingId] = useState<string | null>(null)
+  const wide = useIsWide()
 
   useEffect(() => {
     let live = true
@@ -66,8 +91,11 @@ export function ExecutiveRoster({ programs, reveal = false }: { programs: Progra
     return () => { live = false }
   }, [])
 
-  if (!executives) return null
-  if (executives.length === 0) return null
+  // ScoreAnchor renders regardless of the roster's own load state — it used to be rendered
+  // unconditionally by CommandView, a step above this component; owning it here must not make
+  // it disappear while executives are loading or if the fetch comes back empty.
+  if (!executives) return <ScoreAnchor />
+  if (executives.length === 0) return <ScoreAnchor />
 
   const activeByExecutive = new Map(programs.map(p => [p.owner, p]))
   const briefingByExecutive = new Map(
@@ -84,36 +112,87 @@ export function ExecutiveRoster({ programs, reveal = false }: { programs: Progra
     }
   })
 
-  return (
-    <div>
-      {/* UX_SPEC §5: "around it: the five executives" — a quiet caption, not a bordered/shadowed
-          SectionCard, so this reads as part of the same zone as ScoreAnchor above it, not a
-          separate boxed section several scrolls down. */}
-      <p style={{
-        color: muted, fontSize: 12, fontWeight: 600, textTransform: 'uppercase',
-        letterSpacing: 0.4, textAlign: 'center', margin: '0 0 12px',
-      }}>
-        Your team
-      </p>
+  function renderCard(c: ExecutiveCardData) {
+    return (
+      <ExecutiveCard
+        data={c}
+        dimmed={leavingId !== null && leavingId !== c.executive.id}
+        onEnter={() => setLeavingId(c.executive.id)}
+      />
+    )
+  }
+
+  if (wide) {
+    // PRD 2 Stage 3 — "score centre, agents around it" (CANVAS_SPEC D2), for real this time.
+    // Each card gets a static, absolutely-positioned wrapper (the ring geometry, via
+    // orbitPosition) around an inner motion.div (the entrance animation) — kept as two nested
+    // elements so framer-motion's own transform management never has to share the same style
+    // property as the ring's plain left/top positioning.
+    const stageHeight = (RING_RADIUS + RING_CARD_HALF_HEIGHT) * 2
+    return (
       <motion.div
         variants={containerVariants}
         initial={reveal ? 'hidden' : false}
         animate="show"
-        style={{
-          display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 12,
-          maxWidth: 800, margin: '0 auto',
-        }}
+        style={{ position: 'relative', height: stageHeight, maxWidth: 900, margin: '0 auto' }}
       >
-        {cards.map(c => (
-          <motion.div key={c.executive.id} variants={cardVariants} style={{ flex: '0 1 260px' }}>
-            <ExecutiveCard
-              data={c}
-              dimmed={leavingId !== null && leavingId !== c.executive.id}
-              onEnter={() => setLeavingId(c.executive.id)}
-            />
-          </motion.div>
-        ))}
+        <div style={{
+          position: 'absolute', left: '50%', top: '50%',
+          marginLeft: -CENTRE_HALF_WIDTH, marginTop: -CENTRE_HALF_HEIGHT,
+        }}>
+          <ScoreAnchor />
+        </div>
+        {cards.map((c, i) => {
+          const { x, y } = orbitPosition(i, cards.length, RING_RADIUS)
+          return (
+            <div
+              key={c.executive.id}
+              style={{
+                position: 'absolute', left: `calc(50% + ${x}px)`, top: `calc(50% + ${y}px)`,
+                width: RING_CARD_WIDTH, marginLeft: -RING_CARD_WIDTH / 2, marginTop: -RING_CARD_HALF_HEIGHT,
+              }}
+            >
+              <motion.div variants={cardVariants}>{renderCard(c)}</motion.div>
+            </div>
+          )
+        })}
       </motion.div>
+    )
+  }
+
+  // Narrow viewport — unchanged from before this component owned ScoreAnchor: the dial above,
+  // the same 4px-gapped "one zone" spacing CommandView used to apply from the outside, then the
+  // caption + flex-wrap grid exactly as they always rendered.
+  return (
+    <div>
+      <ScoreAnchor />
+      <div style={{ marginTop: 4 }}>
+        {/* UX_SPEC §5: "around it: the five executives" — a quiet caption, not a bordered/shadowed
+            SectionCard, so this reads as part of the same zone as ScoreAnchor above it, not a
+            separate boxed section several scrolls down. Ring mode skips this label — the
+            arrangement itself already reads as "the team around the score." */}
+        <p style={{
+          color: muted, fontSize: 12, fontWeight: 600, textTransform: 'uppercase',
+          letterSpacing: 0.4, textAlign: 'center', margin: '0 0 12px',
+        }}>
+          Your team
+        </p>
+        <motion.div
+          variants={containerVariants}
+          initial={reveal ? 'hidden' : false}
+          animate="show"
+          style={{
+            display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 12,
+            maxWidth: 800, margin: '0 auto',
+          }}
+        >
+          {cards.map(c => (
+            <motion.div key={c.executive.id} variants={cardVariants} style={{ flex: '0 1 260px' }}>
+              {renderCard(c)}
+            </motion.div>
+          ))}
+        </motion.div>
+      </div>
     </div>
   )
 }

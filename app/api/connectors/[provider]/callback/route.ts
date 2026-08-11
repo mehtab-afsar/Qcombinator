@@ -56,9 +56,9 @@ export async function GET(
     // FIRST. Nothing is exchanged or stored until the state proves who this is for.
     const { founderId } = oauthProvider.verifyState(state)
     const connector = getConnector(provider)
-    const tokens = await oauthProvider.exchangeCode(code, connector.scopes)
+    const tokens = await oauthProvider.exchangeCode(code, connector.scopes, state)
 
-    await recordGrant(createAdminClient(), {
+    const grant = await recordGrant(createAdminClient(), {
       founderId,
       provider,
       refreshToken: tokens.refreshToken,
@@ -66,6 +66,23 @@ export async function GET(
       accountEmail: tokens.accountEmail,
       expiresAt: tokens.expiresAt,
     })
+
+    // Generic hook, same call for every provider — most don't define it. Never blocks the
+    // connect outcome: the grant is already valid by this point regardless of what this does.
+    if (connector.onConnected) {
+      try {
+        await connector.onConnected({
+          grantId: grant.id,
+          founderId,
+          provider,
+          accessToken: tokens.accessToken,
+          accountEmail: tokens.accountEmail,
+          scopes: tokens.grantedScopes,
+        })
+      } catch (err) {
+        log.warn(`${provider} onConnected hook failed`, { err })
+      }
+    }
 
     trackConnectorConnected(founderId, { provider })
     log.info(`${provider} connected`, { founderId }) // never the tokens, never the code

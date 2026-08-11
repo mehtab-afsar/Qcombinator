@@ -84,6 +84,44 @@ describe('the complete-profile route', () => {
   })
 })
 
+/**
+ * SAME BLIND SPOT, FOUND AGAIN DURING TEAM MANAGEMENT PHASE 2/3 (11 Aug 2026): the
+ * email/password signup route (app/api/auth/signup/route.ts) has always created a
+ * `startups` + `startup_members` row for every new founder — /auth/callback's Google
+ * OAuth stub never did. Harmless before Phase 2 (every route read auth.uid() directly),
+ * but getAnchorFounderId (lib/team/founder-permissions.ts) resolves through
+ * founder_profiles.startup_id — so a Google founder with no startup_id would 400 with
+ * "No workspace found" reading their OWN Mandate, Assets, Rhythm, Actions, Q-Score, and
+ * Briefings. Fixed by giving OAuth sign-ups the same workspace the email/password path
+ * already gets.
+ */
+describe('a Google OAuth sign-up gets a workspace, same as email/password signup', () => {
+  const src = read('app/auth/callback/route.ts')
+
+  it('creates a startups row owned by the new user', () => {
+    expect(src).toContain("from('startups')")
+    expect(src).toContain('owner_user_id: user.id')
+  })
+
+  it('adds them as the owner of their own startup_members row', () => {
+    const block = src.slice(src.indexOf("from('startups')"), src.indexOf("from('startups')") + 900)
+    expect(block).toContain("from('startup_members')")
+    expect(block).toContain("role: 'owner'")
+  })
+
+  it('links the new founder_profiles row to the new startup', () => {
+    const block = src.slice(src.indexOf("from('startups')"), src.indexOf("from('startups')") + 900)
+    expect(block).toMatch(/from\('founder_profiles'\)\.update\(\{\s*startup_id:\s*startup\.id\s*\}\)/)
+  })
+
+  it('runs after the founder_profiles stub insert, not inside the same Promise.all', () => {
+    const stubIdx = src.indexOf("from('founder_profiles').insert(")
+    const startupIdx = src.indexOf("from('startups')")
+    expect(stubIdx).toBeGreaterThan(-1)
+    expect(startupIdx).toBeGreaterThan(stubIdx)
+  })
+})
+
 describe('the OAuth callback route routes on completion, not row existence', () => {
   const src = read('app/auth/callback/route.ts')
 

@@ -43,6 +43,18 @@ export function canConnectInvestors(role: TeamRole): boolean {
   return role === 'owner' || role === 'admin'
 }
 
+/** Assets are versioned (never overwritten), so a member's edit can never destroy the
+ *  owner's or another member's work — it just adds a new version. Safe to allow broadly. */
+export function canEditAsset(role: TeamRole): boolean {
+  return role === 'owner' || role === 'admin' || role === 'member'
+}
+
+/** Irreversible external Actions (send/publish/spend) stay owner/admin-only — matches
+ *  canInviteMembers' bar, not canEditAsset's, because approval has no versioned undo. */
+export function canApproveAction(role: TeamRole): boolean {
+  return role === 'owner' || role === 'admin'
+}
+
 // ─── Server-side: fetch the caller's role in a startup ───────────────────────
 
 export async function getCallerTeamRole(
@@ -81,4 +93,30 @@ export async function getMyTeamRole(
   if (!startupId) return { role: null, startupId: null }
   const role = await getCallerTeamRole(userId, startupId, supabase)
   return { role, startupId }
+}
+
+/**
+ * Resolve the founder_id a user's team's engine data (Mandate, Assets, Rhythm, Actions,
+ * Q-Score) is actually stored under — startups.owner_user_id, not whichever teammate is
+ * logged in. Every one of those tables' rows anchors to the owner's own auth.uid() from
+ * whenever it was written; a teammate's own founder_id slot on those tables is empty. The
+ * shared-visibility RLS policy (team_founder_ids(), see the Phase 2 migration) makes those
+ * rows readable across the team, but a caller still has to ask for THIS id, not their own,
+ * or the query just finds nothing under their own empty slot.
+ *
+ * Returns null if the user has no startup_id yet (pre-onboarding) or the startup has no
+ * owner_user_id set (shouldn't happen post-20260807000002, but this avoids a runtime throw).
+ */
+export async function getAnchorFounderId(
+  userId: string,
+  supabase: SupabaseClient,
+): Promise<string | null> {
+  const startupId = await getStartupIdForUser(userId, supabase)
+  if (!startupId) return null
+  const { data } = await supabase
+    .from('startups')
+    .select('owner_user_id')
+    .eq('id', startupId)
+    .maybeSingle()
+  return data?.owner_user_id ?? null
 }

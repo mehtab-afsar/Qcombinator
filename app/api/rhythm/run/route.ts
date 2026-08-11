@@ -10,6 +10,14 @@
  * (5–6 sequential Claude calls), far past what any single HTTP invocation should be made to
  * survive. Progress is readable via the existing operating_rhythm_runs row; polling it is a
  * founder-facing follow-up, not built here.
+ *
+ * PRD 2 Stage 2 — `?stream=1` switches step 1's response to Server-Sent Events, streaming its
+ * asset content live (this is the one call a founder's own browser is actually connected to;
+ * every step after the first still runs unattended via the self-chain, unchanged). Opt-in, not
+ * the default: the chat rail (app/api/executive/[executiveId]/chat/route.ts) already calls this
+ * SAME endpoint internally for "run the cycle now" and expects the plain JSON shape below —
+ * changing the default would silently break that caller. One route, two response shapes,
+ * selected by the caller, not two routes (CLAUDE.md §0.1).
  */
 
 // Step 1 runs inline and can be one real Claude call (up to judge.ts's 180s worst case) —
@@ -31,6 +39,7 @@ import { buildStepPreviews } from '@/lib/rhythm/preview'
 import { getCurrentContract, getProgramsForContract } from '@/lib/mandate/contract'
 import { weekCycleKey } from '@/lib/rhythm/cycle-key'
 import { log } from '@/lib/logger'
+import { getAnchorFounderId } from '@/lib/team/founder-permissions'
 
 // cycleKey override is for dev testing only; it defaults to the current ISO week.
 const bodySchema = z.object({ cycleKey: z.string().trim().max(40).optional() })
@@ -49,16 +58,22 @@ export async function GET(): Promise<NextResponse> {
 
     // User-scoped on purpose — RLS (SELECT-own) is the tenancy boundary, as in /api/briefings.
     const supabase = await createClient()
-    const run = await getLatestRun(supabase, auth.user.id)
+
+    // Team data anchors to the startup owner's founder_id, not whichever teammate is
+    // logged in — see getAnchorFounderId's own doc comment.
+    const anchorId = await getAnchorFounderId(auth.user.id, supabase)
+    if (!anchorId) return NextResponse.json({ error: 'No workspace found' }, { status: 400 })
+
+    const run = await getLatestRun(supabase, anchorId)
     if (!run) return NextResponse.json({ progress: null, history: [] }) // nothing has ever run — not an error
 
     // The active Programs give the projection its total; a just-created run's stages are empty.
-    const contract = await getCurrentContract(supabase, auth.user.id)
+    const contract = await getCurrentContract(supabase, anchorId)
     const activePrograms = contract?.status === 'confirmed' ? contract.activePrograms : []
 
     // F09 artifact organization — "Past cycles". Thin by design: id/status/dates/done-total, not
     // the full per-step detail buildProgress produces (that only matters for the LIVE run).
-    const runs = await listRuns(supabase, auth.user.id)
+    const runs = await listRuns(supabase, anchorId)
     const history = runs.map(r => {
       const p = buildProgress(r, activePrograms)
       return { id: r.id, cycleKey: r.cycleKey, status: r.status, startedAt: r.startedAt, completedAt: r.completedAt, done: p.done, total: p.total }
@@ -82,50 +97,106 @@ export async function GET(): Promise<NextResponse> {
   }
 }
 
-export async function POST(req: NextRequest): Promise<NextResponse> {
+function sseEncode(event: Record<string, unknown>): Uint8Array {
+  return new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`)
+}
+
+/** Shared by both response modes — resolved BEFORE any streaming starts, so the EXPECTED
+ *  failure cases (already ran, circuit breaker, no mandate) are always a real JSON status code,
+ *  never a soft error buried inside an SSE stream (same precedent as /api/strategy/propose). */
+async function resolveRun(auth: { user: { id: string } }, cycleKeyOverride?: string) {
+  const cycleKey = (process.env.NODE_ENV !== 'production' ? cycleKeyOverride : undefined)
+    ?? weekCycleKey(new Date())
+  const admin = createAdminClient()
+
+  // The run has to land under the ONE shared founder_id (the workspace owner's) or a
+  // teammate's manual trigger creates a second, parallel cycle nobody else's reads would ever
+  // see — operating_rhythm_runs' unique(founder_id, cycle_key) is per founder_id, so this
+  // would silently double-run the same week under two identities rather than resuming one.
+  const anchorId = await getAnchorFounderId(auth.user.id, admin)
+  if (!anchorId) throw new RhythmError('No workspace found.')
+
+  const contract = await getCurrentContract(admin, anchorId)
+  if (!contract || contract.status !== 'confirmed') {
+    throw new RhythmError('No confirmed mandate — there is nothing to run.')
+  }
+  const run = await createOrResumeRun(admin, { founderId: anchorId, contractId: contract.id, cycleKey })
+  return { admin, run, cycleKey }
+}
+
+function errorResponse(err: unknown): NextResponse {
+  // Already ran this week → 409 (idempotent, the founder should know it was a no-op).
+  if (err instanceof CycleAlreadyRanError) {
+    return NextResponse.json({ error: err.message }, { status: 409 })
+  }
+  // The circuit breaker blew for this week. Also a 409 (the week is spent), but a distinct
+  // message: retrying would hand the same runaway a fresh budget, so it needs a human.
+  if (err instanceof StepLimitOpenError) {
+    return NextResponse.json({ error: err.message }, { status: 409 })
+  }
+  // No confirmed mandate → 400 (nothing to run yet).
+  if (err instanceof RhythmError) {
+    return NextResponse.json({ error: err.message }, { status: 400 })
+  }
+  log.error('POST /api/rhythm/run', { err })
+  return NextResponse.json({ error: 'Failed to run the cycle' }, { status: 500 })
+}
+
+export async function POST(req: NextRequest): Promise<Response> {
   const off = newModelOff()
   if (off) return off
 
-  try {
-    const auth = await verifyAuth()
-    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+  const auth = await verifyAuth()
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
-    const parsed = await parseBody(req, bodySchema)
-    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
+  const parsed = await parseBody(req, bodySchema)
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
 
-    // B2: a client-supplied cycleKey would let a founder bypass the once-a-week guard and run
-    // unlimited paid cycles. Honour it ONLY outside production (for local/dev testing); in
-    // production the key is always derived server-side (defaults to the current week).
-    const cycleKey = (process.env.NODE_ENV !== 'production' ? parsed.data.cycleKey : undefined)
-      ?? weekCycleKey(new Date())
+  const streaming = req.nextUrl.searchParams.get('stream') === '1'
 
-    const admin = createAdminClient()
-    const contract = await getCurrentContract(admin, auth.user.id)
-    if (!contract || contract.status !== 'confirmed') {
-      throw new RhythmError('No confirmed mandate — there is nothing to run.')
+  if (!streaming) {
+    try {
+      const { admin, run, cycleKey } = await resolveRun(auth, parsed.data.cycleKey)
+      // Step 1 runs inline: the caller's response reflects real progress, not an unstarted stub.
+      const step = await runNextStep(admin, run.id)
+      if (!step.done) triggerNextRhythmStep(run.id)
+      return NextResponse.json({ runId: run.id, cycleKey, done: step.done }, { status: 202 })
+    } catch (err) {
+      return errorResponse(err)
     }
-
-    const run = await createOrResumeRun(admin, { founderId: auth.user.id, contractId: contract.id, cycleKey })
-    // Step 1 runs inline: the caller's response reflects real progress, not an unstarted stub.
-    const step = await runNextStep(admin, run.id)
-    if (!step.done) triggerNextRhythmStep(run.id)
-
-    return NextResponse.json({ runId: run.id, cycleKey, done: step.done }, { status: 202 })
-  } catch (err) {
-    // Already ran this week → 409 (idempotent, the founder should know it was a no-op).
-    if (err instanceof CycleAlreadyRanError) {
-      return NextResponse.json({ error: err.message }, { status: 409 })
-    }
-    // The circuit breaker blew for this week. Also a 409 (the week is spent), but a distinct
-    // message: retrying would hand the same runaway a fresh budget, so it needs a human.
-    if (err instanceof StepLimitOpenError) {
-      return NextResponse.json({ error: err.message }, { status: 409 })
-    }
-    // No confirmed mandate → 400 (nothing to run yet).
-    if (err instanceof RhythmError) {
-      return NextResponse.json({ error: err.message }, { status: 400 })
-    }
-    log.error('POST /api/rhythm/run', { err })
-    return NextResponse.json({ error: 'Failed to run the cycle' }, { status: 500 })
   }
+
+  // Streaming mode — resolve the expected-failure cases as a real status BEFORE opening the
+  // stream; only step 1's own generation happens inside it.
+  let resolved: Awaited<ReturnType<typeof resolveRun>>
+  try {
+    resolved = await resolveRun(auth, parsed.data.cycleKey)
+  } catch (err) {
+    return errorResponse(err)
+  }
+  const { admin, run, cycleKey } = resolved
+
+  const readable = new ReadableStream({
+    async start(controller) {
+      try {
+        const step = await runNextStep(admin, run.id, text => {
+          controller.enqueue(sseEncode({ type: 'delta', text }))
+        })
+        if (!step.done) triggerNextRhythmStep(run.id)
+        controller.enqueue(sseEncode({ type: 'done', runId: run.id, cycleKey, done: step.done }))
+      } catch (err) {
+        // A soft error over the stream, never a bare 500 mid-connection — same fallback shape
+        // errorResponse would have produced, carried as data instead of a status code.
+        const message = err instanceof RhythmError ? err.message : 'Failed to run the cycle'
+        log.warn('[rhythm/run stream] step 1 failed', { err: (err as Error)?.message })
+        controller.enqueue(sseEncode({ type: 'done', error: message }))
+      }
+      controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'))
+      controller.close()
+    },
+  })
+
+  return new Response(readable, {
+    headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' },
+  })
 }

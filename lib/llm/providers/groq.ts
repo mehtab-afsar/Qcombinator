@@ -86,16 +86,23 @@ export class GroqProvider implements LLMProvider {
     return { text, toolCall: null }
   }
 
-  // Groq fallback does not support streaming — yields the full response as one delta
+  // Groq fallback does not support streaming — yields the full response as one delta.
+  // stopReason is always undefined here because chat() doesn't extract one from Groq's
+  // response either (a separate, pre-existing gap — not introduced or fixed by this signature
+  // widening, which exists so this still satisfies LLMProvider now that Anthropic's real
+  // stream() reports it).
   async *stream(params: {
     messages: ChatMessage[]
     modelTier: RoutingTier
     maxTokens: number
     temperature: number
     tools?: ToolDefinition[]
-  }): AsyncGenerator<{ type: 'delta'; text: string } | { type: 'done'; toolCall: null }> {
+  }): AsyncGenerator<
+    | { type: 'delta'; text: string }
+    | { type: 'done'; toolCall: null; stopReason?: string }
+  > {
     const result = await this.chat(params)
     yield { type: 'delta', text: result.text }
-    yield { type: 'done', toolCall: null }
+    yield { type: 'done', toolCall: null, stopReason: undefined }
   }
 }

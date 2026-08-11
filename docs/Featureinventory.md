@@ -401,6 +401,38 @@ Executive System Prompt       = executive knowledge and operating principles
 
 ---
 
+# F20 — Team Management / Workspace 🔵 P0
+
+**Purpose.** Let a founder add a co-founder or teammate who sees the company's real, shared operating state — one Mandate, one set of Assets, one Rhythm, one Action history, one Q-Score per startup, never a second empty account — with real roles, a real seat cap, and an append-only audit trail. Reuses the existing `startups` / `startup_members` / `team_invites` invite mechanism; this feature is what makes accepting an invite actually work (ADR-037).
+
+**User stories.**
+- **US-20.1 (P0)** As an invited teammate, when I accept an invite, I see the owner's real Mandate/Assets/Rhythm/Actions/Q-Score, not an empty account.
+- **US-20.2 (P0)** As an owner or admin, only I can invite, and only up to my plan's seat limit.
+- **US-20.3 (P0)** As the system, every invite/join/role-change/removal writes one append-only audit row and notifies the affected person.
+- **US-20.4 (P0)** As the owner, only I can confirm or change the Executive Contract (Mandate) — never an admin or member, even though they share everything else.
+- **US-20.5 (P1)** As a viewer, I can read everything but edit nothing.
+
+**UC-20 — build flow.**
+1. `team_founder_ids()` — a `SECURITY DEFINER` function resolving every teammate sharing the caller's `startup_id` — widens the SELECT RLS policy on `executive_contracts`, `asset_versions`, `operating_rhythm_runs`, `action_log`, `qscore_history`, `executive_briefings` (ADR-037). Write-path RLS is untouched — still `auth.uid() = founder_id`.
+2. `getAnchorFounderId(userId, supabase)` (`lib/team/founder-permissions.ts`) resolves `startups.owner_user_id` so every read AND write anchors to one identity regardless of which teammate is logged in. Wired into all 8 read routes (`GET /api/contracts`, `/api/assets`, `/api/assets/[id]`, `/api/actions`, `/api/rhythm/run`, `/api/activity`, `/api/briefings`, the executive chat route) and 3 write routes (contract confirm/draft, asset edit, action approve/decline).
+3. Role gates: `canEditAsset` (owner/admin/member), `canApproveAction` (owner/admin), owner-only on contract confirm/draft, `canInviteMembers`/`canRemoveMember` on the team routes.
+4. `logTeamEvent()` (`lib/team/audit.ts`) writes one row to `team_audit_log` (`invited|invite_cancelled|invite_resent|joined|role_changed|removed|left`) on every team action; paired `notifications` insert (`team_member_joined`/`team_role_changed`/`team_member_removed`) to the affected person.
+5. `FOUNDER_SEAT_LIMITS` (`lib/billing/plans.ts`, separate from the metered `FOUNDER_PLAN_LIMITS`) caps `startup_members` headcount at invite time, resolved from the startup owner's tier — not the inviting caller's.
+
+**Acceptance.**
+- [ ] Given a `member`-role teammate with zero `executive_contracts` rows of their own, when they call `GET /api/contracts`, then they see the owner's confirmed contract.
+- [ ] Given a user in startup A, when they probe for a row belonging to startup B, then empty result (adversarial, not just happy-path).
+- [ ] Given an admin (not owner) tries to confirm a contract, then `403`.
+- [ ] Given a startup at its seat cap, when the owner invites one more, then `403` and no invite row is created.
+- [ ] Given any team event completes, then exactly one `team_audit_log` row and one `notifications` row are written.
+- [ ] Given account deletion cascades through a user with `team_audit_log` history, then the cascade succeeds (regression: mirrors the exact bug class `action_log` needed a follow-up migration for).
+
+**Data & API.** `team_audit_log` (new, append-only); `startups`/`startup_members`/`team_invites` (existing, reused); `FOUNDER_SEAT_LIMITS`; `POST/DELETE /api/team/invite`, `GET/PATCH/DELETE /api/team/members`, `POST /api/team/join`.
+**Edge cases.** Google OAuth sign-up must also get a `startups` row (email/password signup already did; the callback route didn't — fixed alongside this feature). A teammate with no `startup_id` gets `null` from `getAnchorFounderId`, not a throw — routes return `400 "No workspace found"`.
+**DoD.** RLS widening verified adversarially (cross-tenant probe returns empty); seat cap enforced before invite insert; audit trail complete; UI on shared components (`Modal`/`Button`/`SectionCard`/`Badge`/`Avatar`/`EmptyState`/`RowSkeleton`), no new hand-rolled patterns.
+
+---
+
 # Cross-cutting rules (apply to every feature)
 
 - **Mandate integrity** — no Program runs outside the current Executive Contract.

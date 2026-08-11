@@ -24,27 +24,27 @@ describe('resolveDimensions — priority chain', () => {
         { id: 'p2', averageScore: 1.5 }, // -> 30
         { id: 'p3', averageScore: 3 },   // -> 60
       ],
-      legacyBreakdown: { market: { score: 99 } }, // must be ignored — IQ params win
+      legacyBreakdown: { marketReadiness: { score: 99 } }, // must be ignored — IQ params win
       demoDims,
     })
     expect(result.map(([id]) => id)).toEqual(['p2', 'p3', 'p1']) // sorted worst-first
     expect(result.find(([id]) => id === 'p1')![1]).toEqual({ score: 80, change: 0, trend: 'neutral' })
   })
 
-  it('falls back to the legacy breakdown when there are no IQ v2 params', () => {
+  it('falls back to the legacy breakdown when there are no IQ v2 params — keyed exactly as app/api/qscore/latest/route.ts shapes it', () => {
     const result = resolveDimensions({
       iqParams: [],
       legacyBreakdown: {
-        market: { score: 60, change: 2, trend: 'up' },
-        goToMarket: { score: 20, change: -3, trend: 'down' },
-        product: { score: 40 },
-        team: { score: 90 },
-        traction: { score: 55 },
-        financial: { score: 30 },
+        marketReadiness:  { score: 60, change: 2, trend: 'up' },
+        marketPotential:  { score: 20, change: -3, trend: 'down' },
+        ipDefensibility:  { score: 40 },
+        founderTeam:      { score: 90 },
+        structuralImpact: { score: 55 },
+        financials:       { score: 30 },
       },
       demoDims,
     })
-    // market->p1, goToMarket->p2, product->p3, team->p4, traction->p5, financial->p6
+    // marketReadiness->p1, marketPotential->p2, ipDefensibility->p3, founderTeam->p4, structuralImpact->p5, financials->p6
     expect(result[0]).toEqual(['p2', { score: 20, change: -3, trend: 'down' }])
     expect(result.find(([id]) => id === 'p1')![1]).toEqual({ score: 60, change: 2, trend: 'up' })
   })
@@ -66,7 +66,7 @@ describe('resolveDimensions — priority chain', () => {
   it('legacy fields missing sub-values default safely (score 0, neutral)', () => {
     const result = resolveDimensions({
       iqParams: [],
-      legacyBreakdown: { market: {} },
+      legacyBreakdown: { marketReadiness: {} },
       demoDims,
     })
     expect(result.find(([id]) => id === 'p1')![1]).toEqual({ score: 0, change: 0, trend: 'neutral' })

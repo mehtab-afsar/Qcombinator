@@ -3,7 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { bg, surf, bdr, ink, muted, blue } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted } from '@/lib/constants/colors'
+import { BrandMark } from '@/features/shared/components/BrandMark'
 
 export default function ResetPasswordPage() {
   const [email,   setEmail]   = useState("");
@@ -43,10 +44,7 @@ export default function ResetPasswordPage() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: "18px 28px", borderBottom: `1px solid ${bdr}` }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ height: 32, width: 32, borderRadius: 8, background: blue,
-            display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <span style={{ color: "#fff", fontWeight: 900, fontSize: 8 }}>EA</span>
-          </div>
+          <BrandMark size={32} />
           <span style={{ fontWeight: 600, fontSize: 15, letterSpacing: "-0.01em" }}>Edge Alpha</span>
         </div>
         <Link href="/login" style={{ display: "flex", alignItems: "center", gap: 6,

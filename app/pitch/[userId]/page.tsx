@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { bg, surf, bdr, ink, muted, blue, green, amber, red } from "@/lib/constants/colors";
+import { BrandMark } from "@/features/shared/components/BrandMark";
 import type { LucideIcon } from 'lucide-react'
 
 // ─── types ────────────────────────────────────────────────────────────────────
@@ -206,11 +207,8 @@ export default function PitchProfile() {
         display: "flex", alignItems: "center", justifyContent: "center",
       }}>
         <div style={{ textAlign: "center" }}>
-          <div style={{
-            height: 40, width: 40, borderRadius: 10, background: blue,
-            display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px",
-          }}>
-            <span style={{ color: "#fff", fontWeight: 900, fontSize: 9 }}>EA</span>
+          <div style={{ display: "flex", justifyContent: "center", margin: "0 auto 16px" }}>
+            <BrandMark size={40} />
           </div>
           <p style={{ color: muted, fontSize: 13 }}>Loading pitch profile…</p>
         </div>
@@ -226,11 +224,8 @@ export default function PitchProfile() {
         display: "flex", alignItems: "center", justifyContent: "center",
       }}>
         <div style={{ textAlign: "center", maxWidth: 360, padding: "0 24px" }}>
-          <div style={{
-            height: 40, width: 40, borderRadius: 10, background: ink,
-            display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px",
-          }}>
-            <span style={{ color: "#fff", fontWeight: 900, fontSize: 9 }}>EA</span>
+          <div style={{ display: "flex", justifyContent: "center", margin: "0 auto 16px" }}>
+            <BrandMark size={40} />
           </div>
           <h1 style={{ fontSize: 20, fontWeight: 300, color: ink, marginBottom: 8 }}>
             Pitch profile not found
@@ -314,12 +309,7 @@ export default function PitchProfile() {
         display: "flex", alignItems: "center", justifyContent: "space-between",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{
-            height: 28, width: 28, borderRadius: 7, background: blue,
-            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-          }}>
-            <span style={{ color: "#fff", fontWeight: 900, fontSize: 8 }}>EA</span>
-          </div>
+          <BrandMark size={28} />
           <span style={{ fontSize: 13, fontWeight: 600, color: ink }}>Edge Alpha</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -611,12 +601,7 @@ export default function PitchProfile() {
                 display: "flex", alignItems: "center", gap: 8,
               }}
             >
-              <div style={{
-                height: 22, width: 22, borderRadius: 6, background: blue,
-                display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-              }}>
-                <span style={{ color: "#fff", fontWeight: 900, fontSize: 7 }}>EA</span>
-              </div>
+              <BrandMark size={22} />
               <div>
                 <p style={{ fontSize: 10, fontWeight: 600, color: ink, marginBottom: 1 }}>Built with Edge Alpha</p>
                 <p style={{ fontSize: 9, color: muted }}>AI-powered startup OS</p>
@@ -759,7 +744,7 @@ export default function PitchProfile() {
                     background: "#EFF6FF", color: blue, border: `1px solid ${blue}33`,
                     textTransform: "uppercase", letterSpacing: "0.1em",
                   }}>
-                    IQ Matrix
+                    Q-Score Matrix
                   </span>
                 </div>
                 {qscore.breakdown.map(b => (

@@ -17,13 +17,14 @@
  */
 
 import { useCallback, useEffect, useState } from 'react'
-import { Check, X, Clock, Circle } from 'lucide-react'
+import { Check, X, Clock, Circle, ChevronDown } from 'lucide-react'
 import { bdr, ink, muted, bg, amber, red, green, purple, alpha } from '@/lib/constants/colors'
 import { radius } from '@/features/shared/tokens'
 import { FONT_SERIF } from '@/features/onboarding/theme'
 import { SectionCard } from '@/features/shared/components/SectionCard'
 import { Button } from '@/features/shared/components/Button'
 import { Badge } from '@/features/shared/components/Badge'
+import { useCycleLive } from '../lib/useCycleLive'
 
 interface PendingAction {
   id: string
@@ -49,6 +50,11 @@ interface ActionSummary {
   status: 'pending_approval' | 'approved' | 'sending' | 'executed' | 'failed' | 'declined' | 'unknown' | 'never_run'
   provider: string | null
   createdAt: string | null
+  /** A completed reversible/internal Action's own analysis (lib/actions/generate.ts) — real
+   *  prose the team produced, generated for real but previously discarded the moment it was
+   *  written. Null for anything irreversible (that path never sets `result` at all) or that
+   *  hasn't run. */
+  summary: string | null
 }
 
 /** Mirrors APPROVAL_TTL_MS in lib/actions/approve.ts — an approval is about a moment too. */
@@ -65,6 +71,10 @@ export function ActionsPanel({ executiveId }: { executiveId?: string } = {}) {
   const [loaded, setLoaded] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // Gap A — a cycle finishing is exactly when a new pending approval (or a completed internal
+  // action) can exist server-side; without this a founder sees nothing appear here until a
+  // manual reload. See BriefingsPanel's identical use of this hook for the full reasoning.
+  const { generation } = useCycleLive()
 
   const load = useCallback(async () => {
     try {
@@ -82,7 +92,7 @@ export function ActionsPanel({ executiveId }: { executiveId?: string } = {}) {
     }
   }, [executiveId])
 
-  useEffect(() => { void load() }, [load])
+  useEffect(() => { void load() }, [load, generation])
 
   async function decide(entry: PendingAction, decision: 'approve' | 'decline') {
     setBusyId(entry.id)
@@ -164,22 +174,46 @@ export function ActionsPanel({ executiveId }: { executiveId?: string } = {}) {
 }
 
 /** One line, honest status — done, waiting on you, or not run yet. No approve/decline here;
- *  that control only exists on the actual pending card above, never duplicated. */
+ *  that control only exists on the actual pending card above, never duplicated. A completed
+ *  internal Action with a real analysis (Gap A/B — the work was always done, just discarded
+ *  before this) expands in place to show it, rather than opening a second surface. */
 function ActionStatusRow({ action }: { action: ActionSummary }) {
   const { icon, color, note } = statusLook(action.status)
+  const [open, setOpen] = useState(false)
+  const expandable = action.status === 'executed' && !!action.summary
+
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 10, fontSize: 14,
-      background: bg, border: `1px solid ${bdr}`, borderRadius: radius.md, padding: '10px 14px',
-    }}>
-      <span style={{ display: 'flex', width: 16 }}>{icon}</span>
-      <span style={{ color: ink, flex: 1 }}>{action.name}</span>
-      {action.irreversible && (
-        <span style={{ color: muted, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.4 }}>
-          {action.provider ? `via ${action.provider}` : 'external'}
-        </span>
+    <div style={{ background: bg, border: `1px solid ${bdr}`, borderRadius: radius.md }}>
+      <div
+        onClick={expandable ? () => setOpen(o => !o) : undefined}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, padding: '10px 14px',
+          cursor: expandable ? 'pointer' : 'default',
+        }}
+      >
+        <span style={{ display: 'flex', width: 16 }}>{icon}</span>
+        <span style={{ color: ink, flex: 1 }}>{action.name}</span>
+        {action.irreversible && (
+          <span style={{ color: muted, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+            {action.provider ? `via ${action.provider}` : 'external'}
+          </span>
+        )}
+        <span style={{ color, fontSize: 12 }}>{note}</span>
+        {expandable && (
+          <ChevronDown
+            size={13} color={muted}
+            style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.15s', flexShrink: 0 }}
+          />
+        )}
+      </div>
+      {expandable && open && (
+        <p style={{
+          color: muted, fontFamily: FONT_SERIF, fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-wrap',
+          margin: 0, padding: '0 14px 14px', borderTop: `1px solid ${bdr}`, paddingTop: 12,
+        }}>
+          {action.summary}
+        </p>
       )}
-      <span style={{ color, fontSize: 12 }}>{note}</span>
     </div>
   )
 }

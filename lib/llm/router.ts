@@ -14,7 +14,9 @@
 import { getProvider } from './providers'
 import type { RoutingTier, ToolDefinition, LLMChatResponse, ChatMessage } from './types'
 
-type StreamEvent = { type: 'delta'; text: string } | { type: 'done'; toolCall: LLMChatResponse['toolCall'] }
+type StreamEvent =
+  | { type: 'delta'; text: string }
+  | { type: 'done'; toolCall: LLMChatResponse['toolCall']; stopReason?: string }
 
 export type TaskClass = 'extraction' | 'generation' | 'reasoning' | 'classification' | 'summarisation'
 export type ModelTier = 'economy' | 'standard' | 'premium'

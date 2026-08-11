@@ -4,6 +4,7 @@ import { verifyAuth } from '@/lib/auth/verify'
 import { log } from '@/lib/logger'
 import { routedText } from '@/lib/llm/router'
 import { composeAdhocPrompt } from '@/lib/prompts/compose'
+import { DIM_AGENTS } from '@/features/qscore/constants/dimensions'
 
 // GET /api/qscore/priority
 // Returns AI-generated top 3 priorities for the founder to work on TODAY.
@@ -174,13 +175,16 @@ Agent actions in last 24h: ${activityLast24h}
 ${overdueDeal ? `⚠️ Overdue deal: "${overdueDeal.contact_name}" has a past-due follow-up action` : ''}
 `.trim()
 
+    // Sourced from the shared DIM_AGENTS, not a second copy — this used to independently say
+    // 'nova' for IP & Defensibility while the dashboard's own copy said 'leo' (leo is correct;
+    // patents/legal moat is Leo's domain, not Nova's product/PMF one).
     const AGENT_MAP: Record<string, string> = {
-      'Market Readiness':   'patel',
-      'Market Potential':   'atlas',
-      'IP & Defensibility': 'nova',
-      'Founder & Team':     'harper',
-      'Structural Impact':  'sage',
-      'Financials':         'felix',
+      'Market Readiness':   DIM_AGENTS.p1.agentId,
+      'Market Potential':   DIM_AGENTS.p2.agentId,
+      'IP & Defensibility': DIM_AGENTS.p3.agentId,
+      'Founder & Team':     DIM_AGENTS.p4.agentId,
+      'Structural Impact':  DIM_AGENTS.p5.agentId,
+      'Financials':         DIM_AGENTS.p6.agentId,
     }
 
     const messages = composeAdhocPrompt({

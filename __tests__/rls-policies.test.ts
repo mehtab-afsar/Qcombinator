@@ -132,12 +132,26 @@ describe('no policy grants everything to everyone', () => {
 describe('the new-model tables are scoped to their owner', () => {
   const NEW_TABLES = ['strategy_sessions', 'executive_contracts', 'programs', 'asset_versions', 'executive_briefings', 'operating_rhythm_runs']
 
-  it.each(NEW_TABLES)('%s has founder-scoped policies and no escape hatch', table => {
+  // Team Management, Phase 2 (20260811000002): SELECT on executive_contracts, asset_versions,
+  // executive_briefings and operating_rhythm_runs widened from a literal `auth.uid() = founder_id`
+  // to `founder_id IN (SELECT public.team_founder_ids())` — a SECURITY DEFINER function that
+  // resolves every founder_id sharing the caller's startup_id (see that migration's own comment
+  // for why a raw subquery through founder_profiles silently fails: founder_profiles' own SELECT
+  // RLS filters it back down to just the caller before the widening ever applies). This is still a
+  // real scoping check, not an escape hatch — it just scopes to "my team" instead of "only me",
+  // which is the intended change. INSERT/UPDATE policies on these tables are untouched and still
+  // read literally `auth.uid() = founder_id` (write-side team gating is application-level, not
+  // RLS — see lib/team/founder-permissions.ts's canEditAsset/canApproveAction).
+  const FOUNDER_SCOPED = /auth\.uid\(\)\s*=\s*founder_id/i
+  const TEAM_SCOPED = /founder_id\s+in\s*\(\s*select\s+public\.team_founder_ids\(\)\s*\)/i
+
+  it.each(NEW_TABLES)('%s has founder- or team-scoped policies and no escape hatch', table => {
     const policies = livePolicies().filter(p => p.table === table)
     expect(policies.length).toBeGreaterThan(0)
     for (const p of policies) {
       expect(p.statement).not.toMatch(/using\s*\(\s*true\s*\)/i)
-      expect(p.statement).toMatch(/auth\.uid\(\)\s*=\s*founder_id/i)
+      const scoped = FOUNDER_SCOPED.test(p.statement) || TEAM_SCOPED.test(p.statement)
+      expect(scoped).toBe(true)
     }
   })
 

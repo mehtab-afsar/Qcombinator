@@ -12,8 +12,8 @@ process.env.GOOGLE_CONNECTOR_CLIENT_ID = 'test-google-client-id.apps.googleuserc
 process.env.GOOGLE_CONNECTOR_CLIENT_SECRET = 'test-google-secret'
 
 import { createHmac } from 'crypto'
-import { createState, verifyState, authorizeUrl, redirectUri } from '@/lib/connectors/slack-oauth'
-import { createState as createGoogleState } from '@/lib/connectors/oauth'
+import { createState, verifyState, authorizeUrl, redirectUri } from '@/lib/connectors/slack/oauth'
+import { createState as createGoogleState } from '@/lib/connectors/gmail/send-oauth'
 import { getConnector } from '@/lib/connectors/registry'
 import { ConnectorError } from '@/lib/connectors/types'
 

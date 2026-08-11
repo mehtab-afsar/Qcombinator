@@ -16,6 +16,7 @@ import { FileText } from 'lucide-react'
 import { bg, bdr, ink, muted, blue } from '@/lib/constants/colors'
 import { Badge } from '@/features/shared/components/Badge'
 import { SHORT_LABEL, EXECUTIVE_BADGE_VARIANT } from '../lib/executiveLabels'
+import type { Rect } from '../lib/panel-origin'
 
 export interface ArtifactCardVersion {
   version: number
@@ -39,13 +40,16 @@ export interface ArtifactCardData {
  * @param onOpen when supplied (the cockpit, CANVAS_SPEC §5), clicking opens the node workspace
  *  panel in place instead of navigating to /founder/assets/[id] — "preserve the sense of place."
  *  Omitted everywhere else, where a normal link is still correct (e.g. the Documents Hub).
+ *  Receives this card's own bounding rect, captured at click time — PRD 2 Stage 3, so the panel
+ *  can visually grow out of the clicked card (features/executive/lib/panel-origin.ts) instead of
+ *  always sliding in from the screen edge.
  */
 export function ArtifactCard({
   data, showOwner = false, onOpen,
 }: {
   data: ArtifactCardData
   showOwner?: boolean
-  onOpen?: (assetId: string) => void
+  onOpen?: (assetId: string, originRect: Rect) => void
 }) {
   const { id, name, executiveId, asset: version, versionCount } = data
 
@@ -57,7 +61,10 @@ export function ArtifactCard({
 
   if (onOpen) {
     return (
-      <button onClick={() => onOpen(id)} style={sharedStyle}>
+      <button
+        onClick={e => onOpen(id, e.currentTarget.getBoundingClientRect())}
+        style={sharedStyle}
+      >
         <ArtifactCardBody name={name} executiveId={executiveId} version={version} versionCount={versionCount} showOwner={showOwner} />
       </button>
     )

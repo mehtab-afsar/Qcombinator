@@ -3,12 +3,16 @@
 /**
  * The Command View (F09) — the payoff screen once a mandate is confirmed.
  *
- * UX_SPEC §5's hierarchy, actually rendered this time (an earlier version of this file claimed
- * "Q-Score at the centre, team around it" without doing it — it was a plain vertical stack):
- * the mandate on top, one quiet line; the Q-Score large at centre with its trend, the team
- * around it (ScoreAnchor + ExecutiveRoster, grouped tightly as one zone below); this week's
- * briefing, in the team's own voice; then the one thing waiting on you. Documents, the cycle
- * control, and connected tools follow — real and necessary, just not part of that emotional arc.
+ * UX_SPEC §5's hierarchy: the mandate on top, one quiet line; the Q-Score large at centre with
+ * its trend, the team around it; this week's briefing, in the team's own voice; then the one
+ * thing waiting on you. Documents, the cycle control, and connected tools follow — real and
+ * necessary, just not part of that emotional arc.
+ *
+ * PRD 2 Stage 3 — ScoreAnchor is no longer rendered here. An earlier version of this file
+ * claimed "Q-Score at the centre, team around it" while actually being a plain vertical stack
+ * (ScoreAnchor, then ExecutiveRoster's grid, below it) — ExecutiveRoster now owns composing the
+ * centre WITH the team itself (a real radial arrangement on a wide viewport, CANVAS_SPEC D2),
+ * so this only needs to render the roster once, not the two pieces separately.
  *
  * None of the panels here are rebuilt — MandateCard, ExecutiveRoster, ActionsPanel, RhythmPanel,
  * BriefingsPanel and ConnectorsPanel already existed; this is composition and layout, not new
@@ -20,7 +24,6 @@
  */
 
 import { useEffect, useState } from 'react'
-import { ScoreAnchor } from './ScoreAnchor'
 import { MandateCard } from './MandateCard'
 import { ExecutiveRoster } from './ExecutiveRoster'
 import { AssetsPanel } from './AssetsPanel'
@@ -100,14 +103,11 @@ export function CommandView({
           no longer a "fuller card while waiting for documents" branch to choose between. */}
       <MandateCard contract={contract} compact onChangeDirection={onChangeDirection} busy={busy} />
 
-      {/* Centre: the Q-Score, with its trend. Around it: the team. Grouped tightly — a smaller
-          gap than the sections below — so the two read as one composed zone, not two stacked
-          cards. */}
+      {/* Centre: the Q-Score, with its trend. Around it: the team — one composed zone, owned
+          entirely by ExecutiveRoster now (radial on a wide viewport, stacked below the dial
+          on a narrow one). */}
       <div style={{ marginTop: 24 }}>
-        <ScoreAnchor />
-        <div style={{ marginTop: 4 }}>
-          <ExecutiveRoster programs={programs} reveal={reveal} />
-        </div>
+        <ExecutiveRoster programs={programs} reveal={reveal} />
       </div>
 
       <div style={{ marginTop: space[5], display: 'flex', flexDirection: 'column', gap: space[5] }}>

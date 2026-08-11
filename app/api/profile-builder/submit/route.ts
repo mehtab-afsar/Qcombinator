@@ -246,7 +246,7 @@ export async function POST(_req: NextRequest) {
             fp.product_description && `Product: ${fp.product_description}`,
             fp.problem_statement   && `Problem: ${fp.problem_statement}`,
             fp.target_customer     && `Customer: ${fp.target_customer}`,
-            `IQ Score: ${finalScore}/100`,
+            `Q-Score: ${finalScore}/100`,
           ].filter(Boolean).join('\n')
           if (summary.length < 30) return
           const embedding = await embedText(summary)

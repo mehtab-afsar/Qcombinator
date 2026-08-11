@@ -75,6 +75,21 @@ describe('the gate — irreversible Actions never execute', () => {
     expect(recorded.irreversible).toBe(false)
   })
 
+  it('a reversible internal Action\'s real analysis is kept, not discarded (Gap B)', async () => {
+    // Previously: result was hardcoded to {kind, completed} and the model's actual conclusion —
+    // a real Claude call the founder paid for — was thrown away. This is the one thing that
+    // must survive, since app/api/actions/route.ts's resultSummary and ActionsPanel's expandable
+    // row both read result.summary.
+    m(routedCall).mockResolvedValue({ text: 'Segment A is the strongest fit because…', toolCall: null, stopReason: 'end_turn' })
+
+    await generateAction(admin, args('validate_icps'))
+
+    const recorded = m(recordAttempt).mock.calls[0][1]
+    expect(recorded.result).toEqual({
+      kind: 'internal_analysis', completed: true, summary: 'Segment A is the strongest fit because…',
+    })
+  })
+
   it('the gate reads the REGISTRY, not the model — a model claiming safety changes nothing', async () => {
     // The Program Prompt has an "# Autonomous Actions" section whose approval rules contradict
     // ADR-004. If the model's opinion could influence this decision, that prose would become a

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Lock } from 'lucide-react';
 import { bg, surf, bdr, ink, muted, blue, green, amber, red } from '@/lib/constants/colors'
 
 interface RagMetrics {
@@ -131,7 +132,7 @@ export default function AdminMetricsPage() {
     return (
       <div style={{ minHeight: '100vh', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 32, marginBottom: 12 }}>🔒</div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}><Lock size={28} color={muted} strokeWidth={1.5} /></div>
           <h1 style={{ color: ink, fontSize: 20, fontWeight: 700 }}>Admin access required</h1>
           <p style={{ color: muted, fontSize: 14, marginTop: 8 }}>Your email is not in the ADMIN_EMAILS allowlist.</p>
         </div>
@@ -378,7 +379,7 @@ export default function AdminMetricsPage() {
             <Card title="Momentum & Score Health">
               <div style={{ marginBottom: 12 }}>
                 <p style={{ fontSize: 11, color: muted, textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 600, marginBottom: 8 }}>Momentum</p>
-                <BarSegment label="🔥 Hot (≥10)" count={beta.momentumDistribution.hot} total={beta.totalFounders} color={red} />
+                <BarSegment label="Hot (≥10)" count={beta.momentumDistribution.hot} total={beta.totalFounders} color={red} />
                 <BarSegment label="↑ Rising (4-10)" count={beta.momentumDistribution.rising} total={beta.totalFounders} color={green} />
                 <BarSegment label="→ Steady (-3 to 4)" count={beta.momentumDistribution.steady} total={beta.totalFounders} color={blue} />
                 <BarSegment label="↓ Falling (<-3)" count={beta.momentumDistribution.falling} total={beta.totalFounders} color={muted} />

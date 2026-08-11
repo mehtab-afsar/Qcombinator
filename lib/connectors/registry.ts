@@ -9,15 +9,19 @@
  * this map exists to keep single (CLAUDE.md §0.2).
  */
 
-import { gmailConnector } from './gmail'
-import { slackConnector } from './slack'
-import { gmailReadConnector } from './gmail-read'
+import { gmailConnector } from './gmail/send'
+import { slackConnector } from './slack/connector'
+import { gmailReadConnector } from './gmail/read'
+import { stripeConnector } from './stripe/connector'
+import { posthogConnector } from './posthog/connector'
 import { ConnectorError, type Connector } from './types'
 
 const CONNECTORS: Readonly<Record<string, Connector>> = {
   gmail: gmailConnector,
   slack: slackConnector,
   gmail_read: gmailReadConnector,
+  stripe: stripeConnector,
+  posthog: posthogConnector,
 }
 
 /**

@@ -13,7 +13,7 @@ process.env.GOOGLE_CONNECTOR_CLIENT_ID = 'test-client-id.apps.googleusercontent.
 process.env.GOOGLE_CONNECTOR_CLIENT_SECRET = 'test-secret'
 
 import { createHmac } from 'crypto'
-import { createState, verifyState, authorizeUrl, redirectUri } from '@/lib/connectors/oauth'
+import { createState, verifyState, authorizeUrl, redirectUri } from '@/lib/connectors/gmail/send-oauth'
 import { getConnector } from '@/lib/connectors/registry'
 import { ConnectorError } from '@/lib/connectors/types'
 

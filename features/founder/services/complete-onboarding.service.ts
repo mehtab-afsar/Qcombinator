@@ -140,7 +140,7 @@ export async function notifyAndTrackSignup(
   await supabase.from('notifications').insert({
     user_id:  userId,
     type:     'qscore_update',
-    title:    `Welcome to Edge Alpha, ${fullName.split(' ')[0]}! 🎉`,
+    title:    `Welcome to Edge Alpha, ${fullName.split(' ')[0]}!`,
     body:     'Your profile is set up. Complete your Q-Score profile to appear in investor deal flow.',
     metadata: { action: 'profile-builder', href: '/founder/profile-builder' },
     read:     false,

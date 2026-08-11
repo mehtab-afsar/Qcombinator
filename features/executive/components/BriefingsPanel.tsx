@@ -17,6 +17,7 @@ import { trackBriefingOpened } from '@/lib/analytics-client'
 import { bdr, ink, muted, blue, green, alpha } from '@/lib/constants/colors'
 import { FONT_SERIF } from '@/features/onboarding/theme'
 import { SectionCard } from '@/features/shared/components/SectionCard'
+import { useCycleLive } from '../lib/useCycleLive'
 
 interface Briefing {
   id: string
@@ -57,6 +58,11 @@ function changedAssets(body: unknown): ChangedAsset[] {
 export function BriefingsPanel({ executiveId }: { executiveId?: string } = {}) {
   const [briefings, setBriefings] = useState<Briefing[] | null>(null)
   const [failed, setFailed] = useState(false)
+  // A cycle finishing is exactly when a new briefing exists server-side — without this, a
+  // founder watching RhythmPanel's own step counter finish sees nothing appear here until a
+  // manual reload (Gap A). `generation` bumps on every live transition (cycle start OR finish);
+  // reacting to both is harmless (a start has nothing new yet) and keeps this one effect simple.
+  const { generation } = useCycleLive()
 
   const load = useCallback(async () => {
     try {
@@ -70,7 +76,7 @@ export function BriefingsPanel({ executiveId }: { executiveId?: string } = {}) {
     }
   }, [executiveId])
 
-  useEffect(() => { void load() }, [load])
+  useEffect(() => { void load() }, [load, generation])
 
   // The founder navigated here and a briefing was waiting — the retention signal (ADR-016).
   // Keyed by id in a ref so a re-render (the panel re-renders while the rhythm polls) cannot

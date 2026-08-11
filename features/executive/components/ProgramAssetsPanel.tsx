@@ -18,14 +18,16 @@ import { useEffect, useState } from 'react'
 import { blue, alpha } from '@/lib/constants/colors'
 import { SectionCard } from '@/features/shared/components/SectionCard'
 import { ArtifactCard, type ArtifactCardData } from './ArtifactCard'
+import type { Rect } from '../lib/panel-origin'
 
 export function ProgramAssetsPanel({
   executiveId, onOpenAsset,
 }: {
   executiveId: string
   /** CANVAS_SPEC §5 — when supplied, clicking a document opens the node workspace panel in
-   *  place instead of navigating away. Passed straight through to ArtifactCard. */
-  onOpenAsset?: (assetId: string) => void
+   *  place instead of navigating away. Passed straight through to ArtifactCard, including the
+   *  clicked card's own rect (PRD 2 Stage 3 — the panel grows out of it). */
+  onOpenAsset?: (assetId: string, originRect: Rect) => void
 }) {
   const [assets, setAssets] = useState<ArtifactCardData[] | null>(null)
 

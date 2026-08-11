@@ -13,7 +13,7 @@
 import { readFileSync, readdirSync } from 'fs'
 import { join } from 'path'
 import { assertRecipientsAllowed, RecipientBlockedError, devAllowlist } from '@/lib/connectors/allowlist'
-import { __messageIdFor } from '@/lib/connectors/gmail'
+import { __messageIdFor } from '@/lib/connectors/gmail/send'
 import { getConnector } from '@/lib/connectors/registry'
 import { ConnectorError } from '@/lib/connectors/types'
 

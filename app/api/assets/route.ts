@@ -18,6 +18,7 @@ import { getCurrentContract } from '@/lib/mandate/contract'
 import { getCurrentAssetsForProgram, getVersionCounts } from '@/lib/assets/versioning'
 import { getProgram, getAsset } from '@/lib/registry'
 import { log } from '@/lib/logger'
+import { getAnchorFounderId } from '@/lib/team/founder-permissions'
 
 export async function GET(): Promise<NextResponse> {
   const off = newModelOff()
@@ -28,7 +29,13 @@ export async function GET(): Promise<NextResponse> {
     if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
     const supabase = await createClient()
-    const contract = await getCurrentContract(supabase, auth.user.id)
+
+    // Team data anchors to the startup owner's founder_id, not whichever teammate is
+    // logged in — see getAnchorFounderId's own doc comment.
+    const anchorId = await getAnchorFounderId(auth.user.id, supabase)
+    if (!anchorId) return NextResponse.json({ error: 'No workspace found' }, { status: 400 })
+
+    const contract = await getCurrentContract(supabase, anchorId)
     if (!contract || contract.status !== 'confirmed') {
       return NextResponse.json({ assets: [] })
     }
@@ -49,8 +56,8 @@ export async function GET(): Promise<NextResponse> {
     }
 
     const [versions, versionCounts] = await Promise.all([
-      getCurrentAssetsForProgram(supabase, auth.user.id, [...assetIds]),
-      getVersionCounts(supabase, auth.user.id, [...assetIds]),
+      getCurrentAssetsForProgram(supabase, anchorId, [...assetIds]),
+      getVersionCounts(supabase, anchorId, [...assetIds]),
     ])
     const versionByAssetId = new Map(versions.map(v => [v.assetId, v]))
 

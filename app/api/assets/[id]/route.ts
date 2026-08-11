@@ -19,6 +19,7 @@ import { AssetPersistenceError } from '@/lib/assets/validation'
 import { getAsset } from '@/lib/registry'
 import { log } from '@/lib/logger'
 import { trackAssetEditedByFounder } from '@/lib/analytics'
+import { getAnchorFounderId, getMyTeamRole, canEditAsset } from '@/lib/team/founder-permissions'
 
 /**
  * Content is founder-supplied and lands in layer 3 of an LLM prompt — so it is capped
@@ -67,9 +68,15 @@ export async function GET(
 
     // User-scoped client on purpose — RLS is the read tenancy boundary (SELECT-own).
     const supabase = await createClient()
+
+    // Team data anchors to the startup owner's founder_id, not whichever teammate is
+    // logged in — see getAnchorFounderId's own doc comment.
+    const anchorId = await getAnchorFounderId(auth.user.id, supabase)
+    if (!anchorId) return NextResponse.json({ error: 'No workspace found' }, { status: 400 })
+
     const [current, history] = await Promise.all([
-      getCurrentAsset(supabase, auth.user.id, id),
-      getAssetHistory(supabase, auth.user.id, id),
+      getCurrentAsset(supabase, anchorId, id),
+      getAssetHistory(supabase, anchorId, id),
     ])
 
     return NextResponse.json({ definition, asset: current, history })
@@ -98,8 +105,23 @@ export async function PUT(
     // authenticated), so this uses the service-role client — scoped explicitly to the
     // VERIFIED founder, never a client-supplied id.
     const admin = createAdminClient()
+
+    // Assets are versioned (never overwritten), so a member's edit can't destroy anyone
+    // else's work — canEditAsset allows owner/admin/member, viewer stays read-only.
+    const { role } = await getMyTeamRole(auth.user.id, admin)
+    if (!role || !canEditAsset(role)) {
+      return NextResponse.json({ error: 'Not authorized to edit this asset' }, { status: 403 })
+    }
+
+    // Every version has to land under the ONE shared founder_id (the workspace owner's) or
+    // the team's version history fragments — a member writing under their own auth.user.id
+    // would start a second, invisible "current" version nobody else's reads would ever see
+    // (asset_versions' one-current-per-(founder_id, asset_id) index is per founder_id).
+    const anchorId = await getAnchorFounderId(auth.user.id, admin)
+    if (!anchorId) return NextResponse.json({ error: 'No workspace found' }, { status: 400 })
+
     const version = await persistAssetVersion(admin, {
-      founderId: auth.user.id,
+      founderId: anchorId,
       assetId: id,
       authoredBy: 'founder',
       content: parsed.data.content,

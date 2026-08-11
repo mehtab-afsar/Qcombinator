@@ -202,7 +202,7 @@ export function SectionChat({
               fontSize: 12, fontWeight: 600, color: green,
               display: 'flex', alignItems: 'center', gap: 6,
             }}>
-              IQ {recalcResult.finalIQ} · {recalcResult.grade}
+              Q-Score {recalcResult.finalIQ} · {recalcResult.grade}
               <button
                 onClick={() => setRecalcResult(null)}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 1, color: green, opacity: 0.6, fontFamily: 'inherit' }}

@@ -25,6 +25,17 @@ import { approveAction, declineAction, ApprovalError } from '@/lib/actions/appro
 import { getCurrentContract, getProgramsForContract } from '@/lib/mandate/contract'
 import { getProgram, getAction } from '@/lib/registry'
 import { log } from '@/lib/logger'
+import { getAnchorFounderId, getMyTeamRole, canApproveAction } from '@/lib/team/founder-permissions'
+
+/** A reversible internal Action's own analysis, generated for real by lib/actions/generate.ts
+ *  but — until this — discarded the moment it was written; never a recipient/subject/body,
+ *  which action_log never stores at all (redacted at write time, see payloadMetadata).
+ *  Exported (pure, no IO) so this reads-from-`result` rule is unit-tested directly, matching
+ *  attachOwners (lib/actions/log.ts) rather than only reachable through the full GET handler. */
+export function resultSummary(result: Record<string, unknown> | null | undefined): string | null {
+  const summary = result?.summary
+  return typeof summary === 'string' && summary.trim() ? summary : null
+}
 
 /**
  * Stage 5 — the honest action surface (FU-009). ActionsPanel used to render nothing at all once
@@ -62,6 +73,7 @@ async function allActionsForFounder(
       status: entry?.status ?? ('never_run' as const),
       provider: entry?.provider ?? null,
       createdAt: entry?.createdAt ?? null,
+      summary: resultSummary(entry?.result),
     }
   })
 }
@@ -83,9 +95,15 @@ export async function GET(): Promise<NextResponse> {
 
     // User-scoped: RLS (SELECT-own) is the tenancy boundary, as in /api/briefings.
     const supabase = await createClient()
+
+    // Team data anchors to the startup owner's founder_id, not whichever teammate is
+    // logged in — see getAnchorFounderId's own doc comment.
+    const anchorId = await getAnchorFounderId(auth.user.id, supabase)
+    if (!anchorId) return NextResponse.json({ error: 'No workspace found' }, { status: 400 })
+
     const [pending, contract] = await Promise.all([
-      pendingApprovals(supabase, auth.user.id),
-      getCurrentContract(supabase, auth.user.id),
+      pendingApprovals(supabase, anchorId),
+      getCurrentContract(supabase, anchorId),
     ])
     // action_log has no executive column — resolve each entry's owner against the contract's
     // own programs, the same join /founder/executive's roster needs to group actions by
@@ -93,7 +111,7 @@ export async function GET(): Promise<NextResponse> {
     // honestly) just means every entry resolves to null owners rather than throwing.
     const programs = contract ? await getProgramsForContract(supabase, contract.id) : []
     const all = contract?.status === 'confirmed'
-      ? await allActionsForFounder(supabase, auth.user.id, contract.activePrograms)
+      ? await allActionsForFounder(supabase, anchorId, contract.activePrograms)
       : []
     return NextResponse.json({ pending: attachOwners(pending, programs), all })
   } catch (err) {
@@ -123,11 +141,26 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     // write their own approval. lib/actions/approve scopes every query to founderId explicitly,
     // because this client bypasses RLS.
     const admin = createAdminClient()
+
+    // Irreversible external Actions (send/publish/spend) stay owner/admin-only — no versioned
+    // undo like Assets have, so this is the narrower bar (canApproveAction, not canEditAsset).
+    const { role } = await getMyTeamRole(auth.user.id, admin)
+    if (!role || !canApproveAction(role)) {
+      return NextResponse.json({ error: 'Not authorized to approve or decline actions' }, { status: 403 })
+    }
+
+    // action_log rows live under the workspace owner's founder_id (see getAnchorFounderId) —
+    // a non-owner approver querying by their own auth.user.id would find nothing to approve.
+    // approvedBy/declinedBy stay the real individual: who acted is not the same fact as whose
+    // data it is.
+    const anchorId = await getAnchorFounderId(auth.user.id, admin)
+    if (!anchorId) return NextResponse.json({ error: 'No workspace found' }, { status: 400 })
+
     const entry = decision === 'approve'
       ? await approveAction(admin, {
-          founderId: auth.user.id, entryId, payloadHash: payloadHash!, approvedBy: auth.user.id,
+          founderId: anchorId, entryId, payloadHash: payloadHash!, approvedBy: auth.user.id,
         })
-      : await declineAction(admin, { founderId: auth.user.id, entryId, declinedBy: auth.user.id })
+      : await declineAction(admin, { founderId: anchorId, entryId, declinedBy: auth.user.id })
 
     return NextResponse.json({ entry }, { status: 200 })
   } catch (err) {

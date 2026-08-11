@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { verifyAuth } from '@/lib/auth/verify';
 import { log } from '@/lib/logger';
+import { getBlendedParamWeights, inferStage } from '@/features/qscore/calculators/q-score-calculator';
 
 export async function GET() {
   try {
@@ -87,6 +88,25 @@ export async function GET() {
         });
     }
 
+    // Real per-sector/stage weights and a live percentile — both used to be fabricated:
+    // weight was a hardcoded "default sector, mid stage" constant regardless of the founder's
+    // actual sector/stage, and percentile read a DB column no insert path has ever written (so
+    // it was always null for every founder). Percentile is computed live against the effective
+    // (decayed) score, not read from a stored column — "where you rank" changes as OTHER
+    // founders' scores change, so a value frozen at calculation time would go stale the moment
+    // anyone else submits a score.
+    const [{ data: profile }, { data: percentileData, error: percentileErr }] = await Promise.all([
+      supabase.from('founder_profiles').select('industry, stage').eq('user_id', user.id).single(),
+      supabase.rpc('compute_qscore_percentile', { target_score: effectiveOverall }),
+    ]);
+    if (percentileErr) log.warn('compute_qscore_percentile failed:', percentileErr.message);
+    const livePercentile = percentileErr ? (latest.percentile as number | null) : (percentileData as number | null);
+
+    const paramWeights = getBlendedParamWeights(
+      (profile?.industry as string | undefined) ?? 'default',
+      inferStage((profile?.stage as string | undefined) ?? ''),
+    );
+
     // ── Score confidence interval (±X) ───────────────────────────────────────
     // Higher RAG confidence + Stripe-verified data = tighter interval.
     // Formula: ±round(10 × (1 - ragConfidence) × dataPenalty)
@@ -112,7 +132,7 @@ export async function GET() {
       decayFactor,
       daysSince,
       scoreRange, // ±N — consumers show as "72 ±5"
-      percentile: latest.percentile,
+      percentile: livePercentile,
       grade: latest.grade,
       change: num(latest.overall_change),
       // Distinguishes "genuinely unchanged" from "this is the founder's first score" — the
@@ -127,40 +147,45 @@ export async function GET() {
       track,
       partialIQ,
       answeredParameters,
+      // weight is now the founder's real sector×stage-blended weight (paramWeights, [p1..p6])
+      // instead of a hardcoded "default sector, mid stage" constant — that constant happened
+      // to be right only for founders in an unmapped sector at exactly mid stage; everyone
+      // else (a biotech founder, an early-stage founder — most people) saw a plausible-looking
+      // but wrong number.
       breakdown: {
         marketReadiness: {
           score: latest.p1_score,
-          weight: 0.20,
+          weight: paramWeights[0],
           change: num(latest.p1_change),
           trend: getTrend(num(latest.p1_change)),
         },
         marketPotential: {
           score: latest.p2_score,
-          weight: 0.17,
+          weight: paramWeights[1],
           change: num(latest.p2_change),
           trend: getTrend(num(latest.p2_change)),
         },
         ipDefensibility: {
           score: latest.p3_score,
-          weight: 0.18,
+          weight: paramWeights[2],
           change: num(latest.p3_change),
           trend: getTrend(num(latest.p3_change)),
         },
         founderTeam: {
           score: latest.p4_score,
-          weight: 0.15,
+          weight: paramWeights[3],
           change: num(latest.p4_change),
           trend: getTrend(num(latest.p4_change)),
         },
         structuralImpact: {
           score: latest.p5_score,
-          weight: 0.12,
+          weight: paramWeights[4],
           change: num(latest.p5_change),
           trend: getTrend(num(latest.p5_change)),
         },
         financials: {
           score: latest.p6_score,
-          weight: 0.18,
+          weight: paramWeights[5],
           change: num(latest.p6_change),
           trend: getTrend(num(latest.p6_change)),
         },

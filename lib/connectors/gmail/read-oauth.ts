@@ -29,7 +29,7 @@
  */
 
 import { env } from '@/lib/env'
-import { signState, verifySignedState } from './oauth-state'
+import { signState, verifySignedState } from '../oauth-state'
 import {
   buildAuthorizeUrl, exchangeGoogleCode, refreshGoogleAccessToken, clientSecret,
   type ExchangedTokens,

@@ -67,6 +67,11 @@ export interface LLMProvider {
     temperature: number
     tools?: ToolDefinition[]
   }): AsyncGenerator<
-    { type: 'delta'; text: string } | { type: 'done'; toolCall: LLMChatResponse['toolCall'] }
+    | { type: 'delta'; text: string }
+    // stopReason carries the SAME truncation signal chat() already exposes (LLMChatResponse's
+    // own docstring above) — a streamed asset must be checked for it exactly like a
+    // non-streamed one; persisting a cut-off document was the trial-run-2 bug that rule exists
+    // to prevent, and streaming must not reopen it.
+    | { type: 'done'; toolCall: LLMChatResponse['toolCall']; stopReason?: string }
   >
 }

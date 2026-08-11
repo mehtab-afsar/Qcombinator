@@ -9,7 +9,7 @@ import { usePersonalizedMatching } from '@/features/investor/hooks/usePersonaliz
 import { FounderMatchCard } from '@/components/ui/FounderMatchCard'
 import type { FounderProfile } from '@/features/investor/services/deal-matching.service'
 import { bdr, muted, blue, alpha } from '@/lib/constants/colors'
-import { AlertCircle } from 'lucide-react'
+import { AlertCircle, Sparkles } from 'lucide-react'
 
 interface TopPersonalizedMatchesProps {
   founders: FounderProfile[]
@@ -89,8 +89,8 @@ export function TopPersonalizedMatches({
         }}
       >
         <div>
-          <p style={{ fontSize: 11, fontWeight: 600, color: blue, margin: 0 }}>
-            ✨ Personalized ranking
+          <p style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: blue, margin: 0 }}>
+            <Sparkles size={11} /> Personalized ranking
           </p>
           <p style={{ fontSize: 10, color: muted, margin: '2px 0 0' }}>
             {config?.investorType === 'angel'
