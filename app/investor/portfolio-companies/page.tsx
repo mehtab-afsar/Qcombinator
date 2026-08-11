@@ -484,7 +484,7 @@ export default function PortfolioCompaniesPage() {
     setLoading(true);
     try {
       const res = await fetch("/api/investor/portfolio-companies");
-      if (res.ok) setCompanies(await res.json());
+      if (res.ok) setCompanies((await res.json()).companies ?? []);
     } finally {
       setLoading(false);
     }
