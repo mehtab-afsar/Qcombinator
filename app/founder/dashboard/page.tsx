@@ -29,6 +29,7 @@ import { useAuth } from "@/features/auth/hooks/useAuth";
 import { createClient } from "@/lib/supabase/client";
 import { useQScore } from "@/features/qscore/hooks/useQScore";
 import { QScoreDial } from "@/features/qscore/components/QScoreDial";
+import { ScoreMatrixRadar } from "@/features/qscore/components/ScoreMatrixRadar";
 import { useMetrics } from "@/features/founder/hooks/useFounderData";
 import { useDashboardData } from "@/features/founder/hooks/useDashboardData";
 import { WelcomeModal, FOUNDER_WELCOME_SLIDES } from "@/components/ui/WelcomeModal";
@@ -965,7 +966,7 @@ export default function FounderDashboard() {
             )}
           </motion.div>
 
-          {/* Dimension bars */}
+          {/* Dimension matrix — hexagon radar + prioritized list */}
           <motion.div
             initial={{ opacity: 0, x: 12 }}
             animate={{ opacity: 1, x: 0 }}
@@ -989,37 +990,42 @@ export default function FounderDashboard() {
                 </Badge>
               )}
             </div>
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: 4 }}>
-              {effectiveSortedDims.map(([key, dim], i) => {
-                const meta = DIMENSION_META[key];
-                const TrendIcon = dim.trend === "up" ? TrendingUp : dim.trend === "down" ? TrendingDown : Minus;
-                const trendColor = dim.trend === "up" ? green : dim.trend === "down" ? red : muted;
-                const isExpanded = selectedDimension === key;
-                const agentInfo  = DIMENSION_AGENT[key];
-                return (
-                  <div key={key}>
-                    <motion.div
-                      initial={{ opacity: 0, x: -8 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.35 + i * 0.06 }}
-                      onClick={() => setSelectedDimension(isExpanded ? null : key)}
-                      style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer", padding: "5px 0", borderRadius: 8 }}
+
+            <div style={{ display: "flex", alignItems: "center", gap: 28, flexWrap: "wrap" }}>
+              <div style={{ flex: "0 0 auto", width: 220 }}>
+                <ScoreMatrixRadar
+                  dims={effectiveSortedDims}
+                  labels={Object.fromEntries(Object.entries(DIMENSION_META).map(([k, v]) => [k, v.label]))}
+                  colorFor={scoreColor}
+                  selected={selectedDimension}
+                  onSelect={key => setSelectedDimension(selectedDimension === key ? null : key)}
+                />
+              </div>
+
+              {/* Prioritized list — worst-first, distinct from the radar's fixed P1..P6 geometry */}
+              <div style={{ flex: "1 1 220px", display: "flex", flexDirection: "column", gap: 2 }}>
+                {effectiveSortedDims.map(([key, dim]) => {
+                  const meta = DIMENSION_META[key];
+                  const TrendIcon = dim.trend === "up" ? TrendingUp : dim.trend === "down" ? TrendingDown : Minus;
+                  const trendColor = dim.trend === "up" ? green : dim.trend === "down" ? red : muted;
+                  const isSelected = selectedDimension === key;
+                  return (
+                    <div
+                      key={key}
+                      onClick={() => setSelectedDimension(isSelected ? null : key)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 10, cursor: "pointer",
+                        padding: "7px 8px", borderRadius: 8,
+                        background: isSelected ? alpha(blue, 0.06) : "transparent",
+                        transition: "background 0.12s",
+                      }}
                     >
-                      <span style={{ width: 64, fontSize: 11, color: muted, fontWeight: 500, flexShrink: 0, textAlign: "right", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
-                        {conflictDims.has(key) && (
-                          <span title="Data mismatch — check Improve Q-Score" style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: red, flexShrink: 0 }} />
-                        )}
-                        {meta.label}
-                      </span>
-                      <div style={{ flex: 1, height: 5, background: bdr, borderRadius: 999, overflow: "hidden" }}>
-                        <motion.div
-                          style={{ height: "100%", borderRadius: 999, background: scoreColor(dim.score) }}
-                          initial={{ width: 0 }}
-                          animate={{ width: `${dim.score}%` }}
-                          transition={{ delay: 0.45 + i * 0.06, duration: 0.7, ease: "easeOut" }}
-                        />
-                      </div>
-                      <span style={{ width: 24, fontSize: 12, color: ink, fontWeight: 600, fontFamily: "monospace", flexShrink: 0, textAlign: "right" }}>{dim.score}</span>
+                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: scoreColor(dim.score), flexShrink: 0 }} />
+                      {conflictDims.has(key) && (
+                        <span title="Data mismatch — check Improve Q-Score" style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: red, flexShrink: 0 }} />
+                      )}
+                      <span style={{ flex: 1, fontSize: 12, fontWeight: isSelected ? 600 : 500, color: ink }}>{meta.label}</span>
+                      <span style={{ fontSize: 12, color: ink, fontWeight: 700, fontFamily: "monospace" }}>{dim.score}</span>
                       {dim.change !== 0 && (
                         <div style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
                           <TrendIcon style={{ height: 10, width: 10, color: trendColor }} />
@@ -1028,60 +1034,53 @@ export default function FounderDashboard() {
                           </span>
                         </div>
                       )}
-                      <span style={{ fontSize: 10, color: muted, flexShrink: 0, transition: "transform 0.15s", transform: isExpanded ? "rotate(90deg)" : "none" }}>▶</span>
-                    </motion.div>
-
-                    {/* Expansion panel */}
-                    <AnimatePresence>
-                      {isExpanded && agentInfo && (
-                        <motion.div
-                          key="expansion"
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: "auto" }}
-                          exit={{ opacity: 0, height: 0 }}
-                          transition={{ duration: 0.22, ease: "easeOut" }}
-                          style={{ overflow: "hidden" }}
-                        >
-                          <div style={{
-                            margin: "4px 0 8px 76px",
-                            padding: "12px 14px",
-                            background: bg,
-                            border: `1px solid ${bdr}`,
-                            borderRadius: 10,
-                          }}>
-                            <p style={{ fontSize: 11, fontWeight: 600, color: ink, marginBottom: 6 }}>
-                              How to improve {meta.label}
-                            </p>
-                            {(DIM_ISSUES[key] ?? []).map((issue, idx) => (
-                              <p key={idx} style={{ fontSize: 11, color: muted, margin: "0 0 3px", lineHeight: 1.5 }}>
-                                · {issue}
-                              </p>
-                            ))}
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
-                              {(DIM_BOOSTS[key] ?? []).map((b, idx) => (
-                                <Badge key={idx} variant="blue" style={{ border: `1px solid ${blue}22` }}>
-                                  +{b.pts}pts · {b.artifact.replace(/_/g, " ")}
-                                </Badge>
-                              ))}
-                            </div>
-                            <Link
-                              href="/founder/executive"
-                              style={{
-                                display: "inline-flex", alignItems: "center", gap: 4,
-                                marginTop: 10, fontSize: 11, fontWeight: 600,
-                                color: blue, textDecoration: "none",
-                              }}
-                            >
-                              Talk to {agentInfo.agentName} → <ChevronRight style={{ height: 10, width: 10 }} />
-                            </Link>
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                );
-              })}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
+
+            {/* Single expansion panel for whichever dimension is selected (radar vertex or list row) */}
+            <AnimatePresence>
+              {selectedDimension && DIMENSION_AGENT[selectedDimension] && (
+                <motion.div
+                  key="expansion"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.22, ease: "easeOut" }}
+                  style={{ overflow: "hidden" }}
+                >
+                  <div style={{ margin: "16px 0 0", padding: "12px 14px", background: bg, border: `1px solid ${bdr}`, borderRadius: 10 }}>
+                    <p style={{ fontSize: 11, fontWeight: 600, color: ink, marginBottom: 6 }}>
+                      How to improve {DIMENSION_META[selectedDimension].label}
+                    </p>
+                    {(DIM_ISSUES[selectedDimension] ?? []).map((issue, idx) => (
+                      <p key={idx} style={{ fontSize: 11, color: muted, margin: "0 0 3px", lineHeight: 1.5 }}>
+                        · {issue}
+                      </p>
+                    ))}
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+                      {(DIM_BOOSTS[selectedDimension] ?? []).map((b, idx) => (
+                        <Badge key={idx} variant="blue" style={{ border: `1px solid ${blue}22` }}>
+                          +{b.pts}pts · {b.artifact.replace(/_/g, " ")}
+                        </Badge>
+                      ))}
+                    </div>
+                    <Link
+                      href="/founder/executive"
+                      style={{
+                        display: "inline-flex", alignItems: "center", gap: 4,
+                        marginTop: 10, fontSize: 11, fontWeight: 600,
+                        color: blue, textDecoration: "none",
+                      }}
+                    >
+                      Talk to {DIMENSION_AGENT[selectedDimension].agentName} → <ChevronRight style={{ height: 10, width: 10 }} />
+                    </Link>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         </div>
 

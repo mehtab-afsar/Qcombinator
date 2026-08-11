@@ -31,3 +31,18 @@ export const DIM_AGENTS: Record<string, { agentId: string; agentName: string; la
   p5: { agentId: 'sage',   agentName: 'Sage',   label: 'Strategic Plan'      },
   p6: { agentId: 'felix',  agentName: 'Felix',  label: 'Financial Summary'    },
 }
+
+/** Same ownership question as DIM_AGENTS, but one level finer — per sub-indicator (1.1-6.5)
+ *  rather than per P1-P6 parameter. Was a private copy inside score-intelligence.ts; moved here
+ *  so all "which specialist owns this" lookups live in one file. Checked against the real
+ *  Executive registry's `inheritsFrom` lists (lib/registry/executives/*\/executive.ts) — every
+ *  persona here is a real specialist folded into a real executive: patel/susi/atlas → growth,
+ *  nova → product, leo/felix → finance, sage → ceo, harper → operations. */
+export const INDICATOR_AGENTS: Record<string, string> = {
+  '1.1': 'nova',  '1.2': 'patel', '1.3': 'susi',  '1.4': 'nova',  '1.5': 'patel',
+  '2.1': 'atlas', '2.2': 'atlas', '2.3': 'atlas',  '2.4': 'atlas', '2.5': 'atlas',
+  '3.1': 'leo',   '3.2': 'patel', '3.3': 'patel',  '3.4': 'leo',   '3.5': 'leo',
+  '4.1': 'sage',  '4.2': 'sage',  '4.3': 'harper', '4.4': 'sage',  '4.5': 'harper',
+  '5.1': 'sage',  '5.2': 'sage',  '5.3': 'sage',   '5.4': 'felix', '5.5': 'sage',
+  '6.1': 'felix', '6.2': 'felix', '6.3': 'felix',  '6.4': 'felix', '6.5': 'felix',
+}

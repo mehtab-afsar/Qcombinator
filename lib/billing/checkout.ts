@@ -1,6 +1,7 @@
 import { getStripe } from '@/lib/stripe'
 import { createAdminClient } from '@/lib/supabase/server'
 import { log } from '@/lib/logger'
+import { APP_URL } from '@/lib/constants/app'
 
 export interface CreateCheckoutSessionParams {
   table: 'founder_profiles' | 'investor_profiles'
@@ -35,7 +36,7 @@ export async function createCheckoutSession(
   if (profile?.subscription_tier === params.premiumTierValue) {
     const portalSession = await getStripe().billingPortal.sessions.create({
       customer: profile.stripe_customer_id as string,
-      return_url: `${process.env.NEXT_PUBLIC_APP_URL}${params.returnPath}`,
+      return_url: `${APP_URL}${params.returnPath}`,
     })
     return { ok: true, url: portalSession.url }
   }
@@ -66,8 +67,8 @@ export async function createCheckoutSession(
     mode: 'subscription',
     line_items: [{ price: priceId, quantity: 1 }],
     subscription_data: { trial_period_days: 14 },
-    success_url: `${process.env.NEXT_PUBLIC_APP_URL}${params.returnPath}?success=1`,
-    cancel_url:  `${process.env.NEXT_PUBLIC_APP_URL}${params.returnPath}`,
+    success_url: `${APP_URL}${params.returnPath}?success=1`,
+    cancel_url:  `${APP_URL}${params.returnPath}`,
     metadata: { user_id: params.userId, userType: params.metadataRole },
   })
 

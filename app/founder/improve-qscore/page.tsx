@@ -302,10 +302,15 @@ export default function ImproveQScorePage() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: bg, color: ink, fontFamily: "inherit" }}>
+    // Horizontal inset lives here, outside the shared 1120px PageContainer cap — same as
+    // /founder/dashboard. It used to live inside each PageContainer call below (40px each),
+    // which made this page's max content width up to 24px narrower than the Overview tab's
+    // whenever the viewport wasn't wide enough to hit the 1120px cap on both — the two tabs of
+    // the same Q-Score hub would visibly resize against each other when switching between them.
+    <div style={{ minHeight: "100vh", background: bg, color: ink, fontFamily: "inherit", padding: "0 28px" }}>
 
       {/* ── header ─────────────────────────────────────────────────────────── */}
-      <PageContainer style={{ padding: "32px 40px 0" }}>
+      <PageContainer style={{ padding: "32px 0 0" }}>
         <QScoreTabs />
 
         <Link href="/founder/dashboard" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: muted, textDecoration: "none", marginBottom: 20 }}>
@@ -358,7 +363,7 @@ export default function ImproveQScorePage() {
         )}
       </PageContainer>
 
-      <PageContainer style={{ padding: "28px 40px 60px" }}>
+      <PageContainer style={{ padding: "28px 0 60px" }}>
 
         {/* conflicts */}
         {conflicts.length > 0 && (

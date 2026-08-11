@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Menu, X } from "lucide-react";
-import { L, DUSK, FONT_MONO } from "../theme";
+import { L, DUSK } from "../theme";
+import { BrandMark } from "@/features/shared/components/BrandMark";
 
 const LINKS = [
   { label: "How it works", href: "#how-it-works" },
@@ -51,7 +52,9 @@ export function Nav() {
       >
         <nav aria-label="Main" style={{ padding: "9px 10px 9px 20px", height: 46, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <Link href="/" style={{ display: "flex", alignItems: "center", gap: 9, textDecoration: "none" }}>
-            <span aria-hidden="true" style={{ width: 25, height: 25, borderRadius: 7, background: markBg, display: "inline-flex", alignItems: "center", justifyContent: "center", fontFamily: FONT_MONO, fontSize: 13, fontWeight: 800, color: markFg, transition: "background 0.3s, color 0.3s" }}>α</span>
+            <span aria-hidden="true" style={{ width: 25, height: 25, borderRadius: 7, background: markBg, display: "inline-flex", alignItems: "center", justifyContent: "center", transition: "background 0.3s" }}>
+              <BrandMark size={14} color={markFg} />
+            </span>
             <span style={{ fontSize: 15.5, fontWeight: 700, letterSpacing: "-0.02em", color: fg, transition: "color 0.3s" }}>Edge Alpha</span>
           </Link>
 

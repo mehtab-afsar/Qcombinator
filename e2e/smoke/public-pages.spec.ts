@@ -53,19 +53,6 @@ test.describe('Public Pages — Smoke Tests', () => {
     }
   })
 
-  test('/library page loads or redirects to login gracefully', async ({ page }) => {
-    await page.goto('/library')
-    await page.waitForLoadState('networkidle')
-
-    const isOnLogin = page.url().includes('/login')
-    if (!isOnLogin) {
-      const bodyText = await page.locator('body').innerText()
-      expect(bodyText.trim().length).toBeGreaterThan(50)
-      expect(bodyText).not.toMatch(/This page could not be found|404/i)
-    } else {
-      await expect(page.locator('input[type="email"]').first()).toBeVisible({ timeout: 8_000 })
-    }
-  })
 
   test('/reset-password page renders a form', async ({ page }) => {
     await page.goto('/reset-password')

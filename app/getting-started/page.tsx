@@ -9,18 +9,12 @@ const amber  = '#D97706'
 const purple = '#7C3AED'
 const cyan   = '#0891B2'
 
-const AGENTS = [
-  { id: 'patel',  role: 'CMO',  name: 'Patel',  desc: 'GTM strategy, ICP definition, positioning, and 90-day launch plan' },
-  { id: 'susi',   role: 'CRO',  name: 'Susi',   desc: 'Sales process, outreach cadences, pipeline management, and deal review' },
-  { id: 'maya',   role: 'Brand',name: 'Maya',   desc: 'Brand audit, one-pager, blog content, landing page copy, and social' },
-  { id: 'felix',  role: 'CFO',  name: 'Felix',  desc: 'Financial model, runway alerts, board updates, and investor memos' },
-  { id: 'leo',    role: 'CLO',  name: 'Leo',    desc: 'SAFE agreements, NDAs, privacy policy, contractor contracts, and IP audit' },
-  { id: 'harper', role: 'CHRO', name: 'Harper', desc: 'Job descriptions, offer letters, rejection emails, and equity policy' },
-  { id: 'nova',   role: 'CPO',  name: 'Nova',   desc: 'Feature prioritisation, PMF analysis, cohort analysis, and user interviews' },
-  { id: 'atlas',  role: 'CSO',  name: 'Atlas',  desc: 'Competitor tracking, market sizing, tech-stack detection, and battle cards' },
-  { id: 'sage',   role: 'CEO',  name: 'Sage',   desc: 'Strategic plan, OKRs, investor updates, Linear sync, and weekly standup' },
-  { id: 'carter', role: 'CSM',  name: 'Carter', desc: 'Customer success playbook, churn risk analysis, and account health' },
-  { id: 'riley',  role: 'Growth',name:'Riley',  desc: 'Growth experiments, ad creative, SEO strategy, and growth accounting' },
+const EXECUTIVES = [
+  { id: 'ceo',        role: 'CEO / Chief of Staff',    name: 'Morgan', desc: 'Turns your Q-Score into a Mandate — the Executive Contract that decides which Programs run' },
+  { id: 'growth',     role: 'Chief Growth Officer',    name: 'Patel',  desc: 'Owns Go-to-Market: ICP, positioning, messaging, and channel strategy — live today' },
+  { id: 'product',    role: 'Chief Technology Officer',name: null,     desc: 'Product & Technology' },
+  { id: 'operations', role: 'Chief Operations Officer',name: null,     desc: 'Runs the operating rhythm across the company' },
+  { id: 'finance',    role: 'Chief Financial Officer', name: null,     desc: 'Keeps the company alive and fundable' },
 ]
 
 const PARAMETERS = [
@@ -33,24 +27,11 @@ const PARAMETERS = [
 ]
 
 const PLAYBOOK_DELIVERABLES = [
-  { id: 'D1', label: 'ICP',                  color: blue,   desc: 'Ideal Customer Profile — 3 buyer segments, firmographics, decision-maker map, and entry segment recommendation' },
-  { id: 'D2', label: 'Pains & Gains',        color: green,  desc: 'Top 5 pains (ranked by severity), top 5 gains, 3 emotional triggers, and recommended positioning angle' },
-  { id: 'D3', label: 'Buyer Journey',        color: purple, desc: '5-stage journey from Unaware → Purchase, with content and sales touchpoints per stage' },
-  { id: 'D4', label: 'Positioning',          color: amber,  desc: 'Category play, 3 value pillars, competitive displacement map, and core message hierarchy' },
-  { id: 'D5', label: 'Competitive Intel',    color: cyan,   desc: 'Competitor profiles, battle cards, pricing landscape, and differentiation matrix' },
-  { id: 'D6', label: 'GTM Playbook',         color: '#DC2626', desc: 'Full 9-section playbook: ICP → Channels → Budget → 90-Day Plan → Dashboard → Actions → Risks → Success State' },
-]
-
-const GTM_SECTIONS = [
-  { n: '§1', title: 'Commercial Objective',          desc: 'North-star revenue goal, ARR/MRR target, and key success metrics' },
-  { n: '§2', title: 'ICP + Positioning + Messaging', desc: 'Segment table, value pillars, and audience-specific messaging by segment' },
-  { n: '§3', title: 'Channel Strategy',              desc: 'Ranked channel mix with rationale, CAC estimates, and monthly reach projections' },
-  { n: '§4', title: 'Budget Table',                  desc: 'Monthly spend allocation by channel for the 90-day window' },
-  { n: '§5', title: '90-Day GTM Plan',               desc: 'Week-by-week execution grid with milestones, owners, and expected outputs' },
-  { n: '§6', title: 'Commercial Dashboard',          desc: 'Pipeline, Revenue, Efficiency, and Key Metrics KPIs with target values' },
-  { n: '§7', title: 'Prioritised Action Stack',      desc: 'Top 5 immediate actions ranked by impact and effort' },
-  { n: '§8', title: 'Risks & GTM Hypotheses',        desc: 'Top 3 risks with mitigation, and 3 testable GTM hypotheses' },
-  { n: '§9', title: 'End-of-90-Day Success State',   desc: 'What "done" looks like — quantitative targets and qualitative milestones' },
+  { id: 'AS001', label: 'ICP Profiles',                       color: blue,      desc: 'Ideal Customer Profile — buyer segments, firmographics, and entry segment recommendation' },
+  { id: 'AS002', label: 'Pains & Gains Matrix',                color: green,     desc: 'Ranked pains and gains, and the positioning angle they point to' },
+  { id: 'AS003', label: 'Buyer Journey Map',                   color: purple,    desc: 'The path from unaware to purchase, with touchpoints per stage' },
+  { id: 'AS004', label: 'Positioning & Messaging Framework',   color: amber,     desc: 'Category play, value pillars, and core message hierarchy' },
+  { id: 'AS005', label: 'Channel Strategy',                    color: cyan,      desc: 'Which acquisition channels to prioritise, and why' },
 ]
 
 const QUICK_START = [
@@ -106,7 +87,7 @@ export default function GettingStartedPage() {
             {APP_TAGLINE}. Your AI team is ready. Here&apos;s how to get the most from the platform in your first 30 days.
           </p>
           <div style={{ display: 'flex', justifyContent: 'center', gap: 24, flexWrap: 'wrap', marginTop: 16 }}>
-            {(['Q-Score', '5 AI Executives', 'GTM Playbook', 'Investor Matching'] as const).map(f => (
+            {(['Q-Score', '5 AI Executives', 'GTM Deliverables', 'Investor Matching'] as const).map(f => (
               <div key={f} style={{ fontSize: 12, color: muted, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ width: 6, height: 6, background: blue, borderRadius: '50%' }} />
                 {f}
@@ -175,13 +156,13 @@ export default function GettingStartedPage() {
         <div style={{ marginBottom: 72 }} className="page-break">
           <SectionLabel n="04" />
           <SectionTitle>Meet Your Executive Team</SectionTitle>
-          <SectionDesc>5 AI executives — CEO, Growth, Product, Operations, and Finance — each running a bench of specialists behind the scenes. They don&apos;t wait to be asked: once you confirm a mandate, they work to it on a weekly rhythm and hand you real deliverables — GTM strategy, financial models, contracts, and more — not chat replies.</SectionDesc>
+          <SectionDesc>5 AI executives — CEO, Growth, Product, Operations, and Finance. They don&apos;t wait to be asked: once you confirm a mandate, an executive works to it on a weekly rhythm and hands you real, versioned deliverables — not chat replies. Growth is live today, running your Go-to-Market program; the rest come online as their programs ship.</SectionDesc>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 10, marginTop: 24 }}>
-            {AGENTS.map(a => (
+            {EXECUTIVES.map(a => (
               <div key={a.id} style={{ padding: '14px 16px', background: surf, border: `1px solid ${bdr}`, borderRadius: 10 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: ink }}>{a.name}</span>
+                  {a.name && <span style={{ fontSize: 13, fontWeight: 700, color: ink }}>{a.name}</span>}
                   <span style={{ fontSize: 10, fontWeight: 600, color: muted, background: bdr, padding: '1px 6px', borderRadius: 4 }}>{a.role}</span>
                 </div>
                 <p style={{ fontSize: 11, color: muted, margin: 0, lineHeight: 1.5 }}>{a.desc}</p>
@@ -194,11 +175,11 @@ export default function GettingStartedPage() {
           </Link>
         </div>
 
-        {/* ── Slide 5: Patel D1→D6 ──────────────────────────────────────── */}
+        {/* ── Slide 5: Patel's GTM deliverables ──────────────────────────── */}
         <div style={{ marginBottom: 72 }} className="page-break">
           <SectionLabel n="05" />
-          <SectionTitle>Patel&apos;s D1→D6 Playbook System</SectionTitle>
-          <SectionDesc>Growth builds six deliverables in sequence, automatically, on the weekly Operating Rhythm — no prompting needed. Each cycle sharpens them further. They culminate in D6, the full 9-section GTM Playbook.</SectionDesc>
+          <SectionTitle>Patel&apos;s GTM Deliverables</SectionTitle>
+          <SectionDesc>Growth builds five deliverables on the weekly Operating Rhythm — no prompting needed. Each cycle re-runs and sharpens them further as your Q-Score profile and Assets improve.</SectionDesc>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 24 }}>
             {PLAYBOOK_DELIVERABLES.map(d => (
@@ -214,33 +195,14 @@ export default function GettingStartedPage() {
 
           <div style={{ marginTop: 20, padding: '14px 18px', background: green + '08', border: `1px solid ${green}30`, borderRadius: 10 }}>
             <p style={{ fontSize: 12, color: ink, margin: 0 }}>
-              <strong>How each deliverable actually gets built:</strong> confirming your mandate activates the GTM program — the rhythm runs it every week and versions each document as it improves. Open any deliverable in your Command View to read it, or edit it directly; that edit becomes the new version, used next cycle. Want to redirect one? Ask Patel, in place, to sharpen a specific section — not a chat window, a scoped note on the document itself.
+              <strong>How each deliverable actually gets built:</strong> confirming your mandate activates the GTM program — the rhythm runs it every week and versions each document as it improves. Open any deliverable in your Command View to read it, or edit it directly — that edit becomes the new version, used immediately, no approval needed.
             </p>
           </div>
         </div>
 
-        {/* ── Slide 6: GTM Playbook sections ────────────────────────────── */}
+        {/* ── Slide 6: Investor Marketplace ─────────────────────────────── */}
         <div style={{ marginBottom: 72 }} className="page-break">
           <SectionLabel n="06" />
-          <SectionTitle>Inside the GTM Playbook (D6)</SectionTitle>
-          <SectionDesc>D6 is a 9-section document built from your D1–D4 outputs. It&apos;s the most comprehensive deliverable — export it as a PDF and share it with your team or investors.</SectionDesc>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 24 }}>
-            {GTM_SECTIONS.map(s => (
-              <div key={s.n} style={{ display: 'flex', gap: 14, padding: '12px 16px', background: surf, border: `1px solid ${bdr}`, borderRadius: 8 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: muted, flexShrink: 0, minWidth: 24 }}>{s.n}</span>
-                <div>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: ink }}>{s.title}</span>
-                  <span style={{ fontSize: 12, color: muted }}> — {s.desc}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* ── Slide 7: Investor Marketplace ─────────────────────────────── */}
-        <div style={{ marginBottom: 72 }} className="page-break">
-          <SectionLabel n="07" />
           <SectionTitle>The Investor Marketplace</SectionTitle>
           <SectionDesc>Browse 200+ investors filtered by stage, industry, check size, and geography. Your Q-Score is displayed on every profile — investors use it to shortlist founders before accepting connections.</SectionDesc>
 
@@ -264,16 +226,16 @@ export default function GettingStartedPage() {
           </Link>
         </div>
 
-        {/* ── Slide 8: Messaging ────────────────────────────────────────── */}
+        {/* ── Slide 7: Messaging ────────────────────────────────────────── */}
         <div style={{ marginBottom: 72 }} className="page-break">
-          <SectionLabel n="08" />
+          <SectionLabel n="07" />
           <SectionTitle>Messaging & Connections</SectionTitle>
           <SectionDesc>Messaging is available once an investor accepts your connection request. Keep it short, specific, and evidence-driven — investors read dozens of messages a week.</SectionDesc>
 
           <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
             {[
               { label: 'First message', tip: 'Reference why you connected — their thesis, a portfolio company, a specific insight. Under 100 words.' },
-              { label: 'Follow up',     tip: 'Attach a relevant Patel deliverable or your GTM Playbook. Let the artifact do the talking.' },
+              { label: 'Follow up',     tip: 'Attach a relevant Growth deliverable, like your Positioning Framework. Let the artifact do the talking.' },
               { label: 'Ask',           tip: 'Be specific: "30-minute intro call" beats "catch up". Include your Calendly or a specific time.' },
             ].map(m => (
               <div key={m.label} style={{ padding: '14px 18px', background: surf, border: `1px solid ${bdr}`, borderRadius: 10 }}>
@@ -284,20 +246,19 @@ export default function GettingStartedPage() {
           </div>
         </div>
 
-        {/* ── Slide 9: Library ──────────────────────────────────────────── */}
+        {/* ── Slide 8: Library ──────────────────────────────────────────── */}
         <div style={{ marginBottom: 72 }} className="page-break">
-          <SectionLabel n="09" />
+          <SectionLabel n="08" />
           <SectionTitle>Your Deliverables Library</SectionTitle>
-          <SectionDesc>Every artifact Patel or your other agents build is stored in your library as a PDF. You can download, share, or use them in investor conversations.</SectionDesc>
+          <SectionDesc>Every Asset your executives build is versioned and kept here. You can read, edit, or share any version in investor conversations.</SectionDesc>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 12, marginTop: 24 }}>
             {[
-              { label: 'ICP Document',         desc: 'D1 — 3 buyer segments, persona map, and entry segment recommendation' },
-              { label: 'Pains & Gains',        desc: 'D2 — 5 pains, 5 gains, and emotional trigger framework' },
-              { label: 'Buyer Journey Map',    desc: 'D3 — 5-stage sales and marketing journey with touchpoints' },
-              { label: 'Positioning Matrix',   desc: 'D4 — Value pillars, competitive map, and message hierarchy' },
-              { label: 'GTM Playbook',         desc: 'D6 — Full 9-section go-to-market strategy' },
-              { label: 'Agent Deliverables',   desc: 'All other outputs from Felix, Leo, Harper, Nova, and more' },
+              { label: 'ICP Profiles',              desc: 'AS001 — buyer segments and entry segment recommendation' },
+              { label: 'Pains & Gains Matrix',       desc: 'AS002 — ranked pains, gains, and positioning angle' },
+              { label: 'Buyer Journey Map',          desc: 'AS003 — the path from unaware to purchase' },
+              { label: 'Positioning & Messaging',    desc: 'AS004 — value pillars and core message hierarchy' },
+              { label: 'Channel Strategy',           desc: 'AS005 — which acquisition channels to prioritise' },
             ].map(l => (
               <div key={l.label} style={{ padding: '14px 16px', background: surf, border: `1px solid ${bdr}`, borderRadius: 10 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: ink, marginBottom: 4 }}>{l.label}</div>
@@ -311,9 +272,9 @@ export default function GettingStartedPage() {
           </Link>
         </div>
 
-        {/* ── Slide 10: 30-Day Plan ─────────────────────────────────────── */}
+        {/* ── Slide 9: 30-Day Plan ──────────────────────────────────────── */}
         <div style={{ marginBottom: 72 }} className="page-break">
-          <SectionLabel n="10" />
+          <SectionLabel n="09" />
           <SectionTitle>Your 30-Day Quick-Start Plan</SectionTitle>
           <SectionDesc>This is your activation checklist. Complete each step in order — each one builds on the last.</SectionDesc>
 
@@ -364,7 +325,7 @@ export default function GettingStartedPage() {
 function SectionLabel({ n }: { n: string }) {
   return (
     <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.25em', textTransform: 'uppercase', color: muted, marginBottom: 10 }}>
-      {n} / 10
+      {n} / 09
     </p>
   )
 }

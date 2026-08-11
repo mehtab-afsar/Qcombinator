@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { L, FONT_MONO } from "../theme";
 import { FOOTER_LINKS } from "../copy";
+import { BrandMark } from "@/features/shared/components/BrandMark";
 
 export function Footer() {
   return (
@@ -11,7 +12,9 @@ export function Footer() {
         <div className="lp-footer-grid" style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 32, marginBottom: 48 }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-              <span aria-hidden="true" style={{ width: 24, height: 24, borderRadius: 6, background: L.ink, display: "inline-flex", alignItems: "center", justifyContent: "center", fontFamily: FONT_MONO, fontSize: 12, fontWeight: 800, color: L.bg }}>α</span>
+              <span aria-hidden="true" style={{ width: 24, height: 24, borderRadius: 6, background: L.ink, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                <BrandMark size={13} color={L.bg} />
+              </span>
               <span style={{ fontSize: 15, fontWeight: 650, color: L.ink }}>Edge Alpha</span>
             </div>
             <p style={{ fontSize: 13.5, color: L.muted, lineHeight: 1.6, maxWidth: 280, margin: 0 }}>

@@ -13,6 +13,7 @@
 
 import { tieredText } from '@/lib/llm/router';
 import type { ParameterScore, IndicatorScore } from '../calculators/q-score-calculator';
+import { INDICATOR_AGENTS } from '../constants/dimensions';
 
 export interface UnlockCard {
   indicatorId: string;
@@ -30,15 +31,6 @@ export interface ScoreIntelligence {
   readinessSummary: string;   // investor-facing, 3 sentences
   generatedAt: string;
 }
-
-const INDICATOR_AGENT_MAP: Record<string, string> = {
-  '1.1': 'nova',  '1.2': 'patel', '1.3': 'susi',  '1.4': 'nova',  '1.5': 'patel',
-  '2.1': 'atlas', '2.2': 'atlas', '2.3': 'atlas',  '2.4': 'atlas', '2.5': 'atlas',
-  '3.1': 'leo',   '3.2': 'patel', '3.3': 'patel',  '3.4': 'leo',   '3.5': 'leo',
-  '4.1': 'sage',  '4.2': 'sage',  '4.3': 'harper', '4.4': 'sage',  '4.5': 'harper',
-  '5.1': 'sage',  '5.2': 'sage',  '5.3': 'sage',   '5.4': 'felix', '5.5': 'sage',
-  '6.1': 'felix', '6.2': 'felix', '6.3': 'felix',  '6.4': 'felix', '6.5': 'felix',
-};
 
 export async function generateScoreIntelligence(
   parameters: ParameterScore[],
@@ -109,7 +101,7 @@ Rules:
 
     const unlockCards: UnlockCard[] = (parsed.unlockCards ?? []).slice(0, 3).map(c => ({
       ...c,
-      agentId: INDICATOR_AGENT_MAP[c.indicatorId],
+      agentId: INDICATOR_AGENTS[c.indicatorId],
     }));
 
     return {
@@ -127,7 +119,7 @@ Rules:
       targetScore:       Math.min(5, ind.rawScore + 2),
       estimatedPointGain: Math.round((Math.min(5, ind.rawScore + 2) - ind.rawScore) * 2),
       action: `Improve evidence for ${ind.name}. Speak to the relevant agent for guidance.`,
-      agentId: INDICATOR_AGENT_MAP[ind.id],
+      agentId: INDICATOR_AGENTS[ind.id],
     }));
     return {
       unlockCards,

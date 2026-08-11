@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { red } from '@/lib/constants/colors'
 import { useStreamedProposal, type StreamedProposal } from '../../hooks/useStreamedProposal'
+import { loadUnveilingDraft, saveUnveilingDraft, clearUnveilingDraft } from '../../lib/unveiling-draft'
 import { Thread } from './Thread'
 import { TheRead } from './TheRead'
 import { ProposedDirection } from './ProposedDirection'
@@ -39,13 +40,22 @@ export function Unveiling({
   contract: Contract | null
   onDone: () => void | Promise<void>
 }) {
-  const [step, setStep] = useState<Step>(() => entryStep(strategy, contract))
+  // A tab reload/remount while reviewing "The direction" (step 2) used to lose everything and
+  // restart at "The read" — nothing about that step was saved anywhere until Accept is clicked.
+  // If the server-derived entryStep would land on step 1 but a draft survived in sessionStorage
+  // (unveiling-draft.ts), resume from it instead of re-triggering a fresh AI proposal.
+  const [step, setStep] = useState<Step>(() => {
+    const es = entryStep(strategy, contract)
+    return es === 1 && loadUnveilingDraft() ? 2 : es
+  })
   const [localContract, setLocalContract] = useState<Contract | null>(contract)
   const [committed, setCommitted] = useState<Committed | null>(
     strategy ? { mission: strategy.mission ?? '', priorities: strategy.priorities, goals: strategy.goals } : null,
   )
   // Layer 2's current candidate — proposed or nudged, not yet saved.
-  const [candidate, setCandidate] = useState<StreamedProposal | null>(null)
+  const [candidate, setCandidate] = useState<StreamedProposal | null>(() =>
+    entryStep(strategy, contract) === 1 ? loadUnveilingDraft() : null,
+  )
   const [nudging, setNudging] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -72,6 +82,13 @@ export function Unveiling({
     }
   }, [proposal, step])
 
+  // Persists the moment there's something worth resuming — the initial proposal arriving, or a
+  // nudge revision (both already flow through setCandidate). Cleared once saveAndCommit succeeds
+  // below, at which point the server-persisted strategy is what a reload should resume from.
+  useEffect(() => {
+    if (step === 2 && candidate) saveUnveilingDraft(candidate)
+  }, [step, candidate])
+
   const saveAndCommit = useCallback(async (fields: Committed) => {
     setBusy(true)
     setError(null)
@@ -88,6 +105,7 @@ export function Unveiling({
       setAttempt(a => a + 1)
       setNudging(false)
       setStep(3)
+      clearUnveilingDraft()
     } catch {
       setError('Could not reach the server. Try again.')
     } finally {

@@ -1,5 +1,6 @@
 import { getStripe } from '@/lib/stripe'
 import { createAdminClient } from '@/lib/supabase/server'
+import { APP_URL } from '@/lib/constants/app'
 
 export interface CreatePortalSessionParams {
   table: 'founder_profiles' | 'investor_profiles'
@@ -29,7 +30,7 @@ export async function createPortalSession(
 
   const session = await getStripe().billingPortal.sessions.create({
     customer: profile.stripe_customer_id as string,
-    return_url: `${process.env.NEXT_PUBLIC_APP_URL}${params.returnPath}`,
+    return_url: `${APP_URL}${params.returnPath}`,
   })
 
   return { ok: true, url: session.url }
