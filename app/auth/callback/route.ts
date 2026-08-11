@@ -45,6 +45,26 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(`${origin}/investor/dashboard`)
   }
 
+  // Dual-role is a supported case (app/api/investor/onboarding/route.ts, middleware.ts both gate
+  // each side purely on whether that side's own profile row exists) — e.g. a founder who also
+  // angel-invests. So intent=investor must win here even for a user who already has a
+  // founder_profiles row: it's a real, explicit signal from the investor onboarding page's own
+  // Google button that this sign-in is for the investor side, not a stale/incidental session.
+  // investor_profiles is never stubbed (unlike founder_profiles): the whole row is written once,
+  // complete, at the end of the onboarding wizard (POST /api/investor/onboarding) — nothing to
+  // insert here, just point them at the right wizard.
+  if (intent === 'investor') {
+    if (user.email) {
+      const fullName = (user.user_metadata?.full_name as string | undefined) ?? user.email.split('@')[0]
+      void sendWelcomeEmail({
+        email:        user.email,
+        fullName,
+        startupName:  'Edge Alpha Investor', // matches /api/auth/investor-signup's placeholder
+      }).catch(e => log.warn('[oauth-callback] investor welcome email failed:', e))
+    }
+    return NextResponse.redirect(`${origin}/investor/onboarding`)
+  }
+
   const { data: founderProfile } = await supabase
     .from('founder_profiles')
     .select('id, onboarding_completed')
@@ -59,22 +79,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(
       `${origin}${founderProfile.onboarding_completed ? '/founder/dashboard' : '/founder/onboarding'}`
     )
-  }
-
-  // New investor sign-up — investor_profiles is never stubbed (unlike founder_profiles): the
-  // whole row is written once, complete, at the end of the onboarding wizard
-  // (POST /api/investor/onboarding). Nothing to insert here; just point them at the right
-  // wizard instead of falling through to the founder branch below.
-  if (intent === 'investor') {
-    if (user.email) {
-      const fullName = (user.user_metadata?.full_name as string | undefined) ?? user.email.split('@')[0]
-      void sendWelcomeEmail({
-        email:        user.email,
-        fullName,
-        startupName:  'Edge Alpha Investor', // matches /api/auth/investor-signup's placeholder
-      }).catch(e => log.warn('[oauth-callback] investor welcome email failed:', e))
-    }
-    return NextResponse.redirect(`${origin}/investor/onboarding`)
   }
 
   // New OAuth user with no profile — create a minimal stub so they aren't orphaned
