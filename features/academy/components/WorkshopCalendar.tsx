@@ -5,7 +5,7 @@ import { bg, bdr, muted } from "@/lib/constants/colors";
 import { CalendarHeader } from "@/features/academy/components/CalendarHeader";
 import { CalendarGrid } from "@/features/academy/components/CalendarGrid";
 import { DayWorkshopPanel, type RegisterResult } from "@/features/academy/components/DayWorkshopPanel";
-import { shiftMonth, toDateKey, workshopDateKey } from "@/features/academy/lib/calendarDate";
+import { groupWorkshopsByDate, shiftMonth, toDateKey } from "@/features/academy/lib/calendarDate";
 import type { Workshop } from "@/features/academy/types/academy.types";
 
 interface WorkshopCalendarProps {
@@ -26,17 +26,7 @@ export function WorkshopCalendar({ workshops, registeredIds, onRegister, onUnreg
   });
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(initialSelectedDateKey ?? null);
 
-  const workshopsByDate = useMemo(() => {
-    const map = new Map<string, Workshop[]>();
-    for (const w of workshops) {
-      const key = workshopDateKey(w);
-      if (!key) continue;
-      const list = map.get(key) ?? [];
-      list.push(w);
-      map.set(key, list);
-    }
-    return map;
-  }, [workshops]);
+  const workshopsByDate = useMemo(() => groupWorkshopsByDate(workshops), [workshops]);
 
   const selectedWorkshops = selectedDateKey ? (workshopsByDate.get(selectedDateKey) ?? []) : [];
 

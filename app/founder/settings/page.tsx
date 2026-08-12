@@ -107,13 +107,7 @@ function SettingsInner() {
     setTeamLoading(true);
     (async () => {
       try {
-        const sb = (await import('@/lib/supabase/client')).createClient();
-        const { data: { session } } = await sb.auth.getSession();
-        if (!session) { setTeamLoading(false); return; }
-
-        const res = await fetch('/api/team/members', {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        });
+        const res = await fetch('/api/team/members');
         const data = await res.json();
         if (!res.ok) {
           toast.error(data.error ?? 'Failed to load team');
@@ -134,28 +128,22 @@ function SettingsInner() {
 
   useEffect(() => { if (activeTab === 'team') loadTeam(); }, [activeTab]);
 
-  async function getAuthHeader(): Promise<Record<string, string> | null> {
-    const sb = (await import('@/lib/supabase/client')).createClient();
-    const { data: { session } } = await sb.auth.getSession();
-    if (!session) { toast.error('Not authenticated'); return null; }
-    return { Authorization: `Bearer ${session.access_token}` };
-  }
-
   async function handleSendInvite(email: string, role: 'admin' | 'member' | 'viewer') {
     setInviteSending(true);
     try {
-      const authHeader = await getAuthHeader();
-      if (!authHeader) return;
-
       const res = await fetch('/api/team/invite', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeader },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim(), role }),
       });
       const data = await res.json();
       if (!res.ok) { toast.error(data.error ?? 'Failed to send invite'); return; }
 
-      toast.success(`Invite sent to ${email.trim()}`);
+      if (data.emailSent) {
+        toast.success(`Invite sent to ${email.trim()}`);
+      } else {
+        toast.error(`Invite created, but the email couldn't be delivered to ${email.trim()} — share the link manually or check email settings.`);
+      }
       setInviteModalOpen(false);
       loadTeam();
     } catch (_err) { toast.error('Failed to send invite'); }
@@ -164,9 +152,7 @@ function SettingsInner() {
 
   async function handleRemoveMember(userId: string, name: string) {
     if (!confirm(`Remove ${name} from your team?`)) return;
-    const authHeader = await getAuthHeader();
-    if (!authHeader) return;
-    const res = await fetch(`/api/team/members?userId=${userId}`, { method: 'DELETE', headers: authHeader });
+    const res = await fetch(`/api/team/members?userId=${userId}`, { method: 'DELETE' });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) { toast.error(data.error ?? 'Failed to remove member'); return; }
     toast.success(`${name} removed from team`);
@@ -174,11 +160,9 @@ function SettingsInner() {
   }
 
   async function handleChangeRole(userId: string, role: 'admin' | 'member' | 'viewer') {
-    const authHeader = await getAuthHeader();
-    if (!authHeader) return;
     const res = await fetch(`/api/team/members?userId=${userId}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', ...authHeader },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ role }),
     });
     const data = await res.json().catch(() => ({}));
@@ -188,9 +172,7 @@ function SettingsInner() {
 
   async function handleCancelInvite(inviteId: string) {
     if (!confirm('Cancel this invite?')) return;
-    const authHeader = await getAuthHeader();
-    if (!authHeader) return;
-    const res = await fetch(`/api/team/members?inviteId=${inviteId}`, { method: 'DELETE', headers: authHeader });
+    const res = await fetch(`/api/team/members?inviteId=${inviteId}`, { method: 'DELETE' });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) { toast.error(data.error ?? 'Failed to cancel invite'); return; }
     toast.success('Invite cancelled');
@@ -200,16 +182,18 @@ function SettingsInner() {
   async function handleResendInvite(email: string, role: 'admin' | 'member' | 'viewer') {
     setInviteSending(true);
     try {
-      const authHeader = await getAuthHeader();
-      if (!authHeader) return;
       const res = await fetch('/api/team/invite', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeader },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, role }),
       });
       const data = await res.json();
       if (!res.ok) { toast.error(data.error ?? 'Failed to resend'); return; }
-      toast.success(`Invite resent to ${email}`);
+      if (data.emailSent) {
+        toast.success(`Invite resent to ${email}`);
+      } else {
+        toast.error(`Invite refreshed, but the email couldn't be delivered to ${email} — check email settings.`);
+      }
       loadTeam();
     } catch { toast.error('Failed to resend invite'); }
     finally { setInviteSending(false); }

@@ -9,10 +9,12 @@ import {
   UserCircle, FileText, Target, Users, DollarSign,
   type LucideIcon,
 } from 'lucide-react'
-import { bg, surf, bdr, ink, muted, blue } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted, blue, green, amber, white, alpha } from '@/lib/constants/colors'
 
+// No `family` here anymore — this page used to set its own `system-ui` stack on its root div,
+// silently overriding the real 'Inter' the rest of the app inherits from `body` in globals.css.
+// Font-family now just inherits like every other page.
 const font = {
-  family: 'system-ui, -apple-system, sans-serif',
   size: { xs: 10, sm: 11, base: 13, md: 14, lg: 16, xl: 18, '2xl': 22, '3xl': 28 },
   weight: { normal: 400, medium: 500, semibold: 600, bold: 700 },
 }
@@ -140,7 +142,7 @@ export default function FounderGettingStarted() {
 
   if (loading || !profile) {
     return (
-      <div style={{ minHeight: '100vh', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: font.family }}>
+      <div style={{ minHeight: '100vh', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ width: 24, height: 24, borderRadius: '50%', border: `2.5px solid ${bdr}`, borderTopColor: blue, animation: 'spin 0.8s linear infinite' }} />
       </div>
     )
@@ -156,8 +158,8 @@ export default function FounderGettingStarted() {
   const firstName = profile.full_name.split(' ')[0] || 'there'
 
   return (
-    <div style={{ minHeight: '100vh', background: bg, fontFamily: font.family, color: ink }}>
-      <div style={{ maxWidth: 720, margin: '0 auto', padding: `${space[10]}px ${space[6]}px ${space[12]}px` }}>
+    <div style={{ minHeight: '100vh', background: bg, color: ink }}>
+      <div style={{ maxWidth: 880, margin: '0 auto', padding: `${space[10]}px ${space[8]}px ${space[12]}px` }}>
 
         {/* Header */}
         <div style={{ marginBottom: space[8] }}>
@@ -196,7 +198,7 @@ export default function FounderGettingStarted() {
             <div style={{ textAlign: 'right' }}>
               <span style={{
                 fontSize: font.size['2xl'], fontWeight: font.weight.bold,
-                color: allDone ? '#059669' : pct >= 50 ? blue : ink,
+                color: allDone ? green : pct >= 50 ? blue : ink,
               }}>
                 {pct}%
               </span>
@@ -208,7 +210,7 @@ export default function FounderGettingStarted() {
             <div style={{
               height: '100%',
               background: allDone
-                ? 'linear-gradient(90deg, #059669, #10B981)'
+                ? `linear-gradient(90deg, ${green}, ${green}CC)`
                 : `linear-gradient(90deg, ${blue}, ${blue}CC)`,
               borderRadius: radius.full,
               width: `${pct}%`,
@@ -225,7 +227,7 @@ export default function FounderGettingStarted() {
               <Link href={nextStep.href} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', textDecoration: 'none', padding: '12px 14px', borderRadius: radius.md, background: `${blue}08`, border: `1.5px solid ${blue}20` }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: space[3] }}>
                   <div style={{ width: 36, height: 36, borderRadius: radius.sm, background: blue, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <nextStep.icon size={16} color="#fff" />
+                    <nextStep.icon size={16} color={white} />
                   </div>
                   <div>
                     <p style={{ margin: 0, fontSize: font.size.md, fontWeight: font.weight.semibold, color: ink }}>{nextStep.title}</p>
@@ -246,7 +248,7 @@ export default function FounderGettingStarted() {
               <div
                 key={step.id}
                 style={{
-                  background: surf, border: `1px solid ${step.completed ? blue + '25' : bdr}`,
+                  background: bg, border: `1px solid ${step.completed ? blue + '25' : bdr}`,
                   borderRadius: radius.lg, overflow: 'hidden',
                   opacity: step.locked ? 0.5 : 1,
                   transition: 'border-color 0.2s, box-shadow 0.2s',
@@ -256,13 +258,13 @@ export default function FounderGettingStarted() {
                   {/* Step number / check */}
                   <div style={{
                     width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
-                    background: step.completed ? '#ECFDF5' : step.locked ? surf : `${blue}08`,
-                    border: `1.5px solid ${step.completed ? '#059669' : step.locked ? bdr : blue + '30'}`,
+                    background: step.completed ? alpha(green, 0.1) : step.locked ? surf : alpha(blue, 0.05),
+                    border: `1.5px solid ${step.completed ? green : step.locked ? bdr : blue + '30'}`,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     transition: 'all 0.2s',
                   }}>
                     {step.completed
-                      ? <Check size={18} color="#059669" strokeWidth={2.5} />
+                      ? <Check size={18} color={green} strokeWidth={2.5} />
                       : step.locked
                         ? <Lock size={16} color={muted} />
                         : <Icon size={18} color={blue} />
@@ -282,7 +284,7 @@ export default function FounderGettingStarted() {
                       {step.badge && !step.completed && (
                         <span style={{
                           padding: '2px 8px', borderRadius: radius.full,
-                          background: '#FEF3C7', color: '#D97706',
+                          background: alpha(amber, 0.12), color: amber,
                           fontSize: font.size.xs, fontWeight: font.weight.semibold,
                         }}>
                           {step.badge}
@@ -291,7 +293,7 @@ export default function FounderGettingStarted() {
                       {step.completed && (
                         <span style={{
                           padding: '2px 8px', borderRadius: radius.full,
-                          background: '#ECFDF5', color: '#059669',
+                          background: alpha(green, 0.1), color: green,
                           fontSize: font.size.xs, fontWeight: font.weight.semibold,
                         }}>
                           Done
@@ -317,7 +319,7 @@ export default function FounderGettingStarted() {
                         padding: '8px 14px', borderRadius: radius.sm,
                         background: idx === steps.findIndex(s => !s.completed) ? blue : 'transparent',
                         border: `1.5px solid ${idx === steps.findIndex(s => !s.completed) ? blue : bdr}`,
-                        color: idx === steps.findIndex(s => !s.completed) ? '#fff' : muted,
+                        color: idx === steps.findIndex(s => !s.completed) ? white : muted,
                         fontSize: font.size.sm, fontWeight: font.weight.semibold,
                         textDecoration: 'none', whiteSpace: 'nowrap',
                         transition: 'all 0.12s',
@@ -337,14 +339,14 @@ export default function FounderGettingStarted() {
         {/* Bottom CTA if all done */}
         {allDone && (
           <div style={{ marginTop: space[8], textAlign: 'center' }}>
-            <div style={{ padding: `${space[6]}px`, background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: radius.lg }}>
-              <div style={{ width: 52, height: 52, borderRadius: '50%', background: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: `0 auto ${space[3]}px` }}>
-                <Check size={24} color="#fff" strokeWidth={2.5} />
+            <div style={{ padding: `${space[6]}px`, background: alpha(green, 0.08), border: `1px solid ${alpha(green, 0.3)}`, borderRadius: radius.lg }}>
+              <div style={{ width: 52, height: 52, borderRadius: '50%', background: green, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: `0 auto ${space[3]}px` }}>
+                <Check size={24} color={white} strokeWidth={2.5} />
               </div>
-              <h3 style={{ margin: `0 0 ${space[2]}px`, fontSize: font.size.xl, fontWeight: font.weight.bold, color: '#065F46' }}>
+              <h3 style={{ margin: `0 0 ${space[2]}px`, fontSize: font.size.xl, fontWeight: font.weight.bold, color: ink }}>
                 Profile complete!
               </h3>
-              <p style={{ margin: `0 0 ${space[4]}px`, fontSize: font.size.md, color: '#047857' }}>
+              <p style={{ margin: `0 0 ${space[4]}px`, fontSize: font.size.md, color: muted }}>
                 Your Q-Score is live and investors can now find you in their deal flow.
               </p>
               <Link
@@ -352,7 +354,7 @@ export default function FounderGettingStarted() {
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 6,
                   padding: '12px 24px', borderRadius: radius.md,
-                  background: '#059669', color: '#fff',
+                  background: green, color: white,
                   fontSize: font.size.md, fontWeight: font.weight.semibold,
                   textDecoration: 'none',
                 }}

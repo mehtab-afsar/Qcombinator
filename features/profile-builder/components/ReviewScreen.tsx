@@ -34,11 +34,14 @@ export function ReviewScreen({
   const router = useRouter();
 
   // Rotates every 2.2s while the final Q-Score calculation is in progress — same
-  // pattern/timing as UploadStep's loading card.
+  // pattern/timing as UploadStep's loading card. Caps at the last message/doodle instead of
+  // wrapping: a calculation slower than one full pass through QSCORE_MESSAGES used to loop back
+  // to "Scoring your indicators…" and repeat the same doodles again, which is exactly what reads
+  // as "it's just showing the same ones over and over" — and worse, looks like it restarted.
   const [qScoreMsgIdx, setQScoreMsgIdx] = useState(0);
   useEffect(() => {
     if (!isSubmitting) { setQScoreMsgIdx(0); return; }
-    const timer = setInterval(() => setQScoreMsgIdx(i => (i + 1) % QSCORE_MESSAGES.length), 2200);
+    const timer = setInterval(() => setQScoreMsgIdx(i => Math.min(i + 1, QSCORE_MESSAGES.length - 1)), 2200);
     return () => clearInterval(timer);
   }, [isSubmitting]);
   const QScoreDoodle = QSCORE_DOODLES[qScoreMsgIdx];
@@ -64,10 +67,13 @@ export function ReviewScreen({
           onRetake={onRetake}
         />
       ) : isSubmitting ? (
+        // No card — this takes over the whole sheet directly, fixed to the viewport so it stays
+        // dead-centered on the page regardless of ProfileBuilderShell's collapsible sidebar
+        // (that sidebar toggling 0/224px shifts where "centered" falls in the normal flex flow;
+        // position:fixed escapes that and centers against the full page instead).
         <div style={{
-          borderRadius: 20, padding: '56px 32px', background: surf,
-          border: `1px solid ${bdr}`, textAlign: 'center',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20,
+          position: 'fixed', inset: 0, zIndex: 60, background: bg,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20,
         }}>
           {/* Hand-drawn doodle — re-draws on each phase (keyed by message index) */}
           <div style={{ width: 96, height: 96 }}>

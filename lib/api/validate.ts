@@ -90,7 +90,6 @@ export const founderProfilePatchSchema = z.object({
   industry:         z.string().max(80).optional(),
   description:      z.string().max(2000).optional(),
   stage:            z.string().max(40).optional(),
-  funding:          z.string().max(40).optional(),
   website:          z.string().max(2083).optional(),
   tagline:          z.string().max(140).optional(),
   location:         z.string().max(100).optional(),

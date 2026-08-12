@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type Dispatch, type SetStateAction } from 'react';
+import { useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { Lightbulb, Loader2, Zap } from 'lucide-react';
 import { bg, surf, bdr, ink, muted, blue, amber, white } from '@/lib/constants/colors';
 import { buildStructuredSnippets } from '@/lib/profile-builder/question-engine';
@@ -34,6 +34,11 @@ export function SmartQAScreen({
   const [smartInput, setSmartInput] = useState('');
   const [smartInputFocused, setSmartInputFocused] = useState(false);
   const [smartProcessing, setSmartProcessing] = useState(false);
+  // smartProcessing (React state) isn't enough on its own to block a double-submit — it's
+  // async/batched, so two Enter presses inside the same tick can both read it as still false
+  // and both go through, each firing its own streamExtract call and duplicating the Q&A.
+  // sendingRef is checked and set synchronously, before anything async, so it can't lose that race.
+  const sendingRef = useRef(false);
 
   const q = smartQuestions[smartQaIndex];
   // If no questions remain, redirect to review — done via useEffect, render null here
@@ -45,7 +50,8 @@ export function SmartQAScreen({
   // one tap, no typing, matching the free-text path's "Enter to submit" speed.
   const handleSmartNext = async (answerOverride?: string) => {
     const answer = (answerOverride ?? smartInput).trim();
-    if (!answer || !token) return;
+    if (!answer || !token || sendingRef.current) return;
+    sendingRef.current = true;
     setSmartProcessing(true);
     try {
       // Streamed (SSE), same as the main chat (Stage B) — this used to call
@@ -102,6 +108,7 @@ export function SmartQAScreen({
       console.warn('smart-qa extract failed:', e);
     } finally {
       setSmartProcessing(false);
+      sendingRef.current = false;
       setSmartInput('');
       if (isLast) {
         setCurrentStep('extract-results');

@@ -376,9 +376,9 @@ export default function FounderSidebar() {
               <div
                 style={{
                   display: "flex", alignItems: "center",
-                  height: 36, borderRadius: 8, padding: "0 10px",
+                  height: 36, borderRadius: 8, padding: expanded ? "0 10px" : "0 6px",
                   cursor: "pointer",
-                  transition: "background .12s",
+                  transition: "background .12s, padding .2s",
                 }}
                 onMouseEnter={e => ((e.currentTarget as HTMLElement).style.background = surf)}
                 onMouseLeave={e => ((e.currentTarget as HTMLElement).style.background = "transparent")}

@@ -15,7 +15,6 @@ export interface FounderProfile {
   fullName: string;
   email: string;
   stage: string;
-  funding: string;
   timeCommitment: string;
   startupName?: string;
   industry?: string;

@@ -34,10 +34,14 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, Loader2, Circle, AlertCircle, Minus, FileText, MessageSquare, Send } from 'lucide-react'
+import Link from 'next/link'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import { Check, Loader2, Circle, AlertCircle, Minus, FileText, MessageSquare, Send, ExternalLink } from 'lucide-react'
 import { bg, bdr, ink, muted, blue, green, red, surf } from '@/lib/constants/colors'
 import { FONT_SERIF } from '@/features/onboarding/theme'
 import { scopeStepsToExecutive, documentProgress } from '../lib/scope-progress'
+import type { Rect } from '../lib/panel-origin'
 import { createClient } from '@/lib/supabase/client'
 
 type StepState = 'done' | 'active' | 'pending' | 'failed' | 'skipped'
@@ -53,6 +57,10 @@ interface ProgressStep {
   // always carried it. Added here so this screen can be scoped to one executive (below); its
   // absence before now was an oversight, not a design choice.
   executiveId: string | null
+  /** Null for briefing/action steps — only asset steps have a real document behind them to
+   *  open. Lets a finished document in the step list link straight to /founder/assets/[id]
+   *  instead of making a founder wait for the WHOLE cycle before reading anything. */
+  assetId: string | null
 }
 
 interface RunProgress {
@@ -72,9 +80,14 @@ const SETTLED: ReadonlySet<StepState> = new Set(['done', 'skipped'])
 
 /** A real reading pane for the live-streamed document, not a 90px peephole — auto-scrolls to
  *  the bottom as text arrives, so watching it get written doesn't require manually scrolling to
- *  keep up. Its own component so the scroll ref is stable across re-renders. */
+ *  keep up. Rendered as markdown (same ReactMarkdown/remarkGfm treatment as
+ *  AssetWorkspaceBody.tsx's own Read view) rather than raw text — without this, a document
+ *  streaming in showed literal "# ICP Profiles" / "**Company:**" the whole time it was being
+ *  written. react-markdown tolerates a not-yet-closed heading/bold mid-stream; it just renders
+ *  what's parseable so far, same as any incremental markdown renderer. Its own component so the
+ *  scroll ref is stable across re-renders. */
 function LiveTextBox({ text }: { text: string }) {
-  const ref = useRef<HTMLParagraphElement>(null)
+  const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const el = ref.current
@@ -82,15 +95,15 @@ function LiveTextBox({ text }: { text: string }) {
   }, [text])
 
   return (
-    <p
+    <div
       ref={ref}
       style={{
-        color: ink, fontSize: 13, marginTop: 6, lineHeight: 1.6, whiteSpace: 'pre-wrap',
+        color: ink, fontFamily: FONT_SERIF, fontSize: 13, marginTop: 6, lineHeight: 1.6,
         maxHeight: 420, overflowY: 'auto', paddingRight: 4,
       }}
     >
-      {text}
-    </p>
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+    </div>
   )
 }
 
@@ -114,32 +127,71 @@ function stepLook(state: StepState): { icon: React.ReactNode; note: string | nul
 
 /** The left rail — the complete step list (Assets, Briefing, Actions, in server order), always
  *  visible so a founder can see the whole cycle's shape while reading the one document actively
- *  being written on the right. Compact by design; full content lives in the reading pane. */
-function StepList({ steps }: { steps: ProgressStep[] }) {
+ *  being written on the right. Compact by design; full content lives in the reading pane.
+ *
+ *  A finished document (done OR skipped — ADR-028's "no change needed" still has a real, existing
+ *  asset behind it) opens straight away — a founder shouldn't have to wait for the whole cycle
+ *  (documents + briefing + actions) before reading the FIRST thing that's actually ready.
+ *
+ *  @param onOpenAsset when supplied (the per-executive cockpit, which already owns
+ *    AssetWorkspacePanel — CANVAS_SPEC §5, "preserve the sense of place"), a finished document
+ *    opens IN PLACE, the same panel/expand every other document card in this app already uses —
+ *    not a new tab, which was the wrong call on the first pass of this feature. Omitted only on
+ *    the CEO hub tab, which has no such panel wired up yet; that path still falls back to a
+ *    plain new-tab link rather than not being viewable at all. */
+function StepList({
+  steps, onOpenAsset,
+}: {
+  steps: ProgressStep[]
+  onOpenAsset?: (assetId: string, originRect: Rect) => void
+}) {
   return (
     <div style={{ display: 'grid', gap: 4 }}>
       {steps.map(step => {
         const { icon, note } = stepLook(step.state)
         const KindIcon = kindIcon(step.kind)
         const isActive = step.state === 'active'
-        return (
-          <div
-            key={step.key}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, padding: '6px 8px',
-              borderRadius: 6, background: isActive ? surf : 'transparent',
-            }}
-          >
+        const viewable = (step.state === 'done' || step.state === 'skipped') && step.assetId
+
+        const rowStyle: React.CSSProperties = {
+          display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, padding: '6px 8px',
+          borderRadius: 6, background: isActive ? surf : 'transparent',
+        }
+        const rowContent = (
+          <>
             <span style={{ display: 'flex', flexShrink: 0 }}>{icon}</span>
             <KindIcon size={11} color={muted} style={{ flexShrink: 0 }} />
             <span style={{
               color: step.state === 'pending' ? muted : ink, fontWeight: isActive ? 600 : 400,
               flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              textAlign: 'left',
             }}>
               {step.label}
             </span>
-            {note && <span style={{ color: muted, fontSize: 11, flexShrink: 0 }}>{note}</span>}
-          </div>
+            {viewable
+              ? <ExternalLink size={11} color={muted} style={{ flexShrink: 0 }} />
+              : note && <span style={{ color: muted, fontSize: 11, flexShrink: 0 }}>{note}</span>}
+          </>
+        )
+
+        if (!viewable) return <div key={step.key} style={rowStyle}>{rowContent}</div>
+
+        if (onOpenAsset) {
+          return (
+            <button
+              key={step.key}
+              onClick={e => onOpenAsset(step.assetId!, e.currentTarget.getBoundingClientRect())}
+              style={{ ...rowStyle, width: '100%', border: 'none', background: rowStyle.background, cursor: 'pointer', font: 'inherit' }}
+            >
+              {rowContent}
+            </button>
+          )
+        }
+
+        return (
+          <Link key={step.key} href={`/founder/assets/${step.assetId}`} target="_blank" style={{ textDecoration: 'none' }}>
+            <div style={rowStyle}>{rowContent}</div>
+          </Link>
         )
       })}
     </div>
@@ -147,12 +199,14 @@ function StepList({ steps }: { steps: ProgressStep[] }) {
 }
 
 export function ActivationScreen({
-  executiveId, onComplete,
+  executiveId, onComplete, onOpenAsset,
 }: {
   /** Scopes the reveal to one executive's steps — the per-executive cockpit page's usage.
    *  Omitted on the CEO tab, where watching the WHOLE team assemble is the correct picture. */
   executiveId?: string
   onComplete: () => void
+  /** Passed straight through to StepList — see its own docstring for why this is optional. */
+  onOpenAsset?: (assetId: string, originRect: Rect) => void
 }) {
   const [progress, setProgress] = useState<RunProgress | null>(null)
   const [revealedKeys, setRevealedKeys] = useState<string[]>([])
@@ -178,7 +232,11 @@ export function ActivationScreen({
         return next.length > 0 ? [...prev, ...next] : prev
       })
 
-      if (p.status !== 'running' && !completedRef.current) {
+      // stalled: the run is still 'running' but its chain has gone quiet — it will never reach
+      // 'completed' on its own, so watching it poll forever would trap the founder here. Settle
+      // out the same as a real completion; the rest of the app (RhythmPanel etc.) already knows
+      // how to show a stuck/failed cycle.
+      if ((p.status !== 'running' || p.stalled) && !completedRef.current) {
         completedRef.current = true
         onComplete()
       }
@@ -256,7 +314,7 @@ export function ActivationScreen({
 
       <div style={{ marginTop: 28, display: 'flex', gap: 32, alignItems: 'flex-start' }}>
         <div style={{ width: 260, flexShrink: 0 }}>
-          <StepList steps={allSteps} />
+          <StepList steps={allSteps} onOpenAsset={onOpenAsset} />
         </div>
 
         <div style={{
@@ -309,13 +367,13 @@ function ReadingPane({
           ? <LiveTextBox text={text} />
           : <p style={{ color: muted, fontSize: 13, marginTop: 10 }}>Starting…</p>
       ) : (
-        <p style={{
+        <div style={{
           color: ink, fontSize: isBriefing ? 14 : 13, marginTop: 10, lineHeight: 1.7,
-          whiteSpace: 'pre-wrap', maxHeight: 420, overflowY: 'auto',
+          maxHeight: 420, overflowY: 'auto',
           fontFamily: isBriefing ? FONT_SERIF : 'inherit',
         }}>
-          {text}
-        </p>
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+        </div>
       )}
     </div>
   )

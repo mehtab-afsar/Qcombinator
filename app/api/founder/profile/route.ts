@@ -15,7 +15,7 @@ export async function GET() {
     const admin = createAdminClient()
     const { data, error } = await admin
       .from('founder_profiles')
-      .select('full_name, startup_name, industry, stage, funding, description, website, team_size, tagline, location, startup_profile_data')
+      .select('full_name, startup_name, industry, stage, description, website, team_size, tagline, location, startup_profile_data')
       .eq('user_id', user.id)
       .maybeSingle()
 
@@ -30,7 +30,6 @@ export async function GET() {
       startupName:      data.startup_name ?? '',
       industry:         data.industry     ?? '',
       stage:            data.stage        ?? '',
-      funding:          data.funding      ?? '',
       description:      data.description  ?? '',
       timeCommitment:   '',
       tagline:          (data.tagline  as string | null)  ?? undefined,
@@ -61,7 +60,6 @@ export async function PATCH(req: NextRequest) {
     if (updates.startupName !== undefined) dbUpdates.startup_name = updates.startupName
     if (updates.industry    !== undefined) dbUpdates.industry     = updates.industry
     if (updates.stage       !== undefined) dbUpdates.stage        = updates.stage
-    if (updates.funding     !== undefined) dbUpdates.funding      = updates.funding
     if (updates.description !== undefined) dbUpdates.description  = updates.description
     if (updates.tagline     !== undefined) dbUpdates.tagline      = updates.tagline
     if (updates.location    !== undefined) dbUpdates.location     = updates.location

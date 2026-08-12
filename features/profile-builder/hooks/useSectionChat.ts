@@ -1,6 +1,6 @@
 'use client'
 
-import type { Dispatch, SetStateAction } from 'react'
+import { useRef, type Dispatch, type SetStateAction } from 'react'
 import { shouldTriggerUpload } from '@/lib/profile-builder/question-engine'
 import type { FounderProfile } from '@/lib/profile-builder/question-engine'
 import { streamExtract } from '@/features/profile-builder/lib/streamExtract'
@@ -30,9 +30,17 @@ export function useSectionChat({
   currentStep, sections, setSections, token, founderProfile, globalDocText,
   ycPitchIdx, setYcPitchIdx, isTyping, setIsTyping, setUploadTrigger, saveSection,
 }: UseSectionChatParams) {
+  // isTyping (React state) isn't enough to block a double-submit on its own — it's
+  // async/batched, so two Enter presses inside the same tick (key-repeat, a fast
+  // double-tap) can both read it as still false and both go through, each firing
+  // its own streamExtract call and appending its own reply. sendingRef is checked
+  // and set synchronously, before anything async, so it can't lose that race.
+  const sendingRef = useRef(false)
+
   // ── handle user message ───────────────────────────────────────────────────
   async function handleSend(text: string) {
-    if (!text.trim() || !token || isTyping) return
+    if (!text.trim() || !token || isTyping || sendingRef.current) return
+    sendingRef.current = true
     const key = String(currentStep)
     const userText = text.trim()
     setUploadTrigger(null)
@@ -101,6 +109,7 @@ export function useSectionChat({
         }))
       } finally {
         setIsTyping(false)
+        sendingRef.current = false
       }
       return
     }
@@ -185,6 +194,7 @@ export function useSectionChat({
       }))
     } finally {
       setIsTyping(false)
+      sendingRef.current = false
     }
   }
 

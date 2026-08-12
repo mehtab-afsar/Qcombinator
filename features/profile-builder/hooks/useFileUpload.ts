@@ -57,10 +57,13 @@ export function useFileUpload({
   const [recalcResult, setRecalcResult] = useState<RecalcResult | null>(null)
 
   // Rotates every 2.2s while upload is in progress — message text comes from
-  // features/profile-builder/lib/constants.ts; UploadStep derives its own doodle.
+  // features/profile-builder/lib/constants.ts; UploadStep derives its own doodle. Caps at the
+  // last message/doodle instead of wrapping back to the first: a slow upload that outlasts one
+  // full pass used to loop back to "Reading your documents…" and repeat every doodle again,
+  // which reads as having restarted, not as still working.
   useEffect(() => {
     if (!uploadLoading) { setUploadMsgIdx(0); return }
-    const timer = setInterval(() => setUploadMsgIdx(i => (i + 1) % UPLOAD_MESSAGES.length), 2200)
+    const timer = setInterval(() => setUploadMsgIdx(i => Math.min(i + 1, UPLOAD_MESSAGES.length - 1)), 2200)
     return () => clearInterval(timer)
   }, [uploadLoading])
 

@@ -2,8 +2,17 @@
 
 import { useState } from 'react'
 import { X, Copy, Download } from 'lucide-react'
-import { ink, muted, blue, green, bdr } from '@/lib/constants/colors'
+import { bg, surf, white, ink, muted, blue, green, amber, red, bdr } from '@/lib/constants/colors'
 import { downloadQScore, type QScoreExportData } from '@/lib/utils/qscore-export'
+
+const DIMENSION_ROWS: { key: keyof QScoreExportData['dimensions']; label: string }[] = [
+  { key: 'marketReadiness',  label: 'Market Readiness' },
+  { key: 'marketPotential',  label: 'Market Potential' },
+  { key: 'ipDefensibility',  label: 'IP / Defensibility' },
+  { key: 'founderTeam',      label: 'Founder / Team' },
+  { key: 'structuralImpact', label: 'Structural Impact' },
+  { key: 'financials',       label: 'Financials' },
+]
 
 interface ShareQScoreModalProps {
   isOpen: boolean
@@ -23,8 +32,8 @@ export function ShareQScoreModal({ isOpen, onClose, shareUrl, onPublish, qscoreD
 
   const scoreColor = (score: number) => {
     if (score >= 70) return blue
-    if (score >= 50) return '#D97706'
-    return '#DC2626'
+    if (score >= 50) return amber
+    return red
   }
 
   const handleCopyLink = async () => {
@@ -50,12 +59,12 @@ export function ShareQScoreModal({ isOpen, onClose, shareUrl, onPublish, qscoreD
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
       <div
         style={{
-          background: '#fff',
+          background: bg,
           borderRadius: 16,
           padding: 0,
           maxWidth: 520,
           width: '90%',
-          boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
+          boxShadow: '0 20px 60px rgba(24,22,15,0.25)',
           overflow: 'hidden',
         }}
       >
@@ -85,13 +94,13 @@ export function ShareQScoreModal({ isOpen, onClose, shareUrl, onPublish, qscoreD
         </div>
 
         {/* Preview */}
-        <div style={{ padding: '24px 28px', background: '#fafaf8' }}>
+        <div style={{ padding: '24px 28px', background: surf }}>
           <p style={{ fontSize: 11, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 16 }}>
             Preview
           </p>
           <div
             style={{
-              background: '#fff',
+              background: bg,
               border: `1px solid ${bdr}`,
               borderRadius: 12,
               padding: '20px',
@@ -119,7 +128,7 @@ export function ShareQScoreModal({ isOpen, onClose, shareUrl, onPublish, qscoreD
                 alignItems: 'center',
                 justifyContent: 'center',
                 margin: '16px auto',
-                color: '#fff',
+                color: white,
                 fontSize: 32,
                 fontWeight: 700,
               }}
@@ -128,33 +137,18 @@ export function ShareQScoreModal({ isOpen, onClose, shareUrl, onPublish, qscoreD
             </div>
             <p style={{ fontSize: 12, color: muted, margin: '8px 0' }}>Overall Q-Score</p>
 
-            {/* Mini dimensions */}
+            {/* All 6 dimensions, correctly labeled — was 4 of 6, with IP/Defensibility
+                mislabeled "Product" (a real, different dimension it isn't). */}
             <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${bdr}`, fontSize: 11 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                <div>
-                  <p style={{ color: muted, margin: '0 0 2px' }}>Market</p>
-                  <p style={{ color: scoreColor(qscoreData.dimensions.marketReadiness), fontWeight: 700, margin: 0 }}>
-                    {qscoreData.dimensions.marketReadiness}
-                  </p>
-                </div>
-                <div>
-                  <p style={{ color: muted, margin: '0 0 2px' }}>Team</p>
-                  <p style={{ color: scoreColor(qscoreData.dimensions.founderTeam), fontWeight: 700, margin: 0 }}>
-                    {qscoreData.dimensions.founderTeam}
-                  </p>
-                </div>
-                <div>
-                  <p style={{ color: muted, margin: '0 0 2px' }}>Product</p>
-                  <p style={{ color: scoreColor(qscoreData.dimensions.ipDefensibility), fontWeight: 700, margin: 0 }}>
-                    {qscoreData.dimensions.ipDefensibility}
-                  </p>
-                </div>
-                <div>
-                  <p style={{ color: muted, margin: '0 0 2px' }}>Financials</p>
-                  <p style={{ color: scoreColor(qscoreData.dimensions.financials), fontWeight: 700, margin: 0 }}>
-                    {qscoreData.dimensions.financials}
-                  </p>
-                </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                {DIMENSION_ROWS.map(({ key, label }) => (
+                  <div key={key}>
+                    <p style={{ color: muted, margin: '0 0 2px' }}>{label}</p>
+                    <p style={{ color: scoreColor(qscoreData.dimensions[key]), fontWeight: 700, margin: 0 }}>
+                      {qscoreData.dimensions[key]}
+                    </p>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -174,8 +168,8 @@ export function ShareQScoreModal({ isOpen, onClose, shareUrl, onPublish, qscoreD
               padding: '12px 16px',
               borderRadius: 10,
               border: `1px solid ${bdr}`,
-              background: linkCopied ? green : '#fff',
-              color: linkCopied ? '#fff' : blue,
+              background: linkCopied ? green : bg,
+              color: linkCopied ? white : blue,
               fontSize: 13,
               fontWeight: 600,
               cursor: publishing ? 'wait' : (shareUrl || onPublish) ? 'pointer' : 'not-allowed',
@@ -198,7 +192,7 @@ export function ShareQScoreModal({ isOpen, onClose, shareUrl, onPublish, qscoreD
               borderRadius: 10,
               border: 'none',
               background: blue,
-              color: '#fff',
+              color: white,
               fontSize: 13,
               fontWeight: 600,
               cursor: 'pointer',

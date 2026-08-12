@@ -20,6 +20,12 @@ interface RunProgress {
   runId: string
   status: 'running' | 'completed' | 'failed'
   startedAt: string
+  /** Set server-side (lib/rhythm/progress.ts) when a 'running' run's chain has gone quiet past
+   *  STALE_AFTER_MS — a crashed/timed-out generation that will never reach 'completed' on its
+   *  own. Without checking this, a stalled run reads as "still activating" forever: every visit
+   *  to this executive re-fetches the same stuck 'running' status and shows the activation
+   *  screen again, indistinguishable from a fresh start. */
+  stalled: boolean
 }
 
 export type ActivationCheckState = 'loading' | 'activation' | 'settled'
@@ -35,6 +41,7 @@ export function isActivating(run: RunProgress | null, confirmedAt: string | null
   return !!run
     && !!confirmedAt
     && run.status === 'running'
+    && !run.stalled
     && new Date(run.startedAt) >= new Date(confirmedAt)
 }
 

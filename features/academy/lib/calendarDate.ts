@@ -28,6 +28,20 @@ export function workshopDateKey(w: Workshop): string | null {
   return toDateKey(d)
 }
 
+/** Buckets workshops by their UTC calendar day key. Shared by WorkshopCalendar (month grid) and
+ *  WorkshopMonthStrip (90-day strip) — both need the same day → workshops[] lookup. */
+export function groupWorkshopsByDate(workshops: Workshop[]): Map<string, Workshop[]> {
+  const map = new Map<string, Workshop[]>()
+  for (const w of workshops) {
+    const key = workshopDateKey(w)
+    if (!key) continue
+    const list = map.get(key) ?? []
+    list.push(w)
+    map.set(key, list)
+  }
+  return map
+}
+
 /** True if `dateKey` (YYYY-MM-DD) is today or later. String comparison is safe because
  *  YYYY-MM-DD sorts lexicographically the same as chronologically, including across
  *  year boundaries. */

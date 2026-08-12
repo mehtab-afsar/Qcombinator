@@ -26,6 +26,7 @@ import { Inbox, AlertCircle, Compass } from 'lucide-react'
 import { bg, muted, ink } from '@/lib/constants/colors'
 import { space, ease } from '@/features/shared/tokens'
 import { PageHeader } from '@/features/shared/components/PageHeader'
+import { PageContainer } from '@/features/shared/components/PageContainer'
 import { Breadcrumb } from '@/features/shared/components/Breadcrumb'
 import { EmptyState } from '@/features/shared/components/EmptyState'
 import { PageIconLoader } from '@/features/shared/components/Spinner'
@@ -155,14 +156,14 @@ export default function ExecutiveDetailPage() {
   if (state === 'timeout') {
     return (
       <div style={{ background: bg, minHeight: '100vh', padding: '48px 24px' }}>
-        <div style={{ maxWidth: 640, margin: '0 auto' }}>
+        <PageContainer>
           <EmptyState
             icon={AlertCircle}
             title="This is taking longer than expected"
             body="We couldn't load this executive in time."
             action={{ label: 'Try again', onClick: () => void load() }}
           />
-        </div>
+        </PageContainer>
       </div>
     )
   }
@@ -170,13 +171,13 @@ export default function ExecutiveDetailPage() {
   if (state === 'not_found' || !executive) {
     return (
       <div style={{ background: bg, minHeight: '100vh', padding: '48px 24px' }}>
-        <div style={{ maxWidth: 640, margin: '0 auto' }}>
+        <PageContainer>
           <PageHeader title="Executive team" back={{ label: 'Back to your executive team', href: '/founder/executive' }} />
           <ExecutiveTabBar />
           <p style={{ color: muted, fontSize: 16 }}>
             This executive isn&rsquo;t available.
           </p>
-        </div>
+        </PageContainer>
       </div>
     )
   }
@@ -188,7 +189,7 @@ export default function ExecutiveDetailPage() {
 
   return (
     <div style={{ background: bg, minHeight: '100vh', padding: '48px 24px' }}>
-      <div style={{ maxWidth: 640, margin: '0 auto' }}>
+      <PageContainer>
         {/* CANVAS_SPEC §3: "clearly 'inside' Patel (breadcrumb / back-to-team)" — orientation,
             not identity; ExecutiveAnchor below still owns identity (CANVAS_SPEC §4.1). */}
         <Breadcrumb items={[{ label: 'Your team', href: '/founder/executive' }, { label: executive.name }]} />
@@ -251,7 +252,11 @@ export default function ExecutiveDetailPage() {
                   // first cycle watches it happen, the same payoff the CEO tab already gave,
                   // scoped to just this executive's steps (ActivationScreen is whole-company
                   // when executiveId is omitted, which is correct on the CEO tab and wrong here).
-                  <ActivationScreen executiveId={executiveId} onComplete={() => setForceSettled(true)} />
+                  <ActivationScreen
+                    executiveId={executiveId}
+                    onComplete={() => setForceSettled(true)}
+                    onOpenAsset={openAsset}
+                  />
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: space[4] }}>
                     {/* 2. Bird's-eye stats (§4.2), then Rhythm as the detail behind it (§4.2's
@@ -281,7 +286,7 @@ export default function ExecutiveDetailPage() {
             </motion.div>
           </motion.div>
         )}
-      </div>
+      </PageContainer>
 
       <AssetWorkspacePanel assetId={openAssetId} originRect={openAssetOrigin} onClose={closeAsset} />
     </div>

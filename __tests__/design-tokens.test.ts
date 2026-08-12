@@ -84,6 +84,9 @@ const HEX_ALLOWLIST = new Set([
   'app/q/[userId]/page.tsx', 'app/reset-password/page.tsx', 'app/s/[surveyId]/page.tsx',
   'app/startup/[slug]/page.tsx', 'app/update-password/page.tsx',
   'features/academy/components/DayWorkshopPanel.tsx',
+  // Slack's official 4-color 2019 mark — fixed brand colors, not UI chrome; see the file's own
+  // docstring. Same category as the onboarding doodles/building illustration above.
+  'features/executive/constants/brand-icons.tsx',
   'features/founder/components/FounderSidebar.tsx',
   'features/investor/components/InvestorSidebar.tsx',
   'features/investor/components/UpgradeModal.tsx',

@@ -113,7 +113,7 @@ export default function InvestorMatching() {
   const {
     investors, setInvestors,
     founderSector, founderStage,
-    loadingInvestors,
+    loadingInvestors, matchingError,
   } = useMatchingData(founderQScore)
 
   const handleConnectClick = (investor: Investor) => {
@@ -191,15 +191,22 @@ export default function InvestorMatching() {
               transition={{ duration: 0.25, ease: "easeOut" }}
               style={{ fontSize: "clamp(1.6rem,4vw,2.4rem)", fontWeight: 300, letterSpacing: "-0.03em", color: ink, marginBottom: 8 }}
             >
-              {loadingInvestors ? 'Loading investors…' : `${filtered.length} investors matched to your profile.`}
+              {loadingInvestors
+                ? 'Loading investors…'
+                : matchingError
+                  ? "Couldn't load investors — try refreshing."
+                  : `${filtered.length} investors matched to your profile.`}
             </motion.h1>
           </AnimatePresence>
           <div style={{ display: "flex", gap: 20, flexWrap: "wrap", alignItems: "center", minHeight: 26 }}>
-            {/* Dynamic: how many investors can see this founder — held back until it has a
-                real count, so it never flashes "0 investors" while the fetch is in flight. */}
+            {/* Dynamic: how many investors can see this founder — held back until it has a real
+                count so it never flashes "0 investors" while the fetch is in flight, and stays
+                hidden rather than asserting "0 investors can see your profile" if the fetch
+                genuinely comes back empty — that reads as "nobody is interested," which is worse
+                than showing nothing. */}
             {loadingInvestors ? (
               <div style={{ width: 190, height: 26, borderRadius: 999, background: surf }} />
-            ) : (
+            ) : investors.length === 0 ? null : (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}

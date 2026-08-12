@@ -26,23 +26,39 @@ export async function GET(_request: NextRequest) {
 
     const startupId = profile.startup_id
 
-    // Get all members of the startup
-    const { data: members, error: membersError } = await supabase
+    // Get all members of the startup. Plain query, not a PostgREST embed — startup_members.user_id
+    // only has a foreign key to auth.users, not to founder_profiles, so PostgREST has no
+    // relationship to auto-detect for `founder_profiles(...)` and the embed 500s (PGRST200) the
+    // moment a startup has more than just its owner. Fetching founder_profiles separately and
+    // merging here avoids needing a schema change for what's an application-level join.
+    const { data: memberRows, error: membersError } = await supabase
       .from('startup_members')
-      .select(`
-        id,
-        role,
-        joined_at,
-        founder_profiles(
-          user_id,
-          full_name
-        )
-      `)
+      .select('id, role, joined_at, user_id')
       .eq('startup_id', startupId)
 
     if (membersError) {
       return NextResponse.json({ error: 'Failed to fetch members' }, { status: 500 })
     }
+
+    type MemberRow = { id: string; role: string; joined_at: string; user_id: string }
+    type MemberProfile = { user_id: string; full_name: string }
+
+    const memberUserIds = (memberRows as MemberRow[] ?? []).map(m => m.user_id)
+    const { data: memberProfiles, error: memberProfilesError } = memberUserIds.length
+      ? await supabase.from('founder_profiles').select('user_id, full_name').in('user_id', memberUserIds)
+      : { data: [] as MemberProfile[], error: null }
+
+    if (memberProfilesError) {
+      return NextResponse.json({ error: 'Failed to fetch members' }, { status: 500 })
+    }
+
+    const profileByUserId = new Map((memberProfiles as MemberProfile[] ?? []).map(p => [p.user_id, p]))
+    const members = (memberRows as MemberRow[] ?? []).map(m => ({
+      id: m.id,
+      role: m.role,
+      joined_at: m.joined_at,
+      founder_profiles: profileByUserId.get(m.user_id) ?? null,
+    }))
 
     // Get pending invites
     const { data: invites, error: invitesError } = await supabase
@@ -56,11 +72,11 @@ export async function GET(_request: NextRequest) {
     }
 
     // Find current user's role
-    const userMember = members?.find((m: { founder_profiles?: { user_id?: string }; role?: string }) => m.founder_profiles?.user_id === user.id)
+    const userMember = members.find(m => m.founder_profiles?.user_id === user.id)
     const myRole = userMember?.role || 'owner'
 
     return NextResponse.json({
-      members: members || [],
+      members,
       invites: invites || [],
       myRole,
     })

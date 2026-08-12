@@ -23,11 +23,22 @@ describe('seat limits — a live headcount, not a subscription_usage metered fea
   it('the invite route counts current members and rejects at the cap, before creating the invite', () => {
     const src = read('app/api/team/invite/route.ts')
     const capCheckIdx = src.indexOf('FOUNDER_SEAT_LIMITS[tier]')
-    const insertIdx = src.indexOf("from('team_invites')\n      .insert")
+    const insertIdx = src.indexOf(".insert({\n            startup_id: startupId,")
     expect(capCheckIdx).toBeGreaterThan(-1)
     expect(insertIdx).toBeGreaterThan(-1)
     expect(capCheckIdx).toBeLessThan(insertIdx)
     expect(src).toContain('status: 403')
+  })
+
+  it('a resend (existing pending invite) skips the seat-limit check — it does not add a new member', () => {
+    const src = read('app/api/team/invite/route.ts')
+    const elseIdx = src.indexOf('} else {')
+    const capCheckIdx = src.indexOf('FOUNDER_SEAT_LIMITS[tier]')
+    const cooldownIdx = src.indexOf('RESEND_COOLDOWN_MS')
+    expect(elseIdx).toBeGreaterThan(-1)
+    expect(cooldownIdx).toBeGreaterThan(-1)
+    expect(cooldownIdx).toBeLessThan(elseIdx)
+    expect(capCheckIdx).toBeGreaterThan(elseIdx)
   })
 
   it('resolves the tier from the STARTUP OWNER, not the inviting caller', () => {
@@ -40,9 +51,9 @@ describe('seat limits — a live headcount, not a subscription_usage metered fea
 })
 
 describe('every team action writes an append-only audit row', () => {
-  it('invite creation logs "invited"', () => {
+  it('invite creation logs "invited", and a resend logs "invite_resent" — not the same event', () => {
     const src = read('app/api/team/invite/route.ts')
-    expect(src).toMatch(/logTeamEvent\(supabase,\s*\{\s*\n\s*startupId,\s*actorId:\s*user\.id,\s*event:\s*'invited'/)
+    expect(src).toMatch(/logTeamEvent\(supabase,\s*\{\s*\n\s*startupId,\s*actorId:\s*user\.id,\s*event:\s*existingInvite \? 'invite_resent' : 'invited'/)
   })
 
   it('accepting an invite logs "joined"', () => {
@@ -122,5 +133,59 @@ describe('team_audit_log — append-only, and survives account deletion', () => 
 
   it('is not a reuse of action_log — a genuinely separate table', () => {
     expect(migration).toContain('CREATE TABLE IF NOT EXISTS team_audit_log')
+  })
+})
+
+/**
+ * Clicking "Resend" always inserted a brand-new team_invites row for the same email — a founder
+ * who clicked it 3 times ended up with 3 pending invites for one person, each with its own token.
+ * Also nothing stopped rapid repeat clicks, and a failed email send was swallowed silently: the
+ * route returned 201 "invite created" whether or not Resend actually delivered anything.
+ */
+describe('resending an invite updates the existing row instead of duplicating it', () => {
+  const src = read('app/api/team/invite/route.ts')
+
+  it('looks up an existing pending invite for the email before deciding insert vs update', () => {
+    const lookupIdx = src.indexOf("from('team_invites')\n      .select('id, created_at')")
+    const decisionIdx = src.indexOf('existingInvite\n      ? await supabase')
+    expect(lookupIdx).toBeGreaterThan(-1)
+    expect(decisionIdx).toBeGreaterThan(-1)
+    expect(lookupIdx).toBeLessThan(decisionIdx)
+    // Only pending invites count as "existing" — an already-accepted one must not block a
+    // fresh invite to the same address if they left and get invited again.
+    expect(src).toContain(".is('accepted_at', null)")
+  })
+
+  it('a resend UPDATEs the existing row (fresh token, pushed-out expiry) rather than inserting a second one', () => {
+    const updateIdx = src.indexOf('.update({ role, token: inviteToken')
+    expect(updateIdx).toBeGreaterThan(-1)
+    expect(src.slice(updateIdx, updateIdx + 200)).toContain('.eq(\'id\', existingInvite.id)')
+  })
+
+  it('enforces a cooldown so rapid repeat clicks cannot spam the same invite', () => {
+    expect(src).toContain('RESEND_COOLDOWN_MS = 2 * 60 * 1000')
+    expect(src).toContain('status: 429')
+  })
+
+  it('email delivery is awaited, not fire-and-forget, and its success is returned to the caller', () => {
+    // The old code did `void sendTeamInviteEmail(...).catch(...)` and always responded 201 —
+    // a failed send was invisible to everyone, including the founder who'd see "invite sent".
+    expect(src).not.toMatch(/void sendTeamInviteEmail/)
+    expect(src).toContain('const emailSent = await sendTeamInviteEmail(')
+    expect(src).toContain('NextResponse.json({ invite, emailSent }')
+  })
+})
+
+describe('sendTeamInviteEmail reports whether the email actually sent', () => {
+  const src = read('lib/email/send.ts')
+
+  it('returns a boolean instead of void, matching sendInvestorTeamInviteEmail\'s established pattern', () => {
+    expect(src).toContain('export async function sendTeamInviteEmail(params: TeamInviteEmailParams): Promise<boolean>')
+    const fnIdx = src.indexOf('export async function sendTeamInviteEmail')
+    const nextFnIdx = src.indexOf('export interface InvestorTeamInviteEmailParams')
+    const body = src.slice(fnIdx, nextFnIdx)
+    expect(body).toContain('if (!resend) return false')
+    expect(body).toMatch(/if \(error\) \{ log\.error\([^)]*\); return false \}/)
+    expect(body).toContain('return true')
   })
 })

@@ -18,7 +18,7 @@ import { bdr, ink, muted, bg, green, red } from '@/lib/constants/colors'
 import { radius } from '@/features/shared/tokens'
 import { SectionCard } from '@/features/shared/components/SectionCard'
 import { Button } from '@/features/shared/components/Button'
-import { CONNECTOR_BRANDING } from '../constants/connector-branding'
+import { CONNECTOR_BRANDING, CATEGORY_LABELS, CATEGORY_ORDER } from '../constants/connector-branding'
 
 interface Grant {
   id: string
@@ -109,6 +109,18 @@ export function ConnectorsPanel() {
   const activeFor = (provider: string) =>
     grants.find(g => g.provider === provider && g.status === 'active')
 
+  // Group by what the connector lets the Executive DO, not by vendor. A provider with no
+  // category (none shipped today, but the panel must not break if one ever lacks branding)
+  // falls into a trailing "Other" group.
+  const groups: Array<{ key: string; label: string; items: Available[] }> = [
+    ...CATEGORY_ORDER.map(key => ({
+      key,
+      label: CATEGORY_LABELS[key],
+      items: available.filter(a => CONNECTOR_BRANDING[a.provider]?.category === key),
+    })),
+    { key: 'other', label: 'Other', items: available.filter(a => !CONNECTOR_BRANDING[a.provider]) },
+  ].filter(group => group.items.length > 0)
+
   return (
     <SectionCard
       title="Connected accounts"
@@ -116,51 +128,60 @@ export function ConnectorsPanel() {
     >
       {error && <p style={{ color: red, fontSize: 13, marginTop: 0 }}>{error}</p>}
 
-      <div style={{ marginTop: 16, display: 'grid', gap: 10 }}>
-        {available.map(({ provider, scopes }) => {
-          const grant = activeFor(provider)
-          const branding = CONNECTOR_BRANDING[provider]
-          const Icon = branding?.icon ?? Plug
-          const color = branding?.color ?? muted
-          return (
-            <div key={provider} style={row}>
-              <div style={{
-                width: 38, height: 38, borderRadius: radius.md, flexShrink: 0,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: `${color}18`,
-              }}>
-                <Icon size={18} color={color} strokeWidth={2} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ color: ink, fontSize: 15, fontWeight: 600 }}>
-                    {branding?.label ?? provider}
-                  </span>
-                  {grant && (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: green, fontSize: 12 }}>
-                      <ShieldCheck size={13} /> connected
-                    </span>
-                  )}
-                </div>
-                {/* Say what was granted, in plain words. */}
-                <p style={{ color: muted, fontSize: 13, marginTop: 4, lineHeight: 1.5 }}>
-                  {grant?.accountEmail && <strong style={{ color: ink }}>{grant.accountEmail} — </strong>}
-                  {(grant?.scopes ?? scopes).map(describeScope).join(' ')}
-                </p>
-              </div>
+      <div style={{ marginTop: 16, display: 'grid', gap: 20 }}>
+        {groups.map(group => (
+          <div key={group.key}>
+            <p style={{ color: muted, fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4, margin: '0 0 10px' }}>
+              {group.label}
+            </p>
+            <div style={{ display: 'grid', gap: 10 }}>
+              {group.items.map(({ provider, scopes }) => {
+                const grant = activeFor(provider)
+                const branding = CONNECTOR_BRANDING[provider]
+                const Icon = branding?.icon ?? Plug
+                const color = branding?.color ?? muted
+                return (
+                  <div key={provider} style={row}>
+                    <div style={{
+                      width: 38, height: 38, borderRadius: radius.md, flexShrink: 0,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      background: `${color}18`,
+                    }}>
+                      <Icon size={18} color={color} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ color: ink, fontSize: 15, fontWeight: 600 }}>
+                          {branding?.label ?? provider}
+                        </span>
+                        {grant && (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: green, fontSize: 12 }}>
+                            <ShieldCheck size={13} /> connected
+                          </span>
+                        )}
+                      </div>
+                      {/* Say what was granted, in plain words. */}
+                      <p style={{ color: muted, fontSize: 13, marginTop: 4, lineHeight: 1.5 }}>
+                        {grant?.accountEmail && <strong style={{ color: ink }}>{grant.accountEmail} — </strong>}
+                        {(grant?.scopes ?? scopes).map(describeScope).join(' ')}
+                      </p>
+                    </div>
 
-              {grant ? (
-                <Button variant="secondary" size="sm" loading={busy === provider} onClick={() => void disconnect(provider)}>
-                  Disconnect
-                </Button>
-              ) : (
-                <Button variant="primary" size="sm" loading={busy === provider} onClick={() => void connect(provider)}>
-                  Connect
-                </Button>
-              )}
+                    {grant ? (
+                      <Button variant="secondary" size="sm" loading={busy === provider} onClick={() => void disconnect(provider)}>
+                        Disconnect
+                      </Button>
+                    ) : (
+                      <Button variant="primary" size="sm" loading={busy === provider} onClick={() => void connect(provider)}>
+                        Connect
+                      </Button>
+                    )}
+                  </div>
+                )
+              })}
             </div>
-          )
-        })}
+          </div>
+        ))}
       </div>
     </SectionCard>
   )

@@ -5,6 +5,9 @@ import { CompassDoodle } from '@/features/onboarding/components/doodles/CompassD
 import { IdCardDoodle } from '@/features/onboarding/components/doodles/IdCardDoodle'
 import { SunDoodle } from '@/features/onboarding/components/doodles/SunDoodle'
 import { ScoutDoodle } from '@/features/onboarding/components/doodles/ScoutDoodle'
+import { RocketDoodle } from '@/features/onboarding/components/doodles/RocketDoodle'
+import { LightbulbDoodle } from '@/features/onboarding/components/doodles/LightbulbDoodle'
+import { CameraDoodle } from '@/features/onboarding/components/doodles/CameraDoodle'
 
 export const MISSING_FIELD_LABELS: Record<string, string> = {
   customerCommitment: 'customer commitments (LOIs, pilots)',
@@ -79,33 +82,44 @@ export const UPLOAD_MESSAGES = [
 
 // One hand-drawn doodle per phase — swaps with the message so the loader
 // shows what's happening rather than a generic spinner.
+// Was ChartDoodle and TargetDoodle each appearing twice in this one 8-step, ~17-second
+// sequence — the same doodle visibly repeating before the loader even finished once, which is
+// its own bug independent of the cap-instead-of-wrap fix below (see the index logic where this
+// array is consumed).
 export const UPLOAD_DOODLES = [
-  ScrollDoodle,   // Reading your documents
-  ChartDoodle,    // Extracting market signals
-  TargetDoodle,   // Identifying customer traction
-  CompassDoodle,  // Mapping IP & defensibility
-  IdCardDoodle,   // Analysing your team
-  ChartDoodle,    // Building financial picture
-  TargetDoodle,   // Scoring your indicators
-  SunDoodle,      // Almost done
+  ScrollDoodle,     // Reading your documents
+  ChartDoodle,      // Extracting market signals
+  TargetDoodle,     // Identifying customer traction
+  CompassDoodle,    // Mapping IP & defensibility
+  IdCardDoodle,     // Analysing your team
+  RocketDoodle,     // Building financial picture
+  LightbulbDoodle,  // Scoring your indicators
+  SunDoodle,        // Almost done
 ]
 
 // ── Q-Score calculation loading messages — rotate every 2.2s while final scoring is in
 // progress (submit route: indicator scoring → percentile benchmarking → AI reconciliation
 // → finalize). Mirrors UPLOAD_MESSAGES' pattern/timing so the two "big moment" loaders feel
-// like the same system.
+// like the same system. 6 steps (not 4) so a slower real calculation — AI reconciliation can
+// run long — takes longer to visibly loop; the index that reads this caps at the last entry
+// instead of wrapping, so even a very slow calculation never cycles back to "Scoring your
+// indicators…" after it's already reached "Finalizing" (which reads as it having restarted).
 export const QSCORE_MESSAGES = [
   'Scoring your indicators…',
-  'Running peer benchmarks…',
+  'Comparing to peer benchmarks…',
+  'Checking data consistency…',
   'Reconciling with AI…',
+  'Weighing sector context…',
   'Finalizing your Q-Score…',
 ]
 
 export const QSCORE_DOODLES = [
-  ChartDoodle,   // Scoring your indicators
-  TargetDoodle,  // Running peer benchmarks
-  ScoutDoodle,   // Reconciling with AI
-  SunDoodle,     // Finalizing your Q-Score
+  ChartDoodle,     // Scoring your indicators
+  TargetDoodle,    // Comparing to peer benchmarks
+  CompassDoodle,   // Checking data consistency
+  ScoutDoodle,     // Reconciling with AI
+  CameraDoodle,    // Weighing sector context
+  SunDoodle,       // Finalizing your Q-Score
 ]
 
 export const MAX_UPLOAD_FILES = 10

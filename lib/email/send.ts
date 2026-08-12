@@ -309,9 +309,13 @@ export interface TeamInviteEmailParams {
   token:       string
 }
 
-export async function sendTeamInviteEmail(params: TeamInviteEmailParams): Promise<void> {
+// Returns whether the email actually sent — the caller has no other way to notify the invitee
+// (the account doesn't exist yet), so silently swallowing a failure here means an inviter is
+// told "invite sent" while nobody ever received anything. Same reasoning, same pattern as
+// sendInvestorTeamInviteEmail below.
+export async function sendTeamInviteEmail(params: TeamInviteEmailParams): Promise<boolean> {
   const resend = getResend()
-  if (!resend) return
+  if (!resend) return false
 
   const { toEmail, inviterName, startupName, role, token } = params
   const joinUrl  = `${APP_URL}/founder/join?teamToken=${token}`
@@ -339,7 +343,8 @@ export async function sendTeamInviteEmail(params: TeamInviteEmailParams): Promis
     html,
   })
 
-  if (error) log.error('[email] sendTeamInviteEmail failed:', error)
+  if (error) { log.error('[email] sendTeamInviteEmail failed:', error); return false }
+  return true
 }
 
 // ─── Investor team invite email ───────────────────────────────────────────────

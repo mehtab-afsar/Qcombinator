@@ -47,7 +47,9 @@ export function AssetWorkspacePanel({
     return () => document.removeEventListener('keydown', onKey)
   }, [assetId, onClose])
 
-  const panelWidth = viewport ? Math.min(640, viewport.width) : 640
+  // Widened from 640 — a document reading pane this narrow read as "an expanding card," not
+  // somewhere you'd actually settle in to read (CEO_UX follow-up, "make it a bit broader").
+  const panelWidth = viewport ? Math.min(880, viewport.width * 0.92) : 880
   const origin = !reducedMotion && viewport
     ? panelOriginAnimation(originRect, panelWidth, viewport.width, viewport.height)
     : null
@@ -102,7 +104,7 @@ export function AssetWorkspacePanel({
               transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
               style={{
                 position: 'fixed', top: 0, right: 0, bottom: 0, zIndex: 201,
-                width: 'min(640px, 100vw)', background: white,
+                width: 'min(880px, 92vw)', background: white,
                 borderLeft: `1px solid ${bdr}`, boxShadow: '-8px 0 32px rgba(0,0,0,0.12)',
                 display: 'flex', flexDirection: 'column',
               }}

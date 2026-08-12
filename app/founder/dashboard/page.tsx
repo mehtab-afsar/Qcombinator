@@ -858,7 +858,14 @@ export default function FounderDashboard() {
                 </Link>
               </>
             ) : (
-              /* ── Real score ── */
+              /* ── Real score ──
+                   One primary action (the thing that actually moves the number) plus the two
+                   share actions demoted to a compact secondary row, instead of three stacked
+                   pills that all whisper the same amount. The scattered fine print (days-old,
+                   decay warning, ceiling, track) collapses into two status chips — the ceiling
+                   line is dropped outright since the partial-score message above already says
+                   the same thing; decay's "reassess to restore" detail moves into the age chip's
+                   hover title instead of a fifth line of grey text. */
               <>
                 <QScoreDial
                   score={displayScore}
@@ -876,92 +883,102 @@ export default function FounderDashboard() {
                       Complete {6 - answeredParameters} more section{6 - answeredParameters !== 1 ? "s" : ""} to unlock up to {100 - displayScore} more points
                     </p>
                   )}
-                  {daysSinceScore !== null && (
-                    <p style={{
-                      fontSize: 10, marginTop: 6,
-                      color: isStale ? "#FCA5A5" : isMaturing ? "#FCD34D" : "rgba(249,247,242,0.4)",
-                      fontWeight: isStale || isMaturing ? 600 : 400,
-                    }}>
-                      {isStale ? "⚠ " : isMaturing ? "○ " : ""}{daysSinceScore}d old
-                    </p>
-                  )}
-                  {realQScore?.decayApplied && realQScore.rawOverall && realQScore.rawOverall !== realQScore.overall && (
-                    <p style={{ fontSize: 9, marginTop: 3, color: "#FCA5A5", fontWeight: 600 }}>
-                      Score reflects {realQScore.daysSince}d-old data ({Math.round((1 - (realQScore.decayFactor as number)) * 100)}% reduction) — reassess to restore
-                    </p>
-                  )}
-                  {realQScore?.availableIQ != null && (
-                    <p style={{ fontSize: 9, marginTop: 4, color: "rgba(249,247,242,0.45)", fontWeight: 500 }}>
-                      Ceiling: {Math.round(realQScore.availableIQ as number)}/100 — complete more sections to raise it
-                    </p>
-                  )}
-                  {realQScore?.track && (
-                    <p style={{
-                      fontSize: 9, marginTop: 3, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em",
-                      color: realQScore.track === 'impact' ? green : "rgba(249,247,242,0.35)",
-                    }}>
-                      {realQScore.track as string} track
-                    </p>
-                  )}
                 </div>
-                <Link href="/founder/improve-qscore"
-                  style={{
-                    display: "inline-flex", alignItems: "center", gap: 6,
-                    padding: "9px 20px",
-                    background: "rgba(249,247,242,0.1)", border: "1px solid rgba(249,247,242,0.18)",
-                    borderRadius: 999, fontSize: 12, color: "#F9F7F2", fontWeight: 500, textDecoration: "none",
-                    transition: "background 0.15s",
-                  }}
-                  onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "rgba(249,247,242,0.18)")}
-                  onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "rgba(249,247,242,0.1)")}
-                >
-                  <ArrowRight style={{ height: 12, width: 12 }} /> Improve score
-                </Link>
-                {/* Share Q-Score badge */}
-                {user && !isDemo && (
-                  <button
-                    onClick={() => setShareModalOpen(true)}
-                    style={{
-                      display: "inline-flex", alignItems: "center", gap: 6,
-                      padding: "9px 20px",
-                      background: "rgba(249,247,242,0.1)", border: "1px solid rgba(249,247,242,0.18)",
-                      borderRadius: 999, fontSize: 12,
-                      color: "#F9F7F2",
-                      fontWeight: 500, cursor: "pointer",
-                      transition: "background 0.15s", whiteSpace: "nowrap",
-                    }}
-                    onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "rgba(249,247,242,0.18)")}
-                    onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "rgba(249,247,242,0.1)")}
-                  >
-                    <Share2 style={{ height: 12, width: 12 }} /> Share Q-Score
-                  </button>
-                )}
 
-                {/* Share Pitch Profile */}
-                {user && (
-                  <button
-                    onClick={() => {
-                      const url = `${window.location.origin}/pitch/${user.id}`;
-                      navigator.clipboard.writeText(url).then(() => {
-                        setLinkCopied(true);
-                        setTimeout(() => setLinkCopied(false), 2500);
-                      });
-                    }}
+                {/* status chips */}
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center" }}>
+                  {daysSinceScore !== null && (
+                    <span
+                      title={realQScore?.decayApplied && realQScore.rawOverall && realQScore.rawOverall !== realQScore.overall
+                        ? `Score reflects ${realQScore.daysSince}d-old data (${Math.round((1 - (realQScore.decayFactor as number)) * 100)}% reduction) — reassess to restore`
+                        : undefined}
+                      style={{
+                        display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 999,
+                        fontSize: 9.5, fontWeight: 600,
+                        background: isStale ? "rgba(220,38,38,0.18)" : "rgba(249,247,242,0.08)",
+                        color: isStale ? "#FCA5A5" : isMaturing ? "#FCD34D" : "rgba(249,247,242,0.55)",
+                      }}
+                    >
+                      {isStale ? "⚠ " : isMaturing ? "○ " : "◷ "}{daysSinceScore}d old
+                    </span>
+                  )}
+                  {realQScore?.hasTrend && realQScore.change !== 0 ? (
+                    <span style={{
+                      display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 999,
+                      fontSize: 9.5, fontWeight: 600,
+                      background: (realQScore.change as number) > 0 ? "rgba(22,163,74,0.18)" : "rgba(220,38,38,0.18)",
+                      color: (realQScore.change as number) > 0 ? "#6EE7A0" : "#FCA5A5",
+                    }}>
+                      {(realQScore.change as number) > 0 ? "↑ +" : "↓ "}{realQScore.change} this cycle
+                    </span>
+                  ) : realQScore?.track === "impact" ? (
+                    <span style={{ display: "inline-flex", alignItems: "center", padding: "3px 9px", borderRadius: 999, fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", background: alpha(green, 0.18), color: "#6EE7A0" }}>
+                      Impact track
+                    </span>
+                  ) : null}
+                </div>
+
+                <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 8 }}>
+                  <Link href="/founder/improve-qscore"
                     style={{
-                      display: "inline-flex", alignItems: "center", gap: 6,
-                      padding: "9px 20px",
-                      background: "rgba(249,247,242,0.1)", border: "1px solid rgba(249,247,242,0.18)",
-                      borderRadius: 999, fontSize: 12,
-                      color: "#F9F7F2",
-                      fontWeight: 500, cursor: "pointer",
-                      transition: "background 0.15s", whiteSpace: "nowrap",
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                      width: "100%", padding: "12px 0",
+                      background: "#F9F7F2", borderRadius: 999,
+                      fontSize: 12.5, color: ink, fontWeight: 700, textDecoration: "none",
+                      boxShadow: "0 6px 20px rgba(249,247,242,0.15)",
+                      transition: "opacity 0.15s",
                     }}
-                    onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "rgba(249,247,242,0.18)")}
-                    onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "rgba(249,247,242,0.1)")}
+                    onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.opacity = "0.9")}
+                    onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.opacity = "1")}
                   >
-                    {linkCopied ? <><Check style={{ height: 12, width: 12 }} /> Link copied</> : <><Link2 style={{ height: 12, width: 12 }} /> Share Pitch Profile</>}
-                  </button>
-                )}
+                    Improve score <ArrowRight style={{ height: 12, width: 12 }} />
+                  </Link>
+
+                  <div style={{ display: "flex", gap: 6 }}>
+                    {!isDemo && user && (
+                      <button
+                        onClick={() => setShareModalOpen(true)}
+                        style={{
+                          flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5,
+                          padding: "9px 0",
+                          background: "rgba(249,247,242,0.06)", border: "1px solid rgba(249,247,242,0.14)",
+                          borderRadius: 999, fontSize: 11,
+                          color: "rgba(249,247,242,0.75)",
+                          fontWeight: 500, cursor: "pointer",
+                          transition: "background 0.15s", whiteSpace: "nowrap",
+                        }}
+                        onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "rgba(249,247,242,0.12)")}
+                        onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "rgba(249,247,242,0.06)")}
+                      >
+                        <Share2 style={{ height: 11, width: 11 }} /> Share Q-Score
+                      </button>
+                    )}
+                    {user && (
+                      <button
+                        onClick={() => {
+                          const url = `${window.location.origin}/pitch/${user.id}`;
+                          navigator.clipboard.writeText(url).then(() => {
+                            setLinkCopied(true);
+                            setTimeout(() => setLinkCopied(false), 2500);
+                          });
+                        }}
+                        style={{
+                          flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5,
+                          padding: "9px 0",
+                          background: "rgba(249,247,242,0.06)", border: "1px solid rgba(249,247,242,0.14)",
+                          borderRadius: 999, fontSize: 11,
+                          color: "rgba(249,247,242,0.75)",
+                          fontWeight: 500, cursor: "pointer",
+                          transition: "background 0.15s", whiteSpace: "nowrap",
+                        }}
+                        onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "rgba(249,247,242,0.12)")}
+                        onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "rgba(249,247,242,0.06)")}
+                      >
+                        {linkCopied ? <><Check style={{ height: 11, width: 11 }} /> Copied</> : <><Link2 style={{ height: 11, width: 11 }} /> Pitch Profile</>}
+                      </button>
+                    )}
+                  </div>
+                </div>
               </>
             )}
           </motion.div>
@@ -992,10 +1009,9 @@ export default function FounderDashboard() {
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: 28, flexWrap: "wrap" }}>
-              <div style={{ flex: "0 0 auto", width: 220 }}>
+              <div style={{ flex: "0 0 auto", width: 260, aspectRatio: "1", display: "flex" }}>
                 <ScoreMatrixRadar
                   dims={effectiveSortedDims}
-                  labels={Object.fromEntries(Object.entries(DIMENSION_META).map(([k, v]) => [k, v.label]))}
                   colorFor={scoreColor}
                   selected={selectedDimension}
                   onSelect={key => setSelectedDimension(selectedDimension === key ? null : key)}

@@ -15,8 +15,8 @@ import { SectionSpinner } from '@/features/shared/components/Spinner'
 import { PageContainer } from '@/features/shared/components/PageContainer'
 import { SectionCard } from '@/features/shared/components/SectionCard'
 import { WorkshopCalendar } from '@/features/academy/components/WorkshopCalendar'
+import { WorkshopMonthStrip } from '@/features/academy/components/WorkshopMonthStrip'
 import { AcademyYearCalendar } from '@/features/academy/components/AcademyYearCalendar'
-import { ActivityHeatmap } from '@/features/academy/components/ActivityHeatmap'
 import type { RegisterResult } from '@/features/academy/components/DayWorkshopPanel'
 import { buildGoogleCalendarUrl } from '@/features/academy/lib/googleCalendarLink'
 
@@ -131,7 +131,7 @@ function AcademyInner() {
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          style={{ marginBottom: 36 }}
+          style={{ marginBottom: 18 }}
         >
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
             <div>
@@ -141,7 +141,7 @@ function AcademyInner() {
               <h1 style={{ fontSize: 32, fontWeight: 300, color: ink, lineHeight: 1.1, marginBottom: 8 }}>
                 Learn. Connect. Grow.
               </h1>
-              <p style={{ fontSize: 15, fontWeight: 300, color: muted, maxWidth: 420 }}>
+              <p style={{ fontSize: 15, fontWeight: 300, color: muted, whiteSpace: "nowrap" }}>
                 Live workshops, expert mentors, and cohort programs designed for founders at your stage.
               </p>
             </div>
@@ -159,15 +159,25 @@ function AcademyInner() {
           </div>
         </motion.div>
 
-        {/* ── Activity heatmap ────────────────────────────────────────── */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.03 }}
-          style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 16, padding: "20px 24px", marginBottom: 28 }}
-        >
-          <ActivityHeatmap />
-        </motion.div>
+        {/* ── Workshop month strip — one horizontal row spanning the full width, a rectangle of
+             all 28-31 days (not the calendar grid the "Calendar" view further down uses).
+             Workshop days highlighted; click one to expand it below and register right there.
+             Same handleRegister as the rest of the tab. ── */}
+        {upcomingWorkshops.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.03 }}
+            style={{ marginBottom: 28 }}
+          >
+            <WorkshopMonthStrip
+              workshops={upcomingWorkshops}
+              registeredIds={registeredIds}
+              onRegister={handleRegister}
+              onUnregister={handleUnregister}
+            />
+          </motion.div>
+        )}
 
         {/* ── Main content (left) + Recommended for you (right, vertical) ──
             Was a full-width band ABOVE the tabs — pushed the calendar/workshop list
@@ -295,128 +305,128 @@ function AcademyInner() {
                       </p>
                     </motion.div>
                   ) : (
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(480px, 1fr))", gap: 16 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 12 }}>
                     {upcomingWorkshops.map((w, i) => {
                       const topicStyle = TOPIC_COLORS[w.topic] ?? { bg: surf, text: muted };
                       const pct = Math.round((w.registered / w.capacity) * 100);
+                      const isFull = fullIds.has(w.id) || (!registeredIds.has(w.id) && w.spotsLeft <= 0);
+                      const isRegistered = registeredIds.has(w.id);
+                      const isBusy = registeringId === w.id;
+                      const dateShort = new Date(w.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
                       return (
                         <motion.div
                           key={w.id}
                           initial={{ opacity: 0, y: 16 }}
                           animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: i * 0.06 }}
+                          transition={{ delay: i * 0.04 }}
                           onMouseEnter={() => setHoveredCard(w.id)}
                           onMouseLeave={() => setHoveredCard(null)}
                           style={{
                             background: bg, border: `1px solid ${hoveredCard === w.id ? "#C8C3BB" : bdr}`,
-                            borderRadius: 16, padding: 24,
+                            borderRadius: 14, padding: 16,
                             boxShadow: hoveredCard === w.id ? "0 8px 28px rgba(24,22,15,0.09)" : "none",
                             transition: "all 0.18s", cursor: "default",
                           }}
                         >
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, gap: 8 }}>
                             <span style={{
-                              fontSize: 10, fontWeight: 600, letterSpacing: "0.12em",
-                              textTransform: "uppercase", padding: "3px 10px", borderRadius: 99,
-                              background: topicStyle.bg, color: topicStyle.text,
+                              fontSize: 9.5, fontWeight: 600, letterSpacing: "0.1em",
+                              textTransform: "uppercase", padding: "3px 9px", borderRadius: 99,
+                              background: topicStyle.bg, color: topicStyle.text, whiteSpace: "nowrap",
                             }}>
                               {w.topic.replace("-", " ")}
                             </span>
-                            <span style={{
-                              fontSize: 12, fontWeight: fullIds.has(w.id) || (!registeredIds.has(w.id) && w.spotsLeft <= 0) ? 600 : 400,
-                              color: fullIds.has(w.id) || (!registeredIds.has(w.id) && w.spotsLeft <= 0) ? red : muted,
-                              background: surf, padding: "3px 10px", borderRadius: 99,
-                              border: `1px solid ${bdr}`,
-                            }}>
-                              {fullIds.has(w.id) || (!registeredIds.has(w.id) && w.spotsLeft <= 0) ? "Workshop full" : `${w.spotsLeft} spots left`}
+                            <span style={{ fontSize: 11, fontWeight: isFull ? 600 : 400, color: isFull ? red : muted, whiteSpace: "nowrap" }}>
+                              {isFull ? "Full" : `${w.spotsLeft} left`}
                             </span>
                           </div>
 
-                          <h3 style={{ fontSize: 17, fontWeight: 400, color: ink, marginBottom: 8, lineHeight: 1.3 }}>
+                          <h3 style={{ fontSize: 14.5, fontWeight: 500, color: ink, marginBottom: 6, lineHeight: 1.3 }}>
                             {w.title}
                           </h3>
-                          <p style={{ fontSize: 13, fontWeight: 300, color: muted, lineHeight: 1.6, marginBottom: 18 }}>
+
+                          <p style={{
+                            fontSize: 12, color: muted, lineHeight: 1.5, marginBottom: 10,
+                            display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",
+                          }}>
                             {w.description}
                           </p>
 
-                          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
-                            {[
-                              { icon: Calendar, text: `${new Date(w.date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} · ${w.time}` },
-                              { icon: Clock,    text: w.duration },
-                              { icon: Users,    text: `${w.instructor} · ${w.instructorTitle}` },
-                            ].map(({ icon: Icon, text }) => (
-                              <div key={text} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 300, color: muted }}>
-                                <Icon style={{ width: 13, height: 13, flexShrink: 0 }} />
-                                {text}
-                              </div>
-                            ))}
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, color: muted, marginBottom: 4 }}>
+                            <Calendar style={{ width: 11, height: 11, flexShrink: 0 }} />
+                            <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                              {dateShort} · {w.time} · {w.duration}
+                            </span>
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, color: muted, marginBottom: 12 }}>
+                            <Users style={{ width: 11, height: 11, flexShrink: 0 }} />
+                            <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                              {w.instructor} · {w.instructorTitle}
+                            </span>
                           </div>
 
-                          {/* Capacity bar */}
-                          <div style={{ marginBottom: 18 }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                              <span style={{ fontSize: 11, color: muted, fontWeight: 300 }}>{w.registered} registered</span>
-                              <span style={{ fontSize: 11, color: muted, fontWeight: 300 }}>{pct}% full</span>
-                            </div>
-                            <div style={{ height: 3, background: bdr, borderRadius: 99, overflow: "hidden" }}>
+                          {/* Compact capacity bar — one line, no separate registered/percent labels */}
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                            <div style={{ flex: 1, height: 3, background: bdr, borderRadius: 99, overflow: "hidden" }}>
                               <motion.div
                                 initial={{ width: 0 }}
                                 animate={{ width: `${pct}%` }}
-                                transition={{ duration: 0.7, delay: i * 0.06 + 0.3 }}
+                                transition={{ duration: 0.7, delay: i * 0.04 + 0.2 }}
                                 style={{ height: "100%", borderRadius: 99, background: pct > 80 ? red : ink }}
                               />
                             </div>
+                            <span style={{ fontSize: 10.5, color: muted, flexShrink: 0 }}>{w.registered}/{w.capacity}</span>
                           </div>
 
-                          {registeredIds.has(w.id) ? (
-                            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                          {isRegistered ? (
+                            <div style={{ display: "flex", gap: 6 }}>
                               <button
                                 onClick={async () => { setRegisteringId(w.id); await handleUnregister(w.id); setRegisteringId(null); }}
-                                disabled={registeringId === w.id}
+                                disabled={isBusy}
                                 style={{
-                                  width: "100%", padding: "10px 0", borderRadius: 10,
+                                  flex: 1, padding: "8px 0", borderRadius: 9,
                                   border: `1px solid ${bdr}`, background: bg, color: ink,
-                                  fontSize: 13, fontWeight: 400,
-                                  cursor: registeringId === w.id ? "not-allowed" : "pointer",
-                                  opacity: registeringId === w.id ? 0.6 : 1,
+                                  fontSize: 12, fontWeight: 400,
+                                  cursor: isBusy ? "not-allowed" : "pointer",
+                                  opacity: isBusy ? 0.6 : 1,
                                 }}
                               >
-                                {registeringId === w.id ? "Updating…" : "You're registered — Unregister"}
+                                {isBusy ? "Updating…" : "✓ Registered"}
                               </button>
                               <a
                                 href={buildGoogleCalendarUrl(w)}
                                 target="_blank"
                                 rel="noopener noreferrer"
+                                title="Add to Google Calendar"
+                                aria-label="Add to Google Calendar"
                                 style={{
-                                  width: "100%", display: "flex", alignItems: "center", justifyContent: "center",
-                                  gap: 8, padding: "11px 0", borderRadius: 10, border: "none",
-                                  background: ink, color: bg, fontSize: 13, fontWeight: 500,
-                                  textDecoration: "none", boxSizing: "border-box",
+                                  display: "flex", alignItems: "center", justifyContent: "center",
+                                  width: 34, flexShrink: 0, borderRadius: 9, border: "none",
+                                  background: ink, color: bg, boxSizing: "border-box",
                                 }}
                               >
-                                Add to Google Calendar
-                                <ExternalLink style={{ width: 14, height: 14 }} />
+                                <ExternalLink style={{ width: 13, height: 13 }} />
                               </a>
                             </div>
                           ) : (
                             <button
                               onClick={async () => { setRegisteringId(w.id); await handleRegister(w.id); setRegisteringId(null); }}
-                              disabled={registeringId === w.id || fullIds.has(w.id) || w.spotsLeft <= 0}
+                              disabled={isBusy || isFull}
                               onMouseEnter={e => (e.currentTarget.style.opacity = "0.85")}
                               onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
                               style={{
                                 width: "100%", display: "flex", alignItems: "center", justifyContent: "center",
-                                gap: 8, padding: "11px 0", borderRadius: 10, border: "none",
-                                background: (fullIds.has(w.id) || w.spotsLeft <= 0) ? bdr : ink,
-                                color: (fullIds.has(w.id) || w.spotsLeft <= 0) ? muted : bg,
-                                fontSize: 13, fontWeight: 500,
-                                cursor: (registeringId === w.id || fullIds.has(w.id) || w.spotsLeft <= 0) ? "not-allowed" : "pointer",
-                                opacity: registeringId === w.id ? 0.7 : 1,
+                                gap: 6, padding: "9px 0", borderRadius: 9, border: "none",
+                                background: isFull ? bdr : ink,
+                                color: isFull ? muted : bg,
+                                fontSize: 12.5, fontWeight: 500,
+                                cursor: (isBusy || isFull) ? "not-allowed" : "pointer",
+                                opacity: isBusy ? 0.7 : 1,
                                 transition: "opacity 0.15s",
                               }}
                             >
-                              {fullIds.has(w.id) || w.spotsLeft <= 0 ? "Workshop full" : registeringId === w.id ? "Registering…" : "Reserve My Spot"}
-                              {!(fullIds.has(w.id) || w.spotsLeft <= 0) && !(registeringId === w.id) && <ArrowRight style={{ width: 14, height: 14 }} />}
+                              {isFull ? "Workshop full" : isBusy ? "Registering…" : "Reserve My Spot"}
+                              {!isFull && !isBusy && <ArrowRight style={{ width: 13, height: 13 }} />}
                             </button>
                           )}
                         </motion.div>
