@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { Send, Loader2, TrendingUp, Users, BarChart3, RefreshCw, MessageSquare, X, Activity } from 'lucide-react'
 import Link from 'next/link'
 import { bg, surf, bdr, ink, muted, blue, purple, green, amber } from '@/lib/constants/colors'
+import { readSSE } from '@/features/shared/lib/readSSE'
 
 // ─── types ────────────────────────────────────────────────────────────────────
 interface Insight {
@@ -118,26 +119,13 @@ export default function AIAnalysisPage() {
 
       if (!res.body) throw new Error('no body')
 
-      const reader = res.body.getReader()
-      const dec = new TextDecoder()
       let full = ''
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        for (const line of dec.decode(value).split('\n')) {
-          if (!line.startsWith('data: ')) continue
-          const payload = line.slice(6).trim()
-          if (!payload || payload === '[DONE]') continue
-          try {
-            const evt = JSON.parse(payload)
-            if (evt.type === 'delta') {
-              full += evt.text as string
-              setMessages(prev => prev.map((m, i) => i === prev.length - 1 ? { ...m, content: full } : m))
-            }
-          } catch { /* skip malformed */ }
+      await readSSE(res.body, evt => {
+        if (evt.type === 'delta') {
+          full += evt.text as string
+          setMessages(prev => prev.map((m, i) => i === prev.length - 1 ? { ...m, content: full } : m))
         }
-      }
+      })
 
       // Finalise streaming flag
       setMessages(prev => prev.map((m, i) => i === prev.length - 1 ? { ...m, streaming: false } : m))

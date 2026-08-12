@@ -1,12 +1,13 @@
 'use client'
 
 /**
- * PRD 2 Stage 2 — consumes POST /api/rhythm/run?stream=1's SSE response. Same parsing loop as
- * useStreamedProposal.ts (data: {...}\n\n, ending [DONE]) — the one SSE-consumption pattern this
- * codebase already has, not a second one.
+ * PRD 2 Stage 2 — consumes POST /api/rhythm/run?stream=1's SSE response via readSSE
+ * (data: {...}\n\n, ending [DONE]) — the one SSE-consumption method this codebase has, not a
+ * second one.
  */
 
 import { useCallback, useState } from 'react'
+import { readSSE } from '@/features/shared/lib/readSSE'
 
 export interface StreamedRhythmResult {
   runId: string
@@ -34,28 +35,17 @@ export function useStreamedRhythmStep() {
         setError(errBody.error ?? `Request failed (${res.status})`)
         return null
       }
-      const reader = res.body.getReader()
-      const dec = new TextDecoder()
       let result: StreamedRhythmResult | null = null
       let accumulated = ''
-      while (true) {
-        const { done: readerDone, value } = await reader.read()
-        if (readerDone) break
-        for (const line of dec.decode(value).split('\n')) {
-          if (!line.startsWith('data: ')) continue
-          const payload = line.slice(6).trim()
-          if (!payload || payload === '[DONE]') continue
-          let evt: Record<string, unknown>
-          try { evt = JSON.parse(payload) } catch { continue }
-          if (evt.type === 'delta') {
-            accumulated += evt.text as string
-            setLiveText(accumulated)
-          } else if (evt.type === 'done') {
-            if (evt.error) setError(evt.error as string)
-            else result = { runId: evt.runId as string, cycleKey: evt.cycleKey as string, done: evt.done as boolean }
-          }
+      await readSSE(res.body, evt => {
+        if (evt.type === 'delta') {
+          accumulated += evt.text as string
+          setLiveText(accumulated)
+        } else if (evt.type === 'done') {
+          if (evt.error) setError(evt.error as string)
+          else result = { runId: evt.runId as string, cycleKey: evt.cycleKey as string, done: evt.done as boolean }
         }
-      }
+      })
       return result
     } catch {
       setError('Could not reach the server. Try again.')

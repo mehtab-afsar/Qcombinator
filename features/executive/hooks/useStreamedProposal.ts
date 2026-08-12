@@ -9,6 +9,7 @@
  */
 
 import { useCallback, useRef, useState } from 'react'
+import { readSSE } from '@/features/shared/lib/readSSE'
 
 export interface StreamedProposal {
   read: string
@@ -52,31 +53,20 @@ export function useStreamedProposal() {
         setError(errBody.error ?? `Request failed (${res.status})`)
         return
       }
-      const reader = res.body.getReader()
-      const dec = new TextDecoder()
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        for (const line of dec.decode(value).split('\n')) {
-          if (!line.startsWith('data: ')) continue
-          const payload = line.slice(6).trim()
-          if (!payload || payload === '[DONE]') continue
-          let evt: Record<string, unknown>
-          try { evt = JSON.parse(payload) } catch { continue }
-          if (evt.type === 'delta') {
-            full.current += evt.text as string
-            // Only what's before the delimiter is "the read" — live-typing the rest
-            // (the slower six-step document) would look like markdown typing itself,
-            // not Morgan talking to the founder (UX_SPEC_the_frame.md §3).
-            const idx = full.current.indexOf(READ_DELIMITER)
-            setReadText(idx === -1 ? full.current : full.current.slice(0, idx))
-            if (idx !== -1) setReadDone(true)
-          } else if (evt.type === 'done') {
-            if (evt.error) setError(evt.error as string)
-            else if (evt.proposal) setProposal(evt.proposal as StreamedProposal)
-          }
+      await readSSE(res.body, evt => {
+        if (evt.type === 'delta') {
+          full.current += evt.text as string
+          // Only what's before the delimiter is "the read" — live-typing the rest
+          // (the slower six-step document) would look like markdown typing itself,
+          // not Morgan talking to the founder (UX_SPEC_the_frame.md §3).
+          const idx = full.current.indexOf(READ_DELIMITER)
+          setReadText(idx === -1 ? full.current : full.current.slice(0, idx))
+          if (idx !== -1) setReadDone(true)
+        } else if (evt.type === 'done') {
+          if (evt.error) setError(evt.error as string)
+          else if (evt.proposal) setProposal(evt.proposal as StreamedProposal)
         }
-      }
+      })
     } catch {
       setError('Could not reach the server. Try again.')
     } finally {

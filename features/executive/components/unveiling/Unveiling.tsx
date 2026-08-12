@@ -13,6 +13,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { red } from '@/lib/constants/colors'
+import { Button } from '@/features/shared/components/Button'
 import { useStreamedProposal, type StreamedProposal } from '../../hooks/useStreamedProposal'
 import { loadUnveilingDraft, saveUnveilingDraft, clearUnveilingDraft } from '../../lib/unveiling-draft'
 import { Thread } from './Thread'
@@ -170,7 +171,18 @@ export function Unveiling({
         {step === 1 && (
           <>
             <TheRead text={readText} streaming={streaming} readDone={readDone} />
-            {proposeError && <p style={{ color: red, fontSize: 14, margin: 0 }}>{proposeError}</p>}
+            {/* Before this, a failed/timed-out proposal (STREAM_TIMEOUT_MS in
+                app/api/strategy/propose/route.ts, 150s) left the founder stuck on this exact
+                screen with a small error line and no way forward short of reloading the whole
+                page — which restarts the read from scratch. A direct retry, in place. */}
+            {proposeError && (
+              <div>
+                <p style={{ color: red, fontSize: 14, margin: '0 0 10px' }}>{proposeError}</p>
+                <Button variant="secondary" size="sm" loading={streaming} disabled={streaming} onClick={() => void run('/api/strategy/propose', {})}>
+                  Try again
+                </Button>
+              </div>
+            )}
           </>
         )}
 
