@@ -47,9 +47,10 @@ const cardVariants = {
 }
 
 // Ring geometry (wide viewport only) — clears ScoreAnchor's 176px dial plus a card's own
-// footprint. Approximate by design (card height varies with whether a briefing verdict is
-// present); tuned by eye, not derived from a measured layout.
-const RING_RADIUS = 230
+// footprint, with real breathing room between the score and the team (founder feedback: the
+// first pass read as cramped, not spread out). Approximate by design (card height varies with
+// whether a briefing verdict is present); tuned by eye, not derived from a measured layout.
+const RING_RADIUS = 300
 const RING_CARD_WIDTH = 240
 const RING_CARD_HALF_HEIGHT = 90
 const CENTRE_HALF_WIDTH = 100
@@ -91,11 +92,29 @@ export function ExecutiveRoster({ programs, reveal = false }: { programs: Progra
     return () => { live = false }
   }, [])
 
+  // Same ring-stage container as the final layout, so nothing visibly jumps once the cards
+  // arrive — before this, loading rendered a bare, unpositioned ScoreAnchor and then swapped to
+  // the full ring a beat later, which read as "two different dashboards" (direct founder
+  // feedback), not one screen finishing its load. ScoreAnchor sits at the exact same centre
+  // point throughout; only the cards fading in around it is new.
+  const stageHeight = (RING_RADIUS + RING_CARD_HALF_HEIGHT) * 2
+
   // ScoreAnchor renders regardless of the roster's own load state — it used to be rendered
   // unconditionally by CommandView, a step above this component; owning it here must not make
   // it disappear while executives are loading or if the fetch comes back empty.
-  if (!executives) return <ScoreAnchor />
-  if (executives.length === 0) return <ScoreAnchor />
+  if (!executives || executives.length === 0) {
+    if (!wide) return <ScoreAnchor />
+    return (
+      <div style={{ position: 'relative', height: stageHeight, maxWidth: 1040, margin: '0 auto' }}>
+        <div style={{
+          position: 'absolute', left: '50%', top: '50%',
+          marginLeft: -CENTRE_HALF_WIDTH, marginTop: -CENTRE_HALF_HEIGHT,
+        }}>
+          <ScoreAnchor />
+        </div>
+      </div>
+    )
+  }
 
   const activeByExecutive = new Map(programs.map(p => [p.owner, p]))
   const briefingByExecutive = new Map(
@@ -128,13 +147,12 @@ export function ExecutiveRoster({ programs, reveal = false }: { programs: Progra
     // orbitPosition) around an inner motion.div (the entrance animation) — kept as two nested
     // elements so framer-motion's own transform management never has to share the same style
     // property as the ring's plain left/top positioning.
-    const stageHeight = (RING_RADIUS + RING_CARD_HALF_HEIGHT) * 2
     return (
       <motion.div
         variants={containerVariants}
         initial={reveal ? 'hidden' : false}
         animate="show"
-        style={{ position: 'relative', height: stageHeight, maxWidth: 900, margin: '0 auto' }}
+        style={{ position: 'relative', height: stageHeight, maxWidth: 1040, margin: '0 auto' }}
       >
         <div style={{
           position: 'absolute', left: '50%', top: '50%',

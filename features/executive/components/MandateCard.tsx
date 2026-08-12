@@ -1,8 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { motion } from 'framer-motion'
-import { ink, muted } from '@/lib/constants/colors'
+import { createPortal } from 'react-dom'
+import { motion, AnimatePresence } from 'framer-motion'
+import { X } from 'lucide-react'
+import { ink, muted, bdr, white } from '@/lib/constants/colors'
 import { FONT_SERIF } from '@/features/onboarding/theme'
 import { ease } from '@/features/shared/tokens'
 import { SectionCard } from '@/features/shared/components/SectionCard'
@@ -82,6 +84,27 @@ export function MandateCard({
   const nameById = new Map(executives.map(e => [e.id, e.name]))
   const [expanded, setExpanded] = useState(false)
 
+  // "View full mandate" opens as its own card — a centered overlay, same escape/backdrop-close
+  // convention as AssetWorkspacePanel.tsx — not an inline accordion pushing the rest of the
+  // compact bar's content down (the original treatment, founder feedback: it should open like
+  // everything else in this app now does).
+  useEffect(() => {
+    if (!expanded) return
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') setExpanded(false) }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [expanded])
+
+  // Rendered via a portal straight into <body> — `position: fixed` is only viewport-relative
+  // when NO ancestor sets a transform/filter/perspective/will-change (CSS containing-block
+  // rules). MandateCard sits nested inside several framer-motion wrappers up the tree, one of
+  // which does exactly that, which is why this was landing pinned to a corner instead of
+  // centered before. A portal sidesteps the whole class of bug rather than chasing which
+  // ancestor is responsible today (and possibly again after some future layout change).
+  // `mounted` guards `document` from ever being touched during SSR.
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+
   if (compact) {
     return (
       <div style={{ padding: '2px 2px 4px' }}>
@@ -126,15 +149,76 @@ export function MandateCard({
             {expanded ? 'Hide full mandate' : 'View full mandate'}
           </button>
         </div>
-        {expanded && (
-          <div style={{ marginTop: 16 }}>
-            <MandateBody
-              contract={contract}
-              showResponsibilities={showResponsibilities}
-              animateResponsibilities={animateResponsibilities}
-              nameById={nameById}
-            />
-          </div>
+        {mounted && createPortal(
+          <AnimatePresence>
+            {expanded && (
+              <>
+                <motion.div
+                  key="mandate-backdrop"
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  onClick={() => setExpanded(false)}
+                  style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200 }}
+                />
+                <motion.div
+                  key="mandate-card"
+                  // Opacity only — NOT scale/y. framer-motion takes full ownership of the
+                  // `transform` CSS property the instant any x/y/scale/rotate value appears in
+                  // `animate`, silently overwriting the manual `translate(-50%, -50%)` below
+                  // that's the only thing actually centering this card. That's what was still
+                  // pinning it off-center even after the portal fix — the portal fixed the
+                  // containing-block problem, this fixes the second, independent bug stacked on
+                  // top of it. Same lesson AssetWorkspacePanel's panel-origin path already
+                  // documents; missed it here the first time.
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                  style={{
+                    position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+                    zIndex: 201, width: 'min(640px, 92vw)', maxHeight: '82vh', overflowY: 'auto',
+                    background: white, border: `1px solid ${bdr}`, borderRadius: 16,
+                    boxShadow: '0 24px 64px rgba(0,0,0,0.16)', padding: '28px 32px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ width: 20, height: 20, flexShrink: 0 }}>
+                        <CompassDoodle color={ink} />
+                      </span>
+                      <h2 style={{ fontFamily: FONT_SERIF, fontSize: 19, fontWeight: 500, color: ink, margin: 0 }}>
+                        Your mandate
+                      </h2>
+                    </span>
+                    <button
+                      onClick={() => setExpanded(false)}
+                      aria-label="Close"
+                      style={{
+                        width: 28, height: 28, borderRadius: 8, background: 'none', border: 'none',
+                        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: muted,
+                        flexShrink: 0,
+                      }}
+                    >
+                      <X size={15} />
+                    </button>
+                  </div>
+                  <p style={{ color: muted, fontSize: 12, margin: '4px 0 0' }}>
+                    Epoch {contract.epoch}
+                    {contract.confirmedAt && <> · confirmed {new Date(contract.confirmedAt).toLocaleDateString()}</>}
+                  </p>
+                  <div style={{ marginTop: 8 }}>
+                    <MandateBody
+                      contract={contract}
+                      showResponsibilities={showResponsibilities}
+                      animateResponsibilities={animateResponsibilities}
+                      nameById={nameById}
+                    />
+                  </div>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>,
+          document.body,
         )}
       </div>
     )

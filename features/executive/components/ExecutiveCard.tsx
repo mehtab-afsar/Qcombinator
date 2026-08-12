@@ -80,6 +80,11 @@ export function ExecutiveCard({
         opacity: entering ? 1 : dimmed ? baseOpacity * 0.4 : baseOpacity,
         scale: entering ? 1.03 : 1,
       }}
+      // A restrained two-layer elevation (tight contact shadow + soft ambient spread) — the
+      // same rgba(0,0,0,…) convention AssetWorkspacePanel.tsx already uses for its own shadow,
+      // not a new shadow language. Deepens slightly on hover so the ring itself reads as
+      // interactive, not just each card individually.
+      whileHover={{ boxShadow: '0 2px 4px rgba(0,0,0,0.05), 0 10px 24px rgba(0,0,0,0.08)' }}
       transition={{ duration: ENTER_MS / 1000, ease: 'easeOut' }}
       style={{
         display: 'block', textDecoration: 'none',
@@ -87,6 +92,7 @@ export function ExecutiveCard({
         border: `1px solid ${needsFounder ? amber : active ? ink : bdr}`,
         borderRadius: radius.lg,
         padding: '20px 22px',
+        boxShadow: '0 1px 2px rgba(0,0,0,0.03), 0 6px 16px rgba(0,0,0,0.04)',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>

@@ -50,13 +50,22 @@ function Dropdown({
   trigger,
   children,
   align = "left",
+  closeWhen,
 }: {
   trigger: React.ReactNode;
   children: React.ReactNode;
   align?: "left" | "right";
+  /** Closes the menu the moment this flips true — the sidebar passes `!expanded` so the menu
+   *  never lingers open into a collapsed rail (too narrow for it, and the rail clips overflow).
+   *  Simplest fix: just close it, same as clicking away. Reopens with one click, same as before. */
+  closeWhen?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (closeWhen) setOpen(false);
+  }, [closeWhen]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -372,6 +381,7 @@ export default function FounderSidebar() {
           padding: "8px 6px",
         }}>
           <Dropdown
+            closeWhen={!expanded}
             trigger={
               <div
                 style={{

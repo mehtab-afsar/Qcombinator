@@ -17,6 +17,8 @@
  */
 
 import { useCallback, useEffect, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { Check, X, Clock, Circle, ChevronDown } from 'lucide-react'
 import { bdr, ink, muted, bg, amber, red, green, purple, alpha } from '@/lib/constants/colors'
 import { radius } from '@/features/shared/tokens'
@@ -207,12 +209,16 @@ function ActionStatusRow({ action }: { action: ActionSummary }) {
         )}
       </div>
       {expandable && open && (
-        <p style={{
-          color: muted, fontFamily: FONT_SERIF, fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-wrap',
+        // Rendered as markdown, not raw pre-wrap text — the analysis text routinely comes back
+        // with real headings/tables/emphasis (judge.ts's own prompts ask for structured
+        // analysis), and showing the literal #/**/| characters read as "a dump of text," the
+        // same gap fixed in ActivationScreen's reading pane.
+        <div style={{
+          color: muted, fontFamily: FONT_SERIF, fontSize: 13, lineHeight: 1.6,
           margin: 0, padding: '0 14px 14px', borderTop: `1px solid ${bdr}`, paddingTop: 12,
         }}>
-          {action.summary}
-        </p>
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{action.summary}</ReactMarkdown>
+        </div>
       )}
     </div>
   )

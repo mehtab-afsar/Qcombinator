@@ -110,7 +110,11 @@ export function WorkshopMonthStrip({ workshops, registeredIds, onRegister, onUnr
         </button>
       </div>
 
-      <div ref={scrollRef} className="scrollbar-hide" style={{ display: "flex", gap: 3, overflowX: "auto", paddingBottom: 4, scrollBehavior: "smooth" }}>
+      <div
+        ref={scrollRef}
+        className="scrollbar-hide"
+        style={{ display: "flex", gap: 3, overflowX: "auto", overscrollBehaviorX: "contain", paddingBottom: 0, scrollBehavior: "smooth" }}
+      >
         {days.map(day => {
           const dayWorkshops = workshopsByDate.get(day.dateKey) ?? [];
           const isSelected = day.dateKey === selectedDateKey;
