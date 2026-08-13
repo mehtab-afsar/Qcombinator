@@ -28,25 +28,66 @@ export const PARAMETERS = [
   { id: "p6", name: "Financials",         color: "#0891B2", desc: "Unit economics, runway, and capital efficiency." },
 ] as const;
 
-// ─── Advisers — Mind & Mentors ───────────────────────────────────────────────
-// `domain` is the founder's worry (the thought-cloud); `advice` is what the
-// specialist says when you click it.
-export const ADVISERS = [
-  { name: "Patel",  role: "GTM Control",    color: "#DC2626", domain: "Growth",  thought: "Why won't they buy?",       advice: "It isn't your traffic — it's the first five minutes. 60% of signups never reach the aha moment. I've mapped the onboarding flow that fixes it, step by step." },
-  { name: "Sage",   role: "CEO Adviser",    color: "#2563EB", domain: "Focus",   thought: "Am I on the right thing?",  advice: "Two of your three priorities cancel each other out. Focus here for the next six weeks — I've sequenced the plan and the things worth saying no to." },
-  { name: "Felix",  role: "CFO Adviser",    color: "#D97706", domain: "Runway",  thought: "How long have I got?",      advice: "18 months on paper, 11 once the Q3 hires land. Pull CAC payback from 14 months to 9 and you buy back a full quarter of runway." },
-  { name: "Atlas",  role: "Competitive",    color: "#16A34A", domain: "Rivals",  thought: "Who else does this?",       advice: "Three real competitors, not the twelve you're worried about. Here's the wedge only you can own — and the two features that widen it." },
-  { name: "Nova",   role: "Product & PMF",  color: "#7C3AED", domain: "Demand",  thought: "Do they actually want it?", advice: "42% of your users would be 'very disappointed' without you — that clears the PMF bar. Now pour everything into the segment driving it." },
-  { name: "Maya",   role: "Brand & Growth", color: "#DB2777", domain: "Story",   thought: "Why doesn't it land?",      advice: "You're leading with features; buyers buy the outcome. I've rewritten your hero and three emails — same product, roughly double the reply rate." },
-  { name: "Harper", role: "Hiring & Team",  color: "#0891B2", domain: "Hiring",  thought: "Who do I hire next?",       advice: "Not another engineer — a senior AE. You have supply, not distribution. Here's the JD, the comp band, and where the good ones are hiding." },
-  { name: "Susi",   role: "Sales Process",  color: "#EA580C", domain: "Closing", thought: "Why do deals stall?",       advice: "They stall at price, not product. Here's the three-line reframe and the objection script that's closing at 34% in your stage." },
-  { name: "Leo",    role: "Legal & Ops",    color: "#059669", domain: "Risk",    thought: "What am I missing?",        advice: "Your IP assignment has a gap two co-founders left open. Close it this week — it's a red flag on every diligence checklist." },
+// ─── The Executive team — the real roster, not invented personas ────────────────────────────
+// Hand-copied, not imported: pulling the live Registry (lib/registry/executives/**) into the
+// public landing bundle would ship Program/prompt-composer internals to every visitor. id/name/
+// short/title/motto mirror each executive's own Registry file verbatim; color mirrors
+// EXECUTIVE_BADGE_VARIANT (features/executive/lib/executiveLabels.tsx) resolved to its hex — the
+// same owner-attribution color a founder sees on every real artifact. CEO stays uncolored there
+// on purpose (cross-cutting, not one more colored lane) — kept that way here too.
+export const EXECUTIVES = [
+  { id: "ceo",        name: "Morgan", short: "CEO", title: "CEO / Chief of Staff",      domain: "Strategy",             motto: "I turn the score into a mandate.",       color: null },
+  { id: "growth",     name: "Patel",  short: "CGO", title: "Chief Growth Officer",      domain: "Marketing & Sales",    motto: "I exist to create growth.",              color: "#7C3AED" },
+  { id: "finance",    name: null,     short: "CFO", title: "Chief Financial Officer",   domain: "Finance",              motto: "I keep the company alive and fundable.", color: "#4F46E5" },
+  { id: "product",    name: null,     short: "CTO", title: "Chief Technology Officer",  domain: "Product & Technology", motto: "I build what the market will pay for.",  color: "#0891B2" },
+  { id: "operations", name: null,     short: "COO", title: "Chief Operations Officer",  domain: "Operations",           motto: "I make the company run.",                color: "#EC4899" },
+] as const;
+
+// ─── A cycle, in three real moments — what actually happens, not a chat ─────────────────────
+// Mirrors the real Command View in miniature: MandateCard → BriefingsPanel → ActionsPanel
+// (features/executive/components/**). Illustrative copy — labeled as such on the card itself —
+// but the shape (epoch, verdict, the one approval checkpoint) is exactly how the product works.
+export const CYCLE_MOMENTS = [
+  {
+    key: "mandate", label: "Mandate",
+    eyebrow: "Epoch 3 · confirmed",
+    heading: "Fix the first five minutes of onboarding.",
+    sub: "Patel (Growth) takes this on.",
+  },
+  {
+    key: "briefing", label: "Briefing",
+    eyebrow: "This cycle's briefing",
+    heading: "Rewrote the activation email sequence.",
+    sub: "Reply rate is up 2.1× since it went out.",
+    verdict: "On track",
+  },
+  {
+    key: "approval", label: "Approval",
+    eyebrow: "Needs your approval",
+    heading: "Send the new onboarding sequence.",
+    sub: "1,204 waitlisted signups · expires in 18h",
+    action: true,
+  },
+] as const;
+
+// ─── Executive activity — each on their own clock, not a synchronized wheel ─────────────────
+// Deliberately staggered, independent timestamps (not a shared feed) — the point being made is
+// that the team isn't a chat you open, it's five people already working, on their own schedule.
+// The CEO/growth lines echo CYCLE_MOMENTS' mandate/briefing text on purpose — same cycle, seen
+// from the org side here and from the founder's inbox there. Finance/product/ops get their own,
+// independent threads to show the other four aren't idle while growth has the spotlight.
+export const EXECUTIVE_ACTIVITY = [
+  { execId: "ceo",        when: "Mon 9:12 AM",  body: "Confirmed this cycle's mandate — fix the first five minutes of onboarding." },
+  { execId: "growth",     when: "Mon 4:30 PM",  body: "Rewrote the activation email sequence." },
+  { execId: "finance",    when: "Tue 11:05 AM", body: "Flagged a CAC assumption diligence would catch." },
+  { execId: "product",    when: "Wed 8:47 AM",  body: "Shipped a fix to the first-run signup flow." },
+  { execId: "operations", when: "Thu 2:15 PM",  body: "Updated the runway model after this week's burn." },
 ] as const;
 
 // ─── How it works ────────────────────────────────────────────────────────────
 export const STEPS = [
   { n: "01", title: "Get your Q-Score", body: "Complete a 10-minute assessment. Six dimensions. One honest number that tells you exactly where you stand and what needs work." },
-  { n: "02", title: "Work with your advisers", body: "Nine AI specialists — strategy, GTM, finance, legal — guide your improvement with full context of your business. Not generic advice." },
+  { n: "02", title: "Your executive team gets to work", body: "Five AI executives — CEO, growth, finance, product, ops — each own real work on your company, every cycle. Not a chatbot. A team." },
   { n: "03", title: "Raise when you hit 70", body: "At Q-Score ≥ 70, your profile unlocks to thesis-matched investors. They find you — you don't cold email 200 people." },
 ] as const;
 
@@ -58,13 +99,17 @@ export const PROBLEMS = [
 ] as const;
 
 // ─── Social proof ────────────────────────────────────────────────────────────
+// Illustrative examples of the kind of outcome the product is built to produce — not quotes
+// from real, verifiable customers. Deliberately no invented full names or company names (a
+// fabricated "Marcus Johnson, CEO, DataPipe" reads as a specific real, checkable person; a role
+// description doesn't claim that). SocialProof.tsx labels these as illustrative in the UI too.
 export const TESTIMONIALS = [
-  { initials: "SC", name: "Sarah Chen",      role: "Founder, TechFlow",       color: "#DC2626", quote: "The Marketing Adviser helped us rethink GTM from scratch. Edge Alpha matched us with the right investors. Raised seed in two weeks." },
-  { initials: "MJ", name: "Marcus Johnson",  role: "CEO, DataPipe",           color: "#2563EB", quote: "Q-Score pinpointed our weak spots. The Finance Agent fixed them. Investors took us seriously and we closed 3× faster than expected." },
-  { initials: "ER", name: "Elena Rodriguez", role: "Partner, Vertex Capital", color: "#16A34A", quote: "Every founder I see from Edge Alpha has actually prepared. The Q-Score filter alone saves me hours of due diligence each week." },
-  { initials: "DP", name: "David Park",      role: "Founder, CloudStack",     color: "#7C3AED", quote: "Strategy Agent nailed our positioning before we talked to a single investor. Found our lead through the marketplace. Nothing like it." },
-  { initials: "JL", name: "James Liu",       role: "Founder, AIBotics",       color: "#D97706", quote: "Finance AI helped us model unit economics properly. Q-Score went from 62 to 84. Series A closed six weeks later." },
-  { initials: "AF", name: "Amanda Foster",   role: "GP, Horizon Ventures",    color: "#059669", quote: "More than half my deal flow now comes from Edge Alpha. The quality bar the platform sets is genuinely exceptional." },
+  { role: "Seed-stage SaaS founder",        color: "#DC2626", quote: "The Marketing Adviser helped us rethink GTM from scratch. Edge Alpha matched us with the right investors. Raised seed in two weeks." },
+  { role: "Early-stage founder",            color: "#2563EB", quote: "Q-Score pinpointed our weak spots. The Finance Agent fixed them. Investors took us seriously and we closed 3× faster than expected." },
+  { role: "Early-stage VC partner",         color: "#16A34A", quote: "Every founder I see from Edge Alpha has actually prepared. The Q-Score filter alone saves me hours of due diligence each week." },
+  { role: "Infrastructure startup founder", color: "#7C3AED", quote: "Strategy Agent nailed our positioning before we talked to a single investor. Found our lead through the marketplace. Nothing like it." },
+  { role: "AI startup founder",             color: "#D97706", quote: "Finance AI helped us model unit economics properly. Q-Score went from 62 to 84. Series A closed six weeks later." },
+  { role: "General partner, early-stage fund", color: "#059669", quote: "More than half my deal flow now comes from Edge Alpha. The quality bar the platform sets is genuinely exceptional." },
 ] as const;
 
 // ─── Pricing ─────────────────────────────────────────────────────────────────

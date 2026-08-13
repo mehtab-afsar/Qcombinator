@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { L, FONT_SERIF } from "../theme";
+import { L, FONT_SERIF, FONT_MONO } from "../theme";
 import { TESTIMONIALS } from "../copy";
 import { Reveal, Eyebrow } from "./Section";
 import { useMotionPrefs } from "@/features/shared/hooks/useMotionPrefs";
@@ -44,25 +44,26 @@ export function SocialProof() {
                   &ldquo;{t.quote}&rdquo;
                 </p>
               </blockquote>
-              <figcaption style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12 }}>
-                <span aria-hidden="true" style={{ width: 40, height: 40, borderRadius: 99, background: L.alpha(t.color, 0.12), border: `1px solid ${L.alpha(t.color, 0.4)}`, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: t.color }}>
-                  {t.initials}
-                </span>
-                <span style={{ textAlign: "left" }}>
-                  <span style={{ display: "block", fontSize: 14.5, fontWeight: 600, color: L.ink }}>{t.name}</span>
-                  <span style={{ display: "block", fontSize: 13, color: L.muted }}>{t.role}</span>
+              <figcaption style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+                <span aria-hidden="true" style={{ width: 36, height: 2, borderRadius: 99, background: t.color }} />
+                <span style={{ fontFamily: FONT_MONO, fontSize: 12, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: t.color }}>
+                  {t.role}
                 </span>
               </figcaption>
             </motion.figure>
           </AnimatePresence>
         </div>
 
-        <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 26 }}>
+        <p style={{ fontSize: 11.5, color: L.muted, marginTop: 14, marginBottom: 0 }}>
+          Illustrative examples of the outcomes Edge Alpha is built to produce — not quotes from named customers.
+        </p>
+
+        <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 18 }}>
           {TESTIMONIALS.map((item, i) => (
             <button
-              key={item.name}
+              key={item.role}
               onClick={() => setIndex(i)}
-              aria-label={`Show testimonial from ${item.name}`}
+              aria-label={`Show illustrative example ${i + 1}`}
               aria-current={index === i}
               style={{
                 width: index === i ? 22 : 8, height: 8, borderRadius: 99,

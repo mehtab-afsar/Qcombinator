@@ -6,7 +6,7 @@ import { Nav } from "./Nav";
 import { Hero } from "./Hero";
 import { Problem } from "./Problem";
 import { HowItWorks } from "./HowItWorks";
-import { Agents } from "./Agents";
+import { CommandPreview } from "./CommandPreview";
 import { SocialProof } from "./SocialProof";
 import { Pricing } from "./Pricing";
 import { Faq } from "./Faq";
@@ -34,7 +34,7 @@ export function LandingPage() {
         <Hero />
         <Problem />
         <HowItWorks />
-        <Agents />
+        <CommandPreview />
         <SocialProof />
         <Pricing />
         <Faq />
