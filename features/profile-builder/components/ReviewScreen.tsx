@@ -6,6 +6,7 @@ import { Check } from 'lucide-react';
 import { bg, surf, bdr, ink, muted, blue, green, amber, red, white } from '@/lib/constants/colors';
 import { SECTION_LABELS, surf2, greenBadgeBg, amberTintBg, amberTintText, redTintBg, redTintBorder, QSCORE_MESSAGES, QSCORE_DOODLES } from '@/features/profile-builder/lib/constants';
 import { ScoreReport } from '@/features/profile-builder/components/ScoreReport';
+import { useQScore } from '@/features/qscore/hooks/useQScore';
 import type { SectionState, SubmitResult, FlowMode, UploadedFile } from '@/features/profile-builder/types';
 import type { FounderProfile } from '@/lib/profile-builder/question-engine';
 
@@ -32,6 +33,7 @@ export function ReviewScreen({
   rateLimitUntil, retakeLoading, founderProfile, onSubmit, onRetake, onSectionSelect, onUploadMore, onBack,
 }: ReviewScreenProps) {
   const router = useRouter();
+  const { refetch: refetchQScore } = useQScore();
 
   // Rotates every 2.2s while the final Q-Score calculation is in progress — same
   // pattern/timing as UploadStep's loading card. Caps at the last message/doodle instead of
@@ -174,7 +176,7 @@ export function ReviewScreen({
                   background: amber, color: white, fontSize: 12, fontWeight: 600,
                   cursor: 'pointer', fontFamily: 'inherit',
                 }}>Improve my score →</button>
-                <button onClick={() => router.push('/founder/dashboard')} style={{
+                <button onClick={async () => { await refetchQScore(); router.push('/founder/dashboard'); }} style={{
                   padding: '8px 16px', borderRadius: 8, border: `1px solid ${bdr}`,
                   background: bg, color: ink, fontSize: 12,
                   cursor: 'pointer', fontFamily: 'inherit',

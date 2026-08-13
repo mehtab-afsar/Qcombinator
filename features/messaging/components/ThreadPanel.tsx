@@ -15,6 +15,10 @@ interface ThreadPanelProps {
   /** Status Badge / Q-score pill / "Profile" link — the panel has no opinion on it. */
   headerRight?: ReactNode;
   personalMessage?: string | null;
+  /** Who actually wrote personalMessage — not always "me" just because I'm looking at it.
+   *  A sender viewing their own accepted connection must see their own words as their own,
+   *  not attributed to the person they sent them to. */
+  personalMessageFromMe: boolean;
   createdAt: string;
   myUserId: string | null;
   /** False while the other party hasn't accepted yet — shows the pending state
@@ -29,8 +33,46 @@ interface ThreadPanelProps {
   composerPlaceholder: string;
 }
 
+/** The opening note, attributed to whoever actually wrote it — not assumed. */
+function PersonalMessageBubble({
+  text, fromMe, otherTitle, otherInitials, pal,
+}: {
+  text: string; fromMe: boolean; otherTitle: string; otherInitials: string;
+  pal: { bg: string; color: string };
+}) {
+  if (fromMe) {
+    return (
+      <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginBottom: 16 }}>
+        <div style={{ maxWidth: '72%' }}>
+          <p style={{ fontSize: 10, color: muted, marginBottom: 3, textAlign: 'right' }}>Your message</p>
+          <div style={{ background: ink, color: bg, borderRadius: '12px 4px 12px 12px', padding: '10px 14px' }}>
+            <p style={{ fontSize: 13, lineHeight: 1.6, margin: 0 }}>{text}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'flex-start' }}>
+      <div style={{
+        width: 28, height: 28, borderRadius: 7, flexShrink: 0, background: pal.bg,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 10, fontWeight: 700, color: pal.color, letterSpacing: '0.02em', marginTop: 18,
+      }}>
+        {otherInitials}
+      </div>
+      <div style={{ flex: 1 }}>
+        <p style={{ fontSize: 10, color: muted, marginBottom: 5, fontWeight: 500 }}>{otherTitle} <span style={{ color: bdr, margin: '0 3px' }}>·</span> Connection note</p>
+        <div style={{ background: alpha(purple, 0.04), border: `1px solid ${alpha(purple, 0.25)}`, borderRadius: '4px 12px 12px 12px', padding: '10px 14px' }}>
+          <p style={{ fontSize: 13, color: ink, lineHeight: 1.7, margin: 0 }}>{text}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ThreadPanel({
-  title, subtitle, avatarSeed, headerRight, personalMessage, createdAt, myUserId,
+  title, subtitle, avatarSeed, headerRight, personalMessage, personalMessageFromMe, createdAt, myUserId,
   canMessage, messages, loading, input, onInputChange, onSend, sending, composerPlaceholder,
 }: ThreadPanelProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -66,14 +108,10 @@ export function ThreadPanel({
               </span>
             </div>
             {personalMessage && (
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginBottom: 16 }}>
-                <div style={{ maxWidth: '72%' }}>
-                  <p style={{ fontSize: 10, color: muted, marginBottom: 3, textAlign: 'right' }}>Your message</p>
-                  <div style={{ background: ink, color: bg, borderRadius: '12px 4px 12px 12px', padding: '10px 14px' }}>
-                    <p style={{ fontSize: 13, lineHeight: 1.6, margin: 0 }}>{personalMessage}</p>
-                  </div>
-                </div>
-              </div>
+              <PersonalMessageBubble
+                text={personalMessage} fromMe={personalMessageFromMe}
+                otherTitle={title} otherInitials={otherInitials} pal={pal}
+              />
             )}
             <div style={{ textAlign: 'center', padding: '24px 0' }}>
               <p style={{ fontSize: 12, color: muted }}>You&apos;ll be able to message once they accept your request.</p>
@@ -87,21 +125,10 @@ export function ThreadPanel({
               </span>
             </div>
             {personalMessage && (
-              <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'flex-start' }}>
-                <div style={{
-                  width: 28, height: 28, borderRadius: 7, flexShrink: 0, background: pal.bg,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 10, fontWeight: 700, color: pal.color, letterSpacing: '0.02em', marginTop: 18,
-                }}>
-                  {otherInitials}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <p style={{ fontSize: 10, color: muted, marginBottom: 5, fontWeight: 500 }}>{title} <span style={{ color: bdr, margin: '0 3px' }}>·</span> Connection note</p>
-                  <div style={{ background: alpha(purple, 0.04), border: `1px solid ${alpha(purple, 0.25)}`, borderRadius: '4px 12px 12px 12px', padding: '10px 14px' }}>
-                    <p style={{ fontSize: 13, color: ink, lineHeight: 1.7, margin: 0 }}>{personalMessage}</p>
-                  </div>
-                </div>
-              </div>
+              <PersonalMessageBubble
+                text={personalMessage} fromMe={personalMessageFromMe}
+                otherTitle={title} otherInitials={otherInitials} pal={pal}
+              />
             )}
             {loading ? (
               <SectionSpinner minHeight={100} />

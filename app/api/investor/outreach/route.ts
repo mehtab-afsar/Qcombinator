@@ -68,12 +68,18 @@ export async function POST(request: NextRequest) {
       log.warn('investor_connection usage check failed — allowing through', { userId: user.id })
     }
 
-    // Investor reaching out = connection is live immediately (meeting_scheduled)
+    // Investor reaching out = connection is live immediately (meeting_scheduled). The opening
+    // note lives only on personal_message — it used to also be inserted as a real messages row
+    // ("so both parties see it in the thread"), but ThreadPanel already renders personal_message
+    // as the thread's opening bubble, so that second insert just duplicated the same text as two
+    // bubbles. requested_by records that the investor wrote it, so the UI can attribute it
+    // correctly regardless of which party is viewing.
     const { data, error } = await admin
       .from('connection_requests')
       .insert({
         founder_id:       founderId,
         investor_id:      user.id,
+        requested_by:     user.id,
         personal_message: message.trim(),
         status:           'meeting_scheduled',
       })
@@ -84,16 +90,6 @@ export async function POST(request: NextRequest) {
       log.error('POST /api/investor/outreach insert', { error })
       return NextResponse.json({ error: 'Failed to create connection' }, { status: 500 })
     }
-
-    // Persist the opening message into the messages table so both parties see it in the thread
-    void admin.from('messages').insert({
-      connection_request_id: data.id,
-      sender_id:    user.id,
-      recipient_id: founderId,
-      body:         message.trim(),
-    }).then(({ error: msgErr }) => {
-      if (msgErr) log.error('POST /api/investor/outreach messages insert', { msgErr })
-    })
 
     // Notify the founder
     try {

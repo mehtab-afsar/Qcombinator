@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { log } from '@/lib/logger'
 import { getMyDemoInvestorId, investorConnectionOrFilter } from '@/lib/investor/demo-investor'
+import { getStartupDisplayName } from '@/lib/founder/display-name'
 
 // GET /api/investor/portfolio
 // Returns accepted connection requests enriched with founder Q-Score + artifact data
@@ -51,7 +52,7 @@ export async function GET() {
     // Fetch founder profiles
     const { data: founders } = await admin
       .from('founder_profiles')
-      .select('user_id, startup_name, industry, stage, description, full_name')
+      .select('user_id, startup_name, company_name, industry, stage, description, full_name')
       .in('user_id', founderIds)
 
     // Fetch latest Q-Score per founder
@@ -86,7 +87,7 @@ export async function GET() {
     }
 
     type ScoreRow = { user_id: string; overall_score: number; p1_score: number; p2_score: number; p3_score: number; p4_score: number; p5_score: number; p6_score: number; calculated_at: string }
-    type FounderRow = { user_id: string; startup_name: string; industry: string; stage: string; description: string; full_name: string }
+    type FounderRow = { user_id: string; startup_name: string; company_name: string | null; industry: string; stage: string; description: string; full_name: string }
 
     // Build a map: user_id → latest score
     const scoreMap: Record<string, ScoreRow> = {}
@@ -123,7 +124,7 @@ export async function GET() {
       return {
         id:               conn.founder_id,
         connectionId:     conn.id,
-        name:             (fp.startup_name as string) || 'Startup',
+        name:             fp.user_id ? getStartupDisplayName(fp) : 'Startup',
         sector:           (fp.industry     as string) || 'Unknown',
         stage:            (fp.stage        as string) || 'Seed',
         founderName:      (fp.full_name    as string) || 'Founder',

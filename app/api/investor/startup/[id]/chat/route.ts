@@ -6,6 +6,7 @@ import { parseBody, startupChatSchema } from '@/lib/api/validate'
 import { log } from '@/lib/logger'
 import { routedText } from '@/lib/llm/router'
 import { composeAdhocPrompt } from '@/lib/prompts/compose'
+import { getStartupDisplayName } from '@/lib/founder/display-name'
 
 // POST /api/investor/startup/[id]/chat
 // Answers investor questions about a startup strictly from DB data.
@@ -49,7 +50,7 @@ export async function POST(
     ] = await Promise.all([
       admin
         .from('founder_profiles')
-        .select('full_name, startup_name, industry, stage, tagline, location, funding, startup_profile_data, team_size')
+        .select('full_name, startup_name, company_name, industry, stage, tagline, location, funding, startup_profile_data, team_size')
         .eq('user_id', founderId)
         .single(),
       admin
@@ -84,7 +85,7 @@ export async function POST(
 
     // Serialize startup data as structured context for Claude
     const startupContext = {
-      name:         profile.startup_name || (sp.companyName as string) || `${profile.full_name}'s Startup`,
+      name:         getStartupDisplayName(profile),
       founderName:  profile.full_name,
       industry:     profile.industry,
       stage:        profile.stage,

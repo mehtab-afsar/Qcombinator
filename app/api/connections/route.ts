@@ -111,6 +111,7 @@ export async function POST(request: NextRequest) {
 
     const insertRow: Record<string, unknown> = {
       founder_id: user.id,
+      requested_by: user.id,
       personal_message: personal_message || '',
       founder_qscore,
       status: 'pending',

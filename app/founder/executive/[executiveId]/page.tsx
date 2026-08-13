@@ -40,8 +40,6 @@ import { BirdsEyeStats } from '@/features/executive/components/BirdsEyeStats'
 import { ActivityLog } from '@/features/executive/components/ActivityLog'
 import { ChatRail } from '@/features/executive/components/ChatRail'
 import { AssetWorkspacePanel } from '@/features/executive/components/AssetWorkspacePanel'
-import { ActivationScreen } from '@/features/executive/components/ActivationScreen'
-import { useActivationCheck } from '@/features/executive/lib/useActivationCheck'
 import { ExecutiveTabBar } from '@/features/executive/components/ExecutiveTabBar'
 import { ExecutiveRead } from '@/features/executive/components/ExecutiveRead'
 import { BeatHeading } from '@/features/executive/components/BeatHeading'
@@ -89,15 +87,6 @@ export default function ExecutiveDetailPage() {
   const [program, setProgram] = useState<ProgramInstance | null>(null)
   const [contract, setContract] = useState<Contract | null>(null)
   const live = useRef(true)
-
-  // F09 Activation, brought to this page (PRD 2, Stage 1) — previously only reachable from the
-  // CEO tab, so a founder landing here directly never saw their team actually start working,
-  // regardless of cycle number. `contract` is null while loading; the hook handles that (settles
-  // immediately, no fetch) rather than needing a conditional hook call, which Rules of Hooks
-  // forbids.
-  const [forceSettled, setForceSettled] = useState(false)
-  const activationChecked = useActivationCheck(contract)
-  const activationState = forceSettled ? 'settled' : activationChecked
 
   // CANVAS_SPEC §5 — the node workspace panel's open asset, mirrored into ?asset= so it's
   // linkable/refresh-safe without a full page navigation ("preserve the sense of place").
@@ -247,37 +236,29 @@ export default function ExecutiveDetailPage() {
             {active && (
               <motion.div variants={sectionVariants}>
                 <BeatHeading>The Executive</BeatHeading>
-                {activationState === 'activation' ? (
-                  // PRD 2, Stage 1 — a founder landing HERE during their team's just-triggered
-                  // first cycle watches it happen, the same payoff the CEO tab already gave,
-                  // scoped to just this executive's steps (ActivationScreen is whole-company
-                  // when executiveId is omitted, which is correct on the CEO tab and wrong here).
-                  <ActivationScreen
-                    executiveId={executiveId}
-                    onComplete={() => setForceSettled(true)}
-                    onOpenAsset={openAsset}
-                  />
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: space[4] }}>
-                    {/* 2. Bird's-eye stats (§4.2), then Rhythm as the detail behind it (§4.2's
-                        "click-to-expand" read as: the glance leads, the running detail follows).
-                        Anchored so the chat rail's "initiated" reply can point back up here. */}
-                    <div id="rhythm-cycle" style={{ display: 'flex', flexDirection: 'column', gap: space[4] }}>
-                      <BirdsEyeStats executiveId={executiveId} />
-                      <RhythmPanel executiveId={executiveId} />
-                    </div>
-                    {/* 3. Documents (§4.3) */}
-                    <ProgramAssetsPanel executiveId={executiveId} onOpenAsset={openAsset} />
-                    {/* 4. Actions (§4.4) */}
-                    <ActionsPanel executiveId={executiveId} />
-                    <BriefingsPanel executiveId={executiveId} />
-                    {/* 5. Activity log (§4.5) — everything the executive has done, in one feed. */}
-                    <ActivityLog executiveId={executiveId} />
-                    {/* 6. Chat rail (§4.6) — the last cockpit section. Stateless, see ChatRail's
-                        own docstring for why. */}
-                    <ChatRail executiveId={executiveId} />
+                {/* One interface, always — no separate "watch the first cycle" takeover screen
+                    (CANVAS_SPEC D1, "never two UIs"; direct founder feedback that a takeover
+                    fought this). RhythmPanel shows live status/streaming for whatever's running,
+                    regardless of how the cycle started — see its own docstring. */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: space[4] }}>
+                  {/* 2. Bird's-eye stats (§4.2), then Rhythm as the detail behind it (§4.2's
+                      "click-to-expand" read as: the glance leads, the running detail follows).
+                      Anchored so the chat rail's "initiated" reply can point back up here. */}
+                  <div id="rhythm-cycle" style={{ display: 'flex', flexDirection: 'column', gap: space[4] }}>
+                    <BirdsEyeStats executiveId={executiveId} />
+                    <RhythmPanel executiveId={executiveId} />
                   </div>
-                )}
+                  {/* 3. Documents (§4.3) */}
+                  <ProgramAssetsPanel executiveId={executiveId} onOpenAsset={openAsset} />
+                  {/* 4. Actions (§4.4) */}
+                  <ActionsPanel executiveId={executiveId} />
+                  <BriefingsPanel executiveId={executiveId} />
+                  {/* 5. Activity log (§4.5) — everything the executive has done, in one feed. */}
+                  <ActivityLog executiveId={executiveId} />
+                  {/* 6. Chat rail (§4.6) — the last cockpit section. Stateless, see ChatRail's
+                      own docstring for why. */}
+                  <ChatRail executiveId={executiveId} />
+                </div>
               </motion.div>
             )}
 

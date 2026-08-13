@@ -115,6 +115,7 @@ function MessagesInner() {
             avatarSeed={selected.displayName}
             headerRight={<StatusBadge status={selected.status} />}
             personalMessage={selected.personalMessage}
+            personalMessageFromMe={selected.personalMessageFromMe ?? false}
             createdAt={selected.createdAt}
             myUserId={user?.id ?? null}
             canMessage={!!canMessage}

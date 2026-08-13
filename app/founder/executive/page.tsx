@@ -27,7 +27,7 @@ import { PageHeader } from '@/features/shared/components/PageHeader'
 import { EmptyState } from '@/features/shared/components/EmptyState'
 import { PageIconLoader } from '@/features/shared/components/Spinner'
 import { fetchWithTimeout, isTimeoutError } from '@/features/shared/lib/fetchWithTimeout'
-import { ActivationGate } from '@/features/executive/components/ActivationGate'
+import { CommandView } from '@/features/executive/components/CommandView'
 import { ExecutiveTabBar } from '@/features/executive/components/ExecutiveTabBar'
 import { PageContainer } from '@/features/shared/components/PageContainer'
 import { Unveiling } from '@/features/executive/components/unveiling/Unveiling'
@@ -178,14 +178,14 @@ export default function ExecutivePage() {
         </div>
       )}
 
-      {/* The payoff screen — Q-Score at the centre, the team around it. ActivationGate decides
-          whether the founder is watching the very first cycle build (F09 Activation) or
-          landing on the steady-state Command View; everything below the mandate there (roster,
-          actions, rhythm, briefings, connectors) is composed inside CommandView, not rebuilt
-          (CLAUDE.md §2). */}
+      {/* The payoff screen — Q-Score at the centre, the team around it. One interface, always —
+          no separate "watch the first cycle" takeover (CANVAS_SPEC D1, "never two UIs"; direct
+          founder feedback that a takeover screen fought this). RhythmPanel, composed inside
+          CommandView, shows live status/streaming for whatever's running regardless of how it
+          started (CLAUDE.md §2 — not rebuilt here). */}
       {contract && state === 'confirmed' && (
         <div style={{ marginTop: 24 }}>
-          <ActivationGate
+          <CommandView
             contract={contract}
             programs={programs}
             busy={busy}

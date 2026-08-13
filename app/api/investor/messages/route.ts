@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { log } from '@/lib/logger'
 import { getMyDemoInvestorId, investorConnectionOrFilter } from '@/lib/investor/demo-investor'
+import { getStartupDisplayName } from '@/lib/founder/display-name'
 
 // GET /api/investor/messages
 // Returns all message threads (accepted connections) for the authenticated investor,
@@ -22,7 +23,7 @@ export async function GET() {
 
     const { data: connections, error: connErr } = await supabase
       .from('connection_requests')
-      .select('id, founder_id, investor_id, status, personal_message, created_at, updated_at')
+      .select('id, founder_id, investor_id, requested_by, status, personal_message, created_at, updated_at')
       .or(connOrFilter)
       .in('status', ['meeting_scheduled', 'accepted'])
       .order('updated_at', { ascending: false })
@@ -48,7 +49,7 @@ export async function GET() {
         .order('created_at', { ascending: false }),
       supabase
         .from('founder_profiles')
-        .select('user_id, full_name, startup_name, avatar_url, industry, stage')
+        .select('user_id, full_name, startup_name, company_name, avatar_url, industry, stage')
         .in('user_id', founderIds),
       supabase
         .from('qscore_history')
@@ -59,7 +60,7 @@ export async function GET() {
     ])
 
     // Index profiles by founder user_id
-    const profileMap = new Map<string, { full_name: string; startup_name: string; avatar_url: string | null; industry: string | null; stage: string | null }>()
+    const profileMap = new Map<string, { full_name: string; startup_name: string; company_name: string | null; avatar_url: string | null; industry: string | null; stage: string | null }>()
     for (const p of founderProfiles ?? []) profileMap.set(p.user_id, p)
 
     // Keep latest Q-score + breakdown per founder
@@ -88,7 +89,7 @@ export async function GET() {
         connectionId:    conn.id,
         founderId:       conn.founder_id,
         founderName:     founderProfile?.full_name    ?? 'Unknown Founder',
-        startupName:     founderProfile?.startup_name ?? 'Unknown Startup',
+        startupName:     founderProfile ? getStartupDisplayName(founderProfile) : 'Unknown Startup',
         avatarUrl:       founderProfile?.avatar_url   ?? null,
         industry:        founderProfile?.industry     ?? '',
         stage:           founderProfile?.stage        ?? '',
@@ -102,6 +103,11 @@ export async function GET() {
           p6: latestQ.get(conn.founder_id)?.p6_score ?? 0,
         },
         personalMessage: (conn as Record<string, unknown>).personal_message as string | null ?? null,
+        // requested_by is NULL on rows created before that column existed — every such row was
+        // rendered as "the founder's note" before this field existed, so that's the fallback.
+        personalMessageFromMe: (conn as Record<string, unknown>).requested_by
+          ? (conn as Record<string, unknown>).requested_by === user.id
+          : false,
         status:          conn.status,
         unreadCount,
         latestMessage: latestMessage

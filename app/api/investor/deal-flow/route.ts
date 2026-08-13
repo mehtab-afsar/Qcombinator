@@ -4,6 +4,7 @@ import { verifyAuth } from '@/lib/auth/verify'
 import { log } from '@/lib/logger'
 import { applyScoreDecay } from '@/lib/qscore/decay'
 import { STAGE_LABEL } from '@/lib/constants/stages'
+import { getStartupDisplayName } from '@/lib/founder/display-name'
 
 // GET /api/investor/deal-flow?page=1&limit=50
 // Returns founders sorted by score. Requires investor access (any tier except 'free').
@@ -26,7 +27,7 @@ export async function GET(request: Request) {
       admin
         .from('founder_profiles')
         .select(`
-          user_id, full_name, startup_name, industry, stage, tagline,
+          user_id, full_name, startup_name, company_name, industry, stage, tagline,
           location, funding, startup_profile_data, updated_at,
           stripe_verified, signal_strength, integrity_index,
           momentum_score, behavioural_score, visibility_gated
@@ -142,7 +143,7 @@ export async function GET(request: Request) {
 
       return {
         id: f.user_id,
-        name: f.startup_name || (sp.companyName as string) || `${f.full_name}'s Startup`,
+        name: getStartupDisplayName({ company_name: f.company_name, startup_name: f.startup_name, startup_profile_data: sp as { companyName?: string }, full_name: f.full_name }),
         tagline,
         qScore:             decayed?.score ?? 0,
         rawQScore:          qrow?.overall_score ?? 0,

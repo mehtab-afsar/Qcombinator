@@ -5,6 +5,7 @@ import { verifyAuth } from '@/lib/auth/verify'
 import { routedText } from '@/lib/llm/router'
 import { composeAdhocPrompt } from '@/lib/prompts/compose'
 import { log } from '@/lib/logger'
+import { getStartupDisplayName } from '@/lib/founder/display-name'
 
 // POST /api/investor/personalize
 // Called at the end of investor onboarding — uses AI to score founders
@@ -35,14 +36,14 @@ export async function POST() {
     // way app/api/investor/deal-flow/route.ts already does for the main browsing list.
     const { data: founders } = await admin
       .from('founder_profiles')
-      .select('user_id, full_name, startup_name, industry, stage, tagline, location, funding')
+      .select('user_id, full_name, startup_name, company_name, industry, stage, tagline, location, funding')
       .eq('onboarding_completed', true)
       .eq('role', 'founder')
       .eq('visibility_gated', false)
       .limit(30)
 
     type FounderRow = {
-      user_id: string; full_name: string; startup_name: string | null;
+      user_id: string; full_name: string; startup_name: string | null; company_name: string | null;
       industry: string | null; stage: string | null; tagline: string | null;
       location: string | null; funding: string | null
     }
@@ -65,7 +66,7 @@ export async function POST() {
       for (const f of founders as FounderRow[]) {
         enriched.push({
           id:      f.user_id,
-          name:    f.startup_name || f.full_name,
+          name:    getStartupDisplayName(f),
           sector:  f.industry ?? 'Unknown',
           stage:   f.stage    ?? 'Unknown',
           tagline: f.tagline  ?? '',

@@ -119,7 +119,7 @@ describe('POST /api/rhythm/step — advancing and self-chaining', () => {
   })
 })
 
-describe('POST /api/rhythm/step — PRD 2 Stage 2 Part B (live text for ActivationScreen)', () => {
+describe('POST /api/rhythm/step — PRD 2 Stage 2 Part B (live text for RhythmPanel)', () => {
   it('threads a delta writer\'s onDelta into runNextStep as the 3rd argument', async () => {
     mockRunNextStep.mockResolvedValue({ done: false })
     await POST(request({ runId: RUN_ID }, { 'x-run-secret': SECRET }) as never)

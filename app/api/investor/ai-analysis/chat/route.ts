@@ -5,6 +5,7 @@ import { parseBody, aiAnalysisChatSchema } from '@/lib/api/validate'
 import { log } from '@/lib/logger'
 import { routedStream } from '@/lib/llm/router'
 import { composeAdhocPrompt } from '@/lib/prompts/compose'
+import { getStartupDisplayName } from '@/lib/founder/display-name'
 
 export const maxDuration = 60
 
@@ -39,7 +40,7 @@ export async function POST(req: NextRequest) {
       // way app/api/investor/deal-flow/route.ts already does for the main browsing list.
       admin
         .from('founder_profiles')
-        .select('user_id, startup_name, full_name, industry, stage, startup_profile_data, updated_at')
+        .select('user_id, startup_name, company_name, full_name, industry, stage, startup_profile_data, updated_at')
         .neq('role', 'investor')
         .eq('visibility_gated', false)
         .order('updated_at', { ascending: false })
@@ -65,8 +66,8 @@ export async function POST(req: NextRequest) {
     for (const p of (pipeline ?? [])) pipelineMap[p.founder_id] = p.stage
 
     const founderLines = (founders ?? []).map(f => {
-      const sp = (f.startup_profile_data ?? {}) as Record<string, unknown>
-      const name = f.startup_name || (sp.companyName as string) || f.full_name
+      const sp = (f.startup_profile_data ?? {}) as { companyName?: string }
+      const name = getStartupDisplayName({ company_name: f.company_name, startup_name: f.startup_name, startup_profile_data: sp, full_name: f.full_name })
       const q = latestScore[f.user_id]
       const ps = pipelineMap[f.user_id]
       return `• ${name} | ${f.industry || 'Unknown'} | ${f.stage || 'Unknown stage'} | Q-Score: ${q ? `${q.score} (${q.grade})` : 'Not assessed'}${ps ? ` | Pipeline: ${ps}` : ''}`

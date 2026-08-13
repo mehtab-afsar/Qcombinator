@@ -7,9 +7,19 @@ interface ConnectionRow {
   id: string
   demo_investor_id: string | null
   investor_id: string | null
+  requested_by: string | null
   personal_message: string | null
   status: string
   created_at: string
+}
+
+// requested_by is NULL on rows created before that column existed — fall back to the same
+// assumption the UI made before it existed, so old threads keep rendering as they always did.
+// Pending requests were only ever the founder's own outgoing ones (investor outreach always
+// starts already-accepted); accepted threads' notes were always rendered as the OTHER party's.
+function personalMessageFromMe(c: ConnectionRow, myUserId: string): boolean {
+  if (c.requested_by) return c.requested_by === myUserId
+  return c.status === 'pending'
 }
 
 // GET /api/founder/messages
@@ -26,7 +36,7 @@ export async function GET() {
 
     const { data: connections, error: connErr } = await supabase
       .from('connection_requests')
-      .select('id, demo_investor_id, investor_id, personal_message, status, created_at')
+      .select('id, demo_investor_id, investor_id, requested_by, personal_message, status, created_at')
       .eq('founder_id', user.id)
       .order('created_at', { ascending: false })
 
@@ -98,6 +108,7 @@ export async function GET() {
         displayName: name,
         subtitle: firm ?? undefined,
         personalMessage: c.personal_message,
+        personalMessageFromMe: personalMessageFromMe(c, user.id),
         status: c.status,
         createdAt: c.created_at,
       }
@@ -113,6 +124,7 @@ export async function GET() {
         displayName: name,
         subtitle: firm ?? undefined,
         personalMessage: c.personal_message,
+        personalMessageFromMe: personalMessageFromMe(c, user.id),
         status: c.status,
         createdAt: c.created_at,
         unreadCount,

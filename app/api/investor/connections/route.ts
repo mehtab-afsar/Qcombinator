@@ -5,6 +5,7 @@ import { parseBody, connectionsPatchSchema } from '@/lib/api/validate'
 import { log } from '@/lib/logger'
 import { sendConnectionAcceptedEmails } from '@/lib/email/send'
 import { getMyDemoInvestorId, investorConnectionOrFilter } from '@/lib/investor/demo-investor'
+import { getStartupDisplayName } from '@/lib/founder/display-name'
 
 // GET /api/investor/connections
 // Returns pending connection requests for the authenticated investor,
@@ -49,7 +50,7 @@ export async function GET() {
     const [{ data: profiles }, { data: allScores }] = await Promise.all([
       supabase
         .from('founder_profiles')
-        .select('user_id, full_name, startup_name, industry, stage, tagline, avatar_url, company_logo_url')
+        .select('user_id, full_name, startup_name, company_name, industry, stage, tagline, avatar_url, company_logo_url')
         .in('user_id', founderIds),
       supabase
         .from('qscore_history')
@@ -58,7 +59,7 @@ export async function GET() {
         .order('calculated_at', { ascending: false }),
     ])
 
-    type ProfileRow = { user_id: string; full_name: string; startup_name: string; industry: string; stage: string; tagline?: string; avatar_url?: string | null; company_logo_url?: string | null }
+    type ProfileRow = { user_id: string; full_name: string; startup_name: string; company_name: string | null; industry: string; stage: string; tagline?: string; avatar_url?: string | null; company_logo_url?: string | null }
     type QRow = { user_id: string; overall_score: number; p1_score: number; p2_score: number; p3_score: number; p4_score: number; p5_score: number; p6_score: number; percentile: number }
 
     const profileMap = new Map<string, ProfileRow>()
@@ -77,7 +78,7 @@ export async function GET() {
         id: req.id,
         founderId: req.founder_id,
         founderName: profile?.full_name ?? 'Unknown Founder',
-        startupName: profile?.startup_name ?? 'Unknown Startup',
+        startupName: profile ? getStartupDisplayName(profile) : 'Unknown Startup',
         oneLiner: profile?.tagline ?? '',
         stage: profile?.stage ?? 'Unknown',
         industry: profile?.industry ?? '',
@@ -212,20 +213,20 @@ export async function PATCH(request: NextRequest) {
         ] = await Promise.all([
           supabase.auth.admin.getUserById(updated.founder_id),
           supabase.auth.admin.getUserById(user.id),
-          supabase.from('founder_profiles').select('full_name, startup_name').eq('user_id', updated.founder_id).single(),
+          supabase.from('founder_profiles').select('full_name, startup_name, company_name').eq('user_id', updated.founder_id).single(),
           supabase.from('investor_profiles').select('full_name, firm_name').eq('user_id', user.id).single(),
         ])
 
         const founderEmail = founderUser?.email
         const investorEmail = investorUser?.email
-        const fp = founderProfile as { full_name?: string; startup_name?: string } | null
+        const fp = founderProfile as { full_name?: string; startup_name?: string; company_name?: string } | null
         const ip = investorProfile as { full_name?: string; firm_name?: string } | null
 
         if (founderEmail && investorEmail) {
           await sendConnectionAcceptedEmails({
             founderEmail,
             founderName: fp?.full_name ?? 'Founder',
-            startupName: fp?.startup_name ?? 'Your Startup',
+            startupName: fp ? getStartupDisplayName(fp) : 'Your Startup',
             investorEmail,
             investorName: ip?.full_name ?? 'Investor',
             investorFirm: ip?.firm_name ?? 'Their Firm',

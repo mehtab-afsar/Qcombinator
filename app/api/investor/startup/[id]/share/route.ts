@@ -4,6 +4,7 @@ import { verifyAuth } from '@/lib/auth/verify'
 import { isFounderVisible } from '@/lib/investor/visibility'
 import { parseBody, startupShareSchema } from '@/lib/api/validate'
 import { log } from '@/lib/logger'
+import { getStartupDisplayName } from '@/lib/founder/display-name'
 
 // GET /api/investor/startup/[id]/share — list real investors to share with
 export async function GET(
@@ -69,14 +70,14 @@ export async function POST(
       { data: founder },
     ] = await Promise.all([
       admin.from('investor_profiles').select('full_name, firm_name').eq('user_id', auth.user.id).single(),
-      admin.from('founder_profiles').select('full_name, startup_name').eq('user_id', founderId).single(),
+      admin.from('founder_profiles').select('full_name, startup_name, company_name').eq('user_id', founderId).single(),
     ])
 
     if (!founder) return NextResponse.json({ error: 'Startup not found' }, { status: 404 })
 
     const sharerName = sharer?.full_name ?? 'A fellow investor'
     const sharerFirm = sharer?.firm_name ? ` (${sharer.firm_name})` : ''
-    const startupName = founder.startup_name ?? `${founder.full_name}'s startup`
+    const startupName = getStartupDisplayName(founder)
 
     await admin.from('notifications').insert({
       user_id: targetInvestorId,

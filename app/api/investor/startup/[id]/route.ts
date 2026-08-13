@@ -5,6 +5,7 @@ import { isFounderVisible, getConnectionStatus, isConnectedStatus } from '@/lib/
 import { log } from '@/lib/logger'
 import { applyScoreDecay } from '@/lib/qscore/decay'
 import { STAGE_LABEL } from '@/lib/constants/stages'
+import { getStartupDisplayName } from '@/lib/founder/display-name'
 
 // GET /api/investor/startup/:id
 // Returns a full founder profile for the investor deep-dive page.
@@ -55,7 +56,7 @@ export async function GET(
     ] = await Promise.all([
       admin
         .from('founder_profiles')
-        .select('full_name, startup_name, industry, stage, tagline, location, funding, linkedin_url, website, updated_at, startup_profile_data, team_size, description')
+        .select('full_name, startup_name, company_name, industry, stage, tagline, location, funding, linkedin_url, website, updated_at, startup_profile_data, team_size, description')
         .eq('user_id', founderId)
         .single(),
 
@@ -259,14 +260,15 @@ export async function GET(
     const spCompetitors = (sp.competitors as string[] | undefined) ?? []
     const spAdvisors    = (sp.advisors    as string[] | undefined) ?? []
 
+    const startupDisplayName = getStartupDisplayName(profile)
     const result = {
       founderId,
-      name: profile.startup_name || (sp.companyName as string) || `${profile.full_name}'s Startup`,
+      name: startupDisplayName,
       founderName: profile.full_name,
       tagline: profile.tagline || (sp.oneLiner as string) || profile.industry || '',
       description: extractString(gtm, ['problem', 'problemStatement', 'overview', 'description'])
         || (sp.problemStatement as string)
-        || `${profile.startup_name || profile.full_name} is building in the ${profile.industry || 'technology'} space.`,
+        || `${startupDisplayName} is building in the ${profile.industry || 'technology'} space.`,
       website: profile.website || (sp.website as string) || '',
       founded: (sp.foundedDate as string) ? String(new Date(sp.foundedDate as string).getFullYear()) : '',
       location: profile.location || '',

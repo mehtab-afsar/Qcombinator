@@ -17,6 +17,8 @@ export interface ConversationSummary {
   displayName: string
   subtitle?: string
   personalMessage?: string | null
+  /** Whether the CURRENT viewer wrote personalMessage — false when it's the other party's note. */
+  personalMessageFromMe?: boolean
   status: string
   createdAt: string
   lastMessage?: LastMessagePreview | null

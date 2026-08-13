@@ -12,12 +12,26 @@
  * progress is read from the run record rather than a held-open request. While a cycle is in
  * flight this polls; it stops the moment the run reaches a terminal state (no runaway timer).
  *
+ * PRD 2 — the ONE place a founder watches a cycle happen, regardless of how it started (their
+ * own "Run now" click, the automatic first cycle right after confirming a mandate, or the
+ * weekly cron). A separate full-screen "Activation" takeover used to own the first-cycle case
+ * specifically; retired in favor of always showing this normal view (CANVAS_SPEC D1, "one
+ * interface... never two UIs" — direct founder feedback that a takeover fought this rule). Two
+ * streaming sources, composed: `useStreamedRhythmStep`'s own SSE (Part A, below) gives instant
+ * feedback for the exact moment of a manual click, covering only step 1 of that one request; a
+ * Supabase Realtime subscription on this run's `streaming_text` (Part B, moved here from the
+ * now-deleted ActivationScreen.tsx) covers everything else — steps 2+ of that same click, and
+ * any cycle this browser didn't itself trigger. Degrades gracefully to the ordinary poll if
+ * Realtime is unavailable — always cosmetic, never load-bearing.
+ *
  * Client boundary: fetches via /api/rhythm/run and never imports lib/registry|rhythm — the
  * server hands over already-named steps (CLAUDE.md §2, the frontend renders state).
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { Check, Loader2, AlertCircle, Minus, Circle, ChevronDown, FileText, MessageSquare, Send } from 'lucide-react'
 import { bdr, ink, muted, blue, green, amber, red, alpha } from '@/lib/constants/colors'
 import { ease } from '@/features/shared/tokens'
@@ -27,6 +41,7 @@ import { Button } from '@/features/shared/components/Button'
 import { scopeStepsToExecutive, documentProgress } from '../lib/scope-progress'
 import { useStreamedRhythmStep } from '../hooks/useStreamedRhythmStep'
 import { POLL_MS, isCycleLive } from '../lib/useCycleLive'
+import { createClient } from '@/lib/supabase/client'
 
 type StepState = 'done' | 'active' | 'pending' | 'failed' | 'skipped'
 type StepKind = 'asset' | 'briefing' | 'action'
@@ -115,6 +130,40 @@ export function RhythmPanel({ executiveId }: { executiveId?: string } = {}) {
     return () => { if (timer.current) clearInterval(timer.current) }
   }, [live, load])
 
+  // PRD 2 Stage 2 Part B, moved here from the deleted ActivationScreen.tsx — live text for
+  // whatever's actively generating, regardless of who/what triggered this run. Same
+  // postgres_changes pattern already used by useMessageThread.ts/useQScore.tsx, reused for
+  // UPDATE instead of INSERT. Independent of useStreamedRhythmStep's own SSE (Part A) — that
+  // only covers the exact moment of a founder's own click; this covers everything else,
+  // including steps 2+ of that same click once the click's own SSE call has returned.
+  const runId = progress?.runId ?? null
+  const [realtimeText, setRealtimeText] = useState('')
+  useEffect(() => {
+    setRealtimeText('')
+    if (!live || !runId) return
+    let supabase: ReturnType<typeof createClient>
+    let channel: ReturnType<ReturnType<typeof createClient>['channel']>
+    try {
+      supabase = createClient()
+      channel = supabase
+        .channel(`operating_rhythm_runs:${runId}`)
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'operating_rhythm_runs', filter: `id=eq.${runId}` },
+          payload => {
+            const text = (payload.new as { streaming_text: string | null }).streaming_text
+            setRealtimeText(text ?? '')
+          },
+        )
+        .subscribe()
+    } catch {
+      /* Realtime unavailable — the settled reveal still lands from the ordinary poll */
+    }
+    return () => {
+      try { if (channel) supabase.removeChannel(channel) } catch { /* ignore */ }
+    }
+  }, [live, runId])
+
   // PRD 2 Stage 2 Part A — streams step 1's asset content live via SSE (useStreamedRhythmStep);
   // the hook owns its own busy/error state, including the 409/400 "already ran"/"no mandate"
   // cases (real JSON, resolved before the stream opens — see the route's own comment).
@@ -166,7 +215,13 @@ export function RhythmPanel({ executiveId }: { executiveId?: string } = {}) {
           {scoped && docs && <StatusLine progress={scoped} docs={docs} />}
           {docs && (
             <div style={{ marginTop: 14, display: 'grid', gap: 8 }}>
-              {docs.steps.map(step => <StepRow key={step.key} step={step} />)}
+              {docs.steps.map(step => (
+                <StepRow
+                  key={step.key}
+                  step={step}
+                  liveText={step.state === 'active' ? realtimeText : undefined}
+                />
+              ))}
             </div>
           )}
         </>
@@ -279,7 +334,12 @@ function Line({ color, children }: { color: string; children: React.ReactNode })
   )
 }
 
-function StepRow({ step }: { step: ProgressStep }) {
+/** @param liveText Realtime-sourced text for this exact step, only ever passed for the
+ *   currently-active one (see the Part B subscription above) — rendered as markdown (raw
+ *   `#`/`**` otherwise show through mid-stream) in the same slot `step.preview` occupies once
+ *   settled. `step.preview` itself is already server-stripped to plain text by
+ *   lib/rhythm/preview.ts, so it stays a plain paragraph, unchanged. */
+function StepRow({ step, liveText }: { step: ProgressStep; liveText?: string }) {
   const { icon, color, note } = stepLook(step.state)
   const KindIcon = kindIcon(step.kind)
   const isActive = step.state === 'active'
@@ -288,8 +348,8 @@ function StepRow({ step }: { step: ProgressStep }) {
       style={{
         display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 14,
         // A little more present than a 15px spinner alone — this is the "your team is working
-        // on this right now" row, deliberately still lighter than ActivationScreen's cards
-        // (that's the first-time ceremony; this is the ambient, ongoing view).
+        // on this right now" row, the one place a founder watches a cycle happen (no separate
+        // first-cycle ceremony screen anymore).
         background: isActive ? alpha(blue, 0.05) : 'transparent',
         borderRadius: 8, padding: isActive ? '6px 8px' : 0, margin: isActive ? '-6px -8px' : 0,
       }}
@@ -301,11 +361,15 @@ function StepRow({ step }: { step: ProgressStep }) {
           <span style={{ color: step.state === 'pending' ? muted : ink, fontWeight: isActive ? 600 : 400, flex: 1 }}>{step.label}</span>
           {note && <span style={{ color, fontSize: 12, flexShrink: 0 }}>{note}</span>}
         </div>
-        {step.preview && (
-          // Fades in once, the moment this step's preview first appears (mount-only —
-          // ActivationScreen owns the bigger, staggered first-cycle ceremony; recurring
-          // cycles get this same content, presented calmer, so they don't read as dead
-          // by comparison).
+        {liveText ? (
+          <div style={{
+            color: muted, fontSize: 12, margin: '4px 0 0', lineHeight: 1.5,
+            maxHeight: 90, overflowY: 'auto',
+          }}>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{liveText}</ReactMarkdown>
+          </div>
+        ) : step.preview && (
+          // Fades in once, the moment this step's preview first appears.
           <motion.p
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}

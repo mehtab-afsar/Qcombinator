@@ -20,6 +20,7 @@ import { isFounderVisible } from '@/lib/investor/visibility'
 import { routedText } from '@/lib/llm/router'
 import { composeAdhocPrompt } from '@/lib/prompts/compose'
 import { log } from '@/lib/logger'
+import { getStartupDisplayName } from '@/lib/founder/display-name'
 
 export interface ReadinessDimension {
   score:    number          // 0–100
@@ -215,7 +216,7 @@ export async function POST(request: NextRequest) {
     ] = await Promise.allSettled([
       admin
         .from('founder_profiles')
-        .select('full_name, startup_name, industry, stage, startup_profile_data')
+        .select('full_name, startup_name, company_name, industry, stage, startup_profile_data')
         .eq('user_id', founderId)
         .single(),
       admin
@@ -251,8 +252,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Build founder context string for all dimension analysers
+    const startupDisplayName = getStartupDisplayName(founder)
     const founderContext = [
-      `Startup: ${founder.startup_name ?? 'Unknown'} (${founder.industry ?? ''}, ${founder.stage ?? ''})`,
+      `Startup: ${startupDisplayName} (${founder.industry ?? ''}, ${founder.stage ?? ''})`,
       qScore ? `Q-Score: ${qScore.overall_score}/100` : '',
       startupState?.mrr              !== null && startupState?.mrr              !== undefined ? `MRR: $${startupState.mrr}` : '',
       startupState?.monthly_burn     !== null && startupState?.monthly_burn     !== undefined ? `Monthly burn: $${startupState.monthly_burn}` : '',
@@ -305,7 +307,7 @@ Product (${product.score}/100): ${product.headline}
     const report: ReadinessReport = {
       founderId,
       founderName:    founder.full_name    ?? 'Unknown',
-      startupName:    founder.startup_name ?? 'Unknown',
+      startupName:    startupDisplayName,
       overallScore:   synthesis.overallScore,
       overallVerdict: synthesis.overallVerdict,
       summary:        synthesis.summary,

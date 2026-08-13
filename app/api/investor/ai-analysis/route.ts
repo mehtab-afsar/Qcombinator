@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { log } from '@/lib/logger'
+import { getStartupDisplayName } from '@/lib/founder/display-name'
 
 // GET /api/investor/ai-analysis
 // Returns real AI insights derived from:
@@ -34,7 +35,7 @@ export async function GET() {
     // way app/api/investor/deal-flow/route.ts already does for the main browsing list.
     const { data: founders } = await admin
       .from('founder_profiles')
-      .select('user_id, startup_name, industry, stage, full_name, created_at')
+      .select('user_id, startup_name, company_name, industry, stage, full_name, created_at')
       .eq('onboarding_completed', true)
       .eq('visibility_gated', false)
       .order('created_at', { ascending: false })
@@ -84,7 +85,7 @@ export async function GET() {
       return s && s.overall_score >= 70 && daysSinceJoin <= 14
     })
     if (highQNewFounders.length > 0) {
-      const names = highQNewFounders.slice(0, 2).map(f => f.startup_name || 'a startup').join(', ')
+      const names = highQNewFounders.slice(0, 2).map(f => getStartupDisplayName(f)).join(', ')
       insights.push({
         id: 'high-q-new',
         type: 'opportunity',
@@ -194,7 +195,7 @@ export async function GET() {
         .slice(0, 5)
         .map(f => ({
           id: f.user_id,
-          name: f.startup_name || 'Unnamed',
+          name: getStartupDisplayName(f),
           founder: f.full_name || '',
           sector: f.industry || 'Unknown',
           stage: f.stage || '',

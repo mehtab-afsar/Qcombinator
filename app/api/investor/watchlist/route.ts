@@ -11,6 +11,7 @@ import { verifyAuth, verifyInvestor } from '@/lib/auth/verify'
 import { isFounderVisible } from '@/lib/investor/visibility'
 import { parseBody, watchlistPostSchema, watchlistDeleteSchema } from '@/lib/api/validate'
 import { log } from '@/lib/logger'
+import { getStartupDisplayName } from '@/lib/founder/display-name'
 
 export async function GET() {
   try {
@@ -32,7 +33,7 @@ export async function GET() {
     // of investor visibility — being on an old watchlist shouldn't keep surfacing their score
     // after they gate themselves.
     const [{ data: profiles }, { data: scores }] = await Promise.all([
-      admin.from('founder_profiles').select('user_id, startup_name, full_name, industry, stage, visibility_gated').in('user_id', founderIds),
+      admin.from('founder_profiles').select('user_id, startup_name, company_name, full_name, industry, stage, visibility_gated').in('user_id', founderIds),
       admin.from('qscore_history').select('user_id, overall_score, calculated_at').in('user_id', founderIds).order('calculated_at', { ascending: false }).limit(founderIds.length * 3),
     ])
 
@@ -49,7 +50,7 @@ export async function GET() {
         return {
           ...w,
           founderName:  (p?.full_name  as string) ?? 'Unknown',
-          startupName:  (p?.startup_name as string) ?? 'Unknown',
+          startupName:  p ? getStartupDisplayName(p as { company_name?: string | null; startup_name?: string | null; full_name?: string | null }) : 'Unknown',
           industry:     (p?.industry   as string) ?? '',
           stage:        (p?.stage      as string) ?? '',
           currentScore: scoreMap.get(w.founder_id as string) ?? 0,

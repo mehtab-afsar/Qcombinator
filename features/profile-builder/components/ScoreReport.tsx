@@ -6,6 +6,7 @@ import { surf, bdr, ink, muted, blue, green, amber, red, white } from '@/lib/con
 import { greenTintBg, greenTintBorder, greenTintText, amberTintBg, amberTintBorder, amberTintHeading, amberTintText } from '@/features/profile-builder/lib/constants';
 import { buildScoreNarrative } from '@/features/profile-builder/lib/scoreNarrative';
 import { buildMemoHtml } from '@/features/profile-builder/lib/memoPdfTemplate';
+import { useQScore } from '@/features/qscore/hooks/useQScore';
 import type { SubmitResult } from '@/features/profile-builder/types';
 
 interface ScoreReportProps {
@@ -18,6 +19,7 @@ interface ScoreReportProps {
 
 export function ScoreReport({ submitResult, companyName, rateLimitUntil, retakeLoading, onRetake }: ScoreReportProps) {
   const router = useRouter();
+  const { refetch: refetchQScore } = useQScore();
 
   if (submitResult.iqBreakdown.length === 0) return null;
 
@@ -153,7 +155,7 @@ export function ScoreReport({ submitResult, companyName, rateLimitUntil, retakeL
 
         {/* Single CTA row */}
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <button onClick={() => router.push('/founder/dashboard')} style={{ padding: '10px 22px', borderRadius: 9, border: 'none', background: blue, color: white, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', boxShadow: `0 2px 10px ${blue}33` }}>
+          <button onClick={async () => { await refetchQScore(); router.push('/founder/dashboard'); }} style={{ padding: '10px 22px', borderRadius: 9, border: 'none', background: blue, color: white, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', boxShadow: `0 2px 10px ${blue}33` }}>
             Go to Dashboard →
           </button>
           <button onClick={() => router.push('/founder/improve-qscore')} style={{ padding: '10px 22px', borderRadius: 9, border: `1px solid ${bdr}`, background: 'transparent', color: ink, fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>

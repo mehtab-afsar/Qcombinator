@@ -25,7 +25,7 @@ interface RawRequest {
 interface RawThread {
   connectionId: string; founderId: string; founderName: string; startupName: string;
   stage: string; industry: string; qScore: number; updatedAt: string;
-  personalMessage?: string; unreadCount: number;
+  personalMessage?: string; personalMessageFromMe?: boolean; unreadCount: number;
   latestMessage?: { body: string; createdAt: string; senderId: string } | null;
 }
 
@@ -42,7 +42,8 @@ function toRequestDetail(r: RawRequest): PendingRequestDetail {
 function toConversationSummary(t: RawThread): ConversationSummary {
   return {
     id: t.connectionId, displayName: t.startupName, subtitle: `${t.founderName} · ${t.industry}`,
-    personalMessage: t.personalMessage ?? null, status: 'accepted', createdAt: t.updatedAt,
+    personalMessage: t.personalMessage ?? null, personalMessageFromMe: t.personalMessageFromMe ?? false,
+    status: 'accepted', createdAt: t.updatedAt,
     unreadCount: t.unreadCount,
     lastMessage: t.latestMessage ? { body: t.latestMessage.body, createdAt: t.latestMessage.createdAt, senderId: t.latestMessage.senderId } : null,
   };
@@ -219,6 +220,7 @@ export default function InvestorMessagesPage() {
             subtitle={panel.data.subtitle}
             avatarSeed={panel.data.displayName}
             personalMessage={panel.data.personalMessage}
+            personalMessageFromMe={panel.data.personalMessageFromMe ?? false}
             createdAt={panel.data.createdAt}
             myUserId={myUserId}
             canMessage
