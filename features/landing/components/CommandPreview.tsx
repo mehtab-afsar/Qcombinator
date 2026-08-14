@@ -188,7 +188,7 @@ export function CommandPreview() {
       </Reveal>
       <Reveal delay={0.06}>
         <h2 style={{ fontFamily: FONT_SERIF, fontSize: "clamp(34px, 5vw, 58px)", fontWeight: 460, lineHeight: 1.07, letterSpacing: "-0.025em", color: L.ink, margin: "0 0 20px", textWrap: "balance", textAlign: "center", maxWidth: 720, marginInline: "auto" }}>
-          Five executives, running on their own clock.
+          Multiple executives, running on their own clock.
         </h2>
       </Reveal>
       <Reveal delay={0.12}>
